@@ -36,6 +36,29 @@ class EventException(Exception):
     pass
 
 
+_ENDED_STRIPE_STATUSES = frozenset({"canceled", "incomplete_expired"})
+
+
+def _stripe_subscription_ended(subscription_id: str) -> bool:
+    """Whether Stripe reports the subscription as ended. Unknown counts as not ended,
+    so the event is refused and Stripe retries it."""
+    stripe = _load_stripe()
+    if stripe is None:
+        return False
+
+    try:
+        stripe_subscription = stripe.Subscription.retrieve(subscription_id)
+    except Exception:  # pylint: disable=too-broad-exception
+        log.warn("Failed to read subscription %s from Stripe", subscription_id)
+        return False
+
+    status = getattr(stripe_subscription, "status", None)
+    if status is None and isinstance(stripe_subscription, dict):
+        status = stripe_subscription.get("status")
+
+    return status in _ENDED_STRIPE_STATUSES
+
+
 class SubscriptionsService:
     def __init__(
         self,
@@ -344,12 +367,19 @@ class SubscriptionsService:
 
         # Stripe sends the last failed payment and the cancellation it causes in the
         # same second, in either order. A failure for a subscription the row no longer
-        # records has nothing left to pause. A paid row with no recorded id still pauses.
+        # records has nothing left to pause. A free row with no recorded id is either
+        # past a cancellation or still waiting for its CREATED event, so Stripe decides.
         if (
             event == Event.SUBSCRIPTION_PAUSED
             and subscription_id
             and subscription.subscription_id != subscription_id
-            and (subscription.subscription_id or subscription.plan == free_plan)
+            and (
+                subscription.subscription_id
+                or (
+                    subscription.plan == free_plan
+                    and _stripe_subscription_ended(subscription_id)
+                )
+            )
         ):
             log.info(
                 "[billing] [internal] stale subscription event | %s | %s | recorded=%s | event=%s",

@@ -5,6 +5,7 @@ An `invoice.payment_failed` delivery reached the terminal branch of
 organization, no plan. These tests pin what each rejection now records.
 """
 
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -175,12 +176,8 @@ async def test_cancelling_an_already_free_plan_stays_a_no_op(warnings):
     assert warnings == []
 
 
-@pytest.mark.asyncio
-async def test_a_pause_for_a_subscription_the_row_no_longer_records_is_a_no_op(
-    warnings,
-):
-    organization_id = uuid4()
-    service = SubscriptionsService(
+def _free_row_service(organization_id):
+    return SubscriptionsService(
         subscriptions_dao=_DAO(
             SubscriptionDTO(
                 organization_id=organization_id,
@@ -193,7 +190,28 @@ async def test_a_pause_for_a_subscription_the_row_no_longer_records_is_a_no_op(
         )
     )
 
-    subscription = await service.process_event(
+
+def _stripe_reports(monkeypatch, status=None, error=None):
+    def retrieve(subscription_id):
+        if error:
+            raise error
+        return SimpleNamespace(id=subscription_id, status=status)
+
+    monkeypatch.setattr(
+        subscriptions_service_module,
+        "_load_stripe",
+        lambda: SimpleNamespace(Subscription=SimpleNamespace(retrieve=retrieve)),
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_pause_after_the_cancellation_is_a_no_op(warnings, monkeypatch):
+    # Stripe cancelled the subscription when its last retry failed, and the
+    # cancellation was processed before this failure.
+    _stripe_reports(monkeypatch, status="canceled")
+    organization_id = uuid4()
+
+    subscription = await _free_row_service(organization_id).process_event(
         organization_id=str(organization_id),
         event=Event.SUBSCRIPTION_PAUSED,
         subscription_id="sub_ended",
@@ -202,6 +220,48 @@ async def test_a_pause_for_a_subscription_the_row_no_longer_records_is_a_no_op(
     assert subscription.plan == HOBBY
     assert subscription.active is True
     assert warnings == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["active", "incomplete", "past_due", "trialing"])
+async def test_a_pause_before_the_created_event_is_still_refused(
+    warnings, monkeypatch, status
+):
+    # Checkout created the subscription but CREATED has not been processed yet.
+    # Refusing keeps Stripe retrying, so the pause applies once the row records it.
+    _stripe_reports(monkeypatch, status=status)
+    organization_id = uuid4()
+
+    with pytest.raises(EventException):
+        await _free_row_service(organization_id).process_event(
+            organization_id=str(organization_id),
+            event=Event.SUBSCRIPTION_PAUSED,
+            subscription_id="sub_new",
+        )
+
+
+@pytest.mark.asyncio
+async def test_a_pause_is_refused_when_stripe_cannot_confirm_the_end(
+    warnings, monkeypatch
+):
+    _stripe_reports(monkeypatch, error=RuntimeError("stripe is down"))
+    organization_id = uuid4()
+
+    with pytest.raises(EventException):
+        await _free_row_service(organization_id).process_event(
+            organization_id=str(organization_id),
+            event=Event.SUBSCRIPTION_PAUSED,
+            subscription_id="sub_unknown",
+        )
+
+    monkeypatch.setattr(subscriptions_service_module, "_load_stripe", lambda: None)
+
+    with pytest.raises(EventException):
+        await _free_row_service(organization_id).process_event(
+            organization_id=str(organization_id),
+            event=Event.SUBSCRIPTION_PAUSED,
+            subscription_id="sub_unknown",
+        )
 
 
 @pytest.mark.asyncio

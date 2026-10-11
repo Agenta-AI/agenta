@@ -473,6 +473,15 @@ async def test_a_payment_failure_after_the_cancellation_is_acknowledged(monkeypa
     infos = []
     monkeypatch.setattr(subscriptions_service_module, "get_free_plan", lambda: hobby)
     monkeypatch.setattr(
+        subscriptions_service_module,
+        "_load_stripe",
+        lambda: SimpleNamespace(
+            Subscription=SimpleNamespace(
+                retrieve=lambda subscription_id: SimpleNamespace(status="canceled")
+            )
+        ),
+    )
+    monkeypatch.setattr(
         subscriptions_service_module.log,
         "info",
         lambda message, *args, **kwargs: infos.append(message % args),
