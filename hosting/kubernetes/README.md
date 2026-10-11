@@ -281,6 +281,64 @@ replacement only after it exits. With the default of two workers, a pod serves o
 one worker while the other drains. The jitter keeps the two workers from
 recycling at the same time.
 
+### Idle connections and the load balancer
+
+A load balancer keeps a connection to a pod open after a request and reuses it
+for the next one. Gunicorn does the same from its side, for `keepAlive` seconds.
+Each side closes an idle connection after its own timeout. If the worker closes
+first, a request that the balancer sends in that same instant fails with 502
+before any application code runs. The user sees an error after a few
+milliseconds; a retry works. So the worker's keep-alive must be longer than the
+balancer's idle timeout.
+
+The chart sets `keepAlive: 620` on the api and on services, the two workloads the
+balancer reaches directly. That is above the default idle timeout of each
+balancer below:
+
+| Load balancer | Default idle timeout to the backend |
+|---|---|
+| AWS Application Load Balancer | 60 s (configurable) |
+| ingress-nginx | 60 s (`upstream-keepalive-timeout`) |
+| Traefik | 90 s (`serversTransport` `idleConnTimeout`) |
+| Google Cloud external Application Load Balancer | 600 s (fixed) |
+
+If you raise the idle timeout on your balancer, raise `keepAlive` above it:
+
+```yaml
+api:
+  gunicorn:
+    keepAlive: 4000   # e.g. an AWS ALB with idle timeout 3600 s
+services:
+  gunicorn:
+    keepAlive: 4000
+```
+
+An idle connection costs a worker a few kilobytes, and the balancer pools its
+connections, so a long keep-alive is cheap. Before 0.122.5 the chart used
+gunicorn's default of 5 seconds, which is below every balancer in the table.
+
+### api pods and the cluster autoscaler
+
+On GKE Autopilot the api can fall into a loop. The chart spreads api pods over
+distinct nodes. Autopilot keeps a few spare nodes warm. When an api pod moves, the
+spread rule sends it to a near-empty spare node; about ten minutes later the
+autoscaler judges that node under-used, removes it, and evicts the api pod again.
+Each cycle restarts one api pod for about 90 seconds. No request fails behind a
+draining load balancer, but the churn is constant. `api.safeToEvict: false` adds
+the annotation `cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` to api
+pods, which tells the autoscaler not to evict them to empty a node. The cost is
+that a node holding an api pod stays up even when otherwise empty, at most one
+extra node per api replica. The annotation does not block rolling updates or an
+operator drain, and Autopilot may still move the pod for a node upgrade. By
+default the key is unset and the chart adds no annotation, so the autoscaler can
+evict api pods as before. Use `api.podAnnotations` for any other pod annotation;
+a key there overrides the one `safeToEvict` sets.
+
+```yaml
+api:
+  safeToEvict: false
+```
+
 ## Availability under disruption
 
 The chart renders a PodDisruptionBudget and topologySpreadConstraints per

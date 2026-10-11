@@ -9,6 +9,15 @@
        request limit. See the README section "Long streams and worker shutdown". */}}
 {{- $gunicorn := default dict $api.gunicorn -}}
 {{- $gracefulTimeout := int (hasKey $gunicorn "gracefulTimeout" | ternary $gunicorn.gracefulTimeout 900) -}}
+{{- /* keepAlive is how long a worker holds an idle connection open. A load balancer in
+       front of the api holds its side open for its own idle timeout, and reuses the
+       connection for the next request. If the worker closes first, a request that the
+       balancer sends in that same instant fails with 502 before any code runs. So keepAlive
+       must exceed the balancer's idle timeout. The default, 620, is above the defaults of
+       the common balancers: 60 s (AWS ALB, ingress-nginx), 90 s (Traefik), 600 s (Google
+       Cloud external Application Load Balancer). See the README section "Idle connections
+       and the load balancer". */}}
+{{- $keepAlive := int (hasKey $gunicorn "keepAlive" | ternary $gunicorn.keepAlive 620) -}}
 {{- if eq (include "agenta.api.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -44,6 +53,22 @@ spec:
       app.kubernetes.io/component: api
   template:
     metadata:
+      {{- /* `api.safeToEvict: false` tells the cluster autoscaler not to evict an api pod to
+             empty a node. On GKE Autopilot the scheduler spreads api pods over distinct
+             nodes, lands a new one on a near-empty spare node, and the autoscaler then
+             removes that node and evicts the pod again, every few minutes. The annotation
+             stops that loop. It does not block an operator drain or a rolling update, and
+             Autopilot may still evict the pod for a node upgrade. The default leaves the
+             pod evictable, which is right where no autoscaler runs. `api.podAnnotations`
+             adds or overrides keys. */}}
+      {{- $annotations := deepCopy (default dict $api.podAnnotations) -}}
+      {{- if and (hasKey $api "safeToEvict") (not $api.safeToEvict) }}
+      {{- $annotations = merge $annotations (dict "cluster-autoscaler.kubernetes.io/safe-to-evict" "false") }}
+      {{- end }}
+      {{- with $annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       labels:
         {{- include "agenta.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: api
@@ -95,6 +120,8 @@ spec:
             - {{ int (hasKey $gunicorn "timeout" | ternary $gunicorn.timeout 60) | quote }}
             - --graceful-timeout
             - {{ $gracefulTimeout | quote }}
+            - --keep-alive
+            - {{ $keepAlive | quote }}
             - --log-level
             - info
             - --access-logfile

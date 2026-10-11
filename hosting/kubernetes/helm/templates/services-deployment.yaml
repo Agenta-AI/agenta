@@ -1,6 +1,12 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $services := default dict $values.services -}}
 {{- $newrelic := default dict $values.newrelic -}}
+{{- /* keepAlive: how long a worker holds an idle connection open. It must exceed the
+       idle timeout of the load balancer in front of services, or a request the balancer
+       sends on a connection the worker is closing fails with 502. Default 620, as for the
+       api; see the same note in api-deployment.yaml. */}}
+{{- $gunicorn := default dict $services.gunicorn -}}
+{{- $keepAlive := int (hasKey $gunicorn "keepAlive" | ternary $gunicorn.keepAlive 620) -}}
 {{- if eq (include "agenta.services.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -81,6 +87,8 @@ spec:
             - "60"
             - --graceful-timeout
             - "60"
+            - --keep-alive
+            - {{ $keepAlive | quote }}
             - --log-level
             - info
             - --access-logfile

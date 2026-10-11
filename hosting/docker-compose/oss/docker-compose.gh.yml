@@ -69,6 +69,9 @@ services:
         # worker takes new ones. A container stop still uses docker's default 10 s:
         # a compose recreate stops the old container before it starts the new one, so
         # a longer stop_grace_period would only make an upgrade's downtime longer.
+        # --keep-alive is longer than the idle timeout of the proxy in front (Traefik keeps an
+        # idle connection to the worker for 90 s). If the worker closed first, a request the
+        # proxy sends on that connection in the same instant would fail with 502.
         command: >
             newrelic-admin run-program gunicorn entrypoints.routers:app
             --bind 0.0.0.0:8000
@@ -76,7 +79,7 @@ services:
             --workers 2
             --worker-connections 1000
             --backlog 2048
-            --keep-alive 5
+            --keep-alive 620
             --max-requests ${AGENTA_API_MAX_REQUESTS:-100000}
             --max-requests-jitter ${AGENTA_API_MAX_REQUESTS_JITTER:-10000}
             --timeout 60
@@ -280,6 +283,9 @@ services:
         #     dockerfile: services/oss/docker/Dockerfile.gh
         image: ghcr.io/agenta-ai/${AGENTA_SERVICES_IMAGE_NAME:-agenta-services}:${AGENTA_SERVICES_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
+        # --keep-alive is longer than the idle timeout of the proxy in front (Traefik keeps an
+        # idle connection to the worker for 90 s). If the worker closed first, a request the
+        # proxy sends on that connection in the same instant would fail with 502.
         command: >
             newrelic-admin run-program gunicorn entrypoints.main:app
             --bind 0.0.0.0:8080
@@ -287,7 +293,7 @@ services:
             --workers 2
             --worker-connections 1000
             --backlog 2048
-            --keep-alive 5
+            --keep-alive 620
             --max-requests 10000
             --max-requests-jitter 1000
             --timeout 60
