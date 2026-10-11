@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import {act} from "react"
 
+import type {ToolConnection} from "@agenta/entities/gatewayTool"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, describe, expect, it, vi} from "vitest"
+
+import {useSeedToolConnections} from "@/features/onboarding/useSeedToolConnections"
 
 const state = vi.hoisted(() => ({
     createToolConnection: vi.fn(() => Promise.resolve({})),
@@ -18,10 +21,6 @@ vi.mock("@agenta/shared/state", async () => {
     const {atom} = await import("jotai")
     return {projectIdAtom: atom("proj-1")}
 })
-
-import type {ToolConnection} from "@agenta/entities/gatewayTool"
-
-import {useSeedToolConnections} from "@/features/onboarding/useSeedToolConnections"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
