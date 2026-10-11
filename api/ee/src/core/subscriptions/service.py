@@ -344,11 +344,12 @@ class SubscriptionsService:
 
         # Stripe sends the last failed payment and the cancellation it causes in the
         # same second, in either order. A failure for a subscription the row no longer
-        # records has nothing left to pause.
+        # records has nothing left to pause. A paid row with no recorded id still pauses.
         if (
             event == Event.SUBSCRIPTION_PAUSED
             and subscription_id
             and subscription.subscription_id != subscription_id
+            and (subscription.subscription_id or subscription.plan == free_plan)
         ):
             log.info(
                 "[billing] [internal] stale subscription event | %s | %s | recorded=%s | event=%s",

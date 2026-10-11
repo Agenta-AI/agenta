@@ -232,3 +232,28 @@ async def test_a_pause_for_another_subscription_leaves_a_paid_row_alone(warnings
 
     assert subscription.active is True
     assert warnings == []
+
+
+@pytest.mark.asyncio
+async def test_a_paid_row_with_no_recorded_subscription_still_pauses(warnings):
+    organization_id = uuid4()
+    service = SubscriptionsService(
+        subscriptions_dao=_DAO(
+            SubscriptionDTO(
+                organization_id=organization_id,
+                customer_id="cus_123",
+                subscription_id=None,
+                plan=PRO,
+                active=True,
+                anchor=1,
+            )
+        )
+    )
+
+    subscription = await service.process_event(
+        organization_id=str(organization_id),
+        event=Event.SUBSCRIPTION_PAUSED,
+        subscription_id="sub_123",
+    )
+
+    assert subscription.active is False
