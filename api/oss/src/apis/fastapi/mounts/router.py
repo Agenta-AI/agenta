@@ -32,6 +32,7 @@ from oss.src.core.mounts.types import (
     MountArtifactNotFound,
     MountDataInvalid,
     MountFileNotFound,
+    MountFileTooLarge,
     MountImmutableField,
     MountNameInvalid,
     MountNotFound,
@@ -62,6 +63,7 @@ from oss.src.apis.fastapi.mounts.models import (
 )
 from oss.src.apis.fastapi.mounts.utils import (
     BINARY_RESPONSE,
+    TEXT_READ_TOO_LARGE_RESPONSE,
     ZIP_RESPONSE,
     download_mount_file,
     merge_mount_query,
@@ -127,6 +129,11 @@ def handle_mount_exceptions():
             except MountFileNotFound as e:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
+                    detail=e.message,
+                ) from e
+            except MountFileTooLarge as e:
+                raise HTTPException(
+                    status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                     detail=e.message,
                 ) from e
             except MountProtected as e:
@@ -317,6 +324,7 @@ class MountsRouter:
             methods=["GET"],
             operation_id="get_mount_files",
             response_model=None,
+            responses=TEXT_READ_TOO_LARGE_RESPONSE,
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
