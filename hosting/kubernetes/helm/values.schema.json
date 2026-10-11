@@ -1310,8 +1310,24 @@
                   "type": "integer",
                   "minimum": 1,
                   "description": "Seconds a recycled or stopped worker gets to finish its open requests before it is killed. Default 900 (15 minutes). GKE Autopilot caps the pod grace period at 600 seconds, so use 560 or less there."
+                },
+                "keepAlive": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Seconds a worker holds an idle connection open. Must exceed the idle timeout of the load balancer in front of the api, or a request sent on a closing connection fails with 502 before any code runs. Default 620, above the default idle timeout of AWS ALB and ingress-nginx (60), Traefik (90) and the Google Cloud external Application Load Balancer (600)."
                 }
               }
+            },
+            "safeToEvict": {
+              "type": "boolean",
+              "description": "false adds the annotation cluster-autoscaler.kubernetes.io/safe-to-evict=false to api pods, so the cluster autoscaler does not evict them to empty a node. Stops the loop where the autoscaler removes a near-empty node that holds an api pod and evicts the pod again (seen on GKE Autopilot). Unset or true: no annotation, the pod stays evictable."
+            },
+            "podAnnotations": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              },
+              "description": "Extra annotations on api pods. A key here overrides the one safeToEvict sets."
             }
           }
         }
@@ -1338,7 +1354,27 @@
       ]
     },
     "services": {
-      "$ref": "#/$defs/component"
+      "allOf": [
+        {
+          "$ref": "#/$defs/component"
+        },
+        {
+          "properties": {
+            "gunicorn": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Gunicorn settings for services. Only keepAlive is configurable; the other worker settings are fixed in the template.",
+              "properties": {
+                "keepAlive": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Seconds a worker holds an idle connection open. Same rule as api.gunicorn.keepAlive: exceed the load balancer's idle timeout. Default 620."
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "workerStreams": {
       "$ref": "#/$defs/component"

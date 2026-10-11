@@ -412,6 +412,16 @@ redisDurable:
 #     maxRequests: 100000      # recycle a worker after this many requests (leak guard)
 #     maxRequestsJitter: 10000 # spread the recycles so workers do not drain together
 #     timeout: 60              # hung-worker check, not a request limit
+#     keepAlive: 620           # seconds a worker holds an idle connection open. Must exceed
+#                              # the idle timeout of the load balancer in front of the api, or
+#                              # a request sent on a closing connection fails with 502. 620 is
+#                              # above the defaults of AWS ALB and ingress-nginx (60 s), Traefik
+#                              # (90 s) and the Google Cloud external load balancer (600 s).
+#   safeToEvict: false         # add the autoscaler annotation safe-to-evict=false to api pods.
+#                              # Stops the loop where a new api pod lands on a near-empty node
+#                              # and the autoscaler removes that node minutes later (seen on GKE
+#                              # Autopilot). Default: unset, evictable (no annotation).
+#   podAnnotations: {}         # extra annotations on api pods; they override safeToEvict's key
 #   terminationGracePeriodSeconds: 45   # default: gunicorn.gracefulTimeout + 30
 #   lifecycle:
 #     preStop:
@@ -420,6 +430,9 @@ redisDurable:
 #   strategy:
 #     rollingUpdate:
 #       maxUnavailable: 0
+# services:
+#   gunicorn:
+#     keepAlive: 620           # same meaning and default as api.gunicorn.keepAlive
 
 # ================================================================== #
 # networkPolicy — lock the bundled data stores down to this release.
