@@ -475,3 +475,17 @@ async def test_a_failure_then_the_deletion_ends_on_the_free_plan(stripe):
     assert dao.subscription.plan == HOBBY
     assert dao.subscription.subscription_id is None
     assert dao.subscription.active is True
+
+
+@pytest.mark.asyncio
+async def test_a_deletion_without_a_subscription_id_is_refused(stripe):
+    dao, router = _setup(_row(plan=PRO, subscription_id="sub_1"))
+    event = _subscription_event("deleted", "sub_1", "canceled")
+    event.data.object.id = None
+
+    response = await _deliver(router, stripe, event)
+
+    assert response.status_code == 400
+    assert dao.subscription.plan == PRO
+    assert dao.subscription.subscription_id == "sub_1"
+    router._reset_organization_flags.assert_not_awaited()

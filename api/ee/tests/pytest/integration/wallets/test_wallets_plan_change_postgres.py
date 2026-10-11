@@ -67,7 +67,18 @@ class _InMemorySubscriptionsDAO:
     async def read(self, *, organization_id):
         return self.subscription
 
-    async def update(self, *, subscription):
+    async def update(
+        self,
+        *,
+        subscription,
+        check_subscription_id=False,
+        expected_subscription_id=None,
+    ):
+        if (
+            check_subscription_id
+            and self.subscription.subscription_id != expected_subscription_id
+        ):
+            return None
         self.subscription = subscription
         return subscription
 

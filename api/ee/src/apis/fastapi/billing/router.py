@@ -595,6 +595,20 @@ class BillingRouter:
                 event = Event.SUBSCRIPTION_CANCELLED
                 subscription_id = _stripe_get(stripe_event.data.object, "id")
 
+                # Without the id there is no way to tell which subscription ended.
+                if not subscription_id:
+                    log.warn(
+                        "Skipping stripe event: %s (no subscription)",
+                        stripe_event.type,
+                    )
+                    return JSONResponse(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        content={
+                            "status": "error",
+                            "message": "Subscription ID not found",
+                        },
+                    )
+
             else:
                 log.warn("Skipping stripe event: %s (unsupported)", stripe_event.type)
                 return JSONResponse(
