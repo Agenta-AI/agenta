@@ -228,7 +228,7 @@ class OTelTracingResponse(BaseModel):
             "Windowing of the next page. Present when this page is full (it holds "
             '`windowing.limit` spans, or traces with `focus="trace"`); send it '
             "as `windowing` in the next request. "
-            "Absent on the last page."
+            "When the last page is full, the page after it is empty."
         ),
     )
 
@@ -265,7 +265,7 @@ class TracesResponse(BaseModel):
         description=(
             "Windowing of the next page. Present when this page is full (it holds "
             "`windowing.limit` traces); send it as `windowing` in the next request. "
-            "Absent on the last page."
+            "When the last page is full, the page after it is empty."
         ),
     )
 
@@ -295,7 +295,7 @@ class SpansResponse(BaseModel):
         description=(
             "Windowing of the next page. Present when this page is full (it holds "
             "`windowing.limit` spans); send it as `windowing` in the next request. "
-            "Absent on the last page."
+            "When the last page is full, the page after it is empty."
         ),
     )
 

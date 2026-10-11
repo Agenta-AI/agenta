@@ -442,40 +442,52 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
                     },
                 ])
 
-                // The API returns at most SESSION_SPANS_PAGE_SIZE traces per call (it has
-                // a default and a maximum limit), so read the session page by page until
-                // a page is not full. The cursor overlaps by 1 ms, so skip repeats.
+                // The API returns one page per call (it has a default and a maximum
+                // limit), with a `windowing` cursor while more traces may match. Read the
+                // whole session by following that cursor.
                 specificParams.size = SESSION_SPANS_PAGE_SIZE
-                let result: Awaited<ReturnType<typeof executeTraceQuery>> | undefined
-                let cursor = pageParam as {newest?: string} | undefined
-                const seen = new Set<string>()
-                for (let page = 0; page < SESSION_SPANS_MAX_PAGES; page++) {
+                const first = await executeTraceQuery({
+                    params: specificParams,
+                    pageParam: pageParam as {newest?: string} | undefined,
+                    appId: appId as string,
+                    projectId: projectId ?? "",
+                    isHasAnnotationSelected,
+                    hasAnnotationConditions,
+                    hasAnnotationOperator,
+                })
+                const traces = [...first.traces]
+                let traceCount = first.traceCount
+                let next = first.nextWindowing
+                let pages = 1
+                while (next && pages < SESSION_SPANS_MAX_PAGES) {
                     const pageResult = await executeTraceQuery({
-                        params: specificParams,
-                        pageParam: cursor,
+                        params: {
+                            ...specificParams,
+                            size: next.limit ?? SESSION_SPANS_PAGE_SIZE,
+                            cursor: next.next,
+                            newest: next.newest,
+                            oldest: next.oldest,
+                            order: next.order,
+                        },
                         appId: appId as string,
                         projectId: projectId ?? "",
                         isHasAnnotationSelected,
                         hasAnnotationConditions,
                         hasAnnotationOperator,
                     })
-                    const fresh = pageResult.traces.filter((t) => {
-                        const key = `${t.trace_id}:${t.span_id}`
-                        if (seen.has(key)) return false
-                        seen.add(key)
-                        return true
-                    })
-                    if (result) {
-                        result.traces.push(...fresh)
-                        result.traceCount += pageResult.traceCount
-                    } else {
-                        result = {...pageResult, traces: fresh}
-                    }
-                    const pageSize = pageResult.annotationPageSize ?? pageResult.traces.length
-                    if (pageSize < SESSION_SPANS_PAGE_SIZE || !pageResult.nextCursor) break
-                    cursor = {newest: pageResult.nextCursor}
+                    traces.push(...pageResult.traces)
+                    traceCount += pageResult.traceCount
+                    next = pageResult.nextWindowing
+                    pages += 1
                 }
-                if (!result) throw new Error("session spans query returned no page")
+                if (next) {
+                    console.warn(
+                        `[sessionsSpansQueryAtom] session ${sessionId} has more than ` +
+                            `${SESSION_SPANS_PAGE_SIZE * SESSION_SPANS_MAX_PAGES} traces; ` +
+                            "showing the newest ones only",
+                    )
+                }
+                const result = {...first, traces, traceCount}
                 // Tag each trace with the session it was queried for. The grouping
                 // below relies on this instead of re-reading `attributes.ag.session.id`:
                 // the new /traces/query endpoint canonicalises `ag` to {data,type,metrics}

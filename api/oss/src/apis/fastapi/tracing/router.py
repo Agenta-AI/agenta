@@ -342,7 +342,7 @@ class TracingRouter:
         `limit` to cap the number of traces/spans returned. One response holds
         at most one page: 100 rows when `limit` is not set, and never more than
         1000 (the server settings `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT` and
-        `AGENTA_API_TRACING_QUERY_MAX_LIMIT`). While more rows match, the
+        `AGENTA_API_TRACING_QUERY_MAX_LIMIT`). When the page is full, the
         response has a `windowing` object: send it as `windowing` to read the
         next page.
 
@@ -1109,8 +1109,8 @@ class SpansRouter:
         Returns `{count, spans, windowing}`. One response holds at most one
         page: 100 spans when `windowing.limit` is not set, and never more than
         1000 (the server settings `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT` and
-        `AGENTA_API_TRACING_QUERY_MAX_LIMIT`). `windowing` is present while more
-        spans match: send it as `windowing` to read the next page.
+        `AGENTA_API_TRACING_QUERY_MAX_LIMIT`). `windowing` is present when the page
+        is full: send it as `windowing` to read the next page.
 
         Span `attributes` leave out `ag.data.parameters.agent.skills` (the
         skill text of an agent run). `GET /spans/{trace_id}/{span_id}`,
@@ -1590,8 +1590,8 @@ class TracesRouter:
         Returns `{count, traces: [...], windowing}`. One response holds at most
         one page: 100 traces when `windowing.limit` is not set, and never more
         than 1000 (the server settings `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT`
-        and `AGENTA_API_TRACING_QUERY_MAX_LIMIT`). `windowing` is present while
-        more traces match: send it as `windowing` to read the next page. A
+        and `AGENTA_API_TRACING_QUERY_MAX_LIMIT`). `windowing` is present when
+        the page is full: send it as `windowing` to read the next page. A
         trace with matching spans on both sides of a page boundary can appear
         on both pages; deduplicate by `trace_id`. A query that filters only on
         `trace_id` returns those traces whole, with no limit.

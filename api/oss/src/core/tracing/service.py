@@ -419,6 +419,13 @@ class TracingService:
             updates["limit"] = request_windowing.limit
         if request_windowing and request_windowing.next is not None:
             updates["next"] = request_windowing.next
+            # The cursor of a next page is `next` plus the time it moves (`newest`, or
+            # `oldest` in ascending order). The returned cursor keeps the other bound
+            # of the revision, so the page stays inside the revision's window.
+            if request_windowing.newest is not None:
+                updates["newest"] = request_windowing.newest
+            if request_windowing.oldest is not None:
+                updates["oldest"] = request_windowing.oldest
         if updates:
             merged_windowing = merged_windowing.model_copy(update=updates)
         return merged_windowing

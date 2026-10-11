@@ -104,7 +104,7 @@ curl -X POST "$AGENTA_HOST/api/applications/query" \
 
 - With no `windowing.limit`, a page holds 100 spans (or 100 traces with `focus: "trace"`).
 - A `windowing.limit` above 1000 is lowered to 1000.
-- While more rows match, the response has a `windowing` object. Send that whole object as `windowing` in the next request. The last page has no `windowing`.
+- When a page is full, the response has a `windowing` object. Send that whole object as `windowing` in the next request, and stop when a response has no `windowing`. If the last page is exactly full, the request after it returns an empty page.
 
 ```json
 {

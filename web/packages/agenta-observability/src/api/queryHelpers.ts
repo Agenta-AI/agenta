@@ -5,6 +5,7 @@ import {
     transformTracesResponseToTree,
     transformTracingResponse,
     type PreviewTracesRateLimit,
+    type PreviewTracesWindowing,
 } from "@agenta/entities/trace"
 
 import type {TraceSpanNode} from "../core/traceSpan"
@@ -292,6 +293,8 @@ export const executeTraceQuery = async ({
     // export's adaptive pacing can throttle proactively. Reset each call, so
     // even a long-running scan sees fresh bucket state on every page.
     let lastRateLimit: PreviewTracesRateLimit = {remaining: null, limit: null}
+    // The API's cursor for the next page of the last request.
+    let lastNextWindowing: PreviewTracesWindowing | undefined
 
     const fetchPage = async (pageParams: Record<string, unknown>) => {
         const result = await fetchAllPreviewTracesWithMeta(
@@ -301,6 +304,7 @@ export const executeTraceQuery = async ({
             signal,
         )
         lastRateLimit = result.rateLimit
+        lastNextWindowing = result.nextWindowing
         return result.data
     }
 
@@ -444,6 +448,9 @@ export const executeTraceQuery = async ({
         traces: transformed,
         traceCount: (data as {count?: number} | null)?.count ?? 0,
         nextCursor,
+        // The API's own cursor. Only the plain flow has one; the "has annotation" flow
+        // pages on its first step and uses `nextCursor`.
+        nextWindowing: isHasAnnotationSelected === -1 ? lastNextWindowing : undefined,
         annotationPageSize,
         rateLimit: lastRateLimit,
     }

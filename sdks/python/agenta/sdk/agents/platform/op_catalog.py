@@ -634,12 +634,12 @@ _QUERY_WORKFLOWS_INPUT_SCHEMA: Dict[str, Any] = {
 # target field to bind.
 _QUERY_SPANS_DESCRIPTION = (
     "Query span records in this project. Use it to verify a past run or scheduled trigger fire "
-    "actually executed its tools. Returns `{count, spans}` with flat spans, including span names, "
+    "actually executed its tools. Returns `{count, spans, windowing}` with flat spans, including span names, "
     "status, attributes, events, and Agenta metrics. Filter by `trace_id` when you know it, or "
     "bracket the test with `windowing.oldest`/`windowing.newest`; then read the tool-call spans "
     "in order and confirm the terminal span completed without an error status. One call returns "
     "one page of spans (100 by default, at most 1000), newest first. When the response has a "
-    "`windowing` object, more spans match: call again with that object as `windowing` to read "
+    "`windowing` object, more spans may match: call again with that object as `windowing` to read "
     "the next page."
 )
 _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {

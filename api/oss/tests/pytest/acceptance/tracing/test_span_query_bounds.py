@@ -90,6 +90,29 @@ class TestSpanQueryPaging:
         seen = [span["span_id"] for page in pages for span in page]
         assert len(seen) == len(set(seen)) == 5
 
+    def test_legacy_query_pages_with_the_windowing_cursor(self, authed_api):
+        tag_key = f"paging_{uuid4().hex[:8]}"
+        traces = [_make_trace(tag_key, "v") for _ in range(3)]
+        filtering = _filtering(tag_key, "v")
+        _ingest(authed_api, traces, filtering, endpoint="/spans/query")
+
+        body = {"focus": "span", "filter": filtering, "limit": 2}
+        seen = []
+        for _ in range(5):
+            response = authed_api("POST", "/tracing/spans/query", json=body)
+            assert response.status_code == 200, response.text
+            page = response.json()
+            seen.extend(span["span_id"] for span in page.get("spans") or [])
+            if not page.get("windowing"):
+                break
+            body = {
+                "focus": "span",
+                "filter": filtering,
+                "windowing": page["windowing"],
+            }
+
+        assert len(seen) == len(set(seen)) == 3
+
     def test_limit_above_the_maximum_is_accepted(self, authed_api):
         tag_key = f"paging_{uuid4().hex[:8]}"
         filtering = _filtering(tag_key, "v")

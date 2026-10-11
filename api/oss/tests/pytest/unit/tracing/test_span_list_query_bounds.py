@@ -282,3 +282,64 @@ def test_default_never_exceeds_the_maximum(monkeypatch):
     monkeypatch.setattr(env.agenta.api.tracing, "query_max_limit", 1000)
 
     assert TracingService.bound_query_windowing(None).limit == 1000
+
+
+# 3. Following a returned cursor ------------------------------------------------------
+
+
+def test_legacy_body_accepts_the_returned_windowing():
+    from oss.src.apis.fastapi.tracing.utils import parse_query_from_body_request
+
+    next_id = uuid4()
+    query = parse_query_from_body_request(
+        focus="span",
+        filter={"conditions": [{"field": "span_name", "value": "x"}]},
+        windowing={
+            "newest": "2026-10-11T09:12:44.120000Z",
+            "oldest": "2026-10-04T09:12:44Z",
+            "next": str(next_id),
+            "limit": 50,
+        },
+    )
+
+    assert query.windowing.next == next_id
+    assert query.windowing.limit == 50
+    assert query.windowing.newest == datetime(
+        2026, 10, 11, 9, 12, 44, 120000, tzinfo=timezone.utc
+    )
+    # The filter is kept: the body is not dropped.
+    assert query.filtering.conditions[0].field == "span_name"
+
+
+def test_saved_revision_keeps_the_cursor_time():
+    stored = Windowing(
+        oldest=datetime(2026, 10, 1, tzinfo=timezone.utc),
+        newest=datetime(2026, 10, 10, tzinfo=timezone.utc),
+        limit=2,
+    )
+    cursor = Windowing(
+        newest=datetime(2026, 10, 5, tzinfo=timezone.utc),
+        oldest=stored.oldest,
+        next=uuid4(),
+        limit=2,
+    )
+
+    merged = TracingService._merge_windowing(
+        stored_windowing=stored,
+        request_windowing=cursor,
+    )
+
+    assert merged.newest == cursor.newest
+    assert merged.oldest == stored.oldest
+    assert merged.next == cursor.next
+
+
+def test_saved_revision_without_cursor_keeps_its_window():
+    stored = Windowing(newest=datetime(2026, 10, 10, tzinfo=timezone.utc), limit=2)
+
+    merged = TracingService._merge_windowing(
+        stored_windowing=stored,
+        request_windowing=Windowing(newest=datetime(2026, 1, 1, tzinfo=timezone.utc)),
+    )
+
+    assert merged.newest == stored.newest

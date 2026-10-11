@@ -296,7 +296,7 @@ class ApiTracingConfig(BaseModel):
     A request for spans by trace id alone (the trace drawer) is not bounded."""
 
     # Used when the request sends no `windowing.limit`. The response carries the
-    # `windowing` of the next page while more rows match.
+    # `windowing` of the next page when the page is full.
     query_default_limit: int = (
         _parse_optional_positive_int_env("AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT")
         or 100
