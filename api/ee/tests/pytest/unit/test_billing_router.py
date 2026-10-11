@@ -273,32 +273,51 @@ async def test_cancel_subscription_reconciles_when_stripe_is_already_canceled(
     router._reset_organization_flags.assert_awaited_once_with("org_123")
 
 
-def _payment_failed_event(organization_id: str = "org_456"):
-    """A representative invoice.payment_failed delivery.
+def _payment_failed_event(organization_id: str = "org_456", shape: str = "2023-10-16"):
+    """An invoice.payment_failed delivery, in one of two Stripe API shapes.
 
-    Shaped like the Stripe API after version 2025-03-31, which moved
-    `subscription_details` under `parent`, and carrying the subscription id the
-    handler needs to treat the invoice as a subscription invoice.
+    "2023-10-16" is the shape production receives: the reported delivery
+    (issue 7495), anonymized. The invoice carries the subscription id and
+    `subscription_details` at the top level, and Stripe also adds `parent`.
+    "2025-03-31" is the newer shape, where only `parent` holds them.
     """
 
-    return SimpleNamespace(
-        id="evt_019739f9",
-        type="invoice.payment_failed",
-        data=SimpleNamespace(
-            object=SimpleNamespace(
-                id="in_123",
-                subscription="sub_123",
-                parent=SimpleNamespace(
-                    subscription_details=SimpleNamespace(
-                        subscription="sub_123",
-                        metadata=SimpleNamespace(
-                            target=billing_router_module.env.stripe.webhook_target,
-                            organization_id=organization_id,
-                        ),
-                    )
-                ),
-            )
+    metadata = SimpleNamespace(
+        organization_id=organization_id,
+        plan=DefaultPlan.CLOUD_V0_PRO.value,
+        target=billing_router_module.env.stripe.webhook_target,
+    )
+    parent = SimpleNamespace(
+        type="subscription_details",
+        subscription_details=SimpleNamespace(
+            subscription="sub_123",
+            metadata=metadata,
         ),
+    )
+
+    if shape == "2023-10-16":
+        invoice = SimpleNamespace(
+            id="in_123",
+            billing_reason="subscription_cycle",
+            status="open",
+            attempt_count=9,
+            next_payment_attempt=None,
+            subscription="sub_123",
+            subscription_details=SimpleNamespace(metadata=metadata),
+            parent=parent,
+        )
+    else:
+        invoice = SimpleNamespace(
+            id="in_123",
+            billing_reason="subscription_cycle",
+            status="open",
+            parent=parent,
+        )
+
+    return SimpleNamespace(
+        id="evt_payment_failed",
+        type="invoice.payment_failed",
+        data=SimpleNamespace(object=invoice),
     )
 
 
@@ -316,7 +335,8 @@ def _install_stripe(monkeypatch, event):
 
 
 @pytest.mark.asyncio
-async def test_payment_failed_pauses_a_paid_subscription(monkeypatch):
+@pytest.mark.parametrize("shape", ["2023-10-16", "2025-03-31"])
+async def test_payment_failed_pauses_a_paid_subscription(monkeypatch, shape):
     subscription_service = SimpleNamespace(
         process_event=AsyncMock(return_value=object()),
     )
@@ -324,7 +344,7 @@ async def test_payment_failed_pauses_a_paid_subscription(monkeypatch):
         subscription_service=subscription_service,
         meters_service=SimpleNamespace(),
     )
-    _install_stripe(monkeypatch, _payment_failed_event())
+    _install_stripe(monkeypatch, _payment_failed_event(shape=shape))
 
     response = await router.handle_events(DummyRequest())
 
@@ -341,8 +361,6 @@ async def test_payment_failed_pauses_a_paid_subscription(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_a_refused_payment_failed_event_answers_4xx_not_500(monkeypatch):
-    # The reported delivery: process_event refused the event and the handler
-    # answered 500 with "unexpected error" and no cause.
     subscription_service = SimpleNamespace(
         process_event=AsyncMock(
             side_effect=billing_router_module.EventException(
@@ -395,7 +413,7 @@ async def test_a_refused_event_logs_the_event_id_the_organization_and_the_reason
     rejection = [line for line in warnings if "Rejecting stripe event" in line]
     assert len(rejection) == 1
     assert "invoice.payment_failed" in rejection[0]
-    assert "evt_019739f9" in rejection[0]
+    assert "evt_payment_failed" in rejection[0]
     assert "org_456" in rejection[0]
     assert "no subscription row" in rejection[0]
 
@@ -422,4 +440,63 @@ async def test_an_unexpected_failure_still_answers_500_with_a_log(monkeypatch):
         await router.handle_events(DummyRequest())
 
     assert caught.value.status_code == 500
-    assert any("evt_019739f9" in line and "org_456" in line for line in errors)
+    assert any("evt_payment_failed" in line and "org_456" in line for line in errors)
+
+
+@pytest.mark.asyncio
+async def test_the_reported_delivery_is_refused_with_4xx_and_names_the_recorded_plan(
+    monkeypatch,
+):
+    # Issue 7495, end to end. Stripe still bills the paid subscription, but the
+    # organization's row records the free plan with no subscription id: the
+    # state a cancellation writes. process_event refuses the pause.
+    from ee.src.core.subscriptions import service as subscriptions_service_module
+    from ee.src.core.subscriptions.service import SubscriptionsService
+    from ee.src.core.subscriptions.types import SubscriptionDTO
+
+    hobby = DefaultPlan.CLOUD_V0_HOBBY.value
+    organization_id = "019739f9-0000-7000-8000-000000000000"
+
+    class _DAO:
+        async def read(self, *, organization_id):
+            return SubscriptionDTO(
+                organization_id=organization_id,
+                customer_id="cus_123",
+                subscription_id=None,
+                plan=hobby,
+                active=True,
+                anchor=8,
+            )
+
+        async def update(self, *, subscription):
+            raise AssertionError("a refused event must not write the row")
+
+    warnings = []
+
+    def _warn(message, *args, **kwargs):
+        warnings.append(message % args)
+
+    monkeypatch.setattr(subscriptions_service_module, "get_free_plan", lambda: hobby)
+    monkeypatch.setattr(subscriptions_service_module.log, "warn", _warn)
+    monkeypatch.setattr(billing_router_module.log, "warn", _warn)
+
+    router = BillingRouter(
+        subscription_service=SubscriptionsService(subscriptions_dao=_DAO()),
+        meters_service=SimpleNamespace(),
+    )
+    _install_stripe(monkeypatch, _payment_failed_event(organization_id))
+
+    response = await router.handle_events(DummyRequest())
+
+    assert response.status_code == 400
+    assert hobby not in loads(response.body)["message"]
+    assert any(
+        "unhandled subscription event" in line
+        and organization_id in line
+        and f"plan={hobby}" in line
+        for line in warnings
+    )
+    assert any(
+        "Rejecting stripe event" in line and "evt_payment_failed" in line
+        for line in warnings
+    )

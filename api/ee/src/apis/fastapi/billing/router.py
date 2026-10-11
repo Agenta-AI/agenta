@@ -609,15 +609,8 @@ class BillingRouter:
                     anchor=anchor,
                 )
             except (EventException, SwitchException) as e:
-                # The event reached our subscription state machine and it
-                # refused: no subscription row for the organization, or a
-                # recorded plan the event does not apply to. Answering 500 said
-                # "we broke, retry", named no cause, and bypassed the
-                # interceptor's own logging, which is why the reported
-                # invoice.payment_failed rejection left nothing to read.
                 # The reason stays in the log, not the body: this endpoint
-                # answers an unauthenticated caller when no webhook secret is
-                # configured.
+                # answers an unauthenticated caller when no webhook secret is set.
                 log.warn(
                     "Rejecting stripe event: %s | event=%s | organization=%s | %s",
                     stripe_event.type,
