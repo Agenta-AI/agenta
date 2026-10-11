@@ -31,9 +31,7 @@ describe("workflowMolecule.selectors.artifactSlug", () => {
         fixture.artifacts["wf-1"] = {slug: "agent-mv0xreqcdp"}
 
         const store = createStore()
-        expect(store.get(workflowMolecule.selectors.artifactSlug("rev-1"))).toBe(
-            "agent-mv0xreqcdp",
-        )
+        expect(store.get(workflowMolecule.selectors.artifactSlug("rev-1"))).toBe("agent-mv0xreqcdp")
     })
 
     it("returns null until the artifact loads, without falling back to the revision", () => {
