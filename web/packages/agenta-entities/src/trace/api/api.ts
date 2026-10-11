@@ -377,10 +377,18 @@ export async function fetchSpansAnalytics(
     if (filter !== undefined && filter !== null) request.filter = JSON.stringify(filter)
     if (specs?.length) request.specs = JSON.stringify(specs)
 
+    // Strict callers retry through TanStack (`shouldRetryDashboard`), which never retries a 504.
+    // Fern's own transport retry (3 times on any 5xx) would run under that rule and turn one
+    // 15 s statement timeout into about a minute of loading skeleton, so it is off for them.
     const call = () =>
         getTracesClient().querySpansAnalytics(
             request,
-            projectScopedRequest(projectId, appId ?? undefined, abortSignal),
+            strict
+                ? {
+                      ...projectScopedRequest(projectId, appId ?? undefined, abortSignal),
+                      maxRetries: 0,
+                  }
+                : projectScopedRequest(projectId, appId ?? undefined, abortSignal),
         )
 
     if (strict) return analyticsResponseSchema.parse(await call())
