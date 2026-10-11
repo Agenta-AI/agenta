@@ -1197,9 +1197,7 @@ describe("displayedModelRow", () => {
         const other = custom("9", "custom", [saved.modelId], {slug: "my-vertex"})
         const withOther = rows([other])
         // The fallback alone would light up the other connection's row.
-        expect(selectedModelRowKey(withOther, saved)).toBe(
-            `9:pi_core:${saved.modelId}`,
-        )
+        expect(selectedModelRowKey(withOther, saved)).toBe(`9:pi_core:${saved.modelId}`)
 
         const shown = displayedModelRow(withOther, saved, ["my-vertex"])
 
