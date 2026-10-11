@@ -20,18 +20,35 @@ CONCURRENTLY does not take the write lock, so a large table stays writable while
 the index builds. An interrupted concurrent build leaves an invalid index that
 `IF NOT EXISTS` then skips, which this revision cannot safely repair: dropping
 the name first would drop the valid production index and rebuild it under load.
-Repair an invalid index by hand, with `REINDEX INDEX CONCURRENTLY <name>`.
+The upgrade checks each index is valid and stops with a repair instruction when
+one is not. Repair an invalid index by hand, with `REINDEX INDEX CONCURRENTLY <name>`.
+
+Downgrade drops only `ix_api_keys_hashed_key`. The six membership indexes existed
+on production before this revision, so downgrade keeps them.
 """
 
 from typing import Sequence, Union
 
 from alembic import op
+from sqlalchemy import text
 
 revision: str = "oss000000040"
 down_revision: Union[str, None] = "oss000000039"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+
+# The six membership indexes predate this revision on production, so downgrade
+# keeps them: dropping them would leave production slower than it was before the
+# upgrade. Only the api-key index is new everywhere.
+_PREEXISTING_ON_PRODUCTION = {
+    "ix_organization_members_user_id_organization_id",
+    "ix_organization_members_organization_id",
+    "ix_workspace_members_user_id_workspace_id",
+    "ix_workspace_members_workspace_id",
+    "ix_project_members_user_id_project_id",
+    "ix_project_members_project_id",
+}
 
 # (index name, table, columns) — the membership pairs serve the `(user_id, scope)`
 # lookup one access check makes; the single-column ones serve listing a scope's
@@ -87,6 +104,26 @@ def upgrade() -> None:
                 f"CREATE INDEX CONCURRENTLY IF NOT EXISTS {name} ON {table} ({columns})"
             )
 
+            # IF NOT EXISTS skips an invalid index left by an interrupted build,
+            # so stop here instead of recording the revision without the index.
+            is_valid = (
+                op.get_bind()
+                .execute(
+                    text(
+                        "SELECT indisvalid FROM pg_catalog.pg_index "
+                        "WHERE indexrelid = pg_catalog.to_regclass(:name)"
+                    ),
+                    {"name": name},
+                )
+                .scalar()
+            )
+            if is_valid is not True:
+                raise RuntimeError(
+                    f"Index {name} is missing or invalid. Run "
+                    f"REINDEX INDEX CONCURRENTLY {name} outside a transaction, "
+                    "then rerun the migration."
+                )
+
         # Without fresh statistics the planner can keep the sequential scan it
         # already costed, which is the slow plan this revision exists to retire.
         for table in dict.fromkeys(table for _, table, _ in _INDEXES):
@@ -96,6 +133,8 @@ def upgrade() -> None:
 def downgrade() -> None:
     with op.get_context().autocommit_block():
         for name, table, _ in _INDEXES:
+            if name in _PREEXISTING_ON_PRODUCTION:
+                continue
             op.drop_index(
                 name,
                 table_name=table,

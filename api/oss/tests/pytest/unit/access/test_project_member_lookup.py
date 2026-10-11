@@ -58,6 +58,9 @@ def lookups(monkeypatch):
     monkeypatch.setattr(db_manager, "get_project_member", _get_project_member)
     monkeypatch.setattr(db_manager, "get_organization", _get_organization)
     monkeypatch.setattr(db_manager, "get_project_members", _refuse_get_project_members)
+    # The EE RBAC entitlement bypass returns before the membership verdict; keep
+    # it off so these tests always reach the verdict.
+    monkeypatch.setattr(permissions_service, "is_ee", lambda: False)
 
     return state
 
