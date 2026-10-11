@@ -63,17 +63,28 @@ class SubscriptionsDAO(SubscriptionsDAOInterface):
         self,
         *,
         subscription: SubscriptionDTO,
+        check_subscription_id: bool = False,
+        expected_subscription_id: Optional[str] = None,
     ) -> Optional[SubscriptionDTO]:
         async with self.engine.session() as session:
-            result = await session.execute(
-                select(SubscriptionDBE).where(
-                    SubscriptionDBE.organization_id == subscription.organization_id,
-                )
+            query = select(SubscriptionDBE).where(
+                SubscriptionDBE.organization_id == subscription.organization_id,
             )
+            if check_subscription_id:
+                # Lock the row so the check and the write are one step.
+                query = query.with_for_update()
+
+            result = await session.execute(query)
 
             subscription_dbe = result.scalars().one_or_none()
 
             if not subscription_dbe:
+                return None
+
+            if (
+                check_subscription_id
+                and subscription_dbe.subscription_id != expected_subscription_id
+            ):
                 return None
 
             subscription_dbe.customer_id = subscription.customer_id
