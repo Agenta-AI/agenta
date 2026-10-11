@@ -43,6 +43,7 @@ from ee.src.core.subscriptions.service import (
     SubscriptionsService,
     SwitchException,
     EventException,
+    StaleEventException,
 )
 from ee.src.core.wallets.purchases import (
     MUSD_PER_CREDIT,
@@ -572,6 +573,7 @@ class BillingRouter:
 
             elif stripe_event.type == "invoice.payment_succeeded":
                 event = Event.SUBSCRIPTION_RESUMED
+                subscription_id = invoice_subscription_id
 
                 # Before the resume: when the invoice outruns the subscription-created
                 # event, the resume fails and Stripe redelivers, and the redelivered
@@ -591,6 +593,7 @@ class BillingRouter:
 
             elif stripe_event.type == "customer.subscription.deleted":
                 event = Event.SUBSCRIPTION_CANCELLED
+                subscription_id = _stripe_get(stripe_event.data.object, "id")
 
             else:
                 log.warn("Skipping stripe event: %s (unsupported)", stripe_event.type)
@@ -610,6 +613,19 @@ class BillingRouter:
                     subscription_id=subscription_id,
                     plan=plan,
                     anchor=anchor,
+                )
+            except StaleEventException as e:
+                log.info(
+                    "Skipping stripe event: %s | event=%s | organization=%s | %s",
+                    stripe_event.type,
+                    _stripe_get(stripe_event, "id"),
+                    organization_id,
+                    e,
+                )
+
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content={"status": "skip", "message": "Stale subscription event"},
                 )
             except (EventException, SwitchException) as e:
                 # The reason stays in the log, not the body: this endpoint

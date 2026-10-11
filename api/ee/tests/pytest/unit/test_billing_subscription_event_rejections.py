@@ -12,7 +12,11 @@ import pytest
 
 from ee.src.core.access.entitlements.types import DefaultPlan
 from ee.src.core.subscriptions import service as subscriptions_service_module
-from ee.src.core.subscriptions.service import EventException, SubscriptionsService
+from ee.src.core.subscriptions.service import (
+    EventException,
+    StaleEventException,
+    SubscriptionsService,
+)
 from ee.src.core.subscriptions.types import Event, SubscriptionDTO
 
 HOBBY = DefaultPlan.CLOUD_V0_HOBBY.value
@@ -211,14 +215,17 @@ async def test_a_pause_after_the_cancellation_is_a_no_op(warnings, monkeypatch):
     _stripe_reports(monkeypatch, status="canceled")
     organization_id = uuid4()
 
-    subscription = await _free_row_service(organization_id).process_event(
-        organization_id=str(organization_id),
-        event=Event.SUBSCRIPTION_PAUSED,
-        subscription_id="sub_ended",
-    )
+    service = _free_row_service(organization_id)
 
-    assert subscription.plan == HOBBY
-    assert subscription.active is True
+    with pytest.raises(StaleEventException):
+        await service.process_event(
+            organization_id=str(organization_id),
+            event=Event.SUBSCRIPTION_PAUSED,
+            subscription_id="sub_ended",
+        )
+
+    assert service.subscriptions_dao.subscription.plan == HOBBY
+    assert service.subscriptions_dao.subscription.active is True
     assert warnings == []
 
 
@@ -284,13 +291,14 @@ async def test_a_pause_for_another_subscription_leaves_a_paid_row_alone(warnings
     organization_id = uuid4()
     service = _service(PRO, organization_id=organization_id)
 
-    subscription = await service.process_event(
-        organization_id=str(organization_id),
-        event=Event.SUBSCRIPTION_PAUSED,
-        subscription_id="sub_earlier",
-    )
+    with pytest.raises(StaleEventException):
+        await service.process_event(
+            organization_id=str(organization_id),
+            event=Event.SUBSCRIPTION_PAUSED,
+            subscription_id="sub_earlier",
+        )
 
-    assert subscription.active is True
+    assert service.subscriptions_dao.subscription.active is True
     assert warnings == []
 
 

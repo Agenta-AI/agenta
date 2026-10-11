@@ -37,6 +37,11 @@ class EventException(Exception):
     pass
 
 
+class StaleEventException(Exception):
+    """The event is for a subscription the organization no longer has. The webhook
+    acknowledges it, so Stripe stops retrying, and nothing is written."""
+
+
 _ENDED_STRIPE_STATUSES = frozenset({"canceled", "incomplete_expired"})
 
 
@@ -61,6 +66,38 @@ async def _stripe_subscription_ended(subscription_id: str) -> bool:
         status = stripe_subscription.get("status")
 
     return status in _ENDED_STRIPE_STATUSES
+
+
+async def _is_stale_event(
+    *,
+    event: Event,
+    subscription_id: str,
+    recorded_subscription_id: Optional[str],
+    recorded_plan_is_free: bool,
+) -> bool:
+    """Whether a Stripe event is for a subscription other than the one the row records.
+
+    Stripe delivers events out of order and retries them for days, so an event can
+    arrive after the organization's subscription changed.
+    """
+    if subscription_id == recorded_subscription_id:
+        return False
+
+    # A new subscription replaces whatever the row records, unless Stripe has
+    # already ended it: then this is a late creation of a subscription that is gone.
+    if event == Event.SUBSCRIPTION_CREATED:
+        return await _stripe_subscription_ended(subscription_id)
+
+    # The row records another subscription: this event is about an earlier one.
+    if recorded_subscription_id:
+        return True
+
+    # A free row with no recorded id is either past a cancellation or still waiting
+    # for its CREATED event. A failed payment is stale only once Stripe ended it.
+    if event == Event.SUBSCRIPTION_PAUSED and recorded_plan_is_free:
+        return await _stripe_subscription_ended(subscription_id)
+
+    return False
 
 
 class SubscriptionsService:
@@ -369,21 +406,11 @@ class SubscriptionsService:
 
         free_plan = get_free_plan()
 
-        # Stripe sends the last failed payment and the cancellation it causes in the
-        # same second, in either order. A failure for a subscription the row no longer
-        # records has nothing left to pause. A free row with no recorded id is either
-        # past a cancellation or still waiting for its CREATED event, so Stripe decides.
-        if (
-            event == Event.SUBSCRIPTION_PAUSED
-            and subscription_id
-            and subscription.subscription_id != subscription_id
-            and (
-                subscription.subscription_id
-                or (
-                    subscription.plan == free_plan
-                    and await _stripe_subscription_ended(subscription_id)
-                )
-            )
+        if subscription_id and await _is_stale_event(
+            event=event,
+            subscription_id=subscription_id,
+            recorded_subscription_id=subscription.subscription_id,
+            recorded_plan_is_free=subscription.plan == free_plan,
         ):
             log.info(
                 "[billing] [internal] stale subscription event | %s | %s | recorded=%s | event=%s",
@@ -393,7 +420,10 @@ class SubscriptionsService:
                 subscription_id,
             )
 
-            return subscription
+            raise StaleEventException(
+                f"Event {event.value} is for subscription {subscription_id}, not the "
+                f"one recorded for organization ID {organization_id}"
+            )
 
         if event == Event.SUBSCRIPTION_CREATED:
             subscription.active = True

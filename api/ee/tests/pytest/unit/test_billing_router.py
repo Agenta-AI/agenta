@@ -165,7 +165,7 @@ async def test_handle_events_reads_invoice_metadata_from_stripe_objects(monkeypa
     subscription_service.process_event.assert_awaited_once_with(
         organization_id="org_456",
         event=Event.SUBSCRIPTION_RESUMED,
-        subscription_id=None,
+        subscription_id="sub_123",
         plan=None,
         anchor=None,
     )
