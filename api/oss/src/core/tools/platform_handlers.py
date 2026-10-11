@@ -1686,8 +1686,10 @@ async def handle_create_agent(
             # Conditional: the caller may not have `commit_revision` in this run.
             "next_step": (
                 f"Offer to send {created.name} a first message to try it. If you have "
-                "commit_revision, commit `subagent_operation` to your own configuration; "
-                f"from your next turn, call the tool `{tool_name}` with "
+                "commit_revision, commit `subagent_operation` to your own configuration. "
+                f"{created.name} is then reachable only as your tool `{tool_name}`, not "
+                "through any other messaging tool, and that tool appears from your next "
+                "turn: ask the person to send one more message, then call it with "
                 '{"messages": [{"role": "user", "content": "..."}]}.'
             ),
             "subagent_operation": _subagent_operation(created),

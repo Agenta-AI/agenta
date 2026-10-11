@@ -108,6 +108,23 @@ class TestTemplateParity:
 
         assert _agent_template_issues(data) == ["skills[0].body is required"]
 
+    def test_a_file_marker_where_text_belongs_is_named(self):
+        # Bench S6: `{"@file": ...}` as a skill body said only "a valid string".
+        from oss.src.core.workflows.service import _agent_template_issues
+
+        data = new_agent_revision_data()
+        data["parameters"]["agent"]["skills"] = [
+            {
+                "name": "invoice-lookup",
+                "description": "Find invoices.",
+                "body": {"@file": ".agenta-imports/invoice-lookup.md"},
+            }
+        ]
+
+        assert _agent_template_issues(data) == [
+            "skills[0].body must be inline text; `@file` is not resolved here"
+        ]
+
 
 class TestNewAgentSlug:
     def test_the_web_rule(self):

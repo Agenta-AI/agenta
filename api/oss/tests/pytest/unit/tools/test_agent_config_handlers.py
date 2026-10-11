@@ -1009,8 +1009,10 @@ class TestTheCreateAnswerOffersAFirstMessage:
 
         assert content["next_step"] == (
             "Offer to send Invoice helper a first message to try it. If you have "
-            "commit_revision, commit `subagent_operation` to your own configuration; "
-            f"from your next turn, call the tool `{self.SLUG}` with "
+            "commit_revision, commit `subagent_operation` to your own configuration. "
+            f"Invoice helper is then reachable only as your tool `{self.SLUG}`, not "
+            "through any other messaging tool, and that tool appears from your next "
+            "turn: ask the person to send one more message, then call it with "
             '{"messages": [{"role": "user", "content": "..."}]}.'
         )
         assert content["subagent_operation"] == {

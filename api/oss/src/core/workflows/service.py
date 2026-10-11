@@ -400,12 +400,27 @@ def _entry_issues(field: str, error: Exception) -> List[str]:
         if loc and loc[0] == kind:
             loc = loc[1:]
         path = "".join(f".{part}" for part in loc)
+        marker = _file_marker(issue)
         issues.append(
             f"{field}{path} is required"
             if issue["type"] == "missing"
+            else f"{field}{path} must be inline text; `{marker}` is not resolved here"
+            if marker
             else f"{field}{path} is invalid: {issue['msg']}"
         )
     return issues
+
+
+def _file_marker(issue: Dict[str, Any]) -> Optional[str]:
+    """The marker key of a file reference sent where text belongs, e.g. `{"@file": ...}`.
+
+    Bench S6: a model copied `commit_revision`'s file marker into another tool, and the bare
+    "Input should be a valid string" did not say why it failed.
+    """
+    value = issue.get("input")
+    if issue["type"] != "string_type" or not isinstance(value, dict):
+        return None
+    return next((key for key in value if str(key).startswith("@")), None)
 
 
 def read_revision_config(
@@ -4385,6 +4400,10 @@ class SimpleWorkflowsService:
         arguments: the same arguments in the same scope make one agent. A create that stops
         part of the way is finished by the next call with the same arguments, not left
         behind beside a second agent.
+
+        The fingerprint covers the name, the description and the operations, not the
+        template data. A retry across a deploy that changed the "New agent" template
+        therefore finishes the same agent with the new template. This edge case is accepted.
         """
         data = new_agent_revision_data()
         warnings: List[CommitWarning] = []
