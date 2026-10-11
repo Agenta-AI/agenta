@@ -23,7 +23,18 @@ from oss.src.core.tools.platform_handlers import (
     handle_test_run,
 )
 from oss.src.core.workflows.dtos import WorkflowRevisionData, WorkflowServiceRequestData
+from oss.src.core.workflows import service as service_module
 from oss.src.core.workflows.service import WorkflowsService
+
+
+@pytest.fixture(autouse=True)
+def _services_url(monkeypatch):
+    """These tests cover transport semantics: the URLs they dial sit under the configured
+    services URL, so the real URL policy treats them as the operator's own services. The
+    policy has its own tests in ``test_service_url_policy.py``."""
+    monkeypatch.setattr(
+        service_module.env.agenta, "services_url", "https://agent.internal"
+    )
 
 
 _MISSING = object()
@@ -130,7 +141,7 @@ class HttpxController:
             async def __aexit__(self, exc_type, exc, tb):
                 return False
 
-            async def post(self, url, *, json=None, headers=None):
+            async def post(self, url, *, json=None, headers=None, extensions=None):
                 controller.calls.append({"url": url, "json": json, "headers": headers})
                 if controller.raises is not None:
                     raise controller.raises
@@ -275,7 +286,7 @@ async def test_test_run_parameters_less_agent_revision_succeeds_with_resolver_ba
         async def __aexit__(self, exc_type, exc, tb):
             return False
 
-        async def post(self, url, *, json=None, headers=None):
+        async def post(self, url, *, json=None, headers=None, extensions=None):
             http_calls.append({"url": url, "json": json, "headers": headers})
             request = WorkflowInvokeRequest.model_validate(json)
 

@@ -1081,6 +1081,31 @@ tool, such as Google Search grounding (`web_search_options`), is refused with
 In Agenta Cloud with the wallet on, each call is charged to the organization's credits.
 :::
 
+:::note Custom workflow and evaluator URLs
+A workflow or evaluator whose URL is under `AGENTA_SERVICES_URL` runs on your deployment's own
+services and is called directly. Any other URL, such as a custom workflow you host yourself,
+is called through the same outbound guard as the MCP relay. `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED`
+and `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` decide which of those URLs Agenta may call. The call
+does not follow redirects, and the credential sent with it cannot read write-only secret
+values.
+
+If a custom workflow is on a private network or answers over plain HTTP, set
+`AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true`, or put its hostname in
+`AGENTA_MCP_GATEWAY_HOST_ALLOWLIST`. Otherwise the call fails with
+`Workflow service URL was refused: blocked target: ...`. The Docker Compose templates already
+set `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true`; a Helm install must set
+`gatewayEgress.insecureAllowed` or `mcpGateway.hostAllowlist` itself.
+
+A revision keeps the URL it was saved with. If you changed `AGENTA_SERVICES_URL` after you
+created workflows, their saved URLs still point at the old address, and Agenta treats that
+address as a custom URL. Allow the old host as described above, or change the URL on
+those revisions to the current services URL. In Docker bridge networking,
+the API calls `localhost` as `host.docker.internal`, so put `host.docker.internal` in
+`AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` for an old `localhost` URL.
+
+The call does not follow redirects. Set the URL to the address that answers directly.
+:::
+
 :::note How long a run may keep reaching a gateway
 When a run starts, Agenta issues it a credential that works only on the gateway routes, and
 hands that credential to the sandbox the agent runs in. The credential is issued once, at the
