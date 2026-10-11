@@ -826,6 +826,12 @@ async def auto_custom_code_run_v0(
 
     effective_version = declared_version if declared_version in {"1", "2", "3"} else "1"
 
+    # Hard timeout (seconds) for the sandbox call.  Set below the gunicorn worker
+    # timeout (default 60 s) so a slow evaluator returns a clean error instead of
+    # letting the worker be SIGABRT'd.  Configurable via env var so operators can
+    # tune without a code change.
+    _sandbox_timeout = float(os.environ.get("AGENTA_CODE_EVALUATOR_TIMEOUT", "45"))
+
     def _run_v2(version: str) -> Any:
         try:
             return execute_code_safely(
@@ -878,9 +884,27 @@ async def auto_custom_code_run_v0(
                 stacktrace=traceback.format_exc(),
             ) from e
 
-    _outputs = (
-        _run_v2(effective_version) if effective_version in ("2", "3") else _run_v1()
-    )
+    # execute_code_safely is synchronous and can take tens of seconds when the
+    # Daytona runner creates/destroys a sandbox.  Running it directly on the
+    # uvicorn event loop blocks all other requests (including /health) on the
+    # same worker, which causes gunicorn to SIGABRT the worker and triggers a
+    # Kubernetes pod restart.  Offload to a thread so the event loop stays live.
+    try:
+        if effective_version in ("2", "3"):
+            _outputs = await asyncio.wait_for(
+                asyncio.to_thread(_run_v2, effective_version),
+                timeout=_sandbox_timeout,
+            )
+        else:
+            _outputs = await asyncio.wait_for(
+                asyncio.to_thread(_run_v1),
+                timeout=_sandbox_timeout,
+            )
+    except asyncio.TimeoutError:
+        raise CustomCodeServerV0Error(
+            message=(f"Custom code evaluator timed out after {_sandbox_timeout:.0f} s"),
+            stacktrace="",
+        )
 
     # bool before (int, float): bool is an int subclass and would otherwise be
     # normalized into a score.
