@@ -23,6 +23,29 @@ def get_code_sandbox_timeout() -> float:
     return timeout
 
 
+# How long a custom code run waits for a free slot before it fails. The API
+# gives a whole service call 60 s, and the run timeout starts only when the run
+# gets its slot, so the wait and the run timeout together stay below 60 s.
+DEFAULT_CODE_SANDBOX_WAIT_TIMEOUT = 10.0
+
+
+def get_code_sandbox_wait_timeout() -> float:
+    """Return how long, in seconds, a custom code run waits for a free slot.
+
+    0 means a run fails at once when every slot is busy.
+    """
+    raw = os.getenv("AGENTA_SERVICES_CODE_SANDBOX_WAIT_TIMEOUT")
+    if not raw:
+        return DEFAULT_CODE_SANDBOX_WAIT_TIMEOUT
+    try:
+        wait = float(raw)
+    except ValueError:
+        return DEFAULT_CODE_SANDBOX_WAIT_TIMEOUT
+    if not math.isfinite(wait) or wait < 0:
+        return DEFAULT_CODE_SANDBOX_WAIT_TIMEOUT
+    return wait
+
+
 def normalize_result(result: Any, version: str) -> Any:
     """Normalize an evaluate() result according to the evaluator interface version.
 

@@ -235,6 +235,7 @@ people can reach.
 |---|---|---|
 | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` | `agenta.services.code.sandbox_runner` | `agenta.services.code.sandboxRunner` |
 | `AGENTA_SERVICES_CODE_SANDBOX_TIMEOUT` | n/a (SDK-side) | n/a |
+| `AGENTA_SERVICES_CODE_SANDBOX_WAIT_TIMEOUT` | n/a (SDK-side) | n/a |
 | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` | n/a (SDK-side) | `agenta.services.middleware.authEnabled` |
 | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
 | `AGENTA_SERVICES_PATH_PREFIX` | n/a (read by the services entrypoint) | `services.env.AGENTA_SERVICES_PATH_PREFIX` |
@@ -257,6 +258,8 @@ Use `local` or `restricted` only when everyone who can create evaluators is trus
 The legacy `AGENTA_SERVICES_SANDBOX_RUNNER` is still accepted as a fallback.
 
 `AGENTA_SERVICES_CODE_SANDBOX_TIMEOUT` sets the hard timeout, in seconds, for one custom-code evaluator run (default `45`). A run that takes longer fails with an evaluator error. Keep it below the services worker timeout (`60` seconds in the default deployment).
+
+Each services worker runs at most 16 custom-code evaluator runs at a time. `AGENTA_SERVICES_CODE_SANDBOX_WAIT_TIMEOUT` sets how long, in seconds, a run waits for a free slot when all 16 are busy (default `10`). A run that is still waiting after that time fails with "Custom code runs are at capacity (16 in progress). Try again later." Set it to `0` to fail at once. The run timeout starts only when the run gets a slot. The API gives one evaluator call `60` seconds, so keep the wait plus the run timeout below `60`.
 :::
 
 ## Agent runner
