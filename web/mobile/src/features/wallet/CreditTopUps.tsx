@@ -8,22 +8,15 @@ import {
 } from "@agenta/settings-ui"
 import {useRouter} from "next/router"
 
-/**
- * This app's binding of the shared top-up section on Plan & billing: the
- * Stripe return and the "open the picker" request come from this page's URL; the host says where
- * the free plan's upgrade goes and whether the section is a card.
- */
+/** The shared top-up section on Plan & billing, fed the Stripe return and picker request from the URL. */
 export const CreditTopUps = ({
     projectId,
     onUpgrade,
     framed = false,
-    showLoadError = false,
 }: {
     projectId: string
     onUpgrade: () => void
     framed?: boolean
-    /** Only where the wallet is known to be enforced (the Credits tab). */
-    showLoadError?: boolean
 }) => {
     const router = useRouter()
     // Read once per URL: the section keeps what it needs after the URL is cleared.
@@ -34,7 +27,6 @@ export const CreditTopUps = ({
     )
 
     const clearQuery = useCallback(() => {
-        // The pathname keeps the route's own params (workspace, project) out of the query string.
         void router.replace(
             {pathname: router.pathname, query: withoutTopUpQuery(router.query)},
             undefined,
@@ -50,7 +42,6 @@ export const CreditTopUps = ({
             onQueryHandled={clearQuery}
             onUpgrade={onUpgrade}
             framed={framed}
-            showLoadError={showLoadError}
         />
     )
 }

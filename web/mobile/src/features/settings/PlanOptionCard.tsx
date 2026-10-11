@@ -2,14 +2,10 @@ import type {BillingPlanOption} from "@agenta/settings-ui"
 import {Button, cn} from "@agenta/ui/ui"
 import {Check, Coins} from "@phosphor-icons/react"
 
-import {creditsLine, isRecommended, splitLead} from "./planCatalog"
+import {CONTACT_URL} from "./billingFormat"
+import {creditsLine, splitLead} from "./planCatalog"
 
-const CONTACT_URL = "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
-
-/**
- * One plan in the chooser: its price, the credits it grants, what it adds, and the way onto it.
- * The recommended plan is the inverted card; the current plan carries the heavier outline.
- */
+/** One plan in the chooser; the recommended plan is inverted, the current one outlined. */
 export const PlanOptionCard = ({
     plan,
     isCurrent,
@@ -31,7 +27,7 @@ export const PlanOptionCard = ({
     busy: boolean
     onSelect: () => void
 }) => {
-    const recommended = isRecommended(plan)
+    const recommended = plan.recommended === true
     const amount = plan.price?.base?.amount
     const credits = creditsLine(plan)
     const {lead, items} = splitLead(plan.features ?? [])

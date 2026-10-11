@@ -75,6 +75,10 @@ export interface WalletUsage {
     sessions: WalletUsageSession[]
 }
 
+/** The usage detail is owner-only; a 403 is an answer, not a failure. */
+export const isForbidden = (error: unknown) =>
+    (error as {response?: {status?: number}} | null)?.response?.status === 403
+
 export const fetchWalletSummary = async (projectId: string): Promise<WalletSummary> => {
     const {data} = await axios.get(`${getAgentaApiUrl()}/wallets/summary`, {
         params: {project_id: projectId},

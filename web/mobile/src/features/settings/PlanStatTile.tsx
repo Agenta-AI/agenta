@@ -12,20 +12,14 @@ export const PlanStatTile = ({
     action,
 }: {
     label: ReactNode
-    value: ReactNode
+    value: string
     note: ReactNode
     action?: ReactNode
 }) => (
     <AnalyticsCard
         className="min-h-[108px]"
         title={label}
-        value={
-            typeof value === "string" || typeof value === "number" ? (
-                <AnimatedNumber value={String(value)} />
-            ) : (
-                <span className="tabular-nums">{value}</span>
-            )
-        }
+        value={<AnimatedNumber value={value} />}
         note={
             <span className="flex items-center justify-between gap-2">
                 <span className="truncate">{note}</span>

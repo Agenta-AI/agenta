@@ -1,15 +1,8 @@
-// The Plan & billing blocks that wait on the backend: each shows only once the API sends its
-// field, and reads "no limit" the way the Members quota already does.
+// Plan & billing blocks that show only once the API sends their field.
 import type {BillingPlanOption, BillingUsage} from "@agenta/settings-ui"
 import {describe, expect, it} from "vitest"
 
-import {
-    creditsLine,
-    isRecommended,
-    monthlyCredits,
-    sharedFeatures,
-    splitLead,
-} from "@/features/settings/planCatalog"
+import {creditsLine, sharedFeatures, splitLead} from "@/features/settings/planCatalog"
 import {planLimits} from "@/features/settings/planLimits"
 
 const metric = (value: number, limit: number | null) => ({
@@ -80,16 +73,10 @@ describe("plan limit tiles", () => {
 })
 
 describe("plan catalog extras", () => {
-    it("marks a plan recommended only when the catalog says so", () => {
-        expect(isRecommended(plan({recommended: true}))).toBe(true)
-        expect(isRecommended(plan())).toBe(false)
-        expect(isRecommended(plan({recommended: "yes" as unknown as boolean}))).toBe(false)
-    })
-
     it("reads monthly credits only as a positive number", () => {
-        expect(monthlyCredits(plan({monthly_credits: 2900}))).toBe(2900)
-        expect(monthlyCredits(plan())).toBeNull()
-        expect(monthlyCredits(plan({monthly_credits: "2900" as unknown as number}))).toBeNull()
+        expect(creditsLine(plan({monthly_credits: 2900}))).toBe("2,900 credits a month")
+        expect(creditsLine(plan({monthly_credits: 0}))).toBeNull()
+        expect(creditsLine(plan({monthly_credits: "2900" as unknown as number}))).toBeNull()
     })
 
     it("prefers the catalog's own credits line over the monthly grant", () => {

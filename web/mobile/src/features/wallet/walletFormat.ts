@@ -4,7 +4,7 @@ const MUSD_PER_USD = 1_000_000
 /** 1 credit = 1 US cent. */
 export const MUSD_PER_CREDIT = 10_000
 
-/** Compact dollars for the sidebar: "$19.98". */
+/** Dollars to the cent: "$19.98". */
 export const formatUsd = (musd: number): string =>
     `$${(musd / MUSD_PER_USD).toLocaleString(undefined, {
         minimumFractionDigits: 2,

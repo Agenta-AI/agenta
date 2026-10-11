@@ -14,7 +14,7 @@ export const PlanCreditsCard = ({
     balanceMusd: number
 }) => {
     const color = analyticsColor(monthly ? "series4" : "series1")
-    const used = monthly ? (monthly.remaining_musd / monthly.amount_musd) * 100 : null
+    const left = monthly ? (monthly.remaining_musd / monthly.amount_musd) * 100 : null
     return (
         <AnalyticsCard
             className="min-h-[176px]"
@@ -38,11 +38,11 @@ export const PlanCreditsCard = ({
                     : "Every credit your organization can spend right now."
             }
         >
-            {used === null ? null : (
+            {left === null ? null : (
                 <span className="bg-accent block h-1.5 overflow-hidden rounded-full">
                     <span
                         className="block h-full rounded-full"
-                        style={{width: `${Math.min(100, used)}%`, background: color}}
+                        style={{width: `${Math.min(100, left)}%`, background: color}}
                     />
                 </span>
             )}

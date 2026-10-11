@@ -3,7 +3,6 @@ import {useEffect, useState} from "react"
 import {ANALYTICS_COLOR_CSS} from "@agenta/observability-ui/analytics"
 import {
     fetchBillingUsage,
-    openBillingPortal,
     useBillingCatalog,
     useBillingSubscription,
     useTopUpOffer,
@@ -27,11 +26,9 @@ import {PlanStatTile} from "./PlanStatTile"
 import {PlanSummaryCard} from "./PlanSummaryCard"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {BillingPageSkeleton} from "./states/BillingPageSkeleton"
+import {useBillingPortal} from "./useBillingPortal"
 
-/**
- * Plan & billing: the plan and what it grants, its limits, and where payments live. Payment goes
- * to Stripe: checkout opens in a new tab, and the portal holds cards and invoices.
- */
+/** Plan & billing: the plan and what it grants, its limits, and where payments live. */
 export const BillingTab = ({projectId}: SettingsTabProps) => {
     const router = useRouter()
     const queryClient = useQueryClient()
@@ -39,7 +36,7 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
 
     const [planChooserOpen, setPlanChooserOpen] = useState(false)
     const [cancelOpen, setCancelOpen] = useState(false)
-    const [openingPortal, setOpeningPortal] = useState(false)
+    const portal = useBillingPortal()
 
     const usage = useQuery({
         queryKey: ["billing", "usage", projectId],
@@ -63,17 +60,10 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
         void router.replace({pathname: router.pathname, query: rest}, undefined, {shallow: true})
     }, [router, billingEnabled])
 
-    const refresh = () => void queryClient.invalidateQueries({queryKey: ["billing"]})
-
-    const handleOpenPortal = async () => {
-        setOpeningPortal(true)
-        try {
-            const portalUrl = await openBillingPortal()
-            // This tab, not a popup: a popup after an await is blocked on phones.
-            if (portalUrl) window.location.assign(portalUrl)
-        } finally {
-            setOpeningPortal(false)
-        }
+    // A plan change moves the wallet's grants too.
+    const refresh = () => {
+        void queryClient.invalidateQueries({queryKey: ["billing"]})
+        void queryClient.invalidateQueries({queryKey: ["wallet"]})
     }
 
     if (usage.isPending || subscription.isPending) return <BillingPageSkeleton />
@@ -162,10 +152,7 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
             ) : null}
 
             {billingEnabled ? (
-                <BillingPaymentsSection
-                    onOpenPortal={() => void handleOpenPortal()}
-                    opening={openingPortal}
-                />
+                <BillingPaymentsSection onOpenPortal={portal.open} opening={portal.opening} />
             ) : null}
 
             <PlanChooserSheet

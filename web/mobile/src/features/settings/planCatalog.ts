@@ -1,9 +1,7 @@
 import type {BillingPlanOption} from "@agenta/settings-ui"
 
 /** The catalog is passed through unvalidated, so each optional field is checked before use. */
-export const isRecommended = (plan: BillingPlanOption) => plan.recommended === true
-
-export const monthlyCredits = (plan: BillingPlanOption): number | null =>
+const monthlyCredits = (plan: BillingPlanOption): number | null =>
     typeof plan.monthly_credits === "number" &&
     Number.isFinite(plan.monthly_credits) &&
     plan.monthly_credits > 0

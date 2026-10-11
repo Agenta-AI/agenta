@@ -15,13 +15,9 @@ import {Button} from "@agenta/ui/ui"
 import {Plus} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
-const isForbidden = (error: unknown) =>
-    (error as {response?: {status?: number}} | null)?.response?.status === 403
+import {isForbidden} from "./walletApi"
 
-/**
- * The Credits page's "Buy credits": the pack picker, offered only where the plan can buy packs
- * (the free plan cannot), and what happened at Stripe when the payer comes back to this page.
- */
+/** "Buy credits" where the plan can buy packs, and the notice when Stripe sends the payer back. */
 export const CreditsBuyAction = ({
     projectId,
     onUpgrade,

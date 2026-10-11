@@ -30,13 +30,10 @@ import {
     type CreditsUsageGroup,
     type CreditsUsageRange,
 } from "./creditsUsage"
-import {fetchWalletUsage} from "./walletApi"
+import {fetchWalletUsage, isForbidden} from "./walletApi"
 import {formatUsd, MUSD_PER_CREDIT} from "./walletFormat"
 
 const CHART_HEIGHT = 220
-
-const isForbidden = (error: unknown): boolean =>
-    (error as {response?: {status?: number}} | null)?.response?.status === 403
 
 const credits = (value: number) =>
     value.toLocaleString("en-US", {minimumFractionDigits: 1, maximumFractionDigits: 1})
@@ -64,7 +61,6 @@ export const CreditsUsageSection = ({projectId}: {projectId: string}) => {
             }),
         enabled: Boolean(projectId),
         refetchInterval: 60_000,
-        // The detail is owner-only; a 403 is an answer, not a failure to retry.
         retry: (count, error) => !isForbidden(error) && count < 2,
     })
 

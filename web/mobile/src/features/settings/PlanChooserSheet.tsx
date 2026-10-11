@@ -31,10 +31,7 @@ interface Props {
     onChanged: () => void
 }
 
-/**
- * The plan chooser as a modal. Picking a paid plan from the free tier hands off to
- * Stripe Checkout in a new tab; paid → paid switches server-side and closes.
- */
+/** The plan chooser: free → paid opens Stripe Checkout in a new tab; paid → paid switches in place. */
 export const PlanChooserSheet = ({
     open,
     onOpenChange,

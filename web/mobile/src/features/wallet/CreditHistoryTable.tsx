@@ -1,9 +1,8 @@
-import {useState} from "react"
-
-import {openBillingPortal} from "@agenta/settings-ui"
 import {StatusIndicator, type StatusTone} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
 import {ArrowSquareOut} from "@phosphor-icons/react"
+
+import {useBillingPortal} from "../settings/useBillingPortal"
 
 import type {WalletCredit} from "./walletApi"
 import {creditKind, formatCredits, formatDate, formatUsd} from "./walletFormat"
@@ -49,23 +48,12 @@ export const CreditHistoryTable = ({
     credits: WalletCredit[]
     showInvoices: boolean
 }) => {
-    const [opening, setOpening] = useState(false)
+    const portal = useBillingPortal()
     const now = Date.now()
     // One daily grant lands every day; past ones would bury the rest of the history.
     const rows = credits
         .filter((credit) => credit.credit_kind !== "daily_free" || !isExpired(credit, now))
         .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))
-
-    const openInvoices = async () => {
-        setOpening(true)
-        try {
-            const url = await openBillingPortal()
-            // This tab, not a popup: a popup after an await is blocked on phones.
-            if (url) window.location.assign(url)
-        } finally {
-            setOpening(false)
-        }
-    }
 
     return (
         <section className="flex flex-col gap-1.5">
@@ -74,18 +62,18 @@ export const CreditHistoryTable = ({
                 {showInvoices ? (
                     <button
                         type="button"
-                        disabled={opening}
-                        onClick={() => void openInvoices()}
+                        disabled={portal.opening}
+                        onClick={portal.open}
                         className="text-muted-foreground hover:text-foreground inline-flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[13px] disabled:cursor-default disabled:opacity-60"
                     >
-                        {opening ? "Opening…" : "View invoices"}
+                        {portal.opening ? "Opening…" : "View invoices"}
                         <ArrowSquareOut size={12} />
                     </button>
                 ) : null}
             </div>
             <ListTable<WalletCredit>
                 columns={COLUMNS}
-                minWidth={600}
+                minWidth={680}
                 groups={[{key: "credits", label: null, rows}]}
                 rowKey={(credit) => credit.id}
                 hideHeader={rows.length === 0}

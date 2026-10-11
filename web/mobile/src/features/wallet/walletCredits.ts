@@ -19,8 +19,10 @@ export type WalletHealth = "active" | "low" | "empty"
 export const walletHealth = (spendableMusd: number, dailyMusd: number | null): WalletHealth =>
     spendableMusd <= 0 ? "empty" : dailyMusd && spendableMusd / dailyMusd < 7 ? "low" : "active"
 
-/** The latest daily free grant, spent or not: its size is the plan's daily allowance. */
-export const dailyCredit = (wallet: WalletSummary): WalletCredit | null =>
-    wallet.credits
-        .filter((credit) => credit.credit_kind === "daily_free")
-        .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))[0] ?? null
+/** Today's daily free grant, spent or not; none when the plan no longer mints one. */
+export const dailyCredit = (wallet: WalletSummary, now = Date.now()): WalletCredit | null =>
+    wallet.credits.find(
+        (credit) =>
+            credit.credit_kind === "daily_free" &&
+            (!credit.end_time || Date.parse(credit.end_time) > now),
+    ) ?? null

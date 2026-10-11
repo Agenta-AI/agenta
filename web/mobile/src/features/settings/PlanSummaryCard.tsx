@@ -2,20 +2,20 @@ import type {BillingPlanOption, BillingSubscription} from "@agenta/settings-ui"
 import {Button} from "@agenta/ui/ui"
 import {Coins} from "@phosphor-icons/react"
 
-import {formatCredits} from "../wallet/walletFormat"
+import {formatCredits, formatDate} from "../wallet/walletFormat"
 
-import {formatDay, periodEnd, planName, planPrice} from "./billingFormat"
+import {CONTACT_URL, periodEnd, planName, planPrice} from "./billingFormat"
 import {creditsLine} from "./planCatalog"
-
-const CONTACT_URL = "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
 
 /** The trial's state, else when the plan renews; nothing for a plan that never renews. */
 const renewal = (subscription: BillingSubscription | null | undefined, isOnFreePlan: boolean) => {
     const end = periodEnd(subscription)
     if (!end || isOnFreePlan) return null
     if (subscription?.free_trial)
-        return end > new Date() ? `Trial ends ${formatDay(end)}` : `Trial ended ${formatDay(end)}`
-    return `Renews ${formatDay(end)}`
+        return end > new Date()
+            ? `Trial ends ${formatDate(end.toISOString())}`
+            : `Trial ended ${formatDate(end.toISOString())}`
+    return `Renews ${formatDate(end.toISOString())}`
 }
 
 /** The plan the organization is on, what it costs and grants, and the ways to change it. */

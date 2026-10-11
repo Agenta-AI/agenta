@@ -15,10 +15,7 @@ import {fetchWalletUsage} from "./walletApi"
 
 const PACE_DAYS = 30
 
-/**
- * What an organization whose wallet is enforced has left, where it went, and how to add more:
- * the balance and the credits behind it, credits used over time, and the packs it bought.
- */
+/** What an enforced wallet has left, where it went, and how to add more. */
 export const CreditsTab = ({projectId}: {projectId: string}) => {
     const router = useRouter()
     const summary = useWalletSummary(projectId)
