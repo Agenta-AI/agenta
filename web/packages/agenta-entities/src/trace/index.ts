@@ -115,6 +115,7 @@ export {
     type SpansAnalyticsParams,
     type AnalyticsMetricSpec,
     type PreviewTracesRateLimit,
+    type PreviewTracesWindowing,
     type PreviewTracesWithMetaResult,
 } from "./api"
 

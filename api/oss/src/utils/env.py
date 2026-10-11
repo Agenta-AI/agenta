@@ -290,12 +290,33 @@ class ApiThrottlingConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class ApiTracingConfig(BaseModel):
+    """Bounds on span and trace list queries: `POST /spans/query`, `POST /traces/query`
+    and the legacy `POST /tracing/spans/query`. With focus=trace, the limit counts traces.
+    A request for spans by trace id alone (the trace drawer) is not bounded."""
+
+    # Used when the request sends no `windowing.limit`. The response carries the
+    # `windowing` of the next page when the page is full.
+    query_default_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT")
+        or 100
+    )
+    # A larger `windowing.limit` is lowered to this value. 1000 is the largest page a
+    # first-party client asks for (the tool spans of the analytics runs list).
+    query_max_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_API_TRACING_QUERY_MAX_LIMIT") or 1000
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class ApiConfig(BaseModel):
     """Agenta API sub-namespace."""
 
     caching: ApiCachingConfig = ApiCachingConfig()
     skills_import: SkillsImportConfig = SkillsImportConfig()
     throttling: ApiThrottlingConfig = ApiThrottlingConfig()
+    tracing: ApiTracingConfig = ApiTracingConfig()
 
     model_config = ConfigDict(extra="ignore")
 

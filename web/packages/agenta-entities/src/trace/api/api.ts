@@ -133,6 +133,27 @@ export interface PreviewTracesRateLimit {
 export interface PreviewTracesWithMetaResult {
     data: SpansResponse | TracesResponse | null
     rateLimit: PreviewTracesRateLimit
+    /**
+     * The windowing of the next page, as the API returned it. Present while more rows
+     * may match; send its fields back (`next` as `cursor`) to read the next page.
+     */
+    nextWindowing?: PreviewTracesWindowing
+}
+
+/** The `windowing` object of a span or trace list response. */
+export interface PreviewTracesWindowing {
+    newest?: string
+    oldest?: string
+    next?: string
+    limit?: number
+    order?: "ascending" | "descending"
+}
+
+const readNextWindowing = (data: unknown): PreviewTracesWindowing | undefined => {
+    const windowing = (data as {windowing?: unknown} | null)?.windowing
+    return windowing && typeof windowing === "object"
+        ? (windowing as PreviewTracesWindowing)
+        : undefined
 }
 
 const parseRateLimitHeader = (headers: Headers, name: string): number | null => {
@@ -176,6 +197,7 @@ export async function fetchAllPreviewTracesWithMeta(
         const headers = rawResponse.headers
         return {
             data: parseSpansOrTraces(params.focus, data),
+            nextWindowing: readNextWindowing(data),
             rateLimit: {
                 remaining: parseRateLimitHeader(headers, "x-ratelimit-remaining"),
                 limit: parseRateLimitHeader(headers, "x-ratelimit-limit"),
