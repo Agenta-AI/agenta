@@ -350,6 +350,24 @@ describe("a Gemini tool call on an OpenAI-compatible endpoint", () => {
     expect(signatureOf(model.requests.at(-1)!)).toEqual([signed]);
     await second.host.destroySandbox();
   }, 60_000);
+
+  it("sends every signature back across two sequential tool calls in one turn", async () => {
+    const fixture = createHostFixture(model.baseUrl, { extensionEnv: { AGENTA_AGENT_BUILTIN_ACTIVATION: "1" } });
+    model.script([
+      { tool: "bash", args: { command: "echo one" }, signature: "c2lnLW9uZQ==" },
+      { tool: "bash", args: { command: "echo two" }, signature: "c2lnLXR3bw==" },
+      { text: "both done" },
+    ]);
+    const { session, host } = await openSession(fixture);
+    expect(await session.prompt(prompt("run two commands"))).toEqual({ stopReason: "end_turn" });
+    const [, second, third] = model.requests.slice(-3);
+    expect(signatureOf(second!)).toEqual([{ google: { thought_signature: "c2lnLW9uZQ==" } }]);
+    expect(signatureOf(third!)).toEqual([
+      { google: { thought_signature: "c2lnLW9uZQ==" } },
+      { google: { thought_signature: "c2lnLXR3bw==" } },
+    ]);
+    await host.destroySandbox();
+  }, 60_000);
 });
 
 describe("the conversation file on the drive", () => {
