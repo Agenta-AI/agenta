@@ -5,7 +5,6 @@ import {
     transformTracesResponseToTree,
     transformTracingResponse,
     type PreviewTracesRateLimit,
-    type PreviewTracesWindowing,
 } from "@agenta/entities/trace"
 
 import type {TraceSpanNode} from "../core/traceSpan"
@@ -266,6 +265,29 @@ export const extractEarliestTimestamp = (data: unknown): string | undefined => {
     return Number.isNaN(d.getTime()) ? undefined : d.toISOString()
 }
 
+/** Stop reading pages here, so a runaway result cannot loop forever. */
+const READ_ALL_MAX_PAGES = 100
+
+type TracePage = Awaited<ReturnType<typeof fetchAllPreviewTracesWithMeta>>["data"]
+
+/** Merge two pages of the same query: concatenate spans, or merge the trace map. */
+const mergeTracePages = (a: TracePage, b: TracePage): TracePage => {
+    if (!a) return b
+    if (!b) return a
+    if (isSpansResponse(a) && isSpansResponse(b)) {
+        return {
+            ...a,
+            count: (a.count ?? 0) + (b.count ?? 0),
+            spans: [...(a.spans ?? []), ...(b.spans ?? [])],
+        }
+    }
+    if (isTracesResponse(a) && isTracesResponse(b)) {
+        const traces = {...a.traces, ...b.traces}
+        return {...a, count: Object.keys(traces).length, traces}
+    }
+    return a
+}
+
 export const executeTraceQuery = async ({
     params,
     pageParam,
@@ -275,6 +297,7 @@ export const executeTraceQuery = async ({
     hasAnnotationConditions,
     hasAnnotationOperator,
     signal,
+    readAllPages = false,
 }: {
     params: Record<string, unknown>
     pageParam?: {newest?: string}
@@ -284,6 +307,12 @@ export const executeTraceQuery = async ({
     hasAnnotationConditions: Condition[]
     hasAnnotationOperator?: string
     signal?: AbortSignal
+    /**
+     * Follow the API's `windowing` cursor on every request until the last page, so the
+     * result holds every match (up to READ_ALL_MAX_PAGES pages per request). For views
+     * that show a whole set, such as one session.
+     */
+    readAllPages?: boolean
 }) => {
     const windowParams = {...params}
     let data: unknown = []
@@ -293,8 +322,6 @@ export const executeTraceQuery = async ({
     // export's adaptive pacing can throttle proactively. Reset each call, so
     // even a long-running scan sees fresh bucket state on every page.
     let lastRateLimit: PreviewTracesRateLimit = {remaining: null, limit: null}
-    // The API's cursor for the next page of the last request.
-    let lastNextWindowing: PreviewTracesWindowing | undefined
 
     const fetchPage = async (pageParams: Record<string, unknown>) => {
         const result = await fetchAllPreviewTracesWithMeta(
@@ -304,8 +331,37 @@ export const executeTraceQuery = async ({
             signal,
         )
         lastRateLimit = result.rateLimit
-        lastNextWindowing = result.nextWindowing
-        return result.data
+        if (!readAllPages) return result.data
+
+        let data = result.data
+        let next = result.nextWindowing
+        let pages = 1
+        while (next && pages < READ_ALL_MAX_PAGES) {
+            const more = await fetchAllPreviewTracesWithMeta(
+                {
+                    ...pageParams,
+                    size: next.limit ?? (pageParams.size as number | undefined),
+                    cursor: next.next,
+                    newest: next.newest,
+                    oldest: next.oldest,
+                    order: next.order,
+                },
+                appId,
+                projectId ?? "",
+                signal,
+            )
+            lastRateLimit = more.rateLimit
+            data = mergeTracePages(data, more.data)
+            next = more.nextWindowing
+            pages += 1
+        }
+        if (next) {
+            console.warn(
+                `[executeTraceQuery] stopped after ${READ_ALL_MAX_PAGES} pages; ` +
+                    "showing the newest results only",
+            )
+        }
+        return data
     }
 
     if (isHasAnnotationSelected !== -1) {
@@ -448,9 +504,6 @@ export const executeTraceQuery = async ({
         traces: transformed,
         traceCount: (data as {count?: number} | null)?.count ?? 0,
         nextCursor,
-        // The API's own cursor. Only the plain flow has one; the "has annotation" flow
-        // pages on its first step and uses `nextCursor`.
-        nextWindowing: isHasAnnotationSelected === -1 ? lastNextWindowing : undefined,
         annotationPageSize,
         rateLimit: lastRateLimit,
     }
