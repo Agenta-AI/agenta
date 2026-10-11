@@ -1685,7 +1685,7 @@ async def handle_create_agent(
             "warnings": [w.model_dump(mode="json") for w in warnings],
             # Conditional: the caller may not have `commit_revision` in this run.
             "next_step": (
-                f"Offer to send {created.name} a first message to try it. If you have "
+                f"Offer to send {created.name} a first message to try it. Only if they agree and you have "
                 "commit_revision, commit `subagent_operation` to your own configuration. "
                 f"{created.name} is then reachable only as your tool `{tool_name}`, not "
                 "through any other messaging tool, and that tool appears from your next "

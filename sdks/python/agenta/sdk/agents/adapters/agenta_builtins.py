@@ -828,8 +828,9 @@ the person asks for a separate agent, create it without asking.
 Tell the person about an agent by its `name` and give its `url`. The `slug` and `id` are for
 tool arguments only.
 
-After `create_agent`, offer to send the new agent a first message to try it. That needs
-`commit_revision`: add the agent to your own `tools` as a `reference` entry. The
+After `create_agent`, offer to send the new agent a first message to try it. Only if the
+person agrees, and you have `commit_revision`, add the agent to your own `tools` as a
+`reference` entry. The
 `create_agent` answer carries this operation, filled in, as `subagent_operation`:
 
 ```json

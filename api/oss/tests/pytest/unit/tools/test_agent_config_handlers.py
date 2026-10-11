@@ -1008,7 +1008,7 @@ class TestTheCreateAnswerOffersAFirstMessage:
         content = (await self._create(service)).content
 
         assert content["next_step"] == (
-            "Offer to send Invoice helper a first message to try it. If you have "
+            "Offer to send Invoice helper a first message to try it. Only if they agree and you have "
             "commit_revision, commit `subagent_operation` to your own configuration. "
             f"Invoice helper is then reachable only as your tool `{self.SLUG}`, not "
             "through any other messaging tool, and that tool appears from your next "
