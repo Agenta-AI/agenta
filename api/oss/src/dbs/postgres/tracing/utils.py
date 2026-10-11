@@ -678,7 +678,10 @@ def _handle_fts_field(
     # ------------------------- #
 
     ts_vector = func.to_tsvector(text("'simple'"), attribute)
-    ts_query = func.websearch_to_tsquery(text("'simple'"), text(f"'{value}'"))
+    ts_query = func.websearch_to_tsquery(
+        text("'simple'"),
+        bindparam(None, str(value), type_=Text),
+    )
 
     conditions.append(ts_vector.op("@@")(ts_query))
 
@@ -692,7 +695,10 @@ def _handle_fts_field(
     # ------------------------- #
 
     ts_vector = func.to_tsvector(text("'simple'"), attribute)
-    ts_query = func.websearch_to_tsquery(text("'simple'"), text(f"'{value}'"))
+    ts_query = func.websearch_to_tsquery(
+        text("'simple'"),
+        bindparam(None, str(value), type_=Text),
+    )
 
     conditions.append(ts_vector.op("@@")(ts_query))
 
