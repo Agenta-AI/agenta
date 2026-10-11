@@ -9,7 +9,8 @@ import type { AddressInfo } from "node:net";
 
 export type ScriptStep =
   | { text: string }
-  | { tool: string; args: Record<string, unknown> }
+  /** `signature` streams a Gemini `thought_signature` on the call, as Google's OpenAI-compatible endpoints do. */
+  | { tool: string; args: Record<string, unknown>; signature?: string }
   /** Answer with an HTTP error, as a router does for an upstream provider's refusal. */
   | { error: { status: number; message: string } }
   /** Accept the request and never answer. */
@@ -75,7 +76,18 @@ export async function startScriptedModel(initial: ScriptStep[] = [{ text: "ok" }
           choices: [
             {
               index: 0,
-              delta: { role: "assistant", tool_calls: [{ index: 0, id: `call_${calls}`, type: "function", function: { name: step.tool, arguments: JSON.stringify(step.args) } }] },
+              delta: {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: `call_${calls}`,
+                    type: "function",
+                    function: { name: step.tool, arguments: JSON.stringify(step.args) },
+                    ...(step.signature ? { extra_content: { google: { thought_signature: step.signature } } } : {}),
+                  },
+                ],
+              },
               finish_reason: null,
             },
           ],
