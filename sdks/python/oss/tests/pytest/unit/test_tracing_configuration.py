@@ -1,5 +1,6 @@
-"""The root span records a workflow's configuration, except for agent runs."""
+"""The root span records a workflow's configuration; an agent run records only its model."""
 
+import json
 from unittest.mock import Mock, patch
 
 from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
@@ -23,15 +24,74 @@ def _root_span_attributes(parameters):
     return attributes
 
 
+JSON_PREFIX = "@ag.type=json:"
+
+
+def _configuration(attributes):
+    """Rebuild the `ag.meta.configuration` object from the flattened span attributes."""
+    prefix = "ag.meta.configuration."
+    out = {}
+    for key, value in attributes.items():
+        if not key.startswith(prefix):
+            continue
+        if isinstance(value, str) and value.startswith(JSON_PREFIX):
+            value = json.loads(value[len(JSON_PREFIX) :])
+        node = out
+        *path, leaf = key[len(prefix) :].split(".")
+        for part in path:
+            node = node.setdefault(part, {})
+        node[leaf] = value
+    return out
+
+
 @patch("agenta.sdk.decorators.tracing.ag")
-def test_agent_root_span_has_no_configuration(mock_ag):
+def test_agent_root_span_records_only_the_model_summary(mock_ag):
     mock_ag.tracing.redact = None
     parameters = {
         "agent": {
-            "llm": {"model": "gpt-5-mini"},
+            "instructions": {"agents_md": "x" * 5000},
+            "llm": {
+                "model": "gpt-5-mini",
+                "provider": "openai",
+                "connection": {"mode": "agenta", "slug": "team-openai"},
+                "extras": {"temperature": 0.2},
+            },
             "skills": [{"name": "release-qa", "body": "x" * 5000, "files": []}],
+            "tools": [{"name": "read_file"}],
         }
     }
+
+    attributes = _root_span_attributes(parameters)
+
+    assert _configuration(attributes) == {
+        "agent": {
+            "llm": {
+                "model": "gpt-5-mini",
+                "provider": "openai",
+                "connection": {"mode": "agenta"},
+            }
+        }
+    }
+
+
+@patch("agenta.sdk.decorators.tracing.ag")
+def test_agent_root_span_keeps_only_string_values(mock_ag):
+    mock_ag.tracing.redact = None
+    parameters = {
+        "agent": {
+            "llm": {"model": "opus", "connection": {"mode": {"nested": "x"}}},
+        }
+    }
+
+    attributes = _root_span_attributes(parameters)
+
+    assert _configuration(attributes) == {"agent": {"llm": {"model": "opus"}}}
+
+
+@patch("agenta.sdk.decorators.tracing.ag")
+def test_agent_root_span_without_llm_has_no_configuration(mock_ag):
+    mock_ag.tracing.redact = None
+    parameters = {"agent": {"skills": [{"name": "release-qa", "body": "x" * 5000}]}}
 
     attributes = _root_span_attributes(parameters)
 
@@ -46,3 +106,4 @@ def test_prompt_root_span_keeps_configuration(mock_ag):
     attributes = _root_span_attributes(parameters)
 
     assert any(key.startswith("ag.meta.configuration.prompt") for key in attributes)
+    assert _configuration(attributes) == parameters
