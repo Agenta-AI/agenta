@@ -290,12 +290,28 @@ class ApiThrottlingConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class ApiTimingConfig(BaseModel):
+    """Per-phase timing log for selected hot endpoints.
+
+    Off by default. When on, the config fetch endpoint logs one line per
+    request with the time spent in each phase, in milliseconds. Meant for a
+    short diagnostic window on one deployment, not for steady state.
+    """
+
+    config_fetch: bool = (
+        os.getenv("AGENTA_API_TIMING_CONFIG_FETCH") or "false"
+    ).lower() in _TRUTHY
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class ApiConfig(BaseModel):
     """Agenta API sub-namespace."""
 
     caching: ApiCachingConfig = ApiCachingConfig()
     skills_import: SkillsImportConfig = SkillsImportConfig()
     throttling: ApiThrottlingConfig = ApiThrottlingConfig()
+    timing: ApiTimingConfig = ApiTimingConfig()
 
     model_config = ConfigDict(extra="ignore")
 
