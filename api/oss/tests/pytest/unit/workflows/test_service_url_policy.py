@@ -123,6 +123,37 @@ async def test_the_services_url_gets_the_grant(monkeypatch):
     assert grants == [SECRET_RESOLVE_GRANT]
 
 
+@pytest.mark.parametrize(
+    "stored_url",
+    [
+        None,
+        "http://203.0.113.7:8290/services/agent/v0",
+        "https://old-host.example/services/agent/v0",
+        "https://other.example/invoke",
+    ],
+)
+def test_a_builtin_revision_runs_under_the_current_services_url(stored_url):
+    # A client saves back the url it read, so a built-in revision can hold the services
+    # URL of the day it was committed. The built-in service lives under today's URL.
+    service_url = WorkflowsService._get_service_url(
+        revision_data=SimpleNamespace(url=stored_url, uri="agenta:builtin:agent:v0")
+    )
+
+    assert service_url == f"{_SERVICES_URL}/agent/v0"
+    assert WorkflowsService._service_grants(service_url) == [SECRET_RESOLVE_GRANT]
+
+
+def test_a_custom_revision_keeps_its_stored_url():
+    service_url = WorkflowsService._get_service_url(
+        revision_data=SimpleNamespace(
+            url="https://hooks.example/feedback", uri="agenta:custom:feedback:v0"
+        )
+    )
+
+    assert service_url == "https://hooks.example/feedback"
+    assert WorkflowsService._service_grants(service_url) is None
+
+
 def _through(transport):
     real_client = httpx.AsyncClient
 
