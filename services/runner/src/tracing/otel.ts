@@ -698,17 +698,59 @@ class TraceBatchProcessor implements SpanProcessor {
       groups.set(runId, group);
     }
 
-    const sends = [...groups.entries()].map(([runId, group]) => {
-      // Fall back to the env default only for a span whose OWN run's target is unknown
-      // (untagged span, or the run already released) — never to another run's target, or a
-      // batch could still land on an unintended endpoint/auth.
-      const target = (runId ? byRun?.get(runId) : undefined) ?? defaultTarget();
+    const fallback = defaultTarget();
+    const byTarget = new Map<ExportTarget, ReadableSpan[]>();
+    for (const [runId, group] of groups.entries()) {
+      const target = this.resolveRunTarget(byRun, runId, fallback);
+      const list = byTarget.get(target) ?? [];
+      list.push(...group);
+      byTarget.set(target, list);
+    }
+
+    const sends = [...byTarget.entries()].map(([target, group]) => {
       return async () => {
         for (const chunk of chunkTraceBatch(group, this.maxRequestBytes))
           await this.exportChunk(traceId, target, chunk, redactors);
       };
     });
     return () => Promise.all(sends.map((send) => send())).then(() => undefined);
+  }
+
+  private resolveRunTarget(
+    byRun: Map<string, ExportTarget> | undefined,
+    runId: string | undefined,
+    fallback: ExportTarget,
+  ): ExportTarget {
+    if (runId && byRun?.has(runId)) {
+      return byRun.get(runId)!;
+    }
+    // A span tagged with a released or unknown run must not borrow another run's credential.
+    if (runId) return fallback;
+    // Attribute an untagged span to the active run target when the trace unambiguously
+    // resolves to one destination/credential.
+    if (byRun && byRun.size === 1) {
+      return byRun.values().next().value!;
+    }
+    if (byRun && byRun.size > 1) {
+      const targets = [...byRun.values()];
+      const first = targets[0];
+      const allMatch = targets.every((t) => {
+        if (t.kind !== first.kind) return false;
+        if (t.kind === "serialized") {
+          return t.transport === (first as SerializedExportTarget).transport;
+        }
+        const httpFirst = first as HttpExportTarget;
+        if (t.endpoint !== httpFirst.endpoint) return false;
+        if (t.authorization === httpFirst.authorization) return true;
+        try {
+          return t.authorization() === httpFirst.authorization();
+        } catch {
+          return false;
+        }
+      });
+      if (allMatch) return first;
+    }
+    return fallback;
   }
 
   /** Send one request of a trace to its run's target. Best effort: it never rejects. */
@@ -2252,6 +2294,14 @@ export function createSandboxAgentOtel(
     if (!emitSpans) {
       const m = /^00-([0-9a-f]{32})-/.exec(init.traceparent ?? "");
       runTraceId = m ? m[1] : undefined;
+      if (runTraceId) {
+        registerRunTarget(runTraceId, runId, {
+          kind: "http",
+          endpoint,
+          authorization,
+        });
+        if (init.redactor) registerRunRedactor(runTraceId, init.redactor);
+      }
       return;
     }
     // Tag the run id onto the start context BEFORE creating the root span, so onStart
