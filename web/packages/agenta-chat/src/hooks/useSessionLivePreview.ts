@@ -257,6 +257,7 @@ export const useSessionLivePreview = ({
             )
             connection = connectSessionLiveEvents({
                 sessionId,
+                projectId,
                 after: durable.latestSequence,
                 onFrame: (frame) => {
                     if (disposed || currentGeneration !== generation) return

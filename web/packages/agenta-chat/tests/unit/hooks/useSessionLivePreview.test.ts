@@ -105,7 +105,7 @@ describe("useSessionLivePreview sender subscription", () => {
         )
 
         await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1))
-        expect(FakeEventSource.instances[0].url).toMatch(/\?after=42$/)
+        expect(FakeEventSource.instances[0].url).toMatch(/\?after=42&project_id=project-1$/)
         expect(result.current.runningFromSnapshot).toBe(true)
         act(() => FakeEventSource.instances[0].emit("ready"))
         expect(onReadyChange).toHaveBeenLastCalledWith(true)
