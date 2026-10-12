@@ -47,6 +47,31 @@ const fileQuote: Quote = {
 
 const staleQuote: Quote = {...fileQuote, id: "q-stale", stale: true}
 
+const longFileQuote = (id: string, startLine: number, text: string): Quote => ({
+    id,
+    text,
+    note: "",
+    staged: true,
+    stale: false,
+    source: {
+        kind: "file",
+        path: "reports/2026-10-12-automation-builder-full-picture.md",
+        displayPath: "agent-files/reports/2026-10-12-automation-builder-full-picture.md",
+        fileName: "2026-10-12-automation-builder-full-picture.md",
+        startLine,
+        endLine: startLine,
+    },
+})
+
+/** Several quotes from one long-named file, the shape a review of a report produces. */
+const longFileQuotes: Quote[] = [
+    longFileQuote("q-long-1", 57, "Focus on those who are making money with automations today."),
+    longFileQuote("q-long-2", 59, "The builder should start from a template, not a blank canvas."),
+    longFileQuote("q-long-3", 65, "Schedules"),
+    {...longFileQuote("q-long-4", 71, "Pricing depends on the run count."), stale: true},
+    messageQuote,
+]
+
 const Stage = ({
     label,
     height = 160,
@@ -144,6 +169,31 @@ export const Chips: Story = {
             <div className="rounded-lg border border-solid border-colorBorderSecondary">
                 <ComposerQuotes quotes={[fileQuote, staleQuote]} onRemove={() => {}} touch />
             </div>
+        </div>
+    ),
+}
+
+/**
+ * Long file names in containers from a phone to a wide desktop. A chip never grows past its row:
+ * the excerpt and the file name truncate, and the line range, the stale tag and the remove button
+ * always stay visible inside the border.
+ */
+export const ChipsWithLongFileNames: Story = {
+    render: () => (
+        <div className="flex flex-col gap-6">
+            {[
+                {label: "Phone, 320px, touch", width: 320, touch: true},
+                {label: "Phone, 390px, touch", width: 390, touch: true},
+                {label: "Side panel, 560px", width: 560, touch: false},
+                {label: "Desktop, 900px", width: 900, touch: false},
+            ].map(({label, width, touch}) => (
+                <div key={label} className="flex flex-col gap-2" style={{width}}>
+                    <div className="text-xs text-colorTextSecondary">{label}</div>
+                    <div className="rounded-lg border border-solid border-colorBorderSecondary">
+                        <ComposerQuotes quotes={longFileQuotes} onRemove={() => {}} touch={touch} />
+                    </div>
+                </div>
+            ))}
         </div>
     ),
 }
