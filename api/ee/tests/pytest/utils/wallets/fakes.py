@@ -13,7 +13,7 @@ from uuid import UUID
 import uuid_utils.compat as uuid_utils
 
 from ee.src.core.wallets.contracts import DebitCommandV1
-from ee.src.core.wallets.grants import GrantCapReachedError
+from ee.src.core.wallets.grants import GrantCapReachedError, next_utc_month_start
 from ee.src.core.wallets.interfaces import WalletSettlementPort
 from ee.src.core.wallets.types import (
     CreditCandidateDTO,
@@ -255,7 +255,7 @@ class FakeWalletsDAO(WalletsDAOInterface):
                 if award.organization_id == organization_id
                 and award.credit_kind == credit_kind
                 and award.start_time is not None
-                and award.start_time >= cap_since
+                and cap_since <= award.start_time < next_utc_month_start(cap_since)
             )
             if awarded >= cap_count:
                 raise GrantCapReachedError(credit_kind, cap_count)

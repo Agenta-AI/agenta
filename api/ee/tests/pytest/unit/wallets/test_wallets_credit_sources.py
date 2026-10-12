@@ -16,6 +16,7 @@ from ee.src.core.wallets.grants import (
     GrantCapReachedError,
     compose_award_idempotency_key,
     next_utc_midnight,
+    next_utc_month_start,
     utc_month_start,
 )
 from ee.src.core.wallets.purchases import TOP_UP_PACKS
@@ -145,6 +146,40 @@ def test_utc_month_start_is_the_first_utc_midnight_of_the_month():
     assert utc_month_start(new_year_in_new_york) == datetime(
         2037, 1, 1, tzinfo=timezone.utc
     )
+
+
+def test_next_utc_month_start_is_the_first_utc_midnight_of_the_next_month():
+    assert next_utc_month_start(datetime(2036, 1, 1, tzinfo=timezone.utc)) == datetime(
+        2036, 2, 1, tzinfo=timezone.utc
+    )
+    assert next_utc_month_start(datetime(2036, 12, 1, tzinfo=timezone.utc)) == datetime(
+        2037, 1, 1, tzinfo=timezone.utc
+    )
+
+
+@pytest.mark.asyncio
+async def test_monthly_cap_counts_only_the_award_month():
+    dao = _dao()
+    organization_id = dao.general_balance.organization_id
+    service = WalletsService(wallets_dao=dao)
+    december = datetime(2036, 12, 1, 9, 0, tzinfo=timezone.utc)
+
+    for day in range(DAILY_FREE_GRANTS_PER_MONTH):
+        await service.award(
+            organization_id=organization_id,
+            activity_code="daily_free",
+            reference=f"december-{day}",
+            now=december + timedelta(days=day),
+        )
+
+    # A later month's awards do not use up an earlier month's cap.
+    november = await service.award(
+        organization_id=organization_id,
+        activity_code="daily_free",
+        reference="november-30",
+        now=datetime(2036, 11, 30, 9, 0, tzinfo=timezone.utc),
+    )
+    assert november.start_time.month == 11
 
 
 @pytest.mark.asyncio

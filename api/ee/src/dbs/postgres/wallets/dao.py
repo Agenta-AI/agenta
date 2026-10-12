@@ -14,7 +14,7 @@ from oss.src.dbs.postgres.shared.engine import (
 from oss.src.utils.logging import get_module_logger
 
 from ee.src.core.wallets.contracts import DebitCommandV1
-from ee.src.core.wallets.grants import GrantCapReachedError
+from ee.src.core.wallets.grants import GrantCapReachedError, next_utc_month_start
 from ee.src.core.wallets.plans import LAZY_PROVISION_FLOOR_MUSD
 from ee.src.core.wallets.types import (
     WalletBalanceDTO,
@@ -403,6 +403,8 @@ class WalletsDAO(WalletsDAOInterface):
                             WalletCreditDBE.organization_id == organization_id,
                             WalletCreditDBE.credit_kind == credit_kind,
                             WalletCreditDBE.start_time >= cap_since,
+                            WalletCreditDBE.start_time
+                            < next_utc_month_start(cap_since),
                         )
                     )
                 ).scalar_one()

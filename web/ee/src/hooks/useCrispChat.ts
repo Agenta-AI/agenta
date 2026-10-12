@@ -32,8 +32,12 @@ export const useCrispChat = () => {
     }, [isVisible, updateVisibility, isCrispEnabled])
 
     // Hidden on mount, and again if the organization loses live chat mid-session.
+    // `chat.hide()` injects Crisp when it is not loaded yet, and that throws while Crisp is
+    // unconfigured, so a free organization never reaches it.
     useEffect(() => {
-        Crisp.chat.hide()
+        if (isCrispEnabled || Crisp.isCrispInjected()) {
+            Crisp.chat.hide()
+        }
         setIsVisible(false)
     }, [isCrispEnabled])
 

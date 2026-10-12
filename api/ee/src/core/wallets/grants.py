@@ -95,6 +95,11 @@ def utc_month_start(now: datetime) -> datetime:
     return datetime.combine(day, time.min, tzinfo=timezone.utc)
 
 
+def next_utc_month_start(month_start: datetime) -> datetime:
+    """The first instant of the UTC month after the one that `month_start` opens."""
+    return utc_month_start(month_start + timedelta(days=32))
+
+
 class UnknownGrantActivityError(Exception):
     """Raised when `WalletsService.award()` is called with an `activity_code` that has
     no entry in `GRANT_CATALOG`."""
