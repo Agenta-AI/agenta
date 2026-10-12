@@ -34,11 +34,11 @@ def test_only_the_three_cloud_plans_are_capped():
     [
         (
             HOBBY,
-            "Your Hobby plan allows 2 agents at a time, and 2 are running. We didn't "
-            "start this request or charge you. Resend when one finishes, or upgrade "
-            "to Pro for 10 at a time.",
+            "Your Hobby plan allows 2 concurrent tasks, and 2 are running. We didn't "
+            "start this task or charge you. Resend when one finishes, or upgrade "
+            "to Starter for 20 at a time.",
         ),
-        (PRO, "upgrade to Business for 25 at a time."),
+        (PRO, "upgrade to Business for 50 at a time."),
         (BUSINESS, "contact us to raise the limit."),
     ],
 )
@@ -52,12 +52,12 @@ def test_the_concurrency_message(plan, expected):
     [
         (
             HOBBY,
-            "The Hobby plan limits a request to 30 minutes. This one reached it, so we "
+            "The Hobby plan limits a task to 30 minutes. This one reached it, so we "
             "stopped it. Saved work is kept, and you paid only for the time used. Send "
-            "a message to continue, or upgrade to Pro for up to 4 hours.",
+            "a message to continue, or upgrade to Starter for up to 4 hours.",
         ),
-        (PRO, "The Pro plan limits a request to 4 hours."),
-        (BUSINESS, "to continue, or split the work into smaller requests."),
+        (PRO, "The Starter plan limits a task to 4 hours."),
+        (BUSINESS, "to continue, or split the work into smaller tasks."),
     ],
 )
 def test_the_turn_length_message(plan, expected):
@@ -69,11 +69,12 @@ def test_the_turn_length_message(plan, expected):
     [
         (
             HOBBY,
-            "come back at midnight UTC, or upgrade to Pro for 2,900 credits a month.",
+            "Free daily credits come back at midnight UTC, up to 10 days a month, "
+            "or upgrade to Starter for 2,900 credits a month.",
         ),
         (
             PRO,
-            "Buy more credits to keep going, or upgrade to Business for 29,900 credits a month.",
+            "Buy more credits to keep going, or upgrade to Business for 32,000 credits a month.",
         ),
         (BUSINESS, "Buy more credits to keep going, or contact us."),
         (None, "Add credits to keep going."),
@@ -82,7 +83,7 @@ def test_the_turn_length_message(plan, expected):
 def test_the_out_of_credit_message(plan, expected):
     message = credit_exhausted_message(plan)
     assert message.startswith(
-        "You've used all your organization's credits, so we didn't start this request"
+        "You've used all your organization's credits, so we didn't start this task"
     )
     assert expected in message
 

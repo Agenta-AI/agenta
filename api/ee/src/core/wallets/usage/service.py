@@ -35,7 +35,7 @@ MEASUREMENT_KEY_PREFIX = "measurement:"
 DEFAULT_WINDOW = timedelta(days=30)
 MAX_DEBITS = 5000
 
-_CATEGORIES = {"llm": "Model calls", "mcp": "Tools", "tool": "Tools", "sbx": "Sandbox"}
+_CATEGORIES = {"llm": "AI models", "mcp": "Tools", "tool": "Tools", "sbx": "Runtime"}
 
 
 def category_of(resource_key: str) -> str:

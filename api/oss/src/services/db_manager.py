@@ -968,6 +968,18 @@ async def count_organizations_by_owner(owner_id: str) -> int:
         return result.scalar() or 0
 
 
+async def count_organization_projects(organization_id: str) -> int:
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            select(func.count(ProjectDB.id)).where(
+                ProjectDB.organization_id == uuid.UUID(organization_id)
+            )
+        )
+        return result.scalar() or 0
+
+
 async def delete_organization(organization_id: str) -> bool:
     """Delete an organization and all its related data (FK cascades)."""
 

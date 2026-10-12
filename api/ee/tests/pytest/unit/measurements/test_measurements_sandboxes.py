@@ -17,7 +17,7 @@ from ee.src.core.measurements.charges import calculate_charge
 from oss.src.utils.env import env
 
 from ee.src.core.access.entitlements.types import DefaultPlan
-from ee.src.core.measurements.rate_card import RATE_CARD_VERSION, SANDBOX_BUSINESS
+from ee.src.core.measurements.rate_card import RATE_CARD_VERSION
 from ee.src.core.measurements.sandboxes import (
     SandboxIntervalInvalidError,
     SandboxUsageInterval,
@@ -26,7 +26,6 @@ from ee.src.core.measurements.sandboxes import (
     sandbox_measurement,
 )
 from ee.src.core.wallets.contracts import GatewayKind
-from ee.src.core.wallets.errors import UnpricedMeasurementError
 from ee.src.dbs.postgres.measurements.mappings import measurement_fingerprint
 from ee.tests.pytest.utils.measurements.fakes import (
     InMemoryMeasurementPublisher,
@@ -76,23 +75,13 @@ def test_a_minute_of_our_standard_sandbox_costs_its_resource_seconds_at_list_tim
     assert calculate_charge(command=command) == (8280, RATE_CARD_VERSION)
 
 
-def test_a_minute_on_business_costs_list_times_2_5():
-    command = sandbox_measurement(
-        scope=_scope(), interval=_interval(), rate_tier=SANDBOX_BUSINESS
-    )
-
-    # (120 x 126_000 + 240 x 40_500) / 3600 = (15_120_000 + 9_720_000) / 3600 = 6900 musd.
-    assert calculate_charge(command=command) == (6900, RATE_CARD_VERSION)
-
-
-def test_an_interval_without_a_rate_tier_is_not_priced_at_a_guess():
+def test_a_rate_tier_stamped_by_an_older_release_prices_at_the_one_rate():
     command = sandbox_measurement(scope=_scope(), interval=_interval())
-    locator = {k: v for k, v in command.resource_locator.items() if k != "rate_tier"}
+    locator = {**command.resource_locator, "rate_tier": "business"}
 
-    with pytest.raises(UnpricedMeasurementError):
-        calculate_charge(
-            command=command.model_copy(update={"resource_locator": locator})
-        )
+    assert calculate_charge(
+        command=command.model_copy(update={"resource_locator": locator})
+    ) == (8280, RATE_CARD_VERSION)
 
 
 def test_a_partial_second_of_price_rounds_up_once():
@@ -125,7 +114,6 @@ def test_the_measurement_is_the_callers_and_names_the_sandbox():
         "sandbox_id": interval.sandbox_id,
         "vcpu": 2,
         "memory_gib": 4,
-        "rate_tier": "standard",
     }
     assert command.references == {"session": {"id": "session-1"}}
     assert (command.start_time, command.end_time) == (
@@ -254,37 +242,8 @@ async def test_an_unpublished_interval_is_reported_so_the_runner_retries_it():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "plan, tier",
-    [
-        (DefaultPlan.CLOUD_V0_BUSINESS.value, "business"),
-        (DefaultPlan.CLOUD_V0_PRO.value, "standard"),
-        (DefaultPlan.CLOUD_V0_HOBBY.value, "standard"),
-        (None, "standard"),
-    ],
-)
-async def test_a_recorded_interval_carries_the_rate_tier_of_the_plan(plan, tier):
-    publisher = InMemoryMeasurementPublisher()
-
-    async def plan_for(organization_id):
-        return plan
-
-    service = SandboxUsageService(
-        wallet=_Wallet(True),
-        publisher=publisher,
-        turn_slots=InMemoryTurnSlots(),
-        session_holds=InMemorySessionTurnHolds(),
-        plan_for=plan_for,
-    )
-
-    await service.record(scope=_scope(), interval=_interval())
-
-    [published] = publisher.published
-    assert published.resource_locator["rate_tier"] == tier
-
-
-@pytest.mark.asyncio
-async def test_an_interval_whose_plan_cannot_be_read_is_reported_so_the_runner_retries_it():
+async def test_recording_an_interval_reads_no_plan():
+    # Every plan pays one sandbox rate, so a failed plan read cannot block a report.
     publisher = InMemoryMeasurementPublisher()
 
     async def plan_for(organization_id):
@@ -298,9 +257,9 @@ async def test_an_interval_whose_plan_cannot_be_read_is_reported_so_the_runner_r
         plan_for=plan_for,
     )
 
-    with pytest.raises(SandboxUsageNotRecordedError):
-        await service.record(scope=_scope(), interval=_interval())
-    assert publisher.published == []
+    await service.record(scope=_scope(), interval=_interval())
+
+    assert len(publisher.published) == 1
 
 
 async def _hobby(organization_id):

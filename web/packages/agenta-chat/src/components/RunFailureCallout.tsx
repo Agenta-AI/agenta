@@ -66,8 +66,8 @@ export const RETRYABLE_CODES = new Set([
  */
 export const PLAN_LIMIT_TITLES: Record<string, string> = {
     wallet_balance_exhausted: "You're out of credits",
-    concurrent_turns_limit: "Too many agents running at the same time",
-    turn_time_limit_reached: "This request took too long",
+    concurrent_turns_limit: "Too many tasks running at the same time",
+    turn_time_limit_reached: "This task took too long",
 }
 
 /**

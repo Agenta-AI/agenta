@@ -162,7 +162,7 @@ async def test_each_running_interval_is_charged_once_at_its_resource_price(
     assert sorted(
         (c.category, c.sandbox_seconds, c.vcpu, c.memory_gib, c.amount_musd)
         for c in session.charges
-    ) == [("Sandbox", 17, 2, 4, 2346), ("Sandbox", 60, 2, 4, 8280)]
+    ) == [("Runtime", 17, 2, 4, 2346), ("Runtime", 60, 2, 4, 8280)]
 
     await _cleanup(organization_id)
 

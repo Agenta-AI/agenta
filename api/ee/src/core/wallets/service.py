@@ -17,12 +17,14 @@ from oss.src.utils.logging import get_module_logger
 from ee.src.core.wallets.contracts import DebitCommandV1
 from ee.src.core.wallets.grants import (
     DAILY_FREE_ACTIVITY,
+    GrantCapReachedError,
     GrantReferenceRequiredError,
     UnknownGrantActivityError,
     compose_award_idempotency_key,
     daily_free_reference,
     get_grant_rule,
     next_utc_midnight,
+    utc_month_start,
 )
 from ee.src.core.wallets.interfaces import WalletCheckPort, WalletSettlementPort
 from ee.src.core.wallets.plans import (
@@ -171,13 +173,18 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         self, *, organization_id: UUID, now: datetime
     ) -> None:
         plan = await self.plan_reader(organization_id)
-        if plan in DAILY_FREE_CREDIT_PLANS:
+        if plan not in DAILY_FREE_CREDIT_PLANS:
+            return
+        try:
             await self.award(
                 organization_id=organization_id,
                 activity_code=DAILY_FREE_ACTIVITY,
                 reference=daily_free_reference(day=now.date()),
                 now=now,
             )
+        except GrantCapReachedError:
+            # This month's daily grants are used up; settled for today.
+            return
 
     async def settle(self, command: DebitCommandV1) -> None:
         await self.wallets_dao.settle(command=command)
@@ -207,7 +214,8 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         """Idempotently award a `ee.src.core.wallets.grants.GRANT_CATALOG` activity.
         Returns the newly minted credit, or the existing one on a repeat call — never
         raises on a repeat, never double-awards. See
-        `WalletsDAOInterface.award_credit` for the transaction shape."""
+        `WalletsDAOInterface.award_credit` for the transaction shape. Raises
+        `GrantCapReachedError` when a capped rule is used up for the month."""
         rule = get_grant_rule(activity_code=activity_code)
         if rule is None:
             raise UnknownGrantActivityError(activity_code)
@@ -236,6 +244,8 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
             priority=rule.priority,
             end_time=end_time,
             now=now,
+            cap_count=rule.max_awards_per_month,
+            cap_since=utc_month_start(now) if rule.max_awards_per_month else None,
         )
 
     async def grant_period_allowance(
