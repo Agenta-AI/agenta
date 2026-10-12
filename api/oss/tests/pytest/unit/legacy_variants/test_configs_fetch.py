@@ -232,3 +232,54 @@ async def test_configs_fetch_not_found_raises_404():
 
     assert exc.value.status_code == 404
     assert exc.value.detail == "Config not found."
+
+
+@pytest.mark.asyncio
+async def test_configs_fetch_logs_phase_timing_only_when_enabled(monkeypatch):
+    project_id = uuid4()
+    application_id = uuid4()
+    variant_id = uuid4()
+    revision = _revision(application_id, variant_id)
+    applications_service = _applications_service(application_id, variant_id, revision)
+    router = LegacyVariantsRouter(
+        applications_service=applications_service,
+        environments_service=AsyncMock(),
+    )
+    fake_log = SimpleNamespace(info=lambda *a, **k: calls.append((a, k)))
+    monkeypatch.setattr(legacy_variants_router_module, "log", fake_log)
+
+    # Flag off: the response is the same and nothing is logged.
+    calls = []
+    monkeypatch.setattr(
+        legacy_variants_router_module.env.agenta.api.timing, "config_fetch", False
+    )
+    response = await router.configs_fetch(
+        _request(project_id),
+        variant_ref=ReferenceRequestModel(slug="main", version=3),
+        application_ref=ReferenceRequestModel(slug="demo-app"),
+    )
+    assert response.params == {"temperature": 0.2}
+    assert calls == []
+
+    # Flag on: one line, one field per phase plus the total, all in ms.
+    calls = []
+    monkeypatch.setattr(
+        legacy_variants_router_module.env.agenta.api.timing, "config_fetch", True
+    )
+    response = await router.configs_fetch(
+        _request(project_id),
+        variant_ref=ReferenceRequestModel(slug="main", version=3),
+        application_ref=ReferenceRequestModel(slug="demo-app"),
+    )
+    assert response.params == {"temperature": 0.2}
+    assert len(calls) == 1
+    args, fields = calls[0]
+    assert args == ("configs_fetch timing",)
+    assert fields["by"] == "variant"
+    assert fields["project_id"] == str(project_id)
+    for key in ("ms_access", "ms_revision", "ms_response", "ms_total"):
+        assert isinstance(fields[key], float), key
+        assert fields[key] >= 0
+    assert fields["ms_total"] >= max(
+        fields["ms_access"], fields["ms_revision"], fields["ms_response"]
+    )

@@ -1,4 +1,5 @@
 from datetime import datetime
+from time import perf_counter
 from typing import Annotated, Optional
 from uuid import UUID
 
@@ -15,6 +16,8 @@ from oss.src.core.environments.dtos import EnvironmentRevision
 from oss.src.core.environments.service import EnvironmentsService
 from oss.src.core.shared.dtos import Reference
 from oss.src.utils.exceptions import intercept_exceptions
+from oss.src.utils.env import env
+from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
@@ -47,6 +50,34 @@ def _timestamp(value) -> Optional[str]:
     if isinstance(value, datetime):
         return value.isoformat()
     return str(value)
+
+
+log = get_module_logger(__name__)
+
+
+class _PhaseTimer:
+    """Collects the wall time of named phases of one request.
+
+    `mark(name)` closes the phase that started at the previous mark (or at
+    construction) and opens the next. `as_ms()` returns the closed phases in
+    milliseconds, plus the total since construction. Costs two clock reads per
+    phase, so it is cheap enough to leave in the hot path behind a flag.
+    """
+
+    def __init__(self) -> None:
+        self._start = perf_counter()
+        self._last = self._start
+        self._phases: list[tuple[str, float]] = []
+
+    def mark(self, name: str) -> None:
+        now = perf_counter()
+        self._phases.append((name, now - self._last))
+        self._last = now
+
+    def as_ms(self) -> dict[str, float]:
+        out = {name: round(seconds * 1000, 1) for name, seconds in self._phases}
+        out["total"] = round((perf_counter() - self._start) * 1000, 1)
+        return out
 
 
 def _lifecycle_from_revision(revision) -> LegacyLifecycleDTO:
@@ -329,7 +360,16 @@ class LegacyVariantsRouter:
         environment_ref: Annotated[Optional[ReferenceRequestModel], Body()] = None,
         application_ref: Annotated[Optional[ReferenceRequestModel], Body()] = None,
     ) -> ConfigResponseModel:
+        # Diagnostic timing, off unless AGENTA_API_TIMING_CONFIG_FETCH is set.
+        # The log line is the only output; the response is unchanged. The
+        # phases map one to one onto the awaits below, so a slow phase names
+        # the service call to look at, and "total" against the load balancer
+        # latency says how much time is spent before this handler runs.
+        timer = _PhaseTimer() if env.agenta.api.timing.config_fetch else None
+
         await self._check_view_access(request)
+        if timer:
+            timer.mark("access")
 
         project_id = UUID(request.state.project_id)
         revision = None
@@ -350,6 +390,8 @@ class LegacyVariantsRouter:
                 environment_ref=environment_ref,
                 application_ref=application_ref,
             )
+        if timer:
+            timer.mark("revision")
 
         if not revision:
             raise HTTPException(
@@ -357,9 +399,19 @@ class LegacyVariantsRouter:
                 detail="Config not found.",
             )
 
-        return await self._config_from_revision(
+        response = await self._config_from_revision(
             project_id=project_id,
             revision=revision,
             environment_ref=environment_ref if not variant_ref else None,
             environment_revision=environment_revision,
         )
+        if timer:
+            timer.mark("response")
+            log.info(
+                "configs_fetch timing",
+                project_id=str(project_id),
+                by="variant" if variant_ref else "environment",
+                **{f"ms_{k}": v for k, v in timer.as_ms().items()},
+            )
+
+        return response
