@@ -27,7 +27,7 @@
     "@astrojs/sitemap": "^3.7.4",
     "@phosphor-icons/react": "^2.1.10",
     "astro": "^7.2.8",
-    "posthog-js": "^1.406.2",
+    "posthog-js": "^1.438.7",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
