@@ -134,6 +134,7 @@ const Billing = () => {
             billingEnabled={billingEnabled}
             loading={isSubLoading || isUsageLoading}
             subscription={subscription}
+            planTitle={currentCatalogEntry?.title}
             usage={usage}
             isOnFreePlan={isOnFreePlan}
             isCustomPlan={isCustomPlan}

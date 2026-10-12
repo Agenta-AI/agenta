@@ -50,8 +50,14 @@ const periodEnd = (subscription?: BillingSubscription | null) => {
 }
 
 /** The plan's name, plus how long a free trial has left (or how long ago it ran out). */
-const PlanSummary = ({subscription}: {subscription?: BillingSubscription | null}) => {
-    const name = planName(subscription?.plan)
+const PlanSummary = ({
+    subscription,
+    planTitle,
+}: {
+    subscription?: BillingSubscription | null
+    planTitle?: string | null
+}) => {
+    const name = planTitle || planName(subscription?.plan)
     if (!name) return <span className="text-colorTextTertiary">—</span>
 
     const end = periodEnd(subscription)
@@ -77,6 +83,11 @@ export interface BillingPageProps {
     billingEnabled?: boolean
     loading?: boolean
     subscription?: BillingSubscription | null
+    /**
+     * The plan's title from the catalog. The slug can differ from what the plan is sold as
+     * (`cloud_v0_pro` is Starter), so the slug's last segment is only the fallback.
+     */
+    planTitle?: string | null
     usage?: BillingUsage | null
     isOnFreePlan?: boolean
     /** A contact-sales plan: no self-serve switching, so it gets a contact link instead. */
@@ -101,6 +112,7 @@ export const BillingPage = ({
     billingEnabled = false,
     loading = false,
     subscription,
+    planTitle,
     usage,
     isOnFreePlan = false,
     isCustomPlan = false,
@@ -138,7 +150,7 @@ export const BillingPage = ({
                 <SettingsSection title="Current plan">
                     <CardBody>
                         <span className="text-base font-semibold capitalize text-colorText">
-                            <PlanSummary subscription={subscription} />
+                            <PlanSummary subscription={subscription} planTitle={planTitle} />
                         </span>
                         {/* Only with a real boundary: plans that never renew leave `period_end` unset. */}
                         {!isOnFreePlan && renewsAt ? (

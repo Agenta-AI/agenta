@@ -48,4 +48,14 @@ describe("BillingPage Limits grid", () => {
         expect(text).toContain("evaluations run")
         expect(text).not.toContain("credits consumed")
     })
+
+    it("names the plan by its catalog title, with the slug as the fallback", () => {
+        const subscription = {plan: "cloud_v0_pro"}
+
+        act(() => root.render(<BillingPage subscription={subscription} planTitle="Starter" />))
+        expect(container.textContent).toContain("Starter")
+
+        act(() => root.render(<BillingPage subscription={subscription} />))
+        expect(container.textContent).toContain("pro")
+    })
 })
