@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-10-12-credit-plans-and-reliability-fixes",
+        "title": "Credit-based plans",
+        "description": "Plans now use credits, with 75 free credits a day. Also fixes for analytics, live replies and Gemini on Vertex AI.",
+        "link": "https://agenta.ai/docs/changelog/credit-plans-and-reliability-fixes"
+    },
+    {
         "id": "changelog-2026-09-30-new-models-and-cost-tracking",
         "title": "Grok, Opus 5.5, Sonnet 5.5",
         "description": "New models to choose from, and cost tracking that accounts for caching.",
