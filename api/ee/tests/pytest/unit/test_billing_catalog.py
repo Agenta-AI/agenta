@@ -15,6 +15,7 @@ from ee.src.core.access.entitlements.types import (
 )
 from ee.src.core.wallets.grants import (
     DAILY_FREE_CREDITS_MUSD,
+    DAILY_FREE_GRANTS_PER_MONTH,
     SIGNUP_GRANT_AMOUNT_MUSD,
 )
 from ee.src.core.wallets.plans import (
@@ -68,7 +69,8 @@ def test_hobby_card_states_the_signup_bonus_projects_and_seats():
 
 def test_every_paid_plan_inherits_the_daily_credits_from_hobby():
     assert (
-        f"{_credits(DAILY_FREE_CREDITS_MUSD)} free credits every day, to use that day"
+        f"{_credits(DAILY_FREE_CREDITS_MUSD)} free credits a day, "
+        f"on up to {DAILY_FREE_GRANTS_PER_MONTH} days a month"
     ) in _features(HOBBY)
     assert {HOBBY.value, STARTER.value, BUSINESS.value} <= DAILY_FREE_CREDIT_PLANS
     assert allowance_musd_for_plan(plan=HOBBY.value) == 0

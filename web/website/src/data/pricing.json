@@ -59,7 +59,7 @@
         "includesLabel": "Includes",
         "features": [
           "500 bonus credits when you sign up",
-          "75 free credits every day, to use that day",
+          "75 free credits a day, on up to 10 days a month",
           "2 concurrent tasks",
           "1 project and 2 team members",
           "Agents get their own computer and browser",
@@ -198,7 +198,7 @@
     ]
   },
   "cardsNoteByMode": {
-    "cloud": "Credits pay for Agenta's included models and for runtime, the time your agents run. Every plan also gets 75 free credits every day, to use that day. See what each thing costs.",
+    "cloud": "Credits pay for Agenta's included models and for runtime, the time your agents run. Every plan also gets 75 free credits a day, on up to 10 days a month. See what each thing costs.",
     "selfHosted": null
   },
   "comparisonByMode": {
@@ -238,9 +238,9 @@
             {
               "label": "Daily free credits",
               "cells": [
-                "75 every day, to use that day",
-                "75 every day, to use that day",
-                "75 every day, to use that day",
+                "75 a day, on up to 10 days a month",
+                "75 a day, on up to 10 days a month",
+                "75 a day, on up to 10 days a month",
                 "Custom"
               ]
             },
@@ -962,7 +962,7 @@
     },
     {
       "question": "How many credits does each plan include?",
-      "answer": "Every plan gets 75 free credits every day, to use that day. Starter adds 2,900 credits a month, and Business adds 32,000 credits a month. New organizations also get 500 bonus credits when they sign up."
+      "answer": "Every plan gets 75 free credits a day, on up to 10 days a month. Starter adds 2,900 credits a month, and Business adds 32,000 credits a month. New organizations also get 500 bonus credits when they sign up."
     },
     {
       "question": "How many credits does a task use?",
@@ -978,7 +978,7 @@
     },
     {
       "question": "What happens when I run out of credits?",
-      "answer": "There are no overage charges. Tasks that are already running finish. New tasks do not start until you have credits again. This includes agents that use your own API key, because runtime uses credits. Daily credits come back the next day. On Starter and Business, you can also buy more credits or upgrade."
+      "answer": "There are no overage charges. Tasks that are already running finish. New tasks do not start until you have credits again. This includes agents that use your own API key, because runtime uses credits. Daily credits come back the next day, on up to 10 days a month. On Starter and Business, you can also buy more credits or upgrade."
     },
     {
       "question": "Do team members share credits?",

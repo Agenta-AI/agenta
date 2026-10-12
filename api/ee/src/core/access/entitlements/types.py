@@ -209,7 +209,7 @@ DEFAULT_CATALOG = [
         },
         "features": [
             "500 bonus credits when you sign up",
-            "75 free credits every day, to use that day",
+            "75 free credits a day, on up to 10 days a month",
             "2 concurrent tasks",
             "1 project and 2 team members",
             "Agents get their own computer and browser",
