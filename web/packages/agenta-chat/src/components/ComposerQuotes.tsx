@@ -31,8 +31,11 @@ const QuoteChip = ({
     const Icon = file ? FileText : Quotes
     const range = file ? formatLineRange(file.startLine, file.endLine) : ""
     return (
+        // Only the excerpt and the file name give way; the range, the tag and the remove button
+        // keep their width so a long file name can never push them out of the chip.
         <div
-            className={`flex max-w-[280px] items-center gap-1.5 rounded-lg border border-solid px-2 ${
+            title={file ? `${file.displayPath}${range ? ` ${range}` : ""}` : undefined}
+            className={`flex min-w-0 max-w-[320px] items-center gap-1.5 rounded-lg border border-solid px-2 ${
                 touch ? "h-8" : "h-7"
             } ${
                 quote.stale
@@ -41,16 +44,23 @@ const QuoteChip = ({
             }`}
         >
             <Icon size={touch ? 14 : 12} className="shrink-0 text-colorTextTertiary" />
-            <span className="truncate text-xs text-colorText">
+            <span className="min-w-6 truncate text-xs text-colorText">
                 {truncateQuoteText(quote.text, 48)}
             </span>
             {file ? (
                 <>
                     <span className="h-3 w-px shrink-0 bg-colorBorderSecondary" aria-hidden />
-                    <span className="shrink-0 truncate font-mono text-[10px] text-colorTextTertiary">
+                    <span className="min-w-8 truncate font-mono text-[10px] text-colorTextTertiary">
                         {file.fileName}
-                        {range ? ` ${range}` : ""}
                     </span>
+                    {range ? (
+                        <span
+                            data-quote-range
+                            className="-ml-0.5 shrink-0 font-mono text-[10px] text-colorTextTertiary"
+                        >
+                            {range}
+                        </span>
+                    ) : null}
                 </>
             ) : null}
             {quote.stale ? (
@@ -82,6 +92,7 @@ export const ComposerQuotes = ({quotes, onRemove, touch}: ComposerQuotesProps) =
                         {quotes.map((quote) => (
                             <motion.div
                                 key={quote.id}
+                                className="min-w-0 max-w-full"
                                 layout
                                 variants={ITEM_VARIANTS}
                                 initial="initial"
