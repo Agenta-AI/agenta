@@ -19,6 +19,13 @@ import UsageProgressBar from "./UsageProgressBar"
 /** Quotas with a section of their own; the Limits grid lists everything else. */
 const OWN_SECTION_METRICS = new Set(["users", "applications"])
 
+/**
+ * Quotas the Limits grid leaves out. `credits_consumed` is the retired meter for the
+ * provider keys set on the service itself: no current client counts it, and its name
+ * would be read as the organization's wallet credits.
+ */
+const HIDDEN_METRICS = new Set(["credits_consumed"])
+
 const CONTACT_URL = "https://cal.com/mahmoud-mabrouk-ogzgey/demo"
 
 /** The padded body of a section card that is not a list of setting rows. */
@@ -43,8 +50,14 @@ const periodEnd = (subscription?: BillingSubscription | null) => {
 }
 
 /** The plan's name, plus how long a free trial has left (or how long ago it ran out). */
-const PlanSummary = ({subscription}: {subscription?: BillingSubscription | null}) => {
-    const name = planName(subscription?.plan)
+const PlanSummary = ({
+    subscription,
+    planTitle,
+}: {
+    subscription?: BillingSubscription | null
+    planTitle?: string | null
+}) => {
+    const name = planTitle || planName(subscription?.plan)
     if (!name) return <span className="text-colorTextTertiary">—</span>
 
     const end = periodEnd(subscription)
@@ -70,6 +83,11 @@ export interface BillingPageProps {
     billingEnabled?: boolean
     loading?: boolean
     subscription?: BillingSubscription | null
+    /**
+     * The plan's title from the catalog. The slug can differ from what the plan is sold as
+     * (`cloud_v0_pro` is Starter), so the slug's last segment is only the fallback.
+     */
+    planTitle?: string | null
     usage?: BillingUsage | null
     isOnFreePlan?: boolean
     /** A contact-sales plan: no self-serve switching, so it gets a contact link instead. */
@@ -94,6 +112,7 @@ export const BillingPage = ({
     billingEnabled = false,
     loading = false,
     subscription,
+    planTitle,
     usage,
     isOnFreePlan = false,
     isCustomPlan = false,
@@ -112,7 +131,9 @@ export const BillingPage = ({
         )
     }
 
-    const limits = Object.entries(usage ?? {}).filter(([key]) => !OWN_SECTION_METRICS.has(key))
+    const limits = Object.entries(usage ?? {}).filter(
+        ([key]) => !OWN_SECTION_METRICS.has(key) && !HIDDEN_METRICS.has(key),
+    )
     const users = usage?.users
 
     const upgradeButton = onUpgrade ? <Button onClick={onUpgrade}>Upgrade plan</Button> : null
@@ -129,7 +150,7 @@ export const BillingPage = ({
                 <SettingsSection title="Current plan">
                     <CardBody>
                         <span className="text-base font-semibold capitalize text-colorText">
-                            <PlanSummary subscription={subscription} />
+                            <PlanSummary subscription={subscription} planTitle={planTitle} />
                         </span>
                         {/* Only with a real boundary: plans that never renew leave `period_end` unset. */}
                         {!isOnFreePlan && renewsAt ? (

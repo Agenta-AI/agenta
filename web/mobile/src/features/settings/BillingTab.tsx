@@ -68,6 +68,7 @@ export const BillingTab = ({projectId}: Props) => {
             billingEnabled={billingEnabled}
             loading={usage.isPending || subscription.isPending}
             subscription={subscription.data}
+            planTitle={catalog.plans.find((plan) => plan.plan === subscription.data?.plan)?.title}
             usage={usage.data}
             isOnFreePlan={catalog.isOnFreePlan}
             isCustomPlan={catalog.isCustomPlan}
