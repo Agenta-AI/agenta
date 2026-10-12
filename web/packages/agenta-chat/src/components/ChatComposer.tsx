@@ -26,6 +26,7 @@ import ComposerAttachments from "./ComposerAttachments"
 import ComposerQuotes from "./ComposerQuotes"
 import ComposerRejections from "./ComposerRejections"
 import RecordingWaveform from "./RecordingWaveform"
+import {useStagedFilesViewer} from "./useStagedFilesViewer"
 
 // Lexical is the heaviest dependency of the chat chunk — keep it out of the synchronous
 // mount. React.lazy (not next/dynamic) so the imperative handle ref forwards.
@@ -76,7 +77,7 @@ export interface ChatComposerProps {
     attachmentsBlocked?: () => boolean
     /** The composer itself is unusable (gates the paperclip alongside `uploadsEnabled`). */
     composerDisabled?: boolean
-    /** Open a viewable attachment in the host's viewer; omit to disable tile clicks. */
+    /** Open a viewable attachment in the host's own viewer; omitted, the app's media viewer. */
     onViewAttachment?: (uid: string) => void
     /** Left of the paperclip: host extras (voice mic, context budget). */
     extraPrefix?: ReactNode
@@ -143,6 +144,7 @@ export const ChatComposer = ({
         dismissRejection,
         uploads,
     } = attachments
+    const viewStaged = useStagedFilesViewer(files)
 
     const fileInputRef = useRef<HTMLInputElement>(null)
     // Keyboard affordances are only worth their width where there is a keyboard. On a phone the
@@ -317,7 +319,9 @@ export const ChatComposer = ({
                             <ComposerAttachments
                                 files={files}
                                 onRemove={removeFile}
-                                onView={uploadsEnabled ? onViewAttachment : undefined}
+                                onView={
+                                    uploadsEnabled ? (onViewAttachment ?? viewStaged) : undefined
+                                }
                                 onRetry={uploads.retry}
                                 canRetry={uploads.canRetry}
                             />

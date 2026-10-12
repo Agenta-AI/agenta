@@ -70,7 +70,7 @@ export const ScreenScaffold = ({
         className={`bg-background text-foreground flex min-h-0 flex-col ${
             embedded
                 ? "h-full"
-                : "h-[var(--ag-viewport-height,100dvh)] pt-[env(safe-area-inset-top)]"
+                : "h-[calc(var(--ag-viewport-height,100dvh)-var(--ag-top-bars-h,0px))] pt-[var(--ag-screen-safe-top,env(safe-area-inset-top))]"
         }`}
     >
         {header}

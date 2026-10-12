@@ -211,6 +211,35 @@ Three constraints apply when you change those values:
 - `maxUnavailable: 0` needs room for one more pod than you run today. On a full cluster the rollout
   waits for a node instead of starting. From version 0.122.1 this also applies to `api`.
 
+### Keep idle connections open longer than the load balancer
+
+A load balancer reuses an idle connection to a pod for the next request. If the API worker closes
+that connection first, a request that the load balancer sends in the same instant fails with 502.
+The worker's keep-alive must be longer than the load balancer's idle timeout.
+
+From version 0.122.5 the chart sets `api.gunicorn.keepAlive` and `services.gunicorn.keepAlive` to
+620 seconds. That is above the default idle timeout of these load balancers:
+
+| Load balancer | Default idle timeout |
+|---|---|
+| AWS Application Load Balancer | 60 seconds |
+| ingress-nginx | 60 seconds |
+| Traefik | 90 seconds |
+| Google Cloud external Application Load Balancer | 600 seconds |
+
+If you set a longer idle timeout on your load balancer, set a longer keep-alive too:
+
+```yaml
+api:
+  gunicorn:
+    keepAlive: 4000   # longer than an AWS ALB idle timeout of 3600 seconds
+services:
+  gunicorn:
+    keepAlive: 4000
+```
+
+The Docker Compose deployments use the same value.
+
 ## Lock down the bundled data stores
 
 By default no NetworkPolicy selects the bundled Redis instances or the bundled SeaweedFS, so any
@@ -383,6 +412,27 @@ agentRunner:
 
 [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) covers the Daytona
 account and the snapshot.
+
+## GKE Autopilot: stop the autoscaler from evicting API pods
+
+The chart spreads API pods over distinct nodes. On Autopilot a new API pod can land on a nearly
+empty node. A few minutes later the cluster autoscaler removes that node and evicts the pod again,
+and the loop repeats. Requests do not fail, but one API pod restarts again and again.
+
+Set `api.safeToEvict: false`. The chart then adds the annotation
+`cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` to API pods, and the autoscaler does not
+evict them to remove a node:
+
+```yaml
+api:
+  safeToEvict: false
+```
+
+A node that holds an API pod then stays up, even when the pod is its only workload. Rolling updates
+and `kubectl drain` still move the pod, and Autopilot can still move it for a node upgrade.
+
+By default the chart adds no annotation, and the autoscaler can evict API pods. To add other pod
+annotations, use `api.podAnnotations`. A key there overrides the one that `safeToEvict` sets.
 
 ## Check a values file before you install
 

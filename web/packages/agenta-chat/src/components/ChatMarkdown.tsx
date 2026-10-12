@@ -1,4 +1,16 @@
-import {createContext, memo, useContext, type ReactNode} from "react"
+import {
+    createContext,
+    isValidElement,
+    memo,
+    useCallback,
+    useContext,
+    useLayoutEffect,
+    useMemo,
+    useState,
+    useSyncExternalStore,
+    type ComponentProps,
+    type ReactNode,
+} from "react"
 
 import {
     BlockedChatLink,
@@ -7,6 +19,7 @@ import {
     isProtocolRelativeHref,
     withExplicitRelativeLinks,
 } from "@agenta/entity-ui/drive"
+import {useSettledValue} from "@agenta/shared/hooks"
 import {createCodePlugin, type CodeHighlighterPlugin} from "@streamdown/code"
 import {math} from "@streamdown/math"
 import {
@@ -21,6 +34,10 @@ import {
 export interface ChatMarkdownLinkResolver {
     /** Render `value` as a file link when it resolves, else `fallback`; may resolve asynchronously. */
     renderCode: (value: string, fallback: ReactNode) => ReactNode
+    /** Content under a block for the values it names; each value renders at its first mention. */
+    renderFollowUps?: (values: string[]) => ReactNode
+    /** Whether a value can have a follow-up at all; the rest never join the claims. */
+    claimsFollowUp?: (value: string) => boolean
 }
 
 /** Hook the host passes in to publish its resolver; returns null when no drive is mounted. */
@@ -125,6 +142,207 @@ const Anchor = ({href, title, className, children}: AnchorProps) =>
         </DriveLink>
     )
 
+/** The slice of a hast element the follow-up scan reads. */
+interface HastNode {
+    type: string
+    tagName?: string
+    value?: string
+    properties?: {href?: unknown}
+    children?: HastNode[]
+}
+
+/** Children that are blocks of their own: a nested paragraph or list scans itself. */
+const BLOCK_TAGS = new Set(["p", "ul", "ol", "pre", "blockquote", "table", "div"])
+
+const hastText = (node: HastNode): string =>
+    node.type === "text" ? (node.value ?? "") : (node.children ?? []).map(hastText).join("")
+
+/** The code spans and relative hrefs a paragraph or list item names, in order, once each. */
+const mentionsIn = (node: HastNode, out = new Set<string>()): Set<string> => {
+    for (const child of node.children ?? []) {
+        if (child.type !== "element" || BLOCK_TAGS.has(child.tagName ?? "")) continue
+        if (child.tagName === "code") {
+            const text = hastText(child).trim()
+            if (text) out.add(text)
+            continue
+        }
+        if (child.tagName === "a") {
+            // The href is the anchor's mention; its label (often the same name as code) is not.
+            const href = child.properties?.href
+            if (typeof href === "string" && !isProtocolRelativeHref(href) && !isExternalHref(href))
+                out.add(decodeDriveHref(href))
+            continue
+        }
+        mentionsIn(child, out)
+    }
+    return out
+}
+
+/** `./chart.png`, `/chart.png` and `chart.png` claim as one name. */
+const claimKey = (value: string) => value.replace(/^(?:\.\/|\/)+/, "")
+
+/** Which follow-up block owns each key: the first in DOM order (blocks parse separately). */
+class FollowUpClaims {
+    private blocks = new Map<Element, string[]>()
+    private owned = new Map<Element, string>()
+    private listeners = new Set<() => void>()
+    private pending = false
+    subscribe = (listener: () => void) => {
+        this.listeners.add(listener)
+        return () => void this.listeners.delete(listener)
+    }
+    /** The keys `block` owns, joined: a string, so an unchanged block bails out of re-rendering. */
+    ownedBy = (block: Element | null): string => (block ? (this.owned.get(block) ?? "") : "")
+    set(block: Element, keys: string[] | null) {
+        if (keys) this.blocks.set(block, keys)
+        else this.blocks.delete(block)
+        // Batched: a cleanup and the re-register after it settle as one change.
+        if (this.pending) return
+        this.pending = true
+        queueMicrotask(() => {
+            this.pending = false
+            this.settle()
+        })
+    }
+    private settle() {
+        const ordered = [...this.blocks.keys()].sort((a, b) =>
+            a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+        )
+        const taken = new Set<string>()
+        const next = new Map<Element, string>()
+        for (const block of ordered) {
+            const mine = (this.blocks.get(block) ?? []).filter((key) => !taken.has(key))
+            mine.forEach((key) => taken.add(key))
+            next.set(block, mine.join("\n"))
+        }
+        const changed =
+            next.size !== this.owned.size ||
+            [...next].some(([block, keys]) => this.owned.get(block) !== keys)
+        this.owned = next
+        if (changed) this.listeners.forEach((listener) => listener())
+    }
+}
+
+const FollowUpClaimsContext = createContext<FollowUpClaims | null>(null)
+
+/** The values this block owns, rendered by the host; `display: contents` adds no spacing. */
+const ClaimedFollowUps = ({
+    values,
+    render,
+}: {
+    values: string[]
+    render: (values: string[]) => ReactNode
+}) => {
+    const claims = useContext(FollowUpClaimsContext)
+    const [block, setBlock] = useState<HTMLDivElement | null>(null)
+    const keysJson = JSON.stringify(values.map(claimKey))
+    useLayoutEffect(() => {
+        if (!block || !claims) return
+        claims.set(block, JSON.parse(keysJson) as string[])
+        return () => claims.set(block, null)
+    }, [block, claims, keysJson])
+    const getOwned = useCallback(() => claims?.ownedBy(block) ?? "", [claims, block])
+    const ownedKeys = useSyncExternalStore(claims?.subscribe ?? noopSubscribe, getOwned, getOwned)
+    const valuesJson = JSON.stringify(values)
+    const owned = useMemo(() => {
+        const keys = new Set(ownedKeys ? ownedKeys.split("\n") : [])
+        return (JSON.parse(valuesJson) as string[]).filter((value) => keys.has(claimKey(value)))
+    }, [ownedKeys, valuesJson])
+    return (
+        <div ref={setBlock} className="contents">
+            {owned.length ? render(owned) : null}
+        </div>
+    )
+}
+
+const noopSubscribe = () => () => undefined
+
+// Split out so the host hook is called unconditionally, and only claimable values subscribe.
+const ResolvedFollowUps = ({
+    useResolver,
+    values,
+}: {
+    useResolver: UseChatMarkdownLinkResolver
+    values: string[]
+}) => {
+    const link = useResolver()
+    const render = link?.renderFollowUps
+    const claimable = link?.claimsFollowUp
+    const wantedJson = JSON.stringify(claimable ? values.filter(claimable) : values)
+    // Names still being streamed claim nothing until they stop changing.
+    const settledJson = useSettledValue(wantedJson)
+    const wanted = useMemo(() => JSON.parse(settledJson) as string[], [settledJson])
+    return render && wanted.length ? <ClaimedFollowUps values={wanted} render={render} /> : null
+}
+
+/** Follow-ups for one block, only where the host's resolver renders them. */
+const FollowUps = ({node}: {node?: unknown}) => {
+    const useResolver = useContext(LinkResolverContext)
+    if (!useResolver || !node) return null
+    const values = [...mentionsIn(node as HastNode)]
+    if (!values.length) return null
+    return <ResolvedFollowUps useResolver={useResolver} values={values} />
+}
+
+type BlockProps<T extends "p" | "li"> = ComponentProps<T> & {node?: unknown}
+
+interface Position {
+    start?: {line?: number; column?: number}
+    end?: {line?: number; column?: number}
+}
+
+/** Streamdown's block memo (class + source span), so a streamed token re-renders only its block. */
+const sameBlock = (
+    a: {className?: string; node?: unknown},
+    b: {className?: string; node?: unknown},
+) => {
+    if (a.className !== b.className) return false
+    const pa = (a.node as {position?: Position} | undefined)?.position
+    const pb = (b.node as {position?: Position} | undefined)?.position
+    if (!pa || !pb) return !pa && !pb
+    return (
+        pa.start?.line === pb.start?.line &&
+        pa.start?.column === pb.start?.column &&
+        pa.end?.line === pb.end?.line &&
+        pa.end?.column === pb.end?.column
+    )
+}
+
+/** Streamdown's paragraph (a lone image or code block unwrapped) plus its follow-ups. */
+const Paragraph = memo(({node, children, ...rest}: BlockProps<"p">) => {
+    const kids = (Array.isArray(children) ? children : [children]).filter(
+        (child) => child != null && child !== "",
+    )
+    if (kids.length === 1 && isValidElement(kids[0])) {
+        const props = kids[0].props as {node?: HastNode}
+        const tag = props.node?.tagName
+        if (tag === "img" || (tag === "code" && "data-block" in props)) return <>{children}</>
+    }
+    return (
+        <>
+            <p {...rest}>{children}</p>
+            <FollowUps node={node} />
+        </>
+    )
+}, sameBlock)
+Paragraph.displayName = "ChatMarkdownParagraph"
+
+/** Streamdown's list item (same classes), with the follow-ups for its own inline text. */
+const ListItem = memo(
+    ({node, children, className, ...rest}: BlockProps<"li">) => (
+        <li
+            className={["py-1 [&>p]:inline", className].filter(Boolean).join(" ")}
+            data-streamdown="list-item"
+            {...rest}
+        >
+            {children}
+            <FollowUps node={node} />
+        </li>
+    ),
+    sameBlock,
+)
+ListItem.displayName = "ChatMarkdownListItem"
+
 /** Module-scope: fresh literals would churn Streamdown's prop identity on every streamed token.
  * Exported so the link gates can be asserted without driving a full Streamdown render. */
 export const chatMarkdownComponents: Components = {
@@ -136,6 +354,8 @@ export const chatMarkdownComponents: Components = {
             {children}
         </Anchor>
     ),
+    p: Paragraph,
+    li: ListItem,
 }
 
 /** Streamdown's own list, plus one plugin BEFORE its harden gate; the prop replaces the defaults. */
@@ -211,26 +431,31 @@ const ChatMarkdown = ({
     streaming = false,
     useLinkResolver,
     icons,
-}: ChatMarkdownProps) => (
-    <LinkResolverContext.Provider value={useLinkResolver ?? null}>
-        <Streamdown
-            className={[CHAT_MARKDOWN_STRUCTURAL_CLASS, baseClassName, className]
-                .filter(Boolean)
-                .join(" ")}
-            components={chatMarkdownComponents}
-            rehypePlugins={MD_REHYPE_PLUGINS}
-            plugins={MD_PLUGINS}
-            controls={MD_CONTROLS}
-            icons={icons}
-            shikiTheme={SHIKI_THEMES}
-            lineNumbers={false}
-            mode={streaming ? "streaming" : "static"}
-            parseIncompleteMarkdown={streaming}
-            animated={false}
-        >
-            {content}
-        </Streamdown>
-    </LinkResolverContext.Provider>
-)
+}: ChatMarkdownProps) => {
+    const [claims] = useState(() => new FollowUpClaims())
+    return (
+        <LinkResolverContext.Provider value={useLinkResolver ?? null}>
+            <FollowUpClaimsContext.Provider value={claims}>
+                <Streamdown
+                    className={[CHAT_MARKDOWN_STRUCTURAL_CLASS, baseClassName, className]
+                        .filter(Boolean)
+                        .join(" ")}
+                    components={chatMarkdownComponents}
+                    rehypePlugins={MD_REHYPE_PLUGINS}
+                    plugins={MD_PLUGINS}
+                    controls={MD_CONTROLS}
+                    icons={icons}
+                    shikiTheme={SHIKI_THEMES}
+                    lineNumbers={false}
+                    mode={streaming ? "streaming" : "static"}
+                    parseIncompleteMarkdown={streaming}
+                    animated={false}
+                >
+                    {content}
+                </Streamdown>
+            </FollowUpClaimsContext.Provider>
+        </LinkResolverContext.Provider>
+    )
+}
 
 export default memo(ChatMarkdown)

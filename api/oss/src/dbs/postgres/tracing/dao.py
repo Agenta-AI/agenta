@@ -13,13 +13,15 @@ from uuid import UUID
 from traceback import format_exc
 from datetime import datetime, timezone
 
-from sqlalchemy import cast, func, select, text
+from sqlalchemy import cast, func, literal_column, select, text
 from sqlalchemy.types import Numeric, BigInteger
 from sqlalchemy.sql import Select, and_, or_
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.sql.elements import ColumnElement
-from sqlalchemy.dialects.postgresql import BIT
+from sqlalchemy.dialects.postgresql import BIT, JSONB
+from sqlalchemy.orm import defer
+from sqlalchemy.orm.attributes import set_committed_value
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
@@ -37,6 +39,7 @@ from oss.src.core.tracing.dtos import (
     MetricsBucket,
     Condition,
     ListOperator,
+    AnalyticsQueryTimeoutError,
 )
 
 from oss.src.dbs.postgres.shared.utils import apply_windowing
@@ -79,6 +82,32 @@ from oss.src.dbs.postgres.tracing.utils import (
 log = get_module_logger(__name__)
 
 
+# Span list queries (`TracingDAO.query`) return `attributes` without the agent skill
+# text. Agent run root spans written before v0.122.5 carry the full text of every skill
+# under this path (about 1 MB per span, up to 7 MB), and a list of them exhausts the
+# api's memory (#7496). Postgres removes the path, so the api never decodes it. The
+# guard keeps rows where the path runs through a non-object (an array or a scalar,
+# where `#-` raises) unchanged. `TracingDAO.fetch` (spans by trace or span id) still
+# returns the whole column.
+_LIST_ATTRIBUTES = literal_column(
+    """CASE
+        WHEN jsonb_typeof(spans.attributes #> '{ag,data,parameters,agent}') = 'object'
+            AND (spans.attributes #> '{ag,data,parameters,agent}') ? 'skills'
+        THEN spans.attributes #- '{ag,data,parameters,agent,skills}'
+        ELSE spans.attributes
+    END""",
+    type_=JSONB(none_as_null=True),
+).label("list_attributes")
+
+
+def _with_list_attributes(stmt: Select) -> Select:
+    # The ORM column stays unloaded (raiseload: any read of it fails loudly instead of
+    # lazy-loading the full value); `TracingDAO.query` puts the trimmed value in its place.
+    return stmt.options(defer(SpanDBE.attributes, raiseload=True)).add_columns(
+        _LIST_ATTRIBUTES
+    )
+
+
 def _jsonb_object(expr: str) -> str:
     return f"(CASE WHEN jsonb_typeof({expr}) = 'object' THEN {expr} ELSE '{{}}'::jsonb END)"
 
@@ -111,6 +140,15 @@ UPDATE_CUMULATIVE_METRIC_STMT = text(
       AND span_id = :span_id
     """
 )
+
+
+def _is_statement_timeout(error: DBAPIError) -> bool:
+    # 57014 is Postgres query_canceled. It also covers a cancel on user request
+    # (pg_cancel_backend), so the message must name the statement timeout too.
+    orig = error.orig
+    return getattr(orig, "sqlstate", None) in (None, "57014") and (
+        "statement timeout" in str(orig)
+    )
 
 
 class TracingDAO(TracingDAOInterface):
@@ -185,7 +223,6 @@ class TracingDAO(TracingDAOInterface):
 
             return link_dtos
 
-    @suppress_exceptions(default=[])
     async def query(
         self,
         *,
@@ -193,6 +230,23 @@ class TracingDAO(TracingDAOInterface):
         #
         query: TracingQuery,  # type: ignore
     ) -> List[OTelFlatSpan]:
+        span_dtos, _ = await self.query_page(project_id=project_id, query=query)
+
+        return span_dtos
+
+    @suppress_exceptions(default=([], None))
+    async def query_page(
+        self,
+        *,
+        project_id: UUID,
+        #
+        query: TracingQuery,  # type: ignore
+    ) -> Tuple[List[OTelFlatSpan], Optional[Windowing]]:
+        """Return the spans of one page and the windowing of the next page.
+
+        The next windowing is None when the page is not full (no `limit`, or fewer
+        rows than `limit`). With focus=trace, `limit` counts traces.
+        """
         # DE-STRUCTURING
         focus = query.formatting.focus if query.formatting else None
 
@@ -250,7 +304,7 @@ class TracingDAO(TracingDAOInterface):
                     percent = get_sampling_percent(rate)
 
                     if percent == 0:
-                        return []
+                        return [], None
 
                     if percent < 100:
                         base = base.where(
@@ -279,9 +333,14 @@ class TracingDAO(TracingDAOInterface):
 
                     inner = base.subquery("latest_per_trace")
 
-                    uniq = select(inner.c.trace_id)
+                    uniq = select(inner.c.trace_id, inner.c.start_time)
 
-                    uniq = uniq.order_by(inner.c.start_time.desc())
+                    # trace_id breaks ties, so the (newest, next) cursor neither skips
+                    # nor repeats traces that share a start_time.
+                    uniq = uniq.order_by(
+                        inner.c.start_time.desc(),
+                        inner.c.trace_id.desc(),
+                    )
 
                     if next and newest:
                         uniq = uniq.filter(
@@ -297,13 +356,17 @@ class TracingDAO(TracingDAOInterface):
                     if limit:
                         uniq = uniq.limit(limit)
 
+                    page = uniq.subquery("page_traces")
+
+                    # page.c.start_time ranks each trace (its latest matching span in
+                    # the window) and is the cursor of the next page.
                     stmt = (
-                        select(SpanDBE)
-                        .filter(SpanDBE.trace_id.in_(uniq))
+                        select(SpanDBE, page.c.start_time.label("trace_rank"))
+                        .join(page, SpanDBE.trace_id == page.c.trace_id)
+                        .filter(SpanDBE.project_id == project_id)
                         .order_by(
-                            func.max(SpanDBE.start_time)
-                            .over(partition_by=SpanDBE.trace_id)
-                            .desc(),
+                            page.c.start_time.desc(),
+                            SpanDBE.trace_id.desc(),
                             SpanDBE.start_time.asc(),
                         )
                     )
@@ -325,15 +388,57 @@ class TracingDAO(TracingDAOInterface):
                 # ---------
 
                 # EXECUTION
-                dbes = (await session.execute(stmt)).scalars().all()
+                rows = (await session.execute(_with_list_attributes(stmt))).all()
                 # ---------
 
-                if not dbes:
-                    return []
+                if not rows:
+                    return [], None
 
-                span_dtos = [map_span_dbe_to_span_dto(span_dbe=dbe) for dbe in dbes]
+                span_dtos = []
+                for row in rows:
+                    dbe = row[0]
+                    # Fill the deferred column without marking the row dirty.
+                    set_committed_value(dbe, "attributes", row[-1])
+                    span_dtos.append(map_span_dbe_to_span_dto(span_dbe=dbe))
 
-                return span_dtos
+                next_windowing = None
+
+                if focus == Focus.TRACE:
+                    traces = len({row[0].trace_id for row in rows})
+
+                    if limit and traces >= limit:
+                        last_dbe, last_rank = rows[-1][0], rows[-1][1]
+                        next_windowing = Windowing(
+                            newest=last_rank,
+                            oldest=oldest,
+                            next=last_dbe.trace_id,
+                            limit=limit,
+                            rate=rate,
+                        )
+                elif limit and len(rows) >= limit:
+                    last = rows[-1][0]
+                    order = (query.windowing.order or "descending").lower()
+
+                    if order == "ascending":
+                        next_windowing = Windowing(
+                            oldest=last.start_time,
+                            newest=newest,
+                            next=last.span_id,
+                            limit=limit,
+                            order=query.windowing.order,
+                            rate=rate,
+                        )
+                    else:
+                        next_windowing = Windowing(
+                            newest=last.start_time,
+                            oldest=oldest,
+                            next=last.span_id,
+                            limit=limit,
+                            order=query.windowing.order,
+                            rate=rate,
+                        )
+
+                return span_dtos, next_windowing
 
         except DBAPIError as e:
             log.error(f"{type(e).__name__}: {e}")
@@ -352,7 +457,7 @@ class TracingDAO(TracingDAOInterface):
             log.error(format_exc())
             raise e
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[AnalyticsQueryTimeoutError])
     async def analytics(
         self,
         *,
@@ -468,10 +573,16 @@ class TracingDAO(TracingDAOInterface):
         # log.trace(str(statistics_stmt.compile(**DEBUG_ARGS)).replace("\n", " "))
         # ---------
 
-        async with self.engine.session() as session:
-            await session.execute(TIMEOUT_STMT)
+        try:
+            async with self.engine.session() as session:
+                await session.execute(TIMEOUT_STMT)
 
-            rows = (await session.execute(select(statistics_stmt))).mappings().all()
+                rows = (await session.execute(select(statistics_stmt))).mappings().all()
+        except DBAPIError as e:
+            if _is_statement_timeout(e):
+                raise AnalyticsQueryTimeoutError() from e
+
+            raise
 
         rows = [{**row} for row in rows]
 

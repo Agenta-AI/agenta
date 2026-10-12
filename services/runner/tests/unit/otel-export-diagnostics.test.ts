@@ -215,6 +215,20 @@ describe("logExportProblem", () => {
     spans: 1,
   };
 
+  it("reports a skip at WARN and a failure at ERROR", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    logExportProblem({ ...base, authorization: undefined, outcome: "skipped" });
+    expect(warnSpy.mock.calls.flat().join(" ")).toContain(SKIPPED);
+    expect(errorSpy).not.toHaveBeenCalled();
+
+    logExportProblem({ ...base, outcome: "failed", error: new Error("x") });
+    expect(errorSpy.mock.calls.flat().join(" ")).toContain(
+      "trace export failed",
+    );
+  });
+
   it("reports a thrown non-Error by its string form", () => {
     const line = captureProblem({
       ...base,

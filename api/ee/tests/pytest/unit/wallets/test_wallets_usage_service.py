@@ -114,9 +114,9 @@ def _service(debits=(), measurements=(), credits=()):
 
 
 def test_categories_follow_the_resource_key_plane():
-    assert category_of("llm:agenta:gpt-5.5") == "Model calls"
+    assert category_of("llm:agenta:gpt-5.5") == "AI models"
     assert category_of("mcp:agenta:search") == "Tools"
-    assert category_of("sbx:daytona:cpu") == "Sandbox"
+    assert category_of("sbx:daytona:cpu") == "Runtime"
     assert category_of("adjustment") == "Other"
 
 
@@ -207,8 +207,8 @@ async def test_daily_totals_split_by_category_and_match_the_debits():
     usage = await service.usage(organization_id=ORG, end=NOW + timedelta(seconds=1))
 
     assert [(d.day.isoformat(), d.category, d.amount_musd) for d in usage.days] == [
-        ("2026-09-25", "Model calls", 30),
-        ("2026-09-26", "Model calls", 10),
+        ("2026-09-25", "AI models", 30),
+        ("2026-09-26", "AI models", 10),
         ("2026-09-26", "Tools", 20),
     ]
 
@@ -295,14 +295,14 @@ async def test_a_sandbox_interval_shows_under_sandbox_with_its_seconds_and_resou
     [session] = usage.sessions
     assert (session.session_id, session.agent_name) == ("s-1", "Support agent")
     [charge] = session.charges
-    assert charge.category == "Sandbox"
+    assert charge.category == "Runtime"
     assert (charge.sandbox_seconds, charge.vcpu, charge.memory_gib) == (60, 2, 4)
     assert (charge.provider, charge.model, charge.input_tokens) == (
         "daytona",
         None,
         None,
     )
-    assert [(d.category, d.amount_musd) for d in usage.days] == [("Sandbox", 4140)]
+    assert [(d.category, d.amount_musd) for d in usage.days] == [("Runtime", 4140)]
 
 
 async def test_a_managed_action_shows_under_tools_with_its_action_and_count():

@@ -20,12 +20,23 @@ export interface SessionLiveEventsConnection {
     close: () => void
 }
 
-export const sessionLiveEventsUrl = (sessionId: string, after = 0): string =>
-    `${getAgentaApiUrl()}/sessions/${encodeURIComponent(sessionId)}/events?after=${Math.max(0, after)}`
+/**
+ * An EventSource does not go through the API client that adds `project_id`, so the URL carries
+ * it. Without it the API resolves the user's default project, not the session's project.
+ */
+export const sessionLiveEventsUrl = (
+    sessionId: string,
+    after = 0,
+    projectId?: string | null,
+): string => {
+    const url = `${getAgentaApiUrl()}/sessions/${encodeURIComponent(sessionId)}/events?after=${Math.max(0, after)}`
+    return projectId ? `${url}&project_id=${encodeURIComponent(projectId)}` : url
+}
 
 /** Native EventSource transport for uncoalesced live frames. */
 export const connectSessionLiveEvents = ({
     sessionId,
+    projectId,
     after,
     onFrame,
     onEvent,
@@ -33,13 +44,16 @@ export const connectSessionLiveEvents = ({
     onDisconnect,
 }: {
     sessionId: string
+    projectId?: string | null
     after: number
     onFrame: (frame: SessionLiveFrame) => void
     onEvent: (event: SessionDurableEvent) => void
     onReady: (event: SessionLiveReady) => void
     onDisconnect: (event: SessionLiveDisconnect) => void
 }): SessionLiveEventsConnection => {
-    const source = new EventSource(sessionLiveEventsUrl(sessionId, after), {withCredentials: true})
+    const source = new EventSource(sessionLiveEventsUrl(sessionId, after, projectId), {
+        withCredentials: true,
+    })
 
     source.onmessage = (event) => {
         try {

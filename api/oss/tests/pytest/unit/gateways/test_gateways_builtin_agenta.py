@@ -259,6 +259,9 @@ class _NoVault:
     async def provider_connection_by_slug(self, *, scope, slug):
         return None
 
+    async def has_connection(self, *, scope, slug):
+        return False
+
 
 class _NoRows:
     async def fetch_endpoint_by_slug(self, *, project_id, slug):
@@ -661,3 +664,213 @@ async def test_a_stream_that_fills_the_buffer_still_ends_for_a_connected_consume
 
     received = await asyncio.wait_for(consume(), timeout=2)
     assert len(received) == count
+
+
+# --- the retired starter-credits connection --------------------------------- #
+
+# What 359 production agents saved: the seeded "Agenta" connection and its funded model.
+_STARTER_CREDITS_MODEL = "Agenta/custom/vertex_ai/gemini-3.7-flash"
+
+
+class _AdmittingPolicy(_Policy):
+    def __init__(self):
+        super().__init__()
+        self.admitted = []
+
+    async def admit(self, *, scope, target, session_id=None):
+        self.admitted.append(target)
+        return SpendAdmission(allowed=True)
+
+
+def _service_without_endpoints(policy=None, requests=None) -> LLMGatewayService:
+    adapters = {}
+    if requests is not None:
+        adapters["relay"] = RelayLLMAdapter(
+            client=_vertex_upstream(requests, stream=False)
+        )
+    return LLMGatewayService(
+        llm_endpoints_dao=_NoRows(),
+        policy=policy or _Policy(),
+        resolver=_NoVault(),
+        upstream_registry=LLMUpstreamRegistry(adapters=adapters),
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("namespace", [None, GatewayEndpointNamespace.CUSTOM])
+async def test_a_saved_starter_credits_model_runs_on_the_builtin_model_once_retired(
+    vertex, namespace
+):
+    """The transfer job deleted the connection; the saved agent is not rewritten, and its
+    run resolves to `builtin/agenta`, which the wallet admits and charges."""
+    requests: List[httpx.Request] = []
+    policy = _AdmittingPolicy()
+    service = _service_without_endpoints(policy=policy, requests=requests)
+    scope = _scope()
+
+    resolution = await service.resolve_agent_connection(
+        scope=scope,
+        model=_STARTER_CREDITS_MODEL,
+        provider_key=None,
+        connection_slug="starter-credits",
+        connection_namespace=namespace,
+    )
+
+    assert (resolution.namespace, resolution.name) == (
+        GatewayEndpointNamespace.BUILTIN,
+        "agenta",
+    )
+    assert resolution.model == "google/gemini-3.7-flash"
+    assert resolution.provider_key == "openai"
+    assert resolution.deployment_kind is LLMDeploymentKind.CUSTOM
+
+    # The harness then relays to the route it was given, with the model it was given.
+    result = await service.relay_chat_completion(
+        scope=scope,
+        namespace=resolution.namespace,
+        name=resolution.name,
+        body=json.dumps({"model": resolution.model, "messages": []}).encode(),
+        headers={},
+    )
+    assert b"Hi" in b"".join([chunk async for chunk in result.body])
+
+    assert len(requests) == 1
+    ((admitted),) = policy.admitted
+    assert (admitted.namespace, admitted.name) == (
+        GatewayEndpointNamespace.BUILTIN,
+        "agenta",
+    )
+    ((target, outcome),) = policy.records
+    assert (target.namespace, target.model) == (
+        GatewayEndpointNamespace.BUILTIN,
+        "google/gemini-3.7-flash",
+    )
+    assert outcome.origin is SecretOrigin.LOCAL
+    assert outcome.owner is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "slug, model",
+    [
+        # Another missing custom connection, even with the same model id.
+        ("acme", _STARTER_CREDITS_MODEL),
+        # A starter-credits model the bridge never funded.
+        ("starter-credits", "Agenta/custom/vertex_ai/gemini-3.1-pro"),
+    ],
+)
+async def test_any_other_missing_custom_connection_still_fails_as_not_found(
+    vertex, slug, model
+):
+    from oss.src.core.gateways.llms.types import LLMEndpointNotFoundError
+
+    with pytest.raises(LLMEndpointNotFoundError) as caught:
+        await _service_without_endpoints().resolve_agent_connection(
+            scope=_scope(),
+            model=model,
+            provider_key=None,
+            connection_slug=slug,
+        )
+
+    assert (caught.value.namespace, caught.value.name) == (
+        GatewayEndpointNamespace.CUSTOM,
+        slug,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "model", [_STARTER_CREDITS_MODEL, "vertex_ai/gemini-3.7-flash"]
+)
+async def test_a_connection_still_in_the_vault_is_never_aliased(vertex, model):
+    """A user's own connection under the slug, or one whose endpoint registration failed,
+    keeps failing instead of moving to the platform's account."""
+    from oss.src.core.gateways.llms.types import LLMEndpointNotFoundError
+
+    class _VaultHoldsTheSlug(_NoVault):
+        async def has_connection(self, *, scope, slug):
+            return slug == "starter-credits"
+
+    service = LLMGatewayService(
+        llm_endpoints_dao=_NoRows(),
+        policy=_Policy(),
+        resolver=_VaultHoldsTheSlug(),
+        upstream_registry=LLMUpstreamRegistry(adapters={}),
+    )
+
+    with pytest.raises(LLMEndpointNotFoundError):
+        await service.resolve_agent_connection(
+            scope=_scope(),
+            model=model,
+            provider_key=None,
+            connection_slug="starter-credits",
+        )
+
+
+@pytest.mark.asyncio
+async def test_the_alias_needs_a_deployment_that_serves_builtin_agenta(no_vertex):
+    from oss.src.core.gateways.llms.types import LLMEndpointNotFoundError
+
+    with pytest.raises(LLMEndpointNotFoundError) as caught:
+        await _service_without_endpoints().resolve_agent_connection(
+            scope=_scope(),
+            model=_STARTER_CREDITS_MODEL,
+            provider_key=None,
+            connection_slug="starter-credits",
+        )
+
+    assert (caught.value.namespace, caught.value.name) == (
+        GatewayEndpointNamespace.CUSTOM,
+        "starter-credits",
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_starter_credits_connection_that_still_exists_keeps_its_own_route(
+    vertex,
+):
+    """Before the transfer, or for a user's own connection under the slug: no alias."""
+    from oss.src.core.gateways.llms.dtos import (
+        LLMEndpoint,
+        LLMEndpointData,
+        LLMModelFilter,
+    )
+    from oss.src.core.shared.dtos import Header
+
+    class _StarterCreditsRow(_NoRows):
+        async def fetch_endpoint_by_slug(self, *, project_id, slug):
+            if slug != "starter-credits":
+                return None
+            return LLMEndpoint(
+                id=uuid4(),
+                slug=slug,
+                header=Header(name="Agenta"),
+                provider_key="openai",
+                deployment_kind=LLMDeploymentKind.CUSTOM,
+                namespace=GatewayEndpointNamespace.CUSTOM,
+                data=LLMEndpointData(
+                    models=LLMModelFilter(
+                        allowlist=[_STARTER_CREDITS_MODEL, "vertex_ai/gemini-3.7-flash"]
+                    )
+                ),
+            )
+
+    service = LLMGatewayService(
+        llm_endpoints_dao=_StarterCreditsRow(),
+        policy=_Policy(),
+        resolver=_NoVault(),
+        upstream_registry=LLMUpstreamRegistry(adapters={}),
+    )
+
+    resolution = await service.resolve_agent_connection(
+        scope=_scope(),
+        model=_STARTER_CREDITS_MODEL,
+        provider_key=None,
+        connection_slug="starter-credits",
+    )
+
+    assert (resolution.namespace, resolution.name) == (
+        GatewayEndpointNamespace.CUSTOM,
+        "starter-credits",
+    )
+    assert resolution.model == "vertex_ai/gemini-3.7-flash"

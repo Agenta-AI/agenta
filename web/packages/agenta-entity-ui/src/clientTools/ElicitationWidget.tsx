@@ -197,9 +197,7 @@ const ElicitationWidget = ({meta, degradedEarlierInTurn}: ClientToolHandlerProps
         )
     }
 
-    // The tool's `message` is the agent's own framing and the only context it wrote, so it belongs
-    // here in the transcript rather than in the dock. No jump affordance: the dock is pinned above
-    // the composer and already on screen whenever it holds this call.
+    // No jump affordance: the dock is pinned above the composer whenever it holds this call.
     const count = buildElicitationSteps(parsed.payload).steps.length
     return (
         <div className="flex min-w-0 items-start gap-2 py-1">

@@ -649,19 +649,21 @@ class TriggersDAO(TriggersDAOInterface):
             .limit(1)
         )
 
-        # One held connection for the whole wait, instead of a fresh checkout per tick.
-        async with self.engine.session() as session:
-            deadline = asyncio.get_event_loop().time() + timeout_seconds
-            while asyncio.get_event_loop().time() < deadline:
+        # A fresh checkout per tick. Holding one session across the sleeps kept a
+        # pooled connection busy for the whole wait (up to minutes), and a handful of
+        # concurrent waits could take every connection in the API pool.
+        deadline = asyncio.get_event_loop().time() + timeout_seconds
+        while asyncio.get_event_loop().time() < deadline:
+            async with self.engine.session() as session:
                 result = await session.execute(stmt)
                 dbe = result.scalars().first()
 
-                if dbe is not None and dbe.id != baseline_id:
-                    return map_delivery_dbe_to_dto(delivery_dbe=dbe)
+            if dbe is not None and dbe.id != baseline_id:
+                return map_delivery_dbe_to_dto(delivery_dbe=dbe)
 
-                await asyncio.sleep(interval_seconds)
+            await asyncio.sleep(interval_seconds)
 
-            return None
+        return None
 
     async def dedup_seen(
         self,

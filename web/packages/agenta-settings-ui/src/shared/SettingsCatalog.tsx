@@ -202,6 +202,7 @@ export const SettingsCatalog = ({
     empty,
     notice,
     after,
+    toolbar,
 }: {
     search?: {value: string; onChange: (next: string) => void; placeholder: string}
     groups: SettingsCatalogGroup[]
@@ -212,6 +213,8 @@ export const SettingsCatalog = ({
     notice?: ReactNode
     /** Drawn after the groups, in their rhythm: sections a host loads on its own. */
     after?: ReactNode
+    /** Pinned under the search, e.g. filter chips. */
+    toolbar?: ReactNode
 }) => {
     const shown = groups.filter(
         (group) => group.items.length > 0 || group.pendingRows || group.footer,
@@ -231,6 +234,7 @@ export const SettingsCatalog = ({
                         onSearchChange={search.onChange}
                         searchPlaceholder={search.placeholder}
                     />
+                    {toolbar}
                 </div>
             ) : null}
             {notice}

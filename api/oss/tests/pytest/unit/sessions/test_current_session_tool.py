@@ -64,7 +64,7 @@ async def test_reads_scoped_session_and_returns_only_link_metadata(setup):
     assert response.json() == {
         "session_id": "session-1",
         "name": "QA session",
-        "url": f"https://example.test/w/{setup.workspace_id}/p/{setup.project_id}/apps/{setup.agent_id}/playground?session_id=session-1",
+        "url": f"https://example.test/m/w/{setup.workspace_id}/p/{setup.project_id}/sessions/session-1?agent={setup.agent_id}",
         "url_unavailable_reason": None,
     }
     setup.service.fetch.assert_awaited_once_with(
@@ -126,7 +126,7 @@ def test_web_origin_port_and_prefix(setup, base):
     )
     assert (
         result.url
-        == f"{base.rstrip('/')}/w/{setup.workspace_id}/p/{setup.project_id}/apps/{setup.agent_id}/playground?session_id=session-1"
+        == f"{base.rstrip('/')}/m/w/{setup.workspace_id}/p/{setup.project_id}/sessions/session-1?agent={setup.agent_id}"
     )
 
 

@@ -227,7 +227,7 @@ describe("RunFailureCallout", () => {
             />,
         )
 
-        expect(rendered).toContain("This request took too long")
+        expect(rendered).toContain("This task took too long")
         expect(rendered).toContain("limits a request to 30 minutes")
         expect(rendered).toContain("Plans and billing")
         expect(rendered).not.toContain("The agent run failed")

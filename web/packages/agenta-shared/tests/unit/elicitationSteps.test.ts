@@ -220,6 +220,62 @@ describe("buildElicitationSteps — degrade lanes", () => {
     })
 })
 
+describe("question order", () => {
+    const sorted = (order?: unknown) => ({
+        message: "Three quick questions",
+        requestedSchema: {
+            type: "object",
+            // The key order a JSONB column hands back: shortest first.
+            properties: {
+                style: {type: "string", title: "Style"},
+                budget: {type: "string", title: "Budget"},
+                destination: {type: "string", title: "Destination"},
+            },
+            ...(order === undefined ? {} : {"x-ag-order": order}),
+        },
+    })
+
+    it("follows x-ag-order over the object's key order", () => {
+        const {steps} = formOf(sorted(["destination", "budget", "style"]))
+
+        expect(steps.map((step) => step.name)).toEqual(["destination", "budget", "style"])
+    })
+
+    it("falls back to key order without x-ag-order", () => {
+        const {steps} = formOf(sorted())
+
+        expect(steps.map((step) => step.name)).toEqual(["style", "budget", "destination"])
+    })
+
+    it("drops unknown names and appends the properties x-ag-order left out", () => {
+        const {steps} = formOf(sorted(["destination", "ghost", "destination"]))
+
+        expect(steps.map((step) => step.name)).toEqual(["destination", "style", "budget"])
+    })
+
+    it("ignores an x-ag-order that is not a list", () => {
+        const {steps} = formOf(sorted("destination"))
+
+        expect(steps.map((step) => step.name)).toEqual(["style", "budget", "destination"])
+    })
+
+    it("writes the resolved order back onto the parsed schema", () => {
+        const parsed = parseElicitationPayload(sorted(["destination", "budget", "style"]))
+        if (!parsed.ok) throw new Error(parsed.reason)
+
+        expect(parsed.payload.requestedSchema["x-ag-order"]).toEqual([
+            "destination",
+            "budget",
+            "style",
+        ])
+        expect(Object.keys(parsed.payload.requestedSchema.properties)).toEqual([
+            "destination",
+            "budget",
+            "style",
+        ])
+    })
+})
+
 describe("defaults", () => {
     it("seeds values from the schema so a fully-defaulted form is answerable in one pass", () => {
         const {steps} = formOf(goldenRequest)

@@ -54,6 +54,8 @@ export interface AIProvidersPageProps {
     renderRemoveDialog?: (state: ProviderRemovalState) => ReactNode
     /** Where "configured in the deployment" points. */
     subscriptionDocsUrl?: string
+    /** Agenta Cloud: Claude reads a login mounted into the deployment, which the cloud has none of. */
+    isCloud?: boolean
 }
 
 type DrawerTarget = {connection: ProviderConnection} | {kind: string}
@@ -85,6 +87,7 @@ const CHATGPT_NAME = subscriptionProviderName("chatgpt")
 export const AIProvidersPage = ({
     renderRemoveDialog,
     subscriptionDocsUrl = SUBSCRIPTION_DOCS_URL,
+    isCloud = false,
 }: AIProvidersPageProps) => {
     const {loading, mutate} = useVaultSecret()
     const connections = useAtomValue(providerConnectionsAtom)
@@ -233,9 +236,10 @@ export const AIProvidersPage = ({
                     onClick: () =>
                         window.open(subscriptionDocsUrl, "_blank", "noopener,noreferrer"),
                 },
+                unavailable: isCloud ? "Self-hosted only" : undefined,
             },
         ]
-    }, [subscription, subscriptionDocsUrl])
+    }, [subscription, subscriptionDocsUrl, isCloud])
 
     return (
         <div className="ph-no-capture">

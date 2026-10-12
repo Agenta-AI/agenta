@@ -447,7 +447,11 @@ describe("useSessionLivePreview", () => {
         await act(async () => adopted.resolve(true))
         await waitFor(() =>
             expect(mocks.connectSessionLiveEvents).toHaveBeenCalledWith(
-                expect.objectContaining({sessionId: "session-1", after: 7}),
+                expect.objectContaining({
+                    sessionId: "session-1",
+                    projectId: "project-1",
+                    after: 7,
+                }),
             ),
         )
     })

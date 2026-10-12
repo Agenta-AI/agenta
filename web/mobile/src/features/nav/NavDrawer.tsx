@@ -49,6 +49,10 @@ export const NavDrawer = ({
     const mainScope = useMobileNavScope(workspaceId, projectId)
     const scope = scopeOverride ?? mainScope
     const router = useRouter()
+    // A pick in a rail flyout navigates from a button, which the shell's link-click close misses.
+    useEffect(() => {
+        setOpen(false)
+    }, [router.asPath])
 
     return (
         <Sheet open={open} onOpenChange={setOpen}>

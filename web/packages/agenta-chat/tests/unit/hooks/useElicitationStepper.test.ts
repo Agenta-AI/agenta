@@ -123,33 +123,25 @@ describe("a form the schema already answered", () => {
         retries: {type: "integer", title: "Retries", default: 3},
     })
 
-    it("opens on review, so accepting the defaults is one keystroke", () => {
+    it("opens on question one with the defaults prefilled, not on a review claiming answers", () => {
         const {result} = setup(DEFAULTED)
 
-        expect(result.current.isReview).toBe(true)
-        expect(result.current.primaryLabel).toBe("Send answers")
-        expect(result.current.content).toEqual({region: "eu", retries: 3})
-    })
-
-    it("still lets the user walk back and change one", () => {
-        const {result} = setup(DEFAULTED)
-
-        act(() => result.current.goTo(1))
-
         expect(result.current.isReview).toBe(false)
-        expect(result.current.step?.name).toBe("retries")
-    })
-
-    it("leaves a partly-defaulted form at question one", () => {
-        const {result} = setup(
-            formOf({
-                region: {type: "string", title: "Region", default: "eu"},
-                note: {type: "string", title: "Note"},
-            }),
-        )
-
-        expect(result.current.isReview).toBe(false)
+        expect(result.current.step?.name).toBe("region")
         expect(result.current.position).toBe(1)
+        expect(result.current.primaryLabel).toBe("Next")
+        expect(result.current.values).toEqual({region: "eu", retries: 3})
+    })
+
+    it("sends the defaults once the user walks through them", () => {
+        const {result, onComplete} = setup(DEFAULTED)
+
+        act(() => result.current.primary())
+        act(() => result.current.primary())
+        expect(result.current.isReview).toBe(true)
+        act(() => result.current.primary())
+
+        expect(onComplete).toHaveBeenCalledWith({region: "eu", retries: 3})
     })
 
     it("has no review screen to open when there is only one question", () => {
@@ -417,6 +409,110 @@ describe("draft", () => {
         const {result} = setup()
         expect(result.current.values.name).toBe("Ada")
         expect(result.current.index).toBe(1)
+    })
+
+    it("lands on the same question by name when the questions arrive in another order", () => {
+        vi.useFakeTimers()
+        const first = setup()
+        act(() => first.result.current.setValue("name", "Ada"))
+        act(() => first.result.current.goTo(2))
+        expect(first.result.current.step?.name).toBe("colour")
+        act(() => void vi.advanceTimersByTime(500))
+        first.unmount()
+        vi.useRealTimers()
+
+        // The same call replayed from a transcript whose keys were re-sorted.
+        const reordered = formOf({
+            note: {type: "string", title: "Note", format: "multiline"},
+            name: {type: "string", title: "Your name"},
+            days: {type: "integer", title: "Days", minimum: 1, maximum: 90},
+            digest: {type: "boolean", title: "Digest"},
+            colour: {type: "string", title: "Colour", enum: ["Red", "Blue", "Green"]},
+        })
+        const {result} = setup(reordered)
+        expect(result.current.step?.name).toBe("colour")
+        expect(result.current.index).toBe(4)
+        expect(result.current.values.name).toBe("Ada")
+    })
+
+    it("keeps an untouched card on whichever question comes first after a reorder", () => {
+        const sortedOrder = formOf({budget: {type: "string"}, destination: {type: "string"}})
+        const authoredOrder = buildElicitationSteps({
+            message: "A few details",
+            requestedSchema: {
+                type: "object",
+                properties: {budget: {type: "string"}, destination: {type: "string"}},
+                "x-ag-order": ["destination", "budget"],
+            },
+        } as never)
+        const {result, rerender} = renderHook(
+            ({form}) => useElicitationStepper({form, toolCallId: "call_1", onComplete: vi.fn()}),
+            {initialProps: {form: sortedOrder}},
+        )
+        expect(result.current.step?.name).toBe("budget")
+
+        rerender({form: authoredOrder})
+        expect(result.current.step?.name).toBe("destination")
+        expect(result.current.position).toBe(1)
+    })
+
+    it("restarts a draft saved by position at question one, keeping its answers", () => {
+        storage.setItem(
+            "agenta:elicitation-draft:call_1",
+            JSON.stringify({values: {name: "Ada"}, index: 3}),
+        )
+
+        const {result} = setup()
+        expect(result.current.step?.name).toBe("name")
+        expect(result.current.values.name).toBe("Ada")
+    })
+
+    it("drops the saved draft when the form is sent", () => {
+        vi.useFakeTimers()
+        const {result, unmount, onComplete} = setup(
+            formOf({name: {type: "string"}, note: {type: "string"}}),
+        )
+
+        act(() => result.current.setValue("name", "Ada"))
+        act(() => void vi.advanceTimersByTime(500))
+        expect(storage.getItem("agenta:elicitation-draft:call_1")).not.toBeNull()
+
+        act(() => result.current.goTo(2))
+        act(() => result.current.primary())
+        expect(onComplete).toHaveBeenCalledWith({name: "Ada"})
+        act(() => void vi.advanceTimersByTime(500))
+        unmount()
+        expect(storage.getItem("agenta:elicitation-draft:call_1")).toBeNull()
+    })
+
+    it("drops the saved draft even when the host unmounts the card as the answer leaves", () => {
+        vi.useFakeTimers()
+        let unmountCard = () => {}
+        const form = formOf({name: {type: "string"}, note: {type: "string"}})
+        const view = renderHook(() =>
+            useElicitationStepper({form, toolCallId: "call_1", onComplete: () => unmountCard()}),
+        )
+        unmountCard = view.unmount
+
+        act(() => view.result.current.setValue("name", "Ada"))
+        act(() => view.result.current.goTo(2))
+        act(() => void vi.advanceTimersByTime(500))
+        expect(storage.getItem("agenta:elicitation-draft:call_1")).not.toBeNull()
+
+        act(() => view.result.current.primary())
+        expect(storage.getItem("agenta:elicitation-draft:call_1")).toBeNull()
+    })
+
+    it("drops the saved draft when a one-question pick sends the form", () => {
+        vi.useFakeTimers()
+        const {result, unmount} = setup(formOf({colour: {type: "string", enum: ["Red", "Blue"]}}))
+
+        act(() => result.current.setCursor(1))
+        act(() => void vi.advanceTimersByTime(500))
+        act(() => result.current.pick("colour", "Blue", "Blue", 1))
+        act(() => void vi.advanceTimersByTime(500))
+        unmount()
+        expect(storage.getItem("agenta:elicitation-draft:call_1")).toBeNull()
     })
 
     it("discards a draft whose keys no longer match the schema", () => {

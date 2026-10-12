@@ -1,7 +1,49 @@
+import os
 import json
 import math
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Union, Optional
+
+# Stays below the services gunicorn worker timeout (60 s), so a slow run
+# returns an evaluator error instead of getting the worker killed.
+DEFAULT_CODE_SANDBOX_TIMEOUT = 45.0
+
+
+def get_code_sandbox_timeout() -> float:
+    """Return the hard timeout, in seconds, for one custom code run."""
+    raw = os.getenv("AGENTA_SERVICES_CODE_SANDBOX_TIMEOUT")
+    if not raw:
+        return DEFAULT_CODE_SANDBOX_TIMEOUT
+    try:
+        timeout = float(raw)
+    except ValueError:
+        return DEFAULT_CODE_SANDBOX_TIMEOUT
+    if not math.isfinite(timeout) or timeout <= 0:
+        return DEFAULT_CODE_SANDBOX_TIMEOUT
+    return timeout
+
+
+# How long a custom code run waits for a free slot before it fails. The API
+# gives a whole service call 60 s, and the run timeout starts only when the run
+# gets its slot, so the wait and the run timeout together stay below 60 s.
+DEFAULT_CODE_SANDBOX_WAIT_TIMEOUT = 10.0
+
+
+def get_code_sandbox_wait_timeout() -> float:
+    """Return how long, in seconds, a custom code run waits for a free slot.
+
+    0 means a run fails at once when every slot is busy.
+    """
+    raw = os.getenv("AGENTA_SERVICES_CODE_SANDBOX_WAIT_TIMEOUT")
+    if not raw:
+        return DEFAULT_CODE_SANDBOX_WAIT_TIMEOUT
+    try:
+        wait = float(raw)
+    except ValueError:
+        return DEFAULT_CODE_SANDBOX_WAIT_TIMEOUT
+    if not math.isfinite(wait) or wait < 0:
+        return DEFAULT_CODE_SANDBOX_WAIT_TIMEOUT
+    return wait
 
 
 def normalize_result(result: Any, version: str) -> Any:

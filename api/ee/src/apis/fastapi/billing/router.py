@@ -43,6 +43,7 @@ from ee.src.core.subscriptions.service import (
     SubscriptionsService,
     SwitchException,
     EventException,
+    StaleEventException,
 )
 from ee.src.core.wallets.purchases import (
     MUSD_PER_CREDIT,
@@ -390,6 +391,7 @@ class BillingRouter:
             )
 
         metadata = None
+        invoice_subscription_id = None
 
         if not stripe_event.type.startswith("invoice"):
             if not _stripe_has(stripe_event.data.object, "metadata"):
@@ -429,10 +431,11 @@ class BillingRouter:
             # `checkout.session.completed`. Acknowledged, so Stripe does not retry it.
             # Older API versions still send an empty `subscription_details` on it, so
             # the subscription ID decides, not the block's presence.
-            if not (
-                _stripe_get(stripe_event.data.object, "subscription")
-                or _stripe_get(subscription_details, "subscription")
-            ):
+            invoice_subscription_id = _stripe_get(
+                stripe_event.data.object, "subscription"
+            ) or _stripe_get(subscription_details, "subscription")
+
+            if not invoice_subscription_id:
                 log.info(
                     "Skipping stripe event: %s (not a subscription invoice)",
                     stripe_event.type,
@@ -566,9 +569,11 @@ class BillingRouter:
 
             elif stripe_event.type == "invoice.payment_failed":
                 event = Event.SUBSCRIPTION_PAUSED
+                subscription_id = invoice_subscription_id
 
             elif stripe_event.type == "invoice.payment_succeeded":
                 event = Event.SUBSCRIPTION_RESUMED
+                subscription_id = invoice_subscription_id
 
                 # Before the resume: when the invoice outruns the subscription-created
                 # event, the resume fails and Stripe redelivers, and the redelivered
@@ -588,6 +593,21 @@ class BillingRouter:
 
             elif stripe_event.type == "customer.subscription.deleted":
                 event = Event.SUBSCRIPTION_CANCELLED
+                subscription_id = _stripe_get(stripe_event.data.object, "id")
+
+                # Without the id there is no way to tell which subscription ended.
+                if not subscription_id:
+                    log.warn(
+                        "Skipping stripe event: %s (no subscription)",
+                        stripe_event.type,
+                    )
+                    return JSONResponse(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        content={
+                            "status": "error",
+                            "message": "Subscription ID not found",
+                        },
+                    )
 
             else:
                 log.warn("Skipping stripe event: %s (unsupported)", stripe_event.type)
@@ -596,20 +616,75 @@ class BillingRouter:
                     content={"status": "error", "message": "Unsupported event"},
                 )
 
-            subscription = await self.subscription_service.process_event(
-                organization_id=organization_id,
-                event=event,
-                subscription_id=subscription_id,
-                plan=plan,
-                anchor=anchor,
-            )
+            # Scoped to process_event alone. An EventException from
+            # _grant_period_credits above reports OUR misconfiguration (an
+            # unsigned webhook, an unwired wallets service) and must stay a 500
+            # so it keeps showing up as our failure, not the caller's.
+            try:
+                subscription = await self.subscription_service.process_event(
+                    organization_id=organization_id,
+                    event=event,
+                    subscription_id=subscription_id,
+                    plan=plan,
+                    anchor=anchor,
+                )
+            except StaleEventException as e:
+                log.info(
+                    "Skipping stripe event: %s | event=%s | organization=%s | %s",
+                    stripe_event.type,
+                    _stripe_get(stripe_event, "id"),
+                    organization_id,
+                    e,
+                )
+
+                return JSONResponse(
+                    status_code=status.HTTP_200_OK,
+                    content={"status": "skip", "message": "Stale subscription event"},
+                )
+            except (EventException, SwitchException) as e:
+                # The reason stays in the log, not the body: this endpoint
+                # answers an unauthenticated caller when no webhook secret is set.
+                log.warn(
+                    "Rejecting stripe event: %s | event=%s | organization=%s | %s",
+                    stripe_event.type,
+                    _stripe_get(stripe_event, "id"),
+                    organization_id,
+                    e,
+                )
+
+                return JSONResponse(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    content={
+                        "status": "error",
+                        "message": (
+                            f"Event {stripe_event.type} does not apply to the "
+                            "subscription recorded for this organization"
+                        ),
+                    },
+                )
+
             if event == Event.SUBSCRIPTION_CANCELLED:
                 await self._reset_organization_flags(organization_id)
 
         except Exception as e:
+            log.error(
+                "Failed stripe event: %s | event=%s | organization=%s",
+                stripe_event.type,
+                _stripe_get(stripe_event, "id"),
+                organization_id,
+                exc_info=True,
+            )
+
             raise HTTPException(status_code=500, detail="unexpected error") from e
 
         if not subscription:
+            log.error(
+                "Empty subscription after stripe event: %s | event=%s | organization=%s",
+                stripe_event.type,
+                _stripe_get(stripe_event, "id"),
+                organization_id,
+            )
+
             raise HTTPException(status_code=500, detail="unexpected error")
 
         return JSONResponse(

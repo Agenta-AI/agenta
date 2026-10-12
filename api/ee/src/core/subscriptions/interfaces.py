@@ -43,12 +43,17 @@ class SubscriptionsDAOInterface:
         self,
         *,
         subscription: SubscriptionDTO,
+        check_subscription_id: bool = False,
+        expected_subscription_id: Optional[str] = None,
     ) -> Optional[SubscriptionDTO]:
         """
         Update an existing subscription.
 
         Parameters:
         - subscription: SubscriptionDTO containing updated details.
+        - check_subscription_id: write only if the stored subscription id equals
+          expected_subscription_id, checked under a row lock.
+        - expected_subscription_id: the subscription id the caller read.
 
         Returns:
         - Optional[SubscriptionDTO]: The updated subscription if found, else None.

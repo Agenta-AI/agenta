@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The session header's Share menu on /m. Publish agent opens the channels panel. The template
+ * The session header's share actions on /m. Publish opens the channels panel. The Templates menu's
  * items send the same requests as the /w playground header, as the CURRENT session's pending
  * task. The conversation sends a pending task once, like a typed message, and never through the
  * composer, so one tap is one visible user message and the unsent draft stays.
@@ -63,8 +63,11 @@ const mount = ({canRequestTemplate = true}: {canRequestTemplate?: boolean} = {})
     })
 }
 
-const trigger = () => document.querySelector<HTMLButtonElement>('[data-testid="share-menu-button"]')
-const menuItem = (key: "publish" | "save-zip" | "share-marketplace") =>
+const trigger = () =>
+    document.querySelector<HTMLButtonElement>('[data-testid="template-menu-button"]')
+const publishButton = () =>
+    document.querySelector<HTMLButtonElement>('[data-testid="share-menu-publish"]')
+const menuItem = (key: "save-zip" | "share-marketplace") =>
     document.querySelector<HTMLElement>(`[data-testid="share-menu-${key}"]`)
 
 /** Open the real menu the way a finger or mouse does (pointerdown on the trigger). */
@@ -77,7 +80,7 @@ const openMenu = async () => {
 }
 
 /** Open the menu and pick an item, so the menu's own close-on-select runs. */
-const choose = async (key: "publish" | "save-zip" | "share-marketplace") => {
+const choose = async (key: "save-zip" | "share-marketplace") => {
     await openMenu()
     await act(async () => menuItem(key)?.click())
 }
@@ -98,28 +101,26 @@ afterEach(() => {
 })
 
 describe("ShareMenu (/m)", () => {
-    it("is a Share button whose menu holds Publish agent and the two template items", async () => {
+    it("is a Publish button beside a Templates menu that holds the two template items", async () => {
         mount()
-        expect(trigger()?.textContent).toBe("Share")
-        expect(menuItem("publish")).toBeNull()
+        expect(publishButton()?.textContent).toBe("Publish")
+        expect(trigger()?.getAttribute("aria-label")).toBe("Templates")
+        expect(menuItem("save-zip")).toBeNull()
         await openMenu()
-        expect(menuItem("publish")?.textContent).toContain("Publish agent")
         expect(menuItem("save-zip")?.textContent).toContain("Save as template")
         expect(menuItem("share-marketplace")?.textContent).toContain("Share in the marketplace")
     })
 
-    it("opens the channels panel from Publish agent", async () => {
+    it("opens the channels panel from Publish", async () => {
         mount()
-        await choose("publish")
+        await act(async () => publishButton()?.click())
         expect(openHub).toHaveBeenCalledTimes(1)
     })
 
-    it("shows only Publish agent without a live conversation", async () => {
+    it("shows only Publish without a live conversation", async () => {
         mount({canRequestTemplate: false})
-        await openMenu()
-        expect(menuItem("publish")).not.toBeNull()
-        expect(menuItem("save-zip")).toBeNull()
-        expect(menuItem("share-marketplace")).toBeNull()
+        expect(publishButton()).not.toBeNull()
+        expect(trigger()).toBeNull()
     })
 
     it.each([
@@ -139,14 +140,14 @@ describe("ShareMenu (/m)", () => {
         },
     )
 
-    it("disables the template items, not Publish agent, while a request is unsent", async () => {
+    it("disables the template items, not Publish, while a request is unsent", async () => {
         mount()
         await choose("save-zip")
         await openMenu()
 
         expect(menuItem("save-zip")?.hasAttribute("data-disabled")).toBe(true)
         expect(menuItem("share-marketplace")?.hasAttribute("data-disabled")).toBe(true)
-        expect(menuItem("publish")?.hasAttribute("data-disabled")).toBe(false)
+        expect(publishButton()?.disabled).toBe(false)
     })
 
     it("parks nothing more while a request is still unsent", async () => {

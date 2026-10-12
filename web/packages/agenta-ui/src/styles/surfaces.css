@@ -175,8 +175,45 @@
     --ag-fade-bottom: 24px;
 }
 
+@property --ag-fade-left {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+}
+
+@property --ag-fade-right {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+}
+
+/* The sideways twin of .ag-scroll-fade; the owner sets data-fade-left/-right. */
+.ag-scroll-fade-x {
+    --ag-fade-left: 0px;
+    --ag-fade-right: 0px;
+    mask-image: linear-gradient(
+        to right,
+        transparent 0,
+        #000 var(--ag-fade-left),
+        #000 calc(100% - var(--ag-fade-right)),
+        transparent 100%
+    );
+    transition:
+        --ag-fade-left 150ms ease,
+        --ag-fade-right 150ms ease;
+}
+
+.ag-scroll-fade-x[data-fade-left="true"] {
+    --ag-fade-left: 32px;
+}
+
+.ag-scroll-fade-x[data-fade-right="true"] {
+    --ag-fade-right: 32px;
+}
+
 @media (prefers-reduced-motion: reduce) {
-    .ag-scroll-fade {
+    .ag-scroll-fade,
+    .ag-scroll-fade-x {
         transition: none;
     }
 }

@@ -467,6 +467,7 @@ export function DriveFileBody({
     displayPath,
     onNavigate,
     linkExists,
+    kind: kindProp,
 }: {
     mount: Mount | null
     path: string
@@ -477,8 +478,10 @@ export function DriveFileBody({
     onNavigate?: (path: string) => void
     /** Is this presented path in the tree already loaded? Picks between a link's readings. */
     linkExists?: (path: string) => boolean
+    /** Overrides the extension match, for a file whose media type is known (an attachment). */
+    kind?: DriveFileKind
 }) {
-    const kind = resolveDriveFileKind(path)
+    const kind = kindProp ?? resolveDriveFileKind(path)
 
     if (size != null) {
         if ((TEXT_KINDS.has(kind) || kind === "csv") && size > TEXT_CAP)

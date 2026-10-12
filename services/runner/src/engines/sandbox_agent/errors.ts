@@ -93,6 +93,12 @@ export const TURN_INDEX_TAKEN_CODE: RunErrorCode = "turn_index_taken";
 export const TURN_INDEX_TAKEN_MESSAGE =
   "Another agent runner already started this turn of the conversation, so this message was not sent. Send it again.";
 
+export const SESSION_RECORDS_INCOMPLETE_CODE: RunErrorCode = "session_records_incomplete";
+
+/** The line the user reads when the session's saved history lost a record; a resend fails the same way. */
+export const SESSION_RECORDS_INCOMPLETE_MESSAGE =
+  "Part of this session's history could not be saved, so the agent cannot continue it. Start a new session.";
+
 export type RunErrorCode =
   | "runner_error"
   // The sandbox provider (or this runner's own sandbox admission) is at capacity; retryable later.
@@ -157,6 +163,10 @@ export type RunErrorCode =
   // of the conversation was stale. Nothing was sent to the model. Retryable: the next send
   // rebuilds from the latest turn.
   | "turn_index_taken"
+  // The session's durable record log lost a record for good, so the conversation cannot be
+  // rebuilt from it. Not retryable: every later turn of the session fails the same way, and the
+  // user has to start a new session. See `sessions/persist.ts`.
+  | "session_records_incomplete"
   // A failure no rule recognized, whose text the runner withholds (it may hold paths, ids or
   // credentials): the message is one sentence with a reference to the runner's log. A client must
   // not show any other text for it in its place (a trace's error text included). Only runs whose

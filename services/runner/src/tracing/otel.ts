@@ -595,6 +595,14 @@ export function chunkTraceBatch(
  * token/cost metrics from all its stored spans, so a trace sent in several requests keeps its
  * root aggregation.
  */
+/** The runner's own tracers. The provider is registered globally, so any library that traces
+ * through the OpenTelemetry API writes into it too: the Daytona SDK wraps each call in a span,
+ * and the in-process engine polls a running command about once a second. Those spans belong to
+ * no run, carry no credential, and are dropped here instead of reaching an export. */
+const PI_TRACER = "agenta-pi-otel";
+const SANDBOX_AGENT_TRACER = "agenta-sandbox-agent-otel";
+const RUNNER_TRACERS = new Set([PI_TRACER, SANDBOX_AGENT_TRACER]);
+
 class TraceBatchProcessor implements SpanProcessor {
   private readonly buffers = new Map<string, ReadableSpan[]>();
   /** traceId -> estimated protobuf bytes of the buffered spans (see `spanRequestBytes`). */
@@ -616,6 +624,10 @@ class TraceBatchProcessor implements SpanProcessor {
   }
 
   onEnd(span: ReadableSpan): void {
+    if (!RUNNER_TRACERS.has(span.instrumentationScope.name)) {
+      spanRunIds.delete(span.spanContext().spanId);
+      return;
+    }
     const traceId = span.spanContext().traceId;
     const spanBytes = spanRequestBytes(span);
     // A trace that already fills a request is sent before this span would overflow it, so a
@@ -1328,7 +1340,7 @@ export function createAgentaOtel(
     customConnection: init.customConnection,
   };
 
-  const tracer = trace.getTracer("agenta-pi-otel", "0.1.0");
+  const tracer = trace.getTracer(PI_TRACER, "0.1.0");
   const runId = mintRunId();
 
   // Per-run span state — closure-scoped so concurrent runs never collide.
@@ -1990,7 +2002,7 @@ export function createSandboxAgentOtel(
   const authorization = platformAuthorizationProvider(init.authorization);
   const { provider, id: modelId } = splitModel(init.model);
   const customConnection = init.customConnection === true;
-  const tracer = trace.getTracer("agenta-sandbox-agent-otel", "0.1.0");
+  const tracer = trace.getTracer(SANDBOX_AGENT_TRACER, "0.1.0");
   const runId = mintRunId();
   const streamTrace = createStreamTrace({ harness: init.harness });
 

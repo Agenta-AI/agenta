@@ -90,3 +90,8 @@ export const toggleLiveChat = () => {
         .then((Crisp) => (store.get(liveChatOpenAtom) ? Crisp.chat.close() : Crisp.chat.open()))
         .catch(() => undefined)
 }
+
+/** Closes a loaded chat, for when the organization loses live chat mid-session. */
+export const closeLiveChat = () => {
+    void crisp?.then((Crisp) => Crisp.chat.close()).catch(() => undefined)
+}

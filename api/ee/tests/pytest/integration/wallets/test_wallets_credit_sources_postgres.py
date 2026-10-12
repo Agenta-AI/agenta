@@ -478,3 +478,124 @@ async def test_apply_removes_the_seeded_connection_and_keeps_a_users_own(
             await session.execute(
                 text("DELETE FROM users WHERE id = :id"), {"id": user_id}
             )
+
+
+async def test_apply_removes_an_endpoint_its_vault_row_left_behind(wallet_schema):
+    """The vault deletes its row first and the registrar only logs a failed endpoint delete.
+    An endpoint left that way keeps resolving to the blocked key and stops the gateway's
+    built-in alias, so `--apply` removes it, also on a rerun after the vault row is gone. A
+    user's own connection under the slug keeps its endpoint."""
+    from oss.src.core.gateways.llms.registrar import LLMEndpointRegistrar
+    from oss.src.core.secrets.managed import (
+        SecretManagementDTO,
+        SecretManagementPolicy,
+        SecretManager,
+    )
+    from oss.src.core.secrets.services import VaultService
+    from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
+    from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+    from ee.src.core.starter_credits_bridge.service import STARTER_CREDITS_SLUG
+
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        user_id, organization_id = await _organization(session)
+        workspace_id, seeded_project, user_project = (
+            uuid.uuid4(),
+            uuid.uuid4(),
+            uuid.uuid4(),
+        )
+        await session.execute(
+            text(
+                "INSERT INTO workspaces (id, organization_id, name)"
+                " VALUES (:id, :organization_id, 'w')"
+            ),
+            {"id": workspace_id, "organization_id": organization_id},
+        )
+        for project_id in (seeded_project, user_project):
+            await session.execute(
+                text(
+                    "INSERT INTO projects (id, project_name, workspace_id, organization_id)"
+                    " VALUES (:id, 'p', :workspace_id, :organization_id)"
+                ),
+                {
+                    "id": project_id,
+                    "workspace_id": workspace_id,
+                    "organization_id": organization_id,
+                },
+            )
+
+    registering = VaultService(
+        SecretsDAO(),
+        llm_endpoint_registrar=LLMEndpointRegistrar(
+            llm_endpoints_dao=LLMEndpointsDAO(engine=engine),
+        ),
+    )
+    seeded = await registering.create_managed_secret(
+        project_id=seeded_project,
+        create_secret_dto=_provider_connection(slug=STARTER_CREDITS_SLUG),
+        management=SecretManagementDTO(
+            manager=SecretManager.STARTER_CREDITS_BRIDGE,
+            policy=SecretManagementPolicy.MANAGER_ONLY,
+        ),
+    )
+    await registering.create_secret(
+        project_id=user_project,
+        create_secret_dto=_provider_connection(slug=STARTER_CREDITS_SLUG),
+    )
+    # A run whose endpoint delete failed: the vault row is gone, its endpoint is not.
+    await VaultService(SecretsDAO()).delete_managed_secret(
+        secret_id=seeded.id,
+        manager=SecretManager.STARTER_CREDITS_BRIDGE,
+        project_id=seeded_project,
+    )
+
+    async def endpoints(project_id):
+        async with engine.session() as session:
+            return (
+                await session.execute(
+                    text(
+                        "SELECT count(*) FROM llms_endpoints"
+                        " WHERE project_id = :id AND slug = :slug"
+                    ),
+                    {"id": project_id, "slug": STARTER_CREDITS_SLUG},
+                )
+            ).scalar_one()
+
+    assert (await endpoints(seeded_project), await endpoints(user_project)) == (1, 1)
+
+    client = FakeProxyClient([_key("a-seeded", organization_id, spend=1.0)])
+    run = dict(client=client, team_id="team-1")
+
+    try:
+        await migrate_starter_credits(stage="block", **run)
+        first = await migrate_starter_credits(stage="apply", **run)
+        rerun = await migrate_starter_credits(stage="apply", **run)
+
+        assert (first.connections_removed, first.orphan_endpoints_removed) == (0, 1)
+        assert (first.failed, rerun.failed, rerun.orphan_endpoints_removed) == (0, 0, 0)
+        assert (await endpoints(seeded_project), await endpoints(user_project)) == (
+            0,
+            1,
+        )
+    finally:
+        await _cleanup(organization_id)
+        async with engine.session() as session:
+            for project_id in (seeded_project, user_project):
+                for table in ("llms_endpoints", "secrets"):
+                    await session.execute(
+                        text(f"DELETE FROM {table} WHERE project_id = :id"),
+                        {"id": project_id},
+                    )
+                await session.execute(
+                    text("DELETE FROM projects WHERE id = :id"), {"id": project_id}
+                )
+            await session.execute(
+                text("DELETE FROM workspaces WHERE id = :id"), {"id": workspace_id}
+            )
+            await session.execute(
+                text("DELETE FROM organizations WHERE id = :id"),
+                {"id": organization_id},
+            )
+            await session.execute(
+                text("DELETE FROM users WHERE id = :id"), {"id": user_id}
+            )

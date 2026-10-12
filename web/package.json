@@ -1,6 +1,6 @@
 {
     "name": "agenta-web",
-    "version": "0.122.4",
+    "version": "0.122.5",
     "workspaces": [
         "ee",
         "mobile",
@@ -74,25 +74,5 @@
         "format-fix": "prettier --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
         "generate:tailwind-tokens": "GEN_WRITE=1 tsx scripts/generate-tailwind-tokens.ts && pnpm --filter @agenta/mobile generate:tokens",
         "generate:phosphor-catalog": "pnpm --filter @agenta/ui generate:icons"
-    },
-    "pnpm": {
-        "overrides": {
-            "prismjs@<1.30.0": ">=1.30.0",
-            "@babel/runtime@<7.26.10": ">=7.26.10",
-            "mdast-util-to-hast@<13.2.1": ">=13.2.1",
-            "diff@>=4.0.0 <4.0.4": ">=4.0.4",
-            "lodash@<4.17.23": ">=4.17.23",
-            "lodash-es@<4.17.23": ">=4.17.23",
-            "minimatch": "5.1.8",
-            "glob@>=10.2.0 <10.5.0": ">=10.5.0",
-            "picomatch": "4.0.4",
-            "picomatch@4.0.3": "4.0.4",
-            "webpack@>=5.49.0 <=5.104.0": ">=5.104.1",
-            "yaml@>=2.0.0 <2.8.3": ">=2.8.3",
-            "flatted": "3.4.2",
-            "axios": "1.20.0",
-            "postcss@<8.5.10": ">=8.5.10",
-            "next@<15.5.24": ">=15.5.24"
-        }
     }
 }

@@ -323,9 +323,9 @@ const SidebarShell: React.FC<SidebarShellProps> = ({
                     // the sheet, outside this element, so it is not cut off.
                     isOverlay
                         ? "h-full w-[var(--ag-sidebar-w)] overflow-hidden rounded-[inherit] bg-[var(--ag-sidebar-bg)] transition-all duration-300"
-                        : // --ag-demo-banner-h: the fixed demo banner would cover the brand row on
+                        : // --ag-top-bars-h: the app's fixed top bars would cover the brand row on
                           // document-scrolling routes; 0px everywhere else.
-                          "sticky top-[var(--ag-demo-banner-h,0px)] bottom-0 h-[calc(100vh-var(--ag-demo-banner-h,0px))] w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-all duration-300",
+                          "sticky top-[var(--ag-top-bars-h,0px)] bottom-0 h-[calc(100vh-var(--ag-top-bars-h,0px))] w-[var(--ag-sidebar-w)] bg-[var(--ag-sidebar-bg)] transition-all duration-300",
                 ].join(" ")}
             >
                 <div

@@ -7,9 +7,9 @@
 A recycled or stopped api worker finishes its open requests for
 `api.gunicorn.gracefulTimeout` seconds, and the pod's grace period must outlast
 that drain plus the preStop delay, or the kubelet cuts a long LLM gateway
-stream. This test checks the defaults, that each `api.gunicorn` key reaches the
-gunicorn command, that the grace period follows `gracefulTimeout` unless it is
-set, and that the schema rejects a key the chart does not read.
+stream. This test checks the defaults, that each `api.gunicorn` key (and
+`services.gunicorn.keepAlive`) reaches the gunicorn command, that the grace
+period follows `gracefulTimeout` unless it is set, and that the schema rejects a key the chart does not read.
 
 Run: uv run hosting/kubernetes/helm/tests/test_api_gunicorn.py
 Requires the `helm` binary on PATH.
@@ -71,6 +71,18 @@ def render_api(extra_args: list[str] | None = None) -> dict:
     )
 
 
+def render_services(extra_args: list[str] | None = None) -> dict:
+    result = helm_template(extra_args or [])
+    assert result.returncode == 0, result.stderr
+    return next(
+        doc
+        for doc in yaml.safe_load_all(result.stdout)
+        if doc
+        and doc.get("kind") == "Deployment"
+        and doc["metadata"]["labels"].get("app.kubernetes.io/component") == "services"
+    )
+
+
 def gunicorn_flags(api: dict) -> dict[str, str]:
     command = api["spec"]["template"]["spec"]["containers"][0]["command"]
     flags = {}
@@ -93,6 +105,9 @@ def main() -> int:
     assert flags["--max-requests"] == "100000", flags
     assert flags["--max-requests-jitter"] == "10000", flags
     assert flags["--timeout"] == "60", flags
+    # Above the default idle timeout of the common load balancers (600 s is the
+    # highest, Google Cloud's external Application Load Balancer).
+    assert flags["--keep-alive"] == "620", flags
     # 10 s preStop + 900 s drain + margin.
     assert grace_period(api) == 930, grace_period(api)
 
@@ -107,6 +122,8 @@ def main() -> int:
             "api.gunicorn.maxRequestsJitter=0",
             "--set",
             "api.gunicorn.timeout=120",
+            "--set",
+            "api.gunicorn.keepAlive=4000",
         ]
     )
     flags = gunicorn_flags(api)
@@ -114,7 +131,19 @@ def main() -> int:
     assert flags["--max-requests"] == "0", flags  # 0 is a value: recycling off
     assert flags["--max-requests-jitter"] == "0", flags
     assert flags["--timeout"] == "120", flags
+    assert flags["--keep-alive"] == "4000", flags
     assert grace_period(api) == 630, grace_period(api)
+
+    # --- services has the same knob, with the same default and the same rule. ---
+    services = render_services()
+    assert gunicorn_flags(services)["--keep-alive"] == "620", gunicorn_flags(services)
+    services = render_services(["--set", "services.gunicorn.keepAlive=4000"])
+    assert gunicorn_flags(services)["--keep-alive"] == "4000", gunicorn_flags(services)
+    result = helm_template(["--set", "services.gunicorn.keep_alive=620"])
+    assert result.returncode != 0, (
+        "a misspelled services.gunicorn key must fail the render"
+    )
+    assert "keep_alive" in result.stderr, result.stderr
 
     # --- A grace period set explicitly wins over the derived one. ---
     api = render_api(

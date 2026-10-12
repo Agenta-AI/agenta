@@ -11,10 +11,16 @@ import {useSessionDrive} from "@agenta/entities/drive"
 import {mountPathMatchesToolPath, type FileActivityOp} from "@agenta/entities/session"
 import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
 import {Tag} from "@agenta/ui/components/presentational"
-import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
+import {
+    HoverCard,
+    HoverCardContent,
+    HoverCardTrigger,
+    SimpleTooltip as Tooltip,
+} from "@agenta/ui/ui"
 import {DownloadSimple} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
+import {DriveFileHoverCard} from "./DriveFileHoverCard"
 import {driveFileIcon} from "./driveIcons"
 import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
 import {driveQuickLookAtomFamily} from "./quickLook"
@@ -48,18 +54,31 @@ export function DriveFileInlineRef({path}: {path: string}) {
     const sessionId = useDriveSessionId()
     const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId ?? ""))
     const name = path.split("/").pop() ?? path
+    // The card previews the file on hover; a click still opens Quick Look.
     return (
-        <button
-            type="button"
-            onClick={() => openQuickLook({path})}
-            title={path}
-            className="mx-px inline-flex max-w-full cursor-pointer items-center gap-1 rounded border border-solid border-colorBorderSecondary bg-colorFillTertiary px-1 py-0 align-baseline font-mono text-[0.9em] leading-[1.4] text-colorText transition-colors hover:border-colorBorder hover:bg-colorFillSecondary"
-        >
-            <span className="flex shrink-0 items-center">
-                {driveFileIcon(path, 11, "text-current")}
-            </span>
-            <span className="min-w-0 truncate">{name}</span>
-        </button>
+        <HoverCard openDelay={300} closeDelay={150}>
+            <HoverCardTrigger asChild>
+                <button
+                    type="button"
+                    onClick={() => openQuickLook({path})}
+                    className="mx-px inline-flex max-w-full cursor-pointer items-center gap-1 rounded border border-solid border-colorBorderSecondary bg-colorFillTertiary px-1 py-0 align-baseline font-mono text-[0.9em] leading-[1.4] text-colorText transition-colors hover:border-colorBorder hover:bg-colorFillSecondary"
+                >
+                    <span className="flex shrink-0 items-center">
+                        {driveFileIcon(path, 11, "text-current")}
+                    </span>
+                    <span className="min-w-0 truncate">{name}</span>
+                </button>
+            </HoverCardTrigger>
+            <HoverCardContent
+                side="top"
+                align="start"
+                sideOffset={6}
+                collisionPadding={8}
+                className="w-auto max-w-[calc(100vw-1rem)] overflow-hidden p-0 text-xs"
+            >
+                <DriveFileHoverCard path={path} />
+            </HoverCardContent>
+        </HoverCard>
     )
 }
 

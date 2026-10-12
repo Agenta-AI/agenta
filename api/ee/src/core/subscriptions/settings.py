@@ -94,8 +94,6 @@ def _default_pricing() -> Dict[str, Dict[str, Any]]:
 
 
 _RESERVED_PRICING_KEYS: set[str] = {"free", "trial"}
-_DEFAULT_TRIAL_PLAN = DefaultPlan.CLOUD_V0_PRO.value
-_DEFAULT_TRIAL_DAYS = 14
 
 
 def _normalize_pricing_entry(slug: str, entry: Any) -> Dict[str, Any]:
@@ -239,7 +237,7 @@ def _resolve_trial(
     At most one entry across the map may carry `"trial"`; multiples fail
     startup.
 
-    When no entry carries `"trial"`, callers apply the legacy default trial.
+    When no entry carries `"trial"`, there is no trial: signup starts on the free plan.
     """
     trial_plan: Optional[str] = None
     trial_days: Optional[int] = None
@@ -319,20 +317,9 @@ def _build_settings() -> tuple[
             "AGENTA_ACCESS_PLANS."
         )
 
+    # PRODUCT DECISION (2026-10-06): no reverse trial unless an entry opts in. The
+    # pricing slugs were validated against the plan set above.
     trial_plan, trial_days = _resolve_trial(pricing)
-    if trial_plan is None and env.stripe.enabled:
-        trial_plan = _DEFAULT_TRIAL_PLAN
-        trial_days = _DEFAULT_TRIAL_DAYS
-
-    if trial_plan is not None and trial_plan not in plans:
-        raise ValueError(
-            f"No trial plan can be derived: AGENTA_BILLING_PRICING has no "
-            "entry marked '\"trial\": N' and the default fallback slug "
-            f"'{_DEFAULT_TRIAL_PLAN}' is not in the effective plan set "
-            f"(AGENTA_ACCESS_PLANS = {sorted(plans)}). Add exactly one "
-            "'\"trial\": N' entry to AGENTA_BILLING_PRICING for a plan slug "
-            "present in AGENTA_ACCESS_PLANS."
-        )
 
     # If operators set AGENTA_ACCESS_DEFAULT_PLAN (or legacy
     # AGENTA_DEFAULT_PLAN), it must reference an effective plan slug.
@@ -486,11 +473,8 @@ def get_free_plan() -> Optional[str]:
 
 
 def get_trial_plan() -> Optional[str]:
-    """Return the configured trial plan slug.
-
-    Falls back to ``cloud_v0_pro`` when no `AGENTA_BILLING_PRICING` entry
-    carries `"trial": N`, matching legacy behavior.
-    """
+    """Return the trial plan slug, or None when no `AGENTA_BILLING_PRICING` entry
+    carries `"trial": N`."""
     return _TRIAL_PLAN
 
 

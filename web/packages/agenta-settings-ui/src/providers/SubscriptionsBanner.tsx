@@ -15,6 +15,8 @@ export interface SubscriptionPlan {
     /** `neutral` takes the theme's ink; `clay` is Anthropic's brand color. */
     brand: "neutral" | "clay"
     action: {label: string; onClick: () => void; external?: boolean}
+    /** Set when this host cannot run the plan: the cell greys out and reads this instead. */
+    unavailable?: string
 }
 
 const STATE_LABEL: Record<Exclude<PlanState, "available">, string> = {
@@ -38,11 +40,14 @@ const BRAND = {
 const PlanCell = ({plan}: {plan: SubscriptionPlan}) => {
     const brand = BRAND[plan.brand]
     const ready = plan.state === "connected"
+    const unavailable = !!plan.unavailable
     return (
         <div
+            aria-disabled={unavailable || undefined}
             className={cn(
                 "flex min-w-0 flex-col gap-2.5 rounded-xl border border-solid p-3",
                 brand.cell,
+                unavailable && "opacity-50 grayscale",
             )}
         >
             <div className="flex min-w-0 items-center gap-3">
@@ -72,15 +77,16 @@ const PlanCell = ({plan}: {plan: SubscriptionPlan}) => {
                     </span>
                     <span
                         className="truncate text-[12px] text-muted-foreground"
-                        title={plan.detail}
+                        title={plan.unavailable ?? plan.detail}
                     >
-                        {plan.detail}
+                        {plan.unavailable ?? plan.detail}
                     </span>
                 </span>
             </div>
             <Button
                 variant={ready ? "outline" : "default"}
                 onClick={plan.action.onClick}
+                disabled={unavailable}
                 className={cn("w-full", ready ? null : brand.button)}
             >
                 {plan.action.label}

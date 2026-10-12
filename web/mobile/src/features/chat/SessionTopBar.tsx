@@ -1,7 +1,9 @@
+import {useCallback, useState} from "react"
+
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {AgentIdentity} from "@agenta/entity-ui/agent"
 import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
-import {ShortcutsHelpButton} from "@agenta/ui/shortcuts"
+import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
 import {useAtomValue} from "jotai"
 
 import {NavDrawer} from "../nav/NavDrawer"
@@ -39,6 +41,9 @@ export const SessionTopBar = ({
 }) => {
     // artifactName resolves from a revision id or a workflow id, so either handle names the agent.
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? agentId ?? ""))
+    // No header button for the shortcuts sheet; `?` still opens it.
+    const [shortcutsOpen, setShortcutsOpen] = useState(false)
+    useShortcutsSheetHotkey(useCallback(() => setShortcutsOpen(true), []))
 
     return (
         <AgentPageHeader
@@ -63,24 +68,17 @@ export const SessionTopBar = ({
             // The desktop puts this at the header's right edge too, not on the tab strip.
             actions={
                 <>
-                    {/* Keyboard shortcuts mean nothing on a phone. */}
-                    <ShortcutsHelpButton className="hidden h-7 w-7 shrink-0 p-0 md:inline-flex" />
                     {agentId ? (
-                        <>
-                            <span
-                                aria-hidden
-                                className="hidden h-5 w-px shrink-0 bg-colorBorderSecondary md:block"
-                            />
-                            <ShareMenu
-                                agentId={agentId}
-                                sessionId={sessionId}
-                                // No revision = read-only replay: no conversation to send into.
-                                canRequestTemplate={Boolean(entityId)}
-                                workspaceId={workspaceId}
-                                projectId={projectId}
-                            />
-                        </>
+                        <ShareMenu
+                            agentId={agentId}
+                            sessionId={sessionId}
+                            // No revision = read-only replay: no conversation to send into.
+                            canRequestTemplate={Boolean(entityId)}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                        />
                     ) : null}
+                    <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
                 </>
             }
         />

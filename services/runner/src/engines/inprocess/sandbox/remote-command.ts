@@ -196,16 +196,17 @@ export function launchScript(
 
 /**
  * One poll. Prints `exit unflushed claimed alive size start lines lastLine` on the first line (`-`
- * for what is not known yet; `unflushed` is 1 when the supervisor's flush of the drive failed), then the bytes [start, size) of the output file in base64. The process group
- * is checked before the exit code: the supervisor writes the exit code before it removes `pgid`,
- * so "not alive and no exit code" means the command died without recording one.
+ * for what is not known yet; `unflushed` is 1 when the supervisor's flush of the drive failed), then the bytes [start, size) of the output file in base64. The reads
+ * go in the supervisor's write order: the claim, then the process group, then the exit code. The
+ * supervisor writes `pgid` before it claims, and the exit code before it removes `pgid`, so
+ * "claimed, not alive and no exit code" means the command died without recording one.
  */
 function pollScript(dir: string, outputPath: string, offset: number): string {
   return bash([
     `d=${shellQuote(dir)}; f=${shellQuote(outputPath)}; off=${offset}; max=${OUTPUT_CHUNK_BYTES}`,
+    `c=0; [ -d "$d/claim" ] && [ ! -f "$d/cancelled" ] && c=1`,
     `a=0; pg=$(cat "$d/pgid" 2>/dev/null); [ -n "$pg" ] && kill -0 -- "-$pg" 2>/dev/null && a=1`,
     `x=-; u=-; [ -f "$d/exit" ] && read -r x u < "$d/exit"; u=\${u:-0}`,
-    `c=0; [ -d "$d/claim" ] && [ ! -f "$d/cancelled" ] && c=1`,
     `s=$(stat -c %s "$f" 2>/dev/null || echo 0)`,
     `start=$off; [ $((s - off)) -gt $max ] && start=$((s - max))`,
     `lines=-; last=-; if [ "$x" != - ]; then set -- $(LC_ALL=C awk '{n++; l=length($0)} END{print n+0, l+0}' "$f" 2>/dev/null); lines=\${1:-0}; last=\${2:-0}; fi`,

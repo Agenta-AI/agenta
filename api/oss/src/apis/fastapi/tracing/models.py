@@ -222,6 +222,15 @@ class OTelTracingResponse(BaseModel):
             "(default)."
         ),
     )
+    windowing: Optional[Windowing] = Field(
+        default=None,
+        description=(
+            "Windowing of the next page. Present when this page is full (it holds "
+            '`windowing.limit` spans, or traces with `focus="trace"`); send it '
+            "as `windowing` in the next request. "
+            "When the last page is full, the page after it is empty."
+        ),
+    )
 
 
 class TraceResponse(BaseModel):
@@ -251,6 +260,14 @@ class TracesResponse(BaseModel):
             '`POST /tracing/spans/query` with `focus="trace"`.'
         ),
     )
+    windowing: Optional[Windowing] = Field(
+        default=None,
+        description=(
+            "Windowing of the next page. Present when this page is full (it holds "
+            "`windowing.limit` traces); send it as `windowing` in the next request. "
+            "When the last page is full, the page after it is empty."
+        ),
+    )
 
 
 class SpanResponse(BaseModel):
@@ -272,6 +289,14 @@ class SpansResponse(BaseModel):
     spans: Optional[Spans] = Field(
         default=None,
         description="Flat list of matching spans.",
+    )
+    windowing: Optional[Windowing] = Field(
+        default=None,
+        description=(
+            "Windowing of the next page. Present when this page is full (it holds "
+            "`windowing.limit` spans); send it as `windowing` in the next request. "
+            "When the last page is full, the page after it is empty."
+        ),
     )
 
 

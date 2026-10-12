@@ -130,6 +130,8 @@ for how they behave. The plan and role variables are Enterprise-only; see
 | `AGENTA_API_CACHING_ENABLED` | `agenta.api.caching.enabled` | `agenta.api.caching.enabled` |
 | `AGENTA_API_THROTTLING_BOOKKEEPING_CAPACITY` | `agenta.api.throttling.bookkeeping_capacity` | Not mapped; set it in the API's environment |
 | `AGENTA_API_THROTTLING_BOOKKEEPING_RATE` | `agenta.api.throttling.bookkeeping_rate` | Not mapped; set it in the API's environment |
+| `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT` | `agenta.api.tracing.query_default_limit` | Not mapped; set it in the API's environment |
+| `AGENTA_API_TRACING_QUERY_MAX_LIMIT` | `agenta.api.tracing.query_max_limit` | Not mapped; set it in the API's environment |
 
 The two throttling variables apply to Enterprise Edition deployments, which throttle API requests
 per organization and plan. They size a separate budget for the agent runtime's own calls: the
@@ -139,6 +141,15 @@ minute per organization, and the default for both is `60000`. When an organizati
 more for these requests, the plan's larger budget applies. The routes that count as these calls are listed in `api/ee/src/middlewares/throttling.py`
 (`_BOOKKEEPING_ROUTES`). Every other request, including tool calls the model makes, spends the
 plan's budget.
+
+The two tracing variables bound one page of a span or trace list query: `POST /api/spans/query`,
+`POST /api/traces/query` and the legacy `POST /api/tracing/spans/query`. A request with no
+`windowing.limit` returns `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT` rows (default `100`). A larger
+`windowing.limit` is lowered to `AGENTA_API_TRACING_QUERY_MAX_LIMIT` (default `1000`). With
+`focus` set to `trace`, the limit counts traces. When a page is full, the response has a
+`windowing` object; send it back as `windowing` to read the next page. A query that filters only on
+`trace_id` returns whole traces and has no limit. A higher maximum lets one request use more API
+memory: agent run spans can be hundreds of KB each.
 
 ## Agenta extras
 
@@ -223,6 +234,8 @@ people can reach.
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` | `agenta.services.code.sandbox_runner` | `agenta.services.code.sandboxRunner` |
+| `AGENTA_SERVICES_CODE_SANDBOX_TIMEOUT` | n/a (SDK-side) | n/a |
+| `AGENTA_SERVICES_CODE_SANDBOX_WAIT_TIMEOUT` | n/a (SDK-side) | n/a |
 | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` | n/a (SDK-side) | `agenta.services.middleware.authEnabled` |
 | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
 | `AGENTA_SERVICES_PATH_PREFIX` | n/a (read by the services entrypoint) | `services.env.AGENTA_SERVICES_PATH_PREFIX` |
@@ -233,14 +246,20 @@ whether your proxy forwards the prefix or strips it first. Set the variable to a
 turn the strip off. The platform API strips a leading `/api` the same way, and that prefix is not
 configurable.
 
-:::warning Custom-code evaluator runner
+:::warning Choosing a code runner
 `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` selects how [custom-code evaluators](/1.0/evaluation/configure-evaluators/custom-evaluator) execute:
 
-- `local` (default): raw execution in the services process with **no sandbox**. Any author who can create a custom-code evaluator can run arbitrary code on the host. This is what makes self-hosting work with zero configuration; the deployment logs a warning while it's active.
-- `restricted`: in-process Python sandbox with limited builtins and an allowlist of pure-standard-library imports. No filesystem, network, or host access. Set this to harden a shared/multi-tenant deployment.
-- `daytona`: isolated remote sandbox (strongest). Recommended when evaluator authors are not fully trusted. Requires the [daytona](#daytona-code-evaluator) credentials below.
+- `daytona`: runs each evaluation in its own isolated Daytona sandbox. Use it when people you do not fully trust can write evaluator code. It requires the [daytona](#daytona-code-evaluator) credentials below.
+- `local` (default): runs the code in the services process with no sandbox restrictions. The code can do anything the services process can do. The deployment logs a warning while it is active.
+- `restricted`: runs the code in the services process (RestrictedPython) and limits which builtins and imports it can use. It is not an isolation boundary.
+
+Use `local` or `restricted` only when everyone who can create evaluators is trusted. Agenta Cloud uses `daytona`.
 
 The legacy `AGENTA_SERVICES_SANDBOX_RUNNER` is still accepted as a fallback.
+
+`AGENTA_SERVICES_CODE_SANDBOX_TIMEOUT` sets the hard timeout, in seconds, for one custom-code evaluator run (default `45`). A run that takes longer fails with an evaluator error. Keep it below the services worker timeout (`60` seconds in the default deployment).
+
+Each services worker runs at most 16 custom-code evaluator runs at a time. `AGENTA_SERVICES_CODE_SANDBOX_WAIT_TIMEOUT` sets how long, in seconds, a run waits for a free slot when all 16 are busy (default `10`). A run that is still waiting after that time fails with "Custom code runs are at capacity (16 in progress). Try again later." Set it to `0` to fail at once. The run timeout starts only when the run gets a slot. The API gives one evaluator call `60` seconds, so keep the wait plus the run timeout below `60`.
 :::
 
 ## Agent runner
@@ -431,14 +450,14 @@ Read by the `runner` service. Required only when `daytona` is enabled.
 | `AGENTA_RUNNER_DAYTONA_API_KEY` | Provisioning credential | Unset | yes | `agentRunner.providers.daytona.apiKeySecretRef` |
 | `AGENTA_RUNNER_DAYTONA_API_URL` | Daytona API locator | Unset | no | `...daytona.apiUrl` |
 | `AGENTA_RUNNER_DAYTONA_TARGET` | Region or target | Unset | no | `...daytona.target` |
-| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-agent-sandbox-v2` | no | `...daytona.snapshot` |
+| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-agent-sandbox-v3` | no | `...daytona.snapshot` |
 | `AGENTA_RUNNER_DAYTONA_IMAGE` | Image to start from | Unset | no | `...daytona.image` |
 | `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` | Idle minutes before stop | `15` | no | `...daytona.autostopMinutes` |
 | `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES` | Idle minutes before delete | `30` | no | `...daytona.autodeleteMinutes` |
 | `AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS` | Set to `off` to stop hiding API keys from the sandbox | Unset (hiding is on) | no | `...daytona.opaqueSecrets` |
 
 When neither `AGENTA_RUNNER_DAYTONA_SNAPSHOT` nor `AGENTA_RUNNER_DAYTONA_IMAGE` is set, the runner
-starts from its pinned default snapshot `agenta-agent-sandbox-v2`. The two variables are mutually
+starts from its pinned default snapshot `agenta-agent-sandbox-v3`. The two variables are mutually
 exclusive. The autostop and autodelete values must be positive integers. See
 [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) for the setup flow,
 and [Customize the agent runtime](/self-host/agent-execution/customize-the-agent-runtime) for the
@@ -718,15 +737,15 @@ logged.
 
 ```text
 runner providers enabled=[local,daytona,inprocess] default=local
-runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v2
-runner inprocess sandbox_start=on-first-tool-call artifact=snapshot:agenta-agent-sandbox-v2 max_running_sandboxes=40 max_sessions=200
+runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v3
+runner inprocess sandbox_start=on-first-tool-call artifact=snapshot:agenta-agent-sandbox-v3 max_running_sandboxes=40 max_sessions=200
 ```
 
 The first line always prints and shows the effective list: `local,daytona` in the variable prints as
 `local,daytona,inprocess`. The second line appears only when `daytona` is enabled. The third
 line appears only when `inprocess` is enabled. `target`
 reads `default` when `AGENTA_RUNNER_DAYTONA_TARGET` is unset, and `artifact` reads
-`snapshot:agenta-agent-sandbox-v2` (the pinned default), `snapshot:<name>`, or `image:<name>`
+`snapshot:agenta-agent-sandbox-v3` (the pinned default), `snapshot:<name>`, or `image:<name>`
 depending on what is set.
 
 ### Troubleshooting
@@ -1067,6 +1086,31 @@ tool, such as Google Search grounding (`web_search_options`), is refused with
 In Agenta Cloud with the wallet on, each call is charged to the organization's credits.
 :::
 
+:::note Custom workflow and evaluator URLs
+A workflow or evaluator whose URL is under `AGENTA_SERVICES_URL` runs on your deployment's own
+services and is called directly. Any other URL, such as a custom workflow you host yourself,
+is called through the same outbound guard as the MCP relay. `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED`
+and `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` decide which of those URLs Agenta may call. The call
+does not follow redirects, and the credential sent with it cannot read write-only secret
+values.
+
+If a custom workflow is on a private network or answers over plain HTTP, set
+`AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true`, or put its hostname in
+`AGENTA_MCP_GATEWAY_HOST_ALLOWLIST`. Otherwise the call fails with
+`Workflow service URL was refused: blocked target: ...`. The Docker Compose templates already
+set `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true`; a Helm install must set
+`gatewayEgress.insecureAllowed` or `mcpGateway.hostAllowlist` itself.
+
+A revision keeps the URL it was saved with. If you changed `AGENTA_SERVICES_URL` after you
+created workflows, their saved URLs still point at the old address, and Agenta treats that
+address as a custom URL. Allow the old host as described above, or change the URL on
+those revisions to the current services URL. In Docker bridge networking,
+the API calls `localhost` as `host.docker.internal`, so put `host.docker.internal` in
+`AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` for an old `localhost` URL.
+
+The call does not follow redirects. Set the URL to the address that answers directly.
+:::
+
 :::note How long a run may keep reaching a gateway
 When a run starts, Agenta issues it a credential that works only on the gateway routes, and
 hands that credential to the sandbox the agent runs in. The credential is issued once, at the
@@ -1299,6 +1343,45 @@ own `AGENTA_RUNNER_DAYTONA_SNAPSHOT`; see the [runner Daytona section](#daytona)
 | `POSTGRES_URI_CORE` | `postgres.uri_core` | `postgres.uriCore` |
 | `POSTGRES_URI_SUPERTOKENS` | `postgres.uri_supertokens` | `postgres.uriSupertokens` |
 | `POSTGRES_URI_TRACING` | `postgres.uri_tracing` | `postgres.uriTracing` |
+
+### Connection pool
+
+Every process builds two engines, one for the core database and one for the tracing
+database. A process can therefore open up to `2 x (pool_size + max_overflow)` server
+connections at peak. Pools open connections on demand, so an idle process holds fewer. The defaults fit the smallest supported server, 400 connections shared by
+about ten processes, and leave headroom for migrations, the cron and a `psql` session.
+
+Raise them against the server's real limit, which `SHOW max_connections` reports. A pool
+wider than the server grants does not fail at start. It fails during the next traffic
+burst, as `TooManyConnectionsError` in every process at once.
+
+| Env var | env.py path | Default | Purpose |
+|---|---|---|---|
+| `POSTGRES_POOL_SIZE` | `postgres.pool_size` | `5` | Connections each engine keeps open in an API process |
+| `POSTGRES_MAX_OVERFLOW` | `postgres.max_overflow` | `10` | Extra connections an API engine may open during a burst, closed on check-in |
+| `POSTGRES_WORKER_POOL_SIZE` | `postgres.worker_pool_size` | `2` | Same, for the queue and stream consumers |
+| `POSTGRES_WORKER_MAX_OVERFLOW` | `postgres.worker_max_overflow` | `8` | Same, for the queue and stream consumers |
+| `POSTGRES_POOL_RECYCLE_SECONDS` | `postgres.pool_recycle_seconds` | `1800` | Age at which a pooled connection is discarded |
+| `POSTGRES_POOL_TIMEOUT_SECONDS` | `postgres.pool_timeout_seconds` | `30` | How long a caller waits for a connection once the pool and its overflow are exhausted |
+| `POSTGRES_MAX_CONNECTIONS` | `postgres.max_connections` | `400` | The server's own `max_connections`, used only for a start-up warning |
+| `POSTGRES_POOL_CONSUMERS` | `postgres.pool_consumers` | `10` | How many of your processes share that limit, used only for the same warning |
+
+The queue and stream consumers get the narrower pool. A consumer opens many connections
+during an evaluation run and then idles, and an idle connection inside `pool_size` is
+never closed. The narrow pool keeps the steady state small and sends the burst through
+overflow, which does close.
+
+`POSTGRES_MAX_CONNECTIONS` and `POSTGRES_POOL_CONSUMERS` change no behavior. When
+`pool_size + max_overflow` multiplied by two engines and by `POSTGRES_POOL_CONSUMERS`
+exceeds `POSTGRES_MAX_CONNECTIONS`, each process logs one warning as it builds its
+engines. Set both to your real numbers so the warning means something.
+
+To size them, count every process that builds these engines at the largest rollout
+overlap: each gunicorn worker in each API pod, and each queue and stream worker. Keep
+`30 x API processes + 20 x worker processes` (the default peaks) well under
+`max_connections`, and leave room for migrations and other clients.
+
+The Helm chart has no values for these. Set them through each component's `extraEnv`.
 
 ## posthog
 

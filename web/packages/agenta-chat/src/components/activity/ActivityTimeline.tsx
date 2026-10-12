@@ -1,7 +1,7 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
-import {HeightCollapse} from "@agenta/ui"
+import {AgentActivityDots, HeightCollapse, type AgentActivityFormat} from "@agenta/ui"
 import {CaretRight, FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -21,6 +21,7 @@ import {
     type ActivityStep,
 } from "../../model"
 import {resolveToolDisplay} from "../../skin"
+import type {ActivityIcon} from "../../skin/types"
 import {activityFoldKey, expandedValueAtomFamily, setExpandedAtom} from "../../state"
 import {useTurnStage, useTurnStageSince} from "../../state/turnClock"
 import RevealCollapse from "../RevealCollapse"
@@ -207,13 +208,39 @@ const lastAgentStep = (steps: ActivityStep[]): ActivityStep | null => {
 /** How long a settled step's verb bridges the gap before the line reads "Working". */
 const VERB_HOLD_MS = 2500
 
-/** What the collapsed line narrates for a step. */
-const liveVerb = (step: ActivityStep): string => {
-    if (step.kind === "thought") return step.source === "text" ? "Writing" : "Thinking"
-    const part = step.part
+/** The dots' motion for a step's glyph; anything unlisted reads as a plain tool call. */
+const ICON_FORMAT: Partial<Record<ActivityIcon, AgentActivityFormat>> = {
+    "file-search": "searching",
+    "web-search": "searching",
+    "web-fetch": "searching",
+    "tool-search": "searching",
+    subtask: "subagents",
+    agent: "subagents",
+    "task-list": "planning",
+    test: "evaluating",
+    runs: "evaluating",
+    annotation: "evaluating",
+    "file-write": "writing",
+}
+
+interface LiveLine {
+    text: string
+    format: AgentActivityFormat
+}
+
+/** What the collapsed line narrates for a step, in words and in the dots' motion. */
+const liveStep = (step: ActivityStep): LiveLine => {
+    if (step.kind === "thought") {
+        return step.source === "text"
+            ? {text: "Writing", format: "writing"}
+            : {text: "Thinking", format: "thinking"}
+    }
     // Reached only once the wait is over, so a gate still `approval-requested` here was just answered.
-    return resolveToolDisplay(partToolName(part), (part as {input?: unknown}).input).activity
-        .running
+    const display = resolveToolDisplay(
+        partToolName(step.part),
+        (step.part as {input?: unknown}).input,
+    )
+    return {text: display.activity.running, format: ICON_FORMAT[display.icon] ?? "tool"}
 }
 
 export interface ActivityTimelineProps {
@@ -319,28 +346,21 @@ export const ActivityTimeline = ({
         elapsed === null || awaiting || !count ? "" : ` · ${formatElapsed(elapsed, {live: true})}`
 
     let title: ReactNode
-    if (live || awaiting) {
-        title = (
-            <>
-                <SwapLabel
-                    shimmer
-                    suffix={clock}
-                    text={
-                        awaiting
-                            ? "Waiting for you"
-                            : beforeFirstStep
-                              ? stageWord
-                              : resuming && !current
-                                ? "Working"
-                                : answerStarted && !current
-                                  ? "Answering"
-                                  : idle || !verbStep
-                                    ? "Working"
-                                    : liveVerb(verbStep)
-                    }
-                />
-            </>
-        )
+    const line: LiveLine | null = !(live || awaiting)
+        ? null
+        : awaiting
+          ? {text: "Waiting for you", format: "working"}
+          : beforeFirstStep
+            ? {text: stageWord, format: "working"}
+            : resuming && !current
+              ? {text: "Working", format: "working"}
+              : answerStarted && !current
+                ? {text: "Answering", format: "writing"}
+                : idle || !verbStep
+                  ? {text: "Working", format: "working"}
+                  : liveStep(verbStep)
+    if (line) {
+        title = <SwapLabel shimmer suffix={clock} text={line.text} />
     } else {
         title = elapsed === null ? "Worked" : `Worked for ${formatElapsed(elapsed, {live: false})}`
     }
@@ -353,7 +373,11 @@ export const ActivityTimeline = ({
                 aria-expanded={open}
                 className="-ml-1.5 flex w-fit max-w-full cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary group/row"
             >
-                {awaiting ? <WaitingGlyph kind={waitingKind(steps)} /> : null}
+                {awaiting ? (
+                    <WaitingGlyph kind={waitingKind(steps)} />
+                ) : line ? (
+                    <AgentActivityDots format={line.format} />
+                ) : null}
                 <span className="flex min-w-0 items-center whitespace-nowrap transition-colors group-hover/row:text-colorText">
                     {title}
                 </span>

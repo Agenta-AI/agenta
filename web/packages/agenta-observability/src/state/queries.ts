@@ -437,6 +437,8 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
                     },
                 ])
 
+                // The API returns one page per call (it has a default and a maximum
+                // limit). Read the whole session: follow the API's cursor to the end.
                 const result = await executeTraceQuery({
                     params: specificParams,
                     pageParam: pageParam as {newest?: string} | undefined,
@@ -445,6 +447,7 @@ export const sessionsSpansQueryAtom = atomWithInfiniteQuery((get) => {
                     isHasAnnotationSelected,
                     hasAnnotationConditions,
                     hasAnnotationOperator,
+                    readAllPages: true,
                 })
                 // Tag each trace with the session it was queried for. The grouping
                 // below relies on this instead of re-reading `attributes.ag.session.id`:

@@ -252,13 +252,18 @@ async def test_award_never_mutates_an_existing_wallet_credit_row():
     """Source-level regression guard on the real Postgres DAO: `award_credit` must never
     issue an UPDATE against `WalletCreditDBE` — only a NEW row is ever inserted."""
     import inspect
+    import re
 
     import ee.src.dbs.postgres.wallets.dao as dao_module
 
     source = inspect.getsource(dao_module.WalletsDAO.award_credit)
 
     assert "update(WalletCreditDBE)" not in source
-    assert ".credit_kind =" not in source
-    assert ".priority =" not in source
-    assert ".end_time =" not in source
-    assert "credit.amount_musd =" not in source
+    # An assignment, not a `==` comparison in a query filter.
+    for field in (
+        r"\.credit_kind",
+        r"\.priority",
+        r"\.end_time",
+        r"credit\.amount_musd",
+    ):
+        assert not re.search(field + r" =(?!=)", source)

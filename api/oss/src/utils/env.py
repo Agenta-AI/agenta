@@ -109,6 +109,19 @@ def _parse_optional_positive_int_env(name: str) -> int | None:
     return value
 
 
+def _parse_non_negative_int_env(name: str, default: int) -> int:
+    """Read a count that may legitimately be zero, so `or default` cannot be used."""
+    value = _parse_optional_int_env(name)
+
+    if value is None:
+        return default
+
+    if value < 0:
+        raise ValueError(f"{name} must be 0 or greater, got {value}")
+
+    return value
+
+
 def _parse_bool_env(name: str, default: bool) -> bool:
     raw = os.getenv(name)
     if raw is None:
@@ -290,12 +303,33 @@ class ApiThrottlingConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class ApiTracingConfig(BaseModel):
+    """Bounds on span and trace list queries: `POST /spans/query`, `POST /traces/query`
+    and the legacy `POST /tracing/spans/query`. With focus=trace, the limit counts traces.
+    A request for spans by trace id alone (the trace drawer) is not bounded."""
+
+    # Used when the request sends no `windowing.limit`. The response carries the
+    # `windowing` of the next page when the page is full.
+    query_default_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT")
+        or 100
+    )
+    # A larger `windowing.limit` is lowered to this value. 1000 is the largest page a
+    # first-party client asks for (the tool spans of the analytics runs list).
+    query_max_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_API_TRACING_QUERY_MAX_LIMIT") or 1000
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class ApiConfig(BaseModel):
     """Agenta API sub-namespace."""
 
     caching: ApiCachingConfig = ApiCachingConfig()
     skills_import: SkillsImportConfig = SkillsImportConfig()
     throttling: ApiThrottlingConfig = ApiThrottlingConfig()
+    tracing: ApiTracingConfig = ApiTracingConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -410,8 +444,9 @@ class ServicesCodeConfig(BaseModel):
             _SANDBOX_RUNNER_LOCAL_WARNED = True
             warnings.warn(
                 "AGENTA_SERVICES_CODE_SANDBOX_RUNNER is 'local' (default): code execution "
-                "is not sandboxed from the host. Set it to 'restricted' to harden a "
-                "shared/multi-tenant deployment.",
+                "has no sandbox restrictions. Use it only when everyone who can create evaluators is "
+                "trusted. Set it to 'daytona' to isolate code from users you do not "
+                "fully trust.",
                 stacklevel=2,
             )
         return self
@@ -1061,6 +1096,10 @@ class GatewayEgressConfig(BaseModel):
     Turning this on does not open every internal address by accident on a dev stack: the
     narrower escape hatches are `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` and the mock upstreams
     admitted while `AGENTA_GATEWAYS_MOCKS_ENABLED` is on.
+
+    The same boundary applies to a workflow or evaluator revision whose `url` is not under
+    `AGENTA_SERVICES_URL`, so this flag and `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` are also how
+    an operator lets custom workflows on a private network or plain http be called.
     """
 
     insecure_allowed: bool = _parse_bool_env(
@@ -1142,7 +1181,8 @@ class MCPGatewayConfig(BaseModel):
     `host_allowlist` mirrors the runner's `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`: a `custom` MCP
     server whose host is listed here skips the SSRF guard (`core/webhooks/utils.py`)
     entirely, so a self-hoster can reach one known internal server without disabling the
-    guard globally via AGENTA_INSECURE_EGRESS_ALLOWED."""
+    guard globally via AGENTA_INSECURE_EGRESS_ALLOWED. The list applies to every target of
+    the gateway egress boundary, custom workflow service URLs included."""
 
     enabled: bool = _parse_bool_env("AGENTA_MCP_GATEWAY_ENABLED", default=True)
 
@@ -1744,6 +1784,50 @@ class PostgresConfig(BaseModel):
     # wait must be bounded, or a stuck holder pins a connection for the whole pool.
     commit_lock_timeout_ms: int = (
         _parse_optional_positive_int_env("POSTGRES_COMMIT_LOCK_TIMEOUT_MS") or 5_000
+    )
+
+    # Connection-pool sizing, per engine, per process. Every process builds two
+    # engines (core and tracing), so a process reserves 2 x (pool_size +
+    # max_overflow) connections. The defaults fit the smallest supported server,
+    # 400 connections shared by about ten processes: 10 processes x 2 engines x
+    # (5 + 10) = 300, which leaves headroom for migrations, the cron and a psql
+    # session. Raise them deliberately against `SHOW max_connections`, not by
+    # guessing: a pool wider than the server grants turns a traffic burst into
+    # TooManyConnectionsError for every process at once.
+    pool_size: int = _parse_non_negative_int_env("POSTGRES_POOL_SIZE", 5)
+    max_overflow: int = _parse_non_negative_int_env("POSTGRES_MAX_OVERFLOW", 10)
+
+    # The queue and stream consumers are long-lived and bursty: they open many
+    # connections during an evaluation run and then idle, and an idle checked-in
+    # connection is never closed while it stays within pool_size. A narrow pool
+    # keeps the steady state small and sends the burst through overflow, which
+    # does close on check-in.
+    worker_pool_size: int = _parse_non_negative_int_env("POSTGRES_WORKER_POOL_SIZE", 2)
+    worker_max_overflow: int = _parse_non_negative_int_env(
+        "POSTGRES_WORKER_MAX_OVERFLOW", 8
+    )
+
+    # A pooled connection is discarded after this long, so a server-side restart
+    # or a failover does not leave the pool holding dead sockets for hours.
+    pool_recycle_seconds: int = (
+        _parse_optional_positive_int_env("POSTGRES_POOL_RECYCLE_SECONDS") or 30 * 60
+    )
+
+    # How long a caller waits for a connection once the pool and its overflow are
+    # exhausted. Bounded, so a saturated pool fails the request instead of
+    # blocking the event loop forever.
+    pool_timeout_seconds: int = (
+        _parse_optional_positive_int_env("POSTGRES_POOL_TIMEOUT_SECONDS") or 30
+    )
+
+    # The server's own `max_connections`, and how many of our processes share it.
+    # Used only to warn at start when the configured pool cannot fit; nothing
+    # reads them at request time.
+    max_connections: int = (
+        _parse_optional_positive_int_env("POSTGRES_MAX_CONNECTIONS") or 400
+    )
+    pool_consumers: int = (
+        _parse_optional_positive_int_env("POSTGRES_POOL_CONSUMERS") or 10
     )
 
     uri_core: str = os.getenv("POSTGRES_URI_CORE") or (

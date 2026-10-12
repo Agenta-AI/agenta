@@ -12,15 +12,19 @@ import {MagnifyingGlass} from "@phosphor-icons/react"
 import {useInfiniteQuery} from "@tanstack/react-query"
 
 import {NameAvatar} from "../shared/NameAvatar"
+import {findScrollRoot, useScrollRoot} from "../shared/scrollRoot"
 import {SettingsCatalogSection, type SettingsCatalogItem} from "../shared/SettingsCatalog"
 import {SettingsEmpty} from "../shared/SettingsEmpty"
 
+import {categoryLabel} from "./categoryLabel"
 import type {CatalogIntegrationItem} from "./hooks/useToolsIntegrations"
 
 const PROVIDER = "composio"
-/** A collapsed category shows three rows of two. */
+/** A category preview shows three rows of two. */
 const PREVIEW = 6
 const PAGE = 12
+/** Load a page this far before it scrolls into view. */
+const PREFETCH = "0px 0px 600px 0px"
 
 export const IntegrationLogo = ({src, name}: {src?: string | null; name: string}) =>
     src ? (
@@ -42,17 +46,7 @@ const toRow = (
     onOpen: () => onConnect(integration),
 })
 
-/** Composio names categories in lower case; acronyms stay upper case. */
-const ACRONYMS = new Set(["ai", "crm", "hr", "sms", "seo", "api"])
-const categoryLabel = (name: string) =>
-    name
-        .split(" ")
-        .map((word) =>
-            ACRONYMS.has(word) ? word.toUpperCase() : word.charAt(0).toUpperCase() + word.slice(1),
-        )
-        .join(" ")
-
-/** True once the element nears the screen, and stays true: a section loads once. */
+/** True once the element nears the page's scroll area, and stays true: a section loads once. */
 const useNearScreen = () => {
     const ref = useRef<HTMLElement>(null)
     const [near, setNear] = useState(false)
@@ -63,7 +57,7 @@ const useNearScreen = () => {
             ([entry]) => {
                 if (entry.isIntersecting) setNear(true)
             },
-            {rootMargin: "400px 0px"},
+            {root: findScrollRoot(el), rootMargin: PREFETCH},
         )
         observer.observe(el)
         return () => observer.disconnect()
@@ -71,31 +65,24 @@ const useNearScreen = () => {
     return {ref, near}
 }
 
-/** Connected apps stay listed: one app can hold several connections, e.g. two accounts. */
-interface CatalogProps {
-    onConnect: (integration: CatalogIntegrationItem) => void
-}
-
-/** One category: a six-app preview that expands in place; it loads once near the screen. */
-const CategorySection = ({category, onConnect}: CatalogProps & {category: ToolCatalogCategory}) => {
-    const {ref, near} = useNearScreen()
-    const [expanded, setExpanded] = useState(false)
+/** One category's pages; the preview and the full list share them, so opening one is instant. */
+const useCategoryIntegrations = (category: string, search: string, enabled: boolean) => {
     const query = useInfiniteQuery({
-        queryKey: ["tools", "catalog", "integrations", PROVIDER, "category", category.id],
+        queryKey: ["tools", "catalog", "integrations", PROVIDER, "category", category, search],
         queryFn: ({pageParam}) =>
             fetchToolIntegrations(PROVIDER, {
-                category: category.id,
+                category,
+                search: search || undefined,
                 limit: PAGE,
                 cursor: pageParam || undefined,
                 lowPriority: true,
             }),
         initialPageParam: "",
         getNextPageParam: (lastPage) => lastPage.cursor ?? undefined,
-        enabled: near,
+        enabled,
         staleTime: 5 * 60_000,
         refetchOnWindowFocus: false,
     })
-
     const integrations = useMemo(() => {
         const seen = new Set<string>()
         return (query.data?.pages ?? [])
@@ -106,40 +93,117 @@ const CategorySection = ({category, onConnect}: CatalogProps & {category: ToolCa
                 return true
             })
     }, [query.data?.pages])
+    return {query, integrations, total: query.data?.pages[0]?.total}
+}
 
-    const total = query.data?.pages[0]?.total
+/** Connected apps stay listed: one app can hold several connections, e.g. two accounts. */
+interface CatalogProps {
+    onConnect: (integration: CatalogIntegrationItem) => void
+}
+
+/** One category's six-app preview; it loads as it nears the screen. */
+const CategoryPreview = ({
+    category,
+    onConnect,
+    onShowAll,
+}: CatalogProps & {category: ToolCatalogCategory; onShowAll: () => void}) => {
+    const {ref, near} = useNearScreen()
+    const {query, integrations, total} = useCategoryIntegrations(category.id, "", near)
+
     const loaded = !query.isPending
     if (loaded && integrations.length === 0 && !query.hasNextPage) return null
-
-    const shown = expanded ? integrations : integrations.slice(0, PREVIEW)
-    const fetching = !loaded || query.isFetchingNextPage
-    const more = (total ?? 0) > PREVIEW
 
     return (
         <SettingsCatalogSection
             sectionRef={ref}
             group={{
                 label: categoryLabel(category.name),
-                items: shown.map((integration) => toRow(integration, onConnect)),
+                items: integrations.slice(0, PREVIEW).map((item) => toRow(item, onConnect)),
                 count: total ?? null,
-                pendingRows: !loaded ? PREVIEW : expanded && fetching ? 4 : 0,
-                action: more ? (
-                    <Button
-                        variant="ghost"
-                        className="text-muted-foreground"
-                        onClick={() => setExpanded((open) => !open)}
-                    >
-                        {expanded ? "Show less" : `Show all ${total}`}
-                    </Button>
-                ) : null,
-                footer:
-                    expanded && query.hasNextPage ? (
-                        <ScrollSentinel
-                            onVisible={() => void query.fetchNextPage()}
-                            hasMore
-                            isFetching={fetching}
-                        />
-                    ) : undefined,
+                pendingRows: loaded ? 0 : PREVIEW,
+                action:
+                    (total ?? 0) > PREVIEW ? (
+                        <Button
+                            variant="ghost"
+                            className="text-muted-foreground"
+                            onClick={onShowAll}
+                        >
+                            Show all {total}
+                        </Button>
+                    ) : null,
+            }}
+        />
+    )
+}
+
+/** A selected category's whole list, a page at a time, searched on the server from three characters. */
+const CategoryList = ({
+    category,
+    term,
+    onConnect,
+    onClearSearch,
+    noMatch,
+}: CatalogProps & {
+    category: ToolCatalogCategory
+    term: string
+    onClearSearch: () => void
+    noMatch: (term: string) => string
+}) => {
+    const ref = useRef<HTMLElement>(null)
+    const root = useScrollRoot(ref)
+    const serverSearched = term.length >= 3
+    const {query, integrations, total} = useCategoryIntegrations(
+        category.id,
+        serverSearched ? term : "",
+        true,
+    )
+    const items = integrations
+        .filter(
+            (integration) =>
+                serverSearched ||
+                !term ||
+                [integration.name, integration.description].some((text) =>
+                    text?.toLowerCase().includes(term),
+                ),
+        )
+        .map((integration) => toRow(integration, onConnect))
+    const fetching = query.isPending || query.isFetchingNextPage
+
+    if (!fetching && items.length === 0 && !query.hasNextPage) {
+        return (
+            <SettingsEmpty
+                plain
+                icon={<MagnifyingGlass size={18} />}
+                title={term ? noMatch(term) : "No integrations in this category"}
+                action={
+                    term ? (
+                        <Button variant="outline" onClick={onClearSearch}>
+                            Clear search
+                        </Button>
+                    ) : undefined
+                }
+            />
+        )
+    }
+
+    return (
+        <SettingsCatalogSection
+            sectionRef={ref}
+            group={{
+                label: term ? "Results" : categoryLabel(category.name),
+                items,
+                // A local narrowing shows fewer rows than the server total.
+                count: serverSearched || !term ? (total ?? null) : null,
+                pendingRows: fetching ? 4 : 0,
+                footer: query.hasNextPage ? (
+                    <ScrollSentinel
+                        onVisible={() => void query.fetchNextPage()}
+                        hasMore
+                        isFetching={fetching}
+                        root={root}
+                        rootMargin={PREFETCH}
+                    />
+                ) : undefined,
             }}
         />
     )
@@ -161,6 +225,8 @@ const FlatCatalog = ({
     onClearSearch: () => void
     noMatch: (term: string) => string
 }) => {
+    const ref = useRef<HTMLElement>(null)
+    const root = useScrollRoot(ref)
     const available = useToolCatalogIntegrations()
     // The server searches from three characters; below that, narrow what has loaded.
     const serverSearched = term.length >= 3
@@ -193,6 +259,7 @@ const FlatCatalog = ({
 
     return (
         <SettingsCatalogSection
+            sectionRef={ref}
             group={{
                 label,
                 items,
@@ -204,6 +271,8 @@ const FlatCatalog = ({
                         onVisible={available.requestMore}
                         hasMore
                         isFetching={fetching}
+                        root={root}
+                        rootMargin={PREFETCH}
                     />
                 ) : undefined,
             }}
@@ -211,17 +280,22 @@ const FlatCatalog = ({
     )
 }
 
-/** One section per category, or one flat list while searching or if categories fail. */
+/** All: one preview per category. A category: its whole list. A search: one flat list. */
 export const IntegrationCatalog = (
     props: CatalogProps & {
         term: string
+        /** The selected category's id; `null` is All. */
+        category: string | null
+        onSelectCategory: (category: string | null) => void
         connectedMatches: number
         onClearSearch: () => void
         noMatch: (term: string) => string
     },
 ) => {
     const {categories, isLoading, error} = useToolCatalogCategories()
+    const selected = categories.find((category) => category.id === props.category)
 
+    if (selected) return <CategoryList {...props} category={selected} />
     if (props.term || error || (!isLoading && categories.length === 0)) {
         return <FlatCatalog {...props} label={props.term ? "Results" : "Available"} />
     }
@@ -235,10 +309,11 @@ export const IntegrationCatalog = (
     return (
         <>
             {categories.map((category) => (
-                <CategorySection
+                <CategoryPreview
                     key={category.id}
                     category={category}
                     onConnect={props.onConnect}
+                    onShowAll={() => props.onSelectCategory(category.id)}
                 />
             ))}
         </>

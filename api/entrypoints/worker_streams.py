@@ -52,8 +52,10 @@ from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
 from oss.src.dbs.postgres.shared.engine import (
+    PROFILE_WORKER,
     get_analytics_engine,
     get_transactions_engine,
+    set_pool_profile,
 )
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
@@ -325,6 +327,10 @@ async def main_async() -> int:
 
 
 def main() -> int:
+    # Ahead of asyncio.run, because the first engine is built inside main_async
+    # and keeps whichever profile is current when it is built.
+    set_pool_profile(PROFILE_WORKER)
+
     try:
         return asyncio.run(main_async())
     except KeyboardInterrupt:
