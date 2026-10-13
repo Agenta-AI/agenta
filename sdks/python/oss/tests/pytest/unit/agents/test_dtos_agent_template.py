@@ -368,3 +368,47 @@ def test_from_params_rejects_unknown_sandbox_credential_fields():
                 }
             }
         )
+
+
+# ----------------------------------------------------------- browser logins
+
+
+def _browser(browser):
+    params = {"agent": {"harness": {"kind": "pi_core"}}}
+    if browser is not ...:
+        params["agent"]["browser"] = browser
+    parsed = AgentTemplate.from_params(params).browser
+    return parsed.mode, parsed.profiles
+
+
+@pytest.mark.parametrize(
+    "browser, expected",
+    [
+        (..., ("all", [])),
+        (None, ("all", [])),
+        ({}, ("all", [])),
+        ({"mode": "selected", "profiles": [" p1 ", "p2"]}, ("selected", ["p1", "p2"])),
+        ({"mode": "off"}, ("off", [])),
+        ({"profile": "p1"}, ("selected", ["p1"])),
+        ({"profile": ""}, ("off", [])),
+        ({"profile": None}, ("off", [])),
+        ({"mode": "all", "profile": "p1"}, ("all", [])),
+    ],
+)
+def test_from_params_parses_browser(browser, expected):
+    assert _browser(browser) == expected
+
+
+@pytest.mark.parametrize(
+    "browser, message",
+    [
+        ({"mode": "some"}, "browser.mode"),
+        ({"mode": "selected", "profiles": "p1"}, "browser.profiles"),
+        ({"mode": "selected", "profiles": [""]}, "browser.profiles"),
+        ({"profile": 3}, "browser.profile must be a string"),
+        ({"mode": "all", "logins": []}, "unknown key"),
+    ],
+)
+def test_from_params_rejects_a_bad_browser(browser, message):
+    with pytest.raises(AgentTemplateShapeError, match=message):
+        _browser(browser)

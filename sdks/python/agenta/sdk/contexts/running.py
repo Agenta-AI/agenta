@@ -23,6 +23,9 @@ class RunningContext(BaseModel):
 
     handler: Optional[Callable] = None
 
+    # True only when the caller sent its own configuration inline (`data.parameters`): a draft.
+    inline_configuration: bool = False
+
     @classmethod
     def get(cls) -> "RunningContext":
         try:

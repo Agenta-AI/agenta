@@ -15,6 +15,7 @@ from typing import Any, Dict, Optional
 
 from opentelemetry import trace as otel_trace
 
+from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.utils.logging import get_module_logger
@@ -161,9 +162,9 @@ def _run_context_workflow() -> Optional[RunContextWorkflow]:
     )
     if not workflow.model_dump(exclude_none=True):
         return None
-    # A run is a draft when it carries some workflow identity but no committed revision (the
-    # playground inline-config case); a run pinned to a stored revision is not a draft.
-    workflow.is_draft = revision is None
+    # A draft needs positive evidence: the caller sent the configuration inline and pinned no
+    # revision. A run whose stored config was hydrated without a revision reference is not one.
+    workflow.is_draft = revision is None and RunningContext.get().inline_configuration
     return workflow
 
 

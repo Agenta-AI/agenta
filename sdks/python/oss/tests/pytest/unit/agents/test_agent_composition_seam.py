@@ -1394,4 +1394,8 @@ async def test_only_one_deadline_owns_a_turn(monkeypatch):
     )
 
     # One owner per optional read, never two around the same read.
-    assert owners == ["channel tools resolver", "session context resolver"]
+    assert owners == [
+        "browser profiles resolver",
+        "channel tools resolver",
+        "session context resolver",
+    ]

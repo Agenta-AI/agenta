@@ -294,6 +294,15 @@ class WireRunContextRun(_WireModel):
     kind: Optional[str] = None
 
 
+class WireRunContextBrowser(_WireModel):
+    """The browser tools' bindings inside ``runContext`` (mirrors ``RunContextBrowser``)."""
+
+    profile_ids: Optional[List[str]] = None
+    all_logins: Optional[bool] = None
+    revision_id: Optional[str] = None
+    is_draft: Optional[bool] = None
+
+
 class WireRunContext(_WireModel):
     """The run's own context, delivered on ``/run`` and refreshed per turn (direct-call tools,
     Phase 3a; mirrors ``RunContext.to_wire``).
@@ -310,6 +319,7 @@ class WireRunContext(_WireModel):
     run: Optional[WireRunContextRun] = None
     workflow: Optional[WireRunContextWorkflow] = None
     trace: Optional[WireRunContextTrace] = None
+    browser: Optional[WireRunContextBrowser] = None
 
 
 class WireRenderHint(_WireModel):

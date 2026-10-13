@@ -80,7 +80,32 @@ def test_catalog_ships_platform_builder_ops():
         "read_channel_messages",
         "search_channel_messages",
         "validate_template",
+        "browser_navigate",
+        "browser_read_page",
+        "browser_find",
+        "browser_click",
+        "browser_type",
+        "browser_form_input",
+        "browser_pay",
+        "browser_delete",
     }
+
+
+def test_browser_ops_are_handler_mode_and_hide_their_bound_fields():
+    pay = get_platform_op("browser_pay")
+    assert pay.to_call_ref() == "tools.agenta.browser_pay"
+    assert pay.default_permission == "ask"
+    schema = pay.resolved_input_schema()
+    assert set(schema["properties"]) == {"ref", "role", "name", "summary"}
+    assert schema["required"] == ["summary"]
+
+    read = get_platform_op("browser_read_page")
+    assert read.read_only is True
+    assert read.default_permission == "allow"
+    assert read.resolved_input_schema()["properties"]["filter"]["enum"] == [
+        "interactive",
+        "all",
+    ]
 
 
 def test_app_ops_are_handler_mode_and_hide_their_bound_fields():

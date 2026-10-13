@@ -656,6 +656,16 @@ class RunContextRun(BaseModel):
     kind: Optional[str] = None
 
 
+class RunContextBrowser(BaseModel):
+    """The browser tools' bindings; ``revision_id`` is ``None`` on a run with no revision."""
+
+    profile_ids: List[str]
+    # "All my logins": the API reads the logins again at each call, so one added mid-turn counts.
+    all_logins: bool = False
+    revision_id: Optional[str] = None
+    is_draft: bool = True
+
+
 class RunContext(BaseModel):
     """The run's own context, delivered on ``/run`` and refreshed per turn (direct-call tools,
     Phase 3a; see ``projects/direct-call-tools/run-context.md``).
@@ -676,6 +686,7 @@ class RunContext(BaseModel):
     run: Optional[RunContextRun] = None
     workflow: Optional[RunContextWorkflow] = None
     trace: Optional[RunContextTrace] = None
+    browser: Optional[RunContextBrowser] = None
 
     def to_wire(self) -> Dict[str, Any]:
         out: Dict[str, Any] = {}
@@ -711,6 +722,9 @@ class RunContext(BaseModel):
             }
             if trace:
                 out["trace"] = trace
+        if self.browser is not None:
+            # Kept whole, ``None`` included: a binding to an absent key fails the call.
+            out["browser"] = self.browser.model_dump()
         return out
 
 
@@ -787,6 +801,15 @@ class ResolvedSandboxCredential(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class AgentBrowser(BaseModel):
+    """``parameters.agent.browser``; ``profiles`` is read only in ``selected`` mode."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["all", "selected", "off"] = "all"
+    profiles: List[str] = Field(default_factory=list)
+
+
 class AgentTemplate(BaseModel):
     """What an agent is and how it runs — the parsed agent template. ``instructions`` becomes
     ``AGENTS.md``. ``tools`` are provider-agnostic references; resolving them into runnable
@@ -834,6 +857,8 @@ class AgentTemplate(BaseModel):
     # on ``local`` (which a hardened deployment does not enable).
     sandbox: str = Field(default_factory=run_default_sandbox_provider)
     permission_default: PermissionMode = "allow_reads"
+    # Read by the agent handler only: it adds the browser tools and stamps the run context.
+    browser: AgentBrowser = Field(default_factory=AgentBrowser)
 
     @model_validator(mode="before")
     @classmethod
@@ -918,6 +943,7 @@ class AgentTemplate(BaseModel):
             harness=harness,
             sandbox=sandbox,
             permission_default=permission_default,
+            browser=_parse_browser(params, base),
         )
 
 
@@ -1529,11 +1555,12 @@ _LEGACY_FLAT_TEMPLATE_KEYS: Dict[str, str] = {
 # CLOSED (unknown key -> loud error) precisely because it is a small, coordinated, schema-driven
 # enum surface (see ``build_agent_v0_default`` and the FE ``useModelHarness`` sections). The
 # element itself and the portable definition fields (instructions/llm/tools/mcps/skills) stay OPEN
-# for forward-compat; only these three objects are locked down.
+# for forward-compat; only these objects are locked down.
 _SELECTOR_ALLOWED_KEYS: Dict[str, frozenset] = {
     "harness": frozenset({"kind", "permissions", "extras"}),
     "sandbox": frozenset({"kind", "permissions", "credentials"}),
     "runner": frozenset({"kind", "permissions"}),
+    "browser": frozenset({"mode", "profiles", "profile"}),
 }
 
 
@@ -1740,6 +1767,35 @@ def _model_from_llm(llm: Dict[str, Any]) -> Any:
     if extras:
         ref["extras"] = extras
     return ref
+
+
+def _parse_browser(params: Dict[str, Any], defaults: AgentTemplate) -> AgentBrowser:
+    browser = _template(params).get("browser")
+    if not isinstance(browser, dict):
+        return defaults.browser
+    if "mode" not in browser and "profile" in browser:
+        # The old one-login picker; it left a cleared picker as null or "", which meant no browser.
+        profile = browser["profile"]
+        if profile is None or (isinstance(profile, str) and not profile.strip()):
+            return AgentBrowser(mode="off")
+        if not isinstance(profile, str):
+            raise AgentTemplateShapeError(
+                "agent template browser.profile must be a string"
+            )
+        return AgentBrowser(mode="selected", profiles=[profile.strip()])
+    mode = browser.get("mode") or "all"
+    if mode not in ("all", "selected", "off"):
+        raise AgentTemplateShapeError(
+            f"agent template browser.mode must be 'all', 'selected' or 'off' (got {mode!r})"
+        )
+    profiles = browser.get("profiles") or []
+    if not isinstance(profiles, list) or not all(
+        isinstance(profile, str) and profile.strip() for profile in profiles
+    ):
+        raise AgentTemplateShapeError(
+            "agent template browser.profiles must be a list of profile ids"
+        )
+    return AgentBrowser(mode=mode, profiles=[profile.strip() for profile in profiles])
 
 
 def _parse_sandbox_credentials(
