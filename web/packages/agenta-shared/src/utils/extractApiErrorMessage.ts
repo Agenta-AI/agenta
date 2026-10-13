@@ -51,7 +51,7 @@ export function preserveResponseStatus(error: unknown, message?: string): ErrorW
 
 /**
  * Extract a human-readable API error message from thrown values, including
- * Axios/Fetch-style payloads like `{detail: {message: "..."}}`.
+ * Axios/Fetch-style payloads like `{detail: {message: "..."}}` and Fern client errors.
  */
 export function extractApiErrorMessage(error: unknown): string {
     if (isRecord(error) && "response" in error) {
@@ -59,6 +59,14 @@ export function extractApiErrorMessage(error: unknown): string {
         const responseData = isRecord(response) ? response.data : undefined
         const responseMessage = extractMessageFromPayload(responseData)
         if (responseMessage) return responseMessage
+    }
+
+    // Fern client errors carry the parsed response body on `body`; their `message` is the
+    // status line plus the raw JSON, which is not a sentence to show a user. A string body
+    // (an HTML error page, say) is not a message either, so only a JSON body is read.
+    if (isRecord(error) && typeof error.body === "object" && error.body !== null) {
+        const bodyMessage = extractMessageFromPayload(error.body)
+        if (bodyMessage) return bodyMessage
     }
 
     const directMessage = extractMessageFromPayload(error)
