@@ -11,7 +11,8 @@ export const useBillingPortal = () => {
         setError(null)
         try {
             const url = await openBillingPortal()
-            if (url) window.location.assign(url)
+            if (!url) throw new Error("No billing portal URL")
+            window.location.assign(url)
         } catch {
             setError("We couldn't open the billing portal. Try again.")
         } finally {
