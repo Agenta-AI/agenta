@@ -90,6 +90,8 @@ export async function scanAgentTemplateSource(
     return getWorkflowsClient().scanAgentTemplateSource(request, {
         queryParams: {project_id: projectId},
         maxRetries: 0,
+        // The server allows a scan 120 seconds; the client default of 30 would cut it short.
+        timeoutInSeconds: 130,
     })
 }
 

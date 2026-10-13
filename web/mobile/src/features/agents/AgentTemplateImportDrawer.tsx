@@ -22,12 +22,16 @@ export const AgentTemplateImportDrawer = ({
     const projectId = useAtomValue(projectIdAtom)
     // The pick loads at the commit the scan resolved, not whatever the branch points at later.
     const scanned = useRef<AgentTemplateRepositoryScan | null>(null)
+    // Only the latest scan may set the pin; the drawer shows only the latest scan's rows.
+    const latestScan = useRef(0)
 
     const scan = useCallback(
         async (repoUrl: string) => {
             if (!projectId) throw new Error("No project is selected.")
-            scanned.current = await scanAgentTemplateSource(projectId, {repo_url: repoUrl})
-            return {candidates: scanned.current.templates}
+            const id = ++latestScan.current
+            const response = await scanAgentTemplateSource(projectId, {repo_url: repoUrl})
+            if (id === latestScan.current) scanned.current = response
+            return {candidates: response.templates}
         },
         [projectId],
     )
