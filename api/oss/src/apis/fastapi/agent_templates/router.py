@@ -4,6 +4,7 @@ from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import JSONResponse
 
 from oss.src.apis.fastapi.agent_templates.exceptions import (
+    SCAN_UNAVAILABLE_NEXT_STEP,
     template_load_error_response,
 )
 from oss.src.apis.fastapi.agent_templates.models import (
@@ -198,7 +199,9 @@ class AgentTemplatesRouter:
         try:
             return await self._scanner.scan(repo_url=payload.repo_url)
         except Exception as exc:
-            response = template_load_error_response(exc)
+            response = template_load_error_response(
+                exc, unavailable_next_step=SCAN_UNAVAILABLE_NEXT_STEP
+            )
             if response is None:
                 raise
             return response

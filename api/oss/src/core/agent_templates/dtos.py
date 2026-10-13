@@ -42,7 +42,7 @@ def normalize_github_repo_url(value: str) -> str:
     match = _GITHUB_REPO_URL.match(value.strip())
     if not match or match.group("repo") in {".", ".."}:
         raise ValueError(
-            "repo_url must be a public repository URL of the form "
+            "The repository URL must be a public GitHub URL of the form "
             "https://github.com/<owner>/<repo>."
         )
     # GitHub owner and repository names are case-insensitive.

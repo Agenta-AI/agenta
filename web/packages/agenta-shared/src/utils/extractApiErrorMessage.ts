@@ -2,6 +2,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
+const PYDANTIC_MSG_PREFIX = /^(Value error|Assertion failed), /
+
 function extractMessageFromPayload(payload: unknown): string | null {
     if (typeof payload === "string") {
         const trimmed = payload.trim()
@@ -21,7 +23,8 @@ function extractMessageFromPayload(payload: unknown): string | null {
     const nestedMessageKeys = ["status", "detail", "message", "error", "msg"] as const
     for (const key of nestedMessageKeys) {
         const message = extractMessageFromPayload(payload[key])
-        if (message) return message
+        // Pydantic prefixes a validator's own sentence with its error type.
+        if (message) return key === "msg" ? message.replace(PYDANTIC_MSG_PREFIX, "") : message
     }
 
     return null

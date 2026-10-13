@@ -60,6 +60,13 @@ describe("extractApiErrorMessage — Fern client errors", () => {
         })
         expect(extractApiErrorMessage(error)).toBe("repo_url is invalid")
     })
+
+    it("drops the pydantic error-type prefix from a validator message", () => {
+        const error = Object.assign(new Error("UnprocessableEntityError"), {
+            body: {detail: [{type: "value_error", msg: "Value error, repo_url is invalid"}]},
+        })
+        expect(extractApiErrorMessage(error)).toBe("repo_url is invalid")
+    })
 })
 
 describe("extractApiErrorMessage — Error instances", () => {

@@ -718,3 +718,5 @@ async def test_scan_requires_view_and_maps_unavailable_to_404(monkeypatch):
 
     assert response.status_code == 404
     assert response.json()["details"]["reason"] == "template_source_github_unavailable"
+    # The scan names no commit or package directory, so its next step must not either.
+    assert "commit" not in response.json()["next_step"]

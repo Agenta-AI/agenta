@@ -11,6 +11,8 @@ export interface RepoScanCandidate {
     path: string
     name: string
     description?: string | null
+    /** Shown after the name, so two versions of one package read apart. */
+    version?: string | null
     /** Why the row cannot be picked; shown in place of the description. */
     unavailable?: string | null
     /** A short tag after the name, e.g. "Already imported". */
@@ -270,6 +272,11 @@ export function RepoImportDrawer({
                                                 <span className="min-w-0 truncate font-mono text-xs font-medium">
                                                     {candidate.name}
                                                 </span>
+                                                {candidate.version ? (
+                                                    <span className="shrink-0 text-[var(--ag-colorTextTertiary)]">
+                                                        v{candidate.version}
+                                                    </span>
+                                                ) : null}
                                                 {candidate.badge ? (
                                                     <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] text-[var(--ag-colorTextTertiary)]">
                                                         {candidate.badge}
@@ -281,6 +288,12 @@ export function RepoImportDrawer({
                                                     candidate.description ??
                                                     "No description."}
                                             </span>
+                                            {/* Rows can share a name; the path tells them apart. */}
+                                            {candidate.path !== candidate.name ? (
+                                                <span className="break-all font-mono text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                                    {candidate.path}
+                                                </span>
+                                            ) : null}
                                         </span>
                                     </label>
                                 ))}
