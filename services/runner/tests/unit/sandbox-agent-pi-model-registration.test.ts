@@ -65,6 +65,7 @@ const OPENROUTER_OTHER: PiBuiltinModel = {
 };
 
 const fakeRegistry: PiBuiltinRegistry = {
+  providers: () => ["openrouter", "openai"],
   hasProvider: (provider) => provider === "openrouter" || provider === "openai",
   models: (provider) =>
     provider === "openrouter" ? [OPENROUTER_BASE, OPENROUTER_OTHER] : [],
@@ -125,6 +126,7 @@ describe("buildPiModelRegistrationPlan (an id Pi does not carry)", () => {
 
   it("registers a variant of a model whose base id has no slash", () => {
     const registry: PiBuiltinRegistry = {
+      providers: () => ["openai"],
       hasProvider: (provider) => provider === "openai",
       models: () => [{ id: "gpt-5.6-luna", contextWindow: 272000 }],
     };

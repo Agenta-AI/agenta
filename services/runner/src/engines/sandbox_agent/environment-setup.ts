@@ -32,6 +32,8 @@ import {
   buildPiModelConfigPlan,
   buildPiModelRegistrationPlan,
   describePiModelsJsonPlan,
+  isPiModelConfigApplicable,
+  isPiModelRegistrationPlan,
   type PiModelsJsonPlan,
 } from "./pi-model-config.ts";
 import { loadPiBuiltinRegistry } from "./pi-builtin-registry.ts";
@@ -229,7 +231,17 @@ export async function prepareEnvironmentSetup(
           fullModelEnvironment[candidate.binding.name] = candidate.value;
         }
       }
-      piModelConfig = buildPiModelConfigPlan(request, fullModelEnvironment);
+      // The built-in catalog is what lets the custom-provider entry carry the model's real
+      // context window instead of Pi's 128K default. Load it only for this path: `undefined`
+      // keeps the metadata-free entry, and `loadPiBuiltinRegistry` is cached for the process.
+      const registry = isPiModelConfigApplicable(request)
+        ? await loadPiBuiltinRegistry(logger)
+        : undefined;
+      piModelConfig = buildPiModelConfigPlan(
+        request,
+        fullModelEnvironment,
+        registry,
+      );
     } catch (err) {
       piModelConfigError = err as Error;
     }
@@ -256,6 +268,19 @@ export async function prepareEnvironmentSetup(
   }
   if (piModelConfig) {
     logger(`pi models.json plan ${describePiModelsJsonPlan(piModelConfig)}`);
+    // A custom-provider model with no metadata makes Pi assume a 128K window and a 16K output
+    // cap; a long session then has `max_tokens` clamped to 1 and the agent answers nothing. Say
+    // so, rather than let it fail silently.
+    if (
+      !isPiModelRegistrationPlan(piModelConfig) &&
+      piModelConfig.models[0]?.contextWindow === undefined
+    ) {
+      logger(
+        `pi models.json: ${piModelConfig.models[0]?.id} has no built-in metadata; ` +
+          `Pi assumes a 128000-token window and a 16384-token output cap, ` +
+          `so a long session will be silently truncated`,
+      );
+    }
   }
 
   // undefined is fine: the local provider runs its own resolution and errors clearly.

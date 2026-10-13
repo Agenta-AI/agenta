@@ -48,6 +48,8 @@ export interface PiBuiltinModel {
 }
 
 export interface PiBuiltinRegistry {
+  /** Every built-in provider id Pi ships (e.g. `openrouter`, `deepseek`). */
+  providers(): string[];
   /** True when `provider` is one of Pi's own built-in provider ids (e.g. `openrouter`). */
   hasProvider(provider: string): boolean;
   /** Every built-in model Pi ships for `provider`; empty for an unknown provider. */
@@ -115,6 +117,7 @@ async function importPiBuiltinRegistry(
     const catalog: PiCatalogModule = await import(pathToFileURL(path).href);
     const providers = new Set(catalog.getBuiltinProviders() ?? []);
     return {
+      providers: () => Array.from(providers),
       hasProvider: (provider) => providers.has(provider),
       models: (provider) =>
         providers.has(provider)

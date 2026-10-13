@@ -15,6 +15,10 @@ import {
   PiModelConfigError,
   serializePiModelsJson,
 } from "../../src/engines/sandbox_agent/pi-model-config.ts";
+import type {
+  PiBuiltinModel,
+  PiBuiltinRegistry,
+} from "../../src/engines/sandbox_agent/pi-builtin-registry.ts";
 
 const RAW_KEY = "sk-super-secret-value-do-not-leak";
 
@@ -241,5 +245,153 @@ describe("serializePiModelsJson (exact shape, no key leak)", () => {
     assert.equal(text.includes(RAW_KEY), false);
     // Trailing newline for a well-formed file.
     assert.equal(text.endsWith("\n"), true);
+  });
+});
+
+/** `deepseek-flash` exactly as Pi's own catalog carries it: a 1M/384K reasoning model. */
+const DEEPSEEK_FLASH: PiBuiltinModel = {
+  id: "deepseek-flash",
+  api: "openai-completions",
+  provider: "deepseek",
+  baseUrl: "https://api.deepseek.com",
+  compat: {
+    maxTokensField: "max_tokens",
+    thinkingFormat: "deepseek",
+    requiresReasoningContentOnAssistantMessages: true,
+  },
+  reasoning: true,
+  thinkingLevelMap: { low: "low", high: "high", max: "max" },
+  input: ["text", "image"],
+  cost: { input: 0.3, output: 1.2 },
+  contextWindow: 1000000,
+  maxTokens: 384000,
+};
+
+function registryOf(
+  providers: Record<string, PiBuiltinModel[]>,
+): PiBuiltinRegistry {
+  return {
+    providers: () => Object.keys(providers),
+    hasProvider: (provider) => provider in providers,
+    models: (provider) => providers[provider] ?? [],
+  };
+}
+
+function deepseekRequest(baseUrl: string): AgentRunRequest {
+  return completeRequest({ model: "deepseek-flash", endpoint: { baseUrl } });
+}
+
+describe("buildPiModelConfigPlan (built-in metadata onto the custom provider)", () => {
+  const registry = registryOf({ deepseek: [DEEPSEEK_FLASH] });
+
+  it("carries the model's real limits, not Pi's 128K/16K defaults", () => {
+    const plan = buildPiModelConfigPlan(
+      deepseekRequest("https://api.deepseek.com"),
+      completeSecrets,
+      registry,
+    );
+    assert.ok(plan);
+    assert.equal(plan.models[0].id, "deepseek-flash");
+    assert.equal(plan.models[0].contextWindow, 1000000);
+    assert.equal(plan.models[0].maxTokens, 384000);
+  });
+
+  it("carries the vendor request dialect only on the vendor's own endpoint", () => {
+    const onVendor = buildPiModelConfigPlan(
+      deepseekRequest("https://api.deepseek.com/v1"),
+      completeSecrets,
+      registry,
+    );
+    assert.equal(onVendor?.models[0].compat?.thinkingFormat, "deepseek");
+
+    // A proxy that only serves the same id: limits ride, the vendor dialect does not.
+    const offVendor = buildPiModelConfigPlan(
+      deepseekRequest("https://my-proxy.test/v1"),
+      completeSecrets,
+      registry,
+    );
+    assert.equal(offVendor?.models[0].contextWindow, 1000000);
+    assert.equal(offVendor?.models[0].maxTokens, 384000);
+    assert.equal(offVendor?.models[0].compat, undefined);
+  });
+
+  it("leaves an unknown model metadata-free (current behavior)", () => {
+    const plan = buildPiModelConfigPlan(
+      completeRequest(),
+      completeSecrets,
+      registry,
+    );
+    assert.deepEqual(plan?.models, [{ id: "qwen2.5-coder:7b" }]);
+  });
+
+  it("guesses nothing when an ambiguous id has no endpoint to disambiguate it", () => {
+    const ambiguous = registryOf({
+      alpha: [
+        { id: "shared-model", baseUrl: "https://alpha.test", contextWindow: 1000 },
+      ],
+      beta: [
+        { id: "shared-model", baseUrl: "https://beta.test", contextWindow: 2000 },
+      ],
+    });
+    const plan = buildPiModelConfigPlan(
+      completeRequest({
+        model: "shared-model",
+        endpoint: { baseUrl: "https://proxy.test/v1" },
+      }),
+      completeSecrets,
+      ambiguous,
+    );
+    assert.deepEqual(plan?.models, [{ id: "shared-model" }]);
+  });
+
+  it("resolves an ambiguous id by the connection endpoint host", () => {
+    const ambiguous = registryOf({
+      alpha: [
+        {
+          id: "shared-model",
+          baseUrl: "https://alpha.test/v1",
+          contextWindow: 1000,
+        },
+      ],
+      beta: [
+        {
+          id: "shared-model",
+          baseUrl: "https://beta.test/v1",
+          contextWindow: 2000,
+        },
+      ],
+    });
+    const plan = buildPiModelConfigPlan(
+      completeRequest({
+        model: "shared-model",
+        endpoint: { baseUrl: "https://beta.test/v1" },
+      }),
+      completeSecrets,
+      ambiguous,
+    );
+    assert.equal(plan?.models[0].contextWindow, 2000);
+  });
+
+  it("serializes the carried metadata into the models.json document", () => {
+    const plan = buildPiModelConfigPlan(
+      deepseekRequest("https://api.deepseek.com/v1"),
+      completeSecrets,
+      registry,
+    );
+    assert.ok(plan);
+    const document = JSON.parse(serializePiModelsJson(plan));
+    const entry = document.providers["my-ollama"].models[0];
+    assert.equal(entry.id, "deepseek-flash");
+    assert.equal(entry.contextWindow, 1000000);
+    assert.equal(entry.maxTokens, 384000);
+    assert.equal(entry.compat.thinkingFormat, "deepseek");
+  });
+
+  it("without a registry keeps the metadata-free entry (backward compatible)", () => {
+    const plan = buildPiModelConfigPlan(
+      deepseekRequest("https://api.deepseek.com"),
+      completeSecrets,
+    );
+    assert.deepEqual(plan?.models, [{ id: "deepseek-flash" }]);
   });
 });
