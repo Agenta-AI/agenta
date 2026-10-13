@@ -7,6 +7,7 @@ from oss.src.core.agent_templates.dtos import (
     TemplateLoadCommand,
     TemplateSource,
     TemplateSourcePin,
+    normalize_github_repo_url,
 )
 from oss.src.core.agent_templates.models import AgentTemplateEntry
 from oss.src.core.workflows.dtos import WorkflowRevisionData
@@ -91,6 +92,27 @@ class TemplateLoadRequest(_StrictRequestModel):
                 "request_key": request_key,
             }
         )
+
+
+class TemplateSourceScanRequest(_StrictRequestModel):
+    repo_url: str = Field(max_length=256)
+    # A branch, tag or commit; omitted scans the default branch.
+    ref: str | None = Field(default=None, max_length=255, pattern=r"^[A-Za-z0-9._/-]+$")
+
+    @field_validator("repo_url")
+    @classmethod
+    def normalize_repo_url(cls, value: str) -> str:
+        value = value.strip()
+        if not value.startswith(("http://", "https://")):
+            value = f"https://{value}"
+        return normalize_github_repo_url(value)
+
+    @field_validator("ref")
+    @classmethod
+    def reject_relative_ref(cls, value: str | None) -> str | None:
+        if value is not None and ".." in value:
+            raise ValueError("ref must be a branch, tag or commit.")
+        return value
 
 
 class TemplatesQueryRequest(_StrictRequestModel):

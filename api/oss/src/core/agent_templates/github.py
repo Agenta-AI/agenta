@@ -24,7 +24,12 @@ from uuid import UUID
 import httpx
 
 from oss.src.core.agent_templates.archive import PackageLimits, PackageTreeWriter
-from oss.src.core.agent_templates.dtos import GitHubTemplateSource, TemplateSource
+from oss.src.core.agent_templates.dtos import (
+    GitHubTemplateSource,
+    TemplateRepositoryEntry,
+    TemplateRepositoryScan,
+    TemplateSource,
+)
 from oss.src.core.agent_templates.exceptions import (
     TemplatePackageInvalid,
     TemplateSourceInvalid,
@@ -35,6 +40,10 @@ GITHUB_API_URL = "https://api.github.com"
 GITHUB_RAW_URL = "https://raw.githubusercontent.com"
 
 _MAX_LISTING_BYTES = 2 * 1024 * 1024
+_SCAN_MAX_LISTING_BYTES = 16 * 1024 * 1024
+_SCAN_MAX_ENTRIES = 100_000
+_SCAN_MAX_TEMPLATES = 100
+_MAX_MANIFEST_BYTES = 64 * 1024
 _MAX_CONCURRENT_DOWNLOADS = 8
 _DEFAULT_TIMEOUT_SECONDS = 30.0
 _DEFAULT_TOTAL_TIMEOUT_SECONDS = 120.0
@@ -84,7 +93,24 @@ class GitHubPackageFetcher:
         limits: PackageLimits | None = None,
     ) -> list[GitHubPackageFile]:
         """Return the package files as sorted (package-relative path, bytes) pairs."""
-        async with httpx.AsyncClient(
+        async with self._client() as client:
+            return await self._run(
+                _FetchSession(
+                    client=client, source=source, limits=limits or PackageLimits()
+                )
+            )
+
+    async def scan(
+        self, *, repo_url: str, ref: str | None = None
+    ) -> TemplateRepositoryScan:
+        """List the template packages (directories with an Agenta plugin.json) at a ref."""
+        async with self._client() as client:
+            return await self._run(
+                _ScanSession(client=client, repo_url=repo_url, ref=ref)
+            )
+
+    def _client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(
             transport=self._transport,
             timeout=self._timeout_seconds,
             follow_redirects=False,
@@ -95,40 +121,49 @@ class GitHubPackageFetcher:
                 # Size limits count bytes as received, so refuse compressed bodies.
                 "Accept-Encoding": "identity",
             },
-        ) as client:
-            session = _FetchSession(
-                client=client, source=source, limits=limits or PackageLimits()
-            )
-            try:
-                async with asyncio.timeout(self._total_timeout_seconds):
-                    return await session.run()
-            except TimeoutError as exc:
-                raise session.transport_failure() from exc
+        )
+
+    async def _run(self, session: "_GitHubSession") -> Any:
+        try:
+            async with asyncio.timeout(self._total_timeout_seconds):
+                return await session.run()
+        except TimeoutError as exc:
+            raise session.transport_failure() from exc
 
 
-class _FetchSession:
+class _GitHubSession:
     def __init__(
         self,
         *,
         client: httpx.AsyncClient,
-        source: GitHubTemplateSource,
+        owner: str,
+        repo: str,
+        details: dict,
         limits: PackageLimits,
+        max_listing_bytes: int = _MAX_LISTING_BYTES,
     ):
         self._client = client
-        self._source = source
+        self._owner = owner
+        self._repo = repo
+        self._base_details = details
         self._limits = limits
-        self._api = (
-            f"{GITHUB_API_URL}/repos/{quote(source.owner, safe='')}"
-            f"/{quote(source.repo, safe='')}/git"
+        self._max_listing_bytes = max_listing_bytes
+        self._repo_api = (
+            f"{GITHUB_API_URL}/repos/{quote(owner, safe='')}/{quote(repo, safe='')}"
         )
+        self._api = f"{self._repo_api}/git"
+
+    async def run(self) -> Any:
+        raise NotImplementedError
 
     def _details(self, **extra: object) -> dict:
-        return {
-            "repo_url": self._source.repo_url,
-            "commit": self._source.commit,
-            "path": self._source.path,
-            **extra,
-        }
+        return {**self._base_details, **extra}
+
+    def _raw_url(self, commit: str, repo_path: str) -> str:
+        return (
+            f"{GITHUB_RAW_URL}/{quote(self._owner, safe='')}"
+            f"/{quote(self._repo, safe='')}/{commit}/{quote(repo_path, safe='/')}"
+        )
 
     def _unavailable(self) -> TemplateSourceUnavailable:
         return TemplateSourceUnavailable(
@@ -167,9 +202,18 @@ class _FetchSession:
             ),
         )
 
-    async def _get(self, url: str, *, max_bytes: int, params: dict | None = None):
+    async def _get(
+        self,
+        url: str,
+        *,
+        max_bytes: int,
+        params: dict | None = None,
+        headers: dict | None = None,
+    ):
         try:
-            async with self._client.stream("GET", url, params=params) as response:
+            async with self._client.stream(
+                "GET", url, params=params, headers=headers
+            ) as response:
                 if response.status_code == 404:
                     return response, None
                 rate_limited = response.status_code == 429 or (
@@ -195,7 +239,7 @@ class _FetchSession:
             raise self.transport_failure() from exc
 
     async def _get_json(self, url: str, *, params: dict | None = None) -> Any:
-        _, body = await self._get(url, max_bytes=_MAX_LISTING_BYTES, params=params)
+        _, body = await self._get(url, max_bytes=self._max_listing_bytes, params=params)
         if body is _OVERSIZED:
             raise _limit(
                 "The GitHub listing for this package is too large.",
@@ -231,31 +275,18 @@ class _FetchSession:
             )
         return [entry for entry in entries if isinstance(entry, dict)]
 
-    async def _package_tree_sha(self) -> str:
+    async def _commit_tree_sha(self, commit_sha: str) -> str:
         commit = await self._get_json(
-            f"{self._api}/commits/{quote(self._source.commit, safe='')}"
+            f"{self._api}/commits/{quote(commit_sha, safe='')}"
         )
         if (
             not isinstance(commit, dict)
-            or commit.get("sha") != self._source.commit
+            or commit.get("sha") != commit_sha
             or not isinstance(commit.get("tree"), dict)
             or not isinstance(commit["tree"].get("sha"), str)
         ):
             raise self._unavailable()
-
-        tree_sha = commit["tree"]["sha"]
-        walked: list[str] = []
-        for segment in self._source.path.split("/"):
-            walked.append(segment)
-            entries = await self._tree_entries(tree_sha, recursive=False)
-            match = next((e for e in entries if e.get("path") == segment), None)
-            if match is None:
-                raise self._path_not_found()
-            self._reject_special(match, path="/".join(walked), package=False)
-            if match.get("mode") != _TREE_MODE or not isinstance(match.get("sha"), str):
-                raise self._path_not_found()
-            tree_sha = match["sha"]
-        return tree_sha
+        return commit["tree"]["sha"]
 
     def _reject_special(self, entry: dict, *, path: str, package: bool) -> None:
         mode = entry.get("mode")
@@ -277,6 +308,43 @@ class _FetchSession:
                 "Template packages can contain only regular files and directories.",
                 path=path,
             )
+
+
+class _FetchSession(_GitHubSession):
+    def __init__(
+        self,
+        *,
+        client: httpx.AsyncClient,
+        source: GitHubTemplateSource,
+        limits: PackageLimits,
+    ):
+        super().__init__(
+            client=client,
+            owner=source.owner,
+            repo=source.repo,
+            details={
+                "repo_url": source.repo_url,
+                "commit": source.commit,
+                "path": source.path,
+            },
+            limits=limits,
+        )
+        self._source = source
+
+    async def _package_tree_sha(self) -> str:
+        tree_sha = await self._commit_tree_sha(self._source.commit)
+        walked: list[str] = []
+        for segment in self._source.path.split("/"):
+            walked.append(segment)
+            entries = await self._tree_entries(tree_sha, recursive=False)
+            match = next((e for e in entries if e.get("path") == segment), None)
+            if match is None:
+                raise self._path_not_found()
+            self._reject_special(match, path="/".join(walked), package=False)
+            if match.get("mode") != _TREE_MODE or not isinstance(match.get("sha"), str):
+                raise self._path_not_found()
+            tree_sha = match["sha"]
+        return tree_sha
 
     def _plan_downloads(self, entries: list[dict]) -> list[tuple[str, str, int]]:
         planned: list[tuple[str, str, int]] = []
@@ -335,12 +403,7 @@ class _FetchSession:
         return sorted(planned)
 
     async def _download(self, path: str, sha: str, size: int) -> GitHubPackageFile:
-        repo_path = f"{self._source.path}/{path}"
-        url = (
-            f"{GITHUB_RAW_URL}/{quote(self._source.owner, safe='')}"
-            f"/{quote(self._source.repo, safe='')}/{self._source.commit}"
-            f"/{quote(repo_path, safe='/')}"
-        )
+        url = self._raw_url(self._source.commit, f"{self._source.path}/{path}")
         _, body = await self._get(url, max_bytes=size)
         if body is None:
             raise self._unavailable()
@@ -370,6 +433,97 @@ class _FetchSession:
         except* (TemplateSourceInvalid, TemplateSourceUnavailable) as errors:
             raise errors.exceptions[0] from None
         return [task.result() for task in tasks]
+
+
+class _ScanSession(_GitHubSession):
+    def __init__(self, *, client: httpx.AsyncClient, repo_url: str, ref: str | None):
+        owner, repo = repo_url.split("/")[3:5]
+        super().__init__(
+            client=client,
+            owner=owner,
+            repo=repo,
+            details={"repo_url": repo_url, "ref": ref},
+            limits=PackageLimits(max_archive_entries=_SCAN_MAX_ENTRIES),
+            max_listing_bytes=_SCAN_MAX_LISTING_BYTES,
+        )
+        self._repo_url = repo_url
+        self._ref = ref or "HEAD"
+
+    def _unavailable(self) -> TemplateSourceUnavailable:
+        return TemplateSourceUnavailable(
+            "template_source_github_unavailable",
+            "The repository or ref was not found on GitHub. Only public "
+            "repositories are supported; private repositories cannot be scanned.",
+            details=self._details(),
+        )
+
+    async def _resolve_commit(self) -> str:
+        _, body = await self._get(
+            f"{self._repo_api}/commits/{quote(self._ref, safe='/')}",
+            max_bytes=64,
+            headers={"Accept": "application/vnd.github.sha"},
+        )
+        commit = body.decode("ascii", "replace").strip() if type(body) is bytes else ""
+        if not _GIT_OBJECT_SHA.match(commit):
+            raise self._unavailable()
+        return commit
+
+    async def _template(
+        self, commit: str, entry: dict
+    ) -> TemplateRepositoryEntry | None:
+        _, body = await self._get(
+            self._raw_url(commit, entry["path"]), max_bytes=entry["size"]
+        )
+        try:
+            plugin = json.loads(body) if type(body) is bytes else None
+        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+            return None
+        extensions = plugin.get("extensions") if isinstance(plugin, dict) else None
+        if not isinstance(extensions, dict) or "ai.agenta" not in extensions:
+            return None
+        directory = entry["path"].rsplit("/", 1)[0]
+        return TemplateRepositoryEntry(
+            path=directory,
+            name=_text(plugin.get("name")) or directory.rsplit("/", 1)[-1],
+            version=_text(plugin.get("version")),
+            description=_text(plugin.get("description")),
+        )
+
+    async def run(self) -> TemplateRepositoryScan:
+        commit = await self._resolve_commit()
+        self._base_details["commit"] = commit
+        tree_sha = await self._commit_tree_sha(commit)
+        entries = await self._tree_entries(tree_sha, recursive=True)
+        # A root-level plugin.json is skipped: a GitHub source needs a package directory.
+        manifests = [
+            entry
+            for entry in entries
+            if isinstance(entry.get("path"), str)
+            and entry["path"].endswith("/plugin.json")
+            and entry.get("mode") in _FILE_MODES
+            and type(entry.get("size")) is int
+            and entry["size"] <= _MAX_MANIFEST_BYTES
+        ][:_SCAN_MAX_TEMPLATES]
+
+        semaphore = asyncio.Semaphore(_MAX_CONCURRENT_DOWNLOADS)
+
+        async def bounded(entry: dict) -> TemplateRepositoryEntry | None:
+            async with semaphore:
+                return await self._template(commit, entry)
+
+        found = await asyncio.gather(*(bounded(entry) for entry in manifests))
+        return TemplateRepositoryScan(
+            repo_url=self._repo_url,
+            commit=commit,
+            templates=sorted(
+                (template for template in found if template is not None),
+                key=lambda template: template.path,
+            ),
+        )
+
+
+def _text(value: object) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
 
 
 class GitHubPackageStager:
