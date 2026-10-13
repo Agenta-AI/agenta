@@ -647,6 +647,8 @@ jobs:
       REDIS_URI: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Skip when package selection excludes API
         if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","api-only"]'), inputs.packages)
