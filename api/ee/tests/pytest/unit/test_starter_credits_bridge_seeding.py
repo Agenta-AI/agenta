@@ -1084,6 +1084,21 @@ class TestMintPolicyAllows:
 
         assert await service._mint_policy_allows(address, policy) is True
 
+    @pytest.mark.parametrize(
+        "address", ["abcxyz@throwaway.test", "abcxyz@mx.throwaway.test"]
+    )
+    async def test_a_disposable_domain_is_refused_before_any_counter(self, address):
+        policy = _policy(disposable_domains=[" Throwaway.TEST "])
+
+        assert await service._mint_policy_allows(address, policy) is False
+        assert service.email_rules_allow(address, policy) is False
+        assert self.engine.counts == {}
+
+    async def test_a_domain_that_only_ends_like_a_disposable_one_passes(self):
+        policy = _policy(disposable_domains=["throwaway.test"])
+
+        assert service.email_rules_allow("abc@notthrowaway.test", policy) is True
+
     async def test_global_hourly_cap_blocks(self):
         policy = _policy(global_hourly=2)
 
@@ -1096,6 +1111,20 @@ class TestMintPolicyAllows:
 
         assert await service._mint_policy_allows("a@freemail.test", policy) is True
         assert await service._mint_policy_allows("b@freemail.test", policy) is False
+
+    async def test_the_bridge_and_the_signup_grant_count_one_signup_once_each(self):
+        policy = _policy()
+
+        assert await service._mint_policy_allows("alice@acme.test", policy) is True
+        assert (
+            await service._mint_policy_allows(
+                "alice@acme.test",
+                policy,
+                counter_prefix=service.SIGNUP_GRANT_COUNTER_PREFIX,
+            )
+            is True
+        )
+        assert all(count == 1 for count in self.engine.counts.values())
 
     async def test_redis_error_fails_closed(self):
         self.engine.error = ConnectionError("redis down")

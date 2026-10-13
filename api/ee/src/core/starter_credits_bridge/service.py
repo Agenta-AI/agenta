@@ -866,9 +866,15 @@ def _parse_policy_payload(raw: Any) -> Optional[dict]:
     return None
 
 
+# Redis key prefixes for the velocity counters, one per caller of the mint policy.
+BRIDGE_COUNTER_PREFIX = "starter_credits_bridge:mints"
+SIGNUP_GRANT_COUNTER_PREFIX = "free_credits:signup_grants"
+
+
 def _velocity_counters(
     organization_email: str,
     policy: MintPolicy,
+    counter_prefix: str = BRIDGE_COUNTER_PREFIX,
 ) -> list[tuple[str, int, int, str]]:
     day = datetime.now(timezone.utc).strftime("%Y%m%d")
     hour = datetime.now(timezone.utc).strftime("%Y%m%d%H")
@@ -876,13 +882,13 @@ def _velocity_counters(
 
     counters = [
         (
-            f"starter_credits_bridge:mints:{day}",
+            f"{counter_prefix}:{day}",
             policy.global_daily,
             _VELOCITY_COUNTER_TTL_SECONDS,
             "global_daily",
         ),
         (
-            f"starter_credits_bridge:mints:hour:{hour}",
+            f"{counter_prefix}:hour:{hour}",
             policy.global_hourly,
             2 * 3600,
             "global_hourly",
@@ -891,7 +897,7 @@ def _velocity_counters(
     if not policy.is_freemail(domain):
         counters.append(
             (
-                f"starter_credits_bridge:mints:{day}:domain:{domain}",
+                f"{counter_prefix}:{day}:domain:{domain}",
                 policy.work_domain_daily,
                 _VELOCITY_COUNTER_TTL_SECONDS,
                 "work_domain_daily",
@@ -905,44 +911,54 @@ def _email_domain(organization_email: str) -> str:
     return domain.lower() or "unknown"
 
 
-async def _mint_policy_allows(
-    organization_email: str,
-    policy: MintPolicy,
-) -> bool:
-    """Apply the mint policy: eligibility rules, then Redis counters (global
-    daily + hourly; per-domain daily on non-free-mail domains only). Fail closed
-    on Redis errors: an unverifiable mint is a skipped mint."""
+def email_rules_allow(organization_email: str, policy: MintPolicy) -> bool:
+    """The mint policy's email rules alone, without the Redis counters. A refusal logs
+    the rule and the domain, never the address."""
     local_part, _, _ = organization_email.rpartition("@")
     domain = _email_domain(organization_email)
-    freemail = policy.is_freemail(domain)
+    rule = None
 
-    if "+" in local_part and domain not in PLUS_ALIAS_ALLOWLIST_DOMAINS:
-        log.warning(
-            "[starter_credits_bridge] policy refused mint; skipping seed",
-            rule="plus_local_part",
-            domain=domain,
-        )
-        return False
-
-    if (
-        not freemail
+    if policy.is_disposable(domain):
+        rule = "disposable_domain"
+    elif "+" in local_part and domain not in PLUS_ALIAS_ALLOWLIST_DOMAINS:
+        rule = "plus_local_part"
+    elif (
+        not policy.is_freemail(domain)
         and domain not in PLUS_ALIAS_ALLOWLIST_DOMAINS
         and policy.block_digit_locals
         and any(character.isdigit() for character in local_part)
     ):
+        rule = "digit_local_part"
+
+    if rule is not None:
         log.warning(
             "[starter_credits_bridge] policy refused mint; skipping seed",
-            rule="digit_local_part",
+            rule=rule,
             # The domain, never the address: it is what makes a refusal diagnosable
             # (which provider, which rule) without logging who signed up.
             domain=domain,
         )
+    return rule is None
+
+
+async def _mint_policy_allows(
+    organization_email: str,
+    policy: MintPolicy,
+    counter_prefix: str = BRIDGE_COUNTER_PREFIX,
+) -> bool:
+    """Apply the mint policy: eligibility rules, then Redis counters (global
+    daily + hourly; per-domain daily on non-free-mail domains only). Fail closed
+    on Redis errors: an unverifiable mint is a skipped mint. Each caller passes its
+    own `counter_prefix`, so one signup checked by the bridge and by the signup
+    grant uses one slot in each, not two in one."""
+    domain = _email_domain(organization_email)
+    if not email_rules_allow(organization_email, policy):
         return False
 
     engine = get_cache_engine()
     try:
         for counter_key, cap, ttl, scope in _velocity_counters(
-            organization_email, policy
+            organization_email, policy, counter_prefix
         ):
             count = await engine.incr(counter_key)
             if count == 1:

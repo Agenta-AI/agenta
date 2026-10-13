@@ -1,3 +1,4 @@
+import asyncio
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
@@ -963,6 +964,7 @@ from ee.src.core.access.entitlements.service import (  # noqa: E402
     scope_from,
     Gauge,
 )
+from ee.src.core.starter_credits_bridge import service as _mint_policy  # noqa: E402
 from ee.src.core.starter_credits_bridge.service import (  # noqa: E402
     seed_starter_credits_bridge_safely,
 )
@@ -991,10 +993,39 @@ def _get_wallets_service() -> WalletsService:
     return _wallets_service
 
 
+# The floor given to a new organization whose email the mint policy refuses: 100
+# credits, above the daily 75, so the daily free credits can never be spent.
+REFUSED_EMAIL_FLOOR_MUSD = 1_000_000
+
+
+async def _free_credits_check(organization_email: str) -> tuple[bool, bool]:
+    """Apply the mint policy to a new organization's owner email, and return
+    (award the signup grant, raise the wallet floor). An email rule refusal does both;
+    a velocity cap, a missing policy or any error skips only the grant."""
+    try:
+        async with asyncio.timeout(5):
+            policy = await _mint_policy._resolve_mint_policy()
+            if policy is None:
+                return False, False
+            if not _mint_policy.email_rules_allow(organization_email, policy):
+                return False, True
+            return await _mint_policy._mint_policy_allows(
+                organization_email,
+                policy,
+                counter_prefix=_mint_policy.SIGNUP_GRANT_COUNTER_PREFIX,
+            ), False
+    except Exception:
+        log.warning(
+            "[wallets] free credits check failed; no signup grant", exc_info=True
+        )
+        return False, False
+
+
 async def _provision_wallet_general_balance(
     *,
     organization_id: UUID,
     plan: str,
+    floor_musd: Optional[int] = None,
 ) -> None:
     """Idempotent. Runs after the organization and subscription have committed, in its
     own transaction, so a failure here leaves them in place and can be retried alone."""
@@ -1002,6 +1033,7 @@ async def _provision_wallet_general_balance(
         await _get_wallets_service().provision_general_balance(
             organization_id=organization_id,
             plan=plan,
+            floor_musd=floor_musd,
         )
     except Exception as exc:
         log.error(
@@ -1081,10 +1113,14 @@ async def provision_signup_subscription(
                 organization_id=str(organization.id)
             )
         plan = subscription.plan if subscription is not None else get_default_plan()
+        award_grant, raise_floor = await _free_credits_check(organization_email)
         await _provision_wallet_general_balance(
-            organization_id=organization.id, plan=plan
+            organization_id=organization.id,
+            plan=plan,
+            floor_musd=REFUSED_EMAIL_FLOOR_MUSD if raise_floor else None,
         )
-        await _award_signup_grant(organization_id=organization.id)
+        if award_grant:
+            await _award_signup_grant(organization_id=organization.id)
 
 
 async def provision_user_subscription(organization: OrganizationDB) -> None:

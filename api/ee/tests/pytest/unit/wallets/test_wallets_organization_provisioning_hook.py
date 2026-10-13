@@ -25,12 +25,28 @@ def _wallets_enabled(monkeypatch):
     monkeypatch.setattr(env.wallets, "enabled", True)
 
 
+_REAL_FREE_CREDITS_CHECK = organizations_service_module._free_credits_check
+
+
+@pytest.fixture(autouse=True)
+def _email_allowed(monkeypatch):
+    """The mint policy reads PostHog and Redis; the tests below that are not about it
+    see an allowed email."""
+
+    async def _allowed(organization_email):
+        return True, False
+
+    monkeypatch.setattr(organizations_service_module, "_free_credits_check", _allowed)
+
+
 class _RecordingWalletsService:
     def __init__(self):
         self.calls = []
         self.award_calls = []
 
-    async def provision_general_balance(self, *, organization_id, plan):
+    async def provision_general_balance(
+        self, *, organization_id, plan, floor_musd=None
+    ):
         self.calls.append((organization_id, plan))
 
     async def award(self, *, organization_id, activity_code):
@@ -38,7 +54,9 @@ class _RecordingWalletsService:
 
 
 class _FailingWalletsService:
-    async def provision_general_balance(self, *, organization_id, plan):
+    async def provision_general_balance(
+        self, *, organization_id, plan, floor_musd=None
+    ):
         raise RuntimeError("simulated provisioning failure")
 
     async def award(self, *, organization_id, activity_code):
@@ -124,7 +142,9 @@ async def test_provision_signup_subscription_awards_signup_grant_after_balance(
     bug. Also proves the signup grant is wired on the signup path specifically."""
     call_order = []
 
-    async def _fake_provision_wallet_general_balance(*, organization_id, plan):
+    async def _fake_provision_wallet_general_balance(
+        *, organization_id, plan, floor_musd=None
+    ):
         call_order.append("provision")
 
     async def _fake_award_signup_grant(*, organization_id):
@@ -184,7 +204,9 @@ async def test_provision_user_subscription_never_awards_signup_grant(monkeypatch
     async def _fake_award_signup_grant(*, organization_id):
         awarded.append(organization_id)
 
-    async def _fake_provision_wallet_general_balance(*, organization_id, plan):
+    async def _fake_provision_wallet_general_balance(
+        *, organization_id, plan, floor_musd=None
+    ):
         return None
 
     class _FakeOrganization:
@@ -238,7 +260,9 @@ async def test_provision_signup_subscription_skips_wallet_when_flag_off(monkeypa
     provisioned = []
     awarded = []
 
-    async def _fake_provision_wallet_general_balance(*, organization_id, plan):
+    async def _fake_provision_wallet_general_balance(
+        *, organization_id, plan, floor_musd=None
+    ):
         provisioned.append(organization_id)
 
     async def _fake_award_signup_grant(*, organization_id):
@@ -300,7 +324,9 @@ async def test_retried_signup_sizes_the_wallet_from_the_stored_plan(monkeypatch)
 
     provisioned_plans = []
 
-    async def _fake_provision_wallet_general_balance(*, organization_id, plan):
+    async def _fake_provision_wallet_general_balance(
+        *, organization_id, plan, floor_musd=None
+    ):
         provisioned_plans.append(plan)
 
     async def _fake_award_signup_grant(*, organization_id):
@@ -349,3 +375,94 @@ async def test_retried_signup_sizes_the_wallet_from_the_stored_plan(monkeypatch)
     )
 
     assert provisioned_plans == ["cloud_v0_trial"]
+
+
+class _Policy:
+    """Stands in for the starter-credits mint policy module."""
+
+    SIGNUP_GRANT_COUNTER_PREFIX = "signup-grant-counters"
+
+    def __init__(self, *, email_allowed=True, caps_allow=True, policy=object()):
+        self.email_allowed = email_allowed
+        self.caps_allow = caps_allow
+        self.policy = policy
+
+    async def _resolve_mint_policy(self):
+        return self.policy
+
+    def email_rules_allow(self, organization_email, policy):
+        return self.email_allowed
+
+    async def _mint_policy_allows(self, organization_email, policy, counter_prefix):
+        assert counter_prefix == self.SIGNUP_GRANT_COUNTER_PREFIX
+        return self.email_allowed and self.caps_allow
+
+
+async def _signup_with(monkeypatch, policy):
+    """Run the signup path with `policy`; return (floors provisioned, grants awarded)."""
+    floors, grants = [], []
+
+    async def _provision(*, organization_id, plan, floor_musd=None):
+        floors.append(floor_musd)
+
+    async def _award(*, organization_id):
+        grants.append(organization_id)
+
+    class _Subscription:
+        plan = "cloud_v0_hobby"
+
+    class _Subscriptions:
+        async def provision_subscription(self, **kwargs):
+            return _Subscription()
+
+    async def _check_entitlements(**kwargs):
+        return None
+
+    class _Organization:
+        id = uuid4()
+        name = "acme"
+
+    m = organizations_service_module
+    monkeypatch.setattr(m, "_free_credits_check", _REAL_FREE_CREDITS_CHECK)
+    monkeypatch.setattr(m, "_mint_policy", policy)
+    monkeypatch.setattr(m, "_provision_wallet_general_balance", _provision)
+    monkeypatch.setattr(m, "_award_signup_grant", _award)
+    monkeypatch.setattr(m, "_subscription_service", _Subscriptions())
+    monkeypatch.setattr(m, "check_entitlements", _check_entitlements)
+
+    await m.provision_signup_subscription(
+        _Organization(), organization_email="user@example.com"
+    )
+    return floors, grants
+
+
+@pytest.mark.asyncio
+async def test_an_allowed_email_gets_the_grant_and_no_floor(monkeypatch):
+    floors, grants = await _signup_with(monkeypatch, _Policy())
+
+    assert floors == [None]
+    assert len(grants) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_refused_email_skips_the_grant_and_raises_the_floor(monkeypatch):
+    floors, grants = await _signup_with(monkeypatch, _Policy(email_allowed=False))
+
+    assert floors == [organizations_service_module.REFUSED_EMAIL_FLOOR_MUSD]
+    assert grants == []
+
+
+@pytest.mark.asyncio
+async def test_a_velocity_cap_skips_only_the_grant(monkeypatch):
+    floors, grants = await _signup_with(monkeypatch, _Policy(caps_allow=False))
+
+    assert floors == [None]
+    assert grants == []
+
+
+@pytest.mark.asyncio
+async def test_no_policy_skips_only_the_grant(monkeypatch):
+    floors, grants = await _signup_with(monkeypatch, _Policy(policy=None))
+
+    assert floors == [None]
+    assert grants == []
