@@ -2,8 +2,8 @@
 
 A browser login is a write-only vault secret that only /browser-profiles reads or writes.
 
-Revision ID: oss000000040
-Revises: oss000000039
+Revision ID: oss000000041
+Revises: oss000000040
 Create Date: 2026-10-10 00:00:00.000000
 """
 
@@ -11,8 +11,8 @@ from collections.abc import Sequence
 
 from alembic import op
 
-revision: str = "oss000000040"
-down_revision: str | None = "oss000000039"
+revision: str = "oss000000041"
+down_revision: str | None = "oss000000040"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
