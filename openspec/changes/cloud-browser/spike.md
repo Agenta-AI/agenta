@@ -2,20 +2,45 @@
 
 - Dates: 2026-10-09 to (open)
 - Engineer: Claude Code session, for Ashraf
-- Snapshot: not used yet (no Daytona access in the session that ran 0.9)
+- Snapshot: not used. The local Daytona account has no `agenta-agent-sandbox-v2` snapshot, so the 2026-10-10 runs used a Daytona declarative image: `mcr.microsoft.com/playwright:v1.55.0-noble` plus `npm i -g playwright-core@1.55.0`.
 
 | Check | Result | Measured values | Notes |
 | --- | --- | --- | --- |
-| 0.1 Start time | not run | | Needs a Daytona API key. |
-| 0.2 CDP via proxy | not run | | Needs a Daytona API key. |
-| 0.3 Harness tools | not run | | Needs the local stack and test agents. |
+| 0.1 Start time | measured (2026-10-10) | create 28.5 s (image cached); controller healthy 3 s later; total about 31.5 s | First call of a session pays this. The op timeout is 120 s. |
+| 0.2 CDP via proxy | replaced (2026-10-10) | controller HTTP and WebSocket through the preview URL: pass | CDP no longer leaves the sandbox. The controller in the sandbox holds CDP; the API calls its HTTP routes and `/live` WebSocket through the preview URL with the preview token. |
+| 0.3 Harness tools | partial (2026-10-10) | Claude harness: `browser_navigate`, `browser_find`, `browser_read_page`, and `browser_wait_for_user` pass on the local stack | Pi and Codex not run. Claude Code saved a 60,000-char `read_page` result to a file, so the bound is now 30,000 chars. |
 | 0.4 Live view | not run | | Needs a staging stack and phones. |
 | 0.5 Login reload | not run | | Needs the live view and Codecov and Umami accounts. |
-| 0.6 Pause/resume | not run | | Needs the local stack. |
+| 0.6 Pause/resume | chat: pass (2026-10-10) | turn paused on `browser_wait_for_user`; "I'm done" resumed it on the same page | Scheduled-run case not run. |
 | 0.7 Isolation | not run | | Needs a Daytona API key. |
-| 0.8 Replicas | not run | | Needs a staging stack with two runner replicas. |
-| 0.9 Allowlist | 7/7 blocked (local Chromium) | 3 runs, same result each time | See below. Repeat inside a Daytona browser sandbox during 0.1. |
+| 0.8 Replicas | not needed | | The server side is stateless (design D19 revised): any API pod or runner replica reaches the controller by its preview URL. |
+| 0.9 Allowlist | 7/7 blocked (local Chromium); Daytona: other host, IP literal, private name over HTTP and HTTPS blocked | | See below and "Daytona run". |
 | 0.11 Proxy | pass (local Chromium) | request kinds 8/8; rebinding refused; UDP leak none (corrected flag) | See below. One flag in D26 was wrong and is fixed. Repeat in a Daytona sandbox during 0.1. |
+
+## Daytona run (2026-10-10)
+
+Throwaway harness run from the runner container against the real controller
+(`services/runner/src/browser/sandbox/controller.cjs`). Results:
+
+| Case | Result |
+| --- | --- |
+| `/op` before `/setup` | refused with `not_setup` |
+| Navigate to an allowlisted site (`github.com/Agenta-AI/agenta`) | loaded in 12.2 s (large page), `stateDirty: true` |
+| `read_page` on that page | 60,151 chars, cut at the 60,000-char bound with the note |
+| `find "Search"`, then `click` and `type` by ref | pass |
+| Navigate to a host not on the list | `site_not_allowed` |
+| `http://169.254.169.254/` | `site_not_allowed` |
+| `http://localtest.me:8790/health` (public name, resolves to 127.0.0.1, on the list) | `site_not_allowed` (proxy refused, 403 marker) |
+| `https://localtest.me/` (same, through `CONNECT`) | `site_not_allowed` |
+| Live view WebSocket through the preview URL | opened; status and frames received |
+| Mouse input from the live view | control switched to `user`; the next `/op` failed with `user_in_control` |
+| Viewer disconnect | control returned to `agent`; the next `/op` ran |
+| `GET /state` | returned cookies (`_gh_sess` and others) |
+
+Finding: the local Daytona account restricts egress. `curl` from the sandbox reached
+`github.com` and `registry.npmjs.org` (200) but not `example.com`, `en.wikipedia.org`, or
+`codecov.io` (no connection), with or without the proxy. Codecov and Umami (R14) need a
+Daytona tier with open internet access.
 
 ## 0.9 Allowlist coverage
 
