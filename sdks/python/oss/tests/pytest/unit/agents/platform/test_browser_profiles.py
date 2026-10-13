@@ -82,3 +82,14 @@ async def test_an_ineligible_run_is_none(monkeypatch):
     )
 
     assert await _read(revision_id="rev-1", is_draft=False) is None
+
+
+async def test_a_deployment_with_the_browser_off_is_no_browser_without_a_warning(
+    monkeypatch, caplog
+):
+    _serve(monkeypatch, httpx.Response(404, json={"detail": "Not Found"}))
+
+    with caplog.at_level("WARNING"):
+        assert await _read(revision_id=None, is_draft=True) is None
+
+    assert "browser profiles check" not in caplog.text

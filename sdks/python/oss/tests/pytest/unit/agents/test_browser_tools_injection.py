@@ -196,6 +196,20 @@ async def test_an_authored_pay_entry_still_asks():
     ) == 1
 
 
+async def test_an_authored_browser_op_goes_when_the_run_has_no_login():
+    authored = [
+        {"type": "platform", "op": "browser_navigate"},
+        {"type": "platform", "op": "read_config"},
+    ]
+    for browser, logins in (({"mode": "off"}, None), (None, "ineligible")):
+        tools, rc = await _run(browser=browser, logins=logins, authored=authored)
+
+        assert [t.op for t in tools if isinstance(t, PlatformToolConfig)] == [
+            "read_config"
+        ]
+        assert rc is None or rc.to_wire().get("browser") is None
+
+
 async def test_a_deny_agent_does_not_turn_pay_into_ask():
     tools, _ = await _run(permission_default="deny")
 

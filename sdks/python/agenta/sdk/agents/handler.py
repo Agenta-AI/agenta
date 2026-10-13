@@ -319,7 +319,17 @@ def _with_browser_tools(
         else []
     )
     if not profile_ids:
-        return [*tools, *request_login]
+        # Without a login the run binds no `$ctx.browser`, so an authored browser op could only fail.
+        return [
+            *(
+                tool
+                for tool in tools
+                if not (
+                    isinstance(tool, PlatformToolConfig) and tool.op in BROWSER_TOOL_OPS
+                )
+            ),
+            *request_login,
+        ]
     if not platform_handlers_enabled():
         raise ToolConfigurationError(
             "This agent may use your cloud browser logins, but "

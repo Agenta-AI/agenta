@@ -31,6 +31,9 @@ async def read_browser_profiles(
             json={"revision_id": revision_id, "is_draft": is_draft},
             headers=connection.headers(),
         )
+    # The API mounts /browser-profiles only while the cloud browser is on: 404 means off.
+    if response.status_code == 404:
+        return None
     if response.status_code >= 400:
         log.warning("agent: browser profiles check HTTP %s", response.status_code)
         return None
