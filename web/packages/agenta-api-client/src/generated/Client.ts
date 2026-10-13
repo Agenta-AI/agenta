@@ -4,6 +4,7 @@ import { AccessClient } from "./api/resources/access/client/Client.js";
 import { AnnotationsClient } from "./api/resources/annotations/client/Client.js";
 import { ApplicationsClient } from "./api/resources/applications/client/Client.js";
 import { BillingClient } from "./api/resources/billing/client/Client.js";
+import { BrowserProfilesClient } from "./api/resources/browserProfiles/client/Client.js";
 import { ChannelsClient } from "./api/resources/channels/client/Client.js";
 import { EnvironmentsClient } from "./api/resources/environments/client/Client.js";
 import { EvaluationsClient } from "./api/resources/evaluations/client/Client.js";
@@ -78,6 +79,7 @@ export class AgentaApiClient {
     protected _users: UsersClient | undefined;
     protected _keys: KeysClient | undefined;
     protected _workspaces: WorkspacesClient | undefined;
+    protected _browserProfiles: BrowserProfilesClient | undefined;
 
     constructor(options: AgentaApiClient.Options) {
         this._options = normalizeClientOptionsWithAuth(options);
@@ -89,6 +91,10 @@ export class AgentaApiClient {
 
     public get billing(): BillingClient {
         return (this._billing ??= new BillingClient(this._options));
+    }
+
+    public get browserProfiles(): BrowserProfilesClient {
+        return (this._browserProfiles ??= new BrowserProfilesClient(this._options));
     }
 
     public get events(): EventsClient {
