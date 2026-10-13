@@ -150,9 +150,10 @@ const CREATE_MS = 600_000;
 const HEALTH_MS = 45_000;
 const HEALTH_PROBE_MS = 5_000;
 
+// The same Playwright as the agent sandbox (`images/sandbox/install-agent-tools.sh`).
 const DEFAULT_BROWSER_IMAGE = Image.base(
-  "mcr.microsoft.com/playwright:v1.55.0-noble",
-).runCommands("npm i -g playwright-core@1.55.0");
+  "mcr.microsoft.com/playwright:v1.62.0-noble",
+).runCommands("npm i -g playwright-core@1.62.0");
 
 const STOPPED_STATES = new Set(["stopped", "archived"]);
 // A sandbox in one of these will not serve again; with auto-delete on stop, Daytona removes it.

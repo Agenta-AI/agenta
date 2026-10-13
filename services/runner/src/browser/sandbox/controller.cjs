@@ -320,12 +320,8 @@ async function currentPage() {
 const INTERACTIVE_ROLES =
   /^\s*- (button|link|textbox|searchbox|checkbox|radio|combobox|listbox|option|menuitem|menuitemcheckbox|menuitemradio|tab|switch|slider|spinbutton|treeitem)\b/;
 
-// Playwright 1.62 has `ariaSnapshot({mode: "ai"})`; older builds only the private `_snapshotForAI`.
-async function snapshotText(page) {
-  if (typeof page.ariaSnapshot === "function")
-    return page.ariaSnapshot({ mode: "ai" });
-  const snap = await page._snapshotForAI();
-  return typeof snap === "string" ? snap : snap.full;
+function snapshotText(page) {
+  return page.ariaSnapshot({ mode: "ai" });
 }
 
 function capped(text) {
@@ -665,9 +661,7 @@ function controlText(locator, { submit = false } = {}) {
 
 // The model names the tool, but the control decides: a pay or delete control needs its approved tool.
 async function requireIntent(locator, intent, options) {
-  const kind = consequenceOf(
-    await controlText(locator, options).catch(() => ""),
-  );
+  const kind = consequenceOf(await controlText(locator, options));
   if (kind && kind !== intent)
     throw fail("needs_approval", kind, { submit: Boolean(options?.submit) });
 }
@@ -768,7 +762,16 @@ const OPS = {
   },
   async type(page, args) {
     const { text, submit } = args;
+    // Keys that submit or move focus would act past the pay and delete check; `submit` presses Enter.
+    if (/[\r\n\t]/.test(String(text ?? "")))
+      throw fail("invalid_arguments", "Text cannot hold Enter or Tab; use submit.");
     const locator = await resolveTarget(page, args);
+    // Typing clicks the target first: only a field may be typed into.
+    const editable = await locator
+      .isEditable({ timeout: ACTION_TIMEOUT_MS })
+      .catch(() => false);
+    if (!editable)
+      throw fail("invalid_arguments", "That element is not a text field.");
     if (submit) await requireIntent(locator, null, { submit: true });
     const before = await snapshotLines(page);
     await locator.click({ timeout: ACTION_TIMEOUT_MS });
@@ -1267,6 +1270,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  OPS,
   consequenceOf,
   documentAllowed,
   ipBlocked,
