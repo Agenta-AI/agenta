@@ -250,6 +250,13 @@ export interface RunContext {
     trace_id?: string;
     span_id?: string;
   };
+  /** The cloud browser tools' bindings; every key is present when the run may use a login. */
+  browser?: {
+    profile_ids?: string[];
+    all_logins?: boolean;
+    revision_id?: string | null;
+    is_draft?: boolean;
+  };
 }
 
 /**
@@ -417,7 +424,11 @@ export type RenderHint =
   // `elicitation` requests the built-in schema-driven form (interaction kinds M1): the `request_input`
   // client tool stamps it so the frontend renders a form from the paused call's `requestedSchema`. Like
   // `connect`, it carries no payload here and is TS-only (the render rides through as an opaque dict).
-  | { kind: "elicitation" };
+  | { kind: "elicitation" }
+  // `browser` marks `browser_wait_for_user`: the frontend shows the live cloud browser. TS-only.
+  | { kind: "browser" }
+  // `browser_login` marks `browser_request_login`: the person adds a login for a site and signs in.
+  | { kind: "browser_login" };
 
 export type AgentEvent =
   | {

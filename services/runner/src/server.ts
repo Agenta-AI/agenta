@@ -12,6 +12,7 @@
  *   POST /stream              -> body is an AgentRunRequest, NDJSON event stream (alias: POST /run)
  *   POST /kill                -> best-effort, idempotent teardown, scoped to one { sessionId, projectId }
  *   POST /cancel              -> stop the CURRENT TURN of one session and keep it warm
+ *   POST /browser/{ensure,find,delete} -> the cloud browser sandboxes (the API is the only caller)
  *
  * Uses Node's built-in http server (no framework dependency).
  *
@@ -170,6 +171,11 @@ import {
   whenAborted,
   type KillSessionSandboxes,
 } from "./engines/sandbox_agent/kill-by-label.ts";
+import {
+  browserLifecycle,
+  parseBrowserDeleteTarget,
+  parseBrowserKey,
+} from "./browser/lifecycle.ts";
 import { endAbandonedTurn, noteTurnScope, runAdmittedTurn } from "./metering/turn-admission.ts";
 
 /** How long a shutdown waits for interrupted turns to write their terminal records. */
@@ -1424,6 +1430,73 @@ async function handleSubscriptionLoginRoute(
   return send(res, 405, { ok: false, error: "Method not allowed" });
 }
 
+const BROWSER_ROUTE = "/browser/";
+
+/** Every browser body is a few ids. */
+const BROWSER_BODY_MAX_BYTES = 4 * 1024;
+
+/** The cloud browser lifecycle; the API holds every policy (see `browser/lifecycle.ts`). */
+async function handleBrowserRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const action = (req.url ?? "").split("?")[0].slice(BROWSER_ROUTE.length);
+  if (action !== "ensure" && action !== "find" && action !== "delete") {
+    return send(res, 404, { ok: false, error: "Not found" });
+  }
+  if (req.method !== "POST") {
+    return send(res, 405, { ok: false, error: "Method not allowed" });
+  }
+  // An ensure or find answer carries the sandbox's preview token.
+  res.setHeader("cache-control", "no-store");
+  let body: unknown;
+  try {
+    const raw = await readBodyCapped(req, BROWSER_BODY_MAX_BYTES);
+    body = raw.trim() ? JSON.parse(raw) : {};
+  } catch (err) {
+    if (err instanceof BodyTooLargeError) {
+      return send(res, 413, { ok: false, error: err.message });
+    }
+    return send(res, 400, { ok: false, error: "Invalid JSON" });
+  }
+
+  try {
+    if (action === "delete") {
+      const target = parseBrowserDeleteTarget(body);
+      if (!target) {
+        return send(res, 400, {
+          ok: false,
+          error:
+            "delete needs { projectId, scope, ref, profileId? } or { projectId, profileId }",
+        });
+      }
+      await browserLifecycle().remove(target);
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    const key = parseBrowserKey(body);
+    if (!key) {
+      return send(res, 400, {
+        ok: false,
+        error: `${action} needs { projectId, scope: "session" | "login", ref, profileId }`,
+      });
+    }
+    if (action === "ensure") {
+      return send(res, 200, await browserLifecycle().ensure(key));
+    }
+    const found = await browserLifecycle().find(key);
+    if (!found)
+      return send(res, 404, { ok: false, error: "No running browser" });
+    return send(res, 200, found);
+  } catch (err) {
+    return send(res, 502, {
+      ok: false,
+      error: err instanceof Error ? err.message : "browser sandbox failed",
+    });
+  }
+}
+
 /** `/cancel`'s payload is five short strings. */
 const CANCEL_BODY_MAX_BYTES = 16 * 1024;
 
@@ -1609,6 +1682,13 @@ export function createRequestListener(
           return send(res, 401, { ok: false, error: "Unauthorized" });
         }
         return await handleSubscriptionLoginRoute(req, res);
+      }
+
+      if (req.url?.startsWith(BROWSER_ROUTE)) {
+        if (!isAuthorized(req)) {
+          return send(res, 401, { ok: false, error: "Unauthorized" });
+        }
+        return await handleBrowserRoute(req, res);
       }
 
       if (req.method === "POST" && req.url === "/kill") {
