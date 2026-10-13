@@ -190,8 +190,8 @@ let context;
 let activePage;
 let generation = null;
 let control = "agent";
-let lastCookieHash = "";
-let exportedCookieHash = "";
+let lastStateHash = "";
+let exportedStateHash = "";
 let setupPromise = null;
 const viewers = new Set();
 let screencast = null;
@@ -244,7 +244,7 @@ async function setup({ allowedHosts: hosts, storageState, generation: gen }) {
   });
   const page = await context.newPage();
   setActivePage(page);
-  lastCookieHash = exportedCookieHash = await cookieHash();
+  lastStateHash = exportedStateHash = hashOf(await context.storageState());
 }
 
 const pageGuards = new WeakMap();
@@ -298,11 +298,11 @@ function setActivePage(page) {
   if (viewers.size) restartScreencast().catch(() => {});
 }
 
-async function cookieHash() {
-  const cookies = await context.cookies();
+// Cookies and origins (localStorage) alike: a site may keep its session in either.
+function hashOf(storageState) {
   return crypto
     .createHash("sha256")
-    .update(JSON.stringify(cookies))
+    .update(JSON.stringify(storageState))
     .digest("hex");
 }
 
@@ -632,31 +632,31 @@ function consequenceOf(text) {
   return null;
 }
 
+// The control a click on this element activates: itself, or the button or link it sits in.
+const ACTIONABLE =
+  "xpath=ancestor-or-self::*[self::button or self::a or self::summary or @role='button' or @role='link' or @role='menuitem' or @role='menuitemcheckbox' or @role='menuitemradio' or @role='option' or @role='tab' or @role='switch' or (self::input and (@type='submit' or @type='button' or @type='image'))][1]";
+const SUBMIT_BUTTONS =
+  'button:not([type]), button[type="submit"], input[type="submit"], input[type="image"]';
+
+// The control's role, accessible name and named children, as in the model's page view (alt, SVG
+// title and aria-labelledby included): a link can carry its name only on an image inside it.
+function labelOf(locator) {
+  return locator.ariaSnapshot({ timeout: ACTION_TIMEOUT_MS });
+}
+
 // What a person reads on the control, or on the submit buttons of its form when Enter submits it.
-function controlText(locator, { submit = false } = {}) {
-  return locator.evaluate((el, submit) => {
-    const label = (e) =>
-      [
-        e.getAttribute("aria-label"),
-        e.title,
-        e.innerText,
-        e.tagName === "INPUT" && /^(submit|button)$/.test(e.type)
-          ? e.value
-          : "",
-      ]
-        .filter(Boolean)
-        .join(" ");
-    if (!submit) return label(el);
-    const form = el.form || el.closest("form");
-    if (!form) return "";
-    return [
-      ...form.querySelectorAll(
-        'button:not([type]), button[type="submit"], input[type="submit"]',
-      ),
-    ]
-      .map(label)
-      .join(" ");
-  }, submit);
+async function controlText(locator, { submit = false } = {}) {
+  if (submit) {
+    const buttons = locator
+      .locator("xpath=ancestor::form[1]")
+      .locator(SUBMIT_BUTTONS);
+    const names = [];
+    for (let i = 0; i < (await buttons.count()); i++)
+      names.push(await labelOf(buttons.nth(i)));
+    return names.join(" ");
+  }
+  const control = locator.locator(ACTIONABLE);
+  return labelOf((await control.count()) ? control.first() : locator);
 }
 
 // The model names the tool, but the control decides: a pay or delete control needs its approved tool.
@@ -764,7 +764,10 @@ const OPS = {
     const { text, submit } = args;
     // Keys that submit or move focus would act past the pay and delete check; `submit` presses Enter.
     if (/[\r\n\t]/.test(String(text ?? "")))
-      throw fail("invalid_arguments", "Text cannot hold Enter or Tab; use submit.");
+      throw fail(
+        "invalid_arguments",
+        "Text cannot hold Enter or Tab; use submit.",
+      );
     const locator = await resolveTarget(page, args);
     // Typing clicks the target first: only a field may be typed into.
     const editable = await locator
@@ -904,18 +907,15 @@ function opError(e) {
   );
 }
 
-// True when the API expects another set of logins than the browser loaded (`loadedGenerations`).
-function loginsChanged(expected, loadedGenerations) {
-  if (
-    !Array.isArray(expected) ||
-    !loadedGenerations ||
-    typeof loadedGenerations !== "object"
-  )
-    return false;
-  const loaded = Object.keys(loadedGenerations);
+// True when the API expects other logins, or another sign-in of one, than the browser loaded.
+function loginsChanged(expected, loaded) {
+  const isMap = (value) =>
+    Boolean(value) && typeof value === "object" && !Array.isArray(value);
+  if (!isMap(expected) || !isMap(loaded)) return false;
+  const ids = Object.keys(expected);
   return (
-    loaded.length !== expected.length ||
-    expected.some((id) => !loaded.includes(String(id)))
+    ids.length !== Object.keys(loaded).length ||
+    ids.some((id) => loaded[id] !== expected[id])
   );
 }
 
@@ -925,7 +925,7 @@ async function runOp(op, args, logins) {
   if (loginsChanged(logins, generation))
     return agentError(
       "logins_changed",
-      "This browser holds other logins than the run may use.",
+      "This browser holds other logins, or an older sign-in, than the run may use.",
     );
   if (control === "user") {
     return agentError(
@@ -945,13 +945,13 @@ async function runOp(op, args, logins) {
     // A page that moved off the list during the op is never read back to the model.
     if (!documentAllowed(page.url()))
       throw fail("site_not_allowed", new URL(page.url()).hostname);
-    lastCookieHash = await cookieHash();
+    lastStateHash = hashOf(await context.storageState());
     // Reopens a page if the op closed the last one, so the live view always has one.
     await currentPage();
     return {
       ok: true,
       text,
-      stateDirty: lastCookieHash !== exportedCookieHash,
+      stateDirty: lastStateHash !== exportedStateHash,
     };
   } catch (e) {
     return opError(e);
@@ -1188,6 +1188,14 @@ function reply(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
+// One op or state read at a time: parallel tool calls would interleave on the one page.
+let opChain = Promise.resolve();
+function serially(work) {
+  const run = opChain.then(work);
+  opChain = run.catch(() => {});
+  return run;
+}
+
 async function route(req, res) {
   if (!authorized(req)) return reply(res, 401, { ok: false });
   lastActivity = Date.now();
@@ -1210,7 +1218,9 @@ async function route(req, res) {
     return reply(
       res,
       200,
-      await runOp(String(body.op || ""), body.args, body.logins),
+      await serially(() =>
+        runOp(String(body.op || ""), body.args, body.logins),
+      ),
     );
   }
   if (req.method === "GET" && path === "/state") {
@@ -1220,8 +1230,8 @@ async function route(req, res) {
         409,
         agentError("not_setup", "The browser is not set up yet."),
       );
-    const storageState = await context.storageState();
-    exportedCookieHash = await cookieHash();
+    const storageState = await serially(() => context.storageState());
+    exportedStateHash = hashOf(storageState);
     return reply(res, 200, { storageState, generation });
   }
   return reply(res, 404, { ok: false });

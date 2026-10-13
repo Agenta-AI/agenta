@@ -258,17 +258,30 @@ describe("resolveTarget", () => {
 describe("loginsChanged", () => {
   const loaded = { "prof-1": 3, "prof-2": 1 };
 
-  it("accepts the same set in any order", () => {
-    assert.equal(controller.loginsChanged(["prof-2", "prof-1"], loaded), false);
+  it("accepts the same logins at the same sign-ins in any order", () => {
+    assert.equal(
+      controller.loginsChanged({ "prof-2": 1, "prof-1": 3 }, loaded),
+      false,
+    );
   });
 
   it("refuses a narrower or a different set", () => {
-    assert.equal(controller.loginsChanged(["prof-1"], loaded), true);
-    assert.equal(controller.loginsChanged(["prof-1", "prof-3"], loaded), true);
+    assert.equal(controller.loginsChanged({ "prof-1": 3 }, loaded), true);
+    assert.equal(
+      controller.loginsChanged({ "prof-1": 3, "prof-3": 1 }, loaded),
+      true,
+    );
+  });
+
+  it("refuses a login signed in again since the browser loaded it", () => {
+    assert.equal(
+      controller.loginsChanged({ "prof-1": 4, "prof-2": 1 }, loaded),
+      true,
+    );
   });
 
   it("does not check a login browser or a call that names no set", () => {
-    assert.equal(controller.loginsChanged(["prof-1"], 4), false);
+    assert.equal(controller.loginsChanged({ "prof-1": 3 }, 4), false);
     assert.equal(controller.loginsChanged(undefined, loaded), false);
   });
 });
