@@ -170,6 +170,14 @@ function navigationAllowed(rawUrl) {
   return hostAllowed(u.hostname);
 }
 
+function hostOf(rawUrl) {
+  try {
+    return new URL(rawUrl).hostname || rawUrl;
+  } catch {
+    return rawUrl;
+  }
+}
+
 // What a page may show: an allowed site, a blank or error page, or a blob of an allowed site.
 function documentAllowed(rawUrl) {
   if (/^(about|chrome-error):/.test(rawUrl)) return true;
@@ -1091,11 +1099,25 @@ async function applyInput(message) {
       setControl("user");
       let target = String(message.url || "").trim();
       if (!/^[a-z]+:/i.test(target)) target = `https://${target}`;
-      if (navigationAllowed(target))
-        await page.goto(target, {
+      // The viewer typed this address: say why it did not open, so the bar is never left lying.
+      if (!navigationAllowed(target)) {
+        broadcast({
+          type: "notice",
+          message: `${hostOf(target)} is not one of this login's sites.`,
+        });
+        return;
+      }
+      await page
+        .goto(target, {
           waitUntil: "domcontentloaded",
           timeout: NAVIGATION_TIMEOUT_MS,
-        });
+        })
+        .catch(() =>
+          broadcast({
+            type: "notice",
+            message: `${hostOf(target)} did not load.`,
+          }),
+        );
       return;
     }
   }

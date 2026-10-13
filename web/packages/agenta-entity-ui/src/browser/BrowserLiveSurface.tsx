@@ -5,11 +5,16 @@ import {Button, Spinner} from "@agenta/ui/ui"
 import {ArrowClockwise, Globe, HandPointing, Keyboard, Robot} from "@phosphor-icons/react"
 
 import {isCommandKey, mouseButton, toViewportPoint} from "./liveInput"
-import type {BrowserLiveConnection, BrowserLiveStatus} from "./useBrowserLiveSocket"
+import type {
+    BrowserLiveConnection,
+    BrowserLiveNotice,
+    BrowserLiveStatus,
+} from "./useBrowserLiveSocket"
 
 export interface BrowserLiveSurfaceProps {
     connection: BrowserLiveConnection
     status: BrowserLiveStatus | null
+    notice?: BrowserLiveNotice | null
     canvasRef: RefObject<HTMLCanvasElement | null>
     send: (message: BrowserLiveClientMessage) => void
     onReconnect: () => void
@@ -20,6 +25,7 @@ const TAP_SLOP_PX = 8
 export const BrowserLiveSurface = ({
     connection,
     status,
+    notice = null,
     canvasRef,
     send,
     onReconnect,
@@ -141,7 +147,8 @@ export const BrowserLiveSurface = ({
                 >
                     <Globe size={14} className="shrink-0" />
                     <input
-                        key={status?.url ?? ""}
+                        // A refusal leaves the URL as it was; the notice resets the typed address.
+                        key={`${status?.url ?? ""}#${notice?.seq ?? 0}`}
                         name="url"
                         aria-label="Address"
                         defaultValue={status?.url || ""}
@@ -174,6 +181,11 @@ export const BrowserLiveSurface = ({
                     {userControl ? "Give back control" : "Take control"}
                 </Button>
             </div>
+            {notice ? (
+                <p role="status" className="text-xs text-destructive">
+                    {notice.message}
+                </p>
+            ) : null}
             <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-muted">
                 <canvas
                     ref={canvasRef}

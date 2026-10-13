@@ -14,6 +14,12 @@ export type BrowserLiveConnection =
 
 export type BrowserLiveStatus = Omit<Extract<BrowserLiveServerMessage, {type: "status"}>, "type">
 
+/** Why the browser did not do what the viewer asked; `seq` tells two equal messages apart. */
+export interface BrowserLiveNotice {
+    message: string
+    seq: number
+}
+
 const CLOSE_CODES: Record<number, BrowserLiveConnection> = {
     4401: {phase: "error", reason: "Your sign-in expired. Sign in again to see the browser."},
     4403: {phase: "error", reason: "You do not have access to this browser."},
@@ -57,6 +63,7 @@ export const useBrowserLiveSocket = (
 ) => {
     const [connection, setConnection] = useState<BrowserLiveConnection>({phase: "connecting"})
     const [status, setStatus] = useState<BrowserLiveStatus | null>(null)
+    const [notice, setNotice] = useState<BrowserLiveNotice | null>(null)
     const [attempt, setAttempt] = useState(0)
     const socketRef = useRef<WebSocket | null>(null)
 
@@ -64,16 +71,24 @@ export const useBrowserLiveSocket = (
         if (!url) return
         setConnection({phase: "connecting"})
         setStatus(null)
+        setNotice(null)
         const socket = new WebSocket(url)
         socketRef.current = socket
         const paintFrame = createFramePainter(canvasRef)
         let failed = false
+        let shownUrl: string | null = null
+        let notices = 0
         socket.onopen = () => setConnection({phase: "live"})
         socket.onmessage = (event) => {
             const message = parseBrowserLiveMessage(event.data)
             if (message?.type === "frame") paintFrame(message.data)
             else if (message?.type === "status") {
+                // A notice is about the page it was raised on; a new page clears it.
+                if (message.url !== shownUrl) setNotice(null)
+                shownUrl = message.url
                 setStatus({control: message.control, url: message.url, title: message.title})
+            } else if (message?.type === "notice") {
+                setNotice({message: message.message, seq: ++notices})
             }
         }
         socket.onerror = () => {
@@ -98,5 +113,5 @@ export const useBrowserLiveSocket = (
 
     const reconnect = useCallback(() => setAttempt((count) => count + 1), [])
 
-    return {connection, status, send, reconnect}
+    return {connection, status, notice, send, reconnect}
 }

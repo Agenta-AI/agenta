@@ -37,6 +37,7 @@ export type BrowserLiveTarget =
 export type BrowserLiveServerMessage =
     | {type: "frame"; data: string; width: number; height: number}
     | {type: "status"; control: "agent" | "user"; url: string; title: string}
+    | {type: "notice"; message: string}
 
 export type BrowserLiveClientMessage =
     | {

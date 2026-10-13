@@ -43,6 +43,9 @@ export const parseBrowserLiveMessage = (raw: unknown): BrowserLiveServerMessage 
             title: typeof data.title === "string" ? data.title : "",
         }
     }
+    if (data.type === "notice" && typeof data.message === "string") {
+        return {type: "notice", message: data.message}
+    }
     return null
 }
 

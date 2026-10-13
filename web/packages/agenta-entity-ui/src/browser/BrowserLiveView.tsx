@@ -18,7 +18,7 @@ export const BrowserLiveView = ({target, autoTakeControl = false}: BrowserLiveVi
     const canvasRef = useRef<HTMLCanvasElement | null>(null)
     // A string, so a new target object with the same ids keeps the socket.
     const url = projectId ? browserLiveUrl(projectId, target) : null
-    const {connection, status, send, reconnect} = useBrowserLiveSocket(url, canvasRef)
+    const {connection, status, notice, send, reconnect} = useBrowserLiveSocket(url, canvasRef)
 
     const tookControl = useRef(false)
     useEffect(() => {
@@ -32,6 +32,7 @@ export const BrowserLiveView = ({target, autoTakeControl = false}: BrowserLiveVi
         <BrowserLiveSurface
             connection={connection}
             status={status}
+            notice={notice}
             canvasRef={canvasRef}
             send={send}
             onReconnect={reconnect}
