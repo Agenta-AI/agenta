@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -30,7 +31,10 @@ from oss.src.core.browser_profiles.types import (
     BrowserProfileNotFound,
     BrowserToolError,
     BrowserUnavailable,
+    profile_not_available,
 )
+from oss.src.core.shared.dtos import Reference
+from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.logging import get_module_logger
 
 
@@ -42,12 +46,14 @@ class BrowserProfilesService:
         self,
         *,
         browser_profiles_dao: BrowserProfilesDAOInterface,
-        runner_client: Optional[BrowserRunnerClient] = None,
-        controller_client: Optional[BrowserControllerClient] = None,
+        workflows_service: WorkflowsService,
+        runner_client: BrowserRunnerClient,
+        controller_client: BrowserControllerClient,
     ):
         self.browser_profiles_dao = browser_profiles_dao
-        self.runner_client = runner_client or BrowserRunnerClient()
-        self.controller_client = controller_client or BrowserControllerClient()
+        self.workflows_service = workflows_service
+        self.runner_client = runner_client
+        self.controller_client = controller_client
 
     async def create_profile(
         self,
@@ -278,11 +284,17 @@ class BrowserProfilesService:
         project_id: UUID,
         user_id: UUID,
         #
+        revision_id: Optional[UUID],
         is_draft: bool,
-        revision_author_id: Optional[UUID],
     ) -> Optional[List[UUID]]:
-        """The run user's ready logins, or None when another user committed the revision."""
-        if not is_draft and revision_author_id != user_id:
+        """The run user's ready logins, or None when the run may not use them."""
+        if (
+            not is_draft
+            and await self._revision_author(
+                project_id=project_id, revision_id=revision_id
+            )
+            != user_id
+        ):
             return None
         profiles = await self.browser_profiles_dao.query_profiles(
             project_id=project_id, user_id=user_id
@@ -297,37 +309,28 @@ class BrowserProfilesService:
         #
         session_id: str,
         profile_ids: List[UUID],
+        all_logins: bool,
+        revision_id: Optional[UUID],
         is_draft: bool,
-        revision_author_id: Optional[UUID],
         #
         op: str,
         args: Dict[str, Any],
     ) -> str:
-        profiles: List[BrowserProfile] = []
-        refused: Optional[BrowserToolError] = None
-        for profile_id in profile_ids:
-            profile = await self.browser_profiles_dao.fetch_profile(
-                project_id=project_id, profile_id=profile_id
-            )
-            try:
-                check_tool_access(
-                    profile=profile,
-                    user_id=user_id,
-                    is_draft=is_draft,
-                    revision_author_id=revision_author_id,
-                )
-            except BrowserToolError as e:
-                refused = refused or e
-                continue
-            profiles.append(profile)
-        if not profiles:
-            raise refused or BrowserProfileNotFound()
+        profiles = await self._run_profiles(
+            project_id=project_id,
+            user_id=user_id,
+            profile_ids=profile_ids,
+            all_logins=all_logins,
+            revision_id=revision_id,
+            is_draft=is_draft,
+        )
         logins = [str(p.id) for p in profiles]
+        label = session_label(user_id)
         sandbox = await self.runner_client.ensure(
             project_id=project_id,
             scope=BrowserScope.SESSION,
             ref=session_id,
-            label=session_label(user_id),
+            label=label,
         )
         try:
             result = await self.controller_client.op(
@@ -340,13 +343,13 @@ class BrowserProfilesService:
                     project_id=project_id,
                     scope=BrowserScope.SESSION,
                     ref=session_id,
-                    label=session_label(user_id),
+                    label=label,
                 )
                 sandbox = await self.runner_client.ensure(
                     project_id=project_id,
                     scope=BrowserScope.SESSION,
                     ref=session_id,
-                    label=session_label(user_id),
+                    label=label,
                 )
             elif e.code != "not_setup":
                 raise
@@ -357,6 +360,59 @@ class BrowserProfilesService:
         if result.state_dirty:
             await self._save_session(sandbox, project_id=project_id, profiles=profiles)
         return result.text
+
+    async def _revision_author(
+        self, *, project_id: UUID, revision_id: Optional[UUID]
+    ) -> Optional[UUID]:
+        if revision_id is None:
+            return None
+        revision = await self.workflows_service.fetch_workflow_revision(
+            project_id=project_id,
+            workflow_revision_ref=Reference(id=revision_id),
+        )
+        return revision.created_by_id if revision is not None else None
+
+    async def _run_profiles(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        profile_ids: List[UUID],
+        all_logins: bool,
+        revision_id: Optional[UUID],
+        is_draft: bool,
+    ) -> List[BrowserProfile]:
+        """The logins this op may use; "all my logins" reads them now, so one added mid-turn counts."""
+        author_id = None
+        if not is_draft:
+            author_id = await self._revision_author(
+                project_id=project_id, revision_id=revision_id
+            )
+            if author_id is None:
+                raise profile_not_available()
+        owned = await self.browser_profiles_dao.query_profiles(
+            project_id=project_id, user_id=user_id
+        )
+        wanted = set(profile_ids)
+        profiles: List[BrowserProfile] = []
+        refused: Optional[BrowserToolError] = None
+        for profile in owned:
+            if not all_logins and profile.id not in wanted:
+                continue
+            try:
+                check_tool_access(
+                    profile=profile,
+                    user_id=user_id,
+                    is_draft=is_draft,
+                    revision_author_id=author_id,
+                )
+            except BrowserToolError as e:
+                refused = refused or e
+                continue
+            profiles.append(profile)
+        if not profiles:
+            raise refused or profile_not_available()
+        return profiles
 
     async def _stop_browsers(
         self, *, project_id: UUID, user_id: UUID, profile_id: UUID
@@ -374,16 +430,18 @@ class BrowserProfilesService:
         project_id: UUID,
         profile: BrowserProfile,
     ) -> None:
-        session_state = await self.browser_profiles_dao.fetch_session_state(
-            project_id=project_id, profile_id=profile.id
-        )
-        if session_state is None:
+        saved = (
+            await self.browser_profiles_dao.fetch_session_states(
+                project_id=project_id, profile_ids=[profile.id]
+            )
+        ).get(profile.id)
+        if saved is None:
             raise BrowserProfileNotFound()
         await self.controller_client.setup(
             sandbox,
             allowed_hosts=sites(profile),
-            storage_state=session_state.storage_state,
-            generation=session_state.generation,
+            storage_state=saved.storage_state,
+            generation=saved.generation,
         )
 
     async def _setup_session(
@@ -393,24 +451,19 @@ class BrowserProfilesService:
         project_id: UUID,
         profiles: List[BrowserProfile],
     ) -> None:
-        states: Dict[UUID, Optional[Dict[str, Any]]] = {}
-        generations: Dict[str, int] = {}
-        for profile in profiles:
-            saved = await self.browser_profiles_dao.fetch_session_state(
-                project_id=project_id, profile_id=profile.id
-            )
-            if saved is None:
-                continue
-            states[profile.id] = saved.storage_state
-            generations[str(profile.id)] = saved.generation
-        if not generations:
+        saved = await self.browser_profiles_dao.fetch_session_states(
+            project_id=project_id, profile_ids=[p.id for p in profiles]
+        )
+        loaded = [p for p in profiles if p.id in saved]
+        if not loaded:
             raise BrowserProfileNotFound()
-        loaded = [p for p in profiles if str(p.id) in generations]
         await self.controller_client.setup(
             sandbox,
             allowed_hosts=union_hosts(loaded),
-            storage_state=merge_storage_states(states, loaded),
-            generation=generations,
+            storage_state=merge_storage_states(
+                {p.id: saved[p.id].storage_state for p in loaded}, loaded
+            ),
+            generation={str(p.id): saved[p.id].generation for p in loaded},
         )
 
     async def _save_session(
@@ -430,18 +483,15 @@ class BrowserProfilesService:
         loaded = [p for p in profiles if str(p.id) in generations]
         shares = split_storage_state(state.storage_state, loaded)
         for profile in loaded:
-            stored = await self.browser_profiles_dao.fetch_session_state(
-                project_id=project_id, profile_id=profile.id
-            )
             saved = await self.browser_profiles_dao.save_session_state(
                 project_id=project_id,
                 profile_id=profile.id,
                 generation=int(generations[str(profile.id)]),
-                storage_state=rebase_share(
-                    stored.storage_state if stored else None,
-                    shares[profile.id],
-                    profile.id,
-                    loaded,
+                rebase=partial(
+                    rebase_share,
+                    share=shares[profile.id],
+                    profile_id=profile.id,
+                    profiles=loaded,
                 ),
             )
             if not saved:

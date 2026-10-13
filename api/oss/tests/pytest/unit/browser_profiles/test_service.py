@@ -46,6 +46,7 @@ async def _edit(profile_edit: BrowserProfileEdit) -> _Runner:
     runner = _Runner()
     service = BrowserProfilesService(
         browser_profiles_dao=_DAO(),  # type: ignore[arg-type]
+        workflows_service=object(),  # type: ignore[arg-type]
         runner_client=runner,  # type: ignore[arg-type]
         controller_client=object(),  # type: ignore[arg-type]
     )

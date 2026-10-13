@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from uuid import UUID
 
 import pytest
@@ -60,20 +61,40 @@ class DAO:
     def __init__(self):
         self.saved = []
 
-    async def fetch_profile(self, *, project_id, profile_id):
-        return PROFILES.get(profile_id)
+    async def query_profiles(self, *, project_id, user_id):
+        return [p for p in PROFILES.values() if p.created_by_id == user_id]
 
-    async def fetch_session_state(self, *, project_id, profile_id):
-        return BrowserSessionState(
-            storage_state=STATES[profile_id],
-            generation=PROFILES[profile_id].generation,
-        )
+    async def fetch_session_states(self, *, project_id, profile_ids):
+        return {
+            pid: BrowserSessionState(
+                storage_state=STATES[pid], generation=PROFILES[pid].generation
+            )
+            for pid in profile_ids
+            if pid in STATES
+        }
 
-    async def save_session_state(
-        self, *, project_id, profile_id, generation, storage_state
-    ):
-        self.saved.append((profile_id, generation, storage_state))
+    async def save_session_state(self, *, project_id, profile_id, generation, rebase):
+        self.saved.append((profile_id, generation, rebase(STATES[profile_id])))
         return True
+
+
+class Workflows:
+    """Every revision here was committed by `author`."""
+
+    def __init__(self, author=OWNER):
+        self.author = author
+
+    async def fetch_workflow_revision(self, *, project_id, workflow_revision_ref):
+        return SimpleNamespace(created_by_id=self.author)
+
+
+def _service(dao=None, runner=None, controller=None, workflows=None):
+    return BrowserProfilesService(
+        browser_profiles_dao=dao or DAO(),  # type: ignore[arg-type]
+        workflows_service=workflows or Workflows(),  # type: ignore[arg-type]
+        runner_client=runner or Runner(),  # type: ignore[arg-type]
+        controller_client=controller or Controller(),  # type: ignore[arg-type]
+    )
 
 
 class Runner:
@@ -133,19 +154,16 @@ class Controller:
 @pytest.mark.asyncio
 async def test_one_browser_holds_every_allowed_login_and_saves_each_share():
     dao, runner, controller = DAO(), Runner(), Controller()
-    service = BrowserProfilesService(
-        browser_profiles_dao=dao,  # type: ignore[arg-type]
-        runner_client=runner,  # type: ignore[arg-type]
-        controller_client=controller,  # type: ignore[arg-type]
-    )
+    service = _service(dao, runner, controller)
 
     text = await service.run_tool(
         project_id=PROJECT,
         user_id=OWNER,
         session_id="sess-1",
         profile_ids=[GITHUB, BITBUCKET, NOT_MINE],
+        all_logins=False,
+        revision_id=None,
         is_draft=True,
-        revision_author_id=None,
         op="navigate",
         args={"url": "https://github.com"},
     )
@@ -167,11 +185,7 @@ async def test_one_browser_holds_every_allowed_login_and_saves_each_share():
 @pytest.mark.asyncio
 async def test_a_run_with_no_usable_login_is_refused_before_any_browser():
     runner = Runner()
-    service = BrowserProfilesService(
-        browser_profiles_dao=DAO(),  # type: ignore[arg-type]
-        runner_client=runner,  # type: ignore[arg-type]
-        controller_client=Controller(),  # type: ignore[arg-type]
-    )
+    service = _service(DAO(), runner, Controller())
 
     with pytest.raises(BrowserToolError) as refused:
         await service.run_tool(
@@ -179,8 +193,9 @@ async def test_a_run_with_no_usable_login_is_refused_before_any_browser():
             user_id=OWNER,
             session_id="sess-1",
             profile_ids=[NOT_MINE],
+            all_logins=False,
+            revision_id=None,
             is_draft=True,
-            revision_author_id=None,
             op="navigate",
             args={},
         )
@@ -191,39 +206,52 @@ async def test_a_run_with_no_usable_login_is_refused_before_any_browser():
 
 @pytest.mark.asyncio
 async def test_available_logins_are_none_for_another_authors_revision():
-    class ListingDAO(DAO):
-        async def query_profiles(self, *, project_id, user_id):
-            return [PROFILES[GITHUB], PROFILES[BITBUCKET]]
+    revision = UUID("00000000-0000-0000-0000-0000000000e1")
 
-    service = BrowserProfilesService(browser_profiles_dao=ListingDAO())  # type: ignore[arg-type]
+    async def available(author):
+        return await _service(workflows=Workflows(author)).available_profile_ids(
+            project_id=PROJECT, user_id=OWNER, revision_id=revision, is_draft=False
+        )
 
-    mine = await service.available_profile_ids(
-        project_id=PROJECT, user_id=OWNER, is_draft=False, revision_author_id=OWNER
-    )
-    theirs = await service.available_profile_ids(
-        project_id=PROJECT, user_id=OWNER, is_draft=False, revision_author_id=STRANGER
-    )
+    assert await available(OWNER) == [GITHUB, BITBUCKET]
+    assert await available(STRANGER) is None
 
-    assert mine == [GITHUB, BITBUCKET]
-    assert theirs is None
+
+@pytest.mark.asyncio
+async def test_a_committed_run_of_another_authors_revision_gets_no_browser():
+    runner = Runner()
+    service = _service(runner=runner, workflows=Workflows(STRANGER))
+
+    with pytest.raises(BrowserToolError) as refused:
+        await service.run_tool(
+            project_id=PROJECT,
+            user_id=OWNER,
+            session_id="sess-1",
+            profile_ids=[GITHUB],
+            all_logins=False,
+            revision_id=UUID("00000000-0000-0000-0000-0000000000e1"),
+            is_draft=False,
+            op="navigate",
+            args={},
+        )
+
+    assert refused.value.code == "profile_not_available"
+    assert runner.ensured == []
 
 
 @pytest.mark.asyncio
 async def test_a_warm_browser_with_other_logins_is_replaced_before_acting():
     runner, controller = Runner(), Controller(warm_with=[str(GITHUB), str(BITBUCKET)])
-    service = BrowserProfilesService(
-        browser_profiles_dao=DAO(),  # type: ignore[arg-type]
-        runner_client=runner,  # type: ignore[arg-type]
-        controller_client=controller,  # type: ignore[arg-type]
-    )
+    service = _service(DAO(), runner, controller)
 
     await service.run_tool(
         project_id=PROJECT,
         user_id=OWNER,
         session_id="sess-1",
         profile_ids=[GITHUB],
+        all_logins=False,
+        revision_id=None,
         is_draft=True,
-        revision_author_id=None,
         op="navigate",
         args={"url": "https://github.com"},
     )
@@ -255,11 +283,7 @@ async def test_all_logins_reads_the_logins_at_each_call(monkeypatch):
             return listed
 
     controller = Controller()
-    service = BrowserProfilesService(
-        browser_profiles_dao=ListingDAO(),  # type: ignore[arg-type]
-        runner_client=Runner(),  # type: ignore[arg-type]
-        controller_client=controller,  # type: ignore[arg-type]
-    )
+    service = _service(ListingDAO(), Runner(), controller)
     arguments = {
         "session_id": "s1",
         "profile_ids": [str(GITHUB)],
@@ -299,11 +323,7 @@ async def test_the_intent_comes_from_the_tool_never_the_model(
 
     monkeypatch.setattr(env.browser, "enabled", True)
     controller = Controller(warm_with=[str(GITHUB)])
-    service = BrowserProfilesService(
-        browser_profiles_dao=DAO(),  # type: ignore[arg-type]
-        runner_client=Runner(),  # type: ignore[arg-type]
-        controller_client=controller,  # type: ignore[arg-type]
-    )
+    service = _service(DAO(), Runner(), controller)
 
     await handlers.BROWSER_TOOL_HANDLERS[call_ref](
         arguments={

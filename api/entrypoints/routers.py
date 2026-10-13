@@ -99,6 +99,8 @@ from oss.src.core.applications.service import ApplicationsService
 from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.browser_profiles.service import BrowserProfilesService
+from oss.src.core.browser_profiles.runner_client import BrowserRunnerClient
+from oss.src.core.browser_profiles.controller_client import BrowserControllerClient
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.service import SimpleWorkflowsService
 from oss.src.core.workflows.dtos import WorkflowServiceRequest
@@ -800,10 +802,6 @@ folders_service = FoldersService(
     folders_dao=folders_dao,
 )
 
-browser_profiles_service = BrowserProfilesService(
-    browser_profiles_dao=BrowserProfilesDAO(engine=_transactions_engine),
-)
-
 _lock_engine = get_lock_engine()
 
 # M3 live relay: lifecycle/interaction change notifications for the SSE watch
@@ -864,6 +862,13 @@ simple_traces_service = SimpleTracesService(
     tracing_service=tracing_service,
     evaluators_service=evaluators_service,
     simple_evaluators_service=simple_evaluators_service,
+)
+
+browser_profiles_service = BrowserProfilesService(
+    browser_profiles_dao=BrowserProfilesDAO(engine=_transactions_engine),
+    workflows_service=workflows_service,
+    runner_client=BrowserRunnerClient(),
+    controller_client=BrowserControllerClient(),
 )
 
 simple_workflows_service = SimpleWorkflowsService(
@@ -1155,7 +1160,6 @@ folders = FoldersRouter(
 
 browser_profiles = BrowserProfilesRouter(
     browser_profiles_service=browser_profiles_service,
-    workflows_service=workflows_service,
 )
 
 workflows = WorkflowsRouter(

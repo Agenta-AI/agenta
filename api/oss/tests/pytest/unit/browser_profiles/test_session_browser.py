@@ -49,7 +49,10 @@ def service_with_runner(monkeypatch, payload: Dict[str, Any]) -> tuple:
     )
     runner = BrowserRunnerClient(base_url="http://runner", token="t")
     return BrowserProfilesService(
-        browser_profiles_dao=FakeDAO(), runner_client=runner
+        browser_profiles_dao=FakeDAO(),  # type: ignore[arg-type]
+        workflows_service=object(),  # type: ignore[arg-type]
+        runner_client=runner,
+        controller_client=object(),  # type: ignore[arg-type]
     ), seen
 
 

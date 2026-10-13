@@ -1,7 +1,7 @@
 import asyncio
 from contextlib import suppress
 from functools import wraps
-from typing import Any, List, Optional
+from typing import List, Optional
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -20,7 +20,6 @@ from oss.src.apis.fastapi.browser_profiles.models import (
 )
 from oss.src.core.browser_profiles.controller_client import controller_live_url
 from oss.src.core.browser_profiles.dtos import BrowserSandbox
-from oss.src.core.browser_profiles.handlers import fetch_revision_author_id
 from oss.src.core.browser_profiles.service import BrowserProfilesService
 from oss.src.core.browser_profiles.types import (
     BrowserLoginNotStarted,
@@ -106,10 +105,8 @@ class BrowserProfilesRouter:
         self,
         *,
         browser_profiles_service: BrowserProfilesService,
-        workflows_service: Any = None,
     ):
         self.browser_profiles_service = browser_profiles_service
-        self.workflows_service = workflows_service
 
         self.router = APIRouter()
 
@@ -350,18 +347,11 @@ class BrowserProfilesRouter:
         if not await _allowed(request, Permission.EDIT_SECRET):
             return BrowserAvailableResponse(eligible=False)
         project_id, user_id = _scope(request)
-        author_id = None
-        if not available_request.is_draft:
-            author_id = await fetch_revision_author_id(
-                workflows_service=self.workflows_service,
-                project_id=project_id,
-                revision_id=available_request.revision_id,
-            )
         profile_ids = await self.browser_profiles_service.available_profile_ids(
             project_id=project_id,
             user_id=user_id,
+            revision_id=available_request.revision_id,
             is_draft=available_request.is_draft,
-            revision_author_id=author_id,
         )
         return BrowserAvailableResponse(
             count=len(profile_ids or []),

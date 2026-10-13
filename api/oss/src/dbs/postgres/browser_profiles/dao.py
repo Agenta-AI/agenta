@@ -11,6 +11,10 @@ from oss.src.core.browser_profiles.dtos import (
     BrowserProfileState,
     BrowserSessionState,
 )
+from oss.src.dbs.postgres.browser_profiles.mappings import (
+    map_browser_login_data_to_session_state,
+    map_browser_login_dbe_to_dto,
+)
 from oss.src.core.browser_profiles.interfaces import BrowserProfilesDAOInterface
 from oss.src.core.secrets.context import set_data_encryption_key
 from oss.src.core.secrets.enums import SecretKind
@@ -24,27 +28,13 @@ from oss.src.utils.env import env
 Data = Dict[str, Any]
 
 
-def map_browser_login_dbe_to_dto(*, dbe: SecretsDBE) -> BrowserProfile:
-    data = json.loads(dbe.data)  # type: ignore
-    return BrowserProfile(
-        id=dbe.id,  # type: ignore
-        name=dbe.name,  # type: ignore
-        allowed_hosts=data["allowed_hosts"],
-        state=BrowserProfileState(data["state"]),
-        generation=data["generation"],
-        created_at=dbe.created_at,  # type: ignore
-        updated_at=dbe.updated_at,  # type: ignore
-        created_by_id=dbe.created_by_id,  # type: ignore
-    )
-
-
 def rebase_saved_state(
-    data: Data, *, generation: int, storage_state: Data
+    data: Data, *, generation: int, rebase: Callable[[Optional[Data]], Data]
 ) -> Optional[Data]:
-    """The login's data with the browser's state, or None when a newer login replaced it."""
+    """The login's data with its rebased state, or None when a newer login replaced it."""
     if data["generation"] != generation:
         return None
-    return {**data, "storage_state": storage_state}
+    return {**data, "storage_state": rebase(data.get("storage_state"))}
 
 
 def _live(*, project_id: UUID, profile_id: UUID):
@@ -208,27 +198,27 @@ class BrowserProfilesDAO(BrowserProfilesDAOInterface):
             deleted_by_id=user_id,
         )
 
-    async def fetch_session_state(
+    async def fetch_session_states(
         self,
         *,
         project_id: UUID,
         #
-        profile_id: UUID,
-    ) -> Optional[BrowserSessionState]:
+        profile_ids: List[UUID],
+    ) -> Dict[UUID, BrowserSessionState]:
         async with self._session() as session:
             result = await session.execute(
-                select(SecretsDBE.data).where(
-                    *_live(project_id=project_id, profile_id=profile_id)
+                select(SecretsDBE.id, SecretsDBE.data).where(
+                    SecretsDBE.project_id == project_id,
+                    SecretsDBE.id.in_(profile_ids),
+                    SecretsDBE.kind == SecretKind.BROWSER_LOGIN,
+                    SecretsDBE.deleted_at.is_(None),
                 )
             )
-            raw = result.scalars().first()
-        if raw is None:
-            return None
-        data = json.loads(raw)
-        return BrowserSessionState(
-            storage_state=data.get("storage_state"),
-            generation=data["generation"],
-        )
+            rows = result.all()
+        return {
+            profile_id: map_browser_login_data_to_session_state(data=data)
+            for profile_id, data in rows
+        }
 
     async def store_login_state(
         self,
@@ -258,13 +248,13 @@ class BrowserProfilesDAO(BrowserProfilesDAOInterface):
         #
         profile_id: UUID,
         generation: int,
-        storage_state: Dict[str, Any],
+        rebase: Callable[[Optional[Dict[str, Any]]], Dict[str, Any]],
     ) -> bool:
         saved = await self._update(
             project_id=project_id,
             profile_id=profile_id,
             change=lambda data: rebase_saved_state(
-                data, generation=generation, storage_state=storage_state
+                data, generation=generation, rebase=rebase
             ),
         )
         return saved is not None

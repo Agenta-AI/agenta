@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.browser_profiles.dtos import BrowserProfile, BrowserSessionState
@@ -55,13 +55,13 @@ class BrowserProfilesDAOInterface:
     ) -> Optional[BrowserProfile]:
         raise NotImplementedError()
 
-    async def fetch_session_state(
+    async def fetch_session_states(
         self,
         *,
         project_id: UUID,
         #
-        profile_id: UUID,
-    ) -> Optional[BrowserSessionState]:
+        profile_ids: List[UUID],
+    ) -> Dict[UUID, BrowserSessionState]:
         raise NotImplementedError()
 
     async def store_login_state(
@@ -82,6 +82,7 @@ class BrowserProfilesDAOInterface:
         #
         profile_id: UUID,
         generation: int,
-        storage_state: Dict[str, Any],
+        rebase: Callable[[Optional[Dict[str, Any]]], Dict[str, Any]],
     ) -> bool:
+        """Under the row lock: replaces the state with `rebase(stored)` unless a newer login replaced it."""
         raise NotImplementedError()
