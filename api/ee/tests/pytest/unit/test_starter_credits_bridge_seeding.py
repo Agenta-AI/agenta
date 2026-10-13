@@ -1112,6 +1112,20 @@ class TestMintPolicyAllows:
         assert await service._mint_policy_allows("a@freemail.test", policy) is True
         assert await service._mint_policy_allows("b@freemail.test", policy) is False
 
+    async def test_the_bridge_and_the_signup_grant_count_one_signup_once_each(self):
+        policy = _policy()
+
+        assert await service._mint_policy_allows("alice@acme.test", policy) is True
+        assert (
+            await service._mint_policy_allows(
+                "alice@acme.test",
+                policy,
+                counter_prefix=service.SIGNUP_GRANT_COUNTER_PREFIX,
+            )
+            is True
+        )
+        assert all(count == 1 for count in self.engine.counts.values())
+
     async def test_redis_error_fails_closed(self):
         self.engine.error = ConnectionError("redis down")
 

@@ -866,9 +866,15 @@ def _parse_policy_payload(raw: Any) -> Optional[dict]:
     return None
 
 
+# Redis key prefixes for the velocity counters, one per caller of the mint policy.
+BRIDGE_COUNTER_PREFIX = "starter_credits_bridge:mints"
+SIGNUP_GRANT_COUNTER_PREFIX = "free_credits:signup_grants"
+
+
 def _velocity_counters(
     organization_email: str,
     policy: MintPolicy,
+    counter_prefix: str = BRIDGE_COUNTER_PREFIX,
 ) -> list[tuple[str, int, int, str]]:
     day = datetime.now(timezone.utc).strftime("%Y%m%d")
     hour = datetime.now(timezone.utc).strftime("%Y%m%d%H")
@@ -876,13 +882,13 @@ def _velocity_counters(
 
     counters = [
         (
-            f"starter_credits_bridge:mints:{day}",
+            f"{counter_prefix}:{day}",
             policy.global_daily,
             _VELOCITY_COUNTER_TTL_SECONDS,
             "global_daily",
         ),
         (
-            f"starter_credits_bridge:mints:hour:{hour}",
+            f"{counter_prefix}:hour:{hour}",
             policy.global_hourly,
             2 * 3600,
             "global_hourly",
@@ -891,7 +897,7 @@ def _velocity_counters(
     if not policy.is_freemail(domain):
         counters.append(
             (
-                f"starter_credits_bridge:mints:{day}:domain:{domain}",
+                f"{counter_prefix}:{day}:domain:{domain}",
                 policy.work_domain_daily,
                 _VELOCITY_COUNTER_TTL_SECONDS,
                 "work_domain_daily",
@@ -938,10 +944,13 @@ def email_rules_allow(organization_email: str, policy: MintPolicy) -> bool:
 async def _mint_policy_allows(
     organization_email: str,
     policy: MintPolicy,
+    counter_prefix: str = BRIDGE_COUNTER_PREFIX,
 ) -> bool:
     """Apply the mint policy: eligibility rules, then Redis counters (global
     daily + hourly; per-domain daily on non-free-mail domains only). Fail closed
-    on Redis errors: an unverifiable mint is a skipped mint."""
+    on Redis errors: an unverifiable mint is a skipped mint. Each caller passes its
+    own `counter_prefix`, so one signup checked by the bridge and by the signup
+    grant uses one slot in each, not two in one."""
     domain = _email_domain(organization_email)
     if not email_rules_allow(organization_email, policy):
         return False
@@ -949,7 +958,7 @@ async def _mint_policy_allows(
     engine = get_cache_engine()
     try:
         for counter_key, cap, ttl, scope in _velocity_counters(
-            organization_email, policy
+            organization_email, policy, counter_prefix
         ):
             count = await engine.incr(counter_key)
             if count == 1:

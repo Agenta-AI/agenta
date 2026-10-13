@@ -1010,7 +1010,9 @@ async def _free_credits_check(organization_email: str) -> tuple[bool, bool]:
             if not _mint_policy.email_rules_allow(organization_email, policy):
                 return False, True
             return await _mint_policy._mint_policy_allows(
-                organization_email, policy
+                organization_email,
+                policy,
+                counter_prefix=_mint_policy.SIGNUP_GRANT_COUNTER_PREFIX,
             ), False
     except Exception:
         log.warning(

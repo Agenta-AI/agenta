@@ -380,6 +380,8 @@ async def test_retried_signup_sizes_the_wallet_from_the_stored_plan(monkeypatch)
 class _Policy:
     """Stands in for the starter-credits mint policy module."""
 
+    SIGNUP_GRANT_COUNTER_PREFIX = "signup-grant-counters"
+
     def __init__(self, *, email_allowed=True, caps_allow=True, policy=object()):
         self.email_allowed = email_allowed
         self.caps_allow = caps_allow
@@ -391,7 +393,8 @@ class _Policy:
     def email_rules_allow(self, organization_email, policy):
         return self.email_allowed
 
-    async def _mint_policy_allows(self, organization_email, policy):
+    async def _mint_policy_allows(self, organization_email, policy, counter_prefix):
+        assert counter_prefix == self.SIGNUP_GRANT_COUNTER_PREFIX
         return self.email_allowed and self.caps_allow
 
 
