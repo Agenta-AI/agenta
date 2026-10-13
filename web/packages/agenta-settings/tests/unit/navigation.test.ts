@@ -127,6 +127,7 @@ describe("settings sidebar scopes", () => {
             "channels",
             "apiKeys",
             "webhooks",
+            "browser-logins",
             "analytics",
         ])
         expect(keysForScope("organization")).toEqual([
