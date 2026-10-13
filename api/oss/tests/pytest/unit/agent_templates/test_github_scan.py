@@ -3,7 +3,11 @@ import json
 import httpx
 import pytest
 
-from oss.src.core.agent_templates.exceptions import TemplateSourceUnavailable
+from oss.src.core.agent_templates import github
+from oss.src.core.agent_templates.exceptions import (
+    TemplateSourceInvalid,
+    TemplateSourceUnavailable,
+)
 from oss.src.core.agent_templates.github import GitHubPackageFetcher
 from oss.tests.pytest.unit.agent_templates.fake_github import COMMIT, FakeGitHub
 
@@ -79,3 +83,12 @@ async def test_scan_rate_limit_is_retryable(fake):
         await _fetcher(fake).scan(repo_url=REPO_URL)
 
     assert exc_info.value.retryable is True
+
+
+async def test_scan_refuses_more_manifests_than_it_reads(fake, monkeypatch):
+    monkeypatch.setattr(github, "_SCAN_MAX_MANIFESTS", 1)
+
+    with pytest.raises(TemplateSourceInvalid) as exc_info:
+        await _fetcher(fake).scan(repo_url=REPO_URL)
+
+    assert exc_info.value.code == "template_source_limit_exceeded"

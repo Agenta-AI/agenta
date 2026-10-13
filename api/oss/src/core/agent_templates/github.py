@@ -42,7 +42,7 @@ GITHUB_RAW_URL = "https://raw.githubusercontent.com"
 _MAX_LISTING_BYTES = 2 * 1024 * 1024
 _SCAN_MAX_LISTING_BYTES = 16 * 1024 * 1024
 _SCAN_MAX_ENTRIES = 100_000
-_SCAN_MAX_TEMPLATES = 100
+_SCAN_MAX_MANIFESTS = 100
 _MAX_MANIFEST_BYTES = 64 * 1024
 _MAX_CONCURRENT_DOWNLOADS = 8
 _DEFAULT_TIMEOUT_SECONDS = 30.0
@@ -494,7 +494,12 @@ class _ScanSession(_GitHubSession):
             and entry.get("mode") in _FILE_MODES
             and type(entry.get("size")) is int
             and entry["size"] <= _MAX_MANIFEST_BYTES
-        ][:_SCAN_MAX_TEMPLATES]
+        ]
+        if len(manifests) > _SCAN_MAX_MANIFESTS:
+            raise _limit(
+                f"The repository has more than {_SCAN_MAX_MANIFESTS} plugin.json files.",
+                **self._details(),
+            )
 
         found = await asyncio.gather(*(self._template(commit, e) for e in manifests))
         return TemplateRepositoryScan(
