@@ -62,8 +62,12 @@ export interface PiModelConfigPlan {
    * carries only `$OPENAI_API_KEY`, never the key value.
    */
   apiKeyEnv: typeof OPENAI_API_KEY_ENV;
-  /** The exact selected model(s). v1 registers exactly one. */
-  models: Array<{ id: string }>;
+  /**
+   * The exact selected model(s). v1 registers exactly one. The entry may carry the built-in
+   * metadata Pi already holds for that model id (context window, output cap, request dialect);
+   * without it a custom provider model falls back to Pi's generic 128K/16K defaults.
+   */
+  models: PiModelEntry[];
   /**
    * Gateway credentials use `$ENV_VAR` indirection so raw values never reach this file.
    * Absent when the connection is not gateway-routed.
@@ -163,6 +167,55 @@ function entryFromBuiltin(id: string, builtin: PiBuiltinModel): PiModelEntry {
       ? { maxTokens: builtin.maxTokens }
       : {}),
   };
+}
+
+/** The host of a URL, or `undefined` when it is absent or unparseable. */
+function urlHost(url: string | undefined | null): string | undefined {
+  if (!url) return undefined;
+  try {
+    return new URL(url).host.toLowerCase();
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Find the built-in Pi definition that describes a requested custom-connection model.
+ *
+ * A custom provider is keyed by its connection slug and, before this, carried NO model metadata, so
+ * Pi fell back to its generic 128K window and 16K output cap for EVERY model on it -- including a
+ * model Pi already describes exactly. That is the bug: `deepseek-flash` is a 1M/384K reasoning model
+ * in Pi's own catalog, but a custom connection stripped it to 128K/16K, and once a session exceeded
+ * 128K tokens Pi's `clampMaxTokensToContext` floored `max_tokens` to 1, so the agent answered with a
+ * single token and the turn ended silently. Recovering the built-in definition is the fix, and
+ * reading the registry live means a Pi bump that adds or updates a model is picked up with no change
+ * here.
+ *
+ * A match needs the exact model id AND the connection endpoint's host. The id alone is not enough: a
+ * proxy or reseller serves a model under its vendor's id with limits of its own, and Pi budgets
+ * requests -- and compacts -- from whatever the entry declares, so carrying the vendor's limits onto
+ * an unverified endpoint can produce overlong, rejected requests. The shared host is what makes the
+ * built-in definition known to describe THIS endpoint. A tie (one id on several built-in providers
+ * that share the host) is not resolved: nothing is returned rather than guessed.
+ */
+function findBuiltinModel(
+  modelId: string,
+  connectionBaseUrl: string | undefined,
+  registry: PiBuiltinRegistry | undefined,
+): PiBuiltinModel | undefined {
+  if (!registry) return undefined;
+  const host = urlHost(connectionBaseUrl);
+  if (!host) return undefined;
+
+  const matches: PiBuiltinModel[] = [];
+  for (const provider of registry.providers()) {
+    for (const model of registry.models(provider)) {
+      if (model.id === modelId && urlHost(model.baseUrl) === host) {
+        matches.push(model);
+      }
+    }
+  }
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 /**
@@ -325,10 +378,18 @@ export function isPiModelConfigApplicable(request: AgentRunRequest): boolean {
  *   - a model id.
  *
  * The plan holds only an env-var reference for a provider key; the raw key never enters it.
+ *
+ * `registry` is Pi's own built-in catalog. When the requested model id matches a built-in
+ * definition ON the same endpoint host, that definition's metadata (context window, output cap,
+ * reasoning support, request dialect) rides on the model entry. A custom provider entry with no
+ * metadata makes Pi assume a 128K window and a 16K output cap; a session that then exceeds 128K
+ * tokens has `max_tokens` clamped to 1 and the agent answers nothing (see `findBuiltinModel`).
+ * Pass `undefined` to keep the metadata-free entry.
  */
 export function buildPiModelConfigPlan(
   request: AgentRunRequest,
   secrets: Record<string, string>,
+  registry?: PiBuiltinRegistry,
 ): PiModelConfigPlan | undefined {
   if (!isPiModelConfigApplicable(request)) return undefined;
 
@@ -370,6 +431,10 @@ export function buildPiModelConfigPlan(
       : (model as string);
   const modelId = stripped || (model as string);
 
+  // Carry the definition Pi already holds for this model. Without it the custom provider entry is
+  // metadata-free and Pi assumes a 128K window — the silent-truncation bug.
+  const builtin = findBuiltinModel(modelId, baseUrl, registry);
+
   return {
     providerId: slug as string,
     providerFamily: "openai",
@@ -383,7 +448,7 @@ export function buildPiModelConfigPlan(
       ? GATEWAY_PLACEHOLDER_API_KEY
       : `$${OPENAI_API_KEY_ENV}`,
     apiKeyEnv: OPENAI_API_KEY_ENV,
-    models: [{ id: modelId }],
+    models: [builtin ? entryFromBuiltin(builtin.id, builtin) : { id: modelId }],
     ...(gatewayCredentials
       ? { headers: { [gatewayCredentials.header]: `$${GATEWAY_CREDENTIALS_VALUE_ENV}` } }
       : {}),
@@ -410,7 +475,7 @@ export function serializePiModelsJson(plan: PiModelsJsonPlan): string {
         api: plan.api,
         apiKey: plan.apiKey,
         ...(plan.headers ? { headers: plan.headers } : {}),
-        models: plan.models.map((model) => ({ id: model.id })),
+        models: plan.models,
       };
   const document = { providers: { [piModelsJsonProviderId(plan)]: block } };
   return `${JSON.stringify(document, null, 2)}\n`;
