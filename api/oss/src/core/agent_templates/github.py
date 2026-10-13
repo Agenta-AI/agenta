@@ -501,7 +501,15 @@ class _ScanSession(_GitHubSession):
                 **self._details(),
             )
 
-        found = await asyncio.gather(*(self._template(commit, e) for e in manifests))
+        # A task group cancels the other manifest reads before the client closes.
+        try:
+            async with asyncio.TaskGroup() as group:
+                tasks = [
+                    group.create_task(self._template(commit, e)) for e in manifests
+                ]
+        except* (TemplateSourceInvalid, TemplateSourceUnavailable) as errors:
+            raise errors.exceptions[0] from None
+        found = [task.result() for task in tasks]
         return TemplateRepositoryScan(
             repo_url=self._repo_url,
             commit=commit,

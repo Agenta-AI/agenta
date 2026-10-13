@@ -92,3 +92,16 @@ async def test_scan_refuses_more_manifests_than_it_reads(fake, monkeypatch):
         await _fetcher(fake).scan(repo_url=REPO_URL)
 
     assert exc_info.value.code == "template_source_limit_exceeded"
+
+
+async def test_scan_fails_retryably_when_one_manifest_read_fails(fake):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/triage/plugin.json"):
+            return httpx.Response(503)
+        return fake.handler(request)
+
+    fetcher = GitHubPackageFetcher(transport=httpx.MockTransport(handler))
+    with pytest.raises(TemplateSourceUnavailable) as exc_info:
+        await fetcher.scan(repo_url=REPO_URL)
+
+    assert exc_info.value.retryable is True

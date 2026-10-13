@@ -79,7 +79,11 @@ export function RepoImportDrawer({
     const [selected, setSelected] = useState<Set<string>>(new Set())
     const [result, setResult] = useState<ReactNode>(null)
 
+    // Bumped on close and on each request, so a late answer from an older one is dropped.
+    const requestId = useRef(0)
+
     const close = useCallback(() => {
+        requestId.current++
         onClose()
         setStep("url")
         setRepoUrl("")
@@ -92,10 +96,12 @@ export function RepoImportDrawer({
     }, [onClose])
 
     const runScan = useCallback(async () => {
+        const id = ++requestId.current
         setBusy(true)
         setError(null)
         try {
             const response = await scan(repoUrl.trim())
+            if (id !== requestId.current) return
             if (response.candidates.length === 0) {
                 setError(`No ${noun} found in this repository.`)
                 return
@@ -111,29 +117,33 @@ export function RepoImportDrawer({
             )
             setStep("select")
         } catch (err) {
+            if (id !== requestId.current) return
             setError(
                 failureMessage(err) ??
                     "Scan failed. Check the URL and that the repository is public.",
             )
         } finally {
-            setBusy(false)
+            if (id === requestId.current) setBusy(false)
         }
     }, [multiple, noun, repoUrl, scan])
 
     const confirm = useCallback(async () => {
+        const id = ++requestId.current
         setBusy(true)
         setError(null)
         try {
             const summary = await onConfirm(repoUrl.trim(), Array.from(selected))
+            if (id !== requestId.current) return
             if (summary) {
                 setResult(summary)
                 setStep("done")
             } else close()
         } catch (err) {
+            if (id !== requestId.current) return
             const message = failureMessage(err)
             setError(message ? `Import failed: ${message}` : "Import failed.")
         } finally {
-            setBusy(false)
+            if (id === requestId.current) setBusy(false)
         }
     }, [close, onConfirm, repoUrl, selected])
 
