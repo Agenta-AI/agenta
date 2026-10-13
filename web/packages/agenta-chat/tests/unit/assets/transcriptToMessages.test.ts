@@ -1590,9 +1590,9 @@ describe("transcriptToMessages tool results stored before their calls", () => {
     // Two record writers can commit concurrently, so the durable log can hold a tool_result ahead
     // of its tool_call. Replay must still settle the step instead of showing it as running.
     const toolParts = (messages: UIMessage[] | null) =>
-        (messages ?? []).flatMap(
-            (message) => message.parts as unknown as Record<string, unknown>[],
-        ).filter((part) => typeof part.toolCallId === "string")
+        (messages ?? [])
+            .flatMap((message) => message.parts as unknown as Record<string, unknown>[])
+            .filter((part) => typeof part.toolCallId === "string")
 
     it("applies a result that arrives before its call", () => {
         const parts = toolParts(
@@ -1626,7 +1626,12 @@ describe("transcriptToMessages tool results stored before their calls", () => {
     it("applies an early error result to its call", () => {
         const parts = toolParts(
             transcriptToMessages([
-                record("r-result", {type: "tool_result", id: "tool-1", isError: true, output: "no"}),
+                record("r-result", {
+                    type: "tool_result",
+                    id: "tool-1",
+                    isError: true,
+                    output: "no",
+                }),
                 record("r-call", {type: "tool_call", id: "tool-1", name: "write", input: {}}),
             ]),
         )
@@ -1682,7 +1687,12 @@ describe("transcriptToMessages tool results stored before their calls", () => {
     it("does not touch a parked approval when the turn is done", () => {
         const parts = toolParts(
             transcriptToMessages([
-                record("r-call", {type: "tool_call", id: "tool-1", name: "commit_revision", input: {}}),
+                record("r-call", {
+                    type: "tool_call",
+                    id: "tool-1",
+                    name: "commit_revision",
+                    input: {},
+                }),
                 record("r-request", {
                     type: "interaction_request",
                     id: "approval-1",
