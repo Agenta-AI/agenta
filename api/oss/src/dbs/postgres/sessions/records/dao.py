@@ -242,22 +242,33 @@ class RecordsDAO(RecordsDAOInterface):
                     # transcript reconstruction goes through.
                     RecordDBE.quarantined_at.is_(None),
                 )
-                # Producer event time first: it is the only key that is monotonic across
-                # turns. `record_index` restarts at 0 every turn, and the worker can batch
-                # records from two turns into one write so they share `created_at` — the old
-                # (created_at, record_index) order then sorted the NEXT turn's first record
-                # ahead of the PREVIOUS turn's later ones, interleaving the conversation.
-                # Rows written before `timestamp` existed sort last within their ingest batch.
-                .order_by(
-                    RecordDBE.timestamp.asc().nullslast(),
-                    RecordDBE.created_at.asc(),
-                    RecordDBE.record_index.asc(),
-                )
+                .order_by(*self._send_order())
             )
 
             dbes = (await session.execute(stmt)).scalars().all()
             return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
 
+    @staticmethod
+    def _send_order():
+        # The order the runner sent the records, for transcript reads. `sequence` is commit
+        # order, not send order: two record workers race, so a tool_result can commit (and
+        # take a lower sequence) before its tool_call. The runner's own keys hold the send
+        # order: `timestamp` is its event time and the only key monotonic across turns, and
+        # `record_index` is the position within the turn. `record_index` comes before
+        # `created_at` (the worker's commit time) because two records can share a
+        # millisecond. Unsequenced legacy rows stay first. `sequence` and `record_id` only
+        # make the order total, so offset paging never repeats or skips a row.
+        return (
+            RecordDBE.sequence.is_(None).desc(),
+            RecordDBE.timestamp.asc().nullslast(),
+            RecordDBE.record_index.asc().nullslast(),
+            RecordDBE.created_at.asc(),
+            RecordDBE.sequence.asc().nullsfirst(),
+            RecordDBE.record_id.asc(),
+        )
+
+    # Commit order, for "everything after N" readers. Live catch-up skips every record at or
+    # below the last sequence it sent, so this read must stay in sequence order.
     @staticmethod
     def _transcript_order():
         return (
@@ -296,7 +307,7 @@ class RecordsDAO(RecordsDAOInterface):
                         RecordDBE.sequence <= through_sequence,
                     ),
                 )
-                .order_by(*self._transcript_order())
+                .order_by(*self._send_order())
                 .offset(offset)
                 .limit(limit + 1)
             )
