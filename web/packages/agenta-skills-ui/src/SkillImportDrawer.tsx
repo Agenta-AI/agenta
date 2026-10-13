@@ -4,6 +4,7 @@
  */
 import {useCallback} from "react"
 
+import {formatCount} from "@agenta/shared/utils"
 import {importSkillSource, scanSkillSource} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {RepoImportDrawer, type RepoScanResult} from "@agenta/ui/create-menu"
@@ -15,7 +16,6 @@ export interface SkillImportDrawerProps {
     projectId: string
     /** Fires once per successful import with what landed — e.g. to also add them to an agent. */
     onImported?: (imported: {name?: string; workflowId?: string; pathInRepo: string}[]) => void
-    width?: number
 }
 
 const issueText = (issues?: {message?: string | null}[] | null): string =>
@@ -24,15 +24,7 @@ const issueText = (issues?: {message?: string | null}[] | null): string =>
         .filter(Boolean)
         .join(" ") || "Invalid skill."
 
-const plural = (count: number) => `${count} ${count === 1 ? "skill" : "skills"}`
-
-export function SkillImportDrawer({
-    open,
-    onClose,
-    projectId,
-    onImported,
-    width,
-}: SkillImportDrawerProps) {
+export function SkillImportDrawer({open, onClose, projectId, onImported}: SkillImportDrawerProps) {
     const scan = useCallback(
         async (repoUrl: string): Promise<RepoScanResult> => {
             const response = await scanSkillSource({projectId, repoUrl})
@@ -53,7 +45,6 @@ export function SkillImportDrawer({
                               ? null
                               : issueText(c.issues),
                         badge: imported ? "Already imported" : undefined,
-                        preselected: true,
                     }
                 }),
                 note:
@@ -91,7 +82,7 @@ export function SkillImportDrawer({
                             weight="fill"
                             className="text-[var(--ag-colorSuccess)]"
                         />
-                        Imported {plural(imported.length)}
+                        Imported {formatCount(imported.length, "skill")}
                     </span>
                     {imported.map((item) => (
                         <span key={item.path_in_repo} className="pl-5 font-mono">
@@ -131,12 +122,11 @@ export function SkillImportDrawer({
             onClose={onClose}
             title="Import skills from a repo"
             hint="Scan a public GitHub repository for SKILL.md folders."
-            noun={["skill", "skills"]}
+            noun="skills"
             multiple
             scan={scan}
-            confirmLabel={(count) => `Import ${plural(count)}`}
+            confirmLabel={(count) => `Import ${formatCount(count, "skill")}`}
             onConfirm={confirm}
-            width={width}
         />
     )
 }

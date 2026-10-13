@@ -15,8 +15,6 @@ export interface RepoScanCandidate {
     unavailable?: string | null
     /** A short tag after the name, e.g. "Already imported". */
     badge?: string
-    /** Starts selected (multiple mode only). */
-    preselected?: boolean
 }
 
 export interface RepoScanResult {
@@ -31,15 +29,14 @@ export interface RepoImportDrawerProps {
     title: string
     /** The line under the URL field. */
     hint: string
-    /** Singular and plural, e.g. ["skill", "skills"]. */
-    noun: [string, string]
+    /** Plural, e.g. "skills". */
+    noun: string
     scan: (repoUrl: string) => Promise<RepoScanResult>
-    /** Pick several rows; otherwise exactly one. */
+    /** Pick several rows, all available ones preselected; otherwise exactly one. */
     multiple?: boolean
     confirmLabel: (count: number) => string
     /** Runs the pick. A returned node is shown as the result; otherwise the drawer closes. */
     onConfirm: (repoUrl: string, paths: string[]) => Promise<ReactNode | void>
-    width?: number
 }
 
 /** The server's own sentence for a failure, rather than the status code and raw JSON body. */
@@ -66,7 +63,6 @@ export function RepoImportDrawer({
     multiple = false,
     confirmLabel,
     onConfirm,
-    width = 480,
 }: RepoImportDrawerProps) {
     const [step, setStep] = useState<"url" | "select" | "done">("url")
     // Focus a frame after opening: the sheet's own focus lands first and beats `autoFocus`.
@@ -102,7 +98,7 @@ export function RepoImportDrawer({
         try {
             const response = await scan(repoUrl.trim())
             if (response.candidates.length === 0) {
-                setError(`No ${noun[1]} found in this repository.`)
+                setError(`No ${noun} found in this repository.`)
                 return
             }
             setFound(response)
@@ -110,9 +106,7 @@ export function RepoImportDrawer({
             setSelected(
                 new Set(
                     multiple
-                        ? response.candidates
-                              .filter((c) => c.preselected && !c.unavailable)
-                              .map((c) => c.path)
+                        ? response.candidates.filter((c) => !c.unavailable).map((c) => c.path)
                         : [],
                 ),
             )
@@ -169,7 +163,7 @@ export function RepoImportDrawer({
             open={open}
             onClose={close}
             placement="right"
-            width={width}
+            width={480}
             destroyOnClose
             title={<span className="text-sm font-medium">{title}</span>}
             styles={{
@@ -247,7 +241,7 @@ export function RepoImportDrawer({
                     <>
                         <div className="flex flex-col gap-1.5 text-xs">
                             <span className="font-medium">
-                                {noun[1].charAt(0).toUpperCase() + noun[1].slice(1)} found ·{" "}
+                                {noun[0].toUpperCase() + noun.slice(1)} found ·{" "}
                                 {found.candidates.length}
                             </span>
                             {found.candidates.length > 5 ? (

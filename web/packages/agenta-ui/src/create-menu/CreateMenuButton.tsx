@@ -1,7 +1,7 @@
 // The `+ New …` menu every creation entry point shares: tinted-tile rows, one per way to create.
 import {Fragment, useRef, type ReactNode} from "react"
 
-import {Plus} from "@phosphor-icons/react"
+import {GitBranch, PencilSimple, Plus, UploadSimple} from "@phosphor-icons/react"
 
 import {AGENT_ICON_CHIP_CLASS, agentIconChipStyle} from "../agent-icon/AgentIcon"
 import {
@@ -15,13 +15,15 @@ import {
 } from "../components/ui"
 import {cn} from "../utils/styles"
 
-/** The tiles' colours: olive for writing, the palette's teal for an upload, its blue for a repo. */
-export const CREATE_MENU_COLORS = {write: "#6b7d3f", upload: "#0F766E", import: "#1668DC"}
+/** Each kind's tile: olive for writing, the palette's teal for an upload, its blue for a repo. */
+const TILES = {
+    write: {color: "#6b7d3f", icon: <PencilSimple size={15} />},
+    upload: {color: "#0F766E", icon: <UploadSimple size={15} />},
+    import: {color: "#1668DC", icon: <GitBranch size={15} />},
+}
 
 export interface CreateMenuOption {
-    key: string
-    color: string
-    icon: ReactNode
+    kind: keyof typeof TILES
     title: string
     hint: string
     onSelect?: () => void
@@ -30,12 +32,11 @@ export interface CreateMenuOption {
     accept?: string
     multiple?: boolean
     disabled?: boolean
-    /** Starts a new group under a separator. */
-    separated?: boolean
 }
 
 export interface CreateMenuButtonProps {
     label: string
+    /** The first row stands apart from the rest under a separator. */
     options: CreateMenuOption[]
     /** Rendered under the rows, after a separator — e.g. a link to a gallery. */
     footer?: ReactNode
@@ -81,9 +82,9 @@ export function CreateMenuButton({
                 </LoadingButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="max-w-[320px]">
-                {options.map((option) => (
-                    <Fragment key={option.key}>
-                        {option.separated ? <DropdownMenuSeparator /> : null}
+                {options.map((option, index) => (
+                    <Fragment key={option.kind}>
+                        {index === 1 ? <DropdownMenuSeparator /> : null}
                         <DropdownMenuItem
                             disabled={option.disabled}
                             onSelect={() =>
@@ -96,9 +97,9 @@ export function CreateMenuButton({
                                     "flex size-7 shrink-0 items-center justify-center rounded-md",
                                     AGENT_ICON_CHIP_CLASS,
                                 )}
-                                style={agentIconChipStyle(option.color)}
+                                style={agentIconChipStyle(TILES[option.kind].color)}
                             >
-                                {option.icon}
+                                {TILES[option.kind].icon}
                             </span>
                             <span className="flex min-w-0 flex-col py-0.5">
                                 <span className="truncate text-sm text-colorText">

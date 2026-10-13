@@ -1,14 +1,12 @@
 import {useState} from "react"
 
 import {
-    CREATE_MENU_COLORS,
     CreateMenuButton,
     RepoImportDrawer,
     type CreateMenuOption,
     type RepoScanResult,
 } from "@agenta/ui/create-menu"
 import {Button} from "@agenta/ui/ui"
-import {GitBranch, PencilSimple, UploadSimple} from "@phosphor-icons/react"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 // The shared `+ New …` menu (skills and agents) and the import-from-repo drawer behind it.
@@ -21,33 +19,11 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+const noop = () => undefined
 const AGENT_OPTIONS: CreateMenuOption[] = [
-    {
-        key: "blank",
-        color: CREATE_MENU_COLORS.write,
-        icon: <PencilSimple size={15} />,
-        title: "Start from scratch",
-        hint: "Start with an empty agent and shape it in chat",
-        onSelect: () => undefined,
-    },
-    {
-        key: "upload",
-        color: CREATE_MENU_COLORS.upload,
-        icon: <UploadSimple size={15} />,
-        title: "Upload",
-        hint: "An agent template .zip",
-        accept: ".zip",
-        onFiles: () => undefined,
-        separated: true,
-    },
-    {
-        key: "import",
-        color: CREATE_MENU_COLORS.import,
-        icon: <GitBranch size={15} />,
-        title: "Import from a repo",
-        hint: "Scan a public GitHub repository for agent templates",
-        onSelect: () => undefined,
-    },
+    {kind: "write", title: "Start from scratch", hint: "An empty agent", onSelect: noop},
+    {kind: "upload", title: "Upload", hint: "An agent template .zip", onFiles: noop},
+    {kind: "import", title: "Import from a repo", hint: "A public GitHub repo", onSelect: noop},
 ]
 
 export const AgentMenu: Story = {args: {label: "New agent", options: AGENT_OPTIONS}}
@@ -73,10 +49,10 @@ const DrawerPreview = ({fail}: {fail?: boolean}) => {
                 onClose={() => setOpen(false)}
                 title="Import an agent from a repo"
                 hint="Scan a public GitHub repository for agent templates."
-                noun={["agent template", "agent templates"]}
+                noun="agent templates"
                 scan={async () => {
                     await new Promise((resolve) => setTimeout(resolve, 600))
-                    if (fail) throw new Error("The repository or ref was not found on GitHub.")
+                    if (fail) throw new Error("The repository was not found on GitHub.")
                     return FOUND
                 }}
                 confirmLabel={() => "Create agent"}

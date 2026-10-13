@@ -1,5 +1,4 @@
 export {
-    CREATE_MENU_COLORS,
     CreateMenuButton,
     type CreateMenuButtonProps,
     type CreateMenuOption,
