@@ -757,6 +757,23 @@ async def auto_webhook_test_v0(
     raise InvalidOutputsV0Error(expected=["dict", "str"], got=_outputs)
 
 
+# ---------------------------------------------------------------------------
+# Shared sandbox helper
+# ---------------------------------------------------------------------------
+
+
+async def _run_sandboxed(fn, *args):
+    """Run a synchronous sandbox call off the event loop with a hard timeout.
+
+    Reads ``AGENTA_CODE_EVALUATOR_TIMEOUT`` (seconds, default 45) at call time
+    so tests can override it via ``monkeypatch.setenv`` without patching a
+    module-level constant.  Raises ``asyncio.TimeoutError`` on deadline breach;
+    callers convert it to their domain error.
+    """
+    timeout = float(os.environ.get("AGENTA_CODE_EVALUATOR_TIMEOUT", "45"))
+    return await asyncio.wait_for(asyncio.to_thread(fn, *args), timeout=timeout)
+
+
 @instrument()
 async def auto_custom_code_run_v0(
     parameters: Optional[Data] = None,
@@ -826,12 +843,6 @@ async def auto_custom_code_run_v0(
 
     effective_version = declared_version if declared_version in {"1", "2", "3"} else "1"
 
-    # Hard timeout (seconds) for the sandbox call.  Set below the gunicorn worker
-    # timeout (default 60 s) so a slow evaluator returns a clean error instead of
-    # letting the worker be SIGABRT'd.  Configurable via env var so operators can
-    # tune without a code change.
-    _sandbox_timeout = float(os.environ.get("AGENTA_CODE_EVALUATOR_TIMEOUT", "45"))
-
     def _run_v2(version: str) -> Any:
         try:
             return execute_code_safely(
@@ -884,25 +895,18 @@ async def auto_custom_code_run_v0(
                 stacktrace=traceback.format_exc(),
             ) from e
 
-    # execute_code_safely is synchronous and can take tens of seconds when the
-    # Daytona runner creates/destroys a sandbox.  Running it directly on the
-    # uvicorn event loop blocks all other requests (including /health) on the
-    # same worker, which causes gunicorn to SIGABRT the worker and triggers a
-    # Kubernetes pod restart.  Offload to a thread so the event loop stays live.
+    # execute_code_safely is synchronous and can block for tens of seconds while
+    # the Daytona runner creates or destroys a sandbox.  _run_sandboxed offloads
+    # it to a thread pool so the event loop stays live during execution.
     try:
         if effective_version in ("2", "3"):
-            _outputs = await asyncio.wait_for(
-                asyncio.to_thread(_run_v2, effective_version),
-                timeout=_sandbox_timeout,
-            )
+            _outputs = await _run_sandboxed(_run_v2, effective_version)
         else:
-            _outputs = await asyncio.wait_for(
-                asyncio.to_thread(_run_v1),
-                timeout=_sandbox_timeout,
-            )
+            _outputs = await _run_sandboxed(_run_v1)
     except asyncio.TimeoutError:
+        _t = float(os.environ.get("AGENTA_CODE_EVALUATOR_TIMEOUT", "45"))
         raise CustomCodeServerV0Error(
-            message=(f"Custom code evaluator timed out after {_sandbox_timeout:.0f} s"),
+            message=f"Custom code evaluator timed out after {_t:.0f} s",
             stacktrace="",
         )
 
@@ -2965,8 +2969,8 @@ async def code_v0(
     if outputs is not None and not isinstance(outputs, (str, dict)):
         raise InvalidOutputsV0Error(expected=["dict", "str", "None"], got=outputs)
 
-    try:
-        _result = execute_code_safely(
+    def _run_code():
+        return execute_code_safely(
             app_params={},
             inputs=inputs or {},
             output=outputs,
@@ -2976,6 +2980,15 @@ async def code_v0(
             templates=EVALUATOR_TEMPLATES.get("v2" if version == "3" else "v1", {}),
             version=version,
             trace=trace,
+        )
+
+    try:
+        _result = await _run_sandboxed(_run_code)
+    except asyncio.TimeoutError:
+        _t = float(os.environ.get("AGENTA_CODE_EVALUATOR_TIMEOUT", "45"))
+        raise CodeV0Error(
+            message=f"Custom code evaluator timed out after {_t:.0f} s",
+            stacktrace="",
         )
     except ErrorStatus:
         raise

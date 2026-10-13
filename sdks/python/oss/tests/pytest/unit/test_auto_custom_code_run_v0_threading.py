@@ -1,10 +1,12 @@
-"""Unit tests for the fix to ``auto_custom_code_run_v0`` (issue #7505).
+"""Unit tests for the sandbox-offload fix (issue #7505).
+
+Covers both ``auto_custom_code_run_v0`` and ``code_v0``.
 
 Verifies that:
 - ``execute_code_safely`` is invoked via ``asyncio.to_thread`` (i.e. off the
   event loop) so the uvicorn worker stays responsive during sandbox execution.
-- A ``CustomCodeServerV0Error`` is raised when the sandbox call exceeds the
-  configured timeout instead of blocking the worker until gunicorn kills it.
+- A domain error is raised when the sandbox call exceeds the configured timeout
+  instead of blocking the worker until gunicorn kills it.
 - The timeout is configurable via ``AGENTA_CODE_EVALUATOR_TIMEOUT``.
 - Normal (non-timeout) results are still returned correctly.
 """
@@ -14,12 +16,13 @@ import threading
 import pytest
 
 from agenta.sdk.engines.running import handlers as code_handlers
-from agenta.sdk.engines.running.errors import CustomCodeServerV0Error
+from agenta.sdk.engines.running.errors import CodeV0Error, CustomCodeServerV0Error
 
 
-# The handler is wrapped by ``@instrument()``.  Access the raw function so
+# The handlers are wrapped by ``@instrument()``.  Access the raw functions so
 # tests don't need a tracing context.
 _auto_custom_code_run_v0 = code_handlers.auto_custom_code_run_v0.__original_handler__
+_code_v0 = code_handlers.code_v0.__original_handler__
 
 
 # ---------------------------------------------------------------------------
@@ -181,3 +184,60 @@ async def test_v2_interface_also_offloaded_to_thread(monkeypatch):
     assert len(called_from) == 1
     assert called_from[0] != threading.main_thread().ident
     assert result == {"score": 0.9, "success": True}
+
+
+# ===========================================================================
+# code_v0 threading tests
+# ===========================================================================
+
+
+_CODE_V0_PARAMETERS = {
+    "code": "def evaluate(inputs, outputs, trace): return 0.8",
+    "threshold": 0.5,
+    "runtime": "python",
+    "version": "2",
+}
+
+
+@pytest.mark.asyncio
+async def test_code_v0_execute_code_safely_runs_in_thread(monkeypatch):
+    """code_v0 must call execute_code_safely from a worker thread, not the event loop."""
+    called_from_thread_ids = []
+
+    def _fake_execute_code_safely(*args, **kwargs):
+        called_from_thread_ids.append(threading.current_thread().ident)
+        return 0.8
+
+    monkeypatch.setattr(code_handlers, "execute_code_safely", _fake_execute_code_safely)
+
+    result = await _code_v0(
+        parameters=_CODE_V0_PARAMETERS,
+        inputs={"q": "test"},
+        outputs={"answer": "ok"},
+    )
+
+    assert len(called_from_thread_ids) == 1
+    assert called_from_thread_ids[0] != threading.main_thread().ident
+    assert result == {"score": 0.8, "success": True}
+
+
+@pytest.mark.asyncio
+async def test_code_v0_timeout_raises_code_v0_error(monkeypatch):
+    """A sandbox call in code_v0 that exceeds the timeout raises CodeV0Error."""
+
+    def _blocking_execute(*args, **kwargs):
+        import time
+
+        time.sleep(9999)
+
+    monkeypatch.setenv("AGENTA_CODE_EVALUATOR_TIMEOUT", "0.05")
+    monkeypatch.setattr(code_handlers, "execute_code_safely", _blocking_execute)
+
+    with pytest.raises(CodeV0Error) as exc_info:
+        await _code_v0(
+            parameters=_CODE_V0_PARAMETERS,
+            inputs={"q": "test"},
+            outputs={"answer": "ok"},
+        )
+
+    assert "timed out" in exc_info.value.message.lower()
