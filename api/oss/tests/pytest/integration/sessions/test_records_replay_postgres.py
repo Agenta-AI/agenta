@@ -110,8 +110,11 @@ async def test_snapshot_n_followed_by_events_after_n_loses_no_commit():
         )
 
         assert snapshot.latest_sequence == 1
-        assert [event.sequence for event in replay.events] == [3, 6, 7, 9]
-        assert replay.events[0].payload.content == "three"
+        # The runner persists turn completion as a `done` record, and replay reports it as
+        # execution.stopped (sequence 2).
+        assert [event.sequence for event in replay.events] == [2, 3, 6, 7, 9]
+        assert replay.events[0].type == "execution.stopped"
+        assert replay.events[1].payload.content == "three"
         assert replay.events[-1].payload.content == "nine"
         assert replay.events[-1].watermark == 9
         assert replay.watermark == 9
