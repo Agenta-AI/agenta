@@ -38,7 +38,9 @@ export const BrowserWaitWidget = ({meta, settle, bare = false}: ClientToolWidget
 
     const finish = () => {
         setOpen(false)
-        void settle({output: {done: true}})
+        void settle({
+            output: {done: true, message: "The person is done. You have the browser again."},
+        })
     }
     const cancel = () => {
         setOpen(false)
