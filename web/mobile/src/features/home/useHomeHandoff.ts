@@ -131,5 +131,6 @@ export const useHomeHandoff = (base: string, projectId: string) => {
         onStartTask,
         onCreateFromPrompt,
         sending: starting || newAgent.creating,
+        newAgent,
     }
 }

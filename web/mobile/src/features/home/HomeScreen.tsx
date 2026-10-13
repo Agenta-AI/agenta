@@ -16,6 +16,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
+import {NewAgentAction} from "../agents/NewAgentAction"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useCurrentProject} from "../context/useCurrentProject"
 import {whatsNewAtom} from "../education/whatsNewAtom"
@@ -105,6 +106,15 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             onCreateFromPrompt={handoff.onCreateFromPrompt}
             sending={handoff.sending}
             templatesHref={`${base}/templates`}
+            newAction={
+                <NewAgentAction
+                    newAgent={handoff.newAgent}
+                    base={base}
+                    align="end"
+                    variant="outline"
+                    size="sm"
+                />
+            }
             loading={agentsQuery.isPending}
             loadingSlot={<HomeListSkeleton />}
             emptySlot={<HomeSectionEmpty text="Agents you create will show up here." />}
