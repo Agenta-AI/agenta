@@ -196,7 +196,7 @@ class AgentTemplatesRouter:
     ) -> TemplateRepositoryScan | JSONResponse:
         await self._require_view(request)
         try:
-            return await self._scanner.scan(repo_url=payload.repo_url, ref=payload.ref)
+            return await self._scanner.scan(repo_url=payload.repo_url)
         except Exception as exc:
             response = template_load_error_response(exc)
             if response is None:

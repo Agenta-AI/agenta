@@ -2,5 +2,4 @@
 
 export interface TemplateSourceScanRequest {
     repo_url: string;
-    ref?: (string | null) | undefined;
 }

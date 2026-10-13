@@ -5,11 +5,7 @@ import pytest
 
 from oss.src.core.agent_templates.exceptions import TemplateSourceUnavailable
 from oss.src.core.agent_templates.github import GitHubPackageFetcher
-from oss.tests.pytest.unit.agent_templates.fake_github import (
-    COMMIT,
-    OTHER_COMMIT,
-    FakeGitHub,
-)
+from oss.tests.pytest.unit.agent_templates.fake_github import COMMIT, FakeGitHub
 
 REPO_URL = "https://github.com/agenta-ai/templates"
 
@@ -45,7 +41,7 @@ def fake() -> FakeGitHub:
             "nested": {"deep": {"triage": {"plugin.json": _plugin("triage")}}},
         },
     )
-    fake.refs["agenta-ai/templates"] = {"HEAD": COMMIT, "main": COMMIT}
+    fake.heads["agenta-ai/templates"] = COMMIT
     return fake
 
 
@@ -67,24 +63,9 @@ async def test_scan_lists_agenta_packages_at_the_resolved_commit(fake):
     assert all(r.url.path.endswith("/plugin.json") for r in raw)
 
 
-async def test_scan_resolves_a_branch_ref(fake):
-    scan = await _fetcher(fake).scan(repo_url=REPO_URL, ref="main")
-
-    assert scan.commit == COMMIT
-    assert any(r.url.path.endswith("/commits/main") for r in fake.requests)
-
-
-@pytest.mark.parametrize(
-    ("repo_url", "ref"),
-    [
-        ("https://github.com/agenta-ai/private", None),
-        (REPO_URL, "missing-branch"),
-        (REPO_URL, OTHER_COMMIT),
-    ],
-)
-async def test_scan_of_a_missing_repository_or_ref_is_actionable(fake, repo_url, ref):
+async def test_scan_of_a_missing_repository_is_actionable(fake):
     with pytest.raises(TemplateSourceUnavailable) as exc_info:
-        await _fetcher(fake).scan(repo_url=repo_url, ref=ref)
+        await _fetcher(fake).scan(repo_url="https://github.com/agenta-ai/private")
 
     assert exc_info.value.code == "template_source_github_unavailable"
     assert "private" in exc_info.value.message

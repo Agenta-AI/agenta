@@ -1,7 +1,13 @@
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from oss.src.core.agent_templates.dtos import (
     TemplateLoadCommand,
@@ -96,23 +102,14 @@ class TemplateLoadRequest(_StrictRequestModel):
 
 class TemplateSourceScanRequest(_StrictRequestModel):
     repo_url: str = Field(max_length=256)
-    # A branch, tag or commit; omitted scans the default branch.
-    ref: str | None = Field(default=None, max_length=255, pattern=r"^[A-Za-z0-9._/-]+$")
 
     @field_validator("repo_url")
     @classmethod
     def normalize_repo_url(cls, value: str) -> str:
         value = value.strip()
-        if not value.startswith(("http://", "https://")):
-            value = f"https://{value}"
-        return normalize_github_repo_url(value)
-
-    @field_validator("ref")
-    @classmethod
-    def reject_relative_ref(cls, value: str | None) -> str | None:
-        if value is not None and ".." in value:
-            raise ValueError("ref must be a branch, tag or commit.")
-        return value
+        return normalize_github_repo_url(
+            value if "://" in value else f"https://{value}"
+        )
 
 
 class TemplatesQueryRequest(_StrictRequestModel):

@@ -100,14 +100,10 @@ class GitHubPackageFetcher:
                 )
             )
 
-    async def scan(
-        self, *, repo_url: str, ref: str | None = None
-    ) -> TemplateRepositoryScan:
-        """List the template packages (directories with an Agenta plugin.json) at a ref."""
+    async def scan(self, *, repo_url: str) -> TemplateRepositoryScan:
+        """List the template packages on the default branch, pinned to its head commit."""
         async with self._client() as client:
-            return await self._run(
-                _ScanSession(client=client, repo_url=repo_url, ref=ref)
-            )
+            return await self._run(_ScanSession(client=client, repo_url=repo_url))
 
     def _client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(
@@ -123,7 +119,7 @@ class GitHubPackageFetcher:
             },
         )
 
-    async def _run(self, session: "_GitHubSession") -> Any:
+    async def _run(self, session: "_FetchSession | _ScanSession") -> Any:
         try:
             async with asyncio.timeout(self._total_timeout_seconds):
                 return await session.run()
@@ -148,13 +144,11 @@ class _GitHubSession:
         self._base_details = details
         self._limits = limits
         self._max_listing_bytes = max_listing_bytes
+        self._slots = asyncio.Semaphore(_MAX_CONCURRENT_DOWNLOADS)
         self._repo_api = (
             f"{GITHUB_API_URL}/repos/{quote(owner, safe='')}/{quote(repo, safe='')}"
         )
         self._api = f"{self._repo_api}/git"
-
-    async def run(self) -> Any:
-        raise NotImplementedError
 
     def _details(self, **extra: object) -> dict:
         return {**self._base_details, **extra}
@@ -211,9 +205,12 @@ class _GitHubSession:
         headers: dict | None = None,
     ):
         try:
-            async with self._client.stream(
-                "GET", url, params=params, headers=headers
-            ) as response:
+            async with (
+                self._slots,
+                self._client.stream(
+                    "GET", url, params=params, headers=headers
+                ) as response,
+            ):
                 if response.status_code == 404:
                     return response, None
                 rate_limited = response.status_code == 429 or (
@@ -420,46 +417,39 @@ class _FetchSession(_GitHubSession):
         entries = await self._tree_entries(tree_sha, recursive=True)
         planned = self._plan_downloads(entries)
 
-        semaphore = asyncio.Semaphore(_MAX_CONCURRENT_DOWNLOADS)
-
-        async def bounded(item: tuple[str, str, int]) -> GitHubPackageFile:
-            async with semaphore:
-                return await self._download(*item)
-
         # A task group cancels the remaining downloads when one fails.
         try:
             async with asyncio.TaskGroup() as group:
-                tasks = [group.create_task(bounded(item)) for item in planned]
+                tasks = [group.create_task(self._download(*item)) for item in planned]
         except* (TemplateSourceInvalid, TemplateSourceUnavailable) as errors:
             raise errors.exceptions[0] from None
         return [task.result() for task in tasks]
 
 
 class _ScanSession(_GitHubSession):
-    def __init__(self, *, client: httpx.AsyncClient, repo_url: str, ref: str | None):
+    def __init__(self, *, client: httpx.AsyncClient, repo_url: str):
         owner, repo = repo_url.split("/")[3:5]
         super().__init__(
             client=client,
             owner=owner,
             repo=repo,
-            details={"repo_url": repo_url, "ref": ref},
+            details={"repo_url": repo_url},
             limits=PackageLimits(max_archive_entries=_SCAN_MAX_ENTRIES),
             max_listing_bytes=_SCAN_MAX_LISTING_BYTES,
         )
         self._repo_url = repo_url
-        self._ref = ref or "HEAD"
 
     def _unavailable(self) -> TemplateSourceUnavailable:
         return TemplateSourceUnavailable(
             "template_source_github_unavailable",
-            "The repository or ref was not found on GitHub. Only public "
+            "The repository was not found on GitHub. Only public "
             "repositories are supported; private repositories cannot be scanned.",
             details=self._details(),
         )
 
     async def _resolve_commit(self) -> str:
         _, body = await self._get(
-            f"{self._repo_api}/commits/{quote(self._ref, safe='/')}",
+            f"{self._repo_api}/commits/HEAD",
             max_bytes=64,
             headers={"Accept": "application/vnd.github.sha"},
         )
@@ -479,7 +469,8 @@ class _ScanSession(_GitHubSession):
         except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
             return None
         extensions = plugin.get("extensions") if isinstance(plugin, dict) else None
-        if not isinstance(extensions, dict) or "ai.agenta" not in extensions:
+        agenta = extensions.get("ai.agenta") if isinstance(extensions, dict) else None
+        if not isinstance(agenta, dict) or not isinstance(agenta.get("manifest"), str):
             return None
         directory = entry["path"].rsplit("/", 1)[0]
         return TemplateRepositoryEntry(
@@ -505,13 +496,7 @@ class _ScanSession(_GitHubSession):
             and entry["size"] <= _MAX_MANIFEST_BYTES
         ][:_SCAN_MAX_TEMPLATES]
 
-        semaphore = asyncio.Semaphore(_MAX_CONCURRENT_DOWNLOADS)
-
-        async def bounded(entry: dict) -> TemplateRepositoryEntry | None:
-            async with semaphore:
-                return await self._template(commit, entry)
-
-        found = await asyncio.gather(*(bounded(entry) for entry in manifests))
+        found = await asyncio.gather(*(self._template(commit, e) for e in manifests))
         return TemplateRepositoryScan(
             repo_url=self._repo_url,
             commit=commit,

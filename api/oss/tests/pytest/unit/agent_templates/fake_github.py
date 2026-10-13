@@ -31,7 +31,7 @@ class FakeGitHub:
 
     def __init__(self) -> None:
         self.repos: dict[str, dict[str, dict]] = {}
-        self.refs: dict[str, dict[str, str]] = {}
+        self.heads: dict[str, str] = {}
         self.trees: dict[str, dict] = {}
         self.blobs: dict[str, bytes] = {}
         self.requests: list[httpx.Request] = []
@@ -126,9 +126,8 @@ class FakeGitHub:
         parts = path.lstrip("/").split("/")
         repo = f"{parts[1]}/{parts[2]}"
         if parts[3] == "commits":
-            ref = "/".join(parts[4:])
-            commit = self.refs.get(repo, {}).get(ref, ref)
-            if commit not in self.repos.get(repo, {}):
+            commit = self.heads.get(repo)
+            if commit is None:
                 return httpx.Response(404, json={"message": "Not Found"})
             assert request.headers["accept"] == "application/vnd.github.sha"
             return httpx.Response(200, text=commit)
