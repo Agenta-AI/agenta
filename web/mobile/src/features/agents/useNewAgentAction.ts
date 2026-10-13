@@ -7,6 +7,7 @@ import {
     appendSetupPreamble,
     invalidateWorkflowsListCache,
     type AgentSetupSelection,
+    type AgentTemplateSource,
 } from "@agenta/entities/workflow"
 import {useCreateAgent} from "@agenta/home-ui"
 import type {FileUIPart} from "ai"
@@ -54,6 +55,8 @@ export const useNewAgentAction = (base: string) => {
             seedParts?: FileUIPart[]
             /** The starter template this create came from, carried to the session's connect step. */
             templateKey?: string
+            /** A template package from outside the catalog (an upload or a GitHub repository). */
+            source?: AgentTemplateSource
             /**
              * What the pre-create connect step decided (#6043) — which accounts are connected,
              * which were skipped, how much the agent may do. Rides along on the seed so the
@@ -102,6 +105,7 @@ export const useNewAgentAction = (base: string) => {
                 name: params?.name,
                 entityId: params?.entityId,
                 template,
+                source: params?.source,
                 initialMessage: params?.seedMessage,
                 stagingSessionId: params?.sessionId,
                 attachmentIds: params?.seedParts?.map((part) => {
@@ -229,5 +233,12 @@ export const useNewAgentAction = (base: string) => {
         [run],
     )
 
-    return {create, createFromTemplate, createFromPrompt, creating, error}
+    /** Load an uploaded or GitHub template package; its first turn starts on the server. */
+    const createFromSource = useCallback(
+        (source: AgentTemplateSource) =>
+            run({source, seedMessage: "Set up this agent from its template."}),
+        [run],
+    )
+
+    return {create, createFromTemplate, createFromPrompt, createFromSource, creating, error}
 }

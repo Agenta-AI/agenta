@@ -1,49 +1,78 @@
-import {
-    agentTemplatesAtom,
-    agentTemplatesStatusAtom,
-    refetchAgentTemplatesAtom,
-} from "@agenta/entities/workflow"
-import {NewAgentButton} from "@agenta/home-ui"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useState} from "react"
+
+import {uploadAttachment} from "@agenta/chat/assets"
+import type {AgentTemplateSource} from "@agenta/entities/workflow"
+import {NewAgentButton, type NewAgentButtonProps} from "@agenta/home-ui"
+import {projectIdAtom} from "@agenta/shared/state"
+import {extractApiErrorMessage} from "@agenta/shared/utils"
+import {useAtomValue} from "jotai"
+
+import {newId} from "@/lib/ids"
+
+import {AgentTemplateImportDrawer} from "./AgentTemplateImportDrawer"
 
 /**
- * The SHARED create button, bound to this app's create — blank or from a starter template, off the
- * SAME catalogue the desktop offers.
- *
- * "Browse all templates" points at this app's own gallery route, which renders the SAME shared
- * gallery the desktop does. That route sits at the project root, NOT under `/agents`: the sidebar
- * matches a nav entry by path PREFIX, so a gallery under `/agents/...` lit the Agents entry the
- * whole time you were browsing templates.
+ * The SHARED create menu, bound to this app's create: from scratch, an uploaded template .zip, or a
+ * template found in a GitHub repository. The gallery sits at the project root, NOT under `/agents`,
+ * so browsing it does not light the Agents nav entry.
  */
 export const NewAgentAction = ({
     create,
-    createFromTemplate,
+    createFromSource,
     creating,
     error,
     label,
     base,
     align = "stretch",
+    variant,
+    size,
     className,
 }: {
     create: () => void
-    createFromTemplate: (templateKey: string) => void
+    createFromSource: (source: AgentTemplateSource) => Promise<boolean>
     creating: boolean
     error: string | null
     label?: string
     /** `/w/:workspace/p/:project` — the gallery link's base. */
     base: string
-    /**
-     * How the button sits in its container. A header row wants it hugging the right edge; a rail
-     * wants it filling the column like the controls under it — hardcoding either one misplaces it
-     * on the other surface.
-     */
+    /** A header row wants it hugging the right edge; a rail wants it filling the column. */
     align?: "end" | "stretch"
+    variant?: NewAgentButtonProps["variant"]
+    size?: NewAgentButtonProps["size"]
     /** On the trigger — the roster toolbar sizes it down on a phone. */
     className?: string
 }) => {
-    const templates = useAtomValue(agentTemplatesAtom)
-    const templatesStatus = useAtomValue(agentTemplatesStatusAtom)
-    const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
+    const projectId = useAtomValue(projectIdAtom)
+    const [importOpen, setImportOpen] = useState(false)
+    const [uploading, setUploading] = useState(false)
+    const [uploadError, setUploadError] = useState<string | null>(null)
+
+    const upload = async (file: File) => {
+        if (!projectId) return
+        setUploading(true)
+        setUploadError(null)
+        try {
+            // A fresh staging scope: the agent and its session do not exist yet.
+            const stagingSessionId = newId()
+            const {attachment} = await uploadAttachment({
+                file,
+                sessionId: stagingSessionId,
+                projectId,
+                idempotencyKey: newId(),
+            })
+            await createFromSource({
+                kind: "upload",
+                staging_session_id: stagingSessionId,
+                attachment_id: attachment.attachment_id,
+            })
+        } catch (err) {
+            setUploadError(extractApiErrorMessage(err))
+        } finally {
+            setUploading(false)
+        }
+    }
+
+    const shownError = uploadError ?? error
     return (
         <span
             className={`flex flex-col gap-1 ${align === "end" ? "shrink-0 items-end" : "items-stretch"}`}
@@ -51,15 +80,20 @@ export const NewAgentAction = ({
             <NewAgentButton
                 className={className}
                 label={label}
-                loading={creating}
+                variant={variant}
+                size={size}
+                loading={creating || uploading}
                 onCreateBlank={create}
-                templates={templates}
-                templatesStatus={templatesStatus}
-                onRetryTemplates={refetchTemplates}
-                onPickTemplate={createFromTemplate}
+                onUpload={(file) => void upload(file)}
+                onImport={() => setImportOpen(true)}
                 browseHref={`${base}/templates`}
             />
-            {error ? <span className="text-destructive text-[11px]">{error}</span> : null}
+            {shownError ? <span className="text-destructive text-[11px]">{shownError}</span> : null}
+            <AgentTemplateImportDrawer
+                open={importOpen}
+                onClose={() => setImportOpen(false)}
+                onPick={createFromSource}
+            />
         </span>
     )
 }

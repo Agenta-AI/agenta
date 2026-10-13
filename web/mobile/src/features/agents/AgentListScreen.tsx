@@ -190,7 +190,7 @@ export const AgentListScreen = ({
                                 )}
                                 <NewAgentAction
                                     create={() => void newAgent.create()}
-                                    createFromTemplate={newAgent.createFromTemplate}
+                                    createFromSource={newAgent.createFromSource}
                                     base={base}
                                     creating={newAgent.creating}
                                     error={newAgent.error}
