@@ -3,6 +3,7 @@
  * `app.json` parser, and the in-memory mock host every other lane codes against.
  * Lane A adds the real bridge: the injected stub, the parent-side host and its parts.
  */
+export * from "./access"
 export * from "./etags"
 export * from "./frame"
 export * from "./fsClient"

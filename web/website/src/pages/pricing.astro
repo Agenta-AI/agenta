@@ -11,7 +11,7 @@ import { linkify, type PricingLink } from "../lib/pricingLinks";
 // Single source of truth for ALL pricing-page content. No content literals below.
 import pricing from "../data/pricing.json";
 
-const { hero, hostingToggle, plansByMode, comparisonByMode, faqs } = pricing;
+const { hero, hostingToggle, plansByMode, cardsNoteByMode, comparisonByMode, faqs } = pricing;
 const links = (pricing.links ?? []) as PricingLink[];
 type Plan = (typeof plansByMode.cloud)[number];
 
@@ -89,6 +89,18 @@ const linkStyle =
       <div class="plan-grid plan-grid-self mode-selfhosted">
         {plansByMode.selfHosted.map((plan: Plan) => <PlanCard plan={plan} links={links} />)}
       </div>
+      {/* One optional line under each mode's cards (`cardsNoteByMode` in the data file). */}
+      {
+        (["cloud", "selfHosted"] as const).map((mode) => {
+          const note = cardsNoteByMode?.[mode];
+          if (!note) return null;
+          return (
+            <p class={`cards-note ${mode === "cloud" ? "mode-cloud" : "mode-selfhosted"}`}>
+              {linkify(note, links).map((part) => (part.href ? <a href={part.href} target="_blank" rel="noopener" style={linkStyle}>{part.text}</a> : <Fragment>{part.text}</Fragment>))}
+            </p>
+          );
+        })
+      }
     </Section>
 
     <!-- ============ COMPARISON TABLE ============ -->
@@ -257,6 +269,17 @@ const linkStyle =
   .plan-grid-self {
     grid-template-columns: repeat(2, 1fr);
     max-width: 720px;
+  }
+
+  .cards-note {
+    max-width: 720px;
+    margin: 32px auto 0;
+    padding: 0 24px;
+    box-sizing: border-box;
+    text-align: center;
+    font: var(--text-body-sm);
+    color: var(--th-text-body);
+    text-wrap: pretty;
   }
 
   /* ── hosting-mode swap (driven by #pricing-root[data-hosting]) ── */

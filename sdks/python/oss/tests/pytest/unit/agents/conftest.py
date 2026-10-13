@@ -94,6 +94,8 @@ class FakeSession(Session):
             }
             if result.stop_reason is not None:
                 terminal["stopReason"] = result.stop_reason
+            if result.sandbox is not None:
+                terminal["sandbox"] = result.sandbox
             yield {"kind": "result", "result": terminal}
 
         return AgentStream(_records())
@@ -152,6 +154,8 @@ class FakeBackend(Backend):
         control_command_id=None,
         effective_parameters=None,
         gateway_policy=None,
+        runner_address=None,
+        runner_replica_id=None,
     ) -> FakeSession:
         self.created_sessions.append(
             {

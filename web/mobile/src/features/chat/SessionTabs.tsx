@@ -1,10 +1,6 @@
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
-import {useSessionFilesPane} from "@agenta/entity-ui/drive"
+import {FilesPaneToggle, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {SessionTabRail, SessionTabStrip, withSessionShortcutKeys} from "@agenta/sessions-ui"
-import {shortcutAria} from "@agenta/shared/utils"
-import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {Folder, FolderOpen} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -79,29 +75,7 @@ export const SessionTabs = ({
                     ) : null}
                 </>
             )}
-            {/* Shows the state and flips it; hidden below md, where the pane never mounts. */}
-            <SimpleTooltip
-                title={
-                    <span className="flex items-center gap-1.5">
-                        {filesOpen ? "Hide files" : "Show files"}{" "}
-                        <ShortcutKeys id="panel.files" tone="inverse" />
-                    </span>
-                }
-            >
-                <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={filesOpen ? "Hide files pane" : "Show files pane"}
-                    aria-pressed={filesOpen}
-                    aria-keyshortcuts={shortcutAria("panel.files")}
-                    onClick={toggleFiles}
-                    // The glyph's weight carries the state; no colour shift on top.
-                    className="h-7 w-7 shrink-0 p-0"
-                >
-                    {/* A folder says "files" where a panel glyph wouldn't; open = pane shown. */}
-                    {filesOpen ? <FolderOpen size={14} weight="fill" /> : <Folder size={14} />}
-                </Button>
-            </SimpleTooltip>
+            <FilesPaneToggle open={filesOpen} onToggle={toggleFiles} disabled={!sessionId} />
         </>
     )
 

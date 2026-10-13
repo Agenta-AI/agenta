@@ -72,6 +72,17 @@ textarea {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
+    padding: 12px 16px;
+}
+/* The toolbar and columns stay full width: cancel the page padding around them. */
+.ag-app > .ag-toolbar {
+    margin: -12px -16px 12px;
+}
+.ag-app > .ag-columns {
+    margin: 0 -16px -12px;
+}
+.ag-app > .ag-toolbar + .ag-columns {
+    margin-top: -12px;
 }
 .ag-toolbar {
     position: sticky;

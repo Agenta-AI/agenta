@@ -251,3 +251,20 @@ def record_usage(usage: Optional[Dict[str, Any]]) -> None:
             span.set_attribute("gen_ai.usage.cost", float(cost))
     except Exception:  # pylint: disable=broad-except
         log.warning("agent: failed to record usage on workflow span", exc_info=True)
+
+
+def record_sandbox(sandbox: Optional[str]) -> None:
+    """Stamp the sandbox provider the run executed on onto the active workflow span.
+
+    The runner routes by harness (Pi chosen on ``daytona`` runs ``inprocess``), so the saved
+    ``sandbox.kind`` in the span's parameters can differ from the provider that ran. The runner
+    reports the provider that ran in its result; ``ag.meta.agent.sandbox`` shows it. Best-effort.
+    """
+    if not sandbox:
+        return
+    try:
+        otel_trace.get_current_span().set_attribute("ag.meta.agent.sandbox", sandbox)
+    except Exception:  # pylint: disable=broad-except
+        log.warning(
+            "agent: failed to record the sandbox on workflow span", exc_info=True
+        )

@@ -15,6 +15,7 @@ from typing import (
     TYPE_CHECKING,
 )
 from oss.src.core.git.dtos import RevisionGrouping
+from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 import httpx
@@ -27,6 +28,8 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.helpers import parse_url
+from oss.src.core.gateways.dtos import no_cookie_jar
+from oss.src.core.gateways.egress import EgressRefusedError, open_egress
 from oss.src.core.events.utils import publish_revision_event
 
 from agenta.sdk.engines.running.utils import (
@@ -307,6 +310,17 @@ def _validate_persisted_shape(data: dict) -> None:
     error rather than a 422 naming the field (contract commit-transaction.md 3, step 5).
     """
     WorkflowRevisionData(**data)
+
+
+def _effective_port(parsed) -> Optional[int]:
+    """The port a parsed URL dials, with the scheme default filled in."""
+    try:
+        port = parsed.port
+    except ValueError:
+        return None
+    if port is not None:
+        return port
+    return {"http": 80, "https": 443}.get((parsed.scheme or "").lower())
 
 
 class WorkflowsService:
@@ -782,6 +796,70 @@ class WorkflowsService:
         return parse_url(url).rstrip("/")
 
     @staticmethod
+    def _is_platform_service_url(url: Optional[str]) -> bool:
+        """Whether ``url`` is under the operator's own ``AGENTA_SERVICES_URL``.
+
+        A revision's ``url`` is tenant data. Only a URL under the configured services base
+        may receive the ``secret-resolve`` grant or skip the egress check; every other URL is
+        a tenant-registered destination. The comparison is structural (scheme, host, port,
+        path prefix) so userinfo, a look-alike host, or dot segments cannot pass as the
+        platform.
+        """
+        if not url:
+            return False
+
+        base = urlparse(parse_url(env.agenta.services_url).rstrip("/"))
+        target = urlparse(parse_url(url).rstrip("/"))
+
+        if target.username is not None or target.password is not None:
+            return False
+
+        if (target.scheme or "").lower() != (base.scheme or "").lower():
+            return False
+
+        if (target.hostname or "").lower() != (base.hostname or "").lower():
+            return False
+
+        if _effective_port(target) != _effective_port(base):
+            return False
+
+        segments = target.path.split("/")
+        if any(part in (".", "..") for part in segments):
+            return False
+        if "%2e" in target.path.lower() or "%2f" in target.path.lower():
+            return False
+
+        base_path = base.path.rstrip("/")
+        return target.path == base_path or target.path.startswith(base_path + "/")
+
+    @staticmethod
+    def _service_grants(service_url: Optional[str]) -> Optional[List[str]]:
+        """The grants a credential sent to ``service_url`` may carry."""
+        if WorkflowsService._is_platform_service_url(service_url):
+            return [SECRET_RESOLVE_GRANT]
+        return None
+
+    @staticmethod
+    async def _open_service(
+        *,
+        url: str,
+        headers: dict,
+    ) -> tuple[str, Any, dict]:
+        """Resolve where one service call goes: ``(url, headers, extensions)``.
+
+        A URL under ``AGENTA_SERVICES_URL`` is the operator's own service and is dialled as
+        is. Any other URL came from tenant data, so it goes through the gateway egress
+        boundary: blocked ranges refused, connection pinned to the checked address. Raises
+        :class:`EgressRefusedError`.
+        """
+        if WorkflowsService._is_platform_service_url(url):
+            return url, headers, {}
+
+        target = await open_egress(url, above_caller=headers)
+
+        return target.url, target.headers, target.extensions
+
+    @staticmethod
     async def _post_service_json(
         *,
         url: str,
@@ -796,14 +874,23 @@ class WorkflowsService:
             }
         )
 
+        target_url, target_headers, extensions = await WorkflowsService._open_service(
+            url=url,
+            headers=headers,
+        )
+
+        # Redirects are never followed: a 3xx would re-point a credentialed request at a
+        # host nothing checked.
         async with httpx.AsyncClient(
             timeout=60.0,
-            follow_redirects=True,
+            follow_redirects=False,
+            cookies=no_cookie_jar(),
         ) as client:
             response = await client.post(
-                url,
+                target_url,
                 json=payload,
-                headers=headers,
+                headers=target_headers,
+                extensions=extensions,
             )
 
         body = None
@@ -853,15 +940,32 @@ class WorkflowsService:
         timeout = httpx.Timeout(connect=30.0, read=None, write=30.0, pool=30.0)
 
         try:
+            (
+                target_url,
+                target_headers,
+                extensions,
+            ) = await WorkflowsService._open_service(url=url, headers=headers)
+        except EgressRefusedError as error:
+            # Refused before any request left, so the start provably never reached the
+            # service: a caller holding a dispatch claim may release it.
+            raise WorkflowDetachedStartNeverSent(
+                f"Workflow service URL was refused: {error.relay_detail}"
+            ) from error
+
+        try:
+            # Redirects are never followed: a 3xx would re-point a credentialed request at
+            # a host nothing checked.
             async with httpx.AsyncClient(
                 timeout=timeout,
-                follow_redirects=True,
+                follow_redirects=False,
+                cookies=no_cookie_jar(),
             ) as client:
                 async with client.stream(
                     "POST",
-                    url,
+                    target_url,
                     json=payload,
-                    headers=headers,
+                    headers=target_headers,
+                    extensions=extensions,
                 ) as response:
                     if response.status_code < 200 or response.status_code >= 300:
                         raw = await response.aread()
@@ -916,7 +1020,7 @@ class WorkflowsService:
         # caller may start over. On a redirect hop it proves nothing, and `transport_never_sent`
         # is what tells the two apart.
         except (httpx.RequestError, httpx.InvalidURL) as error:
-            if transport_never_sent(error, url=url):
+            if transport_never_sent(error, url=target_url):
                 raise WorkflowDetachedStartNeverSent(
                     f"Workflow service was never reached on detached start: {error!r}"
                 ) from error
@@ -3093,19 +3197,6 @@ class WorkflowsService:
         )
 
         gateway_run_id = uuid4().hex
-        # The grant lets the run's vault reads receive write-only secret values in
-        # plaintext. It normally rides the credential `/access/permissions/check` re-mints,
-        # but a service running with auth middleware disabled uses this token directly.
-        secret_token = await sign_secret_token(
-            user_id=str(user_id),
-            project_id=str(project_id),
-            workspace_id=str(project.workspace_id),
-            organization_id=str(project.organization_id),
-            gateway_run_id=gateway_run_id,
-            grants=[SECRET_RESOLVE_GRANT],
-        )
-
-        credentials = f"Secret {secret_token}"
 
         request.meta = {**(request.meta or {}), "gateway_run_id": gateway_run_id}
 
@@ -3116,6 +3207,22 @@ class WorkflowsService:
 
         revision_data = self._get_revision_data(request=request)
         service_url = self._get_service_url(revision_data=revision_data)
+
+        # The grant lets the run's vault reads receive write-only secret values in
+        # plaintext. It normally rides the credential `/access/permissions/check` re-mints,
+        # but a service running with auth middleware disabled uses this token directly.
+        # Only the operator's own services URL may receive it: a revision's `url` is tenant
+        # data, and a token sent there is a token the tenant holds.
+        secret_token = await sign_secret_token(
+            user_id=str(user_id),
+            project_id=str(project_id),
+            workspace_id=str(project.workspace_id),
+            organization_id=str(project.organization_id),
+            gateway_run_id=gateway_run_id,
+            grants=self._service_grants(service_url),
+        )
+
+        credentials = f"Secret {secret_token}"
 
         await self._stamp_session_context(
             project_id=project_id,
@@ -3278,14 +3385,23 @@ class WorkflowsService:
                 )
             )
 
-        _response, _body = await self._post_service_json(
-            url=f"{service_url}/invoke",
-            credentials=credentials,
-            payload=request.model_dump(
-                mode="json",
-                exclude_none=True,
-            ),
-        )
+        try:
+            _response, _body = await self._post_service_json(
+                url=f"{service_url}/invoke",
+                credentials=credentials,
+                payload=request.model_dump(
+                    mode="json",
+                    exclude_none=True,
+                ),
+            )
+        except EgressRefusedError as error:
+            return WorkflowServiceBatchResponse(
+                status=WorkflowServiceStatus(
+                    type="https://agenta.ai/docs/errors#v1:api:workflow-service-url-refused",
+                    code=400,
+                    message=f"Workflow service URL was refused: {error.relay_detail}",
+                )
+            )
 
         return self._coerce_invoke_response(
             response=_response,
@@ -3356,16 +3472,6 @@ class WorkflowsService:
             project_id=str(project_id),
         )
 
-        secret_token = await sign_secret_token(
-            user_id=str(user_id),
-            project_id=str(project_id),
-            workspace_id=str(project.workspace_id),
-            organization_id=str(project.organization_id),
-            grants=[SECRET_RESOLVE_GRANT],
-        )
-
-        credentials = f"Secret {secret_token}"
-
         await self._ensure_request_revision(
             project_id=project_id,
             request=request,
@@ -3373,6 +3479,16 @@ class WorkflowsService:
 
         revision_data = self._get_revision_data(request=request)
         service_url = self._get_service_url(revision_data=revision_data)
+
+        secret_token = await sign_secret_token(
+            user_id=str(user_id),
+            project_id=str(project_id),
+            workspace_id=str(project.workspace_id),
+            organization_id=str(project.organization_id),
+            grants=self._service_grants(service_url),
+        )
+
+        credentials = f"Secret {secret_token}"
 
         if not service_url:
             raise ValueError("Workflow revision has no inspectable service URL.")

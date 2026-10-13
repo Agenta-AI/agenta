@@ -1,0 +1,118 @@
+---
+// An example run body; inside `.ag-run--play` the steps reveal one by one.
+interface Props {
+  example: { prompt: string; steps: string[]; reply: string };
+  /** Clamp the result to three lines (the featured card). */
+  clamp?: boolean;
+}
+const { example, clamp = false } = Astro.props;
+---
+
+<p class="ag-run__prompt">{example.prompt}</p>
+<ol class="ag-run__steps" style={`--n:${example.steps.length};`}>
+  {
+    example.steps.map((step, i) => (
+      <li class="ag-run__step" style={`--i:${i};`}>
+        <span class="ag-run__check" aria-hidden="true">
+          <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+            <path
+              d="m2 5.2 2 2 4-4.4"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </span>
+        {step}
+      </li>
+    ))
+  }
+</ol>
+<p
+  class:list={["ag-run__reply", clamp && "ag-run__reply--clamp"]}
+  style={`--n:${example.steps.length};`}
+>
+  {example.reply}
+</p>
+
+<style is:global>
+  .ag-run__prompt {
+    margin: 0;
+    font: 600 14px/21px var(--font-sans);
+    color: var(--th-text-hi);
+  }
+  .ag-run__steps {
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 8px;
+  }
+  .ag-run__step {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font: var(--text-body-sm);
+    color: var(--th-text-body);
+  }
+  /* The line joining this step's circle to the next one, as in the product's run timeline. */
+  .ag-run__step:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    left: 7.5px;
+    top: 18px;
+    bottom: -10px;
+    width: 1px;
+    background: var(--th-border);
+  }
+  .ag-run__check {
+    margin-top: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--th-bg-1);
+    box-shadow: inset 0 0 0 1px var(--th-border);
+    color: var(--th-text-hi);
+  }
+  .ag-run__reply {
+    margin: 14px 0 0;
+    padding-top: 14px;
+    border-top: 1px dashed var(--th-border);
+    font: var(--text-body-sm);
+    color: var(--th-text-hi);
+    text-wrap: pretty;
+  }
+  .ag-run__reply--clamp {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .ag-run--play .ag-run__step {
+      animation: ag-run-step 0.45s ease both;
+      animation-delay: calc(var(--i) * 0.9s + 0.3s);
+    }
+    .ag-run--play .ag-run__reply {
+      animation: ag-run-reply 0.45s ease both;
+      animation-delay: calc(var(--n) * 0.9s + 0.3s);
+    }
+  }
+  @keyframes ag-run-step {
+    from {
+      opacity: 0.12;
+      transform: translateY(4px);
+    }
+  }
+  @keyframes ag-run-reply {
+    from {
+      opacity: 0;
+    }
+  }
+</style>

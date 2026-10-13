@@ -71,6 +71,7 @@ export const useNewAgentAction = (base: string) => {
             // Template loading starts the first run server-side. Collect choices on the existing
             // setup screen BEFORE calling it; the live session is already too late for a gate.
             if (params?.templateKey && !params.entityId && !params.setup) {
+                setCreating(true)
                 setSetupDraft({
                     base,
                     templateKey: params.templateKey,
@@ -82,6 +83,8 @@ export const useNewAgentAction = (base: string) => {
                     .push(`${base}/agents/new?template=${encodeURIComponent(params.templateKey)}`)
                     .catch(() => false)
                 if (!navigated) setSetupDraft(null)
+                // Released either way: a query-only navigation keeps this hook mounted.
+                setCreating(false)
                 return navigated
             }
             const template = params?.templateKey

@@ -10,7 +10,10 @@
 import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {renderToStaticMarkup} from "react-dom/server"
-import {describe, expect, it} from "vitest"
+import {describe, expect, it, vi} from "vitest"
+
+// The billing escapes read the router and the API; `AgentRunFailure.test.tsx` covers them.
+vi.mock("../hooks/useBillingEscapes", () => ({useBillingEscapes: () => ({})}))
 
 import AgentMessage from "./AgentMessage"
 

@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react"
+import {Fragment, useEffect, useRef, useState} from "react"
 
 import {Check} from "lucide-react"
 
@@ -90,41 +90,54 @@ export const FilterMenuOptionList = ({
         >
             {options.map((option, index) => {
                 const checked = selected.includes(option.value)
+                const heading =
+                    option.group && option.group !== options[index - 1]?.group ? (
+                        <div
+                            role="presentation"
+                            className="truncate px-2 pb-1 pt-2 text-[11px] font-medium text-muted-foreground first:pt-1"
+                        >
+                            {option.group}
+                        </div>
+                    ) : null
                 return (
-                    <button
-                        key={option.value}
-                        ref={(node) => {
-                            refs.current[index] = node
-                        }}
-                        type="button"
-                        role="option"
-                        aria-selected={checked}
-                        disabled={option.disabled}
-                        tabIndex={index === activeIndex ? 0 : -1}
-                        onFocus={() => setActive(index)}
-                        onClick={() => onSelect(option.value)}
-                        className={cn(
-                            // Preflight is off app-wide (antd ships its own reset), so a bare
-                            // <button> needs the resets restated.
-                            "box-border cursor-pointer appearance-none border-0 bg-transparent font-[inherit]",
-                            "flex w-full items-center gap-2 rounded-control-sm px-2 py-1.5 text-left",
-                            "text-[13px] text-foreground outline-none transition-colors",
-                            "hover:bg-accent focus-visible:bg-accent",
-                            "disabled:cursor-not-allowed disabled:text-disabled disabled:hover:bg-transparent",
-                        )}
-                    >
-                        {option.icon ? (
-                            <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-                                {option.icon}
+                    <Fragment key={option.value}>
+                        {heading}
+                        <button
+                            ref={(node) => {
+                                refs.current[index] = node
+                            }}
+                            type="button"
+                            role="option"
+                            aria-selected={checked}
+                            disabled={option.disabled}
+                            tabIndex={index === activeIndex ? 0 : -1}
+                            onFocus={() => setActive(index)}
+                            onClick={() => onSelect(option.value)}
+                            className={cn(
+                                // Preflight is off app-wide (antd ships its own reset), so a bare
+                                // <button> needs the resets restated.
+                                "box-border cursor-pointer appearance-none border-0 bg-transparent font-[inherit]",
+                                "flex w-full items-center gap-2 rounded-control-sm px-2 py-1.5 text-left",
+                                "text-[13px] text-foreground outline-none transition-colors",
+                                "hover:bg-accent focus-visible:bg-accent",
+                                "disabled:cursor-not-allowed disabled:text-disabled disabled:hover:bg-transparent",
+                            )}
+                        >
+                            {option.icon ? (
+                                <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
+                                    {option.icon}
+                                </span>
+                            ) : null}
+                            <span className="min-w-0 flex-1 truncate" title={option.label}>
+                                {option.label}
                             </span>
-                        ) : null}
-                        <span className="min-w-0 flex-1 truncate">{option.label}</span>
-                        {/* The check keeps its box whether or not it is drawn, so the label
+                            {/* The check keeps its box whether or not it is drawn, so the label
                             column never shifts as the selection moves. */}
-                        <span className="flex size-4 shrink-0 items-center justify-center">
-                            {checked ? <Check size={14} aria-hidden /> : null}
-                        </span>
-                    </button>
+                            <span className="flex size-4 shrink-0 items-center justify-center">
+                                {checked ? <Check size={14} aria-hidden /> : null}
+                            </span>
+                        </button>
+                    </Fragment>
                 )
             })}
         </div>

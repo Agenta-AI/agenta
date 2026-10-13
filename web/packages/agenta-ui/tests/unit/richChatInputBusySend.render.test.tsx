@@ -17,11 +17,13 @@ describe("busy composer standard Send", () => {
         expect(screen.getByRole("button", {name: "Stop"})).toBeTruthy()
         expect(screen.queryByRole("button", {name: "Send"})).toBeNull()
         await act(async () => ref.current?.setMarkdown("next message"))
+        // A draft swaps Stop for Send; the two never sit side by side.
+        expect(screen.queryByRole("button", {name: "Stop"})).toBeNull()
         fireEvent.click(screen.getByRole("button", {name: "Send"}))
         expect(onSubmit).toHaveBeenCalledWith("next message")
         expect(screen.queryByRole("button", {name: "Queue"})).toBeNull()
         expect(screen.queryByRole("button", {name: "Steer"})).toBeNull()
-        fireEvent.click(screen.getByRole("button", {name: "Stop"}))
+        fireEvent.click(await screen.findByRole("button", {name: "Stop"}))
         expect(onStop).toHaveBeenCalledOnce()
     })
 
@@ -45,5 +47,15 @@ describe("busy composer standard Send", () => {
         )
         fireEvent.click(screen.getByRole("button", {name: "Send"}))
         expect(onSubmit).toHaveBeenCalledWith("")
+    })
+
+    it("keeps the text in the editor when the host refuses the send", async () => {
+        const onSubmit = vi.fn(() => false as const)
+        const ref = createRef<RichChatInputHandle>()
+        render(<RichChatInput ref={ref} onSubmit={onSubmit} />)
+        await act(async () => ref.current?.setMarkdown("not yet"))
+        fireEvent.click(screen.getByRole("button", {name: "Send"}))
+        expect(onSubmit).toHaveBeenCalledWith("not yet")
+        expect(ref.current?.getMarkdown()).toBe("not yet")
     })
 })

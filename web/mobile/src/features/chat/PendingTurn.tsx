@@ -7,13 +7,10 @@ import {mobileTurnRowClass} from "./turnRowClass"
 export const PendingTurn = ({
     sessionId,
     runId,
-    firstTurn = false,
 }: {
     sessionId: string
     /** The run's clock key — the assistant turn that follows inherits it. */
     runId?: string
-    /** The session's first response: the one that narrates the agent's startup. */
-    firstTurn?: boolean
 }) => {
     return (
         <div className={`${mobileTurnRowClass} justify-start`}>
@@ -29,7 +26,6 @@ export const PendingTurn = ({
                         steps={[]}
                         streaming
                         answerStarted={false}
-                        firstTurn={firstTurn}
                     />
                 }
             />

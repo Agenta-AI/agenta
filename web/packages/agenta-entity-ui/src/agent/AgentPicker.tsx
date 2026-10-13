@@ -370,7 +370,7 @@ export const AgentPickerPanel = ({
                         // choices, and at row height it read as an eighth agent.
                         className="box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
                     >
-                        <span className="flex size-5 shrink-0 items-center justify-center">
+                        <span className="box-border flex size-7 shrink-0 items-center justify-center rounded-control-sm border border-solid border-border">
                             <Plus aria-hidden size={14} className="text-muted-foreground" />
                         </span>
                         <span className="min-w-0 truncate font-medium">{createLabel}</span>

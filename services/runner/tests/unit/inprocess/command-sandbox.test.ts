@@ -16,6 +16,7 @@ import { CommandSandbox, CREDENTIALS_LABEL, NetworkPolicyError } from "../../../
 import { boundedDaytonaApi } from "../../../src/engines/inprocess/sandbox/daytona-api.ts";
 import { sandboxSlots, sandboxSlotsUnresolvedMessage } from "../../../src/engines/inprocess/sandbox/sandbox-slots.ts";
 import { classifyRunError } from "../../../src/engines/sandbox_agent/errors.ts";
+import { wasSandboxCreatedHere } from "../../../src/engines/sandbox_agent/created-sandboxes.ts";
 import { OWNER_LABEL, type SandboxOwner } from "../../../src/engines/inprocess/sandbox/sandbox-owner.ts";
 import { createTestWorkspace, OPEN_NETWORK, sandboxSettings, TEST_DEADLINES, testConversation, testOwner, testRegistryOptions } from "../../utils/inprocess-workspace.ts";
 import { LocalDaytona } from "../../utils/local-daytona.ts";
@@ -92,6 +93,8 @@ describe("network policy fails closed (R3-5, Codex 4, Codex R4 late update)", ()
     const use = await newSandbox(daytona).sandbox.acquire(BLOCKED);
     expect(daytona.sandboxes.get(use.sandbox.id)!.networkUpdates).toHaveLength(0);
     expect(daytona.sandboxes.get(use.sandbox.id)!.network).toEqual({ networkBlockAll: true });
+    // The stored pointer to this sandbox is one the reconnect ladder trusts.
+    expect(wasSandboxCreatedHere(use.sandbox.id)).toBe(true);
     use.release();
   });
 });
@@ -189,6 +192,30 @@ describe("recovery and retirement (CR7, R3-4, Codex 8)", () => {
   });
 });
 
+describe("the registry at shutdown", () => {
+  it("deletes a parked sandbox no environment holds, and keeps one that is still held", async () => {
+    const parked = createTestWorkspace({ conversationId: "parked" });
+    await parked.bash("true");
+    parked.registry.release(parked.workspace, "park");
+    await parked.registry.settle(5_000);
+    const [stopped] = [...parked.daytona.sandboxes.values()];
+    expect(stopped!.state).toBe("stopped");
+
+    const held = createTestWorkspace({ conversationId: "held" });
+    await held.bash("true");
+    const [running] = [...held.daytona.sandboxes.values()];
+
+    parked.registry.deleteUnheld();
+    held.registry.deleteUnheld();
+    await parked.registry.settle(5_000);
+    await held.registry.settle(5_000);
+    expect(stopped!.deleted).toBe(true);
+    expect(parked.registry.counters().conversations).toBe(0);
+    expect(running!.deleted).toBeFalsy();
+    expect(held.registry.counters().conversations).toBe(1);
+  });
+});
+
 describe("the registry (Codex 11)", () => {
   it("never evicts the entry it is handing out, and keeps one object per conversation", () => {
     const daytona = freshDaytona();
@@ -265,5 +292,89 @@ describe("a running slot goes back only once its sandbox is confirmed stopped or
     expect(slots.running.inUse).toBe(1);
     await expect.poll(() => sandboxA.deleted, { timeout: 3_000 }).toBe(true);
     await expect.poll(() => slots.running.inUse, { timeout: 3_000 }).toBe(0);
+  });
+});
+
+describe("running seconds are metered for the newest holder", () => {
+  function recordingMeters() {
+    const started: Array<{ sandboxId: string; sessionId?: string; credential: () => string }> = [];
+    const events: string[] = [];
+    const startMeter = ((options: { sandboxId: string; sessionId?: string; credential: () => string }) => {
+      started.push(options);
+      return {
+        stop: async () => {
+          events.push(`stop ${options.sandboxId} as ${options.credential()}`);
+        },
+      };
+    }) as unknown as NonNullable<Parameters<typeof newSandbox>[2]>["startMeter"];
+    const leases: string[] = [];
+    const startLease = (authorization: string) => {
+      leases.push(`lease ${authorization}`);
+      return { credential: () => `${authorization} (fresh)`, release: () => leases.push(`release ${authorization}`) };
+    };
+    return { started, events, leases, settings: { ...sandboxSettings(), startMeter, startLease } };
+  }
+
+  it("meters from bring-up to stop with the sandbox's own id, reporting with the newest holder's fresh credential", async () => {
+    const daytona = freshDaytona();
+    const meters = recordingMeters();
+    const { sandbox } = newSandbox(daytona, testOwner(), meters.settings);
+    sandbox.useUsage({ authorization: "Secret run-1", sessionId: "conv-1" });
+
+    const use = await sandbox.acquire(OPEN_NETWORK);
+    const id = use.sandbox.id;
+    sandbox.useUsage({ authorization: "Secret run-2", sessionId: "conv-1" });
+    use.release();
+    await sandbox.stop("idle");
+    await sandbox.settle(5_000);
+
+    expect(meters.started.map((m) => [m.sandboxId, m.sessionId])).toEqual([[id, "conv-1"]]);
+    expect(meters.events).toEqual([`stop ${id} as Secret run-2 (fresh)`]);
+    expect(meters.leases).toEqual(["lease Secret run-1", "release Secret run-1", "lease Secret run-2"]);
+  });
+
+  it("keeps the last credential for a later report once no one holds the sandbox", async () => {
+    const daytona = freshDaytona();
+    const meters = recordingMeters();
+    const { sandbox } = newSandbox(daytona, testOwner(), meters.settings);
+    sandbox.useUsage({ authorization: "Secret run-1" });
+
+    const use = await sandbox.acquire(OPEN_NETWORK);
+    sandbox.releaseUsage();
+    use.release();
+    await sandbox.stop("idle");
+    await sandbox.settle(5_000);
+
+    expect(meters.events).toEqual([`stop ${use.sandbox.id} as Secret run-1 (fresh)`]);
+    expect(meters.leases).toEqual(["lease Secret run-1", "release Secret run-1"]);
+  });
+
+  it("stops metering a suspect sandbox once Daytona confirms it stopped", async () => {
+    const daytona = freshDaytona();
+    const meters = recordingMeters();
+    const slots = sandboxSlots(10, 10, 1_000, { reconcileDelaysMs: [10] });
+    const { sandbox } = newSandbox(daytona, testOwner(), { ...meters.settings, slots });
+    sandbox.useUsage({ authorization: "Secret run-1" });
+
+    const use = await sandbox.acquire(OPEN_NETWORK);
+    const local = daytona.sandboxes.get(use.sandbox.id)!;
+    use.suspect("a command ended without an exit code");
+    use.release();
+    await sandbox.stop("parked");
+    expect(meters.events).toEqual([]); // unknown whether it runs: still metered
+    local.state = "stopped";
+
+    await expect.poll(() => meters.events, { timeout: 2_000 }).toEqual([`stop ${use.sandbox.id} as Secret run-1 (fresh)`]);
+  });
+
+  it("meters nothing without a holder's credential", async () => {
+    const daytona = freshDaytona();
+    const meters = recordingMeters();
+    const { sandbox } = newSandbox(daytona, testOwner(), meters.settings);
+
+    (await sandbox.acquire(OPEN_NETWORK)).release();
+    await sandbox.stop("idle");
+
+    expect(meters.started).toEqual([]);
   });
 });

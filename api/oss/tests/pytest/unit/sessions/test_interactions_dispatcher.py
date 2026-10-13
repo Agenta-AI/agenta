@@ -15,7 +15,9 @@ from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
     build_wire_messages,
+    compose_approval_messages,
     compose_approval_messages_many,
+    resolve_gated_tool_call_id,
 )
 
 
@@ -685,6 +687,87 @@ async def test_an_explicit_client_id_still_outranks_the_stored_one():
         "content"
     ]
     assert blocks[0]["toolCallId"] == "toolu_from_client"
+
+
+def test_a_client_id_equal_to_the_token_resolves_to_the_harness_call():
+    """The app answers with the approval id it rendered, which is the interaction token. Binding
+    to it would add a tool call the harness never made and evict the warm-parked sandbox."""
+    project_id = uuid4()
+    interaction = _make_interaction(
+        kind=SessionInteractionKind.user_approval,
+        request={"tool": "bash", "args": {}, "tool_call_id": "toolu_stored_1"},
+    )
+    answer = {"approved": True, "tool_call_id": "tok-abc"}
+
+    assert (
+        resolve_gated_tool_call_id(_approval_records(project_id), interaction, answer)
+        == "tc-1"
+    )
+    assert resolve_gated_tool_call_id([], interaction, answer) == "toolu_stored_1"
+
+
+def test_a_harness_id_from_the_client_still_wins():
+    project_id = uuid4()
+    interaction = _make_interaction(
+        kind=SessionInteractionKind.user_approval,
+        request={"tool": "bash", "args": {}, "tool_call_id": "toolu_stored_1"},
+    )
+
+    assert (
+        resolve_gated_tool_call_id(
+            _approval_records(project_id),
+            interaction,
+            {"approved": True, "tool_call_id": "toolu_from_client"},
+        )
+        == "toolu_from_client"
+    )
+
+
+def test_a_token_that_is_the_harness_id_still_resolves_to_it():
+    """The runner falls back to the tool-call id as the token when the harness gives no
+    permission id, and relay-minted gates use one id for both."""
+    project_id = uuid4()
+    interaction = _make_interaction(
+        kind=SessionInteractionKind.user_approval,
+        request={"tool": "bash", "args": {}, "tool_call_id": "tc-1"},
+    ).model_copy(update={"token": "tc-1"})
+    answer = {"approved": True, "tool_call_id": "tc-1"}
+
+    records = _approval_records(project_id, token="tc-1", tool_call_id="tc-1")
+    assert resolve_gated_tool_call_id(records, interaction, answer) == "tc-1"
+    assert resolve_gated_tool_call_id([], interaction, answer) == "tc-1"
+
+
+def test_a_token_answer_composes_one_call_and_keys_the_answer_by_the_harness_id():
+    project_id = uuid4()
+    interaction = _make_interaction(
+        kind=SessionInteractionKind.user_approval,
+        request={"tool": "bash", "args": {}, "tool_call_id": "tc-1"},
+    )
+
+    messages = compose_approval_messages(
+        _approval_records(project_id),
+        interaction,
+        {"approved": True, "tool_call_id": "tok-abc"},
+    )
+
+    blocks = [
+        block
+        for message in messages
+        if isinstance(message.get("content"), list)
+        for block in message["content"]
+    ]
+    calls = [block for block in blocks if block.get("type") == "tool_call"]
+    results = [block for block in blocks if block.get("type") == "tool_result"]
+    assert [call["toolCallId"] for call in calls] == ["tc-1"]
+    assert results == [
+        {
+            "type": "tool_result",
+            "toolCallId": "tc-1",
+            "toolName": "bash",
+            "output": {"approved": True, "interactionToken": "tok-abc"},
+        }
+    ]
 
 
 def test_user_records_replay_their_attachments():

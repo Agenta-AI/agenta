@@ -56,8 +56,8 @@ export type ChannelsRoute =
       }
     | {view: "manage"; platform: ChannelPlatform; connectionId: string | null}
     | {view: "api"}
-    /** Choose the agent a new connection answers as; needs `agents`. */
-    | {view: "agents"}
+    /** Choose the agent a new connection answers as; needs `agents`. Then `platform`, if given. */
+    | {view: "agents"; platform?: ChannelPlatform}
 
 export interface UseChannelPanelOptions {
     /** The agent whose page this is; decides "connected here" versus "connected to X". */
@@ -211,15 +211,18 @@ export const useChannelPanel = ({
         [openRoute, entryRoute],
     )
 
-    /** Opens on one connection's manage view, over the hub. A pending link opens on the hub:
-     * resuming it mints a new link, which only an explicit Connect should do. */
+    /** Opens on one connection's manage view, over the hub; a pending link opens on its linking step. */
     const openConnection = useCallback(
         (connection: ChannelConnection) => {
             const {platform, connectionId = null} = connection
-            if (connection.status === "pending") openRoute({view: "hub"})
+            if (connection.status === "pending")
+                openRoute(
+                    {view: "hub"},
+                    connectRoute(platform, connection.kind, connectionId ?? undefined),
+                )
             else openRoute({view: "hub"}, {view: "manage", platform, connectionId})
         },
-        [openRoute],
+        [openRoute, connectRoute],
     )
 
     const onConnected = async (route: Extract<ChannelsRoute, {view: "connect"}>) => {
@@ -375,7 +378,11 @@ export const useChannelPanel = ({
                         connections={connections}
                         onSelect={(id) => {
                             onAgentChange?.(id)
-                            push({view: "hub"})
+                            push(
+                                route.platform
+                                    ? {view: "platform", platform: route.platform}
+                                    : {view: "hub"},
+                            )
                         }}
                     />
                 )

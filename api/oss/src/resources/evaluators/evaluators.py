@@ -479,7 +479,7 @@ evaluators = [
                 "description": "If set to True, only keys present in the ground truth will be considered. The result will be 1.0 if a key from the ground truth is correctly predicted, regardless of any additional predicted keys. Otherwise both ground truth and prediction keys will be checked.",
             },
             "case_insensitive_keys": {
-                "label": "Enable Case-sensitive keys",
+                "label": "Case-insensitive keys",
                 "type": "boolean",
                 "default": False,
                 "x-ag-ui-advanced": True,

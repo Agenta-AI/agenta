@@ -12,7 +12,10 @@ import type {NextRouter} from "next/router"
  * host's job, which is why they are seams rather than imports.
  *
  * The data slots are filled by `registerTraceDrawerSlots`; the reference/action slots stay on
- * their fallbacks (a plain label, no button), which are enough on `/m`.
+ * their fallbacks (a plain label, no button), which are enough on `/m`. The playground actions
+ * stay unbound on purpose, so the span header shows no Playground button: it was built for
+ * prompt traces, and an agent trace opens an empty playground because the root span no longer
+ * stores the agent config.
  */
 export const bindTraceDrawerSeams = (router: NextRouter) => {
     bindTraceDrawerNavigate((href) => {

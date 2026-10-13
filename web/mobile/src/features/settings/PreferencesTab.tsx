@@ -1,6 +1,9 @@
+import {useMemo} from "react"
+
 import {PreferencesPage, usePreferenceBindings, type ThemePickerProps} from "@agenta/settings-ui"
 import {desktopEscapeHref, writeClassicModeCookie} from "@agenta/shared/hooks"
 import {classicModeEnabledAtom} from "@agenta/shared/state"
+import {THEME_OPTIONS, useThemeMode} from "@agenta/ui/theme"
 import {useSetAtom} from "jotai"
 
 /**
@@ -8,7 +11,16 @@ import {useSetAtom} from "jotai"
  * Developer Mode (the classic-mode preference) is how a user leaves /m, so turning it on must
  * navigate them there.
  */
-export const PreferencesTab = ({theme}: {theme: ThemePickerProps}) => {
+export const PreferencesTab = () => {
+    const {themeMode, setMode} = useThemeMode()
+    const theme = useMemo<ThemePickerProps>(
+        () => ({
+            options: THEME_OPTIONS,
+            mode: themeMode,
+            onSelect: (mode) => setMode(mode as typeof themeMode),
+        }),
+        [themeMode, setMode],
+    )
     const setClassicMode = useSetAtom(classicModeEnabledAtom)
 
     const onClassicModeChange = (enabled: boolean) => {

@@ -324,6 +324,10 @@ async def test_gateway_routes_through_custom_namespace_with_our_credentials():
             f"{_GATEWAY_BASE}/gateways/mcps/builtin/agenta/run",
         ),
         (
+            MCPGatewayConnection(namespace="builtin", provider="managed"),
+            f"{_GATEWAY_BASE}/gateways/mcps/builtin/managed/managed",
+        ),
+        (
             MCPGatewayConnection(namespace="standard", provider="mock"),
             f"{_GATEWAY_BASE}/gateways/mcps/standard/mock",
         ),

@@ -71,6 +71,23 @@ class RecordsDAOInterface:
     ) -> Optional[SessionRecord]:
         raise NotImplementedError
 
+    async def mark_records_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> None:
+        """Record that the session's log lost a record. Sets the time once, never clears it."""
+        raise NotImplementedError
+
+    async def get_records_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> bool:
+        raise NotImplementedError
+
     async def latest_message_per_session(
         self,
         *,

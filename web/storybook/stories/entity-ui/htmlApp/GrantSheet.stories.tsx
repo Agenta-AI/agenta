@@ -1,15 +1,14 @@
 import {useState} from "react"
 
-import {type GrantLevel} from "@agenta/entities/drive"
-import {GrantSheet} from "@agenta/entity-ui/drive"
+import {type AppAccess} from "@agenta/entities/drive"
+import {AccessQuestion, GrantSheet} from "@agenta/entity-ui/drive"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 import {APP_DIR} from "../../../fixtures/htmlApp"
 
 /**
- * The grant question before an app runs. Four states: read preselected (the manifest asks for
- * `read`, or asks for nothing), read-write preselected (the manifest asks for it and the user may
- * edit mounts), the write option hidden (the drive's upload gate is off), and the cancel path.
+ * The file-access dialogs. The question an app raises for what it tried (reading, or changing
+ * files) with Allow / Don't allow, and the ⋯ "File access…" setting with the full choice.
  */
 const meta = {
     title: "@agenta/entity-ui/Drive/HtmlApp/GrantSheet",
@@ -21,46 +20,38 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-/** Opens the sheet from a button (Radix-managed open, what the a11y runner audits) and logs
- * the outcome, so the confirm/cancel round trip is visible. */
-const Harness = ({
-    requested,
-    canWrite,
-    appName = "Retro board",
-    pending = false,
-}: {
-    requested: GrantLevel
-    canWrite: boolean
-    appName?: string
-    pending?: boolean
-}) => {
+const Reopen = ({onClick, outcome}: {onClick: () => void; outcome: string}) => (
+    <>
+        <button
+            type="button"
+            onClick={onClick}
+            className="cursor-pointer rounded border border-solid border-colorBorder bg-colorBgContainer px-2 py-1 text-xs text-colorText hover:bg-colorFillTertiary"
+        >
+            Open…
+        </button>
+        <span>
+            Outcome: <code className="text-colorText">{outcome}</code>
+        </span>
+    </>
+)
+
+const QuestionHarness = ({need}: {need: "read" | "write"}) => {
     const [open, setOpen] = useState(true)
-    const [outcome, setOutcome] = useState<string>("(no answer yet)")
+    const [outcome, setOutcome] = useState("(no answer yet)")
     return (
         <div className="flex h-[200px] w-[480px] flex-col items-start gap-3 text-xs text-colorTextSecondary">
-            <button
-                type="button"
-                onClick={() => setOpen(true)}
-                className="cursor-pointer rounded border border-solid border-colorBorder bg-colorBgContainer px-2 py-1 text-xs text-colorText hover:bg-colorFillTertiary"
-            >
-                Run…
-            </button>
-            <span>
-                Outcome: <code className="text-colorText">{outcome}</code>
-            </span>
-            <GrantSheet
+            <Reopen onClick={() => setOpen(true)} outcome={outcome} />
+            <AccessQuestion
                 open={open}
-                appName={appName}
+                appName="Retro board"
                 dir={APP_DIR}
-                requested={requested}
-                canWrite={canWrite}
-                pending={pending}
-                onCancel={() => {
-                    setOutcome("cancelled → back to Preview")
+                need={need}
+                onAnswer={(allow) => {
+                    setOutcome(allow ? "allowed" : "refused (stored)")
                     setOpen(false)
                 }}
-                onConfirm={(level) => {
-                    setOutcome(`granted ${level}`)
+                onCancel={() => {
+                    setOutcome("cancelled → no access this run, nothing stored")
                     setOpen(false)
                 }}
             />
@@ -68,34 +59,81 @@ const Harness = ({
     )
 }
 
-/** Acceptance: manifest `access: "read"` (or no manifest) → Read files preselected. */
-export const ReadPreselected: Story = {
-    args: {requested: "read", canWrite: true},
-    render: (args) => <Harness requested={args.requested} canWrite={args.canWrite} />,
+const SettingHarness = ({
+    current,
+    canWrite,
+    container,
+}: {
+    current: AppAccess | null
+    canWrite: boolean
+    container?: HTMLElement | null
+}) => {
+    const [open, setOpen] = useState(true)
+    const [outcome, setOutcome] = useState("(not saved)")
+    return (
+        <div className="flex h-[200px] w-[480px] flex-col items-start gap-3 text-xs text-colorTextSecondary">
+            <Reopen onClick={() => setOpen(true)} outcome={outcome} />
+            {open ? (
+                <GrantSheet
+                    open
+                    appName="Retro board"
+                    dir={APP_DIR}
+                    current={current}
+                    canWrite={canWrite}
+                    container={container}
+                    onCancel={() => setOpen(false)}
+                    onSave={(level) => {
+                        setOutcome(`saved ${level}`)
+                        setOpen(false)
+                    }}
+                />
+            ) : null}
+        </div>
+    )
 }
 
-/** Acceptance: manifest `access: "read-write"` and the user may edit mounts → preselected. */
-export const ReadWritePreselected: Story = {
-    args: {requested: "read-write", canWrite: true},
-    render: (args) => <Harness requested={args.requested} canWrite={args.canWrite} />,
+/** The app's first read: "Let Retro board read files in …?" */
+export const ReadQuestion: Story = {
+    render: () => <QuestionHarness need="read" />,
 }
 
-/** Acceptance: uploads disabled for this drive → the write option is not offered, and a manifest
- * asking for read-write is narrowed to read. */
-export const WriteHidden: Story = {
-    args: {requested: "read-write", canWrite: false},
-    render: (args) => <Harness requested={args.requested} canWrite={args.canWrite} />,
+/** The app's first write: "Let Retro board change files in …?"; Allow gives read and write. */
+export const WriteQuestion: Story = {
+    render: () => <QuestionHarness need="write" />,
 }
 
-export const LoadingManifest: Story = {
-    args: {requested: "read", canWrite: true, pending: true},
-    render: (args) => <Harness requested={args.requested} canWrite={args.canWrite} pending />,
+/** The ⋯ setting with read stored: Read, Read and write, None; read preselected. */
+export const SettingRead: Story = {
+    render: () => <SettingHarness current="read" canWrite />,
 }
 
-/** Acceptance: Cancel closes the sheet and returns to Preview (click Cancel, then "Run…" again). */
-export const Cancel: Story = {
-    args: {requested: "read", canWrite: true},
-    render: (args) => (
-        <Harness requested={args.requested} canWrite={args.canWrite} appName="Broken app" />
-    ),
+/** Never answered: nothing preselected, Save waits for a choice. */
+export const SettingNotSet: Story = {
+    render: () => <SettingHarness current={null} canWrite />,
+}
+
+/** Uploads disabled for this drive: only Read and None are offered. */
+export const SettingWriteHidden: Story = {
+    render: () => <SettingHarness current="read-write" canWrite={false} />,
+}
+
+/** Confined to a pane (the Files pane in the drive): only the pane is masked, the rest stays live. */
+export const ContainedInPane: Story = {
+    render: function Render() {
+        const [pane, setPane] = useState<HTMLDivElement | null>(null)
+        return (
+            <div className="flex h-[420px] w-[760px] gap-3 text-xs">
+                <textarea
+                    className="w-[300px] rounded border border-solid border-colorBorder bg-colorBgContainer p-2 text-colorText"
+                    defaultValue="The chat column stays usable while the dialog is open."
+                />
+                <div
+                    ref={setPane}
+                    className="relative flex-1 overflow-hidden rounded border border-solid border-colorBorderSecondary"
+                >
+                    {pane ? <SettingHarness current="read" canWrite container={pane} /> : null}
+                </div>
+            </div>
+        )
+    },
 }

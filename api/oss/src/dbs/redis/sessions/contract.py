@@ -8,7 +8,6 @@ Key namespace — every key is project-scoped:
   alive:<project_id>:session:<session_id>      — session claimed; runner owns it
   running:<project_id>:session:<session_id>    — a turn is actively executing right now
   attached:<project_id>:session:<session_id>   — attach lock (client watching live view)
-  owner:<project_id>:session:<session_id>      — replica + turn generation owning this session
   displaced:<project_id>:session:<session_id>  — pub/sub for attach-steal notifications
   watch:<project_id>:session:<session_id>      — pub/sub for the live relay (SSE watch)
   superseded:<project_id>:session:<session_id>:turn:<turn_id>
@@ -18,6 +17,10 @@ Key namespace — every key is project-scoped:
   started:<project_id>:session:<session_id>:turn:<turn_id>
                                                — when this turn first took `alive`, in epoch
                                                  milliseconds (API-side only; see below)
+  bound:<project_id>:session:<session_id>:turn:<turn_id>
+                                               — the runner pod that holds this turn:
+                                                 `<replica_id>\\x1f<replica_address>`
+                                                 (API-side only; see below)
 
 `session_id` is caller-supplied and Postgres uniqueness is (project_id, session_id), so two
 projects may legitimately hold the same one. The `project_id` segment is the tenant boundary:
@@ -29,7 +32,7 @@ that omits it.
 The nest: alive ⊇ running ⊇ attached. attached ⟹ running ⟹ alive.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, NamedTuple, Optional
 
 from oss.src.utils.env import env
 
@@ -42,7 +45,6 @@ from oss.src.utils.env import env
 ALIVE_TTL_SECONDS: int = env.sessions.alive_ttl_seconds
 RUNNING_TTL_SECONDS: int = env.sessions.running_ttl_seconds
 ATTACHED_TTL_SECONDS: int = env.sessions.attached_ttl_seconds
-OWNER_TTL_SECONDS: int = env.sessions.owner_ttl_seconds
 HEARTBEAT_INTERVAL_SECONDS: int = env.sessions.heartbeat_interval_seconds
 HEARTBEAT_WRITE_THRESHOLD_SECONDS: int = env.sessions.heartbeat_write_threshold_seconds
 
@@ -50,24 +52,41 @@ HEARTBEAT_WRITE_THRESHOLD_SECONDS: int = env.sessions.heartbeat_write_threshold_
 # deliberately absent from the shared golden fixture (like `watch_heartbeat_seconds`).
 SUPERSEDED_TTL_SECONDS: int = env.sessions.superseded_ttl_seconds
 
-# API-side owner payload. The runner reaches affinity through the heartbeat response and never
-# reads this Redis value directly. Unit Separator cannot occur in either UUID-like component and
-# keeps legacy bare-replica values unambiguous.
-OWNER_VALUE_SEPARATOR = "\x1f"
-
-
-def make_owner_value(*, replica_id: str, turn_id: str | None) -> str:
-    return f"{replica_id}{OWNER_VALUE_SEPARATOR}{turn_id or ''}"
-
-
-def owner_replica_id(owner_value: str) -> str:
-    return owner_value.split(OWNER_VALUE_SEPARATOR, 1)[0]
-
-
 # The turn-start key lives exactly as long as `alive` can: it answers "did this turn start
 # before that cancel arrived?", and a turn with no `alive` cannot be cancelled. Reusing
 # ALIVE_TTL keeps the two in step without a new setting.
 TURN_STARTED_TTL_SECONDS: int = ALIVE_TTL_SECONDS
+
+# The turn binding follows the same rule for the same reason: it routes a Stop to the pod that
+# holds the turn, and a parked turn holds `alive` without beating, so the binding must last as
+# long as `alive` can.
+TURN_BOUND_TTL_SECONDS: int = ALIVE_TTL_SECONDS
+
+# The heartbeat refuses a replica id that holds a control character, so the first Unit
+# Separator always ends the id and the split is unambiguous.
+TURN_BINDING_SEPARATOR = "\x1f"
+
+
+class TurnBinding(NamedTuple):
+    """The runner pod that holds a turn.
+
+    `replica_id` is the pod's identity. `replica_address` is the URL that reaches that pod, or
+    empty when the pod reported none or could not prove it is runner infrastructure; empty means
+    "use the Service URL".
+    """
+
+    replica_id: str
+    replica_address: str
+
+
+def make_turn_binding_value(*, replica_id: str, replica_address: str) -> str:
+    return f"{replica_id}{TURN_BINDING_SEPARATOR}{replica_address}"
+
+
+def parse_turn_binding_value(value: str) -> TurnBinding:
+    replica_id, _, replica_address = value.partition(TURN_BINDING_SEPARATOR)
+    return TurnBinding(replica_id=replica_id, replica_address=replica_address)
+
 
 # ---------------------------------------------------------------------------
 # Key builders
@@ -86,10 +105,6 @@ def attached_key(project_id: str, session_id: str) -> str:
     return f"attached:{project_id}:session:{session_id}"
 
 
-def owner_key(project_id: str, session_id: str) -> str:
-    return f"owner:{project_id}:session:{session_id}"
-
-
 def superseded_key(project_id: str, session_id: str, turn_id: str) -> str:
     return f"superseded:{project_id}:session:{session_id}:turn:{turn_id}"
 
@@ -104,6 +119,16 @@ def turn_started_key(project_id: str, session_id: str, turn_id: str) -> str:
     (`services/runner/src/server.ts:188`), so no timestamp can be read out of the id either.
     """
     return f"started:{project_id}:session:{session_id}:turn:{turn_id}"
+
+
+def turn_bound_key(project_id: str, session_id: str, turn_id: str) -> str:
+    """Which runner pod holds this turn, as a `make_turn_binding_value` string.
+
+    API-side only, like `started`: the runner reports its id and address on the heartbeat and
+    never reads this key. A sibling of `started` rather than a second value inside it, because
+    two readers parse `started` as a number.
+    """
+    return f"bound:{project_id}:session:{session_id}:turn:{turn_id}"
 
 
 def displaced_channel(project_id: str, session_id: str) -> str:
@@ -210,20 +235,16 @@ end
 """.strip()
 
 # Atomically release only the generation the watchdog swept. A new Send or Steer may install
-# another turn after the database commit, so every destructive Redis action must compare the
-# value captured before the guarded stream update. The swept turn is tombstoned regardless of
-# whether its old lock keys still exist.
+# another turn after the database commit, so every destructive Redis action must compare against
+# the swept turn. The swept turn is tombstoned regardless of whether its old lock keys still exist.
 WATCHDOG_RELEASE_TURN_LUA = """
 -- AGENTA_WATCHDOG_RELEASE_TURN
 local expected_turn = ARGV[1]
-local expected_owner = ARGV[2]
-local superseded_ttl = tonumber(ARGV[3])
+local superseded_ttl = tonumber(ARGV[2])
 local alive = redis.call('GET', KEYS[1]) or ''
 local running = redis.call('GET', KEYS[2]) or ''
-local owner = redis.call('GET', KEYS[3]) or ''
 local released_alive = 0
 local released_running = 0
-local released_owner = 0
 
 if expected_turn ~= '' and alive == expected_turn then
     released_alive = redis.call('DEL', KEYS[1])
@@ -232,17 +253,11 @@ if expected_turn ~= '' and running == expected_turn then
     released_running = redis.call('DEL', KEYS[2])
 end
 
-local foreign_turn = (alive ~= '' and alive ~= expected_turn)
-    or (running ~= '' and running ~= expected_turn)
-if expected_owner ~= '' and owner == expected_owner and not foreign_turn then
-    released_owner = redis.call('DEL', KEYS[3])
-end
-
 if expected_turn ~= '' then
-    redis.call('SET', KEYS[4], '1', 'EX', superseded_ttl)
+    redis.call('SET', KEYS[3], '1', 'EX', superseded_ttl)
 end
 
-return {released_alive, released_running, released_owner}
+return {released_alive, released_running}
 """.strip()
 
 ACQUIRE_ALIVE_WITH_START_LUA = """
@@ -331,24 +346,20 @@ end
 return 0
 """.strip()
 
-# Atomic claim-or-read: take ownership iff the key is absent or already belongs to this replica,
-# refreshing both its TTL and turn generation. Returns the full actual value without a second
-# racy read. Bare legacy values compare as their own replica id and are upgraded on refresh.
-CLAIM_OWNER_LUA = """
+# Write-once turn binding. The first caller writes the key; every later caller reads the stored
+# value, and only the bound replica (ARGV[2] is its id plus the separator) refreshes the TTL.
+# Returns {1, value} when this call wrote it, {0, stored value} otherwise.
+BIND_TURN_LUA = """
+-- AGENTA_BIND_TURN
 local current = redis.call('GET', KEYS[1])
-local separator = string.char(31)
-local function replica(value)
-    local boundary = string.find(value, separator, 1, true)
-    if boundary then
-        return string.sub(value, 1, boundary - 1)
-    end
-    return value
+if not current then
+    redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[3])
+    return {1, ARGV[1]}
 end
-if current == false or replica(current) == replica(ARGV[1]) then
-    redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
-    return ARGV[1]
+if string.sub(current, 1, string.len(ARGV[2])) == ARGV[2] then
+    redis.call('EXPIRE', KEYS[1], ARGV[3])
 end
-return current
+return {0, current}
 """.strip()
 
 # ---------------------------------------------------------------------------

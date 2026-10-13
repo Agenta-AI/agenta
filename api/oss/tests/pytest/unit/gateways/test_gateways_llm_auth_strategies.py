@@ -12,6 +12,7 @@ import pytest
 from oss.src.core.gateways.llms.dtos import LLMDeploymentKind, LLMResolvedRoute
 from oss.src.core.gateways.llms.providers.passthrough.auth import build_auth_headers
 from oss.src.core.gateways.llms.types import LLMUpstreamError
+from oss.src.core.gateways.policy.types import SecretInvalidError
 from oss.src.core.gateways.policy.dtos import (
     ResolvedSecret,
     SecretOrigin,
@@ -106,6 +107,35 @@ async def test_custom_authenticates_with_its_key_and_sends_no_extras_as_headers(
 
 
 @pytest.mark.asyncio
+async def test_custom_authenticates_with_the_key_the_ui_saves_in_extras():
+    """The UI saves a custom provider's key as `extras["api_key"]`. Read only from
+    `provider.key`, the call went out with no key and Fireworks answered 401."""
+    headers = await build_auth_headers(
+        _route(deployment_kind=LLMDeploymentKind.CUSTOM),
+        _custom_secret(key=None, extras={"api_key": "fw-key"}),
+    )
+    assert headers == {"Authorization": "Bearer fw-key"}
+
+
+@pytest.mark.asyncio
+async def test_custom_prefers_the_stored_key_over_the_extras_one():
+    headers = await build_auth_headers(
+        _route(deployment_kind=LLMDeploymentKind.CUSTOM),
+        _custom_secret("sk-c", extras={"api_key": "fw-key"}),
+    )
+    assert headers == {"Authorization": "Bearer sk-c"}
+
+
+@pytest.mark.asyncio
+async def test_azure_takes_the_key_the_ui_saves_in_extras():
+    headers = await build_auth_headers(
+        _route(deployment_kind=LLMDeploymentKind.AZURE),
+        _custom_secret(key=None, extras={"api_key": "az-key"}),
+    )
+    assert headers == {"api-key": "az-key"}
+
+
+@pytest.mark.asyncio
 async def test_azure_uses_api_key_header_not_authorization():
     headers = await build_auth_headers(
         _route(deployment_kind=LLMDeploymentKind.AZURE), _custom_secret("sk-azure")
@@ -129,12 +159,33 @@ async def test_bedrock_uses_bearer_key_from_extras():
 
 
 @pytest.mark.asyncio
-async def test_bedrock_with_no_bearer_key_raises():
-    with pytest.raises(LLMUpstreamError):
+async def test_bedrock_with_no_bearer_key_is_a_secret_the_caller_can_fix():
+    with pytest.raises(SecretInvalidError, match="has no Bedrock API key"):
         await build_auth_headers(
             _route(deployment_kind=LLMDeploymentKind.BEDROCK),
             _custom_secret(key=None, extras=None),
         )
+
+
+@pytest.mark.asyncio
+async def test_bedrock_with_an_access_key_pair_says_the_gateway_needs_an_api_key():
+    """The card accepts an access key pair instead of a Bedrock API key. Raised as an
+    upstream failure, the person read "upstream request failed" for a connection the UI
+    had accepted."""
+    with pytest.raises(SecretInvalidError, match="AWS access key") as raised:
+        await build_auth_headers(
+            _route(deployment_kind=LLMDeploymentKind.BEDROCK),
+            _custom_secret(
+                key=None,
+                extras={
+                    "aws_region_name": "us-east-1",
+                    "aws_access_key_id": "AKIAEXAMPLE",
+                    "aws_secret_access_key": "secret-value",
+                },
+            ),
+        )
+    assert "secret-value" not in raised.value.message
+    assert "AKIAEXAMPLE" not in raised.value.message
 
 
 @pytest.mark.asyncio

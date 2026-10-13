@@ -6,10 +6,13 @@ import {
     DriveToolbar,
     DriveTypeMark,
     FileTile,
+    FilesPaneToggle,
     FolderList,
     FolderTile,
 } from "@agenta/entity-ui/drive"
+import {SplitPane} from "@agenta/ui/ui"
 import type {Meta, StoryObj} from "@storybook/nextjs"
+import {expect, userEvent, within} from "storybook/test"
 
 // The Files pane's chrome and content pieces with static props — the states a reviewer cannot
 // reach by clicking a live drive: a saving markdown row, a read-only mount, a search-forced tree,
@@ -99,6 +102,77 @@ export const Row1: Story = {
     ),
 }
 
+const PlaygroundFiles = ({narrow = false}: {narrow?: boolean}) => {
+    const [open, setOpen] = useState(true)
+    const [expanded, setExpanded] = useState(false)
+    return (
+        <div data-vrt-subject className={`h-[320px] ${narrow ? "w-[390px]" : "w-[1000px]"}`}>
+            <div className="flex h-12 items-center gap-2 px-4">
+                Recent files
+                <span className="ml-auto" title="Total files">
+                    12 files
+                </span>
+                <FilesPaneToggle
+                    open={open}
+                    onToggle={() => {
+                        setOpen(!open)
+                        setExpanded(false)
+                    }}
+                />
+            </div>
+            <SplitPane
+                paneSide="end"
+                paneSize={open && !expanded && !narrow ? 620 : 0}
+                paneGrow={open && (expanded || narrow)}
+                barHidden={expanded || narrow || !open}
+                resizable={!expanded && !narrow && open}
+                fillMin={320}
+                className="h-[272px]"
+                fillClassName={open && (expanded || narrow) ? "hidden" : undefined}
+                fill={<div className="p-4">Conversation</div>}
+                pane={
+                    <div className="h-full bg-colorBgContainer">
+                        <DriveHeader
+                            {...headerBase}
+                            selectedPath="research"
+                            isFolder
+                            expanded={expanded}
+                            onToggleExpand={() => setExpanded(!expanded)}
+                            expandPlacement="before-options"
+                            onClose={() => {
+                                setOpen(false)
+                                setExpanded(false)
+                            }}
+                            closeVariant="collapse"
+                        />
+                        <textarea
+                            aria-label="Unsaved draft"
+                            defaultValue="Keep this draft"
+                            className="m-4"
+                        />
+                    </div>
+                }
+            />
+        </div>
+    )
+}
+
+export const PlaygroundControls: Story = {
+    render: () => <PlaygroundFiles />,
+    play: async ({canvasElement}) => {
+        const canvas = within(canvasElement)
+        const draft = canvas.getByRole("textbox", {name: "Unsaved draft"})
+        await userEvent.click(canvas.getByRole("button", {name: "Expand files pane"}))
+        await expect(canvas.getByRole("button", {name: "Restore files pane"})).toHaveAttribute(
+            "aria-pressed",
+            "true",
+        )
+        await userEvent.click(canvas.getByRole("button", {name: "Restore files pane"}))
+        await expect(canvas.getByRole("textbox", {name: "Unsaved draft"})).toBe(draft)
+    },
+}
+export const PlaygroundNarrow: Story = {render: () => <PlaygroundFiles narrow />}
+
 const Row2Folder = () => {
     const [view, setView] = useState<"grid" | "list">("grid")
     const [sort, setSort] = useState<"name" | "modified" | "size">("name")
@@ -115,7 +189,7 @@ const Row2Folder = () => {
     )
 }
 
-/** Row 2 in its three shapes: folder, markdown (clean / saving / failed save) and preview. */
+/** Row 2 in its shapes: folder, markdown (clean / saving / failed save), an HTML app and preview. */
 export const Row2: Story = {
     render: () => (
         <div className="flex flex-col gap-4">
@@ -152,6 +226,14 @@ export const Row2: Story = {
                     setMode={noop}
                     status="error"
                     onRetry={noop}
+                />
+            </Frame>
+            <Frame>
+                <DriveToolbar
+                    variant="other"
+                    path="apps/board/index.html"
+                    actions={FILE_ACTIONS}
+                    appView={{code: false, onToggle: noop, access: {label: "Read", onOpen: noop}}}
                 />
             </Frame>
             <Frame>

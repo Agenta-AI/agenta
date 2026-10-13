@@ -11,12 +11,14 @@
  * mounts the connect journey, which is the standing rule for this surface — a dialog
  * mounted inside a clickable row sends every click inside it back to the row.
  */
-import {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useState, type Ref} from "react"
 
 import type {McpConnectionStatus} from "@agenta/entities/mcpEndpoint"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button, EmptyState, IconTile, SearchInput, SkeletonRows} from "@agenta/ui/ui"
-import {Info, Plugs, Plus} from "@phosphor-icons/react"
+import {Plugs, Plus} from "@phosphor-icons/react"
+
+import {ScrollFadeArea} from "../shared/ScrollFadeArea"
 
 import {ConnectionListRow} from "./components/ConnectionListRow"
 
@@ -45,10 +47,11 @@ export interface McpAddServerDrawerProps {
     onAdd: (option: McpConnectionOption) => void | Promise<void>
     /** Runs the auth step alone for an expired login. */
     onReconnect: (option: McpConnectionOption) => void
+    /** The drawer's panel element, so a dialog opened from it can open inside it. */
+    panelRef?: Ref<HTMLDivElement>
 }
 
-const FOOTER_NOTE =
-    "Add opens the permission drawer for this agent. Connect server adds the new server once it's connected."
+const SUBTITLE = "Pick a connected server, or connect a new one."
 
 export function McpAddServerDrawer({
     open,
@@ -58,6 +61,7 @@ export function McpAddServerDrawer({
     onConnectServer,
     onAdd,
     onReconnect,
+    panelRef,
 }: McpAddServerDrawerProps) {
     const [search, setSearch] = useState("")
     // One write in flight at a time: two overlapping adds both start from the same array.
@@ -105,13 +109,26 @@ export function McpAddServerDrawer({
             rootClassName="ag-drawer-elevated"
             open={open}
             onClose={handleClose}
-            placement="responsive"
+            // The side on every screen, as every playground drawer opens.
+            placement="right"
             width={520}
             destroyOnClose
-            title={<span className="text-sm font-semibold">Add MCP server</span>}
+            panelRef={panelRef}
+            title={
+                <span className="flex flex-col gap-0.5">
+                    <span className="text-sm font-semibold">Add MCP server</span>
+                    {emptyProject ? null : (
+                        // Hidden on a phone, where it wraps beside Connect server.
+                        <span className="hidden text-xs font-normal text-colorTextTertiary sm:inline">
+                            {SUBTITLE}
+                        </span>
+                    )}
+                </span>
+            }
             extra={
+                // Secondary: adding a connected server is this drawer's main job.
                 emptyProject ? undefined : (
-                    <Button size="sm" onClick={onConnectServer}>
+                    <Button size="sm" variant="outline" onClick={onConnectServer}>
                         <Plus size={13} />
                         Connect server
                     </Button>
@@ -120,14 +137,6 @@ export function McpAddServerDrawer({
             styles={{
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
-            footer={
-                emptyProject ? null : (
-                    <div className="flex items-start gap-1.5 text-xs text-colorTextTertiary">
-                        <Info size={13} className="mt-px shrink-0" />
-                        <span>{FOOTER_NOTE}</span>
-                    </div>
-                )
-            }
         >
             {emptyProject ? (
                 <div className="flex flex-1 items-center justify-center p-6">
@@ -149,11 +158,7 @@ export function McpAddServerDrawer({
                     </EmptyState>
                 </div>
             ) : (
-                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-                    <span className="text-xs text-colorTextTertiary">
-                        Connected in this project · {options.length}
-                    </span>
-
+                <ScrollFadeArea className="flex min-h-0 flex-1 flex-col gap-3 p-4">
                     <SearchInput
                         placeholder="Search servers"
                         aria-label="Search servers"
@@ -184,7 +189,7 @@ export function McpAddServerDrawer({
                             ))}
                         </div>
                     )}
-                </div>
+                </ScrollFadeArea>
             )}
         </EnhancedDrawer>
     )

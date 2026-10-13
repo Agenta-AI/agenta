@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    TIMESTAMP,
     BigInteger,
     Column,
     Index,
@@ -17,6 +18,8 @@ class SessionSequenceCursorDBE(Base, ProjectScopeDBA, LifecycleDBA):
 
     session_id = Column(String, nullable=False)
     latest_sequence = Column(BigInteger, nullable=False)
+    # Set once when a runner reports a dropped record; the log can no longer rebuild context.
+    records_incomplete_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
 
 class RecordDBE(

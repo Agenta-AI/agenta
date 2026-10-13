@@ -419,6 +419,13 @@ class TracingService:
             updates["limit"] = request_windowing.limit
         if request_windowing and request_windowing.next is not None:
             updates["next"] = request_windowing.next
+            # The cursor of a next page is `next` plus the time it moves (`newest`, or
+            # `oldest` in ascending order). The returned cursor keeps the other bound
+            # of the revision, so the page stays inside the revision's window.
+            if request_windowing.newest is not None:
+                updates["newest"] = request_windowing.newest
+            if request_windowing.oldest is not None:
+                updates["oldest"] = request_windowing.oldest
         if updates:
             merged_windowing = merged_windowing.model_copy(update=updates)
         return merged_windowing
@@ -495,6 +502,24 @@ class TracingService:
             return [UUID(str(condition.value))]
         except (ValueError, TypeError):
             return None
+
+    @staticmethod
+    def bound_query_windowing(windowing: Optional[Windowing]) -> Windowing:
+        """Apply the server bounds to a span or trace list request.
+
+        No `limit` gets `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT`; a larger one, or one
+        below 1, is clamped to `[1, AGENTA_API_TRACING_QUERY_MAX_LIMIT]`. The caller reads
+        the rest with the `windowing` cursor of the response.
+        """
+        maximum = env.agenta.api.tracing.query_max_limit
+        default = min(env.agenta.api.tracing.query_default_limit, maximum)
+
+        limit = windowing.limit if windowing else None
+        limit = default if limit is None else max(1, min(limit, maximum))
+
+        if windowing is None:
+            return Windowing(limit=limit)
+        return windowing.model_copy(update={"limit": limit})
 
     @staticmethod
     def build_next_windowing(
@@ -579,15 +604,27 @@ class TracingService:
         #
         query: TracingQuery,
     ) -> List[OTelFlatSpan]:
-        parse_query(query)
-
-        span_dtos = await self.tracing_dao.query(
+        span_dtos, _ = await self.query_page(
             project_id=project_id,
-            #
             query=query,
         )
 
         return span_dtos
+
+    async def query_page(
+        self,
+        *,
+        project_id: UUID,
+        #
+        query: TracingQuery,
+    ) -> Tuple[List[OTelFlatSpan], Optional[Windowing]]:
+        parse_query(query)
+
+        return await self.tracing_dao.query_page(
+            project_id=project_id,
+            #
+            query=query,
+        )
 
     async def query_span_dtos(
         self,
@@ -595,14 +632,30 @@ class TracingService:
         project_id: UUID,
         query: TracingQuery,
     ) -> OTelFlatSpans:
+        span_dtos, _ = await self.query_span_dtos_page(
+            project_id=project_id,
+            query=query,
+        )
+
+        return span_dtos
+
+    async def query_span_dtos_page(
+        self,
+        *,
+        project_id: UUID,
+        query: TracingQuery,
+    ) -> Tuple[OTelFlatSpans, Optional[Windowing]]:
+        # A filter on trace ids alone reads whole traces (the trace drawer): full
+        # attributes, no limit, no next page.
         trace_ids = self._extract_trace_ids_from_query(query)
         if trace_ids is not None:
-            return await self.fetch(
+            span_dtos = await self.fetch(
                 project_id=project_id,
                 trace_ids=trace_ids,
             )
+            return span_dtos, None
 
-        return await self.query(
+        return await self.query_page(
             project_id=project_id,
             query=query,
         )
@@ -614,6 +667,21 @@ class TracingService:
         query: TracingQuery,
         focus: Optional[Focus] = None,
     ) -> Optional[Union[OTelFlatSpans, OTelTraceTree]]:
+        spans_or_traces, _ = await self.query_spans_or_traces_page(
+            project_id=project_id,
+            query=query,
+            focus=focus,
+        )
+
+        return spans_or_traces
+
+    async def query_spans_or_traces_page(
+        self,
+        *,
+        project_id: UUID,
+        query: TracingQuery,
+        focus: Optional[Focus] = None,
+    ) -> Tuple[Optional[Union[OTelFlatSpans, OTelTraceTree]], Optional[Windowing]]:
         formatting = query.formatting or Formatting()
         if formatting.focus is None:
             formatting.focus = Focus.TRACE
@@ -623,16 +691,18 @@ class TracingService:
             formatting.focus = focus
 
         merged_query = query.model_copy(update={"formatting": formatting})
-        span_dtos = await self.query_span_dtos(
+        span_dtos, next_windowing = await self.query_span_dtos_page(
             project_id=project_id,
             query=merged_query,
         )
 
-        return parse_spans_into_response(
+        spans_or_traces = parse_spans_into_response(
             span_dtos,
             focus=formatting.focus,
             format=formatting.format,
         )
+
+        return spans_or_traces, next_windowing
 
     async def query_spans(
         self,
@@ -641,14 +711,25 @@ class TracingService:
         #
         query: TracingQuery,
     ) -> Spans:
-        spans_or_traces = await self.query_spans_or_traces(
+        spans, _ = await self.query_spans_page(project_id=project_id, query=query)
+
+        return spans
+
+    async def query_spans_page(
+        self,
+        *,
+        project_id: UUID,
+        #
+        query: TracingQuery,
+    ) -> Tuple[Spans, Optional[Windowing]]:
+        spans_or_traces, next_windowing = await self.query_spans_or_traces_page(
             project_id=project_id,
             query=query,
             focus=Focus.SPAN,
         )
         if isinstance(spans_or_traces, list):
-            return spans_or_traces
-        return []
+            return spans_or_traces, next_windowing
+        return [], None
 
     async def fetch_spans(
         self,
@@ -712,14 +793,25 @@ class TracingService:
         #
         query: TracingQuery,
     ) -> Traces:
-        spans_or_traces = await self.query_spans_or_traces(
+        traces, _ = await self.query_traces_page(project_id=project_id, query=query)
+
+        return traces
+
+    async def query_traces_page(
+        self,
+        *,
+        project_id: UUID,
+        #
+        query: TracingQuery,
+    ) -> Tuple[Traces, Optional[Windowing]]:
+        spans_or_traces, next_windowing = await self.query_spans_or_traces_page(
             project_id=project_id,
             query=query,
             focus=Focus.TRACE,
         )
         if isinstance(spans_or_traces, dict):
-            return trace_map_to_traces(spans_or_traces)
-        return []
+            return trace_map_to_traces(spans_or_traces), next_windowing
+        return [], None
 
     async def analytics(
         self,

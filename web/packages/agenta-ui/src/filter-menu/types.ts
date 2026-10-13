@@ -21,6 +21,8 @@ export interface FilterMenuOption<Value extends string = string> {
     /** Rendered at the option's left edge. Consumers own the icon set. */
     icon?: ReactNode
     disabled?: boolean
+    /** Options sharing a group render under its heading; pass them already contiguous. */
+    group?: string
 }
 
 export interface FilterMenuSection<Value extends string = string> {
@@ -48,6 +50,9 @@ export interface FilterMenuSection<Value extends string = string> {
      * fits "Last 30 days"; an agent called "Search Console Assistant" truncates to nothing.
      */
     wide?: boolean
+    /** A search field over the flyout's options, for lists of names too long to scan. */
+    searchable?: boolean
+    searchPlaceholder?: string
 }
 
 /**

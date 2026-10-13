@@ -30,15 +30,19 @@ ${plan.features.map((feature) => `- ${feature}`).join("\n")}
   )
   .join("\n\n")}`;
 
+const notes = pricing.cardsNoteByMode as Record<string, string | null>;
+
 const modes = pricing.hostingToggle.options
-  .map((option) =>
-    mode(
+  .map((option) => {
+    const plans = mode(
       `${option.label} ${option.sublabel}`,
       pricing.plansByMode[
         option.mode as keyof typeof pricing.plansByMode
       ] as Plan[],
-    ),
-  )
+    );
+    const note = notes[option.mode];
+    return note ? `${plans}\n\n${note}` : plans;
+  })
   .join("\n\n");
 
 const faqs = pricing.faqs

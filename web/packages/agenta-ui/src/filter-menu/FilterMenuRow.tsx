@@ -3,7 +3,7 @@ import {ChevronRight} from "lucide-react"
 import {Popover, PopoverAnchor, PopoverContent} from "../components/ui/popover"
 import {cn} from "../components/ui/utils"
 
-import {FilterMenuOptionList} from "./FilterMenuOptionList"
+import {FilterMenuFlyoutBody} from "./FilterMenuFlyoutBody"
 import type {FilterMenuAlign, FilterMenuOption, FilterMenuSection, FilterMenuSide} from "./types"
 
 /** Every checked value on a row, normalised so single- and multi-select read the same. */
@@ -130,7 +130,7 @@ export const FilterMenuRow = ({
                 sideOffset={flyoutSideOffset}
                 aria-label={section.label}
                 className={cn(
-                    "flex max-h-[280px] flex-col overflow-y-auto p-1",
+                    "flex max-h-[280px] flex-col p-0",
                     section.wide ? "w-[248px]" : "w-[188px]",
                 )}
                 onOpenAutoFocus={(event) => event.preventDefault()}
@@ -140,11 +140,11 @@ export const FilterMenuRow = ({
                 onMouseEnter={onHoverOpen}
                 onMouseLeave={onHoverLeave}
             >
-                <FilterMenuOptionList
+                <FilterMenuFlyoutBody
+                    section={section}
                     options={options}
                     selected={selected}
                     autoFocus={autoFocusOptions}
-                    emptyText={section.emptyText ?? `No ${section.label.toLowerCase()} options`}
                     onDismiss={() => onOpenChange(false)}
                     onSelect={(value) => {
                         section.onChange(value)

@@ -98,6 +98,8 @@ export const ListTable = <Row,>({
                   tabIndex: 0,
                   onClick: () => onOpenRow(row),
                   onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+                      // Keys on a nested control (a kebab, a button) belong to that control.
+                      if (event.target !== event.currentTarget) return
                       if (event.key !== "Enter" && event.key !== " ") return
                       event.preventDefault()
                       onOpenRow(row)

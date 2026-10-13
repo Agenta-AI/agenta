@@ -140,6 +140,7 @@ class LLMGatewayRouter:
             model=body.model,
             provider_key=body.provider_key,
             connection_slug=body.connection_slug,
+            connection_namespace=body.connection_namespace,
         )
         return LLMGatewayConnectionResolveResponse(connection=connection)
 

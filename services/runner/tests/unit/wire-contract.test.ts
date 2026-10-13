@@ -443,6 +443,7 @@ describe("wire contract: results (vs Python golden)", () => {
     assert.equal(res.sessionId, "sess-42");
     assert.equal(res.model, "gpt-5.5");
     assert.equal(res.traceId, "trace-abc");
+    assert.equal(res.sandbox, "inprocess");
     // Capabilities come back camelCase; every key must be known to HarnessCapabilities.
     for (const key of Object.keys(res.capabilities)) {
       assert.ok(

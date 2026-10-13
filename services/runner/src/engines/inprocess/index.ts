@@ -69,6 +69,8 @@ function commandSandboxArtifact(config: RunnerConfig): { image: string } | { sna
 
 export interface InProcessProvider {
   deps: SandboxAgentDeps;
+  /** Shutdown: delete the command sandboxes no environment holds any more. */
+  deleteUnheld(): void;
   /** Shutdown: wait (bounded) for command sandboxes still parking or being deleted. */
   settle(timeoutMs: number): Promise<void>;
 }
@@ -123,6 +125,7 @@ export function createInProcessProvider(config: RunnerConfig, log: Log): InProce
         start: async ({ facts, persist }) => new InProcessHarnessHost(runtime, facts, persist),
       },
     },
+    deleteUnheld: () => registry.deleteUnheld(),
     settle: (timeoutMs) => registry.settle(timeoutMs),
   };
 }

@@ -16,6 +16,11 @@ from oss.src.core.secrets.dtos import (
     UpdateSecretDTO,
 )
 from oss.src.core.secrets.enums import LLMEndpointProtocol, SecretKind
+from oss.src.core.secrets.managed import (
+    SecretManagementDTO,
+    SecretManagementPolicy,
+    SecretManager,
+)
 from oss.src.core.secrets.redaction import redact_secret_response
 from oss.src.core.secrets.services import VaultService
 
@@ -34,7 +39,9 @@ class _FakeSecretsDAO:
     def __init__(self):
         self.records: list[SecretResponseDTO] = []
 
-    async def create(self, project_id, organization_id, create_secret_dto, **_):
+    async def create(
+        self, project_id, organization_id, create_secret_dto, management=None, **_
+    ):
         del project_id, organization_id
         record = SecretResponseDTO(
             id=uuid4(),
@@ -42,6 +49,7 @@ class _FakeSecretsDAO:
             kind=create_secret_dto.secret.kind,
             data=create_secret_dto.secret.data.model_dump(exclude_none=True),
             header=create_secret_dto.header,
+            management=management,
         )
         self.records.append(record)
         return record
@@ -77,6 +85,7 @@ class _FakeSecretsDAO:
             kind=update_secret_dto.secret.kind or stored.kind,
             data=update_secret_dto.secret.data.model_dump(),
             header=update_secret_dto.header or stored.header,
+            management=stored.management,
         )
         self.records[self.records.index(stored)] = record
         return record
@@ -533,3 +542,37 @@ async def test_updating_a_plain_key_into_a_custom_provider_registers_and_drops_n
 
     assert registrar.deregistered == []
     assert len(registrar.registered) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_managed_custom_provider_registers_on_create_and_on_manager_update(
+    vault, registrar
+):
+    # The starter-credits bridge writes through these two calls. Its row must reach the
+    # gateway like any other custom provider, and a model the manager re-points must
+    # reach the endpoint's allowlist, or gateway runs fail with `endpoint_not_found`.
+    secret = await vault.create_managed_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=_custom_provider_payload(),
+        management=SecretManagementDTO(
+            manager=SecretManager.STARTER_CREDITS_BRIDGE,
+            policy=SecretManagementPolicy.MANAGER_ONLY,
+        ),
+    )
+    assert [registered.id for _, _, registered in registrar.registered] == [secret.id]
+
+    await vault.update_managed_secret(
+        secret_id=secret.id,
+        update_secret_dto=_custom_provider_update(),
+        manager=SecretManager.STARTER_CREDITS_BRIDGE,
+        project_id=PROJECT_ID,
+    )
+
+    assert len(registrar.registered) == 2
+    project_id, user_id, registered = registrar.registered[-1]
+    assert project_id == PROJECT_ID
+    assert user_id is None
+    assert [model.slug for model in registered.data.models] == [
+        "my-model",
+        "my-other-model",
+    ]

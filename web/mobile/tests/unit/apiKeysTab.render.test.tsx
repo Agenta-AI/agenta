@@ -17,7 +17,12 @@ vi.mock("../../src/features/context/useProjectPermission", () => ({
         action === "edit_api_keys" && fixture.canEdit,
 }))
 
-vi.mock("@agenta/settings", () => ({
+vi.mock("../../src/features/settings/settingsTabs", () => ({
+    useMobileSettingsAccess: () => ({canViewApiKeys: true}),
+}))
+
+vi.mock("@agenta/settings", async (importOriginal) => ({
+    ...(await importOriginal<object>()),
     useApiKeys: (options: UseApiKeysOptions) => {
         fixture.options = options
         return {
@@ -62,7 +67,7 @@ describe("ApiKeysTab", () => {
 
     const mount = () =>
         act(() => {
-            root.render(<ApiKeysTab workspaceId="ws-1" projectId="proj-1" canView />)
+            root.render(<ApiKeysTab workspaceId="ws-1" projectId="proj-1" />)
         })
 
     it("offers Generate key when the backend grants edit_api_keys", () => {

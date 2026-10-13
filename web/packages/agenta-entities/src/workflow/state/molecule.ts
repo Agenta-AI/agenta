@@ -467,6 +467,20 @@ const artifactNameAtomFamily = atomFamily((entityId: string) =>
 )
 
 /**
+ * Entity slug resolved from the workflow ARTIFACT (a revision's slug is an opaque hex id).
+ * Accepts a revision id or a workflow id; null until the artifact loads, with no fallback.
+ */
+const artifactSlugAtomFamily = atomFamily((entityId: string) =>
+    atom<string | null>((get) => {
+        if (!entityId) return null
+        const entity = get(workflowBaseEntityAtomFamily(entityId))
+        const artifactId = entity?.workflow_id ?? entityId
+        const artifactQuery = get(workflowArtifactQueryAtomFamily(artifactId))
+        return artifactQuery.data?.slug ?? null
+    }),
+)
+
+/**
  * Variant label resolved from the VARIANT entity.
  *
  * The label is `variant.name`, then `variant.slug` (SDK-created variants
@@ -1379,6 +1393,8 @@ export const workflowMolecule = {
         name: nameAtomFamily,
         /** Entity display name from the workflow artifact (revision names carry the variant name) */
         artifactName: artifactNameAtomFamily,
+        /** Entity slug from the workflow artifact (a revision's slug is an opaque hex id) */
+        artifactSlug: artifactSlugAtomFamily,
         /** Variant label from the variant entity (name, then slug) */
         variantLabel: variantLabelAtomFamily,
         /** Workflow slug */
@@ -1528,6 +1544,8 @@ export const workflowMolecule = {
             getStore(options).get(nameAtomFamily(workflowId)),
         artifactName: (entityId: string, options?: StoreOptions) =>
             getStore(options).get(artifactNameAtomFamily(entityId)),
+        artifactSlug: (entityId: string, options?: StoreOptions) =>
+            getStore(options).get(artifactSlugAtomFamily(entityId)),
         variantLabel: (entityId: string, options?: StoreOptions) =>
             getStore(options).get(variantLabelAtomFamily(entityId)),
         // Raw flags

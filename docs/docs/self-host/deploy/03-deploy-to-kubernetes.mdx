@@ -13,6 +13,11 @@ This guide walks you through deploying Agenta on Kubernetes using the Helm chart
 
 Database migrations run automatically as a post-install or post-upgrade hook.
 
+Before other people depend on the deployment, work through
+[Prepare a Kubernetes deployment for production](/self-host/guides/kubernetes-production). It covers
+replicas, disruption budgets, rollout settings, and the settings that are required on Google
+Kubernetes Engine.
+
 ## Prerequisites
 
 - A running Kubernetes cluster (v1.24+)
@@ -167,18 +172,23 @@ If you want to expose Agenta through a public hostname, see [Set Up Ingress and 
 The chart creates the following workloads inside your Kubernetes namespace:
 
 - **Web** frontend (Next.js)
+- **Web (mobile)** frontend, served at `/m`
 - **API** backend (FastAPI + Gunicorn)
 - **Services** backend (FastAPI + Gunicorn)
 - **Worker (streams)** for stream consumers such as tracing and session records
 - **Worker (queues)** for queue consumers such as evaluations, webhooks, events, interactions, and triggers
+- **Cron** for scheduled jobs (supercronic)
 - **Agent runner** for agent workflow execution (`agentRunner.enabled` defaults to `true`)
-- **Durable store** (bundled SeaweedFS or an external S3-compatible store) for agent working directories
 - **PostgreSQL** (Bitnami subchart) with three databases
 - **Redis Volatile** for caching and pub/sub
 - **Redis Durable** for queues and persistent state
 - **SuperTokens** for authentication
 - **Alembic** migration job (post-install/post-upgrade hook)
-- **Ingress** resource for routing traffic to web, API, and services (when enabled)
+- **Ingress** resource for routing traffic to web, mobile web, API, and services (when enabled)
+
+The durable object store for agent working directories is **not** deployed by default.
+`store.enabled` is `false`, and the whole `store` block does nothing until you set it. Turning it on
+also deploys a bundled SeaweedFS StatefulSet, because `store.seaweedfs.enabled` defaults to `true`.
 
 :::
 
@@ -191,10 +201,16 @@ Configuration is done through Helm values. Defaults live in `hosting/kubernetes/
 | Value | Purpose | Default |
 |-------|---------|---------|
 | `agenta.license` | Edition to deploy (`oss` or `ee`) | `oss` |
-| `agenta.webUrl` | Public web URL | `http://localhost` |
-| `agenta.apiUrl` | Public API URL | `http://localhost/api` |
-| `agenta.servicesUrl` | Public services URL | `http://localhost/services` |
+| `agenta.webUrl` | Public web URL | derived from `ingress.host` |
+| `agenta.apiUrl` | Public API URL | derived from `ingress.host`, plus `/api` |
+| `agenta.servicesUrl` | Public services URL | derived from `ingress.host`, plus `/services` |
 | `global.imagePullSecrets` | Image pull secrets (Bitnami subchart convention) | `[]` |
+
+The three URLs have no fixed default. The chart derives each one from `ingress.host` when
+`ingress.enabled` is `true` and you set `ingress.host` yourself. The `agenta.local` fallback that
+the Ingress uses is not used for the URLs. The chart uses `https` when `ingress.tls` is a non-empty
+list. Otherwise, or with ingress disabled, set all three yourself. The chart fails the install, with a message naming the
+keys, if any of the three resolves to empty.
 
 ### Secrets {#secrets}
 
@@ -210,9 +226,11 @@ Configuration is done through Helm values. Defaults live in `hosting/kubernetes/
 | `identity.<provider>.{clientId,clientSecret,…}` | OAuth/OIDC provider credentials (Google, GitHub, Okta, Azure AD, …) — injected into pods as `<PROVIDER>_OAUTH_CLIENT_ID/SECRET` env vars | unset |
 | `llm.<provider>` | LLM provider API keys (`openai`, `anthropic`, `gemini`, …) — injected into pods as `<PROVIDER>_API_KEY` env vars | unset |
 
-To use an existing Kubernetes Secret instead of having the chart create one, set `secrets.existingSecret` to the name of your Secret. It must contain `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `AGENTA_SERVICES_INTERNAL_KEY`, and `POSTGRES_PASSWORD`.
+To use an existing Kubernetes Secret instead of having the chart create one, set `secrets.existingSecret` to the name of your Secret. It must contain `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `AGENTA_SERVICES_INTERNAL_KEY`, `AGENTA_RUNNER_TOKEN`, and `POSTGRES_PASSWORD`.
 
-If you enable secret-backed settings such as OAuth, LLM provider keys, SendGrid, Composio, New Relic, or Turnstile, add those keys to the same Secret too. When `secrets.existingSecret` is set, the chart does not create or update the Secret for you.
+`AGENTA_RUNNER_TOKEN` is the one exception. You can leave it out of the Secret if you point the runner at a Secret of its own with `agentRunner.auth.tokenSecretRef`.
+
+If you enable secret-backed settings such as OAuth, LLM provider keys, SendGrid, Composio, New Relic, or Turnstile, add those keys to the same Secret too. When `secrets.existingSecret` is set, the chart does not create or update the Secret for you, and it does not read `agenta.authKey`, `agenta.cryptKey`, `agenta.servicesInternalKey`, `agenta.runnerToken` or `postgres.password`. From version 0.122.0 the install notes no longer warn that those values still hold their placeholders, because nothing reads them.
 
 :::caution Bundled PostgreSQL needs a matching subchart setting
 When `secrets.existingSecret` is set **and** the bundled PostgreSQL is enabled (the default), you must also point the Bitnami subchart at the same Secret:
@@ -291,7 +309,7 @@ When these values are set, they override the edition-based defaults.
 
 ### Component Toggles and Replicas
 
-Each component (`api`, `web`, `services`, `workerStreams`, `workerQueues`, `cron`, `supertokens`) supports:
+Each component (`api`, `web`, `webMobile`, `services`, `workerStreams`, `workerQueues`, `cron`, `agentRunner`, `supertokens`) supports:
 
 | Value | Purpose | Default |
 |-------|---------|---------|
@@ -302,6 +320,58 @@ Each component (`api`, `web`, `services`, `workerStreams`, `workerQueues`, `cron
 | `<component>.tolerations` | Tolerations | `[]` |
 | `<component>.affinity` | Affinity rules | `{}` |
 | `<component>.env` | Extra environment variables | `{}` |
+| `<component>.service.annotations` | Annotations on that component's Service (`api`, `web`, `webMobile`, `services` only) | `{}` |
+
+`<component>.env` takes plain strings, so it cannot reference a Secret key. Two other keys take raw
+Kubernetes entries. `extraEnv` renders explicit `env` entries after the chart's own variables, so a
+matching name there wins. `envFrom` supplies only names that no explicit `env` entry already
+defines.
+
+:::caution Four components ignore `replicas`, and one cannot be disabled
+`cron` always runs one pod. It runs supercronic, which fires every schedule in every pod, so the
+chart ignores `cron.replicas`. `redisVolatile`, `redisDurable` and `store.seaweedfs` also run one
+pod each.
+
+`webMobile` has no `enabled` switch. The mobile web app always deploys and `/m` always routes.
+`webMobile.enabled: false` fails schema validation.
+
+`agentRunner.replicas` is read, but do not raise it. The API does not route a session to the runner
+pod that owns it. See
+[Prepare a Kubernetes deployment for production](/self-host/guides/kubernetes-production#survive-a-node-going-away).
+:::
+
+### Availability and Rollout {#availability-and-rollout}
+
+The chart renders a PodDisruptionBudget and topologySpreadConstraints for each workload that runs
+two or more replicas. A workload with one replica gets neither by default. The chart also sets
+rollout and shutdown defaults per workload, whatever its replica count.
+[Prepare a Kubernetes deployment for production](/self-host/guides/kubernetes-production) explains
+what each one does, what the defaults give you, and what they do not.
+
+| Value | Purpose | Default |
+|-------|---------|---------|
+| `podDisruptionBudgets.enabled` | Render a budget per workload | `true` |
+| `topologySpread.enabled` | Render spread constraints per workload | `true` |
+| `<workload>.pdb.maxUnavailable` | Replace the generated budget | `1` on 2 or more replicas, otherwise no budget |
+| `<workload>.pdb.minAvailable` | Replace the generated budget | unset |
+| `<workload>.pdb.protectSingleton` | Give a one-replica workload a `minAvailable: 1` budget | `false` |
+| `<workload>.topologySpreadConstraints` | Replace the generated constraint list | generated on 2 or more replicas |
+| `<workload>.strategy` | Rendered verbatim under the Deployment's `spec.strategy` | per workload |
+| `<workload>.terminationGracePeriodSeconds` | Rendered on the pod spec | per workload |
+| `<workload>.lifecycle` | Rendered verbatim under the container's `lifecycle` | per workload |
+| `<workload>.livenessProbe` | Rendered verbatim as the container's liveness probe (`cron`, `workerStreams`, `workerQueues` only) | none |
+
+`<workload>` is one of `api`, `web`, `webMobile`, `services`, `cron`, `workerStreams`,
+`workerQueues`, `agentRunner`, `supertokens`, `redisVolatile`, `redisDurable` or `store.seaweedfs`.
+`strategy` applies to Deployments only, so it is not rendered on `redisDurable` or
+`store.seaweedfs`, which are StatefulSets. `terminationGracePeriodSeconds` and `lifecycle` apply to
+all of them, and both also work on `alembic`.
+
+The migration Job carries no budget and no spread constraints.
+
+`cron`, `workerStreams` and `workerQueues` have no liveness probe by default. Each runs its process
+as PID 1, so the kubelet already restarts the container when the process exits. To detect a process
+that is alive but no longer working, supply your own probe with `<workload>.livenessProbe`.
 
 ### PostgreSQL (Bundled)
 
@@ -318,8 +388,17 @@ The bundled PostgreSQL init scripts run only when the database volume is first c
 |-------|---------|---------|
 | `postgresql.enabled` | Enable bundled PostgreSQL | `true` |
 | `postgresql.auth.username` | Database user | `agenta` |
-| `postgresql.auth.password` | Database password (must match `postgres.password`) | `""` |
 | `postgresql.primary.persistence.size` | PVC size | `10Gi` |
+
+Set the password only once, under `postgres.password`. The chart writes it to a Secret named
+`<release>-pgauth` and points the Bitnami subchart at that Secret. `postgresql.auth.password` is
+therefore not read, and a value set there has no effect.
+
+:::caution A misspelled `postgresql` key is accepted
+Nothing constrains the keys under `postgresql`, because the block passes values through to the
+subchart. `helm install` accepts a misspelled key and the chart falls back to the default. Render
+the chart and read `POSTGRES_URI_CORE` back before you install.
+:::
 
 ### Redis
 
@@ -328,12 +407,33 @@ The chart deploys two Redis instances: volatile (caching/pub-sub) and durable (q
 | Value | Purpose | Default |
 |-------|---------|---------|
 | `redisVolatile.enabled` | Enable volatile Redis | `true` |
-| `redisVolatile.maxmemory` | Max memory | `512mb` |
+| `redisVolatile.maxmemory` | Max memory | `384mb` |
+| `redisVolatile.maxmemoryPolicy` | Eviction policy | `volatile-lru` |
 | `redisVolatile.password` | Password (recommended for production) | `""` |
+| `redisVolatile.safeToEvict` | Let a cluster autoscaler consolidate this pod's node | `false` |
 | `redisDurable.enabled` | Enable durable Redis | `true` |
-| `redisDurable.maxmemory` | Max memory | `512mb` |
+| `redisDurable.maxmemory` | Max memory | `384mb` |
+| `redisDurable.maxmemoryPolicy` | Eviction policy | `noeviction` |
 | `redisDurable.password` | Password (recommended for production) | `""` |
 | `redisDurable.persistence.size` | PVC size | `5Gi` |
+| `redisDurable.safeToEvict` | Let a cluster autoscaler consolidate this pod's node | `false` |
+| `redisVolatile.startupProbe.failureThreshold` | Startup probe attempts, five seconds apart, before Redis restarts | `60` |
+| `redisDurable.startupProbe.failureThreshold` | Startup probe attempts, five seconds apart, before Redis restarts | `60` |
+
+The durable instance replays its append-only file before it answers `ping`, and the startup probe
+fails until it does. The default allows about five minutes. If a replay takes longer, Redis
+restarts and starts the replay again. Measure the recovery time with your CPU and storage limits,
+then raise the threshold for that instance. For example, about 30 minutes:
+
+```yaml
+redisDurable:
+  startupProbe:
+    failureThreshold: 360
+```
+
+Each instance runs one pod and holds state, so losing the pod takes that component down. Both carry
+`cluster-autoscaler.kubernetes.io/safe-to-evict: "false"` for that reason. `supertokens` carries it
+too.
 
 :::caution
 By default both Redis instances run without authentication. In shared or multi-tenant clusters, set passwords for both instances or use Kubernetes NetworkPolicies to restrict access to the Agenta namespace.
@@ -346,53 +446,99 @@ Migrations run as a Kubernetes Job with `post-install,post-upgrade` hooks. Post-
 | Value | Purpose | Default |
 |-------|---------|---------|
 | `alembic.enabled` | Enable migration job | `true` |
+| `alembic.hookPhase` | `post` or `pre` | `post` |
 | `alembic.activeDeadlineSeconds` | Job timeout | `600` |
 | `alembic.backoffLimit` | Retry count | `3` |
 | `alembic.ttlSecondsAfterFinished` | Cleanup delay | `300` |
 
+Set `alembic.hookPhase: pre` to run the migrations before the application pods start. Use that only
+with an external database (`postgresql.enabled: false`). With the bundled PostgreSQL, keep the
+default `post`. The StatefulSet does not exist yet at pre-install time, so the Job would wait for a
+database that nothing is starting. A value other than `post` or `pre` fails the render.
+
+On the very first install in the `pre` phase, the Job names no ServiceAccount. It runs before the
+release's own ServiceAccount is applied, and Kubernetes refuses a pod that names a ServiceAccount
+which does not exist. The migration reaches PostgreSQL only, so on that one install its pod takes
+the namespace's default ServiceAccount and mounts no token. Every later upgrade names the
+ServiceAccount again. If a cluster policy requires a named ServiceAccount, create one yourself and
+set `serviceAccount.create: false` with `serviceAccount.name`.
+
 ### Set Up Ingress and TLS {#set-up-ingress-and-tls}
-
-The chart creates an Ingress resource with three path rules:
-
-- `/api` routes to the API service
-- `/services` routes to the services backend
-- `/` routes to the web frontend
 
 Use this section when you want a public hostname instead of port-forwarding.
 
-Your ingress setup must route:
+The chart creates one Ingress resource with four path rules on `ingress.host`:
 
-- `/` to the web service
-- `/api` to the API service
-- `/services` to the services service
-
-It must also strip the `/api` and `/services` prefixes before forwarding requests upstream.
+- `/api` routes to the API service
+- `/services` routes to the services backend
+- `/m` routes to the mobile web frontend, always
+- `/` routes to the web frontend
 
 ### Ingress Values
 
 | Value | Purpose | Default |
 |-------|---------|---------|
 | `ingress.enabled` | Enable Ingress | `true` |
-| `ingress.className` | Ingress class | `traefik` |
-| `ingress.host` | Hostname | `""` |
-| `ingress.tls` | TLS configuration | `[]` |
+| `ingress.className` | Ingress class. An explicit `""` omits `spec.ingressClassName` | `traefik` |
+| `ingress.host` | Hostname | `agenta.local` |
+| `ingress.tls` | TLS configuration, in the shape the Ingress spec uses | `[]` |
 | `ingress.annotations` | Ingress annotations | `{}` |
 | `ingress.paths.api.path` | API path pattern | `/api` |
 | `ingress.paths.api.pathType` | API path type | `Prefix` |
 | `ingress.paths.services.path` | Services path pattern | `/services` |
 | `ingress.paths.services.pathType` | Services path type | `Prefix` |
+| `ingress.paths.webMobile.path` | Mobile web path pattern | `/m` |
+| `ingress.paths.webMobile.pathType` | Mobile web path type | `Prefix` |
 | `ingress.paths.web.path` | Web path pattern | `/` |
 | `ingress.paths.web.pathType` | Web path type | `Prefix` |
+| `ingress.extraPaths` | More paths on the same host, each with `path`, `pathType`, `serviceName`, `servicePort` | `[]` |
+| `ingress.extraHosts` | More hostnames, each with `host` and its own `paths` list | `[]` |
+
+Keep the mobile path at `/m`. The mobile image is built with that basePath.
+
+A Service named in `ingress.extraPaths` or `ingress.extraHosts` must already exist in the
+namespace. The chart does not create it.
 
 :::info Ingress class name
-The chart defaults to `ingress.className: "traefik"`. If your cluster uses a different ingress controller, override this value to match. NGINX users must also override the ingress paths (see [Path Prefix Stripping](#path-prefix-stripping) below).
+The chart defaults to `ingress.className: "traefik"`. If your cluster uses a different ingress controller, override this value to match.
 
 You can check which ingress classes are available in your cluster with `kubectl get ingressclass`.
+
+Some controllers ignore the field. GKE reacts only to the legacy `kubernetes.io/ingress.class`
+annotation, so there you set `ingress.className: ""` and route with the annotation. See
+[Prepare a Kubernetes deployment for production](/self-host/guides/kubernetes-production#settings-that-are-required-on-google-kubernetes-engine).
 :::
 
-### Path Prefix Stripping {#path-prefix-stripping}
+### Path Handling {#path-prefix-stripping}
 
-The API and services backends expect requests without the `/api` or `/services` prefix. Configure your ingress controller to strip these prefixes.
+Both backends accept their own public prefix. The API strips a leading `/api` from every inbound
+request, and the services backend strips a leading `/services`. Each strips in a loop, so a double
+prefix also routes, and neither emits a redirect.
+
+You therefore do **not** need path rewriting in your ingress controller. This is what lets the chart
+work behind a managed load balancer such as the GKE Ingress, which cannot rewrite a path.
+
+An ingress controller that strips the prefix also works. After the strip the request arrives with no
+prefix, which both backends route as well. The two examples below are both valid configurations,
+not requirements.
+
+To publish the services backend under a different prefix, change three values together. The
+variable alone is not enough: the Ingress still routes `/services`, and the derived
+`agenta.servicesUrl` still ends in `/services`. For example, for `/svc`:
+
+```yaml
+agenta:
+  servicesUrl: "https://agenta.example.com/svc"
+ingress:
+  paths:
+    services:
+      path: /svc
+services:
+  env:
+    AGENTA_SERVICES_PATH_PREFIX: /svc
+```
+
+Set `AGENTA_SERVICES_PATH_PREFIX` to an empty string to turn the strip off.
 
 **Traefik**: Use a `StripPrefix` Middleware via `extraObjects`:
 
@@ -416,26 +562,17 @@ extraObjects:
           - /services
 ```
 
-**NGINX Ingress Controller**: Override the paths to use regex capture groups and add rewrite annotations:
+**NGINX Ingress Controller**: Set the class. The default paths need no rewrite:
 
 ```yaml
 ingress:
   className: "nginx"
   host: "agenta.example.com"
-  annotations:
-    nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/rewrite-target: /$1
-  paths:
-    api:
-      path: /api/(.*)
-      pathType: ImplementationSpecific
-    services:
-      path: /services/(.*)
-      pathType: ImplementationSpecific
-    web:
-      path: /(.*)
-      pathType: ImplementationSpecific
 ```
+
+Do not add `nginx.ingress.kubernetes.io/rewrite-target`. NGINX applies an Ingress annotation to
+every path on that Ingress, so a rewrite also changes requests to `/m`, and the mobile web app
+needs that prefix.
 
 ### Enable TLS
 
@@ -526,17 +663,59 @@ URI overrides contain credentials inline. Prefer using `secrets.existingSecret` 
 
 ### External Redis
 
+Give each instance a full URI. The chart passes the string through to
+`REDIS_URI_VOLATILE` and `REDIS_URI_DURABLE` unchanged, so credentials, the database number, and
+the scheme are all yours to set.
+
 ```yaml
 redisVolatile:
   enabled: false
   external:
-    uri: "redis://your-redis-host:6379/0"
+    uri: "redis://user:password@your-redis-host:6379/0"
 
 redisDurable:
   enabled: false
   external:
-    uri: "redis://your-redis-host:6379/1"
+    uri: "rediss://user:password@your-redis-host:6379/1"
 ```
+
+`redis.uriVolatile` and `redis.uriDurable` are accepted as alternatives to the two `external.uri`
+keys, and the single `redis.uri` is accepted as a fallback for both.
+
+:::caution Only `external.uri` is read
+`redisVolatile.external` and `redisDurable.external` also accept `host`, `port` and `password`, but
+the chart does not build a URI from them. If you set those three and leave `uri` unset, the render
+fails with `redisVolatile.external.uri or redis.uriVolatile is required when
+redisVolatile.enabled=false`. Put the host, the port and the credentials inside the URI.
+:::
+
+:::note A durable Redis with a private certificate authority
+A `rediss://` URI makes the client use TLS and verify the server certificate. The client trusts only
+the certificate authorities already in the container image. Some managed services, such as Google
+Cloud Memorystore, sign with an authority of their own, and the connection fails with
+`CERTIFICATE_VERIFY_FAILED`. A service with a publicly trusted certificate needs nothing here.
+
+For the durable instance, put the authority in `redisDurable.external.caCert`. The chart mounts it
+at `/etc/agenta/redis-durable/ca.pem` on every workload that reads `REDIS_URI_DURABLE`. Point the URI
+at that file with the `ssl_ca_certs` parameter:
+
+```yaml
+redisDurable:
+  enabled: false
+  external:
+    uri: "rediss://:password@your-redis-host:6378/0?ssl_ca_certs=/etc/agenta/redis-durable/ca.pem"
+    caCert: |
+      -----BEGIN CERTIFICATE-----
+      ...
+      -----END CERTIFICATE-----
+```
+
+With `secrets.existingSecret`, the chart writes no Secret. Put the PEM in your Secret under the key
+`REDIS_DURABLE_CA_CERT`, and set `caCert: from-existing-secret` so the chart still mounts it.
+
+The volatile instance has no such setting. `redisVolatile.external.caCert` fails the render. Use a
+volatile Redis with a publicly trusted certificate.
+:::
 
 ### External SuperTokens
 
@@ -654,8 +833,24 @@ kubectl -n agenta describe ingress agenta
 
 Common causes:
 - Missing ingress controller: ensure Traefik or NGINX Ingress Controller is installed
-- Missing path prefix stripping: the API and services backends will return 404 if `/api` and `/services` prefixes are not stripped (see [Path Prefix Stripping](#path-prefix-stripping))
-- Wrong `ingress.className`: must match your ingress controller's class name
+- Wrong `ingress.className`: it must match your ingress controller's class name. On GKE the field is ignored, and the Ingress gets no address until you set `ingress.className: ""` and add `kubernetes.io/ingress.class: gce` to `ingress.annotations`
+- A rewrite annotation on NGINX: `nginx.ingress.kubernetes.io/rewrite-target` applies to every path on the Ingress, including `/m`. Remove it. The backends accept their prefixes (see [Path Handling](#path-prefix-stripping))
+
+### The agent runner pod never becomes ready
+
+The runner binds `127.0.0.1` on its own. In a pod the kubelet connects over the pod IP, so a runner
+bound to loopback refuses every health probe and the pod stays unready.
+
+The chart sets `AGENTA_RUNNER_HOST=0.0.0.0` for you, so this only happens when something overrides
+it. `agentRunner.env` suppresses the chart's own entry rather than adding a second one, so an entry
+for `AGENTA_RUNNER_HOST` there replaces the chart's value. Read the value back:
+
+```bash
+kubectl -n agenta get deployment agenta-runner \
+  -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="AGENTA_RUNNER_HOST")]}'
+```
+
+Set it with `agentRunner.host` instead.
 
 ### Services can't connect to each other
 

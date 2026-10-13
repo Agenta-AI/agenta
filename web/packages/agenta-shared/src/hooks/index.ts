@@ -8,6 +8,8 @@ export {default as useLazyEffect} from "./useLazyEffect"
 export {useSelectionState, type UseSelectionStateResult} from "./useSelectionState"
 export {useRunAllShortcut, type UseRunAllShortcutParams} from "./useRunAllShortcut"
 export {useModifierKey} from "./useModifierKey"
+export {useInView} from "./useInView"
+export {useSettledValue} from "./useSettledValue"
 export {
     desktopEscapeHref,
     useClassicModeCookieSync,

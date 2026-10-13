@@ -59,7 +59,7 @@ export function SkillCreateDrawer({
     projectId,
     upload = null,
     onCreated,
-    width = 960,
+    width = 860,
 }: SkillCreateDrawerProps) {
     const [value, setValue] = useState<Record<string, unknown>>(EMPTY_SKILL)
     const [busy, setBusy] = useState(false)
@@ -251,7 +251,7 @@ export function SkillCreateDrawer({
                 </div>
             }
         >
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
                 {reading ? (
                     <div className="flex h-full items-center justify-center">
                         <Spinner size="small" />

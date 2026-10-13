@@ -232,4 +232,5 @@ def result_from_wire(data: Dict[str, Any]) -> AgentResult:
         session_id=data.get("sessionId"),
         model=data.get("model"),
         trace_id=data.get("traceId"),
+        sandbox=data.get("sandbox"),
     )

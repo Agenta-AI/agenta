@@ -53,3 +53,12 @@ export function analyticsIdentity(
 
 export {captureFirstAgentIntent, classifyAgentIntent} from "./onboarding"
 export type {FirstAgentIntentPayload, FirstAgentIntentSource} from "./onboarding"
+export {
+    MAINTENANCE_NOTICE_FLAG,
+    dismissNotice,
+    isNoticeDismissed,
+    parseNotice,
+    readMaintenanceNotice,
+    subscribeMaintenanceNotice,
+} from "./maintenanceNotice"
+export type {MaintenanceNotice, MaintenanceNoticeFlagClient} from "./maintenanceNotice"

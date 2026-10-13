@@ -6,7 +6,7 @@
  */
 import {atomWithStorage} from "jotai/utils"
 
-import {type AgentModelSelection} from "../../secret/core"
+import {connectionNamespaceFrom, type AgentModelSelection} from "../../secret/core"
 
 export interface AgentCreationPrefs {
     version: 1
@@ -15,6 +15,7 @@ export interface AgentCreationPrefs {
     provider?: string
     connectionMode?: string
     connectionSlug?: string
+    connectionNamespace?: string
 }
 
 const DEFAULT_PREFS: AgentCreationPrefs = {version: 1}
@@ -45,6 +46,7 @@ export function selectionFromAgentCreationPrefs(
         provider: prefs.provider ?? null,
         mode,
         slug: mode === "agenta" ? (prefs.connectionSlug ?? null) : null,
+        namespace: mode === "agenta" ? connectionNamespaceFrom(prefs.connectionNamespace) : null,
         harness: prefs.harness,
     }
 }
@@ -62,6 +64,9 @@ export function applyAgentModelSelection(
         connection: {
             mode: selection.mode,
             ...(selection.mode === "agenta" && selection.slug ? {slug: selection.slug} : {}),
+            ...(selection.mode === "agenta" && selection.slug && selection.namespace
+                ? {namespace: selection.namespace}
+                : {}),
         },
     }
     if (selection.provider) nextLlm.provider = selection.provider

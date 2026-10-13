@@ -177,9 +177,9 @@ const mounts: [string, () => Promise<void>][] = [
                     removeItem: vi.fn(),
                     closeEditor: vi.fn(),
                     statusFor: () => undefined,
-                    emptyAdd: null,
                     addOpen: true,
                     onAddClose: vi.fn(),
+                    onAddOpen: vi.fn(),
                 }),
             )
             await click("Reconnect from the add drawer")

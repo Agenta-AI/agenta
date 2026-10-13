@@ -11,6 +11,8 @@ import {isBillingEnabled} from "@agenta/shared/api"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
+import {CreditTopUps} from "../wallet/CreditTopUps"
+
 import {CancelSubscriptionSheet} from "./CancelSubscriptionSheet"
 import {PlanChooserSheet} from "./PlanChooserSheet"
 
@@ -66,6 +68,7 @@ export const BillingTab = ({projectId}: Props) => {
             billingEnabled={billingEnabled}
             loading={usage.isPending || subscription.isPending}
             subscription={subscription.data}
+            planTitle={catalog.plans.find((plan) => plan.plan === subscription.data?.plan)?.title}
             usage={usage.data}
             isOnFreePlan={catalog.isOnFreePlan}
             isCustomPlan={catalog.isCustomPlan}
@@ -79,6 +82,13 @@ export const BillingTab = ({projectId}: Props) => {
                 })
             }
         >
+            {billingEnabled ? (
+                <CreditTopUps
+                    projectId={projectId}
+                    onUpgrade={() => setPlanChooserOpen(true)}
+                    framed
+                />
+            ) : null}
             <PlanChooserSheet
                 open={planChooserOpen}
                 onOpenChange={setPlanChooserOpen}

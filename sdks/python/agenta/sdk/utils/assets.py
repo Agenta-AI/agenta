@@ -94,6 +94,7 @@ supported_llm_models = {
         # and then pick nothing in particular. A guard test pins this (see
         # test_pi_publishes_concrete_gpt_5_6_models_for_both_openai_providers).
         "gpt-6-astra",
+        "gpt-6.1-sol",
         "gpt-6-sol",
         "gpt-6-luna",
         "gpt-5.6-sol",
@@ -168,8 +169,7 @@ supported_llm_models = {
         "together_ai/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
         "together_ai/meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo",
         "together_ai/meta-llama/Llama-3.2-3B-Instruct-Turbo",
-        "together_ai/moonshotai/Kimi-K2.7-Code",
-        "together_ai/moonshotai/Kimi-K2.6",
+        "together_ai/moonshotai/Kimi-K3",
         "together_ai/mistralai/Mistral-Small-24B-Instruct-2501",
         "together_ai/mistralai/Mistral-7B-Instruct-v0.1",
         "together_ai/mistralai/Mixtral-8x7B-Instruct-v0.1",

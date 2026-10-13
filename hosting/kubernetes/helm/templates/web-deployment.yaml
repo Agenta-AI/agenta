@@ -14,6 +14,16 @@ spec:
   {{- with $web.strategy }}
   strategy:
     {{- toYaml . | nindent 4 }}
+  {{- else }}
+  {{- /* Default: never take a pod down before its replacement is ready. The
+         Kubernetes default of 25% unavailable rounds to "the only pod" when a
+         workload runs one replica, which is a deliberate outage on every
+         rollout. */}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   {{- end }}
   selector:
     matchLabels:
@@ -29,6 +39,9 @@ spec:
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
       {{- if hasKey $web "terminationGracePeriodSeconds" }}
       terminationGracePeriodSeconds: {{ $web.terminationGracePeriodSeconds }}
+      {{- else }}
+      {{- /* Default 60 s: the load balancer needs time to stop sending requests here. */}}
+      terminationGracePeriodSeconds: 60
       {{- end }}
       {{- with $web.podSecurityContext }}
       securityContext:
@@ -120,6 +133,14 @@ spec:
           {{- with $web.lifecycle }}
           lifecycle:
             {{- toYaml . | nindent 12 }}
+          {{- else }}
+          {{- /* Default: hold the container open for 10 s after Kubernetes
+                 sends the stop signal, so the load balancer finishes taking
+                 this pod out of rotation before the process goes away. */}}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "10"]
           {{- end }}
           {{- with $web.resources }}
           resources:
@@ -136,5 +157,10 @@ spec:
       {{- with $web.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $spread := include "agenta.topologySpreadConstraints" (dict "root" $ "component" "web" "key" "web" "replicas" (include "agenta.web.replicas" .)) }}
+      {{- if $spread }}
+      topologySpreadConstraints:
+        {{- $spread | nindent 8 }}
       {{- end }}
 {{- end }}

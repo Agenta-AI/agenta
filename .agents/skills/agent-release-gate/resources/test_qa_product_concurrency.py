@@ -335,6 +335,43 @@ def test_a_capacity_refusal_is_a_skip_not_a_verdict():
     assert "pass" not in r
 
 
+def test_the_runner_sandbox_capacity_sentence_is_a_skip_not_a_verdict():
+    """The runner replaces the provider's refusal with its own `sandbox_capacity` sentence."""
+    _reset()
+
+    def provider_full(session, messages, params, timeout=300.0, deadline=None):
+        t = qa.Turn()
+        t.http_status = 200
+        t.errors.append(
+            "The command sandbox could not be started because the sandbox provider is at "
+            "its capacity limit. Try again in a few minutes."
+        )
+        return t
+
+    qa.invoke = provider_full
+    r = qa.j_burst(CELL)
+    assert r.get("skip") and "ENVIRONMENT, NOT THE PRODUCT" in r["why"], r
+    assert "pass" not in r
+
+
+def test_the_runner_own_sandbox_slot_limit_is_still_a_failure():
+    """Same `sandbox_capacity` code, but the runner's own limit: a real finding under burst."""
+    _reset()
+
+    def slots_full(session, messages, params, timeout=300.0, deadline=None):
+        t = qa.Turn()
+        t.http_status = 200
+        t.errors.append(
+            "This agent service is running as many command sandboxes as it is allowed to "
+            "right now, so the command did not run. Send it again in a moment."
+        )
+        return t
+
+    qa.invoke = slots_full
+    r = qa.j_burst(CELL)
+    assert not r.get("skip") and r["pass"] is False, r
+
+
 def test_an_internal_rate_limit_is_still_a_failure():
     """The capacity SKIP must never swallow `rate_limited`: that is a real finding."""
     _reset()
@@ -1013,3 +1050,52 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def test_a_key_planted_in_a_frame_never_reaches_any_output(
+    monkeypatch, tmp_path, capsys
+):
+    """Keys planted in the WIRE (reply, coded error, error frame) and in a driver exception:
+    none of them may reach stdout, results.json, summary.md or any other file the run writes."""
+    _reset()
+    provider_key = "sk-proj-3M1PW0OPU17zAxPi4wTT33ec5L3Tqfq"  # gitleaks:allow
+    login_token = "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJxYS11c2VyIn0.c2lnbmF0dXJlLXZhbHVl"  # gitleaks:allow
+    frames = [
+        {"type": "text-delta", "delta": f"PONG {provider_key}"},
+        {
+            "type": "data-agent-error",
+            "data": {
+                "code": "credential_delivery_failed",
+                "errorText": f"refused {provider_key} and {login_token}",
+            },
+        },
+        {"type": "error", "errorText": f"401 Bearer {login_token}"},
+        {"type": "finish", "finishReason": "stop"},
+    ]
+    stream = b"".join(f"data: {json.dumps(f)}\n".encode() for f in frames)
+    monkeypatch.setattr(
+        qa.httpx, "Client", _fake_httpx(_RawResponse([stream], repeat=False))
+    )
+
+    def crashes(cell):
+        raise RuntimeError(f"provider said: Incorrect API key {provider_key}")
+
+    monkeypatch.setitem(qa.JOURNEYS, "crash_probe", crashes)
+    monkeypatch.setattr(qa, "RUNS", tmp_path)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["qa_product.py", "--cell", "C3", "--only", "chat", "--only", "crash_probe"],
+    )
+    qa.main()
+
+    written = {p.name: p.read_text() for p in tmp_path.glob("*/*")}
+    assert {"results.json", "summary.md"} <= set(written), sorted(written)
+    outputs = dict(written, stdout=capsys.readouterr().out)
+    for name, text in outputs.items():
+        # A prefix, not the whole value: a truncated print still leaks most of a key.
+        assert provider_key[:14] not in text, f"the provider key reached {name}"
+        assert login_token[:24] not in text, f"the login token reached {name}"
+    results = written["results.json"]
+    assert "sk-<redacted>" in results and "eyJ<redacted>" in results, results[:600]
+    assert "credential_delivery_failed" in results

@@ -24,6 +24,7 @@ NOT_BOOKKEEPING = {
     "/sessions/records/ingest",
     # Authenticated with the runner token, not a run credential: no organization, no throttle.
     "/sessions/control/commands/{}/outcome",
+    "/secrets/subscription-login/attempts/{}/outcome",
 }
 
 _API_ROOTS = (

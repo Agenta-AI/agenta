@@ -45,7 +45,6 @@ import {useSetAtom} from "jotai"
 
 import TriggerDeliveriesDrawer from "../../gatewayTrigger/drawers/TriggerDeliveriesDrawer"
 
-import {AddTextLink} from "./AddTextLink"
 import {AppTriggerProviderGroups} from "./triggerManagement/AppTriggerProviderGroups"
 import {ScheduleTriggerRow} from "./triggerManagement/ScheduleTriggerRow"
 import {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
@@ -82,8 +81,7 @@ export function TriggerManagementSection({
     onOpenRunHistory,
     automationDrawer,
 }: TriggerManagementSectionProps) {
-    const {scopedSubscriptions, scopedSchedules, defaultReferences, defaultBoundLabel} =
-        useAgentTriggers(entityId)
+    const {scopedSubscriptions, scopedSchedules} = useAgentTriggers(entityId)
 
     const {
         remove: removeSubscription,
@@ -320,15 +318,6 @@ export function TriggerManagementSection({
         ],
     )
 
-    // The empty state's link — the region header owns the "+". Both default-bind to this agent.
-    const openScheduleCreate = useCallback(() => {
-        openScheduleDrawer({
-            defaultReferences,
-            defaultBoundLabel,
-            playgroundEntityId: entityId ?? undefined,
-        })
-    }, [openScheduleDrawer, defaultReferences, defaultBoundLabel, entityId])
-
     return (
         <div className="flex flex-col gap-2 py-3">
             {/* One list, not a Subscriptions section beside a Schedules section: both are
@@ -367,10 +356,8 @@ export function TriggerManagementSection({
             ) : null}
 
             {scopedSubscriptions.length === 0 && scopedSchedules.length === 0 && !disabled ? (
-                <span className="text-xs text-[var(--ag-zinc-5)]">
-                    No automations yet —{" "}
-                    <AddTextLink label="add an automation" onClick={openScheduleCreate} />
-                </span>
+                // One quiet line; the header's "+" is the way to add one.
+                <span className="text-xs text-colorTextTertiary">No automations yet</span>
             ) : null}
 
             {/* Propless, atom-driven drawers — mounted once; they manage their own

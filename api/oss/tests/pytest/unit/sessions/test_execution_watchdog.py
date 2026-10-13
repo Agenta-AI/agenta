@@ -24,8 +24,7 @@ from oss.src.core.sessions.records.dtos import (
     SETTLED_BY_WATCHDOG,
     SessionRecordEvent,
 )
-from oss.src.dbs.redis.sessions.contract import make_owner_value, owner_replica_id
-from oss.src.dbs.redis.sessions.locks import claim_owner, is_turn_superseded
+from oss.src.dbs.redis.sessions.locks import is_turn_superseded
 from oss.src.tasks.asyncio.sessions.orphan_sweep import (
     LOST_ERROR_CODE,
     LOST_ERROR_MESSAGE,
@@ -294,13 +293,12 @@ class _FakeRedis:
         keys = [decode(value) for value in keys_and_args[:numkeys]]
         argv = [decode(value) for value in keys_and_args[numkeys:]]
         if "AGENTA_WATCHDOG_RELEASE_TURN" in script:
-            alive, running, owner, superseded = keys
-            expected_turn, expected_owner, _ttl = argv
+            alive, running, superseded = keys
+            expected_turn, _ttl = argv
             alive_value = decode(self._store[alive]) if alive in self._store else ""
             running_value = (
                 decode(self._store[running]) if running in self._store else ""
             )
-            owner_value = decode(self._store[owner]) if owner in self._store else ""
             released_alive = int(bool(expected_turn) and alive_value == expected_turn)
             released_running = int(
                 bool(expected_turn) and running_value == expected_turn
@@ -309,30 +307,15 @@ class _FakeRedis:
                 self._store.pop(alive, None)
             if released_running:
                 self._store.pop(running, None)
-            foreign_turn = (alive_value and alive_value != expected_turn) or (
-                running_value and running_value != expected_turn
-            )
-            released_owner = int(
-                bool(expected_owner)
-                and owner_value == expected_owner
-                and not foreign_turn
-            )
-            if released_owner:
-                self._store.pop(owner, None)
             if expected_turn:
                 self._store[superseded] = b"1"
-            return [released_alive, released_running, released_owner]
+            return [released_alive, released_running]
 
         k = keys[0]
         v = argv[0]
         current = self._store.get(k)
         if isinstance(current, bytes):
             current = current.decode()
-        if len(argv) > 1:
-            if current is None or owner_replica_id(current) == owner_replica_id(v):
-                self._store[k] = v.encode()
-                return v.encode()
-            return current.encode()
         # The sweep's script is release-if-owner: delete only when the value matches.
         if current == v:
             self._store.pop(k, None)
@@ -676,7 +659,6 @@ async def test_the_redis_nest_follows_the_settled_row(anyio_backend):
     project = str(_PROJECT_ID)
     await redis.set(f"alive:{project}:session:sess-lost", b"turn-1", ex=3600)
     await redis.set(f"running:{project}:session:sess-lost", b"turn-1", ex=3600)
-    await redis.set(f"owner:{project}:session:sess-lost", b"replica-1", ex=3600)
 
     await run_orphan_sweep(
         _FakeTransactionsEngine([_stale_running_row()]),
@@ -687,7 +669,6 @@ async def test_the_redis_nest_follows_the_settled_row(anyio_backend):
 
     assert await redis.get(f"alive:{project}:session:sess-lost") is None
     assert await redis.get(f"running:{project}:session:sess-lost") is None
-    assert await redis.get(f"owner:{project}:session:sess-lost") is None
     assert (
         await redis.get(f"superseded:{project}:session:sess-lost:turn:turn-1")
         is not None
@@ -695,7 +676,7 @@ async def test_the_redis_nest_follows_the_settled_row(anyio_backend):
 
 
 @pytest.mark.anyio
-async def test_cleanup_preserves_same_replica_owner_refresh_before_new_turn_locks(
+async def test_cleanup_leaves_a_new_turn_that_took_the_locks_after_commit(
     anyio_backend,
 ):
     stream = _stale_running_row(session_id="sess-cleanup-race", turn_id="turn-a")
@@ -703,33 +684,24 @@ async def test_cleanup_preserves_same_replica_owner_refresh_before_new_turn_lock
     project = str(stream.project_id)
     alive_key = f"alive:{project}:session:{stream.session_id}"
     running_key = f"running:{project}:session:{stream.session_id}"
-    owner_key = f"owner:{project}:session:{stream.session_id}"
     redis._store[alive_key] = b"turn-a"
     redis._store[running_key] = b"turn-a"
-    redis._store[owner_key] = make_owner_value(
-        replica_id="replica-a", turn_id="turn-a"
-    ).encode()
 
-    def refresh_turn_b_owner():
-        # Exact ABA gap: the same replica refreshed affinity for B, but has not installed B's
-        # alive/running keys yet. Cleanup must compare the owner generation, not the replica.
-        redis._store[owner_key] = make_owner_value(
-            replica_id="replica-a", turn_id="turn-b"
-        ).encode()
+    def start_turn_b():
+        # A new Send lands between the row commit and the Redis cleanup. Cleanup must compare
+        # against the swept turn, so turn B keeps the session.
+        redis._store[alive_key] = b"turn-b"
+        redis._store[running_key] = b"turn-b"
 
     await run_orphan_sweep(
-        _FakeTransactionsEngine([stream], after_commit=refresh_turn_b_owner),
+        _FakeTransactionsEngine([stream], after_commit=start_turn_b),
         redis,
         records_service=_FakeRecordsService(),
         publish=_Publisher(),
     )
 
-    assert alive_key not in redis._store
-    assert running_key not in redis._store
-    assert (
-        redis._store[owner_key]
-        == make_owner_value(replica_id="replica-a", turn_id="turn-b").encode()
-    )
+    assert redis._store[alive_key] == b"turn-b"
+    assert redis._store[running_key] == b"turn-b"
     assert (
         redis._store[f"superseded:{project}:session:{stream.session_id}:turn:turn-a"]
         == b"1"
@@ -824,15 +796,6 @@ async def test_a_stopped_turn_whose_runner_died_still_gets_an_ending(anyio_backe
     # alive lock when the sweep runs; the SEND gate reads that lock.
     alive_key = f"alive:{row.project_id}:session:{row.session_id}"
     redis._store[alive_key] = b"turn-stopped"
-    assert (
-        await claim_owner(
-            redis,
-            project_id=str(row.project_id),
-            session_id=row.session_id,
-            replica_id="replica-dead",
-        )
-        == "replica-dead"
-    )
 
     await run_orphan_sweep(
         _FakeTransactionsEngine([row], [execution]),
@@ -854,15 +817,6 @@ async def test_a_stopped_turn_whose_runner_died_still_gets_an_ending(anyio_backe
     assert alive_key not in redis._store, (
         "the dead turn's alive lock must be released, or the next Send is refused for an hour"
     )
-    assert (
-        await claim_owner(
-            redis,
-            project_id=str(row.project_id),
-            session_id=row.session_id,
-            replica_id="replica-new",
-        )
-        == "replica-new"
-    ), "the next runner must claim affinity without waiting for the dead owner's TTL"
     assert row.flags["is_alive"] is True, "the stopped row itself is not collapsed"
 
 
@@ -877,12 +831,6 @@ async def test_a_stopped_turn_owned_by_a_newer_turn_keeps_that_lock(anyio_backen
     redis = _FakeRedis()
     alive_key = f"alive:{row.project_id}:session:{row.session_id}"
     redis._store[alive_key] = b"turn-newer"
-    await claim_owner(
-        redis,
-        project_id=str(row.project_id),
-        session_id=row.session_id,
-        replica_id="replica-newer",
-    )
 
     await run_orphan_sweep(
         _FakeTransactionsEngine([row]),
@@ -892,15 +840,6 @@ async def test_a_stopped_turn_owned_by_a_newer_turn_keeps_that_lock(anyio_backen
     )
 
     assert redis._store.get(alive_key) == b"turn-newer"
-    assert (
-        await claim_owner(
-            redis,
-            project_id=str(row.project_id),
-            session_id=row.session_id,
-            replica_id="replica-other",
-        )
-        == "replica-newer"
-    ), "settling an older turn must not clear a newer turn's affinity"
 
 
 @pytest.mark.anyio
@@ -1121,10 +1060,8 @@ async def test_lost_turn_clear_loses_to_a_concurrent_turn_advance(anyio_backend)
     redis = _FakeRedis()
     alive_key = f"alive:{stream.project_id}:session:{stream.session_id}"
     running_key = f"running:{stream.project_id}:session:{stream.session_id}"
-    owner_key = f"owner:{stream.project_id}:session:{stream.session_id}"
     redis._store[alive_key] = b"turn-new"
     redis._store[running_key] = b"turn-new"
-    redis._store[owner_key] = b"runner-new"
 
     def advance_stream():
         stream.turn_id = "turn-new"
@@ -1143,7 +1080,6 @@ async def test_lost_turn_clear_loses_to_a_concurrent_turn_advance(anyio_backend)
     assert stream.flags["is_running"] is True
     assert redis._store[alive_key] == b"turn-new"
     assert redis._store[running_key] == b"turn-new"
-    assert redis._store[owner_key] == b"runner-new"
 
 
 @pytest.mark.anyio
@@ -1163,14 +1099,11 @@ async def test_completion_lookup_failure_defers_settlement_and_cleanup(
     project = str(stream.project_id)
     alive_key = f"alive:{project}:session:{stream.session_id}"
     running_key = f"running:{project}:session:{stream.session_id}"
-    owner_key = f"owner:{project}:session:{stream.session_id}"
     superseded_key = (
         f"superseded:{project}:session:{stream.session_id}:turn:{stream.turn_id}"
     )
-    owner = make_owner_value(replica_id="runner-1", turn_id=stream.turn_id).encode()
     redis._store[alive_key] = stream.turn_id.encode()
     redis._store[running_key] = stream.turn_id.encode()
-    redis._store[owner_key] = owner
 
     await run_orphan_sweep(
         _FakeTransactionsEngine([stream]),
@@ -1186,7 +1119,6 @@ async def test_completion_lookup_failure_defers_settlement_and_cleanup(
     assert stream.flags["is_running"] is True
     assert redis._store[alive_key] == stream.turn_id.encode()
     assert redis._store[running_key] == stream.turn_id.encode()
-    assert redis._store[owner_key] == owner
     assert superseded_key not in redis._store
 
 

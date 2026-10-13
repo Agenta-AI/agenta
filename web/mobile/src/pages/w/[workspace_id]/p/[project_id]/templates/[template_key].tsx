@@ -1,6 +1,6 @@
 import {useRouter} from "next/router"
 
-import {AgentTemplateDetailScreen} from "@/features/agents/AgentTemplateDetailScreen"
+import {TemplatePageScreen} from "@/features/marketplace/TemplatePageScreen"
 
 export default function TemplateDetailPage() {
     const router = useRouter()
@@ -17,7 +17,7 @@ export default function TemplateDetailPage() {
         return null
     }
     return (
-        <AgentTemplateDetailScreen
+        <TemplatePageScreen
             workspaceId={workspaceId}
             projectId={projectId}
             templateKey={templateKey}

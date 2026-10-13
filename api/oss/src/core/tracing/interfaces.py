@@ -42,6 +42,16 @@ class TracingDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def query_page(
+        self,
+        *,
+        project_id: UUID,
+        #
+        query: TracingQuery,
+    ) -> Tuple[List[OTelFlatSpan], Optional[Windowing]]:
+        raise NotImplementedError
+
+    @abstractmethod
     async def analytics(
         self,
         *,

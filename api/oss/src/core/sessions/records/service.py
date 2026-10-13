@@ -365,6 +365,35 @@ class RecordsService:
             record_id=record_id,
         )
 
+    async def mark_records_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: Optional[str] = None,
+    ) -> None:
+        log.warning(
+            "[RECORDS] A runner reported a dropped record; the log cannot rebuild context",
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_id=turn_id,
+        )
+        await self.records_dao.mark_records_incomplete(
+            project_id=project_id,
+            session_id=session_id,
+        )
+
+    async def get_records_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> bool:
+        return await self.records_dao.get_records_incomplete(
+            project_id=project_id,
+            session_id=session_id,
+        )
+
     async def get_records_page(
         self,
         *,

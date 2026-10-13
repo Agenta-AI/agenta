@@ -64,6 +64,7 @@ export const DriveHeader = ({
     closeVariant = "close",
     expanded,
     onToggleExpand,
+    expandPlacement = "leading",
     partialErrored,
     onRetry,
     retrying,
@@ -97,10 +98,33 @@ export const DriveHeader = ({
     closeVariant?: "close" | "collapse" | "back"
     expanded?: boolean
     onToggleExpand?: () => void
+    expandPlacement?: "leading" | "before-options"
     partialErrored?: boolean
     onRetry?: () => void
     retrying?: boolean
 }) => {
+    const expandLabel =
+        expandPlacement === "before-options"
+            ? expanded
+                ? "Restore files pane"
+                : "Expand files pane"
+            : expanded
+              ? "Collapse drawer"
+              : "Expand drawer"
+    const expandButton = onToggleExpand ? (
+        <Tooltip title={expandLabel}>
+            <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={expandLabel}
+                aria-pressed={expanded}
+                onClick={onToggleExpand}
+                className={ROW_ICON_BTN}
+            >
+                {expanded ? <ArrowsIn size={15} /> : <ArrowsOut size={15} />}
+            </Button>
+        </Tooltip>
+    ) : null
     return (
         // The session bar's height and border token, so its line continues across the divider.
         <div className="flex h-[48px] shrink-0 items-center gap-1.5 border-0 border-b border-solid border-[var(--ag-surface-card-border)] px-2">
@@ -129,20 +153,7 @@ export const DriveHeader = ({
                     <CaretDoubleLeft size={15} />
                 </Button>
             ) : null}
-            {onToggleExpand ? (
-                <Tooltip title={expanded ? "Collapse" : "Expand"}>
-                    <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label={expanded ? "Collapse drawer" : "Expand drawer"}
-                        aria-pressed={expanded}
-                        onClick={onToggleExpand}
-                        className={ROW_ICON_BTN}
-                    >
-                        {expanded ? <ArrowsIn size={15} /> : <ArrowsOut size={15} />}
-                    </Button>
-                </Tooltip>
-            ) : null}
+            {expandPlacement === "leading" ? expandButton : null}
             <Button
                 variant="ghost"
                 size="icon-sm"
@@ -190,6 +201,7 @@ export const DriveHeader = ({
                     </span>
                 </Tooltip>
             ) : null}
+            {expandPlacement === "before-options" ? expandButton : null}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button

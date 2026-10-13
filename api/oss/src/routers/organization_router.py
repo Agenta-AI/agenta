@@ -43,6 +43,7 @@ from oss.src.services.db_manager import get_user_org_and_workspace_id
 if is_ee():
     from ee.src.core.access.entitlements.service import (
         check_entitlements,
+        project_limit_refusal,
         scope_from,
         Tracker,
         Gauge,
@@ -598,6 +599,12 @@ async def create_workspace(
                 {"detail": "Please provide a name to create a workspace"},
                 status_code=400,
             )
+
+        # A workspace comes with its own default project.
+        if is_ee():
+            refusal = await project_limit_refusal(UUID(organization_id))  # type: ignore
+            if refusal:
+                return JSONResponse({"detail": refusal}, status_code=403)
 
         return await organization_service.create_new_workspace(
             payload, organization_id, request.state.user_id

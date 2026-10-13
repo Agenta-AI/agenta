@@ -138,9 +138,26 @@ def test_image_and_document_become_a_media_part_after_the_caption():
     ]
 
 
-@pytest.mark.parametrize("kind", ["audio", "video", "sticker"])
-def test_voice_notes_video_and_stickers_are_marked_unsupported(kind):
-    raw = p.encode(p.body(p.value(messages=[p.media_message(kind)])))
+@pytest.mark.parametrize("kind", ["audio", "video"])
+def test_voice_notes_and_video_become_media_parts(kind):
+    raw = p.encode(
+        p.body(
+            p.value(
+                messages=[p.media_message(kind, media_id="AV1", mime_type="audio/ogg")]
+            )
+        )
+    )
+
+    [event] = mapping.parse_events(body=raw, phone_number_id=p.PHONE_NUMBER_ID)
+
+    [part] = event.processed.content
+    assert part["type"] == "media"
+    assert part["kind"] == kind
+    assert part["media_id"] == "AV1"
+
+
+def test_stickers_are_marked_unsupported():
+    raw = p.encode(p.body(p.value(messages=[p.media_message("sticker")])))
 
     [event] = mapping.parse_events(body=raw, phone_number_id=p.PHONE_NUMBER_ID)
 

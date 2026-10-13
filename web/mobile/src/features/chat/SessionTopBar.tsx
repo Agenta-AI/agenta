@@ -1,13 +1,15 @@
+import {useCallback, useState} from "react"
+
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {AgentIdentity} from "@agenta/entity-ui/agent"
 import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
-import {ShortcutsHelpButton} from "@agenta/ui/shortcuts"
+import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
 import {useAtomValue} from "jotai"
 
-import {AgentPublishButton} from "../agents/AgentPublishButton"
 import {NavDrawer} from "../nav/NavDrawer"
 
-import {SaveAsTemplateButton} from "./SaveAsTemplateButton"
+import {heldCommitAtomFamily} from "./selectedRevision"
+import {ShareMenu} from "./ShareMenu"
 
 /**
  * The session workspace's top bar — the desktop playground's header on this surface: which agent
@@ -30,7 +32,7 @@ export const SessionTopBar = ({
 }: {
     /** The revision under edit. Absent = a session with no turns yet (nothing committed to show). */
     entityId: string | null
-    /** The session on screen; Save as template sends its request here. */
+    /** The session on screen; the Share menu's template items send their request here. */
     sessionId: string
     /** Pin this session to a newer version the user asked for. */
     onUpdate: (revisionId: string) => void
@@ -40,6 +42,12 @@ export const SessionTopBar = ({
 }) => {
     // artifactName resolves from a revision id or a workflow id, so either handle names the agent.
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? agentId ?? ""))
+    // A commit the session held back (unsaved config edits) is a reason to check for a newer
+    // version now, so the pill offers it at once.
+    const heldCommit = useAtomValue(heldCommitAtomFamily(sessionId))
+    // No header button for the shortcuts sheet; `?` still opens it.
+    const [shortcutsOpen, setShortcutsOpen] = useState(false)
+    useShortcutsSheetHotkey(useCallback(() => setShortcutsOpen(true), []))
 
     return (
         <AgentPageHeader
@@ -57,26 +65,24 @@ export const SessionTopBar = ({
                         revisionId={entityId}
                         historyWorkflowId={agentId}
                         onUpdate={onUpdate}
-                        checkKey={sessionId}
+                        checkKey={heldCommit ? `${sessionId}:${heldCommit}` : sessionId}
                     />
                 ) : undefined
             }
             // The desktop puts this at the header's right edge too, not on the tab strip.
             actions={
                 <>
-                    <ShortcutsHelpButton />
-                    {/* Needs a live conversation to send in: without a revision the session is
-                        the read-only replay (or not created yet). */}
-                    {agentId && entityId ? (
-                        <SaveAsTemplateButton agentId={agentId} sessionId={sessionId} />
-                    ) : null}
                     {agentId ? (
-                        <AgentPublishButton
+                        <ShareMenu
                             agentId={agentId}
+                            sessionId={sessionId}
+                            // No revision = read-only replay: no conversation to send into.
+                            canRequestTemplate={Boolean(entityId)}
                             workspaceId={workspaceId}
                             projectId={projectId}
                         />
                     ) : null}
+                    <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
                 </>
             }
         />

@@ -23,7 +23,12 @@ import { join } from "node:path";
 
 import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
 import type { RelayHost } from "../../src/tools/relay.ts";
-import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
+import type {
+  AgentEvent,
+  AgentRunRequest,
+  EmitEvent,
+} from "../../src/protocol.ts";
+import type { ResolvedRunLimits } from "../../src/engines/sandbox_agent/run-limits.ts";
 import {
   runSandboxAgent,
   type SandboxAgentDeps,
@@ -100,6 +105,18 @@ export interface SilentTurnOptions {
   park?: boolean;
   /** Abort a still-pending prompt, the shape a user-cancelled turn has. */
   cancel?: boolean;
+  /**
+   * After the prompt events, never settle on its own: the shape of a harness that stalls. Only a
+   * run limit (or the managed cancel) ends the turn.
+   */
+  hang?: boolean;
+  /** Run limits for this turn, in place of the env-derived ones (tiny windows for a stall). */
+  runLimits?: ResolvedRunLimits;
+  /**
+   * Where the run streams its events. Defaults to the collected `events` list. `null` runs the
+   * turn without a live sink (the non-streaming path), whose events come back on the result.
+   */
+  emit?: EmitEvent | null;
   /**
    * The run's working directory. On a local run a Pi transcript is read from under it; on a
    * Daytona run it is the workspace path INSIDE the sandbox, which is the cwd Pi stamps on the
@@ -199,6 +216,11 @@ export async function runSilentTurn(
       if (options.promptError) throw options.promptError;
       if (options.cancel) {
         queueMicrotask(() => abortController.abort());
+        return new Promise((resolve) => {
+          resolveHungPrompt = resolve;
+        });
+      }
+      if (options.hang) {
         return new Promise((resolve) => {
           resolveHungPrompt = resolve;
         });
@@ -308,6 +330,9 @@ export async function runSilentTurn(
       },
     }),
     sessionContinuityStore: store,
+    ...(options.runLimits
+      ? { resolveRunLimits: () => options.runLimits as ResolvedRunLimits }
+      : {}),
   };
 
   try {
@@ -318,7 +343,9 @@ export async function runSilentTurn(
         sessionId: SESSION_ID,
         ...request,
       } as AgentRunRequest,
-      (event) => events.push(event),
+      options.emit === null
+        ? undefined
+        : (options.emit ?? ((event) => events.push(event))),
       options.cancel ? abortController.signal : undefined,
       deps,
     );

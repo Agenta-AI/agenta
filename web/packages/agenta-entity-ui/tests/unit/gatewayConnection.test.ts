@@ -13,6 +13,7 @@ import {
     rollupGroupPermission,
     rollupLabel,
     savedToolPermission,
+    shownToolPermission,
     withStaleTools,
     type CatalogToolInfo,
 } from "../../src/DrillInView/SchemaControls/integrationPolicy"
@@ -223,6 +224,28 @@ describe("F11: a group rollup summarizes the saved values", () => {
         const rollup = rollupGroupPermission(["CREATE_ISSUE", "DELETE_REPOSITORY"], permissions)
         expect(rollup).toEqual({kind: "mixed"})
         expect(rollupLabel(rollup)).toBe("mixed")
+    })
+
+    it("allow_reads shows as allow for reads and ask for everything else", () => {
+        const permissions: GatewayConnectionPermissions = {default: "allow_reads", tools: {}}
+        expect(shownToolPermission(permissions, {key: "FETCH_EMAILS", readOnly: true})).toBe(
+            "allow",
+        )
+        expect(shownToolPermission(permissions, {key: "SEND_EMAIL", readOnly: false})).toBe("ask")
+        expect(shownToolPermission(permissions, {key: "UNKNOWN"})).toBe("ask")
+        expect(
+            rollupGroupPermission(
+                [
+                    {key: "FETCH_EMAILS", readOnly: true},
+                    {key: "LIST_LABELS", readOnly: true},
+                ],
+                permissions,
+            ),
+        ).toEqual({kind: "shared", permission: "allow"})
+        expect(rollupGroupPermission([{key: "SEND_EMAIL", readOnly: false}], permissions)).toEqual({
+            kind: "shared",
+            permission: "ask",
+        })
     })
 
     it("a tool with no entry of its own reads the entry default", () => {

@@ -1,4 +1,5 @@
-from typing import List
+import asyncio
+from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse, urlunparse
@@ -963,14 +964,101 @@ from ee.src.core.access.entitlements.service import (  # noqa: E402
     scope_from,
     Gauge,
 )
+from ee.src.core.starter_credits_bridge import service as _mint_policy  # noqa: E402
 from ee.src.core.starter_credits_bridge.service import (  # noqa: E402
     seed_starter_credits_bridge_safely,
 )
+from ee.src.core.wallets.service import WalletsService  # noqa: E402
 
 
 _subscription_service = SubscriptionsService(
     subscriptions_dao=SubscriptionsDAO(),
 )
+
+_wallets_service: Optional[WalletsService] = None
+
+
+def register_wallets_service(*, wallets_service: WalletsService) -> None:
+    """Composition-root hook: the entrypoint wires the wallets service at startup."""
+    global _wallets_service
+    _wallets_service = wallets_service
+
+
+def _get_wallets_service() -> WalletsService:
+    if _wallets_service is None:
+        raise RuntimeError(
+            "Wallets service not registered. "
+            "Call register_wallets_service() from the composition root."
+        )
+    return _wallets_service
+
+
+# The floor given to a new organization whose email the mint policy refuses: 100
+# credits, above the daily 75, so the daily free credits can never be spent.
+REFUSED_EMAIL_FLOOR_MUSD = 1_000_000
+
+
+async def _free_credits_check(organization_email: str) -> tuple[bool, bool]:
+    """Apply the mint policy to a new organization's owner email, and return
+    (award the signup grant, raise the wallet floor). An email rule refusal does both;
+    a velocity cap, a missing policy or any error skips only the grant."""
+    try:
+        async with asyncio.timeout(5):
+            policy = await _mint_policy._resolve_mint_policy()
+            if policy is None:
+                return False, False
+            if not _mint_policy.email_rules_allow(organization_email, policy):
+                return False, True
+            return await _mint_policy._mint_policy_allows(
+                organization_email,
+                policy,
+                counter_prefix=_mint_policy.SIGNUP_GRANT_COUNTER_PREFIX,
+            ), False
+    except Exception:
+        log.warning(
+            "[wallets] free credits check failed; no signup grant", exc_info=True
+        )
+        return False, False
+
+
+async def _provision_wallet_general_balance(
+    *,
+    organization_id: UUID,
+    plan: str,
+    floor_musd: Optional[int] = None,
+) -> None:
+    """Idempotent. Runs after the organization and subscription have committed, in its
+    own transaction, so a failure here leaves them in place and can be retried alone."""
+    try:
+        await _get_wallets_service().provision_general_balance(
+            organization_id=organization_id,
+            plan=plan,
+            floor_musd=floor_musd,
+        )
+    except Exception as exc:
+        log.error(
+            "[wallets] Failed to provision general balance for organization [%s]: %s",
+            organization_id,
+            exc,
+        )
+        raise
+
+
+async def _award_signup_grant(*, organization_id: UUID) -> None:
+    """Idempotent. Signup path only: on explicit organization creation the grant would
+    be farmable (report.md §9.2)."""
+    try:
+        await _get_wallets_service().award(
+            organization_id=organization_id,
+            activity_code="signup",
+        )
+    except Exception as exc:
+        log.error(
+            "[wallets] Failed to award signup grant for organization [%s]: %s",
+            organization_id,
+            exc,
+        )
+        raise
 
 
 async def provision_signup_subscription(
@@ -980,12 +1068,12 @@ async def provision_signup_subscription(
 ) -> None:
     """Provision the signup subscription + seed the user gauge for a new org.
 
-    Cloud (Stripe enabled) gets a reverse trial; self-hosted gets the default
-    plan. Called from the OSS signup flow via the `is_ee()` seam.
+    Cloud (Stripe enabled) starts on the free plan, or on a reverse trial when the
+    pricing opts in; self-hosted gets the default plan. Called from the OSS signup flow via the `is_ee()` seam.
     """
 
     try:
-        await _subscription_service.provision_subscription(
+        subscription = await _subscription_service.provision_subscription(
             organization_id=str(organization.id),
             organization_name=organization.name,
             organization_email=organization_email,
@@ -1012,6 +1100,28 @@ async def provision_signup_subscription(
         organization_email=organization_email,
     )
 
+    # Both helpers re-raise, and the signup path deletes the new user when this
+    # coroutine fails, so an unfinished wallet must not run here.
+    if env.wallets.enabled:
+        if subscription is None:
+            # `provision_subscription` returns None when the organization already had a
+            # subscription — a retried signup. The stored row is then the only thing that
+            # knows the real plan: with Stripe on, the organization was onboarded on the
+            # trial or free plan, and `get_default_plan()` would size the wallet's floor
+            # from a plan it is not on. Fall back to the default only if nothing is stored.
+            subscription = await _subscription_service.read(
+                organization_id=str(organization.id)
+            )
+        plan = subscription.plan if subscription is not None else get_default_plan()
+        award_grant, raise_floor = await _free_credits_check(organization_email)
+        await _provision_wallet_general_balance(
+            organization_id=organization.id,
+            plan=plan,
+            floor_musd=REFUSED_EMAIL_FLOOR_MUSD if raise_floor else None,
+        )
+        if award_grant:
+            await _award_signup_grant(organization_id=organization.id)
+
 
 async def provision_user_subscription(organization: OrganizationDB) -> None:
     """Start the default plan + seed the user gauge for an explicitly-created org.
@@ -1019,10 +1129,12 @@ async def provision_user_subscription(organization: OrganizationDB) -> None:
     Entry point for `POST /organizations/`. Called from OSS via the `is_ee()` seam.
     """
 
+    plan = get_default_plan()
+
     try:
         await _subscription_service.start_plan(
             organization_id=str(organization.id),
-            plan=get_default_plan(),
+            plan=plan,
         )
     except Exception as exc:
         log.error(
@@ -1037,3 +1149,8 @@ async def provision_user_subscription(organization: OrganizationDB) -> None:
         delta=1,
         scope=scope_from(organization_id=organization.id),
     )
+
+    if env.wallets.enabled:
+        await _provision_wallet_general_balance(
+            organization_id=organization.id, plan=plan
+        )

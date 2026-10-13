@@ -68,6 +68,8 @@ export const controlScale = {
         "control-sm": "8px",
         control: "10px",
         "control-lg": "10px",
+        // The checkbox box's own corner: control-sm (8px) would round a 16px box into a circle.
+        "control-check": "4px",
         // antd shape="circle". 50%, not 9999px — they render identically on a square but
         // the parity gate compares computed values.
         "control-round": "50%",

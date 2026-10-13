@@ -2,6 +2,9 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
+
 from oss.src.core.sessions.attachments.dtos import Attachment
 from oss.src.core.sessions.attachments.interfaces import (
     AttachmentOriginalStore,
@@ -14,6 +17,11 @@ log = get_module_logger(__name__)
 
 _ATTACHMENT_SWEEP_LOCK_KEY = "locks:sessions:attachment-sweep"
 _ATTACHMENT_SWEEP_BATCH_SIZE = 100
+# A fresh pod on a fresh node can fail its first Redis connects (agenta#7518). Retry soon
+# instead of waiting a full sweep interval, and log at ERROR only once Redis stays down.
+_REDIS_FAILURES_BEFORE_ERROR = 3
+_REDIS_RETRY_BASE_SECONDS = 5
+_REDIS_RETRY_MAX_SECONDS = 60
 _RELEASE_IF_OWNER_LUA = """
 if redis.call('get', KEYS[1]) == ARGV[1] then
     return redis.call('del', KEYS[1])
@@ -132,6 +140,7 @@ async def attachment_sweep_loop(
     unreferenced_ttl_seconds: int,
     sweep_interval_seconds: int,
 ) -> None:
+    redis_failures = 0
     while True:
         try:
             await run_attachment_sweep(
@@ -142,8 +151,30 @@ async def attachment_sweep_loop(
                 unreferenced_ttl_seconds=unreferenced_ttl_seconds,
                 sweep_interval_seconds=sweep_interval_seconds,
             )
+            redis_failures = 0
         except asyncio.CancelledError:
             raise
+        except (RedisConnectionError, RedisTimeoutError) as error:
+            redis_failures += 1
+            if redis_failures >= _REDIS_FAILURES_BEFORE_ERROR:
+                log.error(
+                    "attachment_sweep: redis unreachable for %d passes in a row: %s",
+                    redis_failures,
+                    error,
+                    exc_info=True,
+                )
+            else:
+                log.warning(
+                    "attachment_sweep: redis not reachable yet (%s); retrying",
+                    error,
+                )
+            await asyncio.sleep(
+                min(
+                    _REDIS_RETRY_BASE_SECONDS * 2 ** (redis_failures - 1),
+                    _REDIS_RETRY_MAX_SECONDS,
+                )
+            )
+            continue
         except Exception as error:
             log.error(
                 "attachment_sweep: error during sweep pass: %s",

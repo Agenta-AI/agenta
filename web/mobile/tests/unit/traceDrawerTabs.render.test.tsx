@@ -3,7 +3,7 @@
 import {act} from "react"
 
 import type {TraceSpanNode} from "@agenta/observability"
-import {OverviewTabItem, TraceDetails} from "@agenta/observability-ui/traceDrawer"
+import {OverviewTabItem, TraceDetails, TraceTypeHeader} from "@agenta/observability-ui/traceDrawer"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -96,5 +96,21 @@ describe("trace drawer tabs on /m", () => {
         expect(text).toContain("Tokens & Cost")
         expect(text).toContain("1.2K")
         expect(text).toContain("$0.0421")
+    })
+
+    // `/m` leaves the playground action unbound, so the span header must not offer it.
+    it("shows no Playground button in the span header", async () => {
+        await mount(
+            <TraceTypeHeader
+                activeTrace={span}
+                error={undefined}
+                traces={[span]}
+                setSelectedTraceId={() => undefined}
+            />,
+        )
+
+        expect(host.textContent ?? "").toContain("# span-1")
+        const buttons = Array.from(host.querySelectorAll("button"))
+        expect(buttons.some((b) => b.textContent?.includes("Playground"))).toBe(false)
     })
 })

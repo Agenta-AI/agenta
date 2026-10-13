@@ -299,6 +299,7 @@ class FakeAttachments:
 
     async def reference_attachments(self, *, project_id, session_id, attachment_ids):
         self.referenced.extend(attachment_ids)
+        self.referenced_project_id = project_id
         return []
 
 
@@ -327,6 +328,10 @@ async def test_a_document_reaches_the_agent_as_a_session_attachment(world, graph
     )
 
     [created] = attachments.created
+    # The attachment is stored under the channel connection's project, never
+    # a user default, and the reference carries the same project.
+    assert created["project_id"] == PROJECT_ID
+    assert attachments.referenced_project_id == PROJECT_ID
     assert created["session_id"] == world.thread.session_id
     assert created["data"] == b"%PDF-1.4"
     assert created["filename"] == "invoice.pdf"
@@ -351,3 +356,40 @@ async def test_media_without_an_attachment_store_becomes_a_short_note(world, gra
     content = invoke.call_args.kwargs["turn_input"].content
     assert content[1]["type"] == "text"
     assert "[document]" in content[1]["text"]
+
+
+@pytest.mark.parametrize(
+    "kind, data, mime_type, expected",
+    [
+        (
+            "audio",
+            b"OggS" + b"\x00" * 24 + b"OpusHead" + b"\x00" * 20,
+            "audio/ogg",
+            "audio-20261001-143005.ogg",
+        ),
+        # No platform type at all: the extension comes from the bytes.
+        (
+            "image",
+            b"\xff\xd8\xff\xe0" + b"\x00" * 20,
+            None,
+            "image-20261001-143005.jpg",
+        ),
+    ],
+)
+async def test_a_file_sent_without_a_name_is_named_by_kind_send_time_and_type(
+    world, graph, kind, data, mime_type, expected
+):
+    """A photo or voice note has no filename. The agent gets one built from
+    the message's send time, so a retried dispatch reuses the same name."""
+
+    graph.add_media(
+        media_id="DOC1", data=data, mime_type=mime_type, token=p.ACCESS_TOKEN
+    )
+    attachments = FakeAttachments()
+    event = _media_event(kind=kind)
+    event.sent_at = datetime(2026, 10, 1, 14, 30, 5, tzinfo=timezone.utc)
+
+    await _dispatch(world, event, attachments=attachments)
+
+    [created] = attachments.created
+    assert created["filename"] == expected

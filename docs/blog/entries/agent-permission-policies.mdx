@@ -1,0 +1,40 @@
+---
+title: "Configure permissions for your agent"
+slug: agent-permission-policies
+date: 2026-09-09
+tags: [v0.115.3]
+description: "Configure AI agent permissions in Agenta. Allow tool calls, require approval, or block them, with tool-specific rules that override the agent default."
+---
+
+<Summary>
+
+You can now decide how much an agent can do without stopping to ask. You can select whether to allow everything, always ask for approval, or block them.
+
+These are the default permissions for the agent. You can still configure each tool's specific permission to override the default. 
+
+</Summary>
+
+{/* truncate */}
+
+You can now choose how much your agent can do without asking. Set a default for the agent, then change the permissions of individual tools if needed.
+
+## Set your agent's permissions
+
+Open the agent configuration and click Permissions. Choose from:
+
+- Allow reads: run tools marked as read-only and ask before other calls.
+- Allow all: run tool calls without asking.
+- Ask: request approval before each tool call.
+- Deny all: block tool calls.
+
+New agents created from the standard template start on Allow all. Existing agents keep their saved permissions.
+
+## Set exceptions for individual tools
+
+A tool's own permission overrides the agent default. For example, you can set the agent to Ask but allow a specific search tool to run without approval.
+
+Check these exceptions when changing the default. Setting the agent to Ask won't make a tool ask if that tool is explicitly set to Allow.
+
+On an approval card, leave Always auto-approve unchecked if you only want to approve the current call. Checking it lets that tool run without asking again.
+
+See the [agent configuration reference](/reference/agents/agent-configuration#runnerpermissions) for the permission settings.

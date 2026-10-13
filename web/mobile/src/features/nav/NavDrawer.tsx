@@ -8,6 +8,8 @@ import {ListIcon} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
+import {liveChatOpenAtom} from "../support/crispChat"
+
 import {useMobileNavScope} from "./mobileNavScope"
 
 /**
@@ -39,9 +41,18 @@ export const NavDrawer = ({
     useEffect(() => {
         if (paletteOpen) setOpen(false)
     }, [paletteOpen])
+    // Same for the live chat: this modal sheet would make Crisp's window inert.
+    const liveChatOpen = useAtomValue(liveChatOpenAtom)
+    useEffect(() => {
+        if (liveChatOpen) setOpen(false)
+    }, [liveChatOpen])
     const mainScope = useMobileNavScope(workspaceId, projectId)
     const scope = scopeOverride ?? mainScope
     const router = useRouter()
+    // A pick in a rail flyout navigates from a button, which the shell's link-click close misses.
+    useEffect(() => {
+        setOpen(false)
+    }, [router.asPath])
 
     return (
         <Sheet open={open} onOpenChange={setOpen}>

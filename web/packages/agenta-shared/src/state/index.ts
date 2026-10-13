@@ -6,13 +6,13 @@ export {projectIdAtom, setProjectIdAtom} from "./project"
 export {sessionAtom, setSessionAtom} from "./session"
 export {userAtom, setUserAtom} from "./user"
 export {
+    ACTIVE_USER_ID_KEY,
     activeUserIdAtom,
     agentaChannelSurfaceEnabledAtom,
-    agentAppsEnabledAtom,
     channelDebugEnabledAtom,
-    inprocessSandboxEnabledAtom,
     playgroundInspectorEnabledAtom,
     userScopedFlagAtom,
+    userSettingsKey,
 } from "./featureFlags"
 export {
     advancedNavHiddenAtom,

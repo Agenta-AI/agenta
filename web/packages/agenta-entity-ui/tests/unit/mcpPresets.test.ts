@@ -55,12 +55,13 @@ describe("MCP_PRESETS", () => {
         }
     })
 
-    it("leaves the Integrations table untouched, at five presets", () => {
+    it("keeps the Integrations table in the same order as MCP's", () => {
         expect(INTEGRATION_PRESETS.map((def) => def.value)).toEqual([
             "always_ask",
             "ask_writes",
             "allow_all",
             "deny_all",
+            "follow_agent",
             "custom",
         ])
     })

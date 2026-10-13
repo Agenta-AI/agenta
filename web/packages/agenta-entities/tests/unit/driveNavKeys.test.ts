@@ -26,6 +26,23 @@ describe("driveNavAction", () => {
         expect(driveNavAction(ev("Escape"))).toBe("close")
     })
 
+    it.each([
+        ["ArrowLeft", {altKey: true}],
+        ["ArrowRight", {altKey: true}],
+        ["ArrowUp", {metaKey: true}],
+        ["ArrowUp", {ctrlKey: true}],
+        ["[", {metaKey: true}],
+        ["]", {ctrlKey: true}],
+        ["ArrowLeft", {metaKey: true}],
+        ["ArrowRight", {metaKey: true}],
+        ["ArrowLeft", {ctrlKey: true}],
+        ["ArrowRight", {ctrlKey: true}],
+        ["ArrowLeft", {altKey: true, shiftKey: true}],
+        ["ArrowRight", {metaKey: true, shiftKey: true}],
+    ])("leaves %s with modifiers %j to the focused editor", (key, mods) => {
+        expect(driveNavAction(ev(key, {...mods, editable: true}))).toBeNull()
+    })
+
     it("leaves backspace and Esc to a text field, and ignores shifted or plain keys", () => {
         expect(driveNavAction(ev("Backspace", {editable: true}))).toBeNull()
         expect(driveNavAction(ev("Escape", {editable: true}))).toBeNull()

@@ -263,18 +263,22 @@ describe("Stop during a write", () => {
     const local = sandboxOf(ws);
     const run = local.run.bind(local);
     let release: () => void = () => {};
+    let enteredWrite: () => void = () => {};
     const gate = new Promise<void>((r) => (release = r));
+    const writingInSandbox = new Promise<void>((r) => (enteredWrite = r));
     local.run = async (command, options) => {
-      if (command.includes("python3 -c") && command.includes(" 'write' ")) await gate;
+      if (command.includes("python3 -c") && command.includes(" 'write' ")) {
+        enteredWrite();
+        await gate;
+      }
       return run(command, options);
     };
     const stop = new AbortController();
     const content = "whole\n".repeat(1000);
     const writing = call("write", { path: "stopped.txt", content }, stop.signal);
-    await new Promise((r) => setTimeout(r, 100));
+    await writingInSandbox;
     stop.abort();
     const next = ws.bash("wc -c < stopped.txt");
-    await new Promise((r) => setTimeout(r, 100));
     release();
     await expect(writing).rejects.toThrow(/aborted/i);
     expect(readFileSync(join(ws.cwd, "stopped.txt"), "utf-8")).toBe(content);
@@ -319,9 +323,12 @@ describe("Codex round 7: a change's outcome is never assumed", () => {
     await ws.bash("true");
     const first = sandboxOf(ws);
     let releaseDelete: () => void = () => {};
+    let startedDelete: () => void = () => {};
     const deleteGate = new Promise<void>((r) => (releaseDelete = r));
+    const deleting = new Promise<void>((r) => (startedDelete = r));
     const remove = first.remove.bind(first);
     first.remove = async () => {
+      startedDelete();
       await deleteGate;
       return remove();
     };
@@ -332,7 +339,7 @@ describe("Codex round 7: a change's outcome is never assumed", () => {
     const next = ws.workspace.change(OPEN_NETWORK, undefined, async () => {
       ran = true;
     });
-    await new Promise((r) => setTimeout(r, 200));
+    await deleting;
     expect(ran).toBe(false);
     releaseDelete();
     await expect(timedOut).rejects.toBeInstanceOf(DaytonaCallTimeoutError);
@@ -425,10 +432,13 @@ describe("Codex round 7: a change's outcome is never assumed", () => {
     const run = local.run.bind(local);
     let releaseRefresh: () => void = () => {};
     const refreshGate = new Promise<void>((r) => (releaseRefresh = r));
+    let startedRefresh: () => void = () => {};
+    const refreshing = new Promise<void>((r) => (startedRefresh = r));
     const order: string[] = [];
     local.run = async (command, options) => {
       if (command.includes(" 'read' ")) order.push("read");
       else if (command.includes(": refresh-view")) {
+        startedRefresh();
         await refreshGate;
         order.push("refresh");
       }
@@ -436,7 +446,7 @@ describe("Codex round 7: a change's outcome is never assumed", () => {
     };
     ws.workspace.startTurn();
     const reading = call("read", { path: "a.md" });
-    await new Promise((r) => setTimeout(r, 200));
+    await refreshing;
     expect(order).toEqual([]);
     releaseRefresh();
     await reading;

@@ -22,9 +22,7 @@ from oss.src.core.sessions.streams.dtos import (
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.dbs.redis.sessions.locks import (
     SessionHeartbeatGuardLost,
-    force_clear_owner,
     get_alive_owner,
-    get_owner,
     get_running_owner,
     is_turn_superseded,
     session_heartbeat_guard,
@@ -79,10 +77,6 @@ async def _running(lock_engine) -> Optional[str]:
     )
 
 
-async def _owner(lock_engine) -> Optional[str]:
-    return await get_owner(lock_engine, project_id=str(_PROJECT), session_id=_SESSION)
-
-
 async def _superseded(lock_engine, turn: str) -> bool:
     return await is_turn_superseded(
         lock_engine, project_id=str(_PROJECT), session_id=_SESSION, turn_id=turn
@@ -90,7 +84,7 @@ async def _superseded(lock_engine, turn: str) -> bool:
 
 
 # --------------------------------------------------------------------------- #
-# Replica affinity
+# The heartbeat guard
 # --------------------------------------------------------------------------- #
 
 
@@ -151,35 +145,6 @@ async def test_heartbeat_returns_committed_result_when_guard_lease_is_lost(lock_
     warning.assert_called_once_with(
         "sessions: heartbeat guard lease lost after heartbeat committed",
         session_id=_SESSION,
-    )
-
-
-@pytest.mark.asyncio
-async def test_a_dead_turns_beat_does_not_reclaim_replica_affinity(lock_engine):
-    """`claim_owner` never steals, so an owner key that keeps getting renewed locks the
-    session out of every other replica for as long as the renewals continue. A tombstoned
-    turn's beat must read affinity, not claim it — otherwise a killed session's trailing
-    beats pin it to the replica that no longer runs anything."""
-    dao = _FakeStreamsDAO()
-    svc = _service(lock_engine, dao)
-
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-a"))
-    assert await _owner(lock_engine) == "replica-a"
-
-    await svc.command(project_id=_PROJECT, user_id=_USER, request=_cancel())
-    assert await _superseded(lock_engine, "turn-a") is True
-    # What kill does to affinity, so another replica can take the session over.
-    await force_clear_owner(lock_engine, project_id=str(_PROJECT), session_id=_SESSION)
-
-    late = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-a"))
-
-    assert late.is_current_turn is False
-    assert await _owner(lock_engine) is None, (
-        "a dead turn's beat re-pinned the session to its replica for a full OWNER_TTL"
-    )
-    assert late.replica_id == "replica-a", (
-        "the caller still needs an owner back; reporting the beat's own replica is fine "
-        "because is_current_turn=False already tells it to stop"
     )
 
 

@@ -1,40 +1,30 @@
-/**
- * StorageFilesHeader — the right-side content of the config panel's "Files" header bar: the file
- * count, mirroring the sibling Triggers header. Opening the Files pane is the session bar's job
- * (its toggle shows the open state); the body's rows open it on one file.
- */
 import {useConfigDrive} from "@agenta/entities/drive"
 import {ConfigRowTrailing} from "@agenta/ui/components/presentational"
-import {SkeletonBlock} from "@agenta/ui/ui"
-import {CircleNotch, Warning} from "@phosphor-icons/react"
+import {SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
+import {CircleNotch} from "@phosphor-icons/react"
 
-import {DriveWarningBadge} from "./DriveFileRow"
+import {FilesPaneToggle} from "./FilesPaneToggle"
+import {useSessionFilesPane} from "./SessionFilesPane"
 
 const MUTED = "text-xs text-[var(--ag-colorTextTertiary)]"
+
+function StorageFilesToggle({scope, sessionId}: {scope: string; sessionId: string}) {
+    const {open, toggle} = useSessionFilesPane(scope, sessionId)
+    return <FilesPaneToggle open={open} onToggle={toggle} disabled={!sessionId} />
+}
 
 export default function StorageFilesHeader({
     revisionId,
     sessionId,
+    scope,
 }: {
     revisionId?: string | null
-    /** The conversation whose drive this is. The host resolves it; empty = no conversation. */
     sessionId?: string | null
+    /** Only playground hosts opt in to a toggle, with their authoritative pane scope. */
+    scope?: string
 }) {
     const {drive} = useConfigDrive(revisionId, sessionId)
-
-    if (drive.isLoading) {
-        return (
-            <ConfigRowTrailing reserve={false}>
-                <SkeletonBlock className="h-[14px] w-[44px]" />
-            </ConfigRowTrailing>
-        )
-    }
-
-    // The body says what went wrong and offers the retry; the header stays quiet.
-    if (drive.errored) return null
-
     const count = drive.fileCount
-    // "N+" when the count scan hit its cap on a very large tree (a floor, not exact).
     const shown = `${count}${drive.fileCountCapped ? "+" : ""}`
     const label =
         count === 0
@@ -44,23 +34,24 @@ export default function StorageFilesHeader({
               : `${shown} files`
 
     return (
-        <ConfigRowTrailing
-            reserve={false}
-            // A mount that failed (e.g. the agent mount over an empty session) badges the count.
-            affordance={
-                drive.partialErrored ? (
-                    <DriveWarningBadge show>
-                        <Warning size={13} className="text-[var(--ag-colorTextTertiary)]" />
-                    </DriveWarningBadge>
-                ) : undefined
-            }
-        >
-            {/* The count survives a session switch (React Query keeps the swapped mount's last-known
-                value while it revalidates), so a spinner says the shown count is being refreshed. */}
-            {drive.isFetching ? (
-                <CircleNotch size={11} className="animate-spin" aria-label="Refreshing" />
+        <div className="flex items-center gap-1.5">
+            {drive.isLoading ? (
+                <ConfigRowTrailing reserve={false}>
+                    <SkeletonBlock className="h-[14px] w-[44px]" />
+                </ConfigRowTrailing>
+            ) : drive.errored ? null : (
+                <ConfigRowTrailing reserve={false}>
+                    {drive.isFetching ? (
+                        <CircleNotch size={11} className="animate-spin" aria-label="Refreshing" />
+                    ) : null}
+                    <SimpleTooltip title="Total files">
+                        <span className={MUTED}>{label}</span>
+                    </SimpleTooltip>
+                </ConfigRowTrailing>
+            )}
+            {scope !== undefined ? (
+                <StorageFilesToggle scope={scope} sessionId={sessionId ?? ""} />
             ) : null}
-            <span className={MUTED}>{label}</span>
-        </ConfigRowTrailing>
+        </div>
     )
 }

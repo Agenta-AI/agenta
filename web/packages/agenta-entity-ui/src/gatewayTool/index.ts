@@ -12,6 +12,8 @@ export {default as ConnectionManagerDrawer} from "./drawers/ConnectionManagerDra
 export {default as ToolExecutionDrawer} from "./drawers/ToolExecutionDrawer"
 
 export {default as ConnectionStatusBadge} from "./components/ConnectionStatusBadge"
+export {FinishConnectionDialog} from "./components/FinishConnectionDialog"
+export {useRefreshToolConnection} from "./hooks/useRefreshToolConnection"
 export {default as ResultViewer} from "./components/ResultViewer"
 export {
     default as SchemaForm,

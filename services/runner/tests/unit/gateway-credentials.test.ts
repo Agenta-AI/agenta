@@ -156,6 +156,52 @@ describe("gateway credentials, per harness (WP13 Phase 2)", () => {
     assert.ok(env.ANTHROPIC_CUSTOM_HEADERS);
   });
 
+  it("claude: Bedrock through the gateway speaks Messages to the gateway, without Bedrock's betas", () => {
+    // Bedrock's Messages endpoint answered Claude Code's newest betas with "Unexpected
+    // value(s) ... for the `anthropic-beta` header", failing every turn; and
+    // CLAUDE_CODE_USE_BEDROCK makes Claude Code call Bedrock itself, past the gateway.
+    const env: Record<string, string> = {};
+    applyClaudeConnectionEnv(
+      env,
+      request({ ...GOLDEN, provider: "anthropic", deployment: "bedrock" }),
+      "claude",
+      () => {},
+    );
+    assert.equal(env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS, "1");
+    assert.equal(env.CLAUDE_CODE_USE_BEDROCK, "0");
+    assert.equal(env.ANTHROPIC_BASE_URL, GOLDEN.endpoint?.baseUrl);
+  });
+
+  it("claude: a custom Anthropic route through the gateway keeps every beta", () => {
+    const env: Record<string, string> = {};
+    applyClaudeConnectionEnv(
+      env,
+      request({ ...GOLDEN, provider: "anthropic", deployment: "custom" }),
+      "claude",
+      () => {},
+    );
+    assert.equal(env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS, undefined);
+  });
+
+  it("claude: Bedrock reached without the gateway still drives Bedrock natively", () => {
+    const env: Record<string, string> = {};
+    applyClaudeConnectionEnv(
+      env,
+      request({
+        ...GOLDEN,
+        provider: "anthropic",
+        deployment: "bedrock",
+        endpoint: { baseUrl: undefined, region: "us-east-1" },
+        gatewayCredentials: undefined,
+      } as ModelConnection),
+      "claude",
+      () => {},
+    );
+    assert.equal(env.CLAUDE_CODE_USE_BEDROCK, "1");
+    assert.equal(env.AWS_REGION, "us-east-1");
+    assert.equal(env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS, undefined);
+  });
+
   it("codex receives only the fixed selector placeholder on a gateway connection", () => {
     const env: Record<string, string> = {};
     applyCodexGatewayConnectionEnv(env, goldenRequest, "codex");

@@ -47,8 +47,7 @@ export type TeardownReason =
 
 export type TeardownDisposition = "delete" | "stop";
 
-// Clean resumable Daytona turns now stop (park) instead of delete, as does idle shutdown.
-// Slice 5's E3 live verification gates this default in the merged feature.
+// Clean resumable Daytona turns stop (park) instead of delete.
 export const PARK_CLEAN_RESUMABLE_TURNS = true;
 
 /**
@@ -62,7 +61,9 @@ const PARKABLE_REASONS: ReadonlySet<TeardownReason> = new Set<TeardownReason>([
   "clean-resumable",
   "idle-expiry",
   "capacity-eviction",
-  "shutdown-idle",
+  // `shutdown-idle` is absent on purpose. A process reconnects only to sandboxes it created
+  // itself, so once this process exits nothing can resume a stopped one: it would only wait for
+  // Daytona's autodelete. Shutdown deletes every sandbox the process holds.
   // A settled Stop. The harness answered its cancelled prompt, so nothing inside the daemon is
   // mid-flight and nothing baked into it is stale. An UNSETTLED Stop never reaches this reason:
   // it stays `aborted`, which deletes.
@@ -80,4 +81,19 @@ export function teardownDisposition(
     return "stop";
   }
   return "delete";
+}
+
+/**
+ * The disposition of a command-only sandbox, whose harness runs in the runner. It holds no harness
+ * state a failed turn could have wedged, so every ending keeps its disk for the next turn, except
+ * a kill and a shutdown: after a shutdown no process reconnects to it.
+ */
+export function commandSandboxDisposition(
+  reason: TeardownReason | undefined,
+): TeardownDisposition {
+  return reason === "kill" ||
+    reason === "shutdown-idle" ||
+    reason === "shutdown-in-flight"
+    ? "delete"
+    : "stop";
 }

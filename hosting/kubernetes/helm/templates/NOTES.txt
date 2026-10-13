@@ -36,7 +36,12 @@ will be removed in a later release. Migration guide:
 https://docs.agenta.ai/self-host/upgrades/v0.100.3-migration
 {{- end }}
 
-{{- if or (eq ($agenta.authKey | toString) "replace-me") (eq ($agenta.cryptKey | toString) "replace-me") (eq ($postgres.password | toString) "password") }}
+{{- /* Only warn about default secret VALUES when the chart is the thing that turns them
+       into a Secret. With `secrets.existingSecret` the operator brings their own Secret,
+       the chart creates none, and these values are never read by any workload - so the
+       banner would accuse a correctly configured production install of shipping
+       "replace-me". agenta.validateSecrets already skips the same way. */ -}}
+{{- if and (not $secrets.existingSecret) (or (eq ($agenta.authKey | toString) "replace-me") (eq ($agenta.cryptKey | toString) "replace-me") (eq ($postgres.password | toString) "password")) }}
 
 ╔══════════════════════════════════════════════════════════════════════╗
 ║  SECURITY WARNING — default secrets in use                           ║

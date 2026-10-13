@@ -12,9 +12,11 @@ import {
   appsOf,
   authorPath,
   howItWorksOf,
+  howStepSentence,
   relatedTemplatesOf,
   requirementsOf,
   setupStepsOf,
+  templateFaqOf,
   templatePath,
 } from "../../lib/marketplace";
 
@@ -40,7 +42,7 @@ export const GET: APIRoute = async ({ props }) => {
   const numbered = (items: string[]) =>
     items.map((item, i) => `${i + 1}. ${item}`).join("\n");
   const related = relatedTemplatesOf(template, templates);
-  const steps = howItWorksOf(template);
+  const steps = howItWorksOf(template).map(howStepSentence);
   const requirements = requirementsOf(template);
 
   const sections = [
@@ -64,6 +66,9 @@ export const GET: APIRoute = async ({ props }) => {
           (other) => `[${other.name}](${SITE_URL}${templatePath(other.key)})`,
         ),
       )}`,
+    `## FAQ\n\n${templateFaqOf(template)
+      .map(({ question, answer }) => `### ${question}\n\n${answer}`)
+      .join("\n\n")}`,
   ].filter(Boolean);
 
   const body = `[${USE_IT_FOR_FREE_LABEL}](${useItForFreeUrl(template.key)})

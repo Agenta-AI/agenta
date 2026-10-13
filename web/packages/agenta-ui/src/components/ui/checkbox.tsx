@@ -8,7 +8,7 @@ import {cn} from "./utils"
 /**
  * Checkbox — a Radix + cva primitive in @agenta/ui, following shadcn's source conventions (no
  * `forwardRef`, `data-slot` on Root AND Indicator). Re-skinned to antd v6's Checkbox geometry via the shared
- * control scale (`size-control-check` = 16px, `rounded-control-sm` = 6px), colour via bridge tokens.
+ * control scale (`size-control-check` = 16px, `rounded-control-check` = 4px), colour via bridge tokens.
  *
  * SCOPE: the bare box only. antd's `Checkbox.Group` is NOT part of this primitive — compose it
  * if ever needed; no antd-shaped props are added.
@@ -27,7 +27,7 @@ const checkboxVariants = cva([
     // CONTROL_RESET — Radix Root is a native <button>; preflight is off (see button.tsx).
     "box-border border-solid font-[inherit] p-0",
     "group relative inline-flex shrink-0 cursor-pointer items-center justify-center align-middle transition-colors",
-    "size-control-check rounded-control-sm border", // antd: 16px box, borderRadiusSM=6px, 1px border.
+    "size-control-check rounded-control-check border", // 16px box, 4px corner, 1px border.
     "bg-background border-border", // antd unchecked/indeterminate: colorBgContainer + colorBorder.
     "enabled:hover:border-primary", // antd hover border → colorPrimary (enabled only).
     // antd CHECKED (only): bg + border = colorPrimary. Indeterminate keeps the white box.

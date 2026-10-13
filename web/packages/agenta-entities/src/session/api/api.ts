@@ -180,22 +180,47 @@ export async function fetchSessionSnapshot({
     return safeParseWithLogging(sessionSnapshotSchema, data, "[fetchSessionSnapshot]") ?? null
 }
 
+/** `busy` is a 409 `session_busy`: another input already rides the pending stop. */
+export type PendingInputWriteOutcome = "applied" | "not_found" | "conflict" | "busy" | "failed"
+
+const refusalOf = (error: unknown): PendingInputWriteOutcome | null => {
+    if (typeof error !== "object" || error === null) return null
+    const {statusCode, body} = error as {statusCode?: unknown; body?: unknown}
+    if (statusCode === 404) return "not_found"
+    if (statusCode !== 409) return null
+    const detail = (body as {detail?: {code?: unknown}} | undefined)?.detail
+    return detail?.code === "session_busy" ? "busy" : "conflict"
+}
+
+/** Run a pending-input write, keeping the refusal status `callFern` would otherwise swallow. */
+async function writePendingInput<T>(
+    label: string,
+    fn: () => Promise<T>,
+): Promise<{data: T | null; refusal: PendingInputWriteOutcome | null}> {
+    let refusal: PendingInputWriteOutcome | null = null
+    const data = await callFern(label, fn, (error) => {
+        refusal = refusalOf(error)
+        return refusal !== null
+    })
+    return {data, refusal}
+}
+
 export async function removePendingSessionInput({
     sessionId,
     projectId,
     appId,
     abortSignal,
     inputId,
-}: SessionScopedParams & {inputId: string}): Promise<boolean> {
-    if (!projectId || !sessionId || !inputId) return false
+}: SessionScopedParams & {inputId: string}): Promise<PendingInputWriteOutcome> {
+    if (!projectId || !sessionId || !inputId) return "failed"
 
-    const data = await callFern("[removePendingSessionInput]", () =>
+    const {data, refusal} = await writePendingInput("[removePendingSessionInput]", () =>
         getSessionsClient().removePendingSessionInput(
             {session_id: sessionId, input_id: inputId},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
-    return !!data
+    return refusal ?? (data ? "applied" : "failed")
 }
 
 export async function updatePendingSessionInput({
@@ -215,19 +240,23 @@ export async function updatePendingSessionInput({
         filename?: string
         attachment_id?: string
     }[]
-}): Promise<boolean> {
-    if (!projectId || !sessionId || !inputId) return false
-    const data = await callFern("[updatePendingSessionInput]", () =>
+}): Promise<PendingInputWriteOutcome> {
+    if (!projectId || !sessionId || !inputId) return "failed"
+    const {data, refusal} = await writePendingInput("[updatePendingSessionInput]", () =>
         getSessionsClient().updatePendingSessionInput(
             {session_id: sessionId, input_id: inputId, text, attachments},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
-    return (
+    if (refusal) return refusal
+    return data &&
         safeParseWithLogging(pendingInputResponseSchema, data, "[updatePendingSessionInput]") !==
-        null
-    )
+            null
+        ? "applied"
+        : "failed"
 }
+
+export type PendingInputAdmission = z.infer<typeof pendingInputAdmissionResponseSchema>
 
 export async function sendPendingSessionInputNow({
     sessionId,
@@ -235,21 +264,26 @@ export async function sendPendingSessionInputNow({
     appId,
     abortSignal,
     inputId,
-}: SessionScopedParams & {inputId: string}): Promise<boolean> {
-    if (!projectId || !sessionId || !inputId) return false
-    const data = await callFern("[sendPendingSessionInputNow]", () =>
+}: SessionScopedParams & {inputId: string}): Promise<{
+    outcome: PendingInputWriteOutcome
+    admission: PendingInputAdmission | null
+}> {
+    if (!projectId || !sessionId || !inputId) return {outcome: "failed", admission: null}
+    const {data, refusal} = await writePendingInput("[sendPendingSessionInputNow]", () =>
         getSessionsClient().sendPendingSessionInputNow(
             {session_id: sessionId, input_id: inputId},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
-    return (
-        safeParseWithLogging(
-            pendingInputAdmissionResponseSchema,
-            data,
-            "[sendPendingSessionInputNow]",
-        ) !== null
-    )
+    if (refusal) return {outcome: refusal, admission: null}
+    const admission = data
+        ? safeParseWithLogging(
+              pendingInputAdmissionResponseSchema,
+              data,
+              "[sendPendingSessionInputNow]",
+          )
+        : null
+    return admission ? {outcome: "applied", admission} : {outcome: "failed", admission: null}
 }
 
 export interface QueryInteractionsParams extends Omit<SessionScopedParams, "sessionId"> {

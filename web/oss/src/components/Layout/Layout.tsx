@@ -39,6 +39,7 @@ import type {SidebarView} from "../Sidebar/types"
 import {useStyles} from "./assets/styles"
 import AuthUpgradeHost from "./AuthUpgradeHost"
 import ErrorFallback from "./ErrorFallback"
+import MaintenanceNoticeBar, {useMaintenanceNotice} from "./MaintenanceNotice"
 import PostHogThemeCapture from "./PostHogThemeCapture"
 import {SidebarIsland} from "./SidebarIsland"
 import {useAppTheme} from "./ThemeContextProvider"
@@ -283,6 +284,14 @@ const AppWithVariants = memo(
             setDemoReturnHintDismissed(true)
         }, [setDemoReturnHintDismissed])
 
+        // The maintenance notice is a fixed bar like the demo one, so the page has to
+        // know whether it takes space. The bar reports its own dismissal rather than
+        // this component duplicating the localStorage read.
+        const maintenanceNotice = useMaintenanceNotice()
+        const [maintenanceDismissed, setMaintenanceDismissed] = useState(true)
+        const topBarsHeight =
+            (project?.is_demo ? 38 : 0) + (maintenanceNotice && !maintenanceDismissed ? 38 : 0)
+
         // Stable theme object so antd cssinjs doesn't re-evaluate per parent render
         const contentThemeConfig = useMemo(
             () => ({
@@ -319,9 +328,11 @@ const AppWithVariants = memo(
             <div
                 className={clsx([
                     {"flex flex-col grow min-h-0": isFullHeight},
-                    // The demo banner is `fixed`, so it covers anything the page pins to the
-                    // viewport top. Sticky content reads this var to offset itself past it.
-                    project?.is_demo && "[--ag-demo-banner-h:38px]",
+                    // Every fixed bar above covers what the page pins to the viewport top,
+                    // so sticky content offsets itself by their TOTAL height. Two bars can
+                    // show at once, and one of them covering the other is a layout bug.
+                    topBarsHeight === 38 && "[--ag-top-bars-h:38px]",
+                    topBarsHeight === 76 && "[--ag-top-bars-h:76px]",
                 ])}
             >
                 <Modal
@@ -338,9 +349,22 @@ const AppWithVariants = memo(
                     </p>
                 </Modal>
                 <AuthUpgradeHost />
+                {maintenanceNotice ? (
+                    <MaintenanceNoticeBar
+                        notice={maintenanceNotice}
+                        onDismissedChange={setMaintenanceDismissed}
+                    />
+                ) : null}
                 {project?.is_demo && (
                     <>
-                        <div className="fixed top-0 left-0 right-0 z-[9999] flex items-center justify-center gap-1.5 h-[38px] bg-[var(--ag-c-1C2C3D)] text-white text-sm font-medium">
+                        <div
+                            className={clsx([
+                                "fixed left-0 right-0 z-[9999] flex items-center justify-center gap-1.5 h-[38px] bg-[var(--ag-c-1C2C3D)] text-white text-sm font-medium",
+                                // Both bars are fixed, so the second one sits BELOW the
+                                // first instead of on top of it.
+                                maintenanceNotice && !maintenanceDismissed ? "top-[38px]" : "top-0",
+                            ])}
+                        >
                             You're viewing the demo workspace.
                             <button
                                 type="button"

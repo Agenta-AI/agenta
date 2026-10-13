@@ -906,7 +906,7 @@ inside the package, and names a regular file.
     example `github`, `slack`, `gmail`;
   - `{ "kind": "mcp", "server": "<server name in mcp.json>" }`.
 - `policy` (optional): `{ "permissions": { "default": "allow", "tools": { "<TOOL>": "ask" } } }`.
-  Each value is `inherit`, `allow`, `ask` or `deny`.
+  Each value is `inherit`, `allow`, `ask`, `deny` or `allow_reads` (reads run, writes ask).
 - `setup_notes` (optional): what the recipient chooses or checks when they connect it.
 
 A requirement never names an account, a connection slug, an id or a credential. The recipient

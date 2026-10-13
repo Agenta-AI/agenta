@@ -14,6 +14,10 @@ import type { AgentRunRequest } from "../../src/protocol.ts";
 import { DaytonaReconnectTerminalError } from "../../src/engines/sandbox_agent/daytona-provider.ts";
 import { SessionContinuityStore } from "../../src/engines/sandbox_agent/session-continuity.ts";
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
+import {
+  markSandboxCreated,
+  resetCreatedSandboxIds,
+} from "../../src/engines/sandbox_agent/created-sandboxes.ts";
 
 // This whole suite drives the remote (Daytona) lifecycle: enable it (with a provisioning
 // credential) on top of the hermetic scrub, then drop the memoized config.
@@ -21,6 +25,7 @@ beforeEach(() => {
   process.env.AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS = "local,daytona";
   process.env.AGENTA_RUNNER_DAYTONA_API_KEY = "test-key";
   resetRunnerConfigCache();
+  resetCreatedSandboxIds();
 });
 
 interface FakeOpts {
@@ -38,9 +43,13 @@ interface FakeOpts {
   pauseThrows?: boolean;
   /** Abort after environment acquisition, when the harness prompt starts. */
   onPrompt?: () => void;
+  /** The stored id names a sandbox another process created, so this one must not reconnect. */
+  foreign?: boolean;
 }
 
 function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
+  // A stored id is this process's own parked sandbox unless the test says otherwise.
+  if (sandboxId && !opts.foreign) markSandboxCreated(sandboxId);
   const continuityStore = new SessionContinuityStore();
   const calls = {
     starts: [] as Array<{ sandboxId: string | undefined }>,
@@ -232,6 +241,22 @@ describe("remote sandbox reconnect ladder", () => {
         `missing timing line for ${stage}`,
       );
     }
+  });
+
+  it("creates fresh, without reconnecting, when the stored id was not created by this process", async () => {
+    const { calls, deps } = fakeSandbox("sbx-other-pod", { foreign: true });
+    const result = await runSandboxAgent(
+      daytonaRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      calls.starts,
+      [{ sandboxId: undefined }],
+      "one fresh create; the foreign id is never handed to the provider",
+    );
   });
 
   it("starts fresh (no id) when nothing is recorded", async () => {

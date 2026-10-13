@@ -23,6 +23,7 @@ import {computeEtag} from "../../src/drive/htmlApp/mockHost"
 import {
     READ_CAP,
     WRITE_CAP,
+    type AppAccess,
     type FileEntry,
     type FsFailure,
     type FsRequest,
@@ -213,7 +214,8 @@ const mounted = (files: Record<string, string>, dir = DIR) => {
 const make = (
     files: Record<string, string>,
     opts: {
-        grant?: GrantLevel
+        grant?: AppAccess
+        requestAccess?: (need: GrantLevel) => Promise<AppAccess>
         dir?: string
         tokens?: Record<string, string>
         onWrite?: () => void
@@ -227,6 +229,7 @@ const make = (
             projectId: "p1",
             dir,
             grant: opts.grant ?? "read",
+            requestAccess: opts.requestAccess,
             tokens: opts.tokens ?? {},
             onWrite: opts.onWrite,
         },
@@ -619,6 +622,78 @@ describe("createHtmlAppHost.handle (transport contract)", () => {
 // ---------------------------------------------------------------------------------------------
 // Part 3 — the MessageChannel path
 // ---------------------------------------------------------------------------------------------
+
+describe("createHtmlAppHost access", () => {
+    it("without access every call fails unavailable and never reaches the transport", async () => {
+        const {host, fake} = make(seed, {grant: "none"})
+        expectFailure(await host.handle(req({method: "read", path: "index.html"})), "unavailable")
+        expectFailure(await host.handle(req({method: "list", path: ""})), "unavailable")
+        expect(fake.calls).toEqual([])
+    })
+
+    it("asks for what the call needs, and waiting calls share the open question", async () => {
+        let answer!: (a: AppAccess) => void
+        const requestAccess = vi.fn(
+            (_need: GrantLevel) =>
+                new Promise<AppAccess>((done) => {
+                    answer = done
+                }),
+        )
+        const {host} = make(seed, {grant: "none", requestAccess})
+        const first = host.handle(req({id: 1, method: "read", path: "index.html"}))
+        const second = host.handle(req({id: 2, method: "exists", path: "index.html"}))
+        await Promise.resolve()
+        expect(requestAccess).toHaveBeenCalledTimes(1)
+        expect(requestAccess).toHaveBeenLastCalledWith("read")
+        answer("read")
+        expectOk(await first)
+        expectOk(await second)
+        expect(
+            requestAccess,
+            "the second read was covered by the first answer",
+        ).toHaveBeenCalledTimes(1)
+
+        const write = host.handle(req({id: 3, method: "write", path: "a.txt", body: "a"}))
+        await Promise.resolve()
+        await Promise.resolve()
+        expect(requestAccess).toHaveBeenLastCalledWith("read-write")
+        answer("read")
+        expectFailure(await write, "read_only")
+    })
+
+    it("an upgrade answer serves the write that asked", async () => {
+        const requestAccess = vi.fn(() => Promise.resolve<AppAccess>("read-write"))
+        const {host} = make(seed, {grant: "read", requestAccess})
+        expectOk(await host.handle(req({method: "write", path: "a.txt", body: "a"})))
+        expect(requestAccess).toHaveBeenCalledWith("read-write")
+    })
+
+    it("a downgrade through setAccess refuses the next write without asking", async () => {
+        const {host, fake} = make(seed, {grant: "read-write"})
+        expectOk(await host.handle(req({method: "write", path: "a.txt", body: "a"})))
+        host.setAccess?.("read")
+        expectFailure(
+            await host.handle(req({method: "write", path: "b.txt", body: "b"})),
+            "read_only",
+        )
+        host.setAccess?.("none")
+        const before = fake.calls.length
+        expectFailure(await host.handle(req({method: "read", path: "index.html"})), "unavailable")
+        expect(fake.calls.length, "a revoked app reaches nothing").toBe(before)
+    })
+
+    it("a refused or failed question leaves no access", async () => {
+        const {host} = make(seed, {grant: "none", requestAccess: () => Promise.reject(new Error())})
+        expectFailure(await host.handle(req({method: "read", path: "index.html"})), "unavailable")
+    })
+
+    it("a scope failure does not ask", async () => {
+        const requestAccess = vi.fn(() => Promise.resolve<AppAccess>("read"))
+        const {host} = make(seed, {grant: "none", requestAccess})
+        expectFailure(await host.handle(req({method: "read", path: "../secret"})), "scope")
+        expect(requestAccess).not.toHaveBeenCalled()
+    })
+})
 
 describe("createHtmlAppHost.attach", () => {
     /** A stand-in iframe: captures the hello and hands back the transferred port. */

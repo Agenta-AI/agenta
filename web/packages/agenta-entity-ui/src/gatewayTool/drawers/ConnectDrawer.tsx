@@ -10,7 +10,6 @@ import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, ModalContent, ModalFooter, message} from "@agenta/ui"
 import {
-    Divider,
     Field,
     Input,
     Select,
@@ -204,45 +203,46 @@ export default function ConnectDrawer({
         <EnhancedModal
             open={open}
             onCancel={handleClose}
-            title={`Connect to ${integrationName}`}
+            // The integration's mark heads the dialog, beside the close button.
+            title={
+                <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-background shadow-xs">
+                    {integrationLogo ? (
+                        <Image
+                            src={integrationLogo}
+                            alt={integrationName}
+                            width={18}
+                            height={18}
+                            className="size-[18px] object-contain"
+                            unoptimized
+                        />
+                    ) : (
+                        <span className="text-sm font-semibold text-muted-foreground">
+                            {integrationName.charAt(0).toUpperCase()}
+                        </span>
+                    )}
+                </span>
+            }
             footer={null}
             width={480}
             destroyOnClose
         >
             <ModalContent>
-                {/* Integration header */}
-                <div className="flex items-center gap-3">
-                    {integrationLogo && (
-                        <Image
-                            src={integrationLogo}
-                            alt={integrationName}
-                            width={36}
-                            height={36}
-                            className="w-9 h-9 rounded object-contain shrink-0"
-                            unoptimized
-                        />
+                <div className="flex flex-col gap-1">
+                    <span className="text-base font-medium leading-snug text-foreground">
+                        Connect {integrationName}
+                    </span>
+                    {integrationDescription && (
+                        <span className="text-sm text-colorTextDescription line-clamp-2">
+                            {integrationDescription}
+                        </span>
                     )}
-                    <div className="flex flex-col min-w-0">
-                        <span className="font-medium leading-snug">{integrationName}</span>
-                        {integrationDescription && (
-                            <span className="text-xs text-colorTextDescription line-clamp-2">
-                                {integrationDescription}
-                            </span>
-                        )}
-                    </div>
                 </div>
-
-                <Divider className="!m-0" />
 
                 {/* Form (explicitly controlled — no antd Form) */}
                 <div className="flex flex-col gap-4">
-                    <Field
-                        label="Name"
-                        required
-                        tooltip="Display name for this connection"
-                        error={nameError}
-                    >
+                    <Field label="Name" error={nameError}>
                         <Input
+                            autoFocus
                             placeholder={`e.g. My ${integrationName} Account`}
                             value={name}
                             aria-invalid={nameError ? true : undefined}
@@ -274,8 +274,6 @@ export default function ConnectDrawer({
                         </Field>
                     )}
                 </div>
-
-                <Divider className="!m-0" />
 
                 {submitError ? (
                     <p className="m-0 text-xs leading-snug text-[var(--ag-colorError)]">

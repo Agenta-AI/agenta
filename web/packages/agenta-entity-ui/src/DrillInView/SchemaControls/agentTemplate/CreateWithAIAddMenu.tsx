@@ -33,7 +33,7 @@ export interface CreateWithAIAddMenuProps {
     manualIcon: ReactNode
 }
 
-/** One row: an icon, a name, a one-line hint. */
+/** One row: an icon tile, a name, a one-line hint. Same shape as the header's Share menu. */
 function MenuRow({
     icon,
     title,
@@ -46,13 +46,16 @@ function MenuRow({
     onSelect: () => void
 }) {
     return (
-        <DropdownMenuItem onSelect={onSelect} className="items-start gap-2.5">
-            <span aria-hidden className="mt-0.5 flex shrink-0 text-colorTextSecondary">
+        <DropdownMenuItem onSelect={onSelect} className="gap-2.5 py-1.5">
+            <span
+                aria-hidden
+                className="box-border flex size-8 flex-none items-center justify-center rounded-lg border border-solid border-border text-colorText"
+            >
                 {icon}
             </span>
             <span className="flex min-w-0 flex-col">
                 <span className="text-sm text-colorText">{title}</span>
-                <span className="text-xs text-colorTextTertiary">{hint}</span>
+                <span className="truncate text-xs text-colorTextTertiary">{hint}</span>
             </span>
         </DropdownMenuItem>
     )
@@ -82,7 +85,7 @@ export function CreateWithAIAddMenu({
             </DropdownMenuTrigger>
             <DropdownMenuContent
                 align="end"
-                className="w-[280px]"
+                className="w-64"
                 onCloseAutoFocus={(event) => {
                     if (!choseAIRef.current) return
                     choseAIRef.current = false
@@ -92,7 +95,7 @@ export function CreateWithAIAddMenu({
                 <MenuRow
                     icon={<Sparkle size={16} />}
                     title="Create with AI"
-                    hint="Describe what you want in the chat. The agent sets it up."
+                    hint="Describe it; the agent sets it up"
                     onSelect={createWithAI}
                 />
                 <MenuRow

@@ -15,7 +15,9 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {
+    connectionNameProblem,
     deleteMcpEndpointAtom,
+    editMcpEndpoint,
     disconnectMcpEndpointAtom,
     getMcpConnectionStatus,
     getMcpConnectionStatusLabel,
@@ -31,21 +33,29 @@ import {
     McpConnectionDetail,
     McpPermissionDrawer,
 } from "@agenta/entity-ui/mcpEndpoint"
+import {getSettingsSidebarIcon} from "@agenta/settings"
+import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
+import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {Button, cn, IconTile, touchTargetExpansion} from "@agenta/ui/ui"
 import {
-    Button,
-    cn,
-    DataTable,
-    EmptyState,
-    IconTile,
-    touchTargetExpansion,
-    type DataTableColumn,
-} from "@agenta/ui/ui"
-import {Plugs, Plus} from "@phosphor-icons/react"
+    ArrowsClockwise,
+    LinkBreak,
+    PencilSimpleLine,
+    Plugs,
+    Plus,
+    Trash,
+    Wrench,
+} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import type {ConfirmDestructive} from "../confirm"
+import {SettingsPageActions} from "../SettingsPageShell"
+import {InlineName} from "../shared/InlineName"
+import {SettingsEmpty} from "../shared/SettingsEmpty"
+import {SettingsRowMenu} from "../shared/SettingsRowMenu"
+import {usePhoneColumns} from "../shared/usePhoneColumns"
 
 /** Nouns for the rows; a host that calls them something else passes its own. */
 export interface McpServersSectionCopy {
@@ -87,6 +97,21 @@ const STATUS_TONE: Record<McpConnectionStatus, "success" | "warning" | "error"> 
 const hasGrantToRevoke = (endpoint: MCPEndpoint) =>
     endpoint.auth_mode === "oauth" && Boolean(endpoint.secret_id)
 
+const COLUMNS: ListTableColumn[] = [
+    {key: "name", label: "Name", width: "minmax(0,2fr)"},
+    {key: "url", label: "Server URL", width: "minmax(0,2fr)"},
+    {key: "auth", label: "Auth", width: "minmax(0,1fr)"},
+    {key: "status", label: "Status", width: "minmax(0,1.2fr)"},
+]
+
+const ACTIONS_COLUMN: ListTableColumn = {
+    key: "actions",
+    label: "Actions",
+    srOnly: true,
+    width: "32px",
+}
+const PHONE_KEYS = ["name", "status", "actions"]
+
 export interface McpServersSectionProps {
     /** Destructive confirmation — the desktop's AlertPopup, a sheet elsewhere. */
     confirm?: ConfirmDestructive
@@ -123,6 +148,8 @@ export default function McpServersSection({
     const [viewingKey, setViewingKey] = useState<string | null>(null)
     /** "View tools", tracked by key for the same reason as the connection above. */
     const [toolsKey, setToolsKey] = useState<string | null>(null)
+    const [renamingKey, setRenamingKey] = useState<string | null>(null)
+    const projectId = useAtomValue(projectIdAtom)
 
     const rows = useMemo(() => endpoints ?? [], [endpoints])
     const names = useMemo(() => rows.map((row) => row.name), [rows])
@@ -236,201 +263,191 @@ export default function McpServersSection({
         [confirm, deleteEndpoint, setViewing],
     )
 
-    const columns = useMemo<DataTableColumn<MCPEndpoint>[]>(
-        () => [
-            {
-                key: "name",
-                title: "Name",
-                width: 220,
-                // Flexible, unlike the usual first column: on a phone it and Status are the only
-                // two left, and a pinned 220 there would push the table into a sideways scroll.
-                flexible: true,
-                render: (record) => (
-                    <span className="flex min-w-0 items-center gap-2.5">
-                        {/* One generic glyph for every server: the registry holds arbitrary
-                            URLs, so there is no per-server branding to show (decision 3). */}
-                        <IconTile size={24} tone="info" aria-hidden="true">
-                            <Plugs />
-                        </IconTile>
-                        <span data-testid="mcp-connection-name" className="truncate font-medium">
-                            {record.name || record.slug}
-                        </span>
-                    </span>
-                ),
-            },
-            {
-                key: "url",
-                title: "Server URL",
-                width: 320,
-                flexible: true,
-                // The details are a wider screen's: below `md` the row keeps what identifies it
-                // and what acts on it, and the URL is one tap away in the connection itself.
-                // Without this the registry was a 986px table scrolling sideways inside a 348px
-                // phone, which the plan's acceptance rules out.
-                responsive: "md",
-                mono: true,
-                render: (record) => (
-                    <span
-                        className="block truncate text-colorTextDescription"
-                        title={record.data.route.base_url ?? undefined}
-                    >
-                        {record.data.route.base_url}
-                    </span>
-                ),
-            },
-            {
-                key: "auth",
-                title: "Auth",
-                width: 200,
-                // The last column to earn its place: even at `lg` the other three plus the
-                // actions gutter fill the page.
-                responsive: "xl",
-                render: (record) => {
-                    if (record.auth_mode === "oauth") return "OAuth"
-                    if (record.auth_mode === "none") return "None"
-                    const secretName = record.secret_id
-                        ? secretNameById.get(record.secret_id)
-                        : undefined
-                    // Never the credential itself, only what it is filed under.
-                    return secretName ? (
-                        <span className="flex min-w-0 items-center gap-1">
-                            <span>API key ·</span>
-                            <span className="truncate font-mono text-xs">{secretName}</span>
-                        </span>
-                    ) : (
-                        "API key"
-                    )
-                },
-            },
-            {
-                key: "status",
-                title: "Status",
-                width: 190,
-                render: (record) => {
-                    const status = getMcpConnectionStatus(record)
-                    const connected = status === "connected"
-                    return (
-                        <span
-                            data-testid="mcp-connection-status"
-                            className="flex min-w-0 items-center gap-2"
-                        >
-                            <StatusIndicator
-                                tone={STATUS_TONE[status]}
-                                label={getMcpConnectionStatusLabel(status)}
-                                // min-w-0 lets the indicator's own truncation act. Without it its
-                                // automatic minimum is its text, so at phone width the cell's
-                                // content overran the column and slid the Reconnect link under the
-                                // next cell's row menu, which covered 43 of its 70px.
-                                className="min-w-0 text-[13px]"
-                            />
-                            {/* The repair is offered where the problem is reported, so a row
-                                that needs attention does not send the reader to a menu. */}
-                            {!connected && !readOnly ? (
-                                <Button
-                                    variant="link"
-                                    size="xs"
-                                    // No `h-auto`: the size's own height is the app's control
-                                    // scale, and overriding it left a 20px tap target on a phone.
-                                    // The scale's 24px is still under the 44px touch minimum, so
-                                    // the invisible expansion carries the rest. The Button's own
-                                    // base classes keep it from shrinking, so the status text
-                                    // beside it is what gives way.
-                                    className={cn("p-0 text-xs", touchTargetExpansion(24))}
-                                    onClick={(event) => {
-                                        // The row opens the connection on click; this is a
-                                        // different intent and must not also do that.
-                                        event.stopPropagation()
-                                        openReconnect(record)
-                                    }}
-                                >
-                                    Reconnect
-                                </Button>
-                            ) : null}
-                        </span>
-                    )
-                },
-            },
-        ],
-        [openReconnect, readOnly, secretNameById],
+    const allColumns = useMemo(
+        () => (readOnly ? COLUMNS : [...COLUMNS, ACTIONS_COLUMN]),
+        [readOnly],
+    )
+    const {columns, shows} = usePhoneColumns(allColumns, PHONE_KEYS)
+    const empty = !isPending && rows.length === 0
+
+    const connect = (
+        <Button data-testid="mcp-connect-open" onClick={openConnect}>
+            <Plus size={14} />
+            {copy.connect}
+        </Button>
     )
 
     return (
-        <div className="flex flex-col gap-3">
-            {/* E2 drops the header button in favour of the one in the empty state, so there is
-                never a screen offering the same action twice. */}
-            {readOnly || (!isPending && rows.length === 0) ? null : (
-                <div className="flex justify-end">
-                    <Button data-testid="mcp-connect-open" onClick={openConnect}>
-                        <Plus size={14} />
-                        {copy.connect}
-                    </Button>
-                </div>
-            )}
+        <div className="flex flex-col">
+            {readOnly ? null : <SettingsPageActions>{connect}</SettingsPageActions>}
 
-            {!isPending && rows.length === 0 ? (
-                <EmptyState
-                    className="rounded-lg border border-dashed border-colorBorder px-6 py-12"
-                    image={
-                        <IconTile size={44} tone="muted" aria-hidden="true">
-                            <Plugs />
-                        </IconTile>
-                    }
-                    description={copy.emptyBody}
-                    title={copy.emptyTitle}
-                >
-                    {readOnly ? null : (
-                        <Button data-testid="mcp-connect-open" onClick={openConnect}>
-                            {copy.connect}
-                        </Button>
-                    )}
-                </EmptyState>
-            ) : (
-                <DataTable<MCPEndpoint>
-                    columns={columns}
-                    rows={rows}
-                    loading={isPending}
-                    skeletonRows={3}
-                    rowKey={rowKey}
-                    onRowClick={(record) => setViewing(record)}
-                    actions={
-                        readOnly
-                            ? undefined
-                            : (record) => [
-                                  {
-                                      key: "reconnect",
-                                      label: "Reconnect",
-                                      onClick: () => openReconnect(record),
-                                  },
-                                  {
-                                      key: "view-tools",
-                                      label: "View tools",
-                                      onClick: () => setToolsKey(rowKey(record)),
-                                  },
-                                  {
-                                      key: "rename",
-                                      label: "Rename",
-                                      onClick: () => setViewing(record),
-                                  },
-                                  {type: "divider"},
-                                  {
-                                      key: "disconnect",
-                                      label: "Disconnect",
-                                      danger: true,
-                                      // Hidden where there is no grant to give back, which
-                                      // would be a 400 on a row that reads as connected.
-                                      hidden: !hasGrantToRevoke(record),
-                                      onClick: () => handleDisconnect(record),
-                                  },
-                                  {
-                                      key: "remove",
-                                      label: "Remove",
-                                      danger: true,
-                                      onClick: () => handleRemove(record),
-                                  },
-                              ]
-                    }
-                />
-            )}
+            <ListTable<MCPEndpoint>
+                columns={columns}
+                groups={[{key: "servers", label: null, rows}]}
+                rowKey={rowKey}
+                minWidth={0}
+                loading={isPending}
+                skeletonRows={3}
+                hideHeader={empty}
+                onOpenRow={(record) => setViewing(record)}
+                empty={
+                    <SettingsEmpty
+                        icon={getSettingsSidebarIcon("mcpEndpoints")}
+                        title={copy.emptyTitle}
+                        description={copy.emptyBody}
+                        action={readOnly ? null : connect}
+                    />
+                }
+                renderRow={(record) => {
+                    const status = getMcpConnectionStatus(record)
+                    const secretName = record.secret_id
+                        ? secretNameById.get(record.secret_id)
+                        : undefined
+                    return (
+                        <>
+                            <span className="flex min-w-0 items-center gap-2.5">
+                                {/* One generic glyph for every server: the registry holds arbitrary
+                                    URLs, so there is no per-server branding to show. */}
+                                <IconTile
+                                    size={28}
+                                    tone="muted"
+                                    aria-hidden="true"
+                                    className="border border-solid border-border bg-muted text-muted-foreground"
+                                >
+                                    <Plugs />
+                                </IconTile>
+                                <InlineName
+                                    value={record.name || record.slug || ""}
+                                    editing={!readOnly && renamingKey === rowKey(record)}
+                                    ariaLabel="Connection name"
+                                    testId="mcp-connection-name"
+                                    onStart={
+                                        readOnly ? undefined : () => setRenamingKey(rowKey(record))
+                                    }
+                                    onDone={() => setRenamingKey(null)}
+                                    validate={(name) =>
+                                        connectionNameProblem({
+                                            name,
+                                            existingNames: names,
+                                            currentName: record.name,
+                                        })
+                                    }
+                                    onSave={async (name) => {
+                                        if (!record.id) return
+                                        // A full replace: the edit route writes what it is given.
+                                        await editMcpEndpoint(
+                                            {
+                                                id: record.id,
+                                                name,
+                                                description: record.description,
+                                                auth_mode: record.auth_mode,
+                                                secret_id: record.secret_id,
+                                                data: record.data,
+                                                flags: record.flags,
+                                            },
+                                            projectId ?? undefined,
+                                        )
+                                        void refresh()
+                                    }}
+                                />
+                            </span>
+                            {shows("url") ? (
+                                <span
+                                    className="truncate font-mono text-[13px] text-muted-foreground"
+                                    title={record.data.route.base_url ?? undefined}
+                                >
+                                    {record.data.route.base_url}
+                                </span>
+                            ) : null}
+                            {!shows("auth") ? null : record.auth_mode === "oauth" ? (
+                                <span className="truncate">OAuth</span>
+                            ) : record.auth_mode === "none" ? (
+                                <span className="truncate">None</span>
+                            ) : secretName ? (
+                                // Never the credential itself, only what it is filed under.
+                                <span className="flex min-w-0 items-center gap-1">
+                                    <span>API key ·</span>
+                                    <span className="truncate font-mono text-xs">{secretName}</span>
+                                </span>
+                            ) : (
+                                <span className="truncate">API key</span>
+                            )}
+                            <span
+                                data-testid="mcp-connection-status"
+                                className="flex min-w-0 items-center gap-2"
+                            >
+                                <StatusIndicator
+                                    tone={STATUS_TONE[status]}
+                                    label={getMcpConnectionStatusLabel(status)}
+                                    // min-w-0 lets the label truncate instead of pushing Reconnect under the menu.
+                                    className="min-w-0 text-[13px]"
+                                />
+                                {/* The repair is offered where the problem is reported, so a row
+                                    that needs attention does not send the reader to a menu. */}
+                                {status !== "connected" && !readOnly ? (
+                                    <Button
+                                        variant="link"
+                                        // An inline link in a dense status cell: kept at the 24px step its touch target is built on.
+                                        size="xs"
+                                        // The invisible expansion lifts the 24px link to a 44px touch target.
+                                        className={cn("p-0 text-xs", touchTargetExpansion(24))}
+                                        onClick={(event) => {
+                                            // A different intent from the row click.
+                                            event.stopPropagation()
+                                            openReconnect(record)
+                                        }}
+                                    >
+                                        Reconnect
+                                    </Button>
+                                ) : null}
+                            </span>
+                            {readOnly ? null : (
+                                <SettingsRowMenu
+                                    label="Server actions"
+                                    items={[
+                                        {
+                                            key: "reconnect",
+                                            label: "Reconnect",
+                                            icon: <ArrowsClockwise size={14} />,
+                                            onClick: () => openReconnect(record),
+                                        },
+                                        {
+                                            key: "view-tools",
+                                            label: "View tools",
+                                            icon: <Wrench size={14} />,
+                                            onClick: () => setToolsKey(rowKey(record)),
+                                        },
+                                        {
+                                            key: "rename",
+                                            label: "Rename",
+                                            icon: <PencilSimpleLine size={14} />,
+                                            deferred: true,
+                                            onClick: () => setRenamingKey(rowKey(record)),
+                                        },
+                                        {type: "divider"},
+                                        {
+                                            key: "disconnect",
+                                            label: "Disconnect",
+                                            icon: <LinkBreak size={14} />,
+                                            danger: true,
+                                            // Only an OAuth grant can be revoked; anything else is a 400.
+                                            hidden: !hasGrantToRevoke(record),
+                                            onClick: () => handleDisconnect(record),
+                                        },
+                                        {
+                                            key: "remove",
+                                            label: "Remove",
+                                            icon: <Trash size={14} />,
+                                            danger: true,
+                                            onClick: () => handleRemove(record),
+                                        },
+                                    ]}
+                                />
+                            )}
+                        </>
+                    )
+                }}
+            />
 
             <McpConnectJourney
                 // A new controller per attempt. The component unmounts itself while closed,

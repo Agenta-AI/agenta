@@ -47,7 +47,8 @@ WHATSAPP_CAPABILITIES: dict = {
         "files": {
             # The agent has no way to return a file on any channel yet.
             "send": {"supported": False, "max_bytes": 0},
-            # Images and documents are passed to the agent as attachments.
+            # Images, documents, audio, and video are passed to the agent as
+            # attachments.
             "receive": {"supported": True, "max_bytes": 100 * 1024 * 1024},
         },
     },

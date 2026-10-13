@@ -56,22 +56,22 @@ def current_session_response(
         if not valid_url:
             result.url_unavailable_reason = "web_url_unavailable"
         else:
-            # Match the desktop playground link; the mobile gate maps it to its session page.
+            # Link the `/m` session page. `?agent=` lets the mobile gate send a Classic mode
+            # user to the agent's playground (web/packages/agenta-shared/src/utils/mobileGate).
             path = "/".join(
                 quote(str(part), safe="")
                 for part in (
+                    "m",
                     "w",
                     workspace_id,
                     "p",
                     stream.project_id,
-                    "apps",
-                    workflow_id,
-                    "playground",
+                    "sessions",
+                    stream.session_id,
                 )
             )
             result.url = (
-                f"{web_url.rstrip('/')}/{path}?"
-                f"{urlencode({'session_id': stream.session_id})}"
+                f"{web_url.rstrip('/')}/{path}?{urlencode({'agent': workflow_id})}"
             )
     return result
 

@@ -14,11 +14,18 @@ vi.unmock("../../src/sessions/records-query.ts");
 let fetchCalls = 0;
 let recordsToReturn: unknown[] = [];
 let fetchShouldFail = false;
+let recordsIncompleteFlag = false;
 
 vi.stubGlobal("fetch", async () => {
   fetchCalls++;
   if (fetchShouldFail) return new Response("err", { status: 500 });
-  return new Response(JSON.stringify({ records: recordsToReturn }), { status: 200 });
+  return new Response(
+    JSON.stringify({
+      records: recordsToReturn,
+      records_incomplete: recordsIncompleteFlag,
+    }),
+    { status: 200 },
+  );
 });
 
 const { reconstructHistoryIfNeeded } = await import(
@@ -46,6 +53,7 @@ beforeEach(() => {
   fetchCalls = 0;
   recordsToReturn = [];
   fetchShouldFail = false;
+  recordsIncompleteFlag = false;
   vi.unstubAllEnvs();
 });
 
@@ -115,9 +123,32 @@ describe("reconstructHistoryIfNeeded", () => {
     const req = { messages: [userTurn] } as never;
     await assert.rejects(
       () => reconstructHistoryIfNeeded(req, "sess-dropped", auth),
-      /incomplete conversation/,
+      (err: any) => {
+        // Its own code, so the client tells the user to start a new session, not to resend.
+        assert.equal(err.publicCode, "session_records_incomplete");
+        assert.match(err.message, /Start a new session/);
+        return true;
+      },
     );
     assert.equal(fetchCalls, 0, "no query when the log is already known bad");
+  });
+
+  it("fails the turn when another runner flagged the log incomplete (no local mark here)", async () => {
+    // This process never dropped a record for the session; the api says another runner did.
+    recordsIncompleteFlag = true;
+    recordsToReturn = [
+      { record_source: "user", attributes: { type: "message", text: "q1" } },
+      { record_source: "agent", attributes: { type: "message", text: "a1" } },
+    ];
+    const req = { messages: [userTurn] } as never;
+    await assert.rejects(
+      () => reconstructHistoryIfNeeded(req, "sess-flagged-elsewhere", auth),
+      (err: any) => {
+        assert.equal(err.publicCode, "session_records_incomplete");
+        return true;
+      },
+    );
+    assert.equal(fetchCalls, 1);
   });
 
   it("replays a smart-truncated tool result", async () => {

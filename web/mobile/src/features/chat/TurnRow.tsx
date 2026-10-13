@@ -10,8 +10,8 @@ import {
 import {ClientToolPart, type ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {
     ActivityTimeline,
-    AttachmentCard,
-    AttachmentCardGrid,
+    AttachmentStrip,
+    type AttachmentStripFile,
     CollapsibleMessageBody,
     McpServerNoticeCard,
     TurnFooter,
@@ -42,21 +42,16 @@ import {cn} from "@/lib/utils"
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
 import {isLiveTextItem} from "./markdownStream"
-import {useProviderRecovery} from "./providerRecovery"
+import {useBillingRoute, useBuyCreditsRoute, useProviderRecovery} from "./providerRecovery"
 import {RunErrorCallout} from "./RunErrorCallout"
 import {runRetryAction} from "./runRetry"
 import {mobileTurnRowClass} from "./turnRowClass"
 import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
 
-/** The content endpoint carries the session cookie, so a same-origin anchor saves it directly. */
-const downloadAttachment = (url: string, name: string) => {
-    const link = document.createElement("a")
-    link.href = url
-    link.download = name
-    link.hidden = true
-    document.body.append(link)
-    link.click()
-    link.remove()
+/** The byte size the transcript replay records on an attachment part, when it has one. */
+const attachmentSize = (metadata: unknown): number | undefined => {
+    const size = (metadata as {agenta?: {size?: unknown}} | undefined)?.agenta?.size
+    return typeof size === "number" ? size : undefined
 }
 
 /** One transcript turn: a user bubble, or an assistant fold, answer, meta line and any run error. */
@@ -71,7 +66,6 @@ const TurnRowInner = ({
     waitingOnUser = false,
     resuming = false,
     runId,
-    firstTurn = false,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -90,8 +84,6 @@ const TurnRowInner = ({
     resuming?: boolean
     /** Keys the clock and fold to the run, so the placeholder turn's carry to the real one. */
     runId?: string
-    /** The session's first response: the one that narrates the agent's startup. */
-    firstTurn?: boolean
 }) => {
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
@@ -107,6 +99,8 @@ const TurnRowInner = ({
     )
     const usage = getMessageUsage(turn.message)
     const openProviders = useProviderRecovery()
+    const openBilling = useBillingRoute()
+    const openBuyCredits = useBuyCreditsRoute(turn.status.errorCode)
 
     /**
      * Notices about a server that did not join the run, above the timeline rather than in it.
@@ -127,6 +121,16 @@ const TurnRowInner = ({
         .map((part) => (part as {text?: string}).text ?? "")
         .join("\n")
         .trim()
+
+    // Quoting is offered on settled answers only; mid-stream the text is still being written.
+    const quoteProps =
+        !turn.isUser && !turn.isStreamingTurn
+            ? ({
+                  "data-quotable": "true",
+                  "data-quote-kind": "message",
+                  "data-quote-message-id": turn.message.id,
+              } as const)
+            : undefined
 
     const footer = {
         messageId: turn.message.id,
@@ -223,16 +227,17 @@ const TurnRowInner = ({
                 resuming={turn.isLast && resuming}
                 traceId={traceId}
                 streamedHere={streamedHereRef.current}
-                firstTurn={firstTurn}
                 renderClientTool={renderClientTool}
             />
             {activity.answer ? (
-                <AnswerReveal animate={live}>
-                    <AssistantMarkdown
-                        streaming={isLiveTextItem(turn, activity.answerIndex)}
-                        text={activity.answer.text}
-                    />
-                </AnswerReveal>
+                <div {...quoteProps}>
+                    <AnswerReveal animate={live}>
+                        <AssistantMarkdown
+                            streaming={isLiveTextItem(turn, activity.answerIndex)}
+                            text={activity.answer.text}
+                        />
+                    </AnswerReveal>
+                </div>
             ) : null}
             {errorText ? (
                 <RunErrorCallout
@@ -246,11 +251,17 @@ const TurnRowInner = ({
                     // as they do on the desktop.
                     onAddKey={openProviders}
                     onSignIn={openProviders}
+                    onOpenBilling={openBilling}
+                    onBuyCredits={openBuyCredits}
                 />
             ) : answerless && !traceSummary.isPending ? (
                 <span className="text-xs italic text-colorTextSecondary">
                     No response — the agent ended its turn without answering.
                 </span>
+            ) : turn.status.stopped && !activity.answer && !live ? (
+                // Keyed on the answer the row shows, not on `hasAnswer`: a stop interrupts the
+                // running call, the fold hides that failed call, and the turn would read empty.
+                <span className="text-xs italic text-colorTextSecondary">Stopped</span>
             ) : null}
             {/* The turn's meta line sits under the answer, revealed on hover or focus like the
                 desktop's; the row keeps its height so nothing shifts when it appears. Not while
@@ -268,30 +279,23 @@ const TurnRowInner = ({
     )
 
     // Attachments hang above the bubble rather than inside its fill, so a message reads as its
-    // files first and its words second.
-    const fileItems = turn.items.filter((item) => item.kind === "files")
-    const attachments = fileItems.length ? (
-        <div className="flex flex-col gap-2">
-            {fileItems.map((item) => (
-                <AttachmentCardGrid key={item.index}>
-                    {item.parts.map((file, n) => (
-                        <AttachmentCard
-                            key={`${item.index}-${n}`}
-                            name={file.filename || file.mediaType || "attachment"}
-                            mediaType={file.mediaType ?? ""}
-                            src={file.url}
-                            action={file.url ? "download" : "none"}
-                            onDownload={() =>
-                                downloadAttachment(
-                                    file.url,
-                                    file.filename || file.mediaType || "attachment",
-                                )
-                            }
-                        />
-                    ))}
-                </AttachmentCardGrid>
-            ))}
-        </div>
+    // files first and its words second. One strip per message, so the viewer pages through all.
+    const files = useMemo(
+        () =>
+            turn.items.flatMap((item): AttachmentStripFile[] =>
+                item.kind === "files"
+                    ? item.parts.map((file) => ({
+                          name: file.filename || file.mediaType || "attachment",
+                          mediaType: file.mediaType ?? "",
+                          src: file.url || undefined,
+                          size: attachmentSize(file.providerMetadata),
+                      }))
+                    : [],
+            ),
+        [turn.items],
+    )
+    const attachments = files.length ? (
+        <AttachmentStrip files={files} align={turn.isUser ? "end" : "start"} />
     ) : null
     // Attachments with no words paint no bubble; an assistant turn always paints its fold line.
     const hasBubbleContent =

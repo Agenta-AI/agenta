@@ -145,7 +145,7 @@ class FakeRunnerBackend(Backend):
         url: Optional[str] = None,
         command: Optional[Sequence[str]] = None,
         cwd: Optional[str] = None,
-        timeout: float = float(os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", "180")),
+        timeout: float = float(os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", "480")),
     ) -> None:
         self._url = url
         self._command: List[str] = resolve_runner_command(
@@ -180,6 +180,8 @@ class FakeRunnerBackend(Backend):
         control_command_id: Optional[str] = None,
         effective_parameters: Optional[Dict[str, Any]] = None,
         gateway_policy: Optional[ResolvedGatewayPolicy] = None,
+        runner_address: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
     ) -> FakeRunnerSession:
         return FakeRunnerSession(
             self,

@@ -31,9 +31,9 @@ import {
     PencilSimple,
     Plugs,
     Plus,
-    PuzzlePiece,
     Robot,
     SlidersHorizontal,
+    Wrench,
 } from "@phosphor-icons/react"
 
 /** Inline text-diff rows before the "View full diff" link takes over. */
@@ -94,7 +94,7 @@ export const LINK_BTN = cn(
 
 /** One per config-panel accordion section, so the diff and the panel read as the same thing. */
 export const SECTION_ICON: Record<ChangeSection["id"], React.ReactNode> = {
-    tools: <PuzzlePiece />,
+    tools: <Wrench />,
     subagents: <Robot />,
     instructions: <FileText />,
     model: <Cpu />,

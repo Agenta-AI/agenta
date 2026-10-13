@@ -4,17 +4,19 @@ import {useApiKeys} from "@agenta/settings"
 import {ApiKeysPage} from "@agenta/settings-ui"
 import {
     Button,
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetFooter,
-    SheetHeader,
-    SheetTitle,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
 } from "@agenta/ui/ui"
 
 import {useProjectPermission} from "../context/useProjectPermission"
 
 import {ConfirmModal} from "./ConfirmModal"
+import type {SettingsTabProps} from "./settingsTabProps"
+import {useMobileSettingsAccess} from "./settingsTabs"
 
 /**
  * Mobile binding: the shared keys table with this app's delete confirm and the one-time reveal
@@ -24,15 +26,8 @@ import {ConfirmModal} from "./ConfirmModal"
  * action the desktop's role table resolves — rather than an optimistic flag, because a key is a
  * credential and the buttons should not appear for a member who cannot mint one.
  */
-export const ApiKeysTab = ({
-    workspaceId,
-    projectId,
-    canView,
-}: {
-    workspaceId: string
-    projectId: string
-    canView: boolean
-}) => {
+export const ApiKeysTab = ({workspaceId, projectId}: SettingsTabProps) => {
+    const canView = useMobileSettingsAccess().canViewApiKeys
     const canEdit = useProjectPermission(projectId, "edit_api_keys")
     const [pendingDelete, setPendingDelete] = useState<{resolve: (ok: boolean) => void} | null>(
         null,
@@ -91,7 +86,6 @@ export const ApiKeysTab = ({
                 creating={keys.creating}
                 canView={canView}
                 canEdit={canEdit}
-                onReload={keys.list}
                 onCreate={() => {
                     setError(null)
                     void keys.create()
@@ -113,30 +107,31 @@ export const ApiKeysTab = ({
                 onConfirm={() => answerDelete(true)}
             />
 
-            <Sheet
+            <Dialog
                 open={Boolean(createdKey)}
                 onOpenChange={(next) => {
                     if (!next) closeReveal()
                 }}
             >
-                <SheetContent side="responsive" className="gap-4 overflow-y-auto">
-                    <SheetHeader>
-                        <SheetTitle>Save your API key</SheetTitle>
-                        <SheetDescription>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Save your API key</DialogTitle>
+                        <DialogDescription>
                             Shown once. It cannot be retrieved again after you close this.
-                        </SheetDescription>
-                    </SheetHeader>
-                    <div className="px-4">
-                        <p className="m-0 break-all rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs">
-                            {createdKey}
-                        </p>
-                    </div>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <p className="m-0 break-all rounded-md border border-solid border-border bg-muted px-3 py-2 font-mono text-xs">
+                        {createdKey}
+                    </p>
                     {copyError ? (
-                        <p role="alert" className="text-destructive m-0 px-4 pt-2 text-xs">
+                        <p role="alert" className="text-destructive m-0 text-xs">
                             {copyError}
                         </p>
                     ) : null}
-                    <SheetFooter className="sm:flex-row-reverse sm:justify-start">
+                    <DialogFooter>
+                        <Button variant="outline" onClick={closeReveal}>
+                            Done
+                        </Button>
                         <Button
                             onClick={async () => {
                                 if (!createdKey) return
@@ -153,12 +148,9 @@ export const ApiKeysTab = ({
                         >
                             {copied ? "Copied" : "Copy key"}
                         </Button>
-                        <Button variant="outline" onClick={closeReveal}>
-                            Done
-                        </Button>
-                    </SheetFooter>
-                </SheetContent>
-            </Sheet>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

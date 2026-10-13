@@ -18,7 +18,6 @@ composing the individual reads already exposed here:
 
 import re
 from functools import wraps
-from secrets import compare_digest
 from uuid import UUID
 
 from fastapi import (
@@ -54,6 +53,10 @@ from oss.src.apis.fastapi.sessions.live_events import live_event_stream
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.shared.runner_auth import (
+    assert_runner_token,
+    has_valid_runner_token,
+)
 
 # Core domain imports — new paths
 from oss.src.core.sessions.streams.dtos import (
@@ -170,6 +173,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionRecordIngestBody,
     SessionRecordQueryRequest,
     SessionRecordResponse,
+    SessionRecordsIncompleteRequest,
     SessionRecordsQueryResponse,
     SessionSnapshotPending,
     SessionSnapshotResponse,
@@ -620,9 +624,20 @@ class SessionStreamsRouter:
             project_id=UUID(str(project_id)),
             session_id=session_id,
         )
+        # Browsers read this route too; a pod address is cluster-internal, so only the
+        # services layer, which proves itself with the runner token, gets it.
+        binding = None
+        if stream is not None and stream.turn_id and has_valid_runner_token(request):
+            binding = await self._service.runner_binding(
+                project_id=UUID(str(project_id)),
+                session_id=session_id,
+                turn_id=stream.turn_id,
+            )
         return SessionStreamResponse(
             stream=sanitize_session_stream(stream),
             capabilities=_session_capabilities(),
+            runner_address=binding.replica_address if binding else "",
+            runner_replica_id=binding.replica_id if binding else "",
         )
 
     @intercept_exceptions()
@@ -699,12 +714,10 @@ class SessionStreamsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
-        if payload.release_owner:
-            _assert_runner_token(request)
-
         heartbeat = await self._service.heartbeat(
             project_id=project_id,
             request=payload,
+            runner_verified=has_valid_runner_token(request),
         )
         return heartbeat.model_copy(
             update={"stream": sanitize_session_stream(heartbeat.stream)}
@@ -994,6 +1007,15 @@ class RecordsRouter:
             tags=["Sessions"],
         )
 
+        self.router.add_api_route(
+            "/incomplete",
+            self.mark_records_incomplete,
+            methods=["POST"],
+            operation_id="mark_records_incomplete",
+            status_code=status.HTTP_200_OK,
+            tags=["Sessions"],
+        )
+
     @intercept_exceptions()
     async def query_records(
         self,
@@ -1016,6 +1038,10 @@ class RecordsRouter:
             if query_request.windowing is None
             else None
         )
+        records_incomplete = await self.records_service.get_records_incomplete(
+            project_id=UUID(request.state.project_id),
+            session_id=query_request.session_id,
+        )
         if query_request.windowing is not None:
             page = await self.records_service.get_records_page(
                 project_id=UUID(request.state.project_id),
@@ -1036,11 +1062,35 @@ class RecordsRouter:
                 )
                 if page.next_offset is not None
                 else None,
+                records_incomplete=records_incomplete,
             )
         return SessionRecordsQueryResponse(
             count=len(records),
             records=records,
+            records_incomplete=records_incomplete,
         )
+
+    @intercept_exceptions()
+    async def mark_records_incomplete(
+        self,
+        request: Request,
+        body: SessionRecordsIncompleteRequest,
+    ) -> dict:
+        # Same permission as record ingest: the runner reports on the log it writes.
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        _validate_session_id_http(body.session_id)
+        await self.records_service.mark_records_incomplete(
+            project_id=UUID(request.state.project_id),
+            session_id=body.session_id,
+            turn_id=body.turn_id,
+        )
+        return {"ok": True}
 
     @intercept_exceptions()
     async def get_record_event(
@@ -2842,7 +2892,7 @@ class SessionControlRouter:
         command_id: UUID,
         payload: SessionControlOutcomeRequest,
     ) -> SessionControlOutcomeResponse:
-        _assert_runner_token(request)
+        assert_runner_token(request)
 
         report = await self._service.report_outcome(
             command_id=command_id,
@@ -2862,30 +2912,6 @@ class SessionControlRouter:
                 settled_at=report.command.settled_at,
             ),
             admitted=report.admitted,
-        )
-
-
-def _assert_runner_token(request: Request) -> None:
-    """The runner proves it is the platform runtime with the shared secret both sides hold.
-
-    Constant-time compare, so a wrong token leaks no length or prefix through timing. A missing
-    configured token fails closed: an unset secret must never mean "let everyone in".
-    """
-    expected = env.runner.token
-    if not expected:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="runner token is not configured on this deployment",
-        )
-    presented = request.headers.get("X-Agenta-Runner-Token") or ""
-    if not presented:
-        authorization = request.headers.get("Authorization") or ""
-        if authorization.lower().startswith("bearer "):
-            presented = authorization[7:].strip()
-    if not compare_digest(presented.encode("utf-8"), expected.encode("utf-8")):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unauthorized",
         )
 
 

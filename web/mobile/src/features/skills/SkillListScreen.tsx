@@ -27,9 +27,12 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useAgentOwners} from "../agents/useAgentOwners"
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {FeatureOnboarding} from "../education/FeatureOnboarding"
+import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {SkillCreateOptions} from "./SkillCreateOptions"
 import {SkillFilterMenu} from "./SkillFilterMenu"
 import {SkillListTable} from "./SkillListTable"
 import {
@@ -41,7 +44,6 @@ import {
     type SkillListRow,
     type SkillListView,
 } from "./skillListView"
-import {SkillsEmpty} from "./states/SkillsEmpty"
 import {SkillsNoMatch} from "./states/SkillsNoMatch"
 
 /** The page column, shared with agents and automations, so the nav entries line up. */
@@ -134,15 +136,16 @@ export const SkillListScreen = ({
     const closeImport = useCallback(() => setImportOpen(false), [])
     const {createOpen, upload, onWrite, onUpload, closeCreate} = useSkillCreateEntry()
 
-    const emptyState = isLoading ? null : projectHasSkills || term ? (
+    // The search narrows the query, so with no term an empty registry means the project has none.
+    const projectEmpty =
+        !isLoading && !query.isError && !projectHasSkills && !term && !view.archived
+    const emptyState = isLoading ? null : (
         <SkillsNoMatch
             term={term || undefined}
             onClear={
                 term ? () => setSearch("") : isDefaultSkillFilters(view) ? undefined : resetFilters
             }
         />
-    ) : (
-        <SkillsEmpty />
     )
 
     const body = query.isError ? (
@@ -176,6 +179,9 @@ export const SkillListScreen = ({
                                 <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
                                     Skills
                                 </h1>
+                                {projectEmpty ? null : (
+                                    <HowThisWorksButton guide="skills" className="max-sm:hidden" />
+                                )}
                                 <NewSkillMenuButton
                                     onWrite={onWrite}
                                     onUpload={onUpload}
@@ -187,30 +193,42 @@ export const SkillListScreen = ({
                     }
                 >
                     <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
-                        {/* Search belongs to the list, not to the page: it sits on the results'
-                            own left edge. The facets ride one control beside it; the view switch
-                            takes the far edge, where it changes how the results are drawn rather
-                            than which ones are. */}
-                        <ListTableToolbar
-                            search={search}
-                            onSearchChange={setSearch}
-                            searchPlaceholder="Search skills by name…"
-                            actions={
-                                <>
-                                    <SkillFilterMenu
-                                        view={view}
-                                        onChange={setView}
-                                        repositories={repositories}
-                                    />
-                                    <ListTableViewToggle
-                                        value={view.mode}
-                                        onChange={setMode}
-                                        className="ml-auto"
-                                    />
-                                </>
-                            }
-                        />
-                        {body}
+                        {projectEmpty ? (
+                            <FeatureOnboarding guideKey="skills" base={base}>
+                                <SkillCreateOptions
+                                    onWrite={onWrite}
+                                    onUpload={onUpload}
+                                    onImport={openImport}
+                                />
+                            </FeatureOnboarding>
+                        ) : (
+                            <>
+                                {/* Search belongs to the list, not to the page: it sits on the
+                                    results' own left edge. The facets ride one control beside it;
+                                    the view switch takes the far edge, where it changes how the
+                                    results are drawn rather than which ones are. */}
+                                <ListTableToolbar
+                                    search={search}
+                                    onSearchChange={setSearch}
+                                    searchPlaceholder="Search skills by name…"
+                                    actions={
+                                        <>
+                                            <SkillFilterMenu
+                                                view={view}
+                                                onChange={setView}
+                                                repositories={repositories}
+                                            />
+                                            <ListTableViewToggle
+                                                value={view.mode}
+                                                onChange={setMode}
+                                                className="ml-auto"
+                                            />
+                                        </>
+                                    }
+                                />
+                                {body}
+                            </>
+                        )}
                     </div>
                 </ScreenScaffold>
             </AppShell>

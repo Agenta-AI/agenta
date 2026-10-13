@@ -70,10 +70,12 @@ export const fetchDashboardAnalytics = async ({
         // Send the end we sized the interval from, so the API does not pad to midnight.
         newest: endDayjs.toISOString(),
         filter: conditions.length ? {conditions} : undefined,
+        // Strict: a failed request (for example a 504 on a long range) throws, so the
+        // query shows an error instead of an empty chart.
+        strict: true,
         abortSignal: signal,
     })
 
-    // `fetchSpansAnalytics` returns null on non-2xx / shape-mismatch; the dashboard treats
-    // that as "no data" rather than throwing.
+    // null only when there is no project id.
     return analyticsToDashboard(analytics ?? {buckets: []}, rangeString)
 }

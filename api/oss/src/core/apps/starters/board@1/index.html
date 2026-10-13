@@ -333,6 +333,13 @@
     load().catch(report);
   }
 
+  function onAccess() {
+    // Edits made while read-only were kept as unsaved; write access saves them.
+    if (agenta.canWrite && dirty) { scheduleSave(); return; }
+    if (!agenta.canWrite) clearTimeout(saveTimer);
+    render();
+  }
+
   // ---- utilities ---------------------------------------------------------------
 
   function h(tag, attrs, ...children) {
@@ -363,6 +370,7 @@
     }
     await agenta.ready;
     agenta.addEventListener("changed", onChanged);
+    agenta.addEventListener("access", onAccess);
     await load();
   }
 

@@ -215,17 +215,17 @@ def test_every_published_pi_model_is_one_pi_accepts():
 
 
 def test_pi_publishes_current_models_for_both_openai_providers():
-    gpt_6 = ["gpt-6-astra", "gpt-6-sol", "gpt-6-luna"]
+    gpt_6 = ["gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna"]
     gpt_5_6 = ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]
 
     for harness in ("pi_core",):
         models = HARNESS_CONNECTION_CAPABILITIES[harness].models
-        assert models["openai"][:6] == gpt_6 + gpt_5_6
-        # The ChatGPT subscription set mirrors the pinned Pi catalog (pi-ai 0.87.1 adds GPT-6 Sol
-        # and Luna and drops GPT-5.4 and GPT-5.4 mini from `openai-codex`).
+        assert models["openai"][:7] == gpt_6 + gpt_5_6
+        # The ChatGPT subscription set mirrors the pinned Pi catalog (pi-ai 0.99.1 adds
+        # GPT-6.1 Sol to `openai-codex` and makes it the Codex default).
         codex = models["openai-codex"]
-        assert codex[:3] == ["gpt-6-sol", "gpt-6-astra", "gpt-6-luna"]
-        assert codex[3:6] == gpt_5_6
+        assert codex[:4] == ["gpt-6.1-sol", "gpt-6-sol", "gpt-6-astra", "gpt-6-luna"]
+        assert codex[4:7] == gpt_5_6
         assert "openrouter/openai/gpt-6-sol" in models["openrouter"]
         assert "openrouter/openai/gpt-6-luna" in models["openrouter"]
         assert "gpt-5.4" not in codex and "gpt-5.4-mini" not in codex

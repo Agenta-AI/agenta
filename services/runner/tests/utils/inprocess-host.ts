@@ -83,6 +83,19 @@ export function createHostFixture(
     /** The run's skills on the runner's disk, and the snapshot folder Pi reads them from, relative to the session folder. */
     skills?: Array<{ name: string; dir: string }>;
     skillSnapshot?: string;
+    /**
+     * Reach the model through a gateway route, as `pi-model-config.ts` writes it: a placeholder
+     * key and the credential header as a `$AGENTA_GATEWAY_CREDENTIALS_VALUE` reference, with the
+     * value only in the run's harness environment.
+     */
+    gatewayCredential?: string;
+    /**
+     * Reach the model as a direct Anthropic connection with a bearer token: the built-in
+     * `anthropic` provider pointed at the model server, the credentials only in the run's model environment.
+     */
+    anthropic?: { authToken: string; apiKey?: string };
+    /** The Agenta extension's environment. Empty by default, which leaves the extension inert. */
+    extensionEnv?: Record<string, string>;
   } = {},
 ): HostFixture {
   const skills = options.skills ?? [];
@@ -97,7 +110,17 @@ export function createHostFixture(
   writeFileSync(
     join(runAgentDir, "models.json"),
     JSON.stringify({
-      providers: { mock: { baseUrl: modelBaseUrl, api: "openai-completions", apiKey: "$OPENAI_API_KEY", models: [{ id: "mock-1" }] } },
+      providers: {
+        mock: {
+          baseUrl: modelBaseUrl,
+          api: "openai-completions",
+          ...(options.gatewayCredential
+            ? { apiKey: "agenta-gateway", headers: { "X-AG-Credentials": "$AGENTA_GATEWAY_CREDENTIALS_VALUE" } }
+            : { apiKey: "$OPENAI_API_KEY" }),
+          models: [{ id: "mock-1" }],
+        },
+        ...(options.anthropic ? { anthropic: { baseUrl: modelBaseUrl.replace(/\/v1$/, "") } } : {}),
+      },
     }),
   );
   const daytona = new LocalDaytona(join(base, "sandbox"));
@@ -108,7 +131,7 @@ export function createHostFixture(
   const facts = (gating: boolean): InRunnerRunFacts => ({
     conversationId: "conv-1",
     projectId: "project-1",
-    credentialMode: "env",
+    credentialMode: options.gatewayCredential ? "none" : "env",
     systemPrompt: "You are a test agent.",
     appendSystemPrompt: undefined,
     sandboxEnvironment: {},
@@ -119,9 +142,21 @@ export function createHostFixture(
       { root: agent, credentials: () => TEST_CREDENTIALS },
     ],
     signTranscriptMount: async () => TEST_TRANSCRIPT_CREDENTIALS,
-    harnessEnv: { PI_CODING_AGENT_DIR: runAgentDir, PI_CODING_AGENT_SESSION_DIR: sessionDir, ...(skillDir ? { PI_CODING_AGENT_SKILL_DIR: skillDir } : {}) },
-    extensionEnv: gating ? { AGENTA_AGENT_BUILTIN_GATING: "true" } : {},
-    modelEnvironment: { OPENAI_API_KEY: "test-key" },
+    harnessEnv: {
+      PI_CODING_AGENT_DIR: runAgentDir,
+      PI_CODING_AGENT_SESSION_DIR: sessionDir,
+      ...(skillDir ? { PI_CODING_AGENT_SKILL_DIR: skillDir } : {}),
+      ...(options.gatewayCredential ? { AGENTA_GATEWAY_CREDENTIALS_VALUE: options.gatewayCredential } : {}),
+    },
+    extensionEnv: { ...options.extensionEnv, ...(gating ? { AGENTA_AGENT_BUILTIN_GATING: "true" } : {}) },
+    modelEnvironment: options.anthropic
+      ? {
+          ANTHROPIC_AUTH_TOKEN: options.anthropic.authToken,
+          ...(options.anthropic.apiKey ? { ANTHROPIC_API_KEY: options.anthropic.apiKey } : {}),
+        }
+      : options.gatewayCredential
+        ? {}
+        : { OPENAI_API_KEY: "test-key" },
     customProvider: { providerId: "mock", keyEnv: "OPENAI_API_KEY" },
   });
   return {

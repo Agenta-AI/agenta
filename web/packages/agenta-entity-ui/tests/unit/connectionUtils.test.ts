@@ -101,7 +101,7 @@ describe("connectionUtils: connectionFromConfig", () => {
                 provider: "openai",
                 connection: {mode: "agenta", slug: "openai-prod"},
             }),
-        ).toEqual({provider: "openai", mode: "agenta", slug: "openai-prod"})
+        ).toEqual({provider: "openai", mode: "agenta", slug: "openai-prod", namespace: null})
     })
 
     it("defaults the mode to agenta when the connection block is absent or unknown", () => {
@@ -119,11 +119,33 @@ describe("connectionUtils: connectionFromConfig", () => {
             provider: null,
             mode: "agenta",
             slug: null,
+            namespace: null,
         })
     })
 })
 
 describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
+    it("writes a built-in pick's namespace beside its slug, and only there", () => {
+        const compose = (mode: "agenta" | "self_managed", slug: string | null) =>
+            composeModelValue({
+                modelId: "gpt-5.5",
+                provider: "openai",
+                mode,
+                slug,
+                namespace: "builtin",
+            })
+        expect(compose("agenta", "agenta").connection).toEqual({
+            mode: "agenta",
+            slug: "agenta",
+            namespace: "builtin",
+        })
+        expect(compose("agenta", null).connection).toBeUndefined()
+        expect(compose("self_managed", "chatgpt").connection).toEqual({
+            mode: "self_managed",
+            slug: "chatgpt",
+        })
+    })
+
     it("returns a structured object even for the default connection (no bare string)", () => {
         expect(
             composeModelValue({modelId: "gpt-5.5", provider: "openai", mode: "agenta", slug: null}),

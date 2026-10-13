@@ -32,7 +32,7 @@ const { src, alt, width, height, class: cls, style, ...rest } = Astro.props;
   height={height}
   loading="lazy"
   decoding="async"
-  class={cls}
+  class:list={[cls, "ag-zoomable"]}
   style={`display:block;max-width:100%;height:auto;border-radius:8px;margin:0 auto;${style ?? ""}`}
   {...rest}
 />

@@ -265,6 +265,29 @@ async def test_the_exchange_issues_a_gateway_audience_credential_with_no_grants(
 
 
 @pytest.mark.asyncio
+async def test_the_exchange_carries_the_session_and_agent_labels(exchange):
+    response = exchange.post(
+        EXCHANGE_PATH,
+        headers={"Authorization": await _runtime_credential()},
+        json={"plane": "llm", "session_id": "session-1", "agent_id": "agent-1"},
+    )
+    assert response.status_code == 200, response.text
+    token = response.json()["credentials"].removeprefix("Secret ")
+
+    assert _claims(token)["gateway_run_labels"] == {
+        "session_id": "session-1",
+        "agent_id": "agent-1",
+    }
+
+
+@pytest.mark.asyncio
+async def test_an_unlabelled_exchange_mints_no_labels_claim(exchange):
+    credentials = await _sandbox_credential(exchange)
+
+    assert "gateway_run_labels" not in _claims(credentials.removeprefix("Secret "))
+
+
+@pytest.mark.asyncio
 async def test_an_audience_and_a_grant_cannot_be_minted_onto_one_token():
     with pytest.raises(ValueError, match="cannot carry grants"):
         await auth.sign_secret_token(

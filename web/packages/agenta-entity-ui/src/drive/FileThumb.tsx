@@ -36,7 +36,7 @@ function useThumbnail(mount: Mount | null, path: string, enabled: boolean) {
     const query = useAtomValue(
         mountFileThumbnailQueryFamily({mountId: enabled ? (mount?.id ?? "") : "", path}),
     )
-    return enabled ? (query.data ?? null) : null
+    return enabled ? (query.data?.src ?? null) : null
 }
 
 /** First lines of a text-family file (same shared content query the preview body reads). Returns

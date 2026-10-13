@@ -6,6 +6,7 @@ import {useCallback, useEffect, useMemo, useState, type ReactNode} from "react"
 
 import {
     customSecretsAtom,
+    type AgentConnectionNamespace,
     type AgentSecretBinding,
     standardSecretsAtom,
     vaultSecretsQueryAtom,
@@ -18,12 +19,11 @@ import {
     type BuildKitUiState,
 } from "@agenta/entities/workflow"
 import {getEnabledSandboxProviders} from "@agenta/shared/api"
-import {inprocessSandboxEnabledAtom} from "@agenta/shared/state"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Cube, Key, Toolbox, Wrench} from "@phosphor-icons/react"
+import {Cube, Hammer, Toolbox, Vault} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
@@ -34,6 +34,7 @@ import {
 } from "../../../drawers/shared/FocusPathsContext"
 import {FieldLayoutProvider, RailField} from "../../../drawers/shared/RailField"
 import {SectionRail, type SectionRailItem} from "../../../drawers/shared/SectionRail"
+import {ScrollFadeArea} from "../../../shared/ScrollFadeArea"
 import type {PickerSelection} from "../connectionPicker"
 import {
     allowedConnectionModes,
@@ -120,7 +121,6 @@ export function useModelHarness({
     const harnessProps = subProps("harness")
     const runnerProps = subProps("runner")
     const sandboxProps = subProps("sandbox")
-    const inprocessSandboxEnabled = useAtomValue(inprocessSandboxEnabledAtom)
 
     const asObject = useCallback(
         (key: string): Record<string, unknown> =>
@@ -133,19 +133,19 @@ export function useModelHarness({
     const runner = asObject("runner")
     const sandbox = asObject("sandbox")
     const savedSandboxKind = typeof sandbox.kind === "string" ? sandbox.kind : null
-    // The preference only hides `inprocess` from a new choice. An agent already saved with it keeps
-    // it listed, so the normalize effect below never rewrites it: the flag reads off on the first
-    // render (the user id settles a tick later) and while a user has it off.
+    // Where Daytona is enabled, `inprocess` is not a choice of its own. For either value the runner
+    // runs Pi in-process and every other harness on Daytona (`routeSandboxForHarness`), so the
+    // picker offers Daytona alone and shows an agent saved with `inprocess` as Daytona, without
+    // rewriting it. A deployment without Daytona keeps `inprocess` as it is.
+    const daytonaEnabled = getEnabledSandboxProviders().includes("daytona")
+    const shownSandboxKind =
+        daytonaEnabled && savedSandboxKind === "inprocess" ? "daytona" : savedSandboxKind
     const sandboxOptions = useMemo(() => {
         const enabled = new Set(getEnabledSandboxProviders())
         return getEnumOptions(sandboxProps.kind).filter(
-            (o) =>
-                enabled.has(o.value) &&
-                (o.value !== "inprocess" ||
-                    inprocessSandboxEnabled ||
-                    savedSandboxKind === "inprocess"),
+            (o) => enabled.has(o.value) && !(daytonaEnabled && o.value === "inprocess"),
         )
-    }, [sandboxProps.kind, inprocessSandboxEnabled, savedSandboxKind])
+    }, [sandboxProps.kind, daytonaEnabled])
 
     const secretBindings = Array.isArray(sandbox.credentials)
         ? sandbox.credentials.filter((value): value is AgentSecretBinding => {
@@ -182,13 +182,20 @@ export function useModelHarness({
     )
     useEffect(() => {
         if (disabled || !normalizeSandbox) return
-        const availableValue = sandboxOptions.some((option) => option.value === savedSandboxKind)
-            ? savedSandboxKind
-            : (sandboxOptions[0]?.value ?? null)
+        if (sandboxOptions.some((option) => option.value === shownSandboxKind)) return
+        const availableValue = sandboxOptions[0]?.value ?? null
         if (availableValue && availableValue !== savedSandboxKind) {
             setSection("sandbox", {...sandbox, kind: availableValue})
         }
-    }, [disabled, normalizeSandbox, sandbox, sandboxOptions, savedSandboxKind, setSection])
+    }, [
+        disabled,
+        normalizeSandbox,
+        sandbox,
+        sandboxOptions,
+        savedSandboxKind,
+        shownSandboxKind,
+        setSection,
+    ])
 
     // Model + credential connection (`llm`). It is ALWAYS a structured object (the harness-filtered
     // picker only ever produces one); a legacy bare string is read for display. composeModelValue
@@ -290,6 +297,7 @@ export function useModelHarness({
             provider?: string | null
             mode?: ConnectionMode
             slug?: string | null
+            namespace?: AgentConnectionNamespace | null
             /** A vault-hosted option's own connection kind (`metadata.provider` from
              * `vaultModelGroups`) — a fallback family source, see `vaultPickedProviderFamily`. */
             metadataProvider?: string | null
@@ -306,6 +314,13 @@ export function useModelHarness({
                     : patch.modelId !== undefined
                       ? null
                       : connection.slug
+            // The namespace qualifies the slug, so it goes wherever the slug goes.
+            const nextNamespace =
+                patch.namespace !== undefined
+                    ? patch.namespace
+                    : patch.slug !== undefined || patch.modelId !== undefined
+                      ? null
+                      : connection.namespace
             // Provider is always the model FAMILY — a vault connection's own `provider` is its
             // DEPLOYMENT kind (bedrock/…), which would fail the harness provider check, so
             // `vaultPickedProviderFamily` resolves the family from the id, the kind, or the driving
@@ -334,6 +349,7 @@ export function useModelHarness({
                     provider: nextProvider,
                     mode: patch.mode !== undefined ? patch.mode : connection.mode,
                     slug: nextSlug,
+                    namespace: nextNamespace,
                     existing: llm,
                 }),
             )
@@ -359,6 +375,7 @@ export function useModelHarness({
                     providerForModel(capabilities, nextHarness, selection.modelId),
                 mode: selection.mode,
                 slug: selection.slug,
+                namespace: selection.namespace,
                 existing: llm,
             })
             onChange({
@@ -540,6 +557,7 @@ export function useModelHarness({
             provider={connection.provider ?? null}
             mode={connection.mode}
             slug={connection.slug ?? null}
+            namespace={connection.namespace}
             replaceable={revisionId?.startsWith("local-") ?? false}
             disabled={disabled}
             // A subscription is a login mounted into the deployment; cloud has nowhere to mount one.
@@ -640,7 +658,7 @@ export function useModelHarness({
                     <EnumSelectControl
                         schema={sandboxProps.kind}
                         options={sandboxOptions}
-                        value={(sandbox.kind as string | null) ?? null}
+                        value={shownSandboxKind}
                         onChange={(v) => setSection("sandbox", {...sandbox, kind: v})}
                         withTooltip={withTooltip}
                         disabled={disabled}
@@ -719,7 +737,7 @@ export function useModelHarness({
                 <ConfigAccordionSection
                     size="compact"
                     defaultOpen={secretBindings.length > 0}
-                    icon={<Key size={15} />}
+                    icon={<Vault size={15} />}
                     title="Custom secrets"
                     summary={secretsSummary}
                     summaryCollapsedOnly
@@ -755,7 +773,7 @@ export function useModelHarness({
                 item: {
                     value: "secrets",
                     label: "Custom secrets",
-                    icon: <Key size={14} />,
+                    icon: <Vault size={14} />,
                 },
                 header: {
                     title: "Custom secrets",
@@ -776,7 +794,7 @@ export function useModelHarness({
                 item: {
                     value: "build-kit",
                     label: "Build kit",
-                    icon: <Wrench size={14} />,
+                    icon: <Hammer size={14} />,
                 },
                 // The block carries its own title + enable switch, so it needs no panel header.
                 body: buildKitSection,
@@ -795,11 +813,15 @@ export function useModelHarness({
         advancedPanels.find((panel) => panel.item.value === advancedPanelValue) ?? advancedPanels[0]
 
     const activeAdvancedPanelBody = (
-        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-3 pr-1">
+        // -ml/pl: the field rings keep 4px clear of the scroll clip. Keyed so each panel re-measures.
+        <ScrollFadeArea
+            key={activeAdvancedPanel?.item.value}
+            className="-ml-1 flex min-h-0 flex-1 flex-col gap-4 pb-4 pl-1 pr-1 pt-1"
+        >
             {activeAdvancedPanel?.header ? (
                 <div className="flex items-start gap-2">
-                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <span className="text-xs font-medium">
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <span className="text-sm font-medium text-colorText">
                             {activeAdvancedPanel.header.title}
                         </span>
                         <span className="text-xs leading-snug text-colorTextDescription">
@@ -810,7 +832,7 @@ export function useModelHarness({
                 </div>
             ) : null}
             {activeAdvancedPanel?.body}
-        </div>
+        </ScrollFadeArea>
     )
 
     // One panel needs no nav — a single-item rail is chrome around nothing.
@@ -818,10 +840,9 @@ export function useModelHarness({
         advancedPanels.length > 1 ? (
             <SectionRail
                 fill
-                // The drawer body is the rail's only host, so the divider runs its full height.
-                bleed
-                // Wider than the default rail: these labels carry an icon as well.
-                railWidth="w-[112px] sm:w-[148px]"
+                // Wider than the default rail: these labels carry an icon as well. The pt keeps
+                // the focus ring clear of the body's clip and lines up with the panel title.
+                railWidth="w-[112px] pt-1 sm:w-[148px]"
                 drillIn
                 listLabel="Advanced"
                 items={advancedPanels.map((panel) => panel.item)}
@@ -865,6 +886,7 @@ export function useModelHarness({
         runnerPermissionSummary,
         advancedSummary,
         advancedDrawerBody,
-        advancedDrawerWidth: INTEGRATION_DRAWER_WIDTH,
+        // 50px past the integration drawer: the rail takes room from the panel.
+        advancedDrawerWidth: INTEGRATION_DRAWER_WIDTH + 50,
     }
 }

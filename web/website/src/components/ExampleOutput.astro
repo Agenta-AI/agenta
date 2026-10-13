@@ -1,5 +1,7 @@
 ---
-// A template's example run drawn as a message card (white in both themes).
+// A template's example run card; the run loops: play, hold, fade out, play again.
+import RunSteps from "./RunSteps.astro";
+
 interface Props {
   name: string;
   example: {
@@ -8,86 +10,112 @@ interface Props {
     reply: string;
     status?: string | null;
   };
+  class?: string;
 }
-const { name, example } = Astro.props;
+const { name, example, class: className } = Astro.props;
 ---
 
-<div class="ag-tpl-output" role="group" aria-label={`Example run of ${name}`}>
+<div
+  class:list={["ag-tpl-output", "ag-run--play", className]}
+  role="group"
+  aria-label={`Example run of ${name}`}
+  data-run
+>
   <div class="ag-tpl-output__head">
-    <span class="ag-tpl-output__mark" aria-hidden="true">a</span>
+    <span class="ag-tpl-output__mark" aria-hidden="true"><img src="/logos/Agenta-symbol-light.svg" alt="" /></span>
     <span class="ag-tpl-output__from">{name}</span>
-    <span class="ag-tpl-output__tag">Example</span>
-    {example.status && <span class="ag-tpl-output__status">{example.status}</span>}
+    <span class="ag-tpl-output__tag">Example run</span>
+    <span class="ag-tpl-output__side">
+      {example.status && <span class="ag-tpl-output__status">{example.status}</span>}
+    </span>
   </div>
-  <p class="ag-tpl-output__title">{example.prompt}</p>
-  <ol class="ag-tpl-output__lines">
-    {example.steps.map((step) => <li>{step}</li>)}
-  </ol>
-  <p class="ag-tpl-output__reply">{example.reply}</p>
+  <div class="ag-tpl-output__body">
+    <RunSteps example={example} />
+  </div>
 </div>
 
+<script>
+  const HOLD_MS = 4000;
+  // The reply animates last; without motion it never animates, so the run stays still.
+  for (const run of document.querySelectorAll<HTMLElement>("[data-run]")) {
+    const body = run.querySelector<HTMLElement>(".ag-tpl-output__body");
+    run.querySelector(".ag-run__reply")?.addEventListener("animationend", () => {
+      setTimeout(() => run.classList.add("ag-run--rewind"), HOLD_MS);
+    });
+    body?.addEventListener("transitionend", (event) => {
+      if (event.target !== body || !run.classList.contains("ag-run--rewind")) return;
+      run.classList.remove("ag-run--play");
+      void run.offsetWidth;
+      run.classList.add("ag-run--play");
+      run.classList.remove("ag-run--rewind");
+    });
+  }
+</script>
+
 <style is:global>
-  /* The example reads as a message card, white in both themes. */
   .ag-tpl-output {
-    background: var(--paper-0);
-    border-radius: 10px;
-    padding: 18px 20px;
-    box-shadow: var(--shadow-ring);
-    color: var(--ink-900);
-  }
-  [data-theme="dark"] .ag-tpl-output {
-    box-shadow: var(--th-menu-shadow);
-  }
-  .ag-tpl-output p {
-    margin: 0;
+    background: var(--th-bg-1);
+    border-radius: var(--radius-lg);
+    box-shadow:
+      0 0 0 1px var(--th-border),
+      var(--th-menu-shadow);
+    overflow: hidden;
+    text-align: left;
   }
   .ag-tpl-output__head {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 10px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--th-border-subtle);
+    background: var(--th-bg-2);
   }
   .ag-tpl-output__mark {
-    width: 30px;
-    height: 30px;
-    border-radius: 6px;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
     background: var(--yellow-400);
     display: flex;
     align-items: center;
     justify-content: center;
-    font: 400 17px/1 var(--font-display);
-    color: var(--ink-900);
+  }
+  .ag-tpl-output__mark img {
+    width: 16px;
+    height: auto;
   }
   .ag-tpl-output__from {
     font: 600 13.5px/18px var(--font-sans);
+    color: var(--th-text-hi);
   }
   .ag-tpl-output__tag {
     font: 600 9px/12px var(--font-sans);
-    color: var(--ink-600);
-    background: var(--paper-150);
+    color: var(--th-text-body);
+    background: var(--th-code-bg);
     border-radius: 3px;
-    padding: 1px 4px;
+    padding: 2px 5px;
     text-transform: uppercase;
   }
+  .ag-tpl-output__side {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
   .ag-tpl-output__status {
-    font: 400 11px/16px var(--font-sans);
-    color: var(--ink-500);
+    font: 400 12px/16px var(--font-sans);
+    color: var(--th-text-mut);
   }
-  .ag-tpl-output__title {
-    margin-top: 12px !important;
-    font: 600 13.5px/19px var(--font-sans);
+  .ag-tpl-output__body {
+    padding: 22px 28px 28px;
+    transition: opacity 0.4s ease;
   }
-  .ag-tpl-output__lines {
-    margin: 8px 0 0;
-    padding-left: 18px;
-    display: grid;
-    gap: 5px;
-    font: 400 13px/21px var(--font-sans);
-    color: var(--ink-600);
+  .ag-run--rewind .ag-tpl-output__body {
+    opacity: 0;
   }
-  .ag-tpl-output__reply {
-    margin-top: 10px !important;
-    font: 400 13px/21px var(--font-sans);
-    color: var(--ink-900);
+  @media (max-width: 767px) {
+    .ag-tpl-output__body {
+      padding: 18px 18px 22px;
+    }
   }
 </style>

@@ -140,6 +140,8 @@ describe("pending input reducer", () => {
                 text: "retry me",
                 source: "server",
                 editable: false,
+                removable: false,
+                promotedExecutionId: "continuation-1",
             }),
         ])
     })

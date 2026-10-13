@@ -12,3 +12,7 @@ storybook/public/agent-custom-secrets/
 storybook/storybook-static/
 website/.astro/
 website/dist/
+
+# MDX wraps indented JSX children in extra <p> tags, so this post keeps its CTA
+# markup on single lines on purpose (see 5e8e7dd54a). Prettier would re-indent it.
+website/src/content/posts/ai-coworker-platforms-for-business.mdx

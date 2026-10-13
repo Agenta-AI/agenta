@@ -1,4 +1,4 @@
-import {useEffect, useState} from "react"
+import {useEffect, useRef, useState} from "react"
 
 import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
 import {
@@ -16,6 +16,8 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {openAgentVersionHistoryAtom, versionHistoryOpenAtomFamily} from "../AgentVersionHistory"
+
+const SAVED_FLASH_MS = 2000
 
 // Mounted only once opened: the drawer pulls the whole revision list and diff machinery.
 const AgentVersionHistoryDrawer = dynamic(
@@ -118,6 +120,22 @@ export const AgentRevisionStatus = ({
     // "Saving…" must mean a save is armed or in flight. Off `isDirty` it also caught every
     // revision auto-commit skips, which sat on "Saving…" forever; those read Draft.
     const saving = isAgent && !failed && (autoCommitScheduled || autoCommitStatus === "saving")
+    const settled = !failed && !saving && !isDirty
+
+    // "Saved" shows for a moment after a save lands, then only the dot says it.
+    const [justSaved, setJustSaved] = useState(false)
+    const wasSaving = useRef(false)
+    const savedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+    useEffect(() => {
+        const landed = wasSaving.current && settled
+        wasSaving.current = saving
+        if (!landed) return
+        setJustSaved(true)
+        clearTimeout(savedTimer.current)
+        savedTimer.current = setTimeout(() => setJustSaved(false), SAVED_FLASH_MS)
+    }, [saving, settled])
+    useEffect(() => () => clearTimeout(savedTimer.current), [])
+    const showLabel = !settled || justSaved
 
     const dot = failed
         ? {
@@ -143,30 +161,34 @@ export const AgentRevisionStatus = ({
             ) : (
                 <span className={`h-[6px] w-[6px] shrink-0 rounded-full ${dot.tone}`} />
             )}
-            {/* The word is the first thing to go on a narrow bar — the dot and its tooltip
-                already say it, and the identity beside it needs the room. */}
-            <span className="hidden sm:inline">{dot.label}</span>
+            {/* Words only for states that need attention; hidden on a narrow bar. */}
+            {showLabel ? <span className="hidden sm:inline">{dot.label}</span> : null}
         </>
     )
 
     return (
         <div className={`flex items-center gap-2 ${className ?? ""}`}>
             {merged ? (
-                <SimpleTooltip title="Version history">
+                <SimpleTooltip title={`${dot.label} · Version history`}>
                     <button
                         type="button"
                         aria-label={`Version ${version}, ${dot.label}. Open version history`}
                         onClick={() => openHistory(historyWorkflowId)}
-                        className="group flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-xs text-colorTextTertiary"
+                        className="flex cursor-pointer items-center gap-1.5 rounded border-0 bg-transparent px-1.5 py-0.5 text-xs text-colorTextSecondary hover:bg-colorFillSecondary hover:text-colorText"
                     >
-                        {/* Only the version wears the chip — the save state is a fact about it,
-                            not a second control, so it reads as a label beside it. */}
-                        <span className="flex items-center gap-1 rounded bg-colorFillSecondary px-1.5 py-0.5 text-colorTextSecondary group-hover:bg-colorFillTertiary group-hover:text-colorText">
+                        {/* One chip: the save state is a fact about this version. */}
+                        <span className="flex items-center gap-1">
                             {/* A caret would promise a menu; this opens a drawer of history. */}
-                            <ClockCounterClockwise size={11} className="shrink-0" />v{version}
+                            <span className="relative flex shrink-0">
+                                <ClockCounterClockwise size={11} />
+                                {/* Save state as a badge on the icon, so it never trails the text. */}
+                                <span
+                                    className={`absolute -right-[2px] -top-[2px] h-[5px] w-[5px] rounded-full ring-[1.5px] ring-[var(--ag-surface-raised)] ${dot.tone}`}
+                                />
+                            </span>
+                            v{version}
                         </span>
-                        <span className="text-colorTextQuaternary">·</span>
-                        {statusBody}
+                        {showLabel ? <span className="hidden sm:inline">{dot.label}</span> : null}
                     </button>
                 </SimpleTooltip>
             ) : null}

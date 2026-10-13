@@ -35,7 +35,8 @@
         "@tanstack/react-query": ">=5.0.0",
         "jotai": ">=2.9.0",
         "jotai-family": ">=0.1.0",
-        "react": ">=18.0.0"
+        "react": ">=18.0.0",
+        "react-dom": ">=18.0.0"
     },
     "devDependencies": {
         "@tanstack/react-query": "5.100.9",
@@ -50,8 +51,8 @@
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "typescript": "^5.9.3",
-        "vitest": "^4.1.4",
-        "@vitest/coverage-v8": "^4.1.4",
+        "vitest": "^4.1.11",
+        "@vitest/coverage-v8": "^4.1.11",
         "@types/react-dom": "^19.0.4"
     }
 }

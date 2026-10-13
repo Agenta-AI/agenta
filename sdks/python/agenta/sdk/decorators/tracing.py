@@ -37,6 +37,31 @@ def _has_instrument(handler: Callable[..., Any]) -> bool:
     return bool(getattr(handler, "__has_instrument__", False))
 
 
+def _is_agent_configuration(parameters: Any) -> bool:
+    return isinstance(parameters, dict) and isinstance(parameters.get("agent"), dict)
+
+
+def _agent_configuration_summary(parameters: Dict[str, Any]) -> Dict[str, Any]:
+    """The part of an agent config that an agent root span records.
+
+    Analytics groups and filters agent runs by `agent.llm.model`, `agent.llm.provider`
+    and `agent.llm.connection.mode` on the root span. Only those three values are kept:
+    no skills, and no connection slug or extras.
+    """
+    llm = parameters["agent"].get("llm")
+    if not isinstance(llm, dict):
+        return {}
+
+    summary: Dict[str, Any] = {
+        key: llm[key] for key in ("model", "provider") if isinstance(llm.get(key), str)
+    }
+    connection = llm.get("connection")
+    if isinstance(connection, dict) and isinstance(connection.get("mode"), str):
+        summary["connection"] = {"mode": connection["mode"]}
+
+    return {"agent": {"llm": summary}} if summary else {}
+
+
 def auto_instrument(handler: Callable[..., Any]) -> Callable[..., Any]:
     if _has_instrument(handler):
         return handler
@@ -576,16 +601,24 @@ class instrument:  # pylint: disable=invalid-name
             )
 
             if span.parent is None:
-                # Unbounded flattening of a resolved agent config (tools with full JSON
-                # schemas) yields hundreds of leaf attributes, overflowing the span
-                # attribute limit and evicting the oldest attributes (ag.refs.*).
-                # Depth 3 keeps one `@ag.type=json:` attribute per config section
-                # (configuration.agent.tools, .llm, ...) instead of one per leaf.
-                span.set_attributes(
-                    attributes={"configuration": context.parameters or {}},
-                    namespace="meta",
-                    max_depth=3,
+                # An agent config carries every skill's body and bundled files, which made
+                # each agent root span megabytes large. The root span's revision reference
+                # points at the config, so an agent run records only the model summary.
+                is_agent = _is_agent_configuration(context.parameters)
+                configuration = (
+                    _agent_configuration_summary(context.parameters)
+                    if is_agent
+                    else context.parameters or {}
                 )
+                # Depth 3 keeps one `@ag.type=json:` attribute per config section
+                # instead of one per leaf, so a large config cannot overflow the span
+                # attribute limit and evict the oldest attributes (ag.refs.*).
+                if configuration or not is_agent:
+                    span.set_attributes(
+                        attributes={"configuration": configuration},
+                        namespace="meta",
+                        max_depth=3,
+                    )
 
             _inputs = self._redact(
                 name=span.name,

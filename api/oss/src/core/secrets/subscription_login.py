@@ -2,9 +2,11 @@
 
 The runner owns the OAuth exchange: it holds the harness client that talks to the provider,
 and it is the only process that ever sees the device code secret half. The API relays the
-user code and the verification address, and stores the credential the runner hands back.
+user code and the verification address. The runner pod that runs the provider poll reports
+the outcome back to the API on its own (`SubscriptionLoginService.report_attempt_outcome`),
+so this client only starts and cancels.
 
-Same base URL and shared-secret token the other direct hops use
+Same Service URL and shared-secret token the other direct hops use
 (`oss/src/core/sessions/streams/runner_client.py`).
 """
 
@@ -14,9 +16,12 @@ import httpx
 from pydantic import BaseModel, ConfigDict
 
 from oss.src.core.secrets.types import (
-    SubscriptionLoginAttemptNotFound,
     SubscriptionLoginRunnerNotConfigured,
     SubscriptionLoginRunnerUnavailable,
+)
+from oss.src.core.sessions.streams.runner_client import (
+    RUNNER_ADDRESS_CONNECT_TIMEOUT_SECONDS,
+    runner_address_is_replica,
 )
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -25,7 +30,6 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 _START_TIMEOUT_SECONDS = 15.0
-_POLL_TIMEOUT_SECONDS = 15.0
 _DELETE_TIMEOUT_SECONDS = 5.0
 
 # The floor the contract puts under the runner's own poll interval.
@@ -48,10 +52,7 @@ def _log_hop(operation: str, outcome: str, **fields: Any) -> None:
 
 
 class RunnerLoginAttempt(BaseModel):
-    """One device login attempt as the runner reports it.
-
-    `login` is present at most once, on the first read that finds the attempt succeeded.
-    """
+    """One device login attempt as the runner's start answer describes it."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -61,8 +62,14 @@ class RunnerLoginAttempt(BaseModel):
     verification_uri: Optional[str] = None
     expires_at: Optional[str] = None
     poll_after_ms: int = _MIN_POLL_AFTER_MS
-    login: Optional[Dict[str, Any]] = None
-    error: Optional[str] = None
+    # The pod that runs the provider poll. None when the runner has no address of its own.
+    runner_address: Optional[str] = None
+    # That pod's replica id, checked against its `/health` before a cancel goes to the address.
+    runner_replica_id: Optional[str] = None
+
+
+def _nonblank(value: Any) -> Optional[str]:
+    return value.strip() if isinstance(value, str) and value.strip() else None
 
 
 def _parse_attempt(payload: Any, *, fallback_attempt_id: str) -> RunnerLoginAttempt:
@@ -76,8 +83,6 @@ def _parse_attempt(payload: Any, *, fallback_attempt_id: str) -> RunnerLoginAtte
     if isinstance(interval_seconds, (int, float)) and interval_seconds > 0:
         poll_after_ms = max(_MIN_POLL_AFTER_MS, int(interval_seconds * 1000))
 
-    login = payload.get("login")
-
     return RunnerLoginAttempt(
         attempt_id=str(payload.get("attemptId") or fallback_attempt_id),
         state=str(payload.get("state") or "pending"),
@@ -85,8 +90,8 @@ def _parse_attempt(payload: Any, *, fallback_attempt_id: str) -> RunnerLoginAtte
         verification_uri=payload.get("verificationUri"),
         expires_at=payload.get("expiresAt"),
         poll_after_ms=poll_after_ms,
-        login=login if isinstance(login, dict) else None,
-        error=payload.get("error"),
+        runner_address=_nonblank(payload.get("replicaAddress")),
+        runner_replica_id=_nonblank(payload.get("replicaId")),
     )
 
 
@@ -114,13 +119,24 @@ class SubscriptionLoginRunnerClient:
     def _headers(self) -> Dict[str, str]:
         return {"Authorization": f"Bearer {self._token}"}
 
-    async def start_attempt(self, *, provider: str) -> RunnerLoginAttempt:
+    async def start_attempt(
+        self,
+        *,
+        provider: str,
+        project_id: str,
+        secret_id: str,
+    ) -> RunnerLoginAttempt:
+        """Start an attempt. The ids tell the runner where to report the outcome."""
         url = self._url("/subscription-login/attempts")
         try:
             async with httpx.AsyncClient(timeout=_START_TIMEOUT_SECONDS) as client:
                 response = await client.post(
                     url,
-                    json={"provider": provider},
+                    json={
+                        "provider": provider,
+                        "projectId": project_id,
+                        "secretId": secret_id,
+                    },
                     headers=self._headers(),
                 )
         except httpx.HTTPError as e:
@@ -138,43 +154,43 @@ class SubscriptionLoginRunnerClient:
 
         return _parse_attempt(_json_body(response), fallback_attempt_id="")
 
-    async def read_attempt(self, *, attempt_id: str) -> RunnerLoginAttempt:
-        url = self._url(f"/subscription-login/attempts/{attempt_id}")
-        try:
-            async with httpx.AsyncClient(timeout=_POLL_TIMEOUT_SECONDS) as client:
-                response = await client.get(url, headers=self._headers())
-        except httpx.HTTPError as e:
-            _log_hop("poll", "unreachable", attempt_id=attempt_id, error=str(e))
-            raise SubscriptionLoginRunnerUnavailable() from e
+    async def delete_attempt(
+        self,
+        *,
+        attempt_id: str,
+        base_url: Optional[str] = None,
+        runner_replica_id: Optional[str] = None,
+    ) -> bool:
+        """Stop an attempt on the runner. Never raises: the row is the source of truth.
 
-        if response.status_code == 404:
-            raise SubscriptionLoginAttemptNotFound()
-
-        if response.status_code >= 300:
-            _log_hop(
-                "poll", "refused", attempt_id=attempt_id, status=response.status_code
-            )
-            raise SubscriptionLoginRunnerUnavailable(
-                message=(
-                    "The agent runner refused to report the sign-in "
-                    f"(status {response.status_code})."
-                )
-            )
-
-        return _parse_attempt(_json_body(response), fallback_attempt_id=attempt_id)
-
-    async def delete_attempt(self, *, attempt_id: str) -> bool:
-        """Purge an attempt on the runner. Never raises: the row is the source of truth."""
+        `base_url` is the address of the pod that runs the attempt's provider poll, and
+        `runner_replica_id` is that pod's replica id. The call goes to the address only when
+        the pod there answers as that replica; otherwise, and without an address, it goes to
+        the Service URL, which picks any pod. A DELETE that reaches a pod without the attempt
+        is a no-op there.
+        """
         if not self.configured:
             return False
 
-        url = (
-            str(self._base_url).rstrip("/")
-            + f"/subscription-login/attempts/{attempt_id}"
-        )
+        timeout = httpx.Timeout(_DELETE_TIMEOUT_SECONDS)
         try:
-            async with httpx.AsyncClient(timeout=_DELETE_TIMEOUT_SECONDS) as client:
-                response = await client.delete(url, headers=self._headers())
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                target = self._base_url
+                if base_url and await runner_address_is_replica(
+                    client, address=base_url, replica_id=runner_replica_id
+                ):
+                    target = base_url
+                    timeout = httpx.Timeout(
+                        _DELETE_TIMEOUT_SECONDS,
+                        connect=RUNNER_ADDRESS_CONNECT_TIMEOUT_SECONDS,
+                    )
+                url = (
+                    str(target).rstrip("/")
+                    + f"/subscription-login/attempts/{attempt_id}"
+                )
+                response = await client.delete(
+                    url, headers=self._headers(), timeout=timeout
+                )
         except httpx.HTTPError as e:
             _log_hop("delete", "unreachable", attempt_id=attempt_id, error=str(e))
             return False

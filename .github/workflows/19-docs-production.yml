@@ -77,7 +77,8 @@ jobs:
             echo "::error::Could not extract deployed URL from wrangler output"
             exit 1
           fi
-          echo "url=${url}/docs" >> "$GITHUB_OUTPUT"
+          # Use the directory index's canonical URL, not its /docs redirect.
+          echo "url=${url}/docs/" >> "$GITHUB_OUTPUT"
 
       - name: Verify production serves the docs
         run: |
@@ -89,3 +90,8 @@ jobs:
           done
           echo "::error::Production URL did not return 200 (last code: $code)"
           exit 1
+
+      - name: Verify canonical docs routes
+        env:
+          DOCS_ORIGIN: ${{ steps.deploy.outputs.url }}
+        run: cd docs && pnpm run test:worker-routing

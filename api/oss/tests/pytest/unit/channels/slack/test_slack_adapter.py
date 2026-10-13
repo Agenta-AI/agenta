@@ -1502,3 +1502,182 @@ async def test_parse_event_records_ts_as_sent_at_and_message_ref():
     assert event.processed.sent_at == datetime(
         2023, 11, 14, 22, 13, 20, 100, tzinfo=timezone.utc
     )
+
+
+# --- inbound media ------------------------------------------------------------ #
+
+
+async def test_parse_event_shared_files_become_media_parts():
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {
+            "type": "message",
+            "subtype": "file_share",
+            "user": "U1",
+            "channel": "C1",
+            "ts": "111.222",
+            "text": "please summarize",
+            "files": [
+                {
+                    "id": "F1",
+                    "name": "invoice.pdf",
+                    "mimetype": "application/pdf",
+                    "size": 1234,
+                    "url_private_download": "https://files.slack.com/f1",
+                },
+                {
+                    "id": "F2",
+                    "name": "photo.png",
+                    "mimetype": "image/png",
+                    "size": 99,
+                    "url_private_download": "https://files.slack.com/f2",
+                },
+            ],
+        }
+    )
+    event = await adapter.parse_event(body=body, connection=_connection())
+    # Only the file id is stored; fetch_media resolves the URL at download time.
+    assert event.processed.content == [
+        {"type": "text", "text": "please summarize"},
+        {
+            "type": "media",
+            "kind": "document",
+            "media_id": "F1",
+            "mime_type": "application/pdf",
+            "filename": "invoice.pdf",
+        },
+        {
+            "type": "media",
+            "kind": "image",
+            "media_id": "F2",
+            "mime_type": "image/png",
+            "filename": "photo.png",
+        },
+    ]
+
+
+async def test_parse_event_file_only_share_has_no_empty_text_part():
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {
+            "type": "message",
+            "subtype": "file_share",
+            "user": "U1",
+            "channel": "C1",
+            "ts": "111.222",
+            "text": "",
+            "files": [{"id": "F3", "name": "doc.txt", "mimetype": "text/plain"}],
+        }
+    )
+    event = await adapter.parse_event(body=body, connection=_connection())
+    assert event.processed.content == [
+        {
+            "type": "media",
+            "kind": "document",
+            "media_id": "F3",
+            "mime_type": "text/plain",
+            "filename": "doc.txt",
+        }
+    ]
+
+
+async def test_parse_event_skips_a_file_entry_without_an_id():
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {
+            "type": "message",
+            "subtype": "file_share",
+            "user": "U1",
+            "channel": "C1",
+            "ts": "111.222",
+            "text": "broken entry",
+            "files": [{"name": "doc", "mimetype": "text/plain"}],
+        }
+    )
+    event = await adapter.parse_event(body=body, connection=_connection())
+    assert event.processed.content == [{"type": "text", "text": "broken entry"}]
+
+
+def _files_info_handler(entry, download):
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/files.info":
+            return httpx.Response(200, json={"ok": True, "file": entry})
+        return download(request)
+
+    return handler
+
+
+async def test_fetch_media_resolves_files_info_then_downloads_with_the_bot_token():
+    seen = []
+
+    def download(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(
+            200,
+            content=b"%PDF-1.4 fake",
+            headers={"content-type": "application/pdf"},
+        )
+
+    client = httpx.AsyncClient(
+        base_url="https://slack.com/api",
+        transport=httpx.MockTransport(
+            _files_info_handler(
+                {
+                    "id": "F1",
+                    "size": 13,
+                    "url_private_download": "https://files.slack.com/f1",
+                },
+                download,
+            )
+        ),
+    )
+    adapter = SlackAdapter(http_client=client)
+    data, mime_type = await adapter.fetch_media(
+        connection=_connection(),
+        media={"media_id": "F1", "mime_type": "application/pdf"},
+    )
+    assert data == b"%PDF-1.4 fake"
+    assert mime_type == "application/pdf"
+    assert str(seen[0].url) == "https://files.slack.com/f1"
+    assert seen[0].headers["authorization"] == "Bearer xoxb-fake"
+
+
+async def test_fetch_media_refuses_a_login_page_and_an_oversize_file():
+    def download(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, content=b"<html>login</html>", headers={"content-type": "text/html"}
+        )
+
+    entry = {
+        "id": "F1",
+        "size": 50,
+        "url_private_download": "https://files.slack.com/f1",
+    }
+    client = httpx.AsyncClient(
+        base_url="https://slack.com/api",
+        transport=httpx.MockTransport(_files_info_handler(entry, download)),
+    )
+    adapter = SlackAdapter(http_client=client)
+
+    # files.info reports 50 bytes: refused before any download.
+    oversize = await adapter.fetch_media(
+        connection=_connection(), media={"media_id": "F1"}, max_bytes=10
+    )
+    assert oversize is None
+
+    # An HTML body is Slack's login page: the token cannot read files.
+    with pytest.raises(_SlackApiError):
+        await adapter.fetch_media(connection=_connection(), media={"media_id": "F1"})
+
+
+async def test_fetch_media_refuses_a_file_without_a_download_url():
+    def download(request: httpx.Request) -> httpx.Response:  # pragma: no cover
+        raise AssertionError("no download should happen")
+
+    client = httpx.AsyncClient(
+        base_url="https://slack.com/api",
+        transport=httpx.MockTransport(_files_info_handler({"id": "F1"}, download)),
+    )
+    adapter = SlackAdapter(http_client=client)
+    with pytest.raises(_SlackApiError):
+        await adapter.fetch_media(connection=_connection(), media={"media_id": "F1"})

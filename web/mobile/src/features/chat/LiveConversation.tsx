@@ -46,6 +46,7 @@ import {AgentSetupCard} from "@agenta/entity-ui/onboarding"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {ChatBubble} from "@agenta/ui/components/presentational"
+import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
 import {Button} from "@agenta/ui/ui"
@@ -62,12 +63,15 @@ import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPol
 
 import {ApprovalDock} from "./ApprovalDock"
 import {waitForBuildKit} from "./buildKitWait"
+import {createCommitFollower} from "./commitFollower"
 import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
+import {hasUnsavedConfigEdits} from "./hasUnsavedConfigEdits"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
-import {selectedRevisionAtomFamily} from "./selectedRevision"
+import {heldCommitAtomFamily, selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
+import {PendingTaskError} from "./states/PendingTaskError"
 import {cancelledStopAction} from "./stopHereState"
 import {TranscriptTurns} from "./TranscriptTurns"
 import {mobileTurnRowClass} from "./turnRowClass"
@@ -135,6 +139,8 @@ export const LiveConversation = ({
     // the composer, rewind (far below) refills it the same way, and a refused send comes back
     // through it too.
     const composerRef = useRef<RichChatInputHandle | null>(null)
+    // Quote-to-reply anchors its pill and note box inside the transcript rail.
+    const quoteRootRef = useRef<HTMLDivElement>(null)
     // The composer's tray, owned here for the same reason: a refusal that arrives after the send
     // resolved has to put the files back from outside the composer's own submit.
     const attachments = useComposerAttachments({sessionId})
@@ -174,32 +180,51 @@ export const LiveConversation = ({
         onSendFailed: () => dropUnacceptedLocalSession(sessionId),
     })
     const canEditSecrets = useProjectPermission(projectId, "edit_secret")
+    const store = useStore()
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
+    const {adoptRevision} = conversation
     const adoptSecretRevision = useCallback(
         (next: string) => {
-            conversation.adoptRevision(next)
+            adoptRevision(next)
             pinRevision(next)
         },
-        [conversation.adoptRevision, pinRevision],
+        [adoptRevision, pinRevision],
     )
     const pendingSecret = useMemo(
         () => getPendingSecretInteractions(conversation.messages)[0],
         [conversation.messages],
     )
 
-    // The agent committing itself: follow it — pin the workspace and retarget the next send — and
-    // drop the latest-revision caches, or the pane and the chip keep the revision it replaced. A
-    // durable send learns it from the records reader; a `useChat` stream carries a
-    // `data-committed-revision` part. One seen-set, so a commit both report acts once.
-    const committedSeenRef = useRef<Set<string>>(new Set())
-    followCommitRef.current = (revisionId: string) => {
-        if (committedSeenRef.current.has(revisionId)) return
-        committedSeenRef.current.add(revisionId)
-        // Nobody is watching a hidden tab: its version pill offers the commit on return.
-        if (document.visibilityState !== "visible") return
+    // The agent committing itself in THIS session: follow it — pin the workspace and retarget the
+    // next send — and drop the latest-revision caches, or the pane and the chip keep the revision
+    // it replaced. A durable send learns it from the records reader; a `useChat` stream carries a
+    // `data-committed-revision` part. The follower acts once per commit, and holds a commit that
+    // lands while the tab is hidden until the tab is visible again. Commits made elsewhere (another
+    // user, another session) never come through here: the version pill offers those.
+    const applyCommitRef = useRef<(revisionId: string) => void>(() => undefined)
+    applyCommitRef.current = (revisionId: string) => {
         invalidateAgentCommittedRevisionCache()
-        if (revisionId !== entityId) adoptSecretRevision(revisionId)
+        if (revisionId === entityId) return
+        // Unsaved edits in the config pane belong to the pinned revision. Switching now would drop
+        // them, so the version pill offers the commit instead.
+        if (hasUnsavedConfigEdits(store, entityId)) {
+            store.set(heldCommitAtomFamily(sessionId), revisionId)
+            return
+        }
+        adoptSecretRevision(revisionId)
     }
+    const [commitFollower] = useState(() =>
+        createCommitFollower({
+            apply: (revisionId) => applyCommitRef.current(revisionId),
+            isVisible: () => document.visibilityState === "visible",
+        }),
+    )
+    followCommitRef.current = commitFollower.report
+    useEffect(() => {
+        const onVisibility = () => commitFollower.flush()
+        document.addEventListener("visibilitychange", onVisibility)
+        return () => document.removeEventListener("visibilitychange", onVisibility)
+    }, [commitFollower])
     useEffect(() => {
         for (const revisionId of committedRevisionIds(conversation.messages))
             followCommitRef.current(revisionId)
@@ -279,7 +304,6 @@ export const LiveConversation = ({
     // Subscribed here so the build-kit overlay loads while the user types the first message.
     const buildKitReadyAtom = workflowBuildKitOverlayReadyAtomFamily(entityId)
     useAtomValue(buildKitReadyAtom)
-    const store = useStore()
     const firstTurn = conversation.messages.length === 0
     // A fresh session becomes real on the server only once this first message is admitted, which
     // can take seconds on a cold runner. Note it locally first, so the rail lists it now (#6776).
@@ -384,17 +408,17 @@ export const LiveConversation = ({
     hitlPendingRef.current = conversation.hitlPending
     const [stoppingHere, setStoppingHere] = useState(false)
     const stopWatchdogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const awaitingServerStopRef = useRef(false)
     const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
     const retryStopRef = useRef(false)
     const stopSessionIdRef = useRef(sessionId)
     stopSessionIdRef.current = sessionId
+    const serverStopping = isSessionTurnStopping({
+        currentTurnId: sessionTurnId ?? latestTurnId(conversation.messages),
+        stoppingTurnId,
+    })
     const stopping =
-        stoppingHere ||
-        isSessionTurnStopping({
-            currentTurnId: sessionTurnId ?? latestTurnId(conversation.messages),
-            stoppingTurnId,
-        }) ||
-        (stopStateLoading && conversation.hitlPending)
+        stoppingHere || serverStopping || (stopStateLoading && conversation.hitlPending)
     const settleParkedStop = useCallback(() => {
         if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
         stopWatchdogTimerRef.current = null
@@ -430,12 +454,15 @@ export const LiveConversation = ({
     }, [watch.connected, running, revalidate])
     useEffect(() => {
         if (streamingHere || !stopWatchdogTimerRef.current) return
+        // A stop of a run not streamed here holds until the server marks it or the run ends.
+        if (awaitingServerStopRef.current && !serverStopping && showingTurnActivity) return
+        awaitingServerStopRef.current = false
         clearTimeout(stopWatchdogTimerRef.current)
         stopWatchdogTimerRef.current = null
         retryStopRef.current = false
         expectedStopExecutionIdRef.current = undefined
         setStoppingHere(false)
-    }, [streamingHere])
+    }, [streamingHere, serverStopping, showingTurnActivity])
     useEffect(
         () => () => {
             if (stopWatchdogTimerRef.current) clearTimeout(stopWatchdogTimerRef.current)
@@ -524,9 +551,11 @@ export const LiveConversation = ({
                         expectedStopExecutionIdRef.current = undefined
                         return
                     }
+                    awaitingServerStopRef.current = action === "await-server"
                     stopWatchdogTimerRef.current = setTimeout(() => {
                         retryStopRef.current = true
                         stopWatchdogTimerRef.current = null
+                        awaitingServerStopRef.current = false
                         setStoppingHere(false)
                     }, 30_000)
                     return
@@ -724,7 +753,11 @@ export const LiveConversation = ({
         body = <ChatLoading />
     } else {
         body = (
-            <ContentRail className="flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <ContentRail
+                ref={quoteRootRef}
+                className="relative flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+            >
+                <QuoteSelectionLayer rootRef={quoteRootRef} sessionId={sessionId} touch />
                 {/* A held or failed Home task stays visible until accepted. */}
                 {heldTaskText ? (
                     <div className={`${mobileTurnRowClass} justify-end`}>
@@ -811,6 +844,7 @@ export const LiveConversation = ({
                                         held={conversation.hitlPending}
                                         onRemove={conversation.removeQueued}
                                         onSendNow={conversation.sendQueuedNow}
+                                        sendNowBlocked={conversation.sendNowPending}
                                         onEdit={editQueued}
                                         onCancelEdit={cancelQueuedEdit}
                                         editingId={conversation.editingId}
@@ -894,50 +928,32 @@ export const LiveConversation = ({
                         </ContentRail>
                         {/* Failed Home tasks retain their original text and files for retry. */}
                         {pendingTaskError ? (
-                            <ContentRail>
-                                <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
-                                    <span role="alert" className="text-destructive">
-                                        The message was not sent.
-                                        {pendingTask?.failureReason
-                                            ? ` ${pendingTask.failureReason}`
-                                            : ""}{" "}
-                                        Your text and attachments are saved.
-                                    </span>
-                                    {pendingTask?.parts?.map((part, index) => (
-                                        <span
-                                            key={`${part.url}-${index}`}
-                                            className="text-muted-foreground"
-                                        >
-                                            {part.filename || "Attachment"}
-                                        </span>
-                                    ))}
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        disabled={
-                                            isHydrating ||
-                                            modelBlocked ||
-                                            (modelKeyLoading &&
-                                                modelKeyWaitedMs < MODEL_KEY_WAIT_LIMIT_MS)
-                                        }
-                                        onClick={() =>
-                                            void sendPendingTask({
-                                                sessionId,
-                                                retry: true,
-                                                send: (task) =>
-                                                    send({text: task.text, parts: task.parts}),
-                                            })
-                                        }
-                                    >
-                                        Retry message
-                                    </Button>
-                                </div>
-                            </ContentRail>
+                            <PendingTaskError
+                                failureReason={pendingTask?.failureReason}
+                                filenames={pendingTask?.parts?.map(
+                                    (part) => part.filename || "Attachment",
+                                )}
+                                retryDisabled={
+                                    isHydrating ||
+                                    modelBlocked ||
+                                    (modelKeyLoading && modelKeyWaitedMs < MODEL_KEY_WAIT_LIMIT_MS)
+                                }
+                                onRetry={() =>
+                                    void sendPendingTask({
+                                        sessionId,
+                                        retry: true,
+                                        send: (task) => send({text: task.text, parts: task.parts}),
+                                    })
+                                }
+                            />
                         ) : null}
                         <Composer
                             entityId={entityId}
                             sessionId={sessionId}
                             attachments={attachments}
+                            onRefusedOverDraft={({text, parts}) =>
+                                conversation.keepRefusedSend({text, fileParts: parts})
+                            }
                             onSend={async ({text, parts, stagedFiles}) => {
                                 setStoppingHere(false)
                                 // An open edit rewrites its held message instead of sending. The

@@ -1,16 +1,18 @@
-import {useState} from "react"
+import {useRef, useState} from "react"
 
 import {META_REVEAL} from "@agenta/entities/drive"
 import {fileOrigin} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
+import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
 import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
 import {Info} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
 
 import {DriveBreadcrumb} from "./DriveBreadcrumb"
 import {DriveFileContentViewer, DriveFileDownloadButton} from "./DriveFileContentViewer"
+import {useDriveSessionId} from "./driveSessionContext"
 import {DriveFileMetaList} from "./fileMeta"
 import {OriginTag} from "./OriginTag"
 
@@ -52,6 +54,9 @@ export const DriveFilePreview = ({
 }) => {
     const shown = displayPath ?? path
     const name = shown.split("/").pop() ?? shown
+    // Null outside a conversation, which leaves the quote layer inert.
+    const quoteRootRef = useRef<HTMLDivElement>(null)
+    const quoteSessionId = useDriveSessionId()
     const [metaExpanded, setMetaExpanded] = useState(false)
     const metaOpen = hideHeader ? Boolean(detailsOpen) : metaExpanded
 
@@ -138,7 +143,8 @@ export const DriveFilePreview = ({
                 </div>
             )}
 
-            <div className="flex min-h-0 flex-1 flex-col p-4 pt-3">
+            <div ref={quoteRootRef} className="relative flex min-h-0 flex-1 flex-col p-4 pt-3">
+                <QuoteSelectionLayer rootRef={quoteRootRef} sessionId={quoteSessionId} />
                 <DriveFileContentViewer
                     mount={mount}
                     path={path}

@@ -14,9 +14,12 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from oss.src.apis.fastapi.providers.router import ProvidersRouter
+from oss.src.apis.fastapi.shared import runner_auth
 from oss.src.apis.fastapi.vault import router as vault_router_module
 from oss.src.apis.fastapi.vault.router import VaultRouter
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.providers.service import ProviderProbeService
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.subscription_login import RunnerLoginAttempt
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
@@ -24,7 +27,7 @@ from oss.src.core.secrets.types import (
     SubscriptionLoginRunnerNotConfigured,
     SubscriptionLoginRunnerUnavailable,
 )
-from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT
+from oss.src.middlewares.auth import _PUBLIC_ENDPOINTS, SECRET_RESOLVE_GRANT
 from oss.src.dbs.postgres.secrets.mappings import (
     map_secrets_dbe_to_dto,
     map_secrets_dto_to_dbe,
@@ -136,26 +139,36 @@ class _FakeRunner:
         self.next_attempt = None
         self.raises = None
         self.deleted: list = []
+        self.deleted_at: list = []
 
-    async def start_attempt(self, *, provider):
+    async def start_attempt(self, *, provider, project_id, secret_id):
         if self.raises is not None:
             raise self.raises
         return self.next_attempt
 
-    async def read_attempt(self, *, attempt_id):
-        if self.raises is not None:
-            raise self.raises
-        return self.next_attempt
-
-    async def delete_attempt(self, *, attempt_id):
+    async def delete_attempt(
+        self, *, attempt_id, base_url=None, runner_replica_id=None
+    ):
         self.deleted.append(attempt_id)
+        self.deleted_at.append(base_url)
         return True
+
+
+RUNNER_TOKEN = "runner-secret"
+RUNNER_HEADERS = {"X-Agenta-Runner-Token": RUNNER_TOKEN}
 
 
 # The two routes only a run's own credential may call. Everything else in this file is a
 # browser: a session and an ApiKey carry no grants, which is what keeps a write-only value
 # out of every ordinary read.
 _RUNTIME_ROUTES = ("/subscription-login", "/subscription-login/failure")
+
+# The route the runner pod that ran a device login reports its outcome on.
+_OUTCOME_PREFIX = "/secrets/subscription-login/attempts/"
+
+
+def _outcome_url(attempt_id: str) -> str:
+    return f"{_OUTCOME_PREFIX}{attempt_id}/outcome"
 
 
 class _Harness:
@@ -187,11 +200,16 @@ def _harness(monkeypatch):
         return True
 
     monkeypatch.setattr(vault_router_module, "check_action_access", _record)
+    monkeypatch.setattr(runner_auth.env.runner, "token", RUNNER_TOKEN)
 
     app = FastAPI()
 
     @app.middleware("http")
     async def _principal(request, call_next):
+        # The auth middleware exempts the outcome route, so it reaches the handler with no
+        # tenant principal at all.
+        if request.url.path.startswith(_OUTCOME_PREFIX):
+            return await call_next(request)
         request.state.user_id = USER_ID
         request.state.project_id = PROJECT_ID
         runtime_route = request.url.path.endswith(_RUNTIME_ROUTES)
@@ -254,7 +272,7 @@ class TestCreateAndRead:
         # The vault routes exclude nulls, so a redacted login is an absent key.
         assert "login" not in read["data"]
         assert read["data"]["login_state"] == "ready"
-        assert read["data"]["model_keys"][0] == "chatgpt/gpt-6-astra"
+        assert read["data"]["model_keys"][0] == "chatgpt/gpt-6.1-sol"
         assert read["value_status"]["configured"] is True
         assert LOGIN["access"] not in harness.client.get("/secrets/").text
 
@@ -356,9 +374,17 @@ class TestLoginAttemptRoutes:
         )
         harness.client.post(f"/secrets/{secret_id}/login-attempts")
 
-        harness.runner.next_attempt = RunnerLoginAttempt(
-            attempt_id="att-1", state="succeeded", login=LOGIN
+        reported = harness.client.post(
+            _outcome_url("att-1"),
+            headers=RUNNER_HEADERS,
+            json={
+                "project_id": PROJECT_ID,
+                "secret_id": secret_id,
+                "state": "succeeded",
+                "login": LOGIN,
+            },
         )
+        assert reported.status_code == 204, reported.text
         response = harness.client.get(f"/secrets/{secret_id}/login-attempts/att-1")
 
         assert response.status_code == 200, response.text
@@ -384,7 +410,10 @@ class TestLoginAttemptRoutes:
     def test_cancel_returns_the_cancelled_state(self, harness):
         secret_id = _create(harness.client)["id"]
         harness.runner.next_attempt = RunnerLoginAttempt(
-            attempt_id="att-1", state="pending", expires_at=_later()
+            attempt_id="att-1",
+            state="pending",
+            expires_at=_later(),
+            runner_address="http://10.8.2.17:8765",
         )
         harness.client.post(f"/secrets/{secret_id}/login-attempts")
 
@@ -395,6 +424,7 @@ class TestLoginAttemptRoutes:
         assert response.status_code == 200, response.text
         assert response.json()["state"] == "cancelled"
         assert harness.runner.deleted == ["att-1"]
+        assert harness.runner.deleted_at == ["http://10.8.2.17:8765"]
 
     def test_no_runner_configured_is_a_503(self, harness):
         secret_id = _create(harness.client)["id"]
@@ -417,6 +447,182 @@ class TestLoginAttemptRoutes:
         response = harness.client.post(f"/secrets/{uuid4()}/login-attempts")
 
         assert response.status_code == 404
+
+
+class TestTheOutcomeRoute:
+    """The runner pod that ran a device login reports how it ended.
+
+    It holds no project credential, so the shared runner token is the whole of the gate,
+    and the attempt id binding on the row is what scopes the write.
+    """
+
+    def _started(self, harness) -> str:
+        secret_id = _create(harness.client)["id"]
+        harness.runner.next_attempt = RunnerLoginAttempt(
+            attempt_id="att-1", state="pending", expires_at=_later()
+        )
+        started = harness.client.post(f"/secrets/{secret_id}/login-attempts")
+        assert started.status_code == 200, started.text
+        return secret_id
+
+    def _report(self, harness, secret_id, headers=RUNNER_HEADERS, **body):
+        return harness.client.post(
+            _outcome_url(body.pop("attempt_id", "att-1")),
+            headers=headers,
+            json={"project_id": PROJECT_ID, "secret_id": secret_id, **body},
+        )
+
+    @pytest.mark.parametrize(
+        "headers",
+        [
+            {},
+            {"X-Agenta-Runner-Token": "not-the-token"},
+            {"Authorization": "Bearer not-the-token"},
+        ],
+    )
+    def test_a_caller_without_the_runner_token_is_refused_and_writes_nothing(
+        self, harness, headers
+    ):
+        secret_id = self._started(harness)
+
+        response = self._report(
+            harness, secret_id, headers=headers, state="succeeded", login=LOGIN
+        )
+
+        assert response.status_code == 401
+        read = harness.client.get(f"/secrets/{secret_id}").json()
+        assert read["data"]["login_state"] == "pending_login"
+        assert read["data"]["login_version"] == 0
+        assert (
+            harness.client.get(f"/secrets/{secret_id}/login-attempts/att-1").json()[
+                "state"
+            ]
+            == "pending"
+        )
+
+    def test_the_bearer_form_of_the_runner_token_is_accepted(self, harness):
+        secret_id = self._started(harness)
+
+        response = self._report(
+            harness,
+            secret_id,
+            headers={"Authorization": f"Bearer {RUNNER_TOKEN}"},
+            state="failed",
+            error="login_failed",
+        )
+
+        assert response.status_code == 204, response.text
+
+    def test_a_failure_polls_as_that_state_and_reason_then_clears(self, harness):
+        secret_id = self._started(harness)
+
+        reported = self._report(harness, secret_id, state="expired", error="timed_out")
+        polled = harness.client.get(f"/secrets/{secret_id}/login-attempts/att-1")
+        again = harness.client.get(f"/secrets/{secret_id}/login-attempts/att-1")
+
+        assert reported.status_code == 204, reported.text
+        assert polled.status_code == 200, polled.text
+        assert polled.json()["state"] == "expired"
+        assert polled.json()["error"] == "timed_out"
+        assert again.status_code == 404
+
+    def test_a_report_for_a_cancelled_attempt_is_404_and_writes_nothing(self, harness):
+        secret_id = self._started(harness)
+        harness.client.post(f"/secrets/{secret_id}/login-attempts/att-1/cancel")
+
+        response = self._report(harness, secret_id, state="succeeded", login=LOGIN)
+
+        assert response.status_code == 404
+        read = harness.client.get(f"/secrets/{secret_id}").json()
+        assert read["data"]["login_state"] == "pending_login"
+        assert read["data"]["login_version"] == 0
+
+    def test_a_report_for_another_connections_row_is_404(self, harness):
+        secret_id = self._started(harness)
+
+        response = self._report(harness, str(uuid4()), state="succeeded", login=LOGIN)
+
+        assert response.status_code == 404
+        assert (
+            harness.client.get(f"/secrets/{secret_id}").json()["data"]["login_version"]
+            == 0
+        )
+
+    def test_an_unknown_state_is_refused_without_echoing_the_body(self, harness):
+        secret_id = self._started(harness)
+
+        response = self._report(harness, secret_id, state="cancelled", login=LOGIN)
+
+        assert response.status_code == 422
+        assert LOGIN["access"] not in response.text
+
+    def test_the_route_is_exempt_from_tenant_auth_and_nothing_else_is(self):
+        assert _outcome_url("att-1").startswith(_PUBLIC_ENDPOINTS)
+        assert f"/api{_outcome_url('att-1')}".startswith(_PUBLIC_ENDPOINTS)
+        secret_id = str(uuid4())
+        for path in (
+            f"/secrets/{secret_id}/login-attempts",
+            f"/secrets/{secret_id}/login-attempts/att-1",
+            f"/secrets/{secret_id}/subscription-login",
+            f"/vault/v1{_outcome_url('att-1')}",
+            "/secrets/",
+        ):
+            assert not path.startswith(_PUBLIC_ENDPOINTS), path
+
+    def test_the_outcome_route_is_the_only_route_under_the_public_prefix(self):
+        """A route added later under the public prefix would skip tenant auth silently.
+
+        Walks the real route tables of every router mounted under `/secrets/`. A template
+        can serve a path under the prefix when each of its leading segments is the prefix's
+        literal or a path parameter, which a caller can fill with that literal.
+        """
+        vault_service = VaultService(_FakeSecretsDAO())
+        routers = [
+            VaultRouter(
+                vault_service=vault_service,
+                subscription_login_service=SubscriptionLoginService(
+                    vault_service=vault_service,
+                    runner_client=_FakeRunner(),
+                ),
+            ).router,
+            ProvidersRouter(
+                provider_probe_service=ProviderProbeService(),
+                vault_service=vault_service,
+            ).router,
+        ]
+        prefixes = {
+            entry.removeprefix("/api")
+            for entry in _PUBLIC_ENDPOINTS
+            if entry.removeprefix("/api").startswith("/secrets/")
+        }
+        assert prefixes == {_OUTCOME_PREFIX}
+
+        def can_serve(template: str, prefix: str) -> bool:
+            wanted = prefix.strip("/").split("/")
+            segments = template.strip("/").split("/")
+            return len(segments) >= len(wanted) and all(
+                segment == literal or segment.startswith("{")
+                for segment, literal in zip(segments, wanted)
+            )
+
+        public = sorted(
+            (route.path, tuple(sorted(route.methods)))
+            for router in routers
+            for route in router.routes
+            if any(can_serve(route.path, prefix) for prefix in prefixes)
+        )
+
+        assert public == [
+            ("/secrets/subscription-login/attempts/{attempt_id}/outcome", ("POST",))
+        ]
+
+    def test_a_caller_without_the_token_gets_401_before_any_body_check(self, harness):
+        response = harness.client.post(
+            _outcome_url("att-1"), json={"state": "not-a-state"}
+        )
+
+        assert response.status_code == 401
+        assert "project_id" not in response.text
 
 
 class TestRunnerFacingRoutes:
@@ -882,9 +1088,17 @@ def _sign_in(harness):
     attempt_id = started.json()["attempt_id"]
 
     login = _device_login()
-    harness.runner.next_attempt = RunnerLoginAttempt(
-        attempt_id=attempt_id, state="succeeded", login=login
+    reported = harness.client.post(
+        _outcome_url(attempt_id),
+        headers=RUNNER_HEADERS,
+        json={
+            "project_id": PROJECT_ID,
+            "secret_id": secret_id,
+            "state": "succeeded",
+            "login": login,
+        },
     )
+    assert reported.status_code == 204, reported.text
     finished = harness.client.get(f"/secrets/{secret_id}/login-attempts/{attempt_id}")
     assert finished.status_code == 200, finished.text
     assert finished.json()["state"] == "succeeded"
@@ -923,16 +1137,7 @@ class TestTheWholeLifecycle:
         assert started.json()["state"] == "pending"
         assert user_code
 
-        # 3. The user is still at the provider. The runner is scripted to answer with the
-        # credential early, so "no login material here" is a refusal, not an empty runner.
-        login = _device_login()
-        harness.runner.next_attempt = RunnerLoginAttempt(
-            attempt_id=attempt_id,
-            state="pending",
-            user_code=user_code,
-            expires_at=_later(),
-            login=login,
-        )
+        # 3. The user is still at the provider, so the poll answers from the record alone.
         pending = harness.client.get(
             f"/secrets/{secret_id}/login-attempts/{attempt_id}"
         )
@@ -940,26 +1145,38 @@ class TestTheWholeLifecycle:
         assert pending.status_code == 200, pending.text
         assert pending.json()["state"] == "pending"
         assert pending.json()["user_code"] == user_code
-        assert "login" not in pending.json()
-        assert login["access"] not in pending.text
-        assert login["refresh"] not in pending.text
 
         # ... and the row took nothing from an attempt that has not finished.
         waiting = harness.client.get(f"/secrets/{secret_id}").json()
         assert waiting["data"]["login_state"] == "pending_login"
         assert waiting["data"]["login_version"] == 0
 
-        # 4. The next poll finds it done, and the login lands on the row.
-        harness.runner.next_attempt = RunnerLoginAttempt(
-            attempt_id=attempt_id, state="succeeded", login=login
+        # 4. The runner pod reports the login, and the next poll finds it done.
+        login = _device_login()
+        reported = harness.client.post(
+            _outcome_url(attempt_id),
+            headers=RUNNER_HEADERS,
+            json={
+                "project_id": PROJECT_ID,
+                "secret_id": secret_id,
+                "state": "succeeded",
+                "login": login,
+            },
         )
+        assert reported.status_code == 204, reported.text
+        assert login["access"] not in reported.text
+
         finished = harness.client.get(
             f"/secrets/{secret_id}/login-attempts/{attempt_id}"
         )
 
         assert finished.status_code == 200, finished.text
         assert finished.json()["state"] == "succeeded"
-        assert harness.runner.deleted == [attempt_id]
+        assert "login" not in finished.json()
+        assert login["access"] not in finished.text
+        assert login["refresh"] not in finished.text
+        # The pod dropped the login once its report landed; nothing is sent back to it.
+        assert harness.runner.deleted == []
 
         # 5. What the browser may see of a connection that now holds a credential.
         read_back = harness.client.get(f"/secrets/{secret_id}")

@@ -82,8 +82,9 @@ export const ChatScreen = ({
     // invocation target, as on the desktop.
     const [pinnedRevisionId, pinRevision] = useAtom(selectedRevisionAtomFamily(sessionId))
     const entityId = pinnedRevisionId ?? latestEntityId
-    // An open session never moves to a newer version by itself (the top bar offers it instead),
-    // so a session starts pinned to the server's latest at the moment it opens.
+    // A session starts pinned to the server's latest at the moment it opens. After that it moves
+    // only to a version the agent commits in this session (`LiveConversation` follows it); a
+    // version made elsewhere is offered by the top bar instead.
     const hasAgent = Boolean(latestEntityId)
     useEffect(() => {
         if (pinnedRevisionId || !hasAgent) return

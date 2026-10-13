@@ -12,10 +12,10 @@ import {getSettingsSidebarTabs} from "@agenta/settings"
 import {
     ChatsCircleIcon,
     GearIcon,
+    GraduationCapIcon,
     HouseIcon,
     LightningIcon,
     PlusIcon,
-    PuzzlePieceIcon,
     RobotIcon,
     SquaresFourIcon,
 } from "@phosphor-icons/react"
@@ -104,7 +104,7 @@ export const useCommandPaletteGroups = (
             {
                 key: "skills",
                 label: "Skills",
-                icon: icon(PuzzlePieceIcon),
+                icon: icon(GraduationCapIcon),
                 href: `${projectURL}/skills`,
             },
             {

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import {act, renderHook} from "@testing-library/react"
+import {act, renderHook, waitFor} from "@testing-library/react"
 import type {UIMessage} from "ai"
 import {describe, expect, it, vi} from "vitest"
 
@@ -7,6 +7,7 @@ import {
     useAgentChatQueue,
     type QueuedMessage,
     type ServerQueueAdapter,
+    type ServerQueueWriteResult,
 } from "../../../src/hooks/useAgentChatQueue"
 
 // The pure predicates (`isHitlPending`, `approvalContinuationSettled`) are unit-tested in the
@@ -93,7 +94,8 @@ const durableServer = (
                 return Promise.resolve(admission)
             },
         ),
-        remove: vi.fn().mockResolvedValue(undefined),
+        viewSeq: 0,
+        remove: vi.fn().mockResolvedValue({outcome: "applied", settledSeq: 0}),
     }
     return {server, watchers}
 }
@@ -131,6 +133,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockResolvedValue(undefined),
             remove: vi.fn().mockResolvedValue(undefined),
         }
@@ -166,6 +169,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockResolvedValue(undefined),
             remove: vi.fn().mockResolvedValue(undefined),
         }
@@ -199,6 +203,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockResolvedValue(undefined),
             remove: vi.fn().mockResolvedValue(undefined),
         }
@@ -230,6 +235,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockResolvedValue(undefined),
             remove: vi.fn().mockResolvedValue(undefined),
         }
@@ -250,6 +256,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockRejectedValue(new Error("admission unavailable")),
             remove: vi.fn().mockResolvedValue(undefined),
         }
@@ -272,6 +279,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockRejectedValue(new Error("not ready")),
             remove: vi.fn().mockResolvedValue(undefined),
         }
@@ -294,6 +302,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn(async (message, _policy, watcher) => {
                 if (message.text === "refused") watcher?.onFailed?.()
                 else watcher?.onAccepted?.("exec-1")
@@ -338,6 +347,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockRejectedValue(new Error("steer refused")),
             remove: vi.fn().mockResolvedValue(undefined),
         }
@@ -363,7 +373,7 @@ describe("useAgentChatQueue", () => {
         expect(server.submit).not.toHaveBeenCalled()
     })
 
-    it("renders and removes server rows", () => {
+    it("hides a removed row at once and keeps it hidden until a later read drops it", async () => {
         const durable = {
             id: "input-1",
             text: "shared",
@@ -373,18 +383,102 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [durable],
+            viewSeq: 1,
             submit: vi.fn().mockResolvedValue(undefined),
-            remove: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue({outcome: "applied", settledSeq: 1}),
         }
-        const {result} = setup({...settledEmpty, server})
+        const {result, rerender} = setup({...settledEmpty, server})
 
         expect(result.current.queued).toEqual([durable])
         act(() => result.current.removeQueued("not-held"))
         expect(server.remove).not.toHaveBeenCalled()
 
-        act(() => result.current.removeQueued("input-1"))
+        await act(async () => result.current.removeQueued("input-1"))
         expect(server.remove).toHaveBeenCalledWith("input-1")
+        expect(result.current.queued).toEqual([])
+        // A read that began before the removal still lists the row; it stays hidden.
+        rerender({...settledEmpty, server: {...server, viewSeq: 1}})
+        expect(result.current.queued).toEqual([])
+        rerender({...settledEmpty, server: {...server, queued: [], viewSeq: 2}})
+        expect(result.current.queued).toEqual([])
         expect(server.submit).not.toHaveBeenCalled()
+    })
+
+    it.each([
+        ["failed", "Couldn't remove this message. Try again."],
+        ["conflict", "This message is about to run and can't be removed."],
+    ] as const)("puts a row whose removal was %s back, with its error", async (outcome, error) => {
+        const server: ServerQueueAdapter = {
+            busy: true,
+            queued: [{id: "input-1", text: "shared", source: "server"}],
+            viewSeq: 1,
+            submit: vi.fn(),
+            remove: vi.fn().mockResolvedValue({outcome, settledSeq: 1}),
+        }
+        const {result} = setup({...settledEmpty, server})
+        act(() => result.current.removeQueued("input-1"))
+        await waitFor(() =>
+            expect(result.current.queued).toEqual([
+                expect.objectContaining({id: "input-1", text: "shared", error}),
+            ]),
+        )
+    })
+
+    it("removes a just-sent row once the server names the input it became", async () => {
+        const {server, watchers} = durableServer("queued")
+        const busy = {...server, busy: true}
+        const {result} = setup({...settledEmpty, server: busy})
+        await act(async () => {
+            await result.current.submit({text: "never mind"})
+        })
+        const [row] = result.current.queued
+        expect(row).toMatchObject({text: "never mind", source: "local", removable: true})
+
+        act(() => result.current.removeQueued(row.id))
+        expect(result.current.queued).toEqual([])
+        expect(busy.remove).not.toHaveBeenCalled()
+
+        act(() => watchers[0].onParked?.("input-9"))
+        expect(busy.remove).toHaveBeenCalledWith("input-9")
+        expect(result.current.queued).toEqual([])
+        expect(result.current.pendingSendRows).toEqual([])
+    })
+
+    it("moves a Send Now row into the transcript at once, and back with an error on failure", async () => {
+        let finish!: (result: {
+            outcome: "applied" | "failed"
+            settledSeq: number
+            executionId: string | null
+        }) => void
+        const server: ServerQueueAdapter = {
+            busy: true,
+            queued: [{id: "input-1", text: "do this first", source: "server"}],
+            viewSeq: 1,
+            submit: vi.fn(),
+            remove: vi.fn(),
+            sendNow: vi.fn(
+                () =>
+                    new Promise<ServerQueueWriteResult & {executionId: string | null}>(
+                        (resolve) => (finish = resolve),
+                    ),
+            ),
+        }
+        const {result} = setup({...settledEmpty, server})
+        act(() => result.current.sendQueuedNow?.("input-1"))
+        expect(server.sendNow).toHaveBeenCalledWith("input-1")
+        expect(result.current.queued).toEqual([])
+        expect(echoText(result)).toEqual(["do this first"])
+
+        act(() => finish({outcome: "failed", settledSeq: 1, executionId: null}))
+        await waitFor(() =>
+            expect(result.current.queued).toEqual([
+                expect.objectContaining({
+                    id: "input-1",
+                    error: "Couldn't send this message now. Try again.",
+                }),
+            ]),
+        )
+        expect(echoText(result)).toEqual([])
     })
 
     it("reports hitlPending while a HITL approval is pending, and still admits through the server", async () => {
@@ -438,6 +532,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [{id: "one", text: "one", source: "server"}],
+            viewSeq: 0,
             submit: vi.fn(),
             remove: vi.fn(),
             edit: vi.fn(),
@@ -461,9 +556,10 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [{id: "one", text: "one", source: "server"}],
+            viewSeq: 0,
             submit: vi.fn(),
             remove: vi.fn(),
-            edit: vi.fn().mockResolvedValue(undefined),
+            edit: vi.fn().mockResolvedValue({outcome: "applied", settledSeq: 0}),
         }
         const {result} = setup({...settledEmpty, server})
         act(() => {
@@ -514,6 +610,7 @@ describe("useAgentChatQueue", () => {
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
+            viewSeq: 0,
             submit: vi.fn().mockRejectedValue(new Error("unavailable")),
             remove: vi.fn(),
             edit: vi.fn(),
@@ -535,105 +632,381 @@ describe("useAgentChatQueue", () => {
     })
 })
 
+describe("Send Now over a stop that is still pending", () => {
+    it("says another message goes first when the server refuses a second Send Now", async () => {
+        const server: ServerQueueAdapter = {
+            busy: true,
+            queued: [{id: "input-2", text: "second", source: "server"}],
+            viewSeq: 1,
+            submit: vi.fn(),
+            remove: vi.fn(),
+            sendNow: vi.fn().mockResolvedValue({outcome: "busy", settledSeq: 1, executionId: null}),
+        }
+        const {result} = setup({...settledEmpty, server})
+        act(() => result.current.sendQueuedNow?.("input-2"))
+        await waitFor(() =>
+            expect(result.current.queued).toEqual([
+                expect.objectContaining({
+                    id: "input-2",
+                    error: "Another message is being sent first. Try again once it starts.",
+                }),
+            ]),
+        )
+    })
+
+    it("reports a pending Send Now until the server stops listing it, from any tab", async () => {
+        const server: ServerQueueAdapter = {
+            busy: true,
+            queued: [
+                {id: "input-1", text: "first", source: "server"},
+                {id: "input-2", text: "second", source: "server"},
+            ],
+            viewSeq: 1,
+            submit: vi.fn(),
+            remove: vi.fn(),
+            sendNow: vi
+                .fn()
+                .mockResolvedValue({outcome: "applied", settledSeq: 1, executionId: null}),
+        }
+        const {result, rerender} = setup({...settledEmpty, server})
+        expect(result.current.sendNowPending).toBe(false)
+        act(() => result.current.sendQueuedNow?.("input-1"))
+        expect(result.current.sendNowPending).toBe(true)
+        // The server re-lists it as the steer the stop carries: still hidden, still pending.
+        const steered = {
+            ...server,
+            queued: [{...server.queued[0], policy: "steer" as const}, server.queued[1]],
+            viewSeq: 3,
+        }
+        rerender({...settledEmpty, server: steered})
+        expect(result.current.queued.map((row) => row.id)).toEqual(["input-2"])
+        expect(result.current.sendNowPending).toBe(true)
+        rerender({...settledEmpty, server: {...server, queued: [server.queued[1]], viewSeq: 4}})
+        await waitFor(() => expect(result.current.sendNowPending).toBe(false))
+    })
+})
+
+describe("a steer the transcript took over", () => {
+    it("stays out of the dock until the fresh read lands, and comes back if it is still listed", async () => {
+        const {server, watchers} = durableServer("queued")
+        let landRead!: (seq: number) => void
+        const refresh = vi.fn(() => new Promise<number | null>((resolve) => (landRead = resolve)))
+        const busy = {...server, busy: true, refresh}
+        const {result, rerender} = setup({...settledEmpty, server: busy})
+        await act(async () => {
+            await result.current.steer({text: "skip that"})
+        })
+        act(() => watchers[0].onParked?.("input-1"))
+        const row: QueuedMessage = {
+            id: "input-1",
+            text: "skip that",
+            source: "server",
+            policy: "steer",
+        }
+        const listing = {...busy, queued: [row], viewSeq: 1}
+        rerender({...settledEmpty, server: listing})
+        expect(result.current.queued).toEqual([])
+        // Its saved row lands while the snapshot is a poll behind: one fresh read, still hidden.
+        rerender({...settledEmpty, messages: [userTurn("u1", "skip that")], server: listing})
+        expect(refresh).toHaveBeenCalledTimes(1)
+        expect(result.current.queued).toEqual([])
+        await act(async () => landRead(3))
+        // That read still lists it: the turn never consumed it, so it is back and removable.
+        rerender({
+            ...settledEmpty,
+            messages: [userTurn("u1", "skip that")],
+            server: {...listing, queued: [row], viewSeq: 3},
+        })
+        await waitFor(() =>
+            expect(result.current.queued.map((item) => item.id)).toEqual(["input-1"]),
+        )
+    })
+})
+
+describe("a queued input that starts on its own", () => {
+    it("is not shown in the dock once the listing drops it", () => {
+        const row: QueuedMessage = {id: "input-1", text: "next", source: "server"}
+        const server = (queued: QueuedMessage[], viewSeq: number): ServerQueueAdapter => ({
+            busy: true,
+            queued,
+            viewSeq,
+            submit: vi.fn(),
+            remove: vi.fn(),
+        })
+        const listing = server([row], 1)
+        const {result, rerender} = setup({...settledEmpty, server: listing})
+        rerender({...settledEmpty, messages: [userTurn("u1", "next")], server: listing})
+        rerender({...settledEmpty, messages: [userTurn("u1", "next")], server: server([], 2)})
+        expect(result.current.queued).toEqual([])
+    })
+})
+
+describe("a promoted queued input the listing drops", () => {
+    const promoted: QueuedMessage = {
+        id: "input-1",
+        text: "next",
+        source: "server",
+        promotedExecutionId: "turn-2",
+    }
+    const saved = {...userTurn("u2", "next"), metadata: {turnId: "turn-2"}} as UIMessage
+    const server = (queued: QueuedMessage[], viewSeq: number): ServerQueueAdapter => ({
+        busy: true,
+        queued,
+        viewSeq,
+        submit: vi.fn(),
+        remove: vi.fn(),
+    })
+
+    it("stays in the dock, button-less, until its own turn's user row lands", () => {
+        const {result, rerender} = setup({...settledEmpty, server: server([promoted], 1)})
+        rerender({...settledEmpty, server: server([], 2)})
+        expect(result.current.queued).toEqual([
+            expect.objectContaining({id: "input-1", source: "local", editable: false}),
+        ])
+        rerender({...settledEmpty, messages: [saved], server: server([], 2)})
+        expect(result.current.queued).toEqual([])
+    })
+
+    it("is never shown again once its user row has landed", () => {
+        const {result, rerender} = setup({...settledEmpty, server: server([promoted], 1)})
+        rerender({...settledEmpty, messages: [saved], server: server([promoted], 1)})
+        rerender({...settledEmpty, messages: [saved], server: server([], 2)})
+        expect(result.current.queued).toEqual([])
+    })
+
+    it("lets go after the time limit when the user row never lands", () => {
+        vi.useFakeTimers()
+        try {
+            const {result, rerender} = setup({...settledEmpty, server: server([promoted], 1)})
+            rerender({...settledEmpty, server: server([], 2)})
+            expect(result.current.queued).toHaveLength(1)
+            act(() => void vi.advanceTimersByTime(2_000))
+            expect(result.current.queued).toEqual([])
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("does not hold a steer, which its echo already shows", () => {
+        const steer = {...promoted, policy: "steer" as const}
+        const {result, rerender} = setup({...settledEmpty, server: server([steer], 1)})
+        rerender({...settledEmpty, server: server([], 2)})
+        expect(result.current.queued).toEqual([])
+    })
+})
+
+describe("promoted inputs", () => {
+    it("leaves the dock once the transcript holds the turn it started", () => {
+        const promoted: QueuedMessage = {
+            id: "input-1",
+            text: "skip that, say ok",
+            source: "server",
+            policy: "steer",
+            removable: false,
+            promotedExecutionId: "turn-2",
+        }
+        const server: ServerQueueAdapter = {
+            busy: true,
+            queued: [promoted],
+            viewSeq: 1,
+            submit: vi.fn(),
+            remove: vi.fn(),
+        }
+        const {result, rerender} = setup({...settledEmpty, server})
+        // Starting but not yet saved: a recoverable promotion must stay visible.
+        expect(result.current.queued.map((row) => row.id)).toEqual(["input-1"])
+        const saved = {
+            ...userTurn("u2", "skip that, say ok"),
+            metadata: {turnId: "turn-2"},
+        } as UIMessage
+        rerender({...settledEmpty, messages: [saved], server})
+        expect(result.current.queued).toEqual([])
+    })
+})
+
 describe("durable queued edits", () => {
-    it("keeps the edit and draft until same-row persistence succeeds, including a retry", async () => {
-        const edit = vi
-            .fn()
-            .mockRejectedValueOnce(new Error("conflict"))
-            .mockResolvedValueOnce(undefined)
+    it("shows the new text and closes at once; a failure keeps the edit on the row", async () => {
+        let finish!: (result: {outcome: "applied" | "failed"; settledSeq: number}) => void
+        const edit = vi.fn(
+            () => new Promise<ServerQueueWriteResult>((resolve) => (finish = resolve)),
+        )
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [
                 {id: "first", text: "first", source: "server"},
                 {id: "selected", text: "old", source: "server"},
             ],
+            viewSeq: 1,
             submit: vi.fn(),
             remove: vi.fn(),
             edit,
         }
         const {result} = setup({...settledEmpty, server})
         act(() => result.current.beginEdit("selected", "original draft"))
-        await act(async () => {
-            await expect(result.current.commitEdit({text: "new"})).rejects.toThrow("conflict")
-        })
-        expect(result.current.editingId).toBe("selected")
-        expect(result.current.queued.map((row) => row.id)).toEqual(["first", "selected"])
         let restored: string | undefined
         await act(async () => {
             restored = await result.current.commitEdit({text: "new"})
         })
         expect(restored).toBe("original draft")
         expect(result.current.editingId).toBeNull()
-        expect(edit).toHaveBeenNthCalledWith(2, "selected", {text: "new"})
+        expect(result.current.queued.map((row) => row.text)).toEqual(["first", "new"])
+
+        act(() => finish({outcome: "failed", settledSeq: 1}))
+        await waitFor(() =>
+            expect(result.current.queued[1]).toMatchObject({
+                text: "old",
+                error: "Your edit wasn't saved. Edit to try again.",
+                unsavedEdit: {text: "new"},
+            }),
+        )
         expect(server.submit).not.toHaveBeenCalled()
         expect(server.remove).not.toHaveBeenCalled()
+
+        // Editing again clears the error and retries the same row.
+        act(() => result.current.beginEdit("selected"))
+        expect(result.current.queued[1].error).toBeUndefined()
+        await act(async () => {
+            await result.current.commitEdit({text: "new"})
+        })
+        expect(edit).toHaveBeenNthCalledWith(2, "selected", {text: "new"})
     })
 
-    it("does not submit a new message if the durable row leaves the queue during editing", async () => {
+    it("keeps a row neither sendable nor editable while its edit saves, then sends the new text", async () => {
+        let finish!: (result: ServerQueueWriteResult) => void
         const server: ServerQueueAdapter = {
             busy: true,
             queued: [{id: "selected", text: "old", source: "server"}],
+            viewSeq: 1,
             submit: vi.fn(),
             remove: vi.fn(),
-            edit: vi.fn().mockRejectedValue(new Error("already promoted")),
+            edit: vi.fn(() => new Promise<ServerQueueWriteResult>((resolve) => (finish = resolve))),
+            sendNow: vi
+                .fn()
+                .mockResolvedValue({outcome: "applied", settledSeq: 2, executionId: null}),
+        }
+        const {result} = setup({...settledEmpty, server})
+        act(() => result.current.beginEdit("selected"))
+        await act(async () => {
+            await result.current.commitEdit({text: "new"})
+        })
+        expect(result.current.queued[0]).toMatchObject({text: "new", editable: false, saving: true})
+
+        act(() => result.current.sendQueuedNow?.("selected"))
+        act(() => result.current.beginEdit("selected"))
+        expect(server.sendNow).not.toHaveBeenCalled()
+        expect(result.current.editingId).toBeNull()
+
+        act(() => finish({outcome: "applied", settledSeq: 1}))
+        await waitFor(() => expect(result.current.queued[0].saving).toBeUndefined())
+        act(() => result.current.sendQueuedNow?.("selected"))
+        expect(server.sendNow).toHaveBeenCalledWith("selected")
+        expect(result.current.pendingSendRows.map((row) => row.parts)).toEqual([
+            [{type: "text", text: "new"}],
+        ])
+    })
+
+    it("ignores Remove while the row's edit saves, so a failed edit keeps its text", async () => {
+        let finish!: (result: ServerQueueWriteResult) => void
+        const server: ServerQueueAdapter = {
+            busy: true,
+            queued: [{id: "selected", text: "old", source: "server"}],
+            viewSeq: 1,
+            submit: vi.fn(),
+            remove: vi.fn(),
+            edit: vi.fn(() => new Promise<ServerQueueWriteResult>((resolve) => (finish = resolve))),
+        }
+        const {result} = setup({...settledEmpty, server})
+        act(() => result.current.beginEdit("selected"))
+        await act(async () => {
+            await result.current.commitEdit({text: "new"})
+        })
+        act(() => result.current.removeQueued("selected"))
+        expect(server.remove).not.toHaveBeenCalled()
+
+        await act(async () => finish({outcome: "failed", settledSeq: 1}))
+        expect(result.current.queued[0]).toMatchObject({
+            text: "old",
+            unsavedEdit: {text: "new"},
+        })
+    })
+
+    it("keeps the edit as a flagged row when the queued row left before it saved", async () => {
+        const server: ServerQueueAdapter = {
+            busy: true,
+            queued: [{id: "selected", text: "old", source: "server"}],
+            viewSeq: 1,
+            submit: vi.fn(),
+            remove: vi.fn(),
+            edit: vi.fn().mockResolvedValue({outcome: "conflict", settledSeq: 1}),
         }
         const {result, rerender} = setup({...settledEmpty, server})
         act(() => result.current.beginEdit("selected", "draft"))
         rerender({...settledEmpty, server: {...server, queued: []}})
-        await act(async () => {
-            await expect(result.current.commitEdit({text: "new"})).rejects.toThrow(
-                "already promoted",
-            )
-        })
-        expect(result.current.editingId).toBe("selected")
-        expect(server.submit).not.toHaveBeenCalled()
         let restored = ""
-        act(() => {
-            restored = result.current.cancelEdit()
+        await act(async () => {
+            restored = await result.current.commitEdit({text: "new"})
         })
         expect(restored).toBe("draft")
+        // Never a second send: the text waits where the user can see and resend it.
+        expect(server.submit).not.toHaveBeenCalled()
+        await waitFor(() => expect(echoText(result)).toEqual(["new"]))
     })
 
-    it("retains observed server ownership after a failed edit and a later missing snapshot row", async () => {
+    it("keeps a refused edit on a row that is still queued, never in the composer", async () => {
+        const restoreRefusedSend = vi.fn().mockResolvedValue(true)
         const server: ServerQueueAdapter = {
             busy: true,
-            queued: [],
+            queued: [{id: "selected", text: "old", source: "server"}],
+            viewSeq: 1,
             submit: vi.fn(),
             remove: vi.fn(),
-            edit: vi
-                .fn()
-                .mockRejectedValueOnce(new Error("retry"))
-                .mockRejectedValueOnce(new Error("promoted")),
+            edit: vi.fn().mockResolvedValue({outcome: "conflict", settledSeq: 1}),
         }
-        const {result, rerender} = setup({...settledEmpty, server})
-        // The session opens before the snapshot lists the row.
-        act(() => result.current.beginEdit("input-1", "draft"))
-        rerender({...settledEmpty, server: {...server, queued: [{id: "input-1", text: "old"}]}})
+        const {result} = setup({...settledEmpty, server, restoreRefusedSend})
+        act(() => result.current.beginEdit("selected"))
         await act(async () => {
-            await expect(result.current.commitEdit({text: "corrected"})).rejects.toThrow("retry")
+            await result.current.commitEdit({text: "new"})
         })
-        rerender({...settledEmpty, server: {...server, queued: []}})
+        await waitFor(() =>
+            expect(result.current.queued[0]).toMatchObject({
+                text: "old",
+                error: "This message is about to run and can't be edited.",
+                unsavedEdit: {text: "new"},
+            }),
+        )
+        expect(restoreRefusedSend).not.toHaveBeenCalled()
+        expect(echoText(result)).toEqual([])
+    })
+
+    it("hands a refused edit to the composer once its row is gone", async () => {
+        const restoreRefusedSend = vi.fn().mockResolvedValue(true)
+        const server: ServerQueueAdapter = {
+            busy: true,
+            queued: [{id: "selected", text: "old", source: "server"}],
+            viewSeq: 1,
+            submit: vi.fn(),
+            remove: vi.fn(),
+            edit: vi.fn().mockResolvedValue({outcome: "not_found", settledSeq: 1}),
+        }
+        const {result, rerender} = setup({...settledEmpty, server, restoreRefusedSend})
+        act(() => result.current.beginEdit("selected"))
+        rerender({...settledEmpty, server: {...server, queued: []}, restoreRefusedSend})
         await act(async () => {
-            await expect(result.current.commitEdit({text: "corrected"})).rejects.toThrow("promoted")
+            await result.current.commitEdit({text: "new"})
         })
-        expect(server.edit).toHaveBeenCalledTimes(2)
-        expect(server.submit).not.toHaveBeenCalled()
-        expect(result.current.queued).toEqual([])
-        expect(result.current.editingId).toBe("input-1")
+        await waitFor(() =>
+            expect(restoreRefusedSend).toHaveBeenCalledWith(expect.objectContaining({text: "new"})),
+        )
+        expect(echoText(result)).toEqual([])
     })
 })
 
 it.each([false, true])(
     "does not overwrite a newer edit when an older save settles (failure=%s)",
     async (failure) => {
-        let resolve!: () => void
-        let reject!: (error: Error) => void
+        let finish!: (result: {outcome: "applied" | "failed"; settledSeq: number}) => void
         const edit = vi.fn(
-            () =>
-                new Promise<void>((yes, no) => {
-                    resolve = yes
-                    reject = no
-                }),
+            () => new Promise<ServerQueueWriteResult>((resolve) => (finish = resolve)),
         )
         const server: ServerQueueAdapter = {
             busy: true,
@@ -641,22 +1014,21 @@ it.each([false, true])(
                 {id: "first", text: "old", source: "server"},
                 {id: "second", text: "other", source: "server"},
             ],
+            viewSeq: 1,
             submit: vi.fn(),
             remove: vi.fn(),
             edit,
         }
         const {result} = setup({...settledEmpty, server})
         act(() => result.current.beginEdit("first", "original draft"))
-        let saving!: string | Promise<string>
+        let saving!: Promise<string>
         act(() => {
             saving = result.current.commitEdit({text: "changed"})
         })
+        expect(await saving).toBe("original draft")
         act(() => result.current.beginEdit("second", "new draft"))
-        await act(async () => {
-            if (failure) reject(new Error("old failure"))
-            else resolve()
-            expect(await saving).toBe("")
-        })
+        await act(async () => finish({outcome: failure ? "failed" : "applied", settledSeq: 1}))
+        await waitFor(() => expect(edit).toHaveBeenCalledOnce())
         expect(result.current.editingId).toBe("second")
         let restored = ""
         act(() => {

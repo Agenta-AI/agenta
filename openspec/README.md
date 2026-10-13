@@ -1,5 +1,11 @@
 # Repository specifications
 
+## Channel inbound media
+
+[Proposal](changes/channel-inbound-media/proposal.md), [behavior specification](changes/channel-inbound-media/specs/channel-inbound-media/spec.md), and [tasks](changes/channel-inbound-media/tasks.md).
+
+Inbound files reach the agent as session attachments on Slack, Telegram (custom and hosted bot), and WhatsApp, reusing the WhatsApp media path. WhatsApp adds voice notes and video; only stickers, locations, and contact cards keep the fixed reply. Adapters store only the platform's file id and resolve the download at fetch time with the channel's own credentials. Downstream delivery is unchanged: native images are inlined into the model prompt where supported, everything else lands as a file in the session working directory; understanding a file's content is the harness's responsibility.
+
 ## Railway preview cost controls
 
 [Proposal](changes/railway-preview-cost-controls/proposal.md), [behavior specifications](changes/railway-preview-cost-controls/specs/railway-preview-lifecycle/spec.md), [PR comment command](changes/railway-preview-cost-controls/specs/railway-preview-comments/spec.md), [design](changes/railway-preview-cost-controls/design.md), and [tasks](changes/railway-preview-cost-controls/tasks.md).

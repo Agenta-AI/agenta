@@ -1,0 +1,39 @@
+---
+// One template media item (image, YouTube embed or video) in a figure with its caption.
+import type { RenderableMedia } from "../lib/marketplace";
+
+interface Props {
+  item: RenderableMedia;
+  class?: string;
+  /** Defer loading; off for the hero, which is on screen at load. */
+  lazy?: boolean;
+}
+const { item, class: className, lazy = false } = Astro.props;
+---
+
+<figure class:list={["ag-tpl-media", className]}>
+  {
+    item.kind === "image" && (
+      <img src={item.url} alt={item.alt} loading={lazy ? "lazy" : undefined} decoding="async" />
+    )
+  }
+  {
+    item.kind === "youtube" && (
+      <iframe
+        src={item.embedUrl}
+        title={item.alt}
+        loading="lazy"
+        allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen
+      />
+    )
+  }
+  {
+    item.kind === "video" && (
+      <video controls preload="metadata" poster={item.posterUrl} aria-label={item.alt}>
+        <source src={item.url} />
+      </video>
+    )
+  }
+  {item.caption && <figcaption>{item.caption}</figcaption>}
+</figure>

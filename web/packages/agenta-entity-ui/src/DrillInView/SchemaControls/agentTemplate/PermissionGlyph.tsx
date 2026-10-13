@@ -24,6 +24,7 @@ const GLYPHS = {
     always_ask: Bell,
     ask: Bell,
     ask_writes: PencilSimpleLine,
+    allow_reads: PencilSimpleLine,
     // The robot, not the pencil the "ask for write and delete" preset carries. The two shared it
     // while the preset's saved value WAS the absence of a policy; decision 45 gave the preset a
     // shape of its own, so "the agent decides" and "reads run, writes ask" are now two answers and

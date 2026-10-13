@@ -18,7 +18,3 @@ export const runIdFor = (
     }
     return undefined
 }
-
-/** Whether the turn at `index` is the session's first response, the one that boots the agent. */
-export const isFirstResponse = (turns: {isUser: boolean}[], index: number): boolean =>
-    !turns.slice(0, Math.min(index, turns.length)).some((turn) => !turn.isUser)

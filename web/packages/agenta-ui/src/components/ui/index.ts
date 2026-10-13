@@ -36,6 +36,7 @@ export {
     type SelectTriggerProps,
 } from "./select"
 export {Popover, PopoverTrigger, PopoverAnchor, PopoverContent} from "./popover"
+export {HoverCard, HoverCardContent, HoverCardTrigger} from "./hover-card"
 export {
     Tooltip,
     TooltipTrigger,
@@ -44,6 +45,7 @@ export {
     type TooltipShortcut,
 } from "./tooltip"
 export {Kbd, KbdGroup, kbdVariants, type KbdProps} from "./kbd"
+export {CarouselDots, type CarouselDotsProps} from "./carousel-dots"
 export {SimpleTooltip, type SimpleTooltipProps} from "./tooltip-composed"
 export {RadioGroup, RadioGroupItem, type RadioGroupProps} from "./radio-group"
 export {
@@ -245,8 +247,11 @@ export {
 } from "./touch-target"
 export {cn} from "./utils"
 export {
-    DataTable,
-    type DataTableProps,
-    type DataTableColumn,
-    type DataTableAction,
-} from "./data-table"
+    ChartContainer,
+    ChartTooltip,
+    ChartTooltipContent,
+    ChartLegend,
+    ChartLegendContent,
+    ChartStyle,
+    type ChartConfig,
+} from "./chart"

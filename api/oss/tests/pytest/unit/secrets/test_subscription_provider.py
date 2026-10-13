@@ -6,9 +6,11 @@ cover both halves against the real DTOs, the real redaction, and the real postgr
 mappings.
 """
 
+import json
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
@@ -19,6 +21,7 @@ from oss.src.core.secrets.dtos import (
 )
 from oss.src.core.secrets.enums import (
     SUBSCRIPTION_PROVIDER_MODELS,
+    SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS,
     SecretKind,
     SubscriptionLoginState,
     SubscriptionProviderKind,
@@ -67,20 +70,26 @@ def _response(data: dict, *, write_only: bool = True) -> SecretResponseDTO:
 
 
 class TestDefaultsAndValidation:
-    def test_an_empty_payload_takes_the_provider_defaults(self):
+    def test_an_empty_payload_stores_no_lists_and_reads_the_provider_defaults(self):
         data = _create().secret.data
 
         assert isinstance(data, SubscriptionProviderDTO)
         assert data.provider == SubscriptionProviderKind.CHATGPT
-        assert data.harnesses == ["pi_core"]
-        assert (
-            data.models
-            == SUBSCRIPTION_PROVIDER_MODELS[SubscriptionProviderKind.CHATGPT]
-        )
+        # The row keeps None so the connection follows whatever the defaults become;
+        # concrete lists appear only on the read.
+        assert data.harnesses is None
+        assert data.models is None
         assert data.login is None
         assert data.login_version == 0
         assert data.login_generation == 0
         assert data.login_state == SubscriptionLoginState.PENDING_LOGIN
+
+        read = _response(data.model_dump()).data
+        assert read.harnesses == ["pi_core"]
+        assert (
+            read.models
+            == SUBSCRIPTION_PROVIDER_MODELS[SubscriptionProviderKind.CHATGPT]
+        )
 
     def test_an_explicit_empty_model_list_is_kept(self):
         data = _create({"models": []}).secret.data
@@ -100,6 +109,21 @@ class TestDefaultsAndValidation:
                 }
             )
 
+    @pytest.mark.parametrize(
+        "data",
+        [
+            {"models": [{"id": "gpt-6.1-sol"}]},
+            {"models": 5},
+            {"models": "gpt-6.1-sol"},
+            {"harnesses": [{"id": "pi_core"}]},
+            {"harnesses": 5},
+        ],
+    )
+    def test_a_malformed_list_is_a_validation_error(self, data):
+        # A ValidationError becomes a 422; a TypeError from hashing the list was a 500.
+        with pytest.raises(ValidationError):
+            _create(data)
+
     def test_the_slug_is_derived_from_the_name(self):
         assert subscription_provider_slug("ChatGPT") == "chatgpt"
         assert subscription_provider_slug("My ChatGPT!") == "my-chatgpt"
@@ -108,8 +132,70 @@ class TestDefaultsAndValidation:
     def test_model_keys_are_provider_slug_over_model(self):
         secret = _response(_create().secret.data.model_dump())
 
-        assert secret.data.model_keys[0] == "chatgpt/gpt-6-astra"
+        assert secret.data.model_keys[0] == "chatgpt/gpt-6.1-sol"
         assert len(secret.data.model_keys) == len(secret.data.models)
+
+
+class TestDefaultTracking:
+    """A connection that never narrowed its lists follows the current defaults.
+
+    Rows written before the create path stopped snapshotting the defaults carry the
+    lineup of their creation day. Reads map any known snapshot onto the current
+    defaults, and writes normalize it back to None, so no data migration is needed
+    and the next catalog update reaches every un-narrowed connection.
+    """
+
+    def test_the_current_defaults_are_a_recorded_snapshot(self):
+        # Fails when SUBSCRIPTION_PROVIDER_MODELS changes without a new snapshot entry.
+        # Without one, rows created under the outgoing lineup would stay pinned to it.
+        assert (
+            frozenset(SUBSCRIPTION_PROVIDER_MODELS[SubscriptionProviderKind.CHATGPT])
+            in SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS[SubscriptionProviderKind.CHATGPT]
+        )
+
+    def test_a_historical_default_snapshot_reads_as_the_current_defaults(self):
+        for snapshot in SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS[
+            SubscriptionProviderKind.CHATGPT
+        ]:
+            read = _response({"models": sorted(snapshot)}).data
+
+            assert (
+                read.models
+                == SUBSCRIPTION_PROVIDER_MODELS[SubscriptionProviderKind.CHATGPT]
+            )
+
+    def test_a_narrowed_list_is_kept_verbatim(self):
+        read = _response({"models": ["gpt-5.5", "gpt-6-sol"]}).data
+
+        assert read.models == ["gpt-5.5", "gpt-6-sol"]
+
+    def test_a_default_filled_read_written_back_stores_no_list(self):
+        # The login writes rebuild the update payload from the stored read, which
+        # carries the resolved defaults. Writing that back must not pin them.
+        read = _response(_create().secret.data.model_dump())
+
+        update = UpdateSecretDTO.model_validate(
+            {
+                "secret": {
+                    "kind": "subscription_provider",
+                    "data": read.data.model_dump(mode="json"),
+                }
+            }
+        )
+
+        assert update.secret.data.models is None
+        assert update.secret.data.harnesses is None
+
+    def test_the_created_row_persists_neither_list(self):
+        dbe = map_secrets_dto_to_dbe(
+            project_id=uuid4(),
+            organization_id=None,
+            secret_dto=_create(),
+        )
+        stored = json.loads(dbe.data)
+
+        assert "models" not in stored
+        assert "harnesses" not in stored
 
 
 class TestRedaction:

@@ -86,6 +86,8 @@ export interface InRunnerRunFacts {
   modelEnvironment: Record<string, string>;
   /** A custom provider the run registered through models.json, and where its key is. */
   customProvider?: { providerId: string; keyEnv: string };
+  /** Who the command sandbox's running seconds are reported for; absent without a platform credential. */
+  usage?: import("../../metering/sandbox-usage.ts").SandboxUsageContext;
 }
 
 export interface InRunnerHarnessStart {
@@ -122,6 +124,7 @@ export interface InRunnerSessionHandle {
 export interface SandboxAgentDeps extends BuildRunPlanDeps {
   startSandboxAgent?: typeof SandboxAgent.start;
   inRunnerHarness?: InRunnerHarness;
+  startSandboxMeter?: typeof import("../../metering/sandbox-usage.ts").startSandboxMeter;
   createPersist?: () => InMemorySessionPersistDriver;
   createOtel?: typeof createSandboxAgentOtel;
   buildDaemonEnv?: typeof buildDaemonEnv;
@@ -158,17 +161,6 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   /** Durable read of the sandbox pointer (the latest turn's sandbox_id), for the remote
    * reconnect ladder. The write side is folded into `appendSessionTurn`. */
   readStoredSandboxPointer?: typeof readStoredSandboxPointer;
-  /**
-   * Resolve `{replicaId, ownerReplicaId}` for a session-owned local-sandbox run, so
-   * `acquireEnvironment` can fail loudly instead of silently cold-starting on a non-owner
-   * replica. The default claims the `owner` affinity key via the coordination plane and reads
-   * back the actual owner (`claimSessionOwnership`); tests inject their own. `authorization` is
-   * the run credential (the claim authenticates as the invoke caller).
-   */
-  resolveLocalRunnerOwner?: (
-    sessionId: string,
-    authorization: string,
-  ) => Promise<{ replicaId: string; ownerReplicaId: string | undefined }>;
   log?: Log;
 }
 
@@ -425,6 +417,12 @@ export interface SessionEnvironment {
   subscriptionPublisher?: import("./subscription-login/publisher.ts").SubscriptionPublisher;
   /** Gives back this session's hold on its runner-host login folder (`subscription-login/retention.ts`). */
   releaseSubscriptionHome?: () => void;
+  /**
+   * Reports this environment's Daytona sandbox seconds to the wallet, from acquire until the
+   * sandbox is parked or deleted, while one of its session's turns runs: warm time between turns
+   * is not billed (`beginMeteredTurn`).
+   */
+  sandboxMeter?: import("../../metering/sandbox-usage.ts").SandboxMeter;
   mountCreds: MountCredentials | null;
   agentMountCreds?: MountCredentials | null;
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is
@@ -502,6 +500,12 @@ export interface SessionEnvironment {
    * The multi-answer resume and the all-parkable park check read `parkedApprovals`, not this.
    */
   parkedApproval?: ParkedApproval;
+  /**
+   * The turn whose gates are parked, set when the dispatch parks the environment awaiting an
+   * approval. A Stop compares its target turn with this, so a delayed Stop for an older turn
+   * cannot end a newer parked approval.
+   */
+  parkedTurnId?: string;
   /**
    * Approved Pi calls settled with the non-retry unknown-result sentinel while a sibling gate was
    * parked. Consumed and re-seeded on the next live resume; empty outside that internal carry.

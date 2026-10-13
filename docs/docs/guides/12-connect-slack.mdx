@@ -1,0 +1,87 @@
+---
+title: "Connect an agent to Slack"
+sidebar_label: "Connect Slack"
+description: "Add an Agenta agent to your Slack workspace so your team can mention it in a channel and work with it in threads."
+---
+
+```mdx-code-block
+import { Stream } from "@cloudflare/stream-react";
+```
+
+Connect an agent to Slack, and your team can mention it in a channel or send it a direct message. The agent answers in a thread, right where your team already works.
+
+<Stream controls src="391096c48f236d79358e21ba0b16a890" height="400px" />
+
+You set this up in two places: Agenta, where you name the assistant and get its app manifest, and Slack, where you create the app from that manifest.
+
+## Before you start
+
+You need:
+
+- **An agent in Agenta** that you want your team to use in Slack.
+- **Permission to create and install apps** in your Slack workspace.
+
+## 1. Name the assistant in Agenta
+
+1. Open the agent's chat and click **Publish**.
+2. Next to **Slack**, click **Add**.
+3. Choose to use your own Slack app.
+4. Fill in how the assistant shows up in Slack:
+   - **Name**: the display name, such as `Outreach drafter`.
+   - **Handle**: what people type to mention it, such as `@outreachdrafter`. Use letters, numbers, periods, hyphens, and underscores.
+   - **Description**: one short sentence on what it does.
+
+## 2. Create the Slack app from the manifest
+
+1. In the **Create app** step, click **Copy** to copy the manifest. Agenta fills it with the name, handle, and description you entered.
+2. Click **Open Slack app settings**.
+3. In Slack, click **Create New App**, then choose **From a manifest**.
+4. Select your workspace, paste the manifest, and click **Next**.
+5. Review what the app can do, then click **Create and Install** to install it to your workspace.
+
+## 3. Paste the app's credentials into Agenta
+
+Copy three values from the app's settings in Slack:
+
+| Agenta field | Where to find it in Slack |
+|---|---|
+| **App ID** | **Basic Information**. It starts with `A`. Do not use the Client ID. |
+| **Signing Secret** | **Basic Information** |
+| **Bot User OAuth Token** | **Install App** |
+
+Paste them into the **Connect** step in Agenta, then click **Connect app**. Agenta checks the values with Slack before it saves them. After saving, they stay masked.
+
+## 4. Choose where the assistant answers
+
+After it connects, the Slack panel shows the app as **Live**. Under **Answers in**, choose where the assistant responds:
+
+- **Direct messages**: anyone in the workspace can send it a direct message.
+- **Channels**: it replies in a thread when someone mentions it in a channel.
+
+To add the assistant to a channel, invite it there from Slack (for example, `/invite @outreachdrafter`). The channel then appears under **Channels it's in**. In the video, the assistant is added to an `#outreach` channel with channel replies turned on.
+
+## 5. Mention the agent in Slack
+
+In the channel, mention the agent and ask for what you need. For example:
+
+> @Outreachdrafter Find the five newest contacts added to HubSpot this week. Research their companies and draft a personalized welcome email for each, signed John. Show me the research and drafts for review before sending.
+
+The agent reacts with 👀 when it picks up your request. Open the thread to follow its response. When it has finished, the 👀 changes to ✅.
+
+Anyone in the channel can mention the agent the same way to ask questions, request drafts, and review the results together in the thread.
+
+## Manage the connection
+
+Open the agent's **Publish** panel and click **Slack** to come back to the connection. From there you can:
+
+- Turn **Direct messages** and **Channels** on or off.
+- See the channels the assistant is in.
+- Update the app credentials under **Access**.
+- Add another workspace or another Slack app.
+- **Disconnect** the app.
+
+Changes save automatically.
+
+## Other channels
+
+You can publish the same agent to Telegram and WhatsApp from the same **Publish** panel. See [Connect a WhatsApp number to an agent](/guides/connect-whatsapp).

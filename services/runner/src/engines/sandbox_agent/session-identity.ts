@@ -860,6 +860,7 @@ export type PoolScopeSource = "run-context" | "mount";
 /** A pool key plus the scope source that produced it (for the greppable `[keepalive] scope=` log). */
 export interface PoolScope {
   key: string;
+  projectId: string;
   source: PoolScopeSource;
 }
 
@@ -903,5 +904,5 @@ export function poolKeyFor(
   if (!sessionId) return null;
   const scope = projectScopeFor(request, mountProjectId);
   if (!scope) return null;
-  return { key: `${scope.id}:${sessionId}`, source: scope.source };
+  return { key: `${scope.id}:${sessionId}`, projectId: scope.id, source: scope.source };
 }

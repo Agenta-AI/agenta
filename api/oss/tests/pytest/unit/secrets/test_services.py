@@ -7,7 +7,13 @@ from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
     UpdateSecretDTO,
 )
-from oss.src.core.secrets.enums import SecretKind, StandardProviderKind
+from oss.src.core.secrets.enums import (
+    SUBSCRIPTION_PROVIDER_HARNESSES,
+    SUBSCRIPTION_PROVIDER_MODELS,
+    SecretKind,
+    StandardProviderKind,
+    SubscriptionProviderKind,
+)
 from oss.src.core.secrets.services import VaultService, next_provider_key_name
 
 
@@ -312,3 +318,97 @@ async def test_update_does_not_reach_across_a_project_boundary(vault, saved_conn
     )
 
     assert updated is None
+
+
+CHATGPT_DEFAULT_MODELS = SUBSCRIPTION_PROVIDER_MODELS[SubscriptionProviderKind.CHATGPT]
+CHATGPT_DEFAULT_HARNESSES = SUBSCRIPTION_PROVIDER_HARNESSES[
+    SubscriptionProviderKind.CHATGPT
+]
+
+
+def _subscription_payload(**data):
+    return CreateSecretDTO.model_validate(
+        {
+            "header": {"name": "ChatGPT"},
+            "secret": {
+                "kind": "subscription_provider",
+                "data": {"provider": "chatgpt", **data},
+            },
+        }
+    )
+
+
+def _subscription_update(**data):
+    return UpdateSecretDTO.model_validate(
+        {
+            "header": {"name": "ChatGPT"},
+            "secret": {
+                "kind": "subscription_provider",
+                "data": {"provider": "chatgpt", **data},
+            },
+        }
+    )
+
+
+@pytest.fixture
+async def narrowed_subscription(vault):
+    return await vault.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=_subscription_payload(
+            models=["gpt-5.5"], harnesses=["codex"]
+        ),
+    )
+
+
+async def _update_subscription(vault, secret, **data):
+    return await vault.update_secret(
+        secret_id=secret.id,
+        update_secret_dto=_subscription_update(**data),
+        project_id=PROJECT_ID,
+    )
+
+
+async def test_a_subscription_update_that_omits_the_lists_keeps_them(
+    vault, narrowed_subscription
+):
+    updated = await _update_subscription(vault, narrowed_subscription)
+
+    assert updated.data.models == ["gpt-5.5"]
+    assert updated.data.harnesses == ["codex"]
+
+
+async def test_a_subscription_update_to_the_default_lists_resets_them(
+    vault, narrowed_subscription
+):
+    # Selecting every model is normalized to "follow the defaults", which is not an omission.
+    updated = await _update_subscription(
+        vault,
+        narrowed_subscription,
+        models=list(CHATGPT_DEFAULT_MODELS),
+        harnesses=list(CHATGPT_DEFAULT_HARNESSES),
+    )
+
+    assert updated.data.models == CHATGPT_DEFAULT_MODELS
+    assert updated.data.harnesses == CHATGPT_DEFAULT_HARNESSES
+
+
+async def test_a_subscription_update_to_a_narrowed_list_keeps_it(
+    vault, narrowed_subscription
+):
+    updated = await _update_subscription(
+        vault, narrowed_subscription, models=["gpt-6.1-sol"], harnesses=["claude"]
+    )
+
+    assert updated.data.models == ["gpt-6.1-sol"]
+    assert updated.data.harnesses == ["claude"]
+
+
+async def test_a_subscription_update_to_an_empty_list_keeps_it(
+    vault, narrowed_subscription
+):
+    updated = await _update_subscription(
+        vault, narrowed_subscription, models=[], harnesses=[]
+    )
+
+    assert updated.data.models == []
+    assert updated.data.harnesses == []

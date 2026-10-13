@@ -11,7 +11,15 @@ import {atomWithStorage} from "jotai/utils"
  * Persisted: which of the two modes you work in is a standing preference, and resetting it on
  * every reload put chat users back in the build layout they had already left.
  */
-export const chatPanelMaximizedAtom = atomWithStorage("agenta:chat:panel-maximized", false)
+export const playgroundLayoutActionAtom = atom(0)
+const chatPanelMaximizedPreferenceAtom = atomWithStorage("agenta:chat:panel-maximized", false)
+export const chatPanelMaximizedAtom = atom(
+    (get) => get(chatPanelMaximizedPreferenceAtom),
+    (get, set, maximized: boolean) => {
+        set(playgroundLayoutActionAtom, get(playgroundLayoutActionAtom) + 1)
+        set(chatPanelMaximizedPreferenceAtom, maximized)
+    },
+)
 
 /**
  * Below this width the config pane and the transcript cannot share the screen: the pane alone
@@ -112,6 +120,7 @@ export const configPanelCollapsedAtom = atom(
             get(phoneViewportAtom),
         ),
     (get, set, collapsed: boolean) => {
+        set(playgroundLayoutActionAtom, get(playgroundLayoutActionAtom) + 1)
         set(configPanelCollapsedOverrideAtom, null)
         set(
             get(phoneViewportAtom)

@@ -1,8 +1,11 @@
 import {useCallback} from "react"
 
+import {BUY_CREDITS_CODES} from "@agenta/chat/components"
+import {useTopUpOffer} from "@agenta/settings-ui"
+import {isBillingEnabled} from "@agenta/shared/api"
 import {useRouter} from "next/router"
 
-import {llmProvidersUrl} from "@/lib/context"
+import {billingUrl, buyCreditsUrl, llmProvidersUrl} from "@/lib/context"
 
 /**
  * Where a reader goes when a run failed for a credential they can fix themselves.
@@ -31,4 +34,45 @@ export const useProviderRecovery = (): (() => void) | undefined => {
     }, [projectId, router, workspaceId])
 
     return inProject ? open : undefined
+}
+
+/**
+ * Where a reader goes when a turn met a plan limit: Settings -> Usage & Billing, where the plans
+ * live. Undefined off a project route, or where billing is off.
+ */
+export const useBillingRoute = (): (() => void) | undefined => {
+    const router = useRouter()
+    const {workspace_id: workspaceId, project_id: projectId} = router.query
+    const available =
+        isBillingEnabled() && typeof workspaceId === "string" && typeof projectId === "string"
+
+    const open = useCallback(() => {
+        if (typeof workspaceId !== "string" || typeof projectId !== "string") return
+        void router.push(billingUrl({workspaceId, projectId}))
+    }, [projectId, router, workspaceId])
+
+    return available ? open : undefined
+}
+
+/**
+ * Where a reader goes to buy a credit pack after running out: Settings -> Credits with the picker
+ * open. Only for the out-of-credit class, and only where the organization can buy a pack, so the
+ * free plan keeps just the way to the plans. Asks the API only once a turn carries that class.
+ */
+export const useBuyCreditsRoute = (code: string | null | undefined): (() => void) | undefined => {
+    const router = useRouter()
+    const {workspace_id: workspaceId, project_id: projectId} = router.query
+    const inProject = typeof workspaceId === "string" && typeof projectId === "string"
+    const wanted = isBillingEnabled() && inProject && !!code && BUY_CREDITS_CODES.has(code)
+    const offer = useTopUpOffer({
+        projectId: typeof projectId === "string" ? projectId : null,
+        enabled: wanted,
+    })
+
+    const open = useCallback(() => {
+        if (typeof workspaceId !== "string" || typeof projectId !== "string") return
+        void router.push(buyCreditsUrl({workspaceId, projectId}))
+    }, [projectId, router, workspaceId])
+
+    return wanted && offer.data?.status === "available" ? open : undefined
 }

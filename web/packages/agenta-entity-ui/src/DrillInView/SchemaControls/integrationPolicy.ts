@@ -17,14 +17,19 @@
  */
 import type {GatewayConnectionPermissions, GatewayPermission} from "./toolUtils"
 
-export type IntegrationPreset = "always_ask" | "ask_writes" | "allow_all" | "deny_all" | "custom"
+export type IntegrationPreset =
+    | "always_ask"
+    | "ask_writes"
+    | "allow_all"
+    | "deny_all"
+    | "follow_agent"
+    | "custom"
 
 /**
  * A preset value the default-permission select can hold, including one a source adds of its own.
  *
- * The MCP source adds `follow_agent`, the preset whose saved value is the absence of a policy. The
- * Composio five have no need of it: an integration always carries a `default`, so the absence never
- * reaches its select (decision 45).
+ * Both sources offer `follow_agent`. For MCP its saved value is the absence of a policy; for an
+ * integration it is an explicit `inherit` default.
  */
 export type PermissionPresetValue = IntegrationPreset | "follow_agent"
 
@@ -54,7 +59,9 @@ export const INTEGRATION_PRESETS: IntegrationPresetDef[] = [
         label: "Ask for write and delete",
         help: "Read-only tools run automatically",
         rowLabel: "Allow reads",
-        permission: "inherit",
+        // Explicit, not `inherit`: `inherit` defers to the agent-wide mode, and under the `allow`
+        // mode new agents get it ran every write with no prompt while this label promised one.
+        permission: "allow_reads",
     },
     {
         value: "allow_all",
@@ -69,6 +76,13 @@ export const INTEGRATION_PRESETS: IntegrationPresetDef[] = [
         help: "Tools stay listed but never run",
         rowLabel: "Denied",
         permission: "deny",
+    },
+    {
+        value: "follow_agent",
+        label: "Follow agent policy",
+        help: "Follows agent policy for every tool",
+        rowLabel: "Follows agent policy",
+        permission: "inherit",
     },
     {
         value: "custom",
@@ -164,6 +178,20 @@ export function savedToolPermission(
 }
 
 /**
+ * The value a tool row shows. The saved value, except that `allow_reads` is not a per-tool choice:
+ * it is shown as what it resolves to for this tool, exactly as the SDK compiler resolves it. A read
+ * runs, and a write or a tool with no read-only hint asks.
+ */
+export function shownToolPermission(
+    permissions: GatewayConnectionPermissions,
+    tool: Pick<CatalogToolInfo, "key" | "readOnly">,
+): GatewayPermission {
+    const saved = savedToolPermission(permissions, tool.key)
+    if (saved !== "allow_reads") return saved
+    return tool.readOnly === true ? "allow" : "ask"
+}
+
+/**
  * Set one tool's value, keeping the default and every other tool. The entry is saved even when it
  * equals the current default: the author set it deliberately, it survives a later change of
  * default, and it is what keeps the override count and the Custom label saying the same thing.
@@ -248,13 +276,16 @@ export type GroupRollup =
  * they agree and mixed when they do not. Never resolves `inherit`.
  */
 export function rollupGroupPermission(
-    toolKeys: string[],
+    tools: (string | Pick<CatalogToolInfo, "key" | "readOnly">)[],
     permissions: GatewayConnectionPermissions,
 ): GroupRollup {
-    if (toolKeys.length === 0) return {kind: "empty"}
+    if (tools.length === 0) return {kind: "empty"}
     let shared: GatewayPermission | null = null
-    for (const key of toolKeys) {
-        const value = savedToolPermission(permissions, key)
+    for (const tool of tools) {
+        const value = shownToolPermission(
+            permissions,
+            typeof tool === "string" ? {key: tool} : tool,
+        )
         if (shared === null) shared = value
         else if (shared !== value) return {kind: "mixed"}
     }
@@ -266,6 +297,8 @@ const ROLLUP_LABELS: Record<GatewayPermission, string> = {
     allow: "runs automatically",
     ask: "asks first",
     deny: "never runs",
+    // Only reachable through a per-tool entry saved outside the drawer: rows resolve it.
+    allow_reads: "reads run, writes ask",
 }
 
 export function rollupLabel(rollup: GroupRollup): string {

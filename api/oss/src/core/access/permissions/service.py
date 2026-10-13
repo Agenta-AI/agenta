@@ -1,4 +1,4 @@
-from typing import Dict, List, Union, Optional, Sequence, Any
+from typing import Dict, List, Union, Optional, Any
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
@@ -23,65 +23,53 @@ from oss.src.services.db_manager import get_user_org_and_workspace_id
 log = get_module_logger(__name__)
 
 
-def _get_project_member(
-    user_id: str,
-    members: Sequence[Any],
-) -> Optional[Any]:
-    """Return the project member record for a user, or None."""
-    return next(
-        (m for m in members if str(m.user_id) == user_id),
-        None,
-    )
+# These five take the one `project_members` row for the user being checked, which
+# is what `db_manager.get_project_member` returns. They took the project's whole
+# member list and scanned it in Python; the Demo Workspace projects hold 17,008
+# rows and every check read one of them.
 
 
 def _get_project_member_role(
-    user_id: str,
-    members: Sequence[Any],
+    member: Optional[Any],
 ) -> Optional[str]:
-    """Return the role of a user in a given project_members list, or None."""
-    member = _get_project_member(user_id, members)
+    """Return the member's role, or None when the user is not a member."""
     return getattr(member, "role", None) if member else None
 
 
 def _is_demo_member(
-    user_id: str,
-    members: Sequence[Any],
+    member: Optional[Any],
 ) -> bool:
     """Return True if the user is a demo member (is_demo=True) in the project."""
-    member = _get_project_member(user_id, members)
     return getattr(member, "is_demo", False) if member else False
 
 
 def _project_is_owner(
-    user_id: str,
-    members: Sequence[Any],
+    member: Optional[Any],
 ) -> bool:
     """True if the user is OWNER in the project."""
-    role = _get_project_member_role(user_id, members)
+    role = _get_project_member_role(member)
     return role == RequiredRole.OWNER
 
 
 def _project_has_role(
-    user_id: str,
     role_to_check: RequiredRole,
-    members: Sequence[Any],
+    member: Optional[Any],
 ) -> bool:
     """True if the user's role exactly matches role_to_check."""
-    role = _get_project_member_role(user_id, members)
+    role = _get_project_member_role(member)
     return role == role_to_check if role is not None else False
 
 
 def _project_has_permission(
-    user_id: str,
     permission: Permission,
-    members: Sequence[Any],
+    member: Optional[Any],
 ) -> bool:
     """True if the user's role implies the given permission.
 
     Role permissions are resolved via access-controls (env-overridable via
     AGENTA_ACCESS_ROLES); not the closed `Permission.default_permissions` table.
     """
-    role = _get_project_member_role(user_id, members)
+    role = _get_project_member_role(member)
     if role is None:
         return False
     role_slug = role.value if hasattr(role, "value") else role
@@ -305,12 +293,17 @@ async def check_project_has_role_or_permission(
         "Either role or permission must be provided"
     )
 
-    # Fetch project members first - needed for both demo check and permission check
-    project_members = await db_manager.get_project_members(project_id=str(project.id))
+    # One row, by (project_id, user_id). Every check below reads this user's
+    # membership only, and the previous read of the project's whole member list
+    # was a sequential scan of up to 17,008 rows per request.
+    project_member = await db_manager.get_project_member(
+        project_id=str(project.id),
+        user_id=user_id,
+    )
 
     # Check if user is a demo member - demo members always have restricted access
     # regardless of the organization's RBAC setting
-    is_demo = _is_demo_member(user_id, project_members)
+    is_demo = _is_demo_member(project_member)
 
     if not is_demo and is_ee():
         # EE only: gate enforcement on the org's RBAC entitlement. If RBAC is not
@@ -338,18 +331,18 @@ async def check_project_has_role_or_permission(
         return True
 
     # OWNER role in workspace members also passes (but demo members can't be owners by design)
-    if _project_is_owner(user_id, project_members):
+    if _project_is_owner(project_member):
         return True
 
     if role is not None:
         role_slug = role.value if hasattr(role, "value") else role
         if get_role("project", role_slug) is None:
             raise Exception("Invalid role specified")
-        return _project_has_role(user_id, role, project_members)
+        return _project_has_role(role, project_member)
 
     if permission is not None:
         if permission not in list(Permission):
             raise Exception("Invalid permission specified")
-        return _project_has_permission(user_id, permission, project_members)
+        return _project_has_permission(permission, project_member)
 
     return False

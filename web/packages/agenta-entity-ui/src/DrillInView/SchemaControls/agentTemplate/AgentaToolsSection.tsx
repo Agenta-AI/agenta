@@ -100,6 +100,7 @@ export function AgentaToolsSection({
                 </span>
             </div>
             <PermissionDrawerBody
+                flush
                 catalogKey="agenta-tools"
                 catalog={{status: "ready", complete: true, tools: rows}}
                 emptyLabel="No Agenta tools available."
@@ -111,7 +112,7 @@ export function AgentaToolsSection({
                 }}
                 onChangePermissions={() => undefined}
                 onChangeToolPermission={(op, permission) => {
-                    if (permission === "inherit") return
+                    if (permission === "inherit" || permission === "allow_reads") return
                     const next = {...tools}
                     delete next[op]
                     if (permission !== "deny") next[op] = permission

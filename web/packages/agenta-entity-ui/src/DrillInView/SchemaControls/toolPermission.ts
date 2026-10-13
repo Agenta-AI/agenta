@@ -29,9 +29,9 @@ import {
     parseGatewayTool,
 } from "./toolUtils"
 
-/** A legacy per-tool entry's `permission`. The connection policy's four values minus `inherit`,
- *  which only a `gateway_connection` entry can hold. */
-export type ToolPermission = Exclude<GatewayPermission, "inherit">
+/** A legacy per-tool entry's `permission`. The connection policy's values minus `inherit` and
+ *  `allow_reads`, which only a `gateway_connection` entry can hold. */
+export type ToolPermission = Exclude<GatewayPermission, "inherit" | "allow_reads">
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
     Boolean(v && typeof v === "object" && !Array.isArray(v))

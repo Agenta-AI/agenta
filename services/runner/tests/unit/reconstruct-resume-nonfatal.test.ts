@@ -238,7 +238,7 @@ describe("runTurn: a broken record log does not kill a live approval resume", ()
 
     assert.equal(result.ok, false, "a cold turn with no history must fail");
     if (result.ok) return;
-    assert.match(String(result.error), /incomplete conversation/);
+    assert.match(String(result.error), /history could not be saved/);
 
     await acquired.env.destroy();
   });

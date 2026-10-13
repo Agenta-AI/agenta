@@ -15,6 +15,8 @@ import {
     isPendingSendFailed,
     isViewable,
     PENDING_SEND_FAILED_NOTE,
+    stageWordAt,
+    stageWords,
 } from "@agenta/chat/assets"
 import {
     ClientToolPart,
@@ -26,7 +28,6 @@ import {
     AttachmentCardGrid,
     CollapsibleMessageBody,
     McpServerNoticeCard,
-    RunFailureCallout,
     StartupActivity,
     TurnFooter,
 } from "@agenta/chat/components"
@@ -42,7 +43,7 @@ import {
     messageBodyKey,
     reasoningKey,
     setExpandedAtom,
-    useStartupPhase,
+    useTurnStage,
 } from "@agenta/chat/state"
 import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
@@ -67,6 +68,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
 
+import AgentRunFailure from "./AgentRunFailure"
 import {viewingMessageAttachmentAtom} from "./MessageAttachmentViewer"
 import StreamingMarkdown from "./StreamingMarkdown"
 import ToolActivity from "./ToolActivity"
@@ -173,13 +175,13 @@ const MessageAvatar = ({isUser = false}: {isUser?: boolean}) => {
 /** The started-but-empty assistant turn. Its own component so the startup tick mounts once per live
  * turn, not once per message in the transcript. */
 const PendingTurn = ({sessionId}: {sessionId: string}) => {
-    const startupPhase = useStartupPhase(sessionId)
-    return startupPhase ? (
+    const stage = useTurnStage(sessionId)
+    return stage ? (
         <ChatBubble
             placement="start"
             variant="borderless"
             avatar={<MessageAvatar />}
-            content={<StartupActivity label={startupPhase} />}
+            content={<StartupActivity label={stageWordAt(stageWords(stage), 0)} />}
         />
     ) : (
         <ChatBubble placement="start" variant="borderless" avatar={<MessageAvatar />} loading />
@@ -464,7 +466,7 @@ const AgentMessage = ({
     // Failed run: the whole bubble reads as the error (red), message inline — no nested box.
     // The callout shows an everyday reason in full; only a big one collapses behind "Show more".
     const errorBody = (
-        <RunFailureCallout
+        <AgentRunFailure
             text={errorText || "The agent run failed."}
             stateKey={errorKey(message.id)}
             code={runErrorCode}

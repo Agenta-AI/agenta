@@ -245,7 +245,7 @@ describe("otel traceTargets — per-run target attribution across a shared trace
   it("uses the resolved authorization for the Agenta missing-credential check", async () => {
     const endpoint = "https://cloud.agenta.ai/api/otlp/v1/traces";
     let authorization = "Secret initial";
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     // A blank resolved credential falls back to the runner's own `AGENTA_CREDENTIALS`, so drop
     // that too: the skip needs the run credential AND the env fallback to be empty.
     vi.stubEnv("AGENTA_CREDENTIALS", "");
@@ -265,7 +265,7 @@ describe("otel traceTargets — per-run target attribution across a shared trace
 
     expect(fakeExports.filter((item) => item.url === endpoint)).toHaveLength(0);
     expect(
-      errorSpy.mock.calls.some((args) =>
+      warnSpy.mock.calls.some((args) =>
         args.join(" ").includes("trace export skipped, no credential"),
       ),
     ).toBe(true);
@@ -276,7 +276,7 @@ describe("otel traceTargets — per-run target attribution across a shared trace
     // without that header hands the tracer a provider that resolves to "". That must still
     // export under `AGENTA_CREDENTIALS`, exactly as a run that configured no credential at all.
     const endpoint = "https://cloud.agenta.ai/api/otlp/v1/traces";
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const headerless = createSandboxAgentOtel({
       harness: "claude",
       model: "anthropic/claude-haiku",
@@ -294,7 +294,7 @@ describe("otel traceTargets — per-run target attribution across a shared trace
       expect.objectContaining({ authorization: "Secret fallback-credential" }),
     ]);
     expect(
-      errorSpy.mock.calls.some((args) =>
+      warnSpy.mock.calls.some((args) =>
         args.join(" ").includes("trace export skipped, no credential"),
       ),
     ).toBe(false);

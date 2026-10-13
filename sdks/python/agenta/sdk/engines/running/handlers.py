@@ -36,7 +36,7 @@ from agenta.sdk.utils.types import (  # noqa: F401
 from agenta.sdk.managers.secrets import SecretsManager
 from agenta.sdk.decorators.tracing import instrument
 from agenta.sdk.models.shared import Data
-from agenta.sdk.engines.running.sandbox import execute_code_safely
+from agenta.sdk.engines.running.sandbox import run_code_safely
 from agenta.sdk.engines.running.templates import EVALUATOR_TEMPLATES
 from agenta.sdk.engines.running.errors import (
     CustomCodeServerV0Error,
@@ -249,19 +249,24 @@ def _compare_jsons(
     flattened_ground_truth = _flatten_json(ground_truth)
     flattened_app_output = _flatten_json(app_output)
 
-    keys = set(flattened_ground_truth.keys())
-    if settings_values.get("predict_keys", False):
-        keys = keys.union(set(flattened_app_output.keys()))
-
-    cumulated_score = 0.0
-    no_of_keys = len(keys)
-
+    # Normalize keys before building the comparison key set - not after.
+    # keys was previously built from the raw (possibly mixed-case) dicts and
+    # then looked up against lowercased copies, so any uppercase/camelCase
+    # key never matched and scored 0 even when case_insensitive_keys=True
+    # was meant to tolerate exactly that (Name vs name). See issue #7149.
     case_insensitive_keys = settings_values.get("case_insensitive_keys", False)
     compare_schema_only = settings_values.get("compare_schema_only", False)
     flattened_ground_truth = normalize_keys(
         flattened_ground_truth, case_insensitive_keys
     )
     flattened_app_output = normalize_keys(flattened_app_output, case_insensitive_keys)
+
+    keys = set(flattened_ground_truth.keys())
+    if settings_values.get("predict_keys", False):
+        keys = keys.union(set(flattened_app_output.keys()))
+
+    cumulated_score = 0.0
+    no_of_keys = len(keys)
 
     for key in keys:
         ground_truth_value = flattened_ground_truth.get(key, None)
@@ -769,9 +774,9 @@ async def auto_custom_code_run_v0(
 
     effective_version = declared_version if declared_version in {"1", "2", "3"} else "1"
 
-    def _run_v2(version: str) -> Any:
+    async def _run_v2(version: str) -> Any:
         try:
-            return execute_code_safely(
+            return await run_code_safely(
                 app_params={},
                 inputs=inputs or {},
                 output=_outputs_value,
@@ -790,7 +795,7 @@ async def auto_custom_code_run_v0(
                 stacktrace=traceback.format_exc(),
             ) from e
 
-    def _run_v1() -> Any:
+    async def _run_v1() -> Any:
         correct_answer_key = str(parameters.get("correct_answer_key", "correct_answer"))
 
         if inputs is None or not isinstance(inputs, dict):
@@ -802,7 +807,7 @@ async def auto_custom_code_run_v0(
         correct_answer = inputs[correct_answer_key]
 
         try:
-            return execute_code_safely(
+            return await run_code_safely(
                 app_params={},
                 inputs=inputs,
                 output=_outputs_value,
@@ -822,7 +827,9 @@ async def auto_custom_code_run_v0(
             ) from e
 
     _outputs = (
-        _run_v2(effective_version) if effective_version in ("2", "3") else _run_v1()
+        await _run_v2(effective_version)
+        if effective_version in ("2", "3")
+        else await _run_v1()
     )
 
     # bool before (int, float): bool is an int subclass and would otherwise be
@@ -2897,7 +2904,7 @@ async def code_v0(
         raise InvalidOutputsV0Error(expected=["dict", "str", "None"], got=outputs)
 
     try:
-        _result = execute_code_safely(
+        _result = await run_code_safely(
             app_params={},
             inputs=inputs or {},
             output=outputs,

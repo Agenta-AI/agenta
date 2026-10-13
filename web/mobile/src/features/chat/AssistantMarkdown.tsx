@@ -1,6 +1,6 @@
 import {useTypewriter} from "@agenta/chat/hooks"
 import ChatMarkdown from "@agenta/chat/markdown"
-import {chatFileResolver} from "@agenta/entity-ui/drive"
+import {chatFileResolver, chatReplyFileResolver} from "@agenta/entity-ui/drive"
 import {Check, Copy} from "lucide-react"
 import type {IconMap} from "streamdown"
 
@@ -51,6 +51,9 @@ export const markdownIcons: Partial<IconMap> = {CopyIcon: Copy, CheckIcon: Check
  * scope so the renderer's resolver context keeps a stable identity across streamed tokens. */
 export const useDriveLinkResolver = () => chatFileResolver
 
+/** The same links, plus an inline preview under the paragraph for each image the reply names. */
+const useReplyFileResolver = () => chatReplyFileResolver
+
 export const AssistantMarkdown = ({
     streaming,
     text,
@@ -67,7 +70,7 @@ export const AssistantMarkdown = ({
             baseClassName={proseClassName}
             content={revealed}
             streaming={streaming || !settled}
-            useLinkResolver={useDriveLinkResolver}
+            useLinkResolver={useReplyFileResolver}
             icons={markdownIcons}
         />
     )

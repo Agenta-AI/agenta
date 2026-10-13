@@ -29,6 +29,8 @@ def _parse_windowing(
     limit: Optional[int] = None,
     interval: Optional[int] = None,
     rate: Optional[float] = None,
+    next: Optional[str] = None,  # pylint: disable=redefined-builtin
+    order: Optional[str] = None,
 ) -> Optional[Windowing]:
     if all(
         [
@@ -37,6 +39,8 @@ def _parse_windowing(
             limit is None,
             interval is None,
             rate is None,
+            next is None,
+            order is None,
         ]
     ):
         return None
@@ -50,6 +54,8 @@ def _parse_windowing(
         limit=limit,
         interval=interval,
         rate=rate,
+        next=next,
+        order=order,
     )
 
     return _windowing
@@ -130,21 +136,28 @@ def parse_query_from_body_request(
     limit: Optional[int] = None,
     interval: Optional[int] = None,
     rate: Optional[float] = None,
+    next: Optional[str] = None,  # pylint: disable=redefined-builtin
+    # The `windowing` object of a previous response (the next page). Its fields win
+    # over the flat ones above.
+    windowing: Optional[dict] = None,
     # FILTERING
     filter: Optional[Union[dict, str]] = None,  # pylint: disable=redefined-builtin
 ) -> TracingQuery:
     try:
+        cursor = windowing if isinstance(windowing, dict) else {}
         _query = TracingQuery(
             formatting=_parse_formatting(
                 focus=focus,
                 format=format,
             ),
             windowing=_parse_windowing(
-                oldest=oldest,
-                newest=newest,
-                limit=limit,
-                interval=interval,
-                rate=rate,
+                oldest=cursor.get("oldest", oldest),
+                newest=cursor.get("newest", newest),
+                limit=cursor.get("limit", limit),
+                interval=cursor.get("interval", interval),
+                rate=cursor.get("rate", rate),
+                next=cursor.get("next", next),
+                order=cursor.get("order"),
             ),
             filtering=_parse_filtering(
                 filter=filter,

@@ -55,6 +55,54 @@ describe("a conversation that runs no command (QA4A-1)", () => {
   }, 30_000);
 });
 
+describe("a gateway route (the gateway credential header)", () => {
+  // Production EU, 2026-10-05: every in-process turn on a gateway route (built-in Gemini, an own
+  // OpenAI-compatible key) failed before the model call, because the header's `$VAR` was looked up
+  // in the runner's shared process environment, which never holds it.
+  it("sends each session's own credential, never the runner's environment", async () => {
+    expect(process.env.AGENTA_GATEWAY_CREDENTIALS_VALUE).toBeUndefined();
+    model.script([{ text: "through the gateway" }]);
+    const first = model.requests.length;
+    const sessions = await Promise.all(
+      ["ApiKey org-a", "ApiKey org-b"].map((value) => openSession(createHostFixture(model.baseUrl, { gatewayCredential: value }))),
+    );
+    const results = await Promise.all(sessions.map(({ session }) => session.prompt(prompt("hello"))));
+    expect(results).toEqual([{ stopReason: "end_turn" }, { stopReason: "end_turn" }]);
+    for (const { turn } of sessions) expect(turn.text()).toContain("through the gateway");
+    const sent = model.requests.slice(first).map((r) => r.headers["x-ag-credentials"]);
+    expect(sent.sort()).toEqual(["ApiKey org-a", "ApiKey org-b"]);
+    expect(process.env.AGENTA_GATEWAY_CREDENTIALS_VALUE).toBeUndefined();
+  }, 30_000);
+});
+
+describe("a direct Anthropic connection with a bearer token", () => {
+  // pi-ai reads ANTHROPIC_AUTH_TOKEN only from its auth context, whose default is the runner's
+  // shared process environment, so such a turn sent no auth at all.
+  it("sends each session's own token as the bearer header, ahead of an API key, never the runner's environment", async () => {
+    expect(process.env.ANTHROPIC_AUTH_TOKEN).toBeUndefined();
+    model.script([{ text: "through anthropic" }]);
+    const first = model.requests.length;
+    const sessions = await Promise.all(
+      [{ authToken: "token-org-a" }, { authToken: "token-org-b", apiKey: "sk-ant-org-b" }].map(async (anthropic) => {
+        const fixture = createHostFixture(model.baseUrl, { anthropic });
+        const { host } = fixture.runner().host();
+        const session = await host.createSession({ agent: "pi", cwd: fixture.cwd, sessionInit: { cwd: fixture.cwd, mcpServers: [] } });
+        await session.setModel("anthropic/claude-sonnet-4-5");
+        return { session, turn: capture(session) };
+      }),
+    );
+    const results = await Promise.all(sessions.map(({ session }) => session.prompt(prompt("hello"))));
+    expect(results).toEqual([{ stopReason: "end_turn" }, { stopReason: "end_turn" }]);
+    for (const { turn } of sessions) expect(turn.text()).toContain("through anthropic");
+    const sent = model.requests.slice(first).map((r) => [r.headers.authorization, r.headers["x-api-key"]]);
+    expect(sent.sort()).toEqual([
+      ["Bearer token-org-a", undefined],
+      ["Bearer token-org-b", undefined],
+    ]);
+    expect(process.env.ANTHROPIC_AUTH_TOKEN).toBeUndefined();
+  }, 30_000);
+});
+
 describe("admission and accounting (decision 8)", () => {
   it("refuses a session past the runner's maximum, and counts a session's transcript after a turn", async () => {
     const fixture = createHostFixture(model.baseUrl);
@@ -99,6 +147,32 @@ describe("an approval pause", () => {
     expect(turn.text()).toContain("all finished");
     const toolCall = turn.events.find((e) => e.sessionUpdate === "tool_call");
     expect(toolCall).toMatchObject({ title: "bash", kind: "other" });
+  }, 30_000);
+});
+
+describe("a command that runs past the per-tool-call limit", () => {
+  // Production EU, 2026-10-06: a slow `bash` call ran past AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS
+  // (300 s). The command had no timeout of its own, so the run-wide watchdog ended the whole turn
+  // and the person read only "The agent run failed". The command is now stopped at the limit and
+  // the model is told so, and the turn goes on.
+  it("is stopped at the limit, the model reads why, and the turn continues with the next model call", async () => {
+    vi.stubEnv("AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS", "2000");
+    try {
+      const fixture = createHostFixture(model.baseUrl);
+      model.script([{ tool: "bash", args: { command: "sleep 31; echo too-slow-scan" } }, { text: "the command was too slow, so I carried on" }]);
+      const { session, turn } = await openSession(fixture);
+      const t0 = Date.now();
+      expect(await session.prompt(prompt("scan everything"))).toEqual({ stopReason: "end_turn" });
+      expect(Date.now() - t0).toBeLessThan(15_000);
+      const toolResult = JSON.stringify(model.requests.at(-1)!.messages);
+      expect(toolResult).toContain("Command timed out after 2 seconds and was stopped.");
+      expect(toolResult).toContain("Commands can run for at most 2 seconds");
+      expect(turn.text()).toContain("I carried on");
+      await new Promise((r) => setTimeout(r, 300));
+      expect(execSync("pgrep -f 'sleep 3[1]; echo too-slow-scan' || true").toString().trim()).toBe("");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   }, 30_000);
 });
 
@@ -243,6 +317,56 @@ describe("a runner restart between two turns", () => {
     // The model saw the first turn's history.
     expect(JSON.stringify(model.requests.at(-1)!.messages)).toContain("turn one");
     await second.host.destroySandbox();
+  }, 60_000);
+});
+
+describe("a Gemini tool call on an OpenAI-compatible endpoint", () => {
+  // Vertex's `endpoints/openapi` refuses a history whose tool call lost the `thought_signature`
+  // the model returned with it: "HTTP 400: Function call is missing a thought_signature".
+  const signatureOf = (request: { messages: unknown[] }) =>
+    (request.messages as Array<{ role: string; tool_calls?: Array<{ extra_content?: unknown }> }>)
+      .filter((message) => message.role === "assistant" && message.tool_calls)
+      .flatMap((message) => message.tool_calls!.map((call) => call.extra_content));
+
+  it("sends the signature back with the call, in the same turn and after a runner restart", async () => {
+    const fixture = createHostFixture(model.baseUrl, { extensionEnv: { AGENTA_AGENT_BUILTIN_ACTIVATION: "1" } });
+    model.script([{ tool: "bash", args: { command: "echo signed" }, signature: "c2lnLW9uZQ==" }, { text: "first turn done" }]);
+    const first = await openSession(fixture);
+    expect(await first.session.prompt(prompt("turn one"))).toEqual({ stopReason: "end_turn" });
+    const signed = { google: { thought_signature: "c2lnLW9uZQ==" } };
+    expect(signatureOf(model.requests.at(-1)!)).toEqual([signed]);
+    const record = await first.persist.getSession(first.session.id);
+    await first.host.pauseSandbox();
+    await first.runner.registry.settle(5_000);
+
+    // A new runner process reads the history back from the conversation file.
+    const persist = new InMemorySessionPersistDriver();
+    await persist.updateSession(record!);
+    const second = fixture.runner({ owner: "runner-a-restarted" }).host({ persist });
+    const resumed = await second.host.resumeSession(first.session.id);
+    await resumed.setModel("mock/mock-1");
+    model.script([{ text: "second turn done" }]);
+    expect(await resumed.prompt(prompt("turn two"))).toEqual({ stopReason: "end_turn" });
+    expect(signatureOf(model.requests.at(-1)!)).toEqual([signed]);
+    await second.host.destroySandbox();
+  }, 60_000);
+
+  it("sends every signature back across two sequential tool calls in one turn", async () => {
+    const fixture = createHostFixture(model.baseUrl, { extensionEnv: { AGENTA_AGENT_BUILTIN_ACTIVATION: "1" } });
+    model.script([
+      { tool: "bash", args: { command: "echo one" }, signature: "c2lnLW9uZQ==" },
+      { tool: "bash", args: { command: "echo two" }, signature: "c2lnLXR3bw==" },
+      { text: "both done" },
+    ]);
+    const { session, host } = await openSession(fixture);
+    expect(await session.prompt(prompt("run two commands"))).toEqual({ stopReason: "end_turn" });
+    const [, second, third] = model.requests.slice(-3);
+    expect(signatureOf(second!)).toEqual([{ google: { thought_signature: "c2lnLW9uZQ==" } }]);
+    expect(signatureOf(third!)).toEqual([
+      { google: { thought_signature: "c2lnLW9uZQ==" } },
+      { google: { thought_signature: "c2lnLXR3bw==" } },
+    ]);
+    await host.destroySandbox();
   }, 60_000);
 });
 

@@ -1,11 +1,4 @@
-/**
- * Agent HTML apps — `app.json` manifest (lane 0 contract).
- *
- * The manifest marks a drive folder as an app and tells the host what to render and what the app
- * may touch. Parsing is tolerant on purpose: agents write these files, so a stray field must not
- * hide the app. Only the four things the host cannot guess are strict (`agenta_app`, `name`, a
- * flat `entry`, valid JSON).
- */
+/** Agent HTML apps — tolerant `app.json` parser; `agenta_app`, `name`, flat `entry` are strict. */
 
 import type {GrantLevel} from "./protocol"
 
@@ -18,8 +11,8 @@ export interface AppManifest {
     entry: string
     /** Starter the app came from, e.g. `board@1` or `agent:retro-board@2`. Stamped by `create_app`. */
     template?: string | null
-    /** Access the app asks for. Default `read`; the host may still narrow it. */
-    access: GrantLevel
+    /** File access the app needs; absent means undeclared, and access is asked per call. */
+    access?: GrantLevel
     /** Data files (relative to the app dir) the app owns; `create_app --update` leaves them alone. */
     data?: string[]
     /** Config file (relative to the app dir) the app reads on boot. */
@@ -57,8 +50,6 @@ const isRecord = (x: unknown): x is Record<string, unknown> =>
 const isStringArray = (x: unknown): x is string[] =>
     Array.isArray(x) && x.every((item) => typeof item === "string")
 
-const isGrantLevel = (x: unknown): x is GrantLevel => x === "read" || x === "read-write"
-
 /**
  * Parse the text of an `app.json`. Returns null when the folder is not an app (bad JSON, wrong
  * marker, no name, or an `entry` that leaves the app dir). Every optional field falls back to its
@@ -87,12 +78,12 @@ export function parseManifest(text: string): AppManifest | null {
         agenta_app: 1,
         name: raw.name,
         entry,
-        access: isGrantLevel(raw.access) ? raw.access : "read",
         kit: typeof raw.kit === "boolean" ? raw.kit : true,
     }
 
     if (typeof raw.icon === "string") manifest.icon = raw.icon
     if (typeof raw.template === "string" || raw.template === null) manifest.template = raw.template
+    if (raw.access === "read" || raw.access === "read-write") manifest.access = raw.access
     if (isStringArray(raw.data)) manifest.data = raw.data
     if (typeof raw.config === "string") manifest.config = raw.config
     if (isStringArray(raw.tools)) manifest.tools = raw.tools

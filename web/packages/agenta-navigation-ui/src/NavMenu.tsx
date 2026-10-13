@@ -21,6 +21,7 @@ import clsx from "clsx"
 import Link from "next/link"
 
 import {FadeScrollBox} from "./FadeScrollBox"
+import {HoverFlyout} from "./HoverFlyout"
 import {SidebarReorderLayer} from "./reorder"
 
 /**
@@ -69,6 +70,9 @@ const GROUP_CHILDREN =
 // A group with no collapse control is a SECTION of the rail, not a submenu you opened: its rows
 // are rail rows. No indent and no guide line, so their glyphs sit in the nav icons' own column.
 const SECTION_CHILDREN = "flex flex-col"
+// Revealed with the row; always shown where there is no hover (touch), and while its popup is open.
+const ROW_ACTION =
+    "relative z-[1] mr-1 flex shrink-0 items-center opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100 [@media(hover:none)]:opacity-100"
 // Stretches the anchor over the whole row so middle-click / ctrl+click work anywhere on it.
 const LINK_CLASS =
     "!text-inherit no-underline before:absolute before:inset-0 before:content-[''] min-w-0 flex-1 truncate"
@@ -324,6 +328,7 @@ const LeafRow = memo(function LeafRow({
                 ROW_BASE,
                 item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
                 selected && ROW_SELECTED,
+                item.rowAction && "group/row pr-0",
                 item.rowClassName,
                 isControl &&
                     "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring",
@@ -343,6 +348,8 @@ const LeafRow = memo(function LeafRow({
         >
             {item.icon ? <span className="flex shrink-0 items-center">{item.icon}</span> : null}
             <RowLabel item={item} onItemSelect={onItemSelect} />
+            {/* Above the stretched link anchor, like a group's action. */}
+            {item.rowAction ? <span className={ROW_ACTION}>{item.rowAction}</span> : null}
         </div>
     )
 })
@@ -514,23 +521,31 @@ const NavMenuImpl = ({
         if (collapsed || (!inline && hasChildren)) {
             // Icon rail (or vertical bottom section): leaves get a tooltip, groups a flyout.
             if (!hasChildren) {
-                return (
+                const icon = (
+                    <div
+                        className={clsx(
+                            // size-7, not size-8: on a 48px rail a 32px hit box leaves 8px a
+                            // side and the icons read as tiles rather than as a nav.
+                            "relative mx-auto flex size-7 items-center justify-center rounded-md",
+                            item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
+                            selected && ROW_SELECTED,
+                        )}
+                        onClick={rowClickHandler(item, onItemSelect)}
+                    >
+                        {item.icon}
+                        {item.link && !item.disabled ? (
+                            <RowLabelCollapsed item={item} onItemSelect={onItemSelect} />
+                        ) : null}
+                    </div>
+                )
+                // The flyout replaces the tooltip: both would open on the same hover.
+                return item.hoverFlyout ? (
+                    <HoverFlyout key={item.key} content={item.hoverFlyout}>
+                        {icon}
+                    </HoverFlyout>
+                ) : (
                     <Tip key={item.key} title={item.tooltip || item.title}>
-                        <div
-                            className={clsx(
-                                // size-7, not size-8: on a 48px rail a 32px hit box leaves 8px a
-                                // side and the icons read as tiles rather than as a nav.
-                                "relative mx-auto flex size-7 items-center justify-center rounded-md",
-                                item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
-                                selected && ROW_SELECTED,
-                            )}
-                            onClick={rowClickHandler(item, onItemSelect)}
-                        >
-                            {item.icon}
-                            {item.link && !item.disabled ? (
-                                <RowLabelCollapsed item={item} onItemSelect={onItemSelect} />
-                            ) : null}
-                        </div>
+                        {icon}
                     </Tip>
                 )
             }

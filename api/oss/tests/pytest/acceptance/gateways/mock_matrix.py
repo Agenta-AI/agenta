@@ -74,14 +74,6 @@ class GatewayMockCase:
 
 LLM_MOCK_CASES: Final[tuple[GatewayMockCase, ...]] = (
     GatewayMockCase(
-        key="llm_builtin_agenta",
-        plane=GatewayPlane.LLM,
-        namespace=GatewayNamespace.BUILTIN,
-        provider="agenta",
-        credential_owner=CredentialOwner.PLATFORM,
-        operations=frozenset({"chat", "models"}),
-    ),
-    GatewayMockCase(
         key="llm_builtin_mock",
         plane=GatewayPlane.LLM,
         namespace=GatewayNamespace.BUILTIN,

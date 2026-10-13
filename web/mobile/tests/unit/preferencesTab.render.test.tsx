@@ -15,6 +15,11 @@ vi.mock("@agenta/shared/hooks", () => ({
     writeClassicModeCookie: vi.fn(),
 }))
 
+vi.mock("@agenta/ui/theme", async (importOriginal) => ({
+    ...(await importOriginal<object>()),
+    useThemeMode: () => ({themeMode: "light", setMode: () => undefined}),
+}))
+
 // Radix's switch is not what this test checks: a plain button carries the same contract.
 vi.mock("@agenta/ui/ui", async (importOriginal) => ({
     ...(await importOriginal<object>()),
@@ -42,12 +47,10 @@ vi.mock("@agenta/ui/ui", async (importOriginal) => ({
 const EXPECTED_STRUCTURE = [
     {
         title: "Feature Flags",
-        rows: ["Developer Mode", "Agent apps", "In-process agent runtime"],
+        rows: ["Developer Mode"],
     },
     {title: "Debugging", rows: ["Playground inspector", "Channel debug", "Agenta channel probe"]},
 ]
-
-const theme = {options: [{mode: "light", label: "Light"}], mode: "light", onSelect: () => undefined}
 
 describe("mobile Preferences tab", () => {
     let root: Root
@@ -65,7 +68,7 @@ describe("mobile Preferences tab", () => {
         act(() => {
             root.render(
                 <Provider store={store}>
-                    <PreferencesTab theme={theme} />
+                    <PreferencesTab />
                 </Provider>,
             )
         })

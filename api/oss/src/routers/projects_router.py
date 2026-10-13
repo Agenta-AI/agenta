@@ -11,6 +11,9 @@ from oss.src.services import db_manager
 
 from oss.src.utils.logging import get_module_logger
 
+if is_ee():
+    from ee.src.core.access.entitlements.service import project_limit_refusal
+
 log = get_module_logger(__name__)
 
 
@@ -219,6 +222,11 @@ async def create_project(
 
     if not project_name:
         raise HTTPException(status_code=400, detail="Project name cannot be empty")
+
+    if is_ee():
+        refusal = await project_limit_refusal(UUID(str(organization_id)))
+        if refusal:
+            raise HTTPException(status_code=403, detail=refusal)
 
     project = await db_manager.create_workspace_project(
         project_name=project_name,

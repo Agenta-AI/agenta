@@ -159,7 +159,192 @@ def test_table_entries_are_literal_data_only():
 
 def test_apply_static_fields_signature_cannot_see_request_semantics():
     """The function's signature is the proof (specs-wp27.md): only the table lookup keys
-    (`deployment_kind`, `protocol`) and the raw `body` — nothing that could carry a parsed
-    view of the request's content, so there is nothing for a future edit to read."""
+    (`deployment_kind`, `protocol`, and the route's `provider_key`) and the raw `body` —
+    nothing that could carry a parsed view of the request's content, so there is nothing for
+    a future edit to read."""
     params = list(inspect.signature(apply_static_fields).parameters)
-    assert params == ["deployment_kind", "protocol", "body"]
+    assert params == ["deployment_kind", "protocol", "body", "provider_key"]
+
+
+def _chat_with_tool_calls(*calls) -> bytes:
+    return json.dumps(
+        {
+            "model": "google/gemini-3.8-flash",
+            "messages": [
+                {"role": "user", "content": "run echo hi"},
+                {"role": "assistant", "content": None, "tool_calls": list(calls)},
+                {"role": "tool", "tool_call_id": "call_1", "content": "hi"},
+            ],
+        }
+    ).encode()
+
+
+def _call(call_id: str, **extra) -> dict:
+    return {
+        "id": call_id,
+        "type": "function",
+        "function": {"name": "bash", "arguments": "{}"},
+        **extra,
+    }
+
+
+def test_vertex_chat_gives_an_unsigned_tool_call_the_skip_signature():
+    """Gemini refuses a history whose tool call lost its thought signature (HTTP 400)."""
+    signed = _call(
+        "call_2", extra_content={"google": {"thought_signature": "real-signature"}}
+    )
+    result = apply_static_fields(
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        protocol=LLMProtocol.CHAT_COMPLETIONS,
+        body=_chat_with_tool_calls(_call("call_1"), signed),
+    )
+
+    calls = json.loads(result)["messages"][1]["tool_calls"]
+    assert calls[0]["extra_content"] == {
+        "google": {"thought_signature": "skip_thought_signature_validator"}
+    }
+    assert calls[1]["extra_content"] == {
+        "google": {"thought_signature": "real-signature"}
+    }
+
+
+def test_a_vertex_chat_without_tool_calls_relays_byte_for_byte():
+    body = json.dumps(
+        {
+            "model": "google/gemini-3.8-flash",
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+    ).encode()
+
+    assert (
+        apply_static_fields(
+            deployment_kind=LLMDeploymentKind.VERTEX,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+            body=body,
+        )
+        is body
+    )
+
+
+def test_other_deployments_keep_unsigned_tool_calls_as_they_are():
+    body = _chat_with_tool_calls(_call("call_1"))
+
+    assert (
+        apply_static_fields(
+            deployment_kind=LLMDeploymentKind.DIRECT,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+            body=body,
+            provider_key="openai",
+        )
+        is body
+    )
+
+
+def test_google_openai_endpoint_gives_an_unsigned_tool_call_the_skip_signature():
+    """A Gemini provider key reaches Google's OpenAI-compatible endpoint, which refuses an
+    unsigned tool call in the history as Vertex does."""
+    result = apply_static_fields(
+        deployment_kind=LLMDeploymentKind.DIRECT,
+        protocol=LLMProtocol.CHAT_COMPLETIONS,
+        body=_chat_with_tool_calls(_call("call_1")),
+        provider_key="gemini",
+    )
+
+    calls = json.loads(result)["messages"][1]["tool_calls"]
+    assert calls[0]["extra_content"] == {
+        "google": {"thought_signature": "skip_thought_signature_validator"}
+    }
+
+
+def test_google_openai_endpoint_drops_the_store_field_it_refuses():
+    result = apply_static_fields(
+        deployment_kind=LLMDeploymentKind.DIRECT,
+        protocol=LLMProtocol.CHAT_COMPLETIONS,
+        body=json.dumps(
+            {"model": "gemini-3.7-flash", "store": False, "messages": []}
+        ).encode(),
+        provider_key="gemini",
+    )
+
+    assert json.loads(result) == {"model": "gemini-3.7-flash", "messages": []}
+
+
+def test_google_openai_endpoint_leaves_a_file_part_as_it_came():
+    body = _chat_with_parts(
+        {"type": "file", "file": {"filename": "a.pdf", "file_data": "QUJD"}}
+    )
+
+    assert (
+        apply_static_fields(
+            deployment_kind=LLMDeploymentKind.DIRECT,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+            body=body,
+            provider_key="gemini",
+        )
+        is body
+    )
+
+
+def _chat_with_parts(*parts):
+    return json.dumps(
+        {
+            "model": "google/gemini-3.8-flash",
+            "messages": [{"role": "user", "content": [*parts]}],
+        }
+    ).encode()
+
+
+@pytest.mark.parametrize(
+    "file, url",
+    [
+        (
+            {
+                "filename": "doc.pdf",
+                "file_data": "data:application/pdf;base64,JVBERi0x",
+            },
+            "data:application/pdf;base64,JVBERi0x",
+        ),
+        (
+            {"filename": "doc.pdf", "file_data": "JVBERi0x"},
+            "data:application/pdf;base64,JVBERi0x",
+        ),
+    ],
+    ids=["data-url", "bare-base64"],
+)
+def test_vertex_chat_sends_a_file_part_as_the_data_url_gemini_reads(file, url):
+    """Vertex refuses an OpenAI `file` part (HTTP 400) but reads a PDF data URL."""
+    text = {"type": "text", "text": "What is in this file?"}
+    result = apply_static_fields(
+        deployment_kind=LLMDeploymentKind.VERTEX,
+        protocol=LLMProtocol.CHAT_COMPLETIONS,
+        body=_chat_with_parts(text, {"type": "file", "file": file}),
+    )
+
+    assert json.loads(result)["messages"][0]["content"] == [
+        text,
+        {"type": "image_url", "image_url": {"url": url}},
+    ]
+
+
+def test_a_file_part_with_no_data_and_other_deployments_are_relayed_as_they_came():
+    by_id = _chat_with_parts({"type": "file", "file": {"file_id": "file-abc"}})
+    inline = _chat_with_parts(
+        {"type": "file", "file": {"file_data": "data:application/pdf;base64,JVBE"}}
+    )
+
+    assert (
+        apply_static_fields(
+            deployment_kind=LLMDeploymentKind.VERTEX,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+            body=by_id,
+        )
+        is by_id
+    )
+    assert (
+        apply_static_fields(
+            deployment_kind=LLMDeploymentKind.DIRECT,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+            body=inline,
+        )
+        is inline
+    )

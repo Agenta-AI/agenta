@@ -66,7 +66,6 @@ const APIKeys = () => {
                 creating={keys.creating}
                 canView={canViewApiKeys}
                 canEdit={canEditApiKeys}
-                onReload={keys.list}
                 onCreate={() => void keys.create()}
                 onDelete={(prefix) => void keys.remove(prefix)}
             />

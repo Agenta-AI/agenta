@@ -18,8 +18,10 @@ import {
     requestIdFilterAtom,
     requestTypeFilterAtom,
 } from "@agenta/entities/event"
-import {Cascader, Input, type CascaderOption} from "@agenta/ui/ui"
+import {Button, Combobox, SearchInput, type ComboboxOptionGroup} from "@agenta/ui/ui"
 import {useAtom, useSetAtom} from "jotai"
+
+import {eventTypeGroup, eventTypeGroupRank, eventTypeLabel} from "./eventTypeLabels"
 
 const HIDDEN_EVENT_TYPE_PREFIXES = ["applications.revisions.", "evaluators.revisions."]
 const HIDDEN_EVENT_TYPES = ["unknown"]
@@ -30,37 +32,40 @@ const VISIBLE_EVENT_TYPES = Object.values(EventType).filter(
         !HIDDEN_EVENT_TYPE_PREFIXES.some((prefix) => value.startsWith(prefix)),
 )
 
-const EVENT_TYPE_OPTIONS = VISIBLE_EVENT_TYPES.reduce<CascaderOption[]>((options, eventType) => {
-    const segments = eventType.split(".")
-    let level = options
-
-    segments.forEach((segment, index) => {
-        const value = segments.slice(0, index + 1).join(".")
-        let option = level.find((item) => item.value === value)
-
-        if (!option) {
-            option = {label: segment, value}
-            level.push(option)
-        }
-
-        if (index < segments.length - 1) {
-            option.children ??= []
-            level = option.children
-        }
-    })
-
-    return options
-}, [])
-
-const eventTypeToCascaderValue = (eventType: EventTypeValue | null): string[] | undefined => {
-    if (!eventType) return undefined
-    const segments = eventType.split(".")
-    return segments.map((_, index) => segments.slice(0, index + 1).join("."))
-}
-
-const renderEventTypePath = (labels: string[]) => (
-    <span className="font-mono">{labels.join(".")}</span>
+/** The label first, the raw type under it; the trigger hides the raw line. */
+const EventOptionLabel = ({eventType}: {eventType: string}) => (
+    <span className="flex min-w-0 flex-col py-0.5">
+        <span className="truncate">{eventTypeLabel(eventType)}</span>
+        <span
+            data-event-raw
+            className="truncate font-mono text-[11px] font-normal text-muted-foreground"
+        >
+            {eventType}
+        </span>
+    </span>
 )
+
+const EVENT_TYPE_OPTIONS: ComboboxOptionGroup[] = [...VISIBLE_EVENT_TYPES]
+    .sort(
+        (a, b) =>
+            eventTypeGroupRank(a) - eventTypeGroupRank(b) ||
+            eventTypeGroup(a).localeCompare(eventTypeGroup(b)) ||
+            eventTypeLabel(a).localeCompare(eventTypeLabel(b)),
+    )
+    .reduce<ComboboxOptionGroup[]>((groups, eventType) => {
+        const label = eventTypeGroup(eventType)
+        let group = groups.find((item) => item.label === label)
+        if (!group) {
+            group = {label, options: []}
+            groups.push(group)
+        }
+        group.options.push({
+            value: eventType,
+            label: <EventOptionLabel eventType={eventType} />,
+            searchValue: `${eventTypeLabel(eventType)} ${label} ${eventType}`,
+        })
+        return groups
+    }, [])
 
 /** Debounce (ms) before committing the free-text id filter. */
 const ID_DEBOUNCE_MS = 400
@@ -116,31 +121,40 @@ export const AuditLogFilters = ({registerRefresh, renderDateRange}: AuditLogFilt
         registerRefresh(commitEventId)
     }, [commitEventId, registerRefresh])
 
+    const hasFilters = Boolean(eventType || eventIdDraft.trim())
+    const clearFilters = () => {
+        setEventType(null)
+        setEventIdDraft("")
+        setEventId(null)
+    }
+
     return (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             {renderDateRange?.({value: timestampRange, onChange: setTimestampRange})}
-            <Cascader
+            <Combobox
                 allowClear
-                showSearch
                 aria-label="Event type"
-                // `[data-slot=cascader-value]` is the @agenta/ui trigger's selected-value node —
-                // the replacement for antd's `.ant-select-selection-item`.
-                className="w-[280px] [&_[data-slot=cascader-value]]:font-mono"
-                displayRender={renderEventTypePath}
-                placeholder="Event"
-                value={eventTypeToCascaderValue(eventType)}
-                onChange={(value) => {
-                    const selected = value?.[value.length - 1]
-                    setEventType((selected as EventTypeValue | undefined) ?? null)
-                }}
+                placeholder="All events"
+                emptyText="No matching events"
+                // The trigger shows the label alone; the raw type is for the list.
+                className="w-full sm:w-[240px] [&_[data-event-raw]]:hidden"
+                contentClassName="w-[min(320px,calc(100vw-32px))]"
+                value={eventType ?? undefined}
+                onChange={(value) => setEventType((value as EventTypeValue | undefined) ?? null)}
                 options={EVENT_TYPE_OPTIONS}
             />
-            <Input
-                className="w-[290px] font-mono"
-                placeholder="ID"
+            <SearchInput
+                aria-label="Event ID"
+                className="w-full sm:w-[260px]"
+                placeholder="Filter by event ID"
                 value={eventIdDraft}
-                onChange={(event) => setEventIdDraft(event.target.value)}
+                onValueChange={setEventIdDraft}
             />
+            {hasFilters ? (
+                <Button variant="ghost" onClick={clearFilters}>
+                    Clear
+                </Button>
+            ) : null}
         </div>
     )
 }

@@ -20,6 +20,7 @@ const clampWidth = (w: number, total: number, min: number, max: number) =>
  */
 const RightPanelSplit = ({
     open,
+    expanded = false,
     panel,
     children,
     widthAtom = rightPanelWidthAtom,
@@ -27,6 +28,7 @@ const RightPanelSplit = ({
     max = RIGHT_PANEL_MAX,
 }: {
     open: boolean
+    expanded?: boolean
     panel: ReactNode
     children: ReactNode
     /** Persisted width store + clamp bounds — defaults are the Inspector's; the Files pane passes
@@ -51,17 +53,19 @@ const RightPanelSplit = ({
     return (
         <SplitPane
             paneSide="end"
-            paneSize={open ? live : 0}
+            paneSize={open && !expanded ? live : 0}
+            paneGrow={expanded}
+            fillClassName={expanded ? "hidden" : undefined}
             paneMin={open ? min : 0}
             paneMax={max}
             fillMin={CHAT_MIN}
-            resizable={open}
-            animate={animate}
+            resizable={open && !expanded}
+            animate={animate && !expanded}
             // A closed panel draws no divider. These splits NEST (Inspector inside the Files
             // split's chat column), so two closed ones painted 18px of stacked empty gutter at the
             // right edge; a single closed one reads as a double border beside an open one. Zero-
             // width rather than unmounted, so it closes on the same curve as the panel.
-            barHidden={!open}
+            barHidden={!open || expanded}
             className="h-full min-h-0 w-full flex-1"
             // The divider spans the pane height minus the absolute session bar's inset, so it
             // starts below the bar. SplitPane owns the transition (height AND flex-basis, one
@@ -76,7 +80,11 @@ const RightPanelSplit = ({
                 if (open) setPersisted(clampWidth(size, total, min, max))
             }}
             pane={keepMounted ? panel : null}
-            fill={children}
+            fill={
+                <div className="h-full min-h-0" inert={expanded}>
+                    {children}
+                </div>
+            }
         />
     )
 }

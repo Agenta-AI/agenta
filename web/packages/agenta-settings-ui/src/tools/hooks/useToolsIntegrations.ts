@@ -9,7 +9,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 const DEFAULT_PROVIDER = "composio"
 
-type CatalogIntegrationItem = ToolCatalogIntegration | ToolCatalogIntegrationDetails
+export type CatalogIntegrationItem = ToolCatalogIntegration | ToolCatalogIntegrationDetails
 
 export const integrationsQueryAtom = atomWithQuery<ToolCatalogIntegrationsResponse>(() => ({
     queryKey: ["tools", "integrations", DEFAULT_PROVIDER],

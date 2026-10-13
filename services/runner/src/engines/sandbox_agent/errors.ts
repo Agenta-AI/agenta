@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { personFacingGatewayRefusal } from "../../gateway-error.ts";
 import { SubstitutionStuckError } from "./credential-preflight.ts";
 
 /** Map a provider family to its human-facing vault key label, for the credit/auth hint. */
@@ -68,10 +69,12 @@ function keyHintFor(
 export const SANDBOX_GONE_MARKER = "sandbox is gone";
 export const ABANDONED_TURN_MARKER = "execution abandoned";
 
+export const TURN_TIME_LIMIT_CODE: RunErrorCode = "turn_time_limit_reached";
+
 /** The line the user reads when the machine running their turn disappeared. */
 export const SANDBOX_GONE_MESSAGE =
-  "The sandbox running this session stopped responding, so the run was ended. " +
-  "Send the message again to start a fresh sandbox.";
+  "The agent stopped responding, so we ended this request. " +
+  "Send your message again to start a new one.";
 
 /** Why a shutdown ends the turns it interrupts. */
 export const RUNNER_SHUTDOWN_REASON = "the runner is shutting down";
@@ -84,6 +87,18 @@ export const RUNNER_RESTARTING_MESSAGE =
 export const EXECUTION_LOST_MESSAGE =
   "The agent stopped responding and the run was closed. Send the message again to retry.";
 
+export const TURN_INDEX_TAKEN_CODE: RunErrorCode = "turn_index_taken";
+
+/** The line the user reads when another runner already wrote this turn; a resend starts fresh. */
+export const TURN_INDEX_TAKEN_MESSAGE =
+  "Another agent runner already started this turn of the conversation, so this message was not sent. Send it again.";
+
+export const SESSION_RECORDS_INCOMPLETE_CODE: RunErrorCode = "session_records_incomplete";
+
+/** The line the user reads when the session's saved history lost a record; a resend fails the same way. */
+export const SESSION_RECORDS_INCOMPLETE_MESSAGE =
+  "Part of this session's history could not be saved, so the agent cannot continue it. Start a new session.";
+
 export type RunErrorCode =
   | "runner_error"
   // The sandbox provider (or this runner's own sandbox admission) is at capacity; retryable later.
@@ -93,6 +108,26 @@ export type RunErrorCode =
   | "starter_credits_exhausted"
   | "starter_credits_program_paused"
   | "starter_credits_unavailable"
+  // The caller's wallet is at its floor, so a turn that would run a platform sandbox was refused
+  // before it started. See `metering/sandbox-usage.ts`.
+  | "wallet_balance_exhausted"
+  // The caller's organization already runs as many turns at once as its plan allows, so this turn
+  // was refused before it started. The platform's turn admission writes the message.
+  | "concurrent_turns_limit"
+  // A platform-funded (built-in) model was refused because the organization's wallet is off, so
+  // nothing would measure the call. The gateway writes the message; a model on the caller's own key
+  // still works.
+  | "builtin_models_not_enabled"
+  // The turn ran for the longest time the caller's plan allows and was stopped. What it did so
+  // far is kept; the platform's turn admission writes the message.
+  | "turn_time_limit_reached"
+  // One of the runner's own run limits (`run-limits.ts`) ended the turn: a tool call that never
+  // returned a result, no progress for the idle limit, no first response, or the total deadline.
+  // Set by `runLimitError`; the message names the limit.
+  | "tool_call_time_limit"
+  | "run_idle_time_limit"
+  | "run_first_response_time_limit"
+  | "run_total_time_limit"
   | "credential_delivery_failed"
   | "rate_limited"
   // Not a failure: the turn was REFUSED before it started because another turn already owns
@@ -124,6 +159,14 @@ export type RunErrorCode =
   // carries the provider's own sentence, redacted. Not retryable as is: the same request is
   // refused the same way. The failed turn leaves the conversation, so the next message is not.
   | "provider_error"
+  // A fresh prompt found its turn index already written by another runner, so this runner's view
+  // of the conversation was stale. Nothing was sent to the model. Retryable: the next send
+  // rebuilds from the latest turn.
+  | "turn_index_taken"
+  // The session's durable record log lost a record for good, so the conversation cannot be
+  // rebuilt from it. Not retryable: every later turn of the session fails the same way, and the
+  // user has to start a new session. See `sessions/persist.ts`.
+  | "session_records_incomplete"
   // A failure no rule recognized, whose text the runner withholds (it may hold paths, ids or
   // credentials): the message is one sentence with a reference to the runner's log. A client must
   // not show any other text for it in its place (a trace's error text included). Only runs whose
@@ -199,7 +242,8 @@ export const REQUEST_TOO_LARGE_MESSAGE =
 // internal error, so the text reads `Internal error: OpenAI API error (404): {json}`.
 // Each label starts with a letter: a label that could start with a space would let the spaces
 // after a colon split two ways, and a long unmatched line would backtrack for minutes.
-const RAW_PROVIDER_ERROR = /^(?:[A-Za-z][A-Za-z ]*:\s*)*(?:[A-Za-z ]+\()?([45]\d\d)\b[^\n]*?\{/;
+const RAW_PROVIDER_ERROR =
+  /^(?:[A-Za-z][A-Za-z ]*:\s*)*(?:[A-Za-z ]+\()?([45]\d\d)\b[^\n]*?\{/;
 
 /** The upstream provider's own quota refusal (Vertex/Google shape), distinct from a billing stop. */
 const PROVIDER_QUOTA_EXHAUSTED = /resource_exhausted|quota exceeded/i;
@@ -252,7 +296,7 @@ const MASKED_PLACEHOLDER_ECHO = /dtn_[A-Za-z0-9_-]{4,}\*{3,}/i;
  * "401" as a substring (a real, timestamp-dependent flake this caused).
  */
 const AUTH_REFUSAL =
-  /authentication required|invalid api key|unauthorized|(?<!\d)401(?!\d)/i;
+  /authentication required|invalid api key|api key not valid|pass a valid api key|unauthorized|(?<!\d)401(?!\d)/i;
 
 /**
  * A refusal the PROVIDER answered with 401, as opposed to any authorization failure anywhere.
@@ -419,8 +463,14 @@ export function classifyRunError(
   options: ConciseErrorOptions = {},
 ): ClassifiedRunError {
   // An error that states its own public code was written for the person in the chat.
-  if (isPublicError(err)) return { message: sanitizeErrorText(err.message), code: err.publicCode };
+  if (isPublicError(err))
+    return { message: sanitizeErrorText(err.message), code: err.publicCode };
   const raw = err instanceof Error ? err.message : String(err);
+  // The gateway refused a model call with a sentence written for the person (out of credit,
+  // built-in models not enabled): that sentence and its class, never the raw text and marker.
+  const refusal = personFacingGatewayRefusal(raw);
+  if (refusal)
+    return { message: refusal.message, code: refusal.code as RunErrorCode };
   const msg = raw.split("\n")[0].trim();
   const keyHint = keyHintFor(provider, harness, options.connection);
   // FIRST, and matched on the ERROR CLASS rather than on any text. Every sandbox this run built
@@ -569,13 +619,22 @@ export function classifyRunError(
   if (providerError) return { message: providerError, code: "provider_error" };
   const rawProviderError = describeRawProviderError(msg);
   if (rawProviderError) return rawProviderError;
-  if (options.unknownText !== "hidden") return { message: sanitizeErrorText(msg) || "agent run failed", code: "runner_error" };
+  if (options.unknownText !== "hidden")
+    return {
+      message: sanitizeErrorText(msg) || "agent run failed",
+      code: "runner_error",
+    };
   // Unknown text is not shown: it can carry paths, ids or credentials no rule anticipated. The
   // reference joins the sentence to the log line holding the error, redacted and cut to 500
   // characters (the log is not a place for credentials either).
   const reference = randomBytes(4).toString("hex");
-  process.stderr.write(`[errors] unclassified run error reference=${reference}: ${sanitizeErrorText(raw).slice(0, 500)}\n`);
-  return { message: unclassifiedRunErrorMessage(reference), code: "internal_error" };
+  process.stderr.write(
+    `[errors] unclassified run error reference=${reference}: ${sanitizeErrorText(raw).slice(0, 500)}\n`,
+  );
+  return {
+    message: unclassifiedRunErrorMessage(reference),
+    code: "internal_error",
+  };
 }
 
 /**
@@ -583,10 +642,12 @@ export function classifyRunError(
  * "Upstream error from <Provider>: <the provider's message>"; the provider's message is often a
  * refusal worded for the end user. "Provider returned error" is its wording when it has no text.
  */
-const UPSTREAM_PROVIDER_ERROR = /upstream error from ([A-Za-z0-9][A-Za-z0-9 ._-]{0,40}?)\s*:\s*([^\n]+)/i;
+const UPSTREAM_PROVIDER_ERROR =
+  /upstream error from ([A-Za-z0-9][A-Za-z0-9 ._-]{0,40}?)\s*:\s*([^\n]+)/i;
 const PROVIDER_RETURNED_ERROR = /\bprovider returned error\b/i;
 /** A provider's content filter or moderation refusal, named in its own error. */
-const CONTENT_FILTER = /content[_ ]filter|content management policy|flagged by (?:the )?moderation|responsible ?ai polic/i;
+const CONTENT_FILTER =
+  /content[_ ]filter|content management policy|flagged by (?:the )?moderation|responsible ?ai polic/i;
 const PROVIDER_TEXT_MAX_CHARS = 300;
 
 /** The part of a failed turn the person can act on: the rest of the conversation is unaffected. */
@@ -595,7 +656,9 @@ const PROVIDER_ERROR_ADVICE =
 
 /** A provider's own words, redacted and cut, ending with a full stop. */
 function providerSentence(text: string): string | undefined {
-  const said = sanitizeErrorText(text.trim()).slice(0, PROVIDER_TEXT_MAX_CHARS).trim();
+  const said = sanitizeErrorText(text.trim())
+    .slice(0, PROVIDER_TEXT_MAX_CHARS)
+    .trim();
   if (!said) return undefined;
   return /[.!?]$/.test(said) ? said : `${said}.`;
 }
@@ -606,7 +669,9 @@ function providerBodyReason(body: string): string | undefined {
     const parsed = JSON.parse(body) as { error?: unknown; message?: unknown };
     const error = parsed?.error;
     const message =
-      error && typeof error === "object" ? (error as { message?: unknown }).message : (error ?? parsed?.message);
+      error && typeof error === "object"
+        ? (error as { message?: unknown }).message
+        : (error ?? parsed?.message);
     if (typeof message === "string") return message;
   } catch {
     // Not one JSON value (cut off, or followed by more text): read the first "message" string.
@@ -625,7 +690,9 @@ function providerBodyReason(body: string): string | undefined {
  * 4xx is a refusal of this request (`provider_error`); a 429 or a 5xx is the provider busy or
  * failing, which a retry may fix.
  */
-function describeRawProviderError(line: string): ClassifiedRunError | undefined {
+function describeRawProviderError(
+  line: string,
+): ClassifiedRunError | undefined {
   const match = RAW_PROVIDER_ERROR.exec(line);
   if (!match) return undefined;
   const status = match[1]!;
@@ -649,7 +716,8 @@ function describeProviderError(raw: string): string | undefined {
   if (upstream) {
     const provider = upstream[1]!.trim();
     const said = providerSentence(upstream[2]!);
-    if (said) return `The model provider (${provider}) returned an error: ${said} ${PROVIDER_ERROR_ADVICE}`;
+    if (said)
+      return `The model provider (${provider}) returned an error: ${said} ${PROVIDER_ERROR_ADVICE}`;
     return `The model provider (${provider}) returned an error. ${PROVIDER_ERROR_ADVICE}`;
   }
   if (CONTENT_FILTER.test(raw)) {
@@ -678,11 +746,69 @@ export interface PublicError extends Error {
 }
 
 export function isPublicError(err: unknown): err is PublicError {
-  return err instanceof Error && typeof (err as Partial<PublicError>).publicCode === "string";
+  return (
+    err instanceof Error &&
+    typeof (err as Partial<PublicError>).publicCode === "string"
+  );
+}
+
+/** A run limit as a person reads it: "20 seconds", "5 minutes", "11 hours". */
+export function formatRunLimit(ms: number): string {
+  const unit = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  if (ms < 120_000) return unit(Math.max(1, Math.round(ms / 1000)), "second");
+  if (ms < 2 * 60 * 60_000) return unit(Math.round(ms / 60_000), "minute");
+  return unit(Math.round(ms / (60 * 60_000)), "hour");
+}
+
+/**
+ * The error a tripped run limit ends the turn with, written for the person in the chat. Without
+ * it the limit's log line reached the classifier as an unknown error, and the person read only
+ * "The agent run failed". A tool call that is too slow normally never gets here: its command is
+ * stopped at the limit and the agent is told so (`commandTimeoutSeconds`), so this copy is for
+ * the call whose result did not arrive even after that.
+ */
+export function runLimitError(
+  kind: "total" | "idle" | "ttfb" | "tool-call",
+  limitMs: number,
+): PublicError {
+  const limit = formatRunLimit(limitMs);
+  switch (kind) {
+    case "tool-call":
+      return withPublicCode(
+        new Error(
+          `A tool call ran longer than ${limit} and did not stop, so the turn was ended. Ask for smaller steps, or send the message again.`,
+        ),
+        "tool_call_time_limit",
+      );
+    case "idle":
+      return withPublicCode(
+        new Error(
+          `The agent made no progress for ${limit}, so the turn was ended. Send the message again to retry.`,
+        ),
+        "run_idle_time_limit",
+      );
+    case "ttfb":
+      return withPublicCode(
+        new Error(
+          `The agent did not start responding within ${limit}, so the turn was ended. Send the message again to retry.`,
+        ),
+        "run_first_response_time_limit",
+      );
+    case "total":
+      return withPublicCode(
+        new Error(
+          `This turn ran longer than ${limit}, so it was ended.`,
+        ),
+        "run_total_time_limit",
+      );
+  }
 }
 
 /** Give `err` a public code, keeping its (already readable) message. */
-export function withPublicCode<E extends Error>(err: E, code: RunErrorCode): E & PublicError {
+export function withPublicCode<E extends Error>(
+  err: E,
+  code: RunErrorCode,
+): E & PublicError {
   return Object.assign(err, { publicCode: code });
 }
 
@@ -707,19 +833,33 @@ export const SANDBOX_CAPACITY_MESSAGE =
  * it from any source, such as a trace.
  */
 export function sanitizeErrorText(text: string): string {
-  return text
-    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{6,}/gi, "$1 [secret]")
-    .replace(/\b(Token|Bot)\s+(?=[A-Za-z0-9._~+/=-]*\d)[A-Za-z0-9._~+/=-]{12,}/g, "$1 [secret]")
-    // Any other scheme in an Authorization header, quoted or not (`Authorization: Token abc...`,
-    // `{"Authorization": "Token abc..."}`).
-    .replace(/\b(Authorization['"]?\s*[=:]\s*['"]?)(?!(?:Bearer|Basic)\b)([A-Za-z]+)\s+(?!\[secret\])[A-Za-z0-9._~+/=-]{6,}/gi, "$1$2 [secret]")
-    // A credential's value, quoted (`password='a b'`, `"token": "x"`) or not (`key=x`), digits
-    // included. The name ends in the credential word, so `max_tokens` or `input_tokens` is not one.
-    .replace(/(['"]?)\b([A-Za-z0-9_-]*(?:keys?|token|secrets?|passwords?|passwd|credentials?))\1\s*[=:]\s*(['"`])(?:(?!\3)[^\\]|\\.)*\3/gi, "$2=[secret]")
-    .replace(/(['"]?)\b([A-Za-z0-9_-]*(?:keys?|token|secrets?|passwords?|passwd|credentials?))\1\s*[=:]\s*(?!\[secret\])['"`]?[^\s'"`,;)]+/gi, "$2=[secret]")
-    .replace(/\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9._-]+/g, "[secret]")
-    .replace(/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}/g, "[secret]")
-    .trim();
+  return (
+    text
+      .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{6,}/gi, "$1 [secret]")
+      .replace(
+        /\b(Token|Bot)\s+(?=[A-Za-z0-9._~+/=-]*\d)[A-Za-z0-9._~+/=-]{12,}/g,
+        "$1 [secret]",
+      )
+      // Any other scheme in an Authorization header, quoted or not (`Authorization: Token abc...`,
+      // `{"Authorization": "Token abc..."}`).
+      .replace(
+        /\b(Authorization['"]?\s*[=:]\s*['"]?)(?!(?:Bearer|Basic)\b)([A-Za-z]+)\s+(?!\[secret\])[A-Za-z0-9._~+/=-]{6,}/gi,
+        "$1$2 [secret]",
+      )
+      // A credential's value, quoted (`password='a b'`, `"token": "x"`) or not (`key=x`), digits
+      // included. The name ends in the credential word, so `max_tokens` or `input_tokens` is not one.
+      .replace(
+        /(['"]?)\b([A-Za-z0-9_-]*(?:keys?|token|secrets?|passwords?|passwd|credentials?))\1\s*[=:]\s*(['"`])(?:(?!\3)[^\\]|\\.)*\3/gi,
+        "$2=[secret]",
+      )
+      .replace(
+        /(['"]?)\b([A-Za-z0-9_-]*(?:keys?|token|secrets?|passwords?|passwd|credentials?))\1\s*[=:]\s*(?!\[secret\])['"`]?[^\s'"`,;)]+/gi,
+        "$2=[secret]",
+      )
+      .replace(/\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9._-]+/g, "[secret]")
+      .replace(/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}/g, "[secret]")
+      .trim()
+  );
 }
 
 /*
@@ -839,5 +979,8 @@ export function conciseError(
 /** The line a person reads when the runner ended a turn that would not finish on its own. */
 export function abandonedTurnMessage(reason: string, harness: string): string {
   if (reason === RUNNER_SHUTDOWN_REASON) return RUNNER_RESTARTING_MESSAGE;
-  return classifyRunError(new Error(`${ABANDONED_TURN_MARKER}: ${reason}`), harness).message;
+  return classifyRunError(
+    new Error(`${ABANDONED_TURN_MARKER}: ${reason}`),
+    harness,
+  ).message;
 }

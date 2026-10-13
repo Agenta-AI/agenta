@@ -76,6 +76,13 @@ export const DEFAULT_RUNNER_HOST = "127.0.0.1";
 export const DEFAULT_RUNNER_PORT = 8765;
 export const DEFAULT_CONCURRENCY_LIMIT = 1000;
 export const DEFAULT_LOG_LEVEL = "silent";
+/**
+ * Zero: without an operator value, a shutdown cancels running turns at once. Docker Compose sends
+ * SIGKILL 10 seconds after SIGTERM unless the compose file says otherwise, and none of ours does,
+ * so any wait there would be cut off mid-way and leave the turns and their sandboxes behind. The
+ * Helm chart passes a wait that fits its own grace period.
+ */
+export const DEFAULT_SHUTDOWN_WAIT_SECONDS = 0;
 
 /** Thrown when the operator's configuration is invalid. Fails startup before the server listens. */
 export class RunnerConfigError extends Error {
@@ -92,6 +99,8 @@ export interface RunnerServerConfig {
   logLevel: string;
   replicaId: string | undefined;
   token: string | undefined;
+  /** How long a shutdown lets admitted turns finish on their own before it cancels them. */
+  shutdownWaitSeconds: number;
 }
 
 export interface RunnerProvidersConfig {
@@ -134,6 +143,11 @@ export interface RunnerInProcessConfig {
   maxSessions: number;
   /** Accept provider keys in the runner environment (every in-process session would see them). */
   allowEnvironmentKeys: boolean;
+  /**
+   * Run Pi in-process for an agent that chose Daytona (`routeSandboxForHarness`). On by default;
+   * `AGENTA_RUNNER_INPROCESS_FOR_PI=false` makes each run use the provider it names again.
+   */
+  forPi: boolean;
 }
 
 export interface RunnerConfig {
@@ -167,6 +181,22 @@ function parsePositiveInt(
   if (!Number.isInteger(parsed) || parsed < 1) {
     throw new RunnerConfigError(
       `${name} must be a positive integer, got '${value}'.`,
+    );
+  }
+  return parsed;
+}
+
+function parseNonNegativeInt(
+  raw: string | undefined,
+  fallback: number,
+  name: string,
+): number {
+  const value = nonEmpty(raw);
+  if (value === undefined) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new RunnerConfigError(
+      `${name} must be a non-negative integer, got '${value}'.`,
     );
   }
   return parsed;
@@ -368,6 +398,14 @@ export function parseLabels(raw: string | undefined, name: string): Record<strin
   return labels;
 }
 
+/** A switch that is on unless set to `false`; any other value than `true`/`false` is refused. */
+function parseOnByDefault(raw: string | undefined, name: string): boolean {
+  const value = nonEmpty(raw)?.toLowerCase();
+  if (value === undefined || value === "true") return true;
+  if (value === "false") return false;
+  throw new RunnerConfigError(`${name} must be 'true' or 'false', got '${raw?.trim()}'.`);
+}
+
 function parseInProcess(env: Env, enabled: readonly SandboxProviderId[], daytona: RunnerDaytonaConfig): RunnerInProcessConfig {
   // A runner without the provider neither reads nor validates its settings.
   if (!enabled.includes("inprocess")) env = {};
@@ -385,6 +423,7 @@ function parseInProcess(env: Env, enabled: readonly SandboxProviderId[], daytona
     maxRunningSandboxes: count("AGENTA_RUNNER_INPROCESS_MAX_RUNNING_SANDBOXES", 40),
     maxSessions: count("AGENTA_RUNNER_INPROCESS_MAX_SESSIONS", 200),
     allowEnvironmentKeys: nonEmpty(env.AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS)?.toLowerCase() === "true",
+    forPi: parseOnByDefault(env.AGENTA_RUNNER_INPROCESS_FOR_PI, "AGENTA_RUNNER_INPROCESS_FOR_PI"),
   };
 }
 
@@ -404,6 +443,11 @@ function parseServer(env: Env): RunnerServerConfig {
     logLevel: nonEmpty(env.AGENTA_RUNNER_LOG_LEVEL) ?? DEFAULT_LOG_LEVEL,
     replicaId: nonEmpty(env.AGENTA_RUNNER_REPLICA_ID),
     token: nonEmpty(env.AGENTA_RUNNER_TOKEN),
+    shutdownWaitSeconds: parseNonNegativeInt(
+      env.AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS,
+      DEFAULT_SHUTDOWN_WAIT_SECONDS,
+      "AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS",
+    ),
   };
 }
 

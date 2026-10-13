@@ -159,6 +159,15 @@ cd sdks/python && uv run --no-sync python -m pytest \
 A malformed data file fails loud there (and at import in `capabilities.py`, which then publishes an
 empty catalog rather than crashing `/inspect`).
 
+## Harness bumps change the Daytona snapshot
+
+A bump of a pinned harness version (Pi, Pi ACP, Codex ACP, Claude ACP) changes a Daytona snapshot
+build input. In the same commit, bump `services/runner/config/sandbox-recipe.json` `version`,
+regenerate `services/runner/images/sandbox/daytona/sandbox-recipe-fingerprint.json`, and run the
+fingerprint test (steps in that folder's `README.md`, "Recipe version"). The new version is a new
+snapshot name, which must be built in every Daytona account before the runner that asks for it
+deploys.
+
 ## When to run
 
 - Job 1 on a pi-ai bump (automatable from a lockfile diff).

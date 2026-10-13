@@ -362,6 +362,16 @@ describe("host → app events", () => {
         expect(seen).toHaveLength(1)
     })
 
+    it("access updates agenta.canWrite and dispatches access so the app can re-render", async () => {
+        const {agenta, parent} = await connected({canWrite: false})
+        const seen: unknown[] = []
+        agenta.addEventListener("access", (detail) => seen.push(detail))
+        parent.send({v: 1, type: "access", canWrite: true})
+        await tick()
+        expect(agenta.canWrite).toBe(true)
+        expect(seen).toEqual([{canWrite: true}])
+    })
+
     it("theme rewrites the token block in place and dispatches theme", async () => {
         const {agenta, doc, parent} = await connected()
         const seen: unknown[] = []

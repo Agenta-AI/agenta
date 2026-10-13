@@ -32,9 +32,10 @@ HEARTBEAT_FRAME = ": heartbeat\n\n"
 # every reload/stop waits on these generators forever (live symptom: the dev
 # stack's `uvicorn --reload` logs "Reloading..." and the API stays dead until a
 # hard container restart, since any open browser tab holds a watch stream).
-# `Server.handle_exit` is the first thing uvicorn does on SIGINT/SIGTERM — before
-# the drain — so hooking it (the sse-starlette approach) releases every stream
-# within one poll interval and lets the drain complete. A client disconnect
+# `Server.shutdown` is where every exit path meets — a SIGINT/SIGTERM, and a
+# gunicorn worker that reached `--max-requests` (no signal at all) — and the drain
+# runs inside it, so hooking it releases every stream within one poll interval and
+# lets the drain complete. A client disconnect
 # already releases a stream by cancelling the generator; this covers the server
 # side. A `threading.Event` because the hook may run from a signal frame: no
 # event-loop affinity, and polling it is cheap.
@@ -48,7 +49,7 @@ _SHUTDOWN_POLL_SECONDS = 1.0
 
 
 def request_shutdown() -> None:
-    """Release every open watch stream (idempotent; wired into uvicorn's exit path)."""
+    """Release every open watch stream (idempotent; wired into uvicorn's shutdown)."""
     _shutdown.set()
 
 
@@ -57,16 +58,16 @@ def _install_uvicorn_exit_hook() -> None:
         from uvicorn.server import Server  # noqa: PLC0415 — optional dependency
     except Exception:  # pragma: no cover — no uvicorn (workers, bare test runs)
         return
-    if getattr(Server.handle_exit, "_agenta_watch_hook", False):  # pragma: no cover
+    if getattr(Server.shutdown, "_agenta_watch_hook", False):  # pragma: no cover
         return
-    original = Server.handle_exit
+    original = Server.shutdown
 
-    def handle_exit(self: Any, sig: Any, frame: Any) -> Any:
+    async def shutdown(self: Any, *args: Any, **kwargs: Any) -> Any:
         request_shutdown()
-        return original(self, sig, frame)
+        return await original(self, *args, **kwargs)
 
-    handle_exit._agenta_watch_hook = True  # type: ignore[attr-defined]
-    Server.handle_exit = handle_exit  # type: ignore[method-assign]
+    shutdown._agenta_watch_hook = True  # type: ignore[attr-defined]
+    Server.shutdown = shutdown  # type: ignore[method-assign]
 
 
 _install_uvicorn_exit_hook()

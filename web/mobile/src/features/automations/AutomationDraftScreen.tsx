@@ -27,7 +27,9 @@ export const AutomationDraftScreen = ({
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
 
-    const state = useAutomationCreate()
+    // `?agent=` preselects the agent picked on the empty Automations page.
+    const agent = router.query.agent
+    const state = useAutomationCreate({defaultAgentId: typeof agent === "string" ? agent : null})
 
     const onCreate = useCallback(async () => {
         const created = await state.create()

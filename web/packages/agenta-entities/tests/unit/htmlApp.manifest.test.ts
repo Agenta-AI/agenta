@@ -14,7 +14,6 @@ describe("@agenta/entities/drive barrel", () => {
         expect(driveBarrel.APP_MANIFEST_FILENAME).toBe(APP_MANIFEST_FILENAME)
         expect(typeof driveBarrel.createMockHtmlAppHost).toBe("function")
         expect(driveBarrel.BRIDGE_VERSION).toBe(1)
-        expect(driveBarrel.AGENT_APPS_FLAG).toBe("agent-apps")
     })
 })
 
@@ -48,7 +47,6 @@ describe("parseManifest", () => {
             agenta_app: 1,
             name: "Board",
             entry: APP_DEFAULT_ENTRY,
-            access: "read",
             kit: true,
         })
         expect(APP_DEFAULT_ENTRY).toBe("index.html")
@@ -64,12 +62,12 @@ describe("parseManifest", () => {
         expect(parseManifest(minimal({entry: 3}))).toBeNull()
     })
 
-    it("falls back to read when access is missing or invalid", () => {
-        expect(parseManifest(minimal())?.access).toBe("read")
-        expect(parseManifest(minimal({access: "read-write"}))?.access).toBe("read-write")
-        expect(parseManifest(minimal({access: "write"}))?.access).toBe("read")
-        expect(parseManifest(minimal({access: "admin"}))?.access).toBe("read")
-        expect(parseManifest(minimal({access: true}))?.access).toBe("read")
+    it("keeps access only as read or read-write, never in extra", () => {
+        const manifest = parseManifest(minimal({access: "read-write"}))
+        expect(manifest?.access).toBe("read-write")
+        expect(manifest?.extra).toBeUndefined()
+        expect(parseManifest(minimal({access: "read"}))?.access).toBe("read")
+        expect(parseManifest(minimal({access: "write"}))).not.toHaveProperty("access")
     })
 
     it("defaults kit to true and honours an explicit boolean only", () => {

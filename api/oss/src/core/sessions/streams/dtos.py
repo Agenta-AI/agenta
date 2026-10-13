@@ -278,19 +278,19 @@ class SessionHeartbeatRequest(BaseModel):
     """
 
     session_id: str
-    replica_id: str = Field(min_length=1)  # the runner CONTAINER (affinity / owner key)
+    # The runner POD; the turn binds to it. No control characters: the binding joins the id and
+    # the pod address with Unit Separator, so an id that held one could forge the address.
+    replica_id: str = Field(
+        min_length=1, max_length=128, pattern=r"^[^\x00-\x1f\x7f]+$"
+    )
+    # The URL that reaches this pod directly, so a Stop for its turn goes to it. Empty when
+    # the runner has none (compose, Railway), which means "use the Service URL". Stored only
+    # when the beat carries a valid runner token.
+    replica_address: Optional[str] = None
     turn_id: Optional[str] = None  # the current TURN (proves alive-lock ownership)
     is_running: bool = True
     name: Optional[str] = None
     references: Optional[List[SessionReference]] = None
-    # The INVERSE beat, sent once per session as a runner shuts down: hand the affinity key
-    # back instead of renewing it. `claim_owner` never steals, so a replica that dies still
-    # holding `owner:session:<id>` locks the session out of every other replica for the rest
-    # of OWNER_TTL_SECONDS — a local-provider session then refuses every message until the
-    # lease expires. The release is conditional on still being the owner, so it can never
-    # take a session from a live replica. Everything else about the beat is skipped: a
-    # departing runner asserts no liveness and no turn.
-    release_owner: bool = False
 
 
 class SessionLiveness(BaseModel):
@@ -300,20 +300,20 @@ class SessionLiveness(BaseModel):
 
 
 class SessionHeartbeatResult(BaseModel):
-    """A heartbeat's outcome: the reconciled stream plus the session's actual owner replica.
+    """A heartbeat's outcome: the reconciled stream and whether this turn is still current.
 
-    `replica_id` is the replica that currently holds the affinity key after the claim
-    (this caller if it won or already held it, another replica otherwise). The runner reads
-    it to refuse serving a local sandbox session it does not own.
+    `replica_id` echoes the caller's own id. A runner of the previous release reads it, so it
+    stays for one release.
 
-    `stream` is None when a losing replica heartbeats a session that has no row yet: it may
-    not create or stamp one, since that row belongs to the owner.
+    `stream` is None when a refused beat names a session that has no row yet: it may not
+    create or stamp one, since that row belongs to the turn's own runner.
 
     `is_current_turn` (W7.4) is False when this turn_id's alive/running lock was gone or
     reassigned at the moment of this beat — i.e. a cancel/steer/kill interrupted this turn
     since the last heartbeat. The runner's watchdog reads this to abort the in-flight run;
     without it a cancel that raced a heartbeat's nx=True re-acquire would silently re-arm the
-    SAME lock under the SAME turn_id and the interruption would never surface.
+    SAME lock under the SAME turn_id and the interruption would never surface. It is also
+    False when the turn is bound to another runner pod.
     """
 
     stream: Optional[SessionStream] = None

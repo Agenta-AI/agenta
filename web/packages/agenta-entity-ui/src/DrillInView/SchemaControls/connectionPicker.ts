@@ -17,6 +17,8 @@ import {
     SecretKind,
     SUBSCRIPTION_SIGN_IN_HINT,
     subscriptionAvailability,
+    connectionNamespaceFrom,
+    type AgentConnectionNamespace,
     type AgentModelCandidate,
     type AgentModelSelection,
     type ProviderConnection,
@@ -34,6 +36,7 @@ export interface PickerModelRow {
     harnessLabel: string
     mode: ConnectionMode
     slug: string | null
+    namespace: AgentConnectionNamespace | null
     provider: string | null
     connectionKey: string
     connectionName: string
@@ -57,6 +60,7 @@ export interface PickerSelection {
     provider: string | null
     mode: ConnectionMode
     slug: string | null
+    namespace: AgentConnectionNamespace | null
     /** Null is retained only for metadata from the legacy pre-connection picker. */
     harness: string | null
 }
@@ -76,14 +80,17 @@ export interface BuildPickerRowsArgs {
 /**
  * What a candidate's row is called.
  *
- * A candidate backed by a stored record uses the record's own name. Only a MOUNTED subscription
- * has no record, and that fallback has to say so: a project that also holds a hosted subscription
+ * A candidate backed by a stored record uses the record's own name; a built-in model carries its
+ * own. Only a MOUNTED subscription has neither, and that fallback has to say so: a project that also holds a hosted subscription
  * to the same plan would otherwise show two rows called "ChatGPT · Subscription".
  */
 const candidateRowName = (
     candidate: AgentModelCandidate,
     connection: ProviderConnection | undefined,
-): string => connection?.name ?? mountedSubscriptionName(candidate.provider ?? "")
+): string =>
+    connection?.name ??
+    candidate.connectionName ??
+    mountedSubscriptionName(candidate.provider ?? "")
 
 const rowFromCandidate = (
     candidate: AgentModelCandidate,
@@ -91,7 +98,11 @@ const rowFromCandidate = (
 ): PickerConnectionRow => ({
     key: candidate.connectionKey,
     name: candidateRowName(candidate, connection),
-    iconKey: candidate.managed ? "agenta" : (connection?.kind ?? candidate.provider ?? ""),
+    // A built-in model has no stored connection; it runs on Agenta's account.
+    iconKey:
+        candidate.managed || (!connection && candidate.connectionName)
+            ? "agenta"
+            : (connection?.kind ?? candidate.provider ?? ""),
     kind: candidate.source,
     managed: candidate.managed || undefined,
     models: [],
@@ -115,6 +126,7 @@ const modelFromCandidate = (
         harnessLabel: harnessMetaFor(candidate.harness).label,
         mode: candidate.mode,
         slug: candidate.slug,
+        namespace: candidate.namespace ?? null,
         provider: candidate.provider,
         connectionKey: candidate.connectionKey,
         connectionName: candidateRowName(candidate, connection),
@@ -168,6 +180,7 @@ export const buildConnectionPickerRows = (args: BuildPickerRowsArgs): PickerConn
 
 export interface PickerOptionMetadata extends Record<string, unknown> {
     connectionSlug?: string
+    connectionNamespace?: AgentConnectionNamespace
     connectionMode: ConnectionMode
     harness: string
     provider?: string
@@ -185,6 +198,7 @@ export const selectedModelRowKey = (
     current: {
         modelId: string | null
         slug: string | null
+        namespace?: AgentConnectionNamespace | null
         mode: ConnectionMode
         harness: string | null
     },
@@ -200,9 +214,59 @@ export const selectedModelRowKey = (
         pool.find(
             (entry) =>
                 entry.model.mode === current.mode &&
-                (entry.model.slug ?? null) === (current.slug ?? null),
+                (entry.model.slug ?? null) === (current.slug ?? null) &&
+                entry.model.namespace === (current.namespace ?? null),
         ) ?? pool[0]
     return match ? modelRowKey(match.key, match.model) : undefined
+}
+
+/**
+ * The built-in model a retired starter-credits model runs on. The transfer job deletes the seeded
+ * "Agenta" connection (slug `starter-credits`) and the gateway resolves a saved agent's model to
+ * `builtin/agenta` at run time (`RETIRED_STARTER_CREDITS_MODEL_ALIASES` in the API), so the picker shows
+ * that row instead of a raw id no row matches. Display only: the saved config is not rewritten.
+ */
+const RETIRED_STARTER_CREDITS_SLUG = "starter-credits"
+const RETIRED_STARTER_CREDITS_MODEL_ALIASES: Readonly<Record<string, string>> = {
+    "Agenta/custom/vertex_ai/gemini-3.7-flash": "google/gemini-3.7-flash",
+    "vertex_ai/gemini-3.7-flash": "google/gemini-3.7-flash",
+}
+
+/**
+ * The row to show for the stored selection, and the model id that row stands for. Only the shape
+ * the gateway aliases (an `agenta`-mode pick on the custom `starter-credits` slug) maps, only when
+ * the vault holds no connection under that slug (the gateway checks the same), and only to the
+ * exact built-in row: never to another connection that happens to offer the same model.
+ */
+export const displayedModelRow = (
+    rows: PickerConnectionRow[],
+    current: Parameters<typeof selectedModelRowKey>[1],
+    vaultSlugs: readonly (string | undefined)[],
+): {key: string | undefined; modelId: string | null} => {
+    const key = selectedModelRowKey(rows, current)
+    const builtinModelId =
+        current.slug === RETIRED_STARTER_CREDITS_SLUG &&
+        current.mode === "agenta" &&
+        (current.namespace ?? "custom") === "custom" &&
+        !vaultSlugs.includes(RETIRED_STARTER_CREDITS_SLUG) &&
+        current.modelId
+            ? RETIRED_STARTER_CREDITS_MODEL_ALIASES[current.modelId]
+            : undefined
+    if (!builtinModelId) return {key, modelId: current.modelId}
+    // The vault holds no `starter-credits` connection, so any `key` above is another connection's
+    // row that offers the same model id, not the route the gateway runs.
+    const builtin = rows
+        .flatMap((row) => row.models.map((model) => ({key: row.key, model})))
+        .find(
+            ({model}) =>
+                model.namespace === "builtin" &&
+                model.slug === "agenta" &&
+                model.modelId === builtinModelId &&
+                (!current.harness || model.harness === current.harness),
+        )
+    return builtin
+        ? {key: modelRowKey(builtin.key, builtin.model), modelId: builtinModelId}
+        : {key, modelId: current.modelId}
 }
 
 export const selectionFromModelRow = (model: PickerModelRow): PickerSelection => ({
@@ -210,6 +274,7 @@ export const selectionFromModelRow = (model: PickerModelRow): PickerSelection =>
     provider: model.provider,
     mode: model.mode,
     slug: model.slug,
+    namespace: model.namespace,
     harness: model.harness,
 })
 
@@ -218,6 +283,7 @@ const selectionFromCandidate = (candidate: AgentModelCandidate): PickerSelection
     provider: candidate.provider,
     mode: candidate.mode,
     slug: candidate.slug,
+    namespace: candidate.namespace ?? null,
     harness: candidate.harness,
 })
 
@@ -230,6 +296,7 @@ const completeSelection = (
               provider: selection.provider,
               mode: selection.mode,
               slug: selection.slug,
+              namespace: selection.namespace,
               harness: selection.harness,
           }
         : null
@@ -326,6 +393,7 @@ export const pickerSelectionFrom = (
         // A slug survives in either mode. Under `self_managed` it names a hosted subscription's
         // stored sign-in; dropping it there sent the run to whatever login the deployment mounted.
         slug: read("connectionSlug"),
+        namespace: mode === "agenta" ? connectionNamespaceFrom(read("connectionNamespace")) : null,
         harness: read("harness"),
     }
 }

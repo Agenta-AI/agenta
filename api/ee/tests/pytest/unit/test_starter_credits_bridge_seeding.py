@@ -13,7 +13,8 @@ import pytest
 
 from oss.src.utils.env import env, PostHogConfig, StarterCreditsBridgeConfig
 from oss.src.core.secrets.dtos import CustomModelSettingsDTO, SecretResponseDTO
-from oss.src.core.secrets.enums import CustomProviderKind
+from oss.src.core.secrets.enums import CustomProviderKind, SecretKind
+from oss.src.core.shared.dtos import Header
 from oss.src.core.secrets.redaction import project_secret_response
 from oss.src.core.secrets.managed import (
     SecretManagementDTO,
@@ -67,6 +68,30 @@ def _policy(**overrides) -> MintPolicy:
     )
     values.update(overrides)
     return MintPolicy(**values)
+
+
+class FakeEndpointsDAO:
+    """The LLM endpoint rows by slug. Present by default, so a test that is not about the
+    gateway endpoint never registers one."""
+
+    def __init__(self, *, present: bool = True):
+        self.rows = {service.STARTER_CREDITS_SLUG: object()} if present else {}
+        self.fetches = 0
+        self.created = []
+        self.create_error = None
+
+    async def fetch_endpoint_by_slug(self, *, project_id, slug):
+        del project_id
+        self.fetches += 1
+        return self.rows.get(slug)
+
+    async def create_endpoint(self, *, project_id, user_id, endpoint):
+        del project_id, user_id
+        if self.create_error is not None:
+            raise self.create_error
+        self.created.append(endpoint)
+        self.rows[endpoint.slug] = endpoint
+        return endpoint
 
 
 class FakeVaultService:
@@ -273,6 +298,8 @@ def seeding_env(monkeypatch):
         fake_get_default_project,
     )
     monkeypatch.setattr(service, "_vault_service", lambda: vault)
+    endpoints = FakeEndpointsDAO()
+    monkeypatch.setattr(service, "_llm_endpoints_dao", lambda: endpoints)
     monkeypatch.setattr(service, "_resolve_mint_policy", fake_resolve_policy)
     monkeypatch.setattr(service, "_team_ceiling_verified", fake_team_verified)
     monkeypatch.setattr(service, "_mint_policy_allows", fake_policy_allows)
@@ -285,6 +312,7 @@ def seeding_env(monkeypatch):
         policy=policy,
         project=project,
         vault=vault,
+        endpoints=endpoints,
         alerts=alerts,
         released=released,
         monkeypatch=monkeypatch,
@@ -1056,6 +1084,21 @@ class TestMintPolicyAllows:
 
         assert await service._mint_policy_allows(address, policy) is True
 
+    @pytest.mark.parametrize(
+        "address", ["abcxyz@throwaway.test", "abcxyz@mx.throwaway.test"]
+    )
+    async def test_a_disposable_domain_is_refused_before_any_counter(self, address):
+        policy = _policy(disposable_domains=[" Throwaway.TEST "])
+
+        assert await service._mint_policy_allows(address, policy) is False
+        assert service.email_rules_allow(address, policy) is False
+        assert self.engine.counts == {}
+
+    async def test_a_domain_that_only_ends_like_a_disposable_one_passes(self):
+        policy = _policy(disposable_domains=["throwaway.test"])
+
+        assert service.email_rules_allow("abc@notthrowaway.test", policy) is True
+
     async def test_global_hourly_cap_blocks(self):
         policy = _policy(global_hourly=2)
 
@@ -1068,6 +1111,20 @@ class TestMintPolicyAllows:
 
         assert await service._mint_policy_allows("a@freemail.test", policy) is True
         assert await service._mint_policy_allows("b@freemail.test", policy) is False
+
+    async def test_the_bridge_and_the_signup_grant_count_one_signup_once_each(self):
+        policy = _policy()
+
+        assert await service._mint_policy_allows("alice@acme.test", policy) is True
+        assert (
+            await service._mint_policy_allows(
+                "alice@acme.test",
+                policy,
+                counter_prefix=service.SIGNUP_GRANT_COUNTER_PREFIX,
+            )
+            is True
+        )
+        assert all(count == 1 for count in self.engine.counts.values())
 
     async def test_redis_error_fails_closed(self):
         self.engine.error = ConnectionError("redis down")
@@ -1663,3 +1720,103 @@ class TestTheRepairSurvivesTheMapping:
         )
         assert seeding_env.vault.update_calls == []
         assert _all_key_update_calls() == []
+
+
+def _seeded_row(model_id: str) -> SecretResponseDTO:
+    """A starter-credits row as the vault returns it from a list."""
+    return SecretResponseDTO(
+        id=uuid4(),
+        slug=service.STARTER_CREDITS_SLUG,
+        kind=SecretKind.CUSTOM_PROVIDER,
+        header=Header(name=service.STARTER_CREDITS_NAME),
+        data={
+            "kind": "custom",
+            "provider": {"url": "https://credits-proxy.example.test", "key": "sk-v"},
+            "models": [{"slug": model_id}],
+            "harnesses": ["pi_core"],
+            "provider_slug": service.STARTER_CREDITS_NAME,
+        },
+        management=SecretManagementDTO(
+            manager=SecretManager.STARTER_CREDITS_BRIDGE,
+            policy=SecretManagementPolicy.MANAGER_ONLY,
+        ),
+    )
+
+
+def test_the_bridge_vault_service_registers_gateway_endpoints(monkeypatch):
+    # Without the registrar the seeded row never gets an LLM endpoint, and every gateway
+    # run on it fails with `endpoint_not_found` (v0.122.2 staging QA).
+    monkeypatch.setattr(service, "_llm_endpoints_dao", lambda: FakeEndpointsDAO())
+    assert service._vault_service().llm_endpoint_registrar is not None
+
+
+@pytest.mark.asyncio
+class TestRepairingTheGatewayEndpoint:
+    """The gateway asks the bridge to register a starter-credits endpoint it cannot find."""
+
+    async def test_the_bridge_row_gets_its_endpoint(self, seeding_env):
+        endpoints = FakeEndpointsDAO(present=False)
+        seeding_env.monkeypatch.setattr(
+            service, "_llm_endpoints_dao", lambda: endpoints
+        )
+        row = _seeded_row("vertex_ai/some-model")
+        seeding_env.vault.row = row
+
+        repaired = await service.repair_starter_credits_endpoint(
+            project_id=seeding_env.project.id, slug=service.STARTER_CREDITS_SLUG
+        )
+
+        assert repaired is True
+        (created,) = endpoints.created
+        assert created.slug == service.STARTER_CREDITS_SLUG
+        assert created.secret_id == row.id
+        assert created.data.route.base_url == "https://credits-proxy.example.test"
+        assert created.data.models.allowlist == [
+            "Agenta/custom/vertex_ai/some-model",
+            "vertex_ai/some-model",
+        ]
+
+    async def test_another_slug_is_not_looked_up(self, seeding_env):
+        endpoints = FakeEndpointsDAO(present=False)
+        seeding_env.monkeypatch.setattr(
+            service, "_llm_endpoints_dao", lambda: endpoints
+        )
+
+        assert (
+            await service.repair_starter_credits_endpoint(
+                project_id=seeding_env.project.id, slug="qa-custom"
+            )
+            is False
+        )
+        assert endpoints.created == []
+
+    async def test_a_user_row_under_the_slug_is_left_alone(self, seeding_env):
+        endpoints = FakeEndpointsDAO(present=False)
+        seeding_env.monkeypatch.setattr(
+            service, "_llm_endpoints_dao", lambda: endpoints
+        )
+        row = _seeded_row("vertex_ai/some-model")
+        row.management = None
+        seeding_env.vault.row = row
+
+        assert (
+            await service.repair_starter_credits_endpoint(
+                project_id=seeding_env.project.id, slug=service.STARTER_CREDITS_SLUG
+            )
+            is False
+        )
+        assert endpoints.created == []
+
+    async def test_no_row_registers_nothing(self, seeding_env):
+        endpoints = FakeEndpointsDAO(present=False)
+        seeding_env.monkeypatch.setattr(
+            service, "_llm_endpoints_dao", lambda: endpoints
+        )
+
+        assert (
+            await service.repair_starter_credits_endpoint(
+                project_id=seeding_env.project.id, slug=service.STARTER_CREDITS_SLUG
+            )
+            is False
+        )
+        assert endpoints.created == []

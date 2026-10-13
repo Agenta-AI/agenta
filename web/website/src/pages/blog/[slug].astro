@@ -5,6 +5,7 @@ import Site from "../../layouts/Site.astro";
 import PostCard from "../../components/PostCard.astro";
 import InlineCTA from "../../components/InlineCta.astro";
 import BlogImage from "../../components/BlogImage.astro";
+import BlogImageLightbox from "../../components/BlogImageLightbox.astro";
 import { getCollection, getEntry, render } from "astro:content";
 import LegacyNotice from "../../components/LegacyNotice.astro";
 import {
@@ -233,7 +234,7 @@ const faqJsonLd = faq?.length
           style="max-width:1016px;margin:0 auto;padding:0 24px;"
         >
           <img
-            class="ag-hero-img"
+            class="ag-hero-img ag-zoomable"
             src={heroImage}
             alt={title}
             width="968"
@@ -256,6 +257,7 @@ const faqJsonLd = faq?.length
     >
       <Content components={{ InlineCTA, img: BlogImage }} />
     </div>
+    <BlogImageLightbox />
   </Section>
 
   <!-- More from the blog -->

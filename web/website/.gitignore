@@ -10,6 +10,9 @@ PPMondwest*
 # would silently drift from the spec the docs site renders.
 public/openapi.json
 
+# Fetched at build time by scripts/fetch-app-logos.mjs (dev and prebuild); brand logos, not ours to commit.
+public/logos/apps/
+
 # Build output and local env
 dist/
 .astro/

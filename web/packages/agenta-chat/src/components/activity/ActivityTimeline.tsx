@@ -1,14 +1,16 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
-import {HeightCollapse} from "@agenta/ui"
+import {AgentActivityDots, HeightCollapse, type AgentActivityFormat} from "@agenta/ui"
 import {CaretRight, FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useReducedMotion} from "motion/react"
 
+import {stageWords} from "../../assets/startupPhases"
 import {useHeldFor} from "../../hooks/useHeldFor"
 import {useRevealed} from "../../hooks/useRevealed"
+import {useStageWord} from "../../hooks/useStageWord"
 import {formatElapsed, useTurnClock} from "../../hooks/useTurnClock"
 import {
     activityFiles,
@@ -19,8 +21,9 @@ import {
     type ActivityStep,
 } from "../../model"
 import {resolveToolDisplay} from "../../skin"
+import type {ActivityIcon} from "../../skin/types"
 import {activityFoldKey, expandedValueAtomFamily, setExpandedAtom} from "../../state"
-import {useStartupPhase} from "../../state/turnClock"
+import {useTurnStage, useTurnStageSince} from "../../state/turnClock"
 import RevealCollapse from "../RevealCollapse"
 
 import {ActivityClientStep} from "./ActivityClientStep"
@@ -205,19 +208,39 @@ const lastAgentStep = (steps: ActivityStep[]): ActivityStep | null => {
 /** How long a settled step's verb bridges the gap before the line reads "Working". */
 const VERB_HOLD_MS = 2500
 
-/** What the collapsed line narrates for a step, or before any step. */
-const liveVerb = (
-    step: ActivityStep | null,
-    startupLabel: string | null,
-    firstTurn: boolean,
-): string => {
-    // Only the session's first turn boots anything worth narrating.
-    if (!step) return firstTurn ? startupLabel || "Waking up the agent" : "Working"
-    if (step.kind === "thought") return step.source === "text" ? "Writing" : "Thinking"
-    const part = step.part
+/** The dots' motion for a step's glyph; anything unlisted reads as a plain tool call. */
+const ICON_FORMAT: Partial<Record<ActivityIcon, AgentActivityFormat>> = {
+    "file-search": "searching",
+    "web-search": "searching",
+    "web-fetch": "searching",
+    "tool-search": "searching",
+    subtask: "subagents",
+    agent: "subagents",
+    "task-list": "planning",
+    test: "evaluating",
+    runs: "evaluating",
+    annotation: "evaluating",
+    "file-write": "writing",
+}
+
+interface LiveLine {
+    text: string
+    format: AgentActivityFormat
+}
+
+/** What the collapsed line narrates for a step, in words and in the dots' motion. */
+const liveStep = (step: ActivityStep): LiveLine => {
+    if (step.kind === "thought") {
+        return step.source === "text"
+            ? {text: "Writing", format: "writing"}
+            : {text: "Thinking", format: "thinking"}
+    }
     // Reached only once the wait is over, so a gate still `approval-requested` here was just answered.
-    return resolveToolDisplay(partToolName(part), (part as {input?: unknown}).input).activity
-        .running
+    const display = resolveToolDisplay(
+        partToolName(step.part),
+        (step.part as {input?: unknown}).input,
+    )
+    return {text: display.activity.running, format: ICON_FORMAT[display.icon] ?? "tool"}
 }
 
 export interface ActivityTimelineProps {
@@ -229,10 +252,8 @@ export interface ActivityTimelineProps {
     streaming: boolean
     /** The answer has begun: the fold settles even though the turn is still streaming. */
     answerStarted: boolean
-    /** The session whose startup narration the line reads until the first step. */
+    /** The session whose turn stage the line narrates until the first step. */
     sessionId?: string
-    /** The session's first turn, the only one that narrates the startup phases. */
-    firstTurn?: boolean
     /** The run is parked on the reader (a question, a connect). */
     waitingOnUser?: boolean
     /** The ask was answered here and the transcript still carries it: the line reads as work. */
@@ -259,10 +280,11 @@ export const ActivityTimeline = ({
     resuming = false,
     traceId,
     streamedHere = true,
-    firstTurn = false,
     renderClientTool,
 }: ActivityTimelineProps) => {
-    const startupLabel = useStartupPhase(streaming && firstTurn && sessionId ? sessionId : "")
+    // Any turn can cold start: a parked environment outlives an idle gap by minutes at most.
+    const stage = useTurnStage(streaming && sessionId ? sessionId : "")
+    const stageSince = useTurnStageSince(streaming && sessionId ? sessionId : "")
     const current = currentStep(steps)
     const awaiting =
         !resuming &&
@@ -290,8 +312,12 @@ export const ActivityTimeline = ({
           ? null
           : Math.max(traced ?? 0, counted ?? 0)
     const files = useMemo(() => activityFiles(steps), [steps])
-    // Nothing in flight for a while, before the first step too; each startup phase restarts the wait.
-    const idle = useHeldFor(live && !awaiting && !current, VERB_HOLD_MS, startupLabel)
+    // A settled step's verb holds for a beat, then the line reads "Working".
+    const idle = useHeldFor(live && !awaiting && !current && steps.length > 0, VERB_HOLD_MS)
+    const verbStep = current ?? lastAgentStep(steps)
+    // Stage words belong only to the wait before the first step or answer.
+    const beforeFirstStep = live && !awaiting && steps.length === 0 && !resuming && !answerStarted
+    const stageWord = useStageWord(stageWords(stage), beforeFirstStep, stageSince)
     // The latest step reads live for as long as the run does.
     const liveTail = live && !awaiting
     // Only a step that lands on an already-mounted fold unfolds.
@@ -320,30 +346,21 @@ export const ActivityTimeline = ({
         elapsed === null || awaiting || !count ? "" : ` · ${formatElapsed(elapsed, {live: true})}`
 
     let title: ReactNode
-    if (live || awaiting) {
-        title = (
-            <>
-                <SwapLabel
-                    shimmer
-                    suffix={clock}
-                    text={
-                        awaiting
-                            ? "Waiting for you"
-                            : resuming && !current
-                              ? "Working"
-                              : answerStarted && !current
-                                ? "Answering"
-                                : idle
-                                  ? "Working"
-                                  : liveVerb(
-                                        current ?? lastAgentStep(steps),
-                                        startupLabel,
-                                        firstTurn,
-                                    )
-                    }
-                />
-            </>
-        )
+    const line: LiveLine | null = !(live || awaiting)
+        ? null
+        : awaiting
+          ? {text: "Waiting for you", format: "working"}
+          : beforeFirstStep
+            ? {text: stageWord, format: "working"}
+            : resuming && !current
+              ? {text: "Working", format: "working"}
+              : answerStarted && !current
+                ? {text: "Answering", format: "writing"}
+                : idle || !verbStep
+                  ? {text: "Working", format: "working"}
+                  : liveStep(verbStep)
+    if (line) {
+        title = <SwapLabel shimmer suffix={clock} text={line.text} />
     } else {
         title = elapsed === null ? "Worked" : `Worked for ${formatElapsed(elapsed, {live: false})}`
     }
@@ -356,7 +373,11 @@ export const ActivityTimeline = ({
                 aria-expanded={open}
                 className="-ml-1.5 flex w-fit max-w-full cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary group/row"
             >
-                {awaiting ? <WaitingGlyph kind={waitingKind(steps)} /> : null}
+                {awaiting ? (
+                    <WaitingGlyph kind={waitingKind(steps)} />
+                ) : line ? (
+                    <AgentActivityDots format={line.format} />
+                ) : null}
                 <span className="flex min-w-0 items-center whitespace-nowrap transition-colors group-hover/row:text-colorText">
                     {title}
                 </span>

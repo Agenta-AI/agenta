@@ -74,7 +74,8 @@ export const PlanChooserSheet = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
+            {/* As wide as the desktop pricing modal, so the plan cards sit side by side. */}
+            <DialogContent className="max-w-[1200px]">
                 <DialogHeader>
                     <DialogTitle>Plans</DialogTitle>
                     <DialogDescription>Choose the plan for this organization.</DialogDescription>

@@ -21,7 +21,11 @@ import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
 import type { SandboxAgentDeps } from "../../src/engines/sandbox_agent.ts";
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import { SessionContinuityStore } from "../../src/engines/sandbox_agent/session-continuity.ts";
-import { USER_STOP_ABORT_REASON } from "../../src/sessions/stop-signal.ts";
+import {
+  RUNNER_SHUTDOWN_ABORT_REASON,
+  USER_STOP_ABORT_REASON,
+} from "../../src/sessions/stop-signal.ts";
+import { RUNNER_RESTARTING_MESSAGE } from "../../src/engines/sandbox_agent/errors.ts";
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
 
 beforeEach(() => {
@@ -65,6 +69,8 @@ function fakeCancellableSandbox(opts: CancelFakeOpts = {}) {
     cancelled: [] as string[],
     logs: [] as string[],
     lifecycle: [] as string[],
+    emitted: [] as Array<{ type?: string }>,
+    finished: [] as Array<string | undefined>,
   };
   let leakedCodexChildRunning = opts.leakedCodexChild === true;
 
@@ -193,10 +199,15 @@ function fakeCancellableSandbox(opts: CancelFakeOpts = {}) {
     createOtel: (() => ({
       start() {},
       handleUpdate() {},
-      emitEvent() {},
+      emitEvent(event: { type?: string }) {
+        calls.emitted.push(event);
+      },
       usage: () => ({ input: 0, output: 0, total: 0, cost: 0 }),
       setUsage() {},
-      finish: () => "partial answer",
+      finish: (stopReason?: string) => {
+        calls.finished.push(stopReason);
+        return "partial answer";
+      },
       recordError() {},
       output: () => "partial answer",
       flush: async () => {},
@@ -240,15 +251,17 @@ const stopRequest: AgentRunRequest = {
 /** Build the real timing shape: acquire first, then abort when the harness prompt is in flight. */
 function fakeAbortingSandbox(
   opts: CancelFakeOpts = {},
-  kind: "user-stop" | "plain" = "user-stop",
+  kind: "user-stop" | "runner-shutdown" | "plain" = "user-stop",
 ) {
   const controller = new AbortController();
+  const reasons = {
+    "user-stop": USER_STOP_ABORT_REASON,
+    "runner-shutdown": RUNNER_SHUTDOWN_ABORT_REASON,
+    plain: undefined,
+  };
   const fake = fakeCancellableSandbox({
     ...opts,
-    onPrompt: () =>
-      kind === "user-stop"
-        ? controller.abort(USER_STOP_ABORT_REASON)
-        : controller.abort(),
+    onPrompt: () => controller.abort(reasons[kind]),
   });
   return { ...fake, signal: controller.signal };
 }
@@ -263,6 +276,7 @@ describe("a stopped turn's continuity record", () => {
     assert.equal(result.stopReason, "cancelled");
     assert.equal(result.cancelSettled, true, "the harness confirmed the stop");
     assert.deepEqual(calls.cancelled, ["harness-session-1"]);
+    assert.deepEqual(calls.finished, ["cancelled"], "a user Stop ends as a Stop");
 
     assert.equal(
       calls.completed.length,
@@ -374,6 +388,31 @@ describe("a stopped turn's continuity record", () => {
       continuityStore.get("sess-stop", "claude")?.agentSessionId,
       AGENT_SESSION_ID,
     );
+  });
+});
+
+describe("a turn a runner shutdown cancelled", () => {
+  it("cancels the harness like a Stop, then ends with the restart error the client can retry", async () => {
+    const { calls, deps, continuityStore, signal } = fakeAbortingSandbox(
+      {},
+      "runner-shutdown",
+    );
+
+    const result = await runSandboxAgent(stopRequest, undefined, signal, deps);
+
+    assert.deepEqual(calls.cancelled, ["harness-session-1"], "the harness cancel still runs");
+    assert.equal(result.cancelSettled, true);
+    assert.equal(calls.completed.length, 1, "the settled turn stays a resume point");
+    assert.equal(
+      continuityStore.get("sess-stop", "claude")?.agentSessionId,
+      AGENT_SESSION_ID,
+    );
+    assert.equal(calls.paused, 1, "parked until the shutdown's teardown deletes it");
+    assert.deepEqual(
+      calls.emitted.filter((event) => event.type === "error"),
+      [{ type: "error", message: RUNNER_RESTARTING_MESSAGE, code: "execution_lost" }],
+    );
+    assert.deepEqual(calls.finished, ["error"], "the done record is an error, not a Stop");
   });
 });
 

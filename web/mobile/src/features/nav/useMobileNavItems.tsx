@@ -11,6 +11,7 @@ import {
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     loadMoreSidebarSessionsAtomFamily,
+    RELEASES,
     SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
     setSidebarSessionFilterDefaults,
@@ -30,21 +31,25 @@ import {
     CircleIcon,
     GearIcon,
     GithubLogoIcon,
+    GraduationCapIcon,
     HouseIcon,
     KeyboardIcon,
     LightningIcon,
-    PuzzlePieceIcon,
     QuestionIcon,
     RobotIcon,
     ScrollIcon,
     SlackLogoIcon,
+    SquaresFourIcon,
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
 
 import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
+import {whatsNewAtom} from "@/features/education/whatsNewAtom"
 
+import {AgentsNavAction} from "./AgentsNavAction"
+import {AgentsQuickPanel} from "./AgentsQuickPanel"
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
@@ -178,6 +183,16 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 title: "Agents",
                 icon: createElement(RobotIcon, {size: 16}),
                 link: `${projectURL}/agents`,
+                // Start or open an agent without leaving the page: a "+" on the row, the same
+                // panel as a hover flyout on the collapsed rail.
+                rowAction: createElement(AgentsNavAction, {base: projectURL}),
+                hoverFlyout: (close: () => void, hold: (held: boolean) => void) =>
+                    createElement(AgentsQuickPanel, {
+                        base: projectURL,
+                        onDone: close,
+                        onBusyChange: hold,
+                        autoFocusSearch: false,
+                    }),
             },
             // After Agents: an automation is something an agent has, and Skills is what it uses.
             {
@@ -189,7 +204,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             {
                 key: SKILLS_SIDEBAR_KEY,
                 title: "Skills",
-                icon: createElement(PuzzlePieceIcon, {size: 16}),
+                icon: createElement(GraduationCapIcon, {size: 16}),
                 link: `${projectURL}/skills`,
             },
             {
@@ -247,26 +262,41 @@ const versionAtom = unwrap(atom(async () => (await import("../../../package.json
 
 export const useMobileVersion = () => useAtomValue(versionAtom)
 
-/** The pinned bottom entries: the Settings link, dropped inside the settings scope. */
+/** The pinned bottom entries: Templates and Settings, both dropped inside the settings scope. */
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
-): SidebarConfig[] =>
-    useMemo(
+): SidebarConfig[] => {
+    const version = useMobileVersion()
+    return useMemo(
         () =>
-            // The settings scope drops it: the rail IS settings there.
+            // The settings scope drops them: the rail IS settings there.
             includeSettingsLink
                 ? [
+                      {
+                          key: "mobile-templates",
+                          title: "Templates",
+                          icon: createElement(SquaresFourIcon, {size: 16}),
+                          link: `${projectURL}/templates`,
+                      },
                       {
                           key: "mobile-settings",
                           title: "Settings",
                           icon: createElement(GearIcon, {size: 16}),
                           link: `${projectURL}/settings`,
+                          suffix: version
+                              ? createElement(
+                                    "span",
+                                    {className: "text-[10px] leading-none text-colorTextTertiary"},
+                                    `v${version}`,
+                                )
+                              : undefined,
                       },
                   ]
                 : [],
-        [includeSettingsLink, projectURL],
+        [includeSettingsLink, projectURL, version],
     )
+}
 
 /**
  * Help & Docs as an item the rail renders as an icon button beside the project switcher, the
@@ -277,6 +307,7 @@ export const useMobileHelpItem = ({
     onOpenShortcuts,
 }: {onOpenShortcuts?: () => void} = {}): SidebarConfig => {
     const version = useMobileVersion()
+    const openWhatsNew = useSetAtom(whatsNewAtom)
 
     return useMemo(
         () =>
@@ -297,9 +328,18 @@ export const useMobileHelpItem = ({
                         // The rule between the destinations and the release list.
                         divider: true,
                     },
-                    ...buildReleaseNavItems(version),
+                    // Release rows reopen the what's-new dialog; "View all releases" links out.
+                    ...buildReleaseNavItems(version).map((item) =>
+                        RELEASES.some((release) => release.id === item.key)
+                            ? {
+                                  ...item,
+                                  link: undefined,
+                                  onClick: () => openWhatsNew({releaseId: item.key}),
+                              }
+                            : item,
+                    ),
                 ],
             }),
-        [onOpenShortcuts, version],
+        [onOpenShortcuts, openWhatsNew, version],
     )
 }

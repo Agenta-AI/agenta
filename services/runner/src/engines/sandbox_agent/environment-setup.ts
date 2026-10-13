@@ -54,15 +54,10 @@ import type {
 } from "./runtime-contracts.ts";
 import {
   applyClaudeConnectionEnv,
-  defaultResolveLocalRunnerOwner,
   modelResolutionStrict,
   runCredential,
 } from "./runtime-policy.ts";
-import { assertLocalRunnerOwnership } from "./session-continuity.ts";
-import {
-  projectScopeFor,
-  resolvesToLocalProvider,
-} from "./session-identity.ts";
+import { projectScopeFor } from "./session-identity.ts";
 import { buildRuntimeEnvironment } from "../../environment/runtime-lifecycle.ts";
 import { createTimingLog } from "../../environment/timing.ts";
 
@@ -85,32 +80,6 @@ export async function prepareEnvironmentSetup(
     sandboxId: () => environment?.sandbox?.sandboxId,
     sessionId: () => environment?.sessionId ?? request.sessionId?.trim(),
   });
-
-  // Local multi-runner fails loudly. Session-owned + local-sandbox only (a non-session run
-  // has no cross-replica identity to protect, and a remote sandbox has no runner-local pooled
-  // state to protect it FROM). The resolver claims the `owner` affinity key and reads the actual
-  // owner back; a KNOWN different owner throws (never a silent wrong-host cold start).
-  const continuitySessionForOwnership = request.sessionId?.trim();
-  if (
-    continuitySessionForOwnership &&
-    resolvesToLocalProvider(request.sandbox)
-  ) {
-    const { replicaId, ownerReplicaId } = await (
-      deps.resolveLocalRunnerOwner ?? defaultResolveLocalRunnerOwner
-    )(continuitySessionForOwnership, runCredential(request));
-    try {
-      assertLocalRunnerOwnership(
-        continuitySessionForOwnership,
-        replicaId,
-        ownerReplicaId,
-      );
-    } catch (err) {
-      return {
-        ok: false as const,
-        error: conciseError(err, request.harness ?? ""),
-      };
-    }
-  }
 
   // Sign BEFORE buildRunPlan so the prefix is available for the durable cwd derivation.
   // Inputs (sessionId, apiBase, credential) are independent of the plan. Best-effort: null on

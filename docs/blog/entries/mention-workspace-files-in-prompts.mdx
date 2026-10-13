@@ -6,15 +6,29 @@ tags: [v0.115.4]
 description: "Mention workspace files in Agenta agent chat with @. Search for a file and add its path to your instructions without copying and pasting it by hand."
 ---
 
+import Image from "@theme/IdealImage";
+
 <Summary>
 
-Many times you want you point your agent to a file in the workspace. Previously you need to find the path and copy paste it in chat. Now you can write @ in the chat box, search for the file, then select it.
+<Image
+  img={require('/static/images/changelog/file-mention-headline.png')}
+  alt="Point your agent to a file with @. Agenta's file picker shows workspace files above the chat composer."
+  style={{display: 'block', margin: '20px auto', textAlign: 'center'}}
+/>
+
+You often want to point your agent to a file in the workspace. Before, you had to find the path and paste it into chat. Now you can type @ in the chat box, search for the file, and select it.
 
 The reference becomes part of the instruction you send.
 
 </Summary>
 
 {/* truncate */}
+
+<Image
+  img={require('/static/images/changelog/file-mention-headline.png')}
+  alt="Point your agent to a file with @. Agenta's file picker shows workspace files above the chat composer."
+  style={{display: 'block', margin: '20px auto', textAlign: 'center'}}
+/>
 
 When you want your agent to work on a file, you shouldn't need to find its path and paste it into chat. You can now type @, search for the file, and select it.
 
@@ -30,4 +44,4 @@ The file path becomes part of your message. You're pointing to the existing file
 
 Click a folder's chevron or press Tab to open it. Press Escape to go back.
 
-File mentions work in the new app on desktop and mobile. Open a session first; the file picker isn't available in the home task box.
+File mentions work in the new app on desktop and mobile. The classic app doesn't have them. Open a session first; the file picker isn't available in the home task box.

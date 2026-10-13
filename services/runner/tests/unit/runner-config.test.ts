@@ -12,6 +12,7 @@ import {
   DEFAULT_DAYTONA_AUTODELETE_MINUTES,
   SANDBOX_RECIPE_VERSION,
   DEFAULT_DAYTONA_SNAPSHOT,
+  DEFAULT_SHUTDOWN_WAIT_SECONDS,
   RunnerConfigError,
   parseRunnerConfig,
   providerNotEnabledMessage,
@@ -254,5 +255,37 @@ describe("server + callback sections", () => {
     assert.equal(config.server.port, 9000);
     assert.equal(config.server.logLevel, "info");
     assert.equal(config.server.token, "secret");
+  });
+
+  it("the shutdown wait defaults to no wait, which fits inside compose's 10-second stop", () => {
+    assert.equal(parse({}).server.shutdownWaitSeconds, 0);
+    assert.equal(parse({}).server.shutdownWaitSeconds, DEFAULT_SHUTDOWN_WAIT_SECONDS);
+    assert.equal(
+      parse({ AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS: "" }).server.shutdownWaitSeconds,
+      0,
+    );
+  });
+
+  it("reads the shutdown wait the chart passes, zero included", () => {
+    assert.equal(
+      parse({ AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS: "200" }).server.shutdownWaitSeconds,
+      200,
+    );
+    assert.equal(
+      parse({ AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS: "0" }).server.shutdownWaitSeconds,
+      0,
+    );
+  });
+
+  it("refuses a shutdown wait that is not a whole number of seconds", () => {
+    for (const raw of ["-1", "1.5", "30s"]) {
+      assert.throws(
+        () => parse({ AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS: raw }),
+        (err: unknown) =>
+          err instanceof RunnerConfigError &&
+          err.message.includes("AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS"),
+        raw,
+      );
+    }
   });
 });

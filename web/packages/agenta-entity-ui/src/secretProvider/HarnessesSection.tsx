@@ -1,20 +1,10 @@
-/**
- * The connection card's "Harnesses" section.
- *
- * A harness is the program that talks to the model and uses tools (Pi, Claude Code, Codex). The
- * checked set is user policy; the harness catalog is the technical limit underneath it, so a
- * harness that cannot reach this provider is shown disabled with the reason rather than hidden —
- * a missing row reads as a bug, a disabled one explains itself.
- *
- * Collapsed by default and always showing its value ("Harnesses · enabled in Pi"), so the card's
- * common path stays short without hiding what it decided.
- */
-import {useState} from "react"
+/** The connection card's Harnesses: which harnesses may use it, with unreachable ones disabled. */
+import {useRef, useState} from "react"
 
 import {harnessSummary} from "@agenta/entities/secret"
 import {cn} from "@agenta/ui/styles"
-import {Checkbox} from "@agenta/ui/ui"
-import {CaretDown, CaretUp} from "@phosphor-icons/react"
+import {Checkbox, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {CaretRight} from "@phosphor-icons/react"
 
 import {harnessMarkFor} from "./harnessMark"
 
@@ -42,73 +32,115 @@ const HarnessesSection = ({
     unrestricted = false,
 }: HarnessesSectionProps) => {
     const [expanded, setExpanded] = useState(false)
+    const sectionRef = useRef<HTMLElement>(null)
 
+    const enabled = choices.filter((choice) => selected.includes(choice.id))
     const summary = harnessSummary(
-        choices.filter((choice) => selected.includes(choice.id)).map((choice) => choice.label),
+        enabled.map((choice) => choice.label),
         unrestricted,
     )
 
     return (
-        <section className="flex shrink-0 flex-col gap-2">
+        <section ref={sectionRef} className="flex shrink-0 flex-col">
             <button
                 type="button"
                 onClick={() => setExpanded((value) => !value)}
-                className="flex w-full cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left"
+                className="flex w-fit cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-left"
                 aria-expanded={expanded}
             >
                 <span className="font-medium text-colorText">Harnesses</span>
-                <span className="flex-1 text-colorTextSecondary">· {summary}</span>
-                {expanded ? (
-                    <CaretUp size={14} className="text-colorTextTertiary" />
+                {enabled.length ? (
+                    <TooltipProvider delayDuration={300}>
+                        <span className="flex items-center gap-1" aria-label={summary}>
+                            {enabled.map((choice) => {
+                                const Mark = harnessMarkFor(choice.id)
+                                return (
+                                    <Tooltip key={choice.id}>
+                                        <TooltipTrigger asChild>
+                                            <span className="inline-flex">
+                                                {Mark ? (
+                                                    <Mark className="size-3.5 shrink-0" />
+                                                ) : (
+                                                    <span className="text-colorTextSecondary">
+                                                        {choice.label}
+                                                    </span>
+                                                )}
+                                            </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent>{choice.label}</TooltipContent>
+                                    </Tooltip>
+                                )
+                            })}
+                        </span>
+                    </TooltipProvider>
                 ) : (
-                    <CaretDown size={14} className="text-colorTextTertiary" />
+                    <span className="text-colorTextSecondary">· {summary}</span>
                 )}
+                <CaretRight
+                    size={12}
+                    className={cn(
+                        "text-colorTextTertiary transition-transform",
+                        expanded && "rotate-90",
+                    )}
+                />
             </button>
 
-            {expanded ? (
-                <>
+            {/* Animates height through grid rows; once open, the section scrolls into view. */}
+            <div
+                inert={!expanded}
+                onTransitionEnd={(event) => {
+                    if (event.propertyName !== "grid-template-rows" || !expanded) return
+                    if (event.target !== event.currentTarget) return
+                    sectionRef.current?.scrollIntoView({behavior: "smooth", block: "nearest"})
+                }}
+                className={cn(
+                    "grid transition-[grid-template-rows,opacity] duration-200 ease-out",
+                    expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+                )}
+            >
+                <div className="flex min-h-0 flex-col gap-2 overflow-hidden pt-2">
                     <span className="text-colorTextSecondary">Enable this connection in</span>
-                    <div className="flex flex-col gap-2.5">
+                    <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2">
                         {choices.map((choice) => {
                             const Mark = harnessMarkFor(choice.id)
+                            const checked = selected.includes(choice.id)
 
                             return (
                                 <label
                                     key={choice.id}
                                     className={cn(
-                                        "flex items-center gap-2",
+                                        "box-border flex min-w-0 flex-col gap-1 rounded-lg border border-solid p-3 transition-colors",
+                                        checked ? "border-primary bg-primary/5" : "border-border",
                                         choice.supported
-                                            ? "cursor-pointer"
+                                            ? "cursor-pointer hover:border-primary"
                                             : "cursor-not-allowed opacity-60",
                                     )}
                                 >
-                                    <Checkbox
-                                        checked={selected.includes(choice.id)}
-                                        disabled={!choice.supported}
-                                        onCheckedChange={(next) =>
-                                            onToggle(choice.id, next === true)
-                                        }
-                                    />
-                                    {Mark ? <Mark className="size-4 shrink-0" /> : null}
+                                    <span className="mb-1 flex items-center justify-between">
+                                        {Mark ? <Mark className="size-5 shrink-0" /> : <span />}
+                                        <Checkbox
+                                            checked={checked}
+                                            disabled={!choice.supported}
+                                            onCheckedChange={(next) =>
+                                                onToggle(choice.id, next === true)
+                                            }
+                                        />
+                                    </span>
                                     <span
-                                        className={
+                                        className={cn(
+                                            "truncate font-medium",
                                             choice.supported
                                                 ? "text-colorText"
-                                                : "text-colorTextDisabled"
-                                        }
+                                                : "text-colorTextDisabled",
+                                        )}
                                     >
                                         {choice.label}
                                     </span>
-                                    {choice.domain ? (
-                                        <span className="text-[11px] text-colorTextTertiary">
-                                            {choice.domain}
-                                        </span>
-                                    ) : null}
-                                    {choice.supported ? null : (
-                                        <span className="ml-auto text-[11px] text-colorTextTertiary">
-                                            Incompatible with this provider
-                                        </span>
-                                    )}
+                                    <span className="text-[11px] leading-4 text-colorTextTertiary">
+                                        {choice.supported
+                                            ? (choice.domain ?? " ")
+                                            : "Incompatible with this provider"}
+                                    </span>
                                 </label>
                             )
                         })}
@@ -116,8 +148,8 @@ const HarnessesSection = ({
                     <span className="text-[11px] text-colorTextTertiary">
                         Each enabled harness adds this connection&apos;s models to the model picker.
                     </span>
-                </>
-            ) : null}
+                </div>
+            </div>
         </section>
     )
 }

@@ -41,3 +41,24 @@ export const USER_STOP_ABORT_REASON = Object.freeze({
 export function isUserStopAbort(signal: AbortSignal | undefined): boolean {
   return signal?.aborted === true && signal.reason === USER_STOP_ABORT_REASON;
 }
+
+/**
+ * The `signal.reason` value a runner shutdown cancels a running turn with.
+ *
+ * The turn is cancelled the way a Stop cancels it, so its harness settles and its transcript
+ * reaches durable storage. Nobody stopped it, though, so it ends with the restart error, which
+ * the client offers to retry, not as a Stop.
+ */
+export const RUNNER_SHUTDOWN_ABORT_REASON = Object.freeze({
+  agentaAbort: "runner-shutdown",
+} as const);
+
+/** True when this signal was aborted by a runner shutdown. */
+export function isRunnerShutdownAbort(signal: AbortSignal | undefined): boolean {
+  return signal?.aborted === true && signal.reason === RUNNER_SHUTDOWN_ABORT_REASON;
+}
+
+/** True for the two aborts that cancel the harness and may park: a user Stop and a shutdown. */
+export function isCooperativeCancelAbort(signal: AbortSignal | undefined): boolean {
+  return isUserStopAbort(signal) || isRunnerShutdownAbort(signal);
+}

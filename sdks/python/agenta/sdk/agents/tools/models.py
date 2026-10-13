@@ -111,10 +111,11 @@ def _shortest_distinct_prefix(digests: List[str], start: int = 6) -> int:
 Permission = Literal["allow", "ask", "deny"]
 PermissionMode = Literal["allow", "ask", "deny", "allow_reads"]
 
-# The four values a gateway connection policy saves. ``inherit`` is explicit here: an absent
+# The values a gateway connection policy saves. ``inherit`` is explicit here: an absent
 # tool key uses the connection default, while ``inherit`` skips that default and defers to
-# the agent-wide mode. The compiler applies it, so ``inherit`` never reaches the runner.
-GatewayPermission = Literal["inherit", "allow", "ask", "deny"]
+# the agent-wide mode. ``allow_reads`` runs a read-only tool and asks for every other one,
+# whatever the agent-wide mode is. The compiler resolves both, so neither reaches the runner.
+GatewayPermission = Literal["inherit", "allow", "ask", "deny", "allow_reads"]
 
 # The deleted pre-redesign vocabulary, still present in old dev-DB drafts. These literals
 # are the only place the SDK may spell them.

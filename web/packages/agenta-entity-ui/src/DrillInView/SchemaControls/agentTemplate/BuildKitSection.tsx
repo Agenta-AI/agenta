@@ -90,6 +90,7 @@ export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSect
                 </span>
             </div>
             <PermissionDrawerBody
+                flush
                 catalogKey="playground-build-kit"
                 catalog={{
                     status: "ready",
@@ -105,7 +106,7 @@ export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSect
                 permissions={state.enabled ? permissions : {default: "deny", tools: {}}}
                 onChangePermissions={() => undefined}
                 onChangeToolPermission={(op, permission) => {
-                    if (permission === "inherit") return
+                    if (permission === "inherit" || permission === "allow_reads") return
                     const overrides = {...state.permissionOverrides}
                     delete overrides[op]
                     if (permission !== "deny") overrides[op] = permission

@@ -27,7 +27,7 @@ them — styling and import rules here are deliberately different. Design doc:
 web/mobile/src/
   pages/                # thin route shells only (Pages Router)
   features/<feature>/   # SessionListScreen.tsx, SessionRowMenu.tsx, ... one component per file
-    states/             # SessionsEmpty.tsx, SessionsPageSkeleton.tsx — designed sibling states
+    states/             # SessionsNoMatch.tsx, SessionsPageSkeleton.tsx — designed sibling states
   components/           # app-wide shells (ScreenScaffold, PageTitle, ContentRail, ...)
     ui/                 # local shadcn registry components (installed, then owned)
   lib/                  # motion presets, cn util, api glue — no JSX except tiny helpers

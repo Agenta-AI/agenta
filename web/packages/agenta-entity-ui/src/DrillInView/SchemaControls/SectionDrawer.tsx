@@ -14,6 +14,8 @@ import {EnhancedModal} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Button} from "@agenta/ui/ui"
 
+import {SectionDrawerPanelContext} from "./sectionDrawerPanel"
+
 export interface SectionDrawerProps {
     open: boolean
     title: ReactNode
@@ -24,6 +26,8 @@ export interface SectionDrawerProps {
     // When true, closing via scrim/X asks for confirmation instead of discarding silently.
     dirty?: boolean
     width?: number
+    /** Body padding; a rail body passes a flush top so it starts right under the header. */
+    bodyPadding?: string
     children: ReactNode
 }
 
@@ -36,9 +40,11 @@ export function SectionDrawer({
     disabled = false,
     dirty = false,
     width = 720,
+    bodyPadding = "16px 12px",
     children,
 }: SectionDrawerProps) {
     const [confirmOpen, setConfirmOpen] = useState(false)
+    const [panel, setPanel] = useState<HTMLDivElement | null>(null)
     // Scrim/X close: guard with a confirm when dirty; the footer Cancel button bypasses this.
     const handleRequestClose = useCallback(() => {
         if (dirty) {
@@ -55,6 +61,7 @@ export function SectionDrawer({
                 onClose={handleRequestClose}
                 placement="right"
                 width={width}
+                panelRef={setPanel}
                 destroyOnClose
                 title={
                     <div className="flex min-w-0 items-center gap-2">
@@ -74,10 +81,11 @@ export function SectionDrawer({
                 }
                 // The body itself doesn't scroll — the content (a full-height flex row) gives each
                 // panel its own overflow, so the left and right panels scroll independently.
-                // Tighter at the sides; the vertical 16 is what the rail's `bleed` negates.
-                styles={{body: {padding: "16px 12px", overflow: "hidden"}}}
+                styles={{body: {padding: bodyPadding, overflow: "hidden"}}}
             >
-                {children}
+                <SectionDrawerPanelContext.Provider value={panel}>
+                    {children}
+                </SectionDrawerPanelContext.Provider>
             </EnhancedDrawer>
             <EnhancedModal
                 open={confirmOpen}

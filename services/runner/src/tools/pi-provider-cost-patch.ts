@@ -23,7 +23,7 @@
  * with the total. When Pi has no price for the model (estimate 0), the split stays 0 and only the
  * total carries the charge: there is no honest split to invent.
  *
- * SCOPE. Only the OpenAI-completions client needs this. In pi-ai 0.87.1 the OpenRouter provider
+ * SCOPE. Only the OpenAI-completions client needs this. In pi-ai 0.99.1 the OpenRouter provider
  * serves most models through `openai-completions`, but its `anthropic/*` models go through
  * `anthropic-messages`, which this patch does not touch: whether OpenRouter's Anthropic-compatible
  * endpoint reports `usage.cost` is not verified, so those spans keep Pi's estimate. The Responses

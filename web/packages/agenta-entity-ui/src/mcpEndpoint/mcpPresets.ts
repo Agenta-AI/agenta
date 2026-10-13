@@ -69,6 +69,8 @@ const BY_GOVERNING_VALUE: Record<GatewayPermission, PermissionPresetValue> = {
     deny: "deny_all",
     // Not "ask_writes". That preset now writes a shape of its own; the absence is its own preset.
     inherit: FOLLOW_AGENT_PRESET,
+    // An MCP policy has no such value, so `toGatewayPermissions` never produces it.
+    allow_reads: "ask_writes",
 }
 
 /** What the drawer knows about the server's advertised tools when it reads a policy. */

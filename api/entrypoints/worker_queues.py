@@ -32,6 +32,10 @@ from uuid import UUID, uuid4
 
 from taskiq import AsyncBroker, TaskiqEvents
 from taskiq.receiver import Receiver
+
+from contextlib import suppress
+
+from oss.src.utils import heartbeat
 from taskiq.cli.worker.run import shutdown_broker
 
 from oss.src.tasks.taskiq.shared.broker import (
@@ -87,8 +91,10 @@ from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 from oss.src.dbs.redis.shared.engine import get_lock_engine
 from oss.src.dbs.postgres.shared.engine import (
+    PROFILE_WORKER,
     get_analytics_engine,
     get_transactions_engine,
+    set_pool_profile,
 )
 from oss.src.dbs.postgres.testcases.dbes import TestcaseBlobDBE
 from oss.src.dbs.postgres.testsets.dbes import (
@@ -618,8 +624,20 @@ async def main_async() -> int:
             broker, max_async_tasks = _BUILDERS[name]()
             tasks.append(_run_receiver(name, broker, max_async_tasks, shutdown_event))
 
+        # taskiq owns the receive loop, so there is no per-turn place to report from
+        # here as there is in the stream consumers. This sibling task reports on an
+        # interval instead. It proves the event loop is still turning, which is what
+        # catches a blocked loop; it does not prove tasks are being consumed. A no-op
+        # unless AGENTA_HEARTBEAT_FILE is set.
+        liveness = asyncio.create_task(heartbeat.ticker(name="worker-queues"))
+
         log.info("[QUEUES] Starting worker-queues", selected=queues)
-        await asyncio.gather(*tasks)
+        try:
+            await asyncio.gather(*tasks)
+        finally:
+            liveness.cancel()
+            with suppress(asyncio.CancelledError):
+                await liveness
 
         return 0
 
@@ -629,6 +647,10 @@ async def main_async() -> int:
 
 
 def main() -> int:
+    # Ahead of asyncio.run, because the first engine is built inside main_async
+    # and keeps whichever profile is current when it is built.
+    set_pool_profile(PROFILE_WORKER)
+
     try:
         return asyncio.run(main_async())
     except KeyboardInterrupt:

@@ -9,18 +9,143 @@ Files enter an agent through session attachments and leave through file events o
 
 ## Upload and reference
 
-Upload an attachment through the session attachment endpoint, then associate returned attachment IDs with a session:
+Getting a file in front of an agent takes three calls: upload the bytes, reference the returned attachment ID from the session, then invoke the agent in that session.
+
+Both attachment endpoints need a session ID up front. Use your own value, or run a first invoke without a `session_id` and read the minted one from the `x-ag-session-id` response header. The attachment routes accept a narrower session ID than [Invoke an agent](/reference/agents/invoke-an-agent#request-body): 1 to 128 letters, numbers, underscores, or hyphens. A session ID containing `.` or `:` can invoke but cannot upload or reference attachments.
+
+### 1. Upload
+
+```
+POST {AGENTA_HOST}/api/sessions/attachments?project_id={PROJECT_ID}&session_id={SESSION_ID}
+```
+
+The body is `multipart/form-data` with two fields:
+
+| Field             | Type   | Required | Description                                                                            |
+| ----------------- | ------ | -------- | -------------------------------------------------------------------------------------- |
+| `file`            | file   | Yes      | The file part. Its filename and declared media type are read from the part.            |
+| `idempotency_key` | string | Yes      | At most 255 characters. Reuse the same value when you retry after a network error.     |
+
+```bash
+IDEMPOTENCY_KEY=$(uuidgen)  # reuse the same value when you retry
+
+curl -X POST \
+  "https://eu.cloud.agenta.ai/api/sessions/attachments?project_id=019d952f-0000-0000-0000-000000000000&session_id=customer-case-4821" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -F "file=@report.pdf" \
+  -F "idempotency_key=$IDEMPOTENCY_KEY"
+```
 
 ```json
 {
-  "session_id": "customer-case-4821",
-  "attachment_ids": ["019d952f-0000-0000-0000-000000000010"]
+  "count": 1,
+  "attachment": {
+    "attachment_id": "019d952f-0000-0000-0000-000000000010",
+    "filename": "report.pdf",
+    "media_type": "application/pdf",
+    "size": 48213,
+    "created_at": "2026-10-06T10:00:00Z"
+  }
 }
 ```
 
-The reference request accepts at most 100 attachment IDs. The API validates project access before exposing file content to a session.
+Omitting the `session_id` query parameter returns `422`. Omitting the `idempotency_key` form field returns an error naming the missing field. The request must carry a `Content-Length` header, which curl sets for you.
+
+### 2. Reference
+
+```
+POST {AGENTA_HOST}/api/sessions/attachments/reference?project_id={PROJECT_ID}
+```
+
+```bash
+curl -X POST \
+  "https://eu.cloud.agenta.ai/api/sessions/attachments/reference?project_id=019d952f-0000-0000-0000-000000000000" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "customer-case-4821",
+    "attachment_ids": ["019d952f-0000-0000-0000-000000000010"]
+  }'
+```
+
+The response echoes the referenced attachments. The request accepts at most 100 attachment IDs. The API validates project access before exposing file content to a session.
+
+### 3. Invoke
+
+Send the next turn in the same session. The message must carry an `attachment` content block with the attachment ID: referencing alone records the attachment for the session, and the runner fetches it only when the current user message includes its block. The full request contract is in [Invoke an agent](/reference/agents/invoke-an-agent).
+
+```bash
+curl -X POST \
+  "https://eu.cloud.agenta.ai/services/agent/v0/invoke?project_id=019d952f-0000-0000-0000-000000000000" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "session_id": "customer-case-4821",
+    "references": {
+      "workflow_revision": { "id": "019d952f-0000-0000-0000-000000000002" }
+    },
+    "data": {
+      "inputs": {
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              { "type": "text", "text": "Summarize the attached report." },
+              {
+                "type": "attachment",
+                "attachmentId": "019d952f-0000-0000-0000-000000000010",
+                "mimeType": "application/pdf",
+                "filename": "report.pdf"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }'
+```
 
 When sending messages, use image or resource blocks with a URI and MIME type, or the equivalent Vercel `file` part. See [Chat message format](/reference/agents/chat-message-format#content-blocks).
+
+## Place a file in the working directory
+
+Referencing an attachment exposes it through the attachment API; it does not create a file on the sandbox filesystem, so the agent cannot `ls` or `unzip` it there. To hand the agent a file it can open with shell tools, upload it into a session mount:
+
+```
+POST {AGENTA_HOST}/api/sessions/mounts/{MOUNT_ID}/files/upload?project_id={PROJECT_ID}
+```
+
+The body is `multipart/form-data` with a single `file` field. The `MOUNT_ID` is the UUID of the session's working-directory mount, not a path. List the session's mounts and select the one named `cwd`:
+
+```bash
+curl -sS "https://eu.cloud.agenta.ai/api/sessions/mounts/?project_id=019d952f-0000-0000-0000-000000000000&session_id=customer-case-4821" \\
+  -H "Authorization: ApiKey $AGENTA_API_KEY"
+```
+
+```json
+{
+  "count": 1,
+  "mounts": [
+    { "name": "cwd", "id": "019d952f-0000-0000-0000-000000000020", "session_id": "customer-case-4821" }
+  ]
+}
+```
+
+Use the `cwd` mount's `id` in the upload path. Uploading to a different mount's UUID places the file outside the working directory.
+
+```bash
+curl -X POST \
+  "https://eu.cloud.agenta.ai/api/sessions/mounts/019d952f-0000-0000-0000-000000000020/files/upload?project_id=019d952f-0000-0000-0000-000000000000" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -F "file=@bundle.zip"
+```
+
+```json
+{ "path": "bundle.zip", "size": 78683 }
+```
+
+The file appears at that path in the agent's working directory on its next turn.
 
 ## Generated files
 

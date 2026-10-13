@@ -11,24 +11,38 @@ import {
     turnStartAtomFamily,
 } from "../../../src/state/turnClock"
 
-describe("turn startup label", () => {
-    it("has no label for an idle session", () => {
+describe("turn stage", () => {
+    it("has no stage for an idle session", () => {
         const store = createStore()
         expect(store.get(turnStartAtomFamily("idle"))).toBeUndefined()
     })
 
-    it("records and replaces the latest observed label", () => {
+    it("records and replaces the latest observed stage", () => {
         const store = createStore()
-        store.set(startTurnClockAtom, "session", "Working")
-        expect(store.get(turnStartAtomFamily("session"))).toBe("Working")
+        store.set(startTurnClockAtom, "session", "sending")
+        expect(store.get(turnStartAtomFamily("session"))).toBe("sending")
 
-        store.set(startTurnClockAtom, "session", "Ready")
-        expect(store.get(turnStartAtomFamily("session"))).toBe("Ready")
+        store.set(startTurnClockAtom, "session", "environment_ready")
+        expect(store.get(turnStartAtomFamily("session"))).toBe("environment_ready")
+    })
+
+    it("advances to started only from sending, never over a startup phase", () => {
+        const store = createStore()
+        store.set(startTurnClockAtom, "session", "sending")
+        store.set(startTurnClockAtom, "session", "started")
+        expect(store.get(turnStartAtomFamily("session"))).toBe("started")
+
+        store.set(startTurnClockAtom, "session", "opening_session")
+        store.set(startTurnClockAtom, "session", "started")
+        expect(store.get(turnStartAtomFamily("session"))).toBe("opening_session")
+
+        store.set(startTurnClockAtom, "other", "started")
+        expect(store.get(turnStartAtomFamily("other"))).toBeUndefined()
     })
 
     it("clears idempotently on every terminal path", () => {
         const store = createStore()
-        store.set(startTurnClockAtom, "session", "Working")
+        store.set(startTurnClockAtom, "session", "sending")
         store.set(clearTurnClockAtom, "session")
         store.set(clearTurnClockAtom, "session")
         expect(store.get(turnStartAtomFamily("session"))).toBeUndefined()

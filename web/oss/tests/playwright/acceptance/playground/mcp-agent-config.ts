@@ -46,6 +46,8 @@ import {buildAcceptanceTags} from "../utils/tags"
 const test = baseTest.extend<{registerAgentAppForCleanup: (appId: string) => void}>({
     registerAgentAppForCleanup: async ({apiHelpers}, use) => {
         let appId: string | undefined
+        // Playwright's fixture callback, not a React hook.
+        // eslint-disable-next-line react-hooks/rules-of-hooks
         await use((createdAppId) => {
             appId = createdAppId
         })
@@ -201,8 +203,10 @@ const PLAYGROUND_WARMUP_MS = 4 * ROUTE_WARMUP_MS
  * draft in between and nothing to save.
  */
 const openAddMcpDrawer = async (page: Page) => {
-    const addLink = page.getByRole("button", {name: "add a server", exact: true})
-    const sectionHeader = page.getByRole("button", {name: /^MCP servers\b/})
+    // The section header carries its own "Add MCP server" button, open or closed. The empty
+    // section has no link of its own any more, only a line saying there are no servers yet.
+    const addButton = page.getByRole("button", {name: "Add MCP server", exact: true})
+    const sectionHeader = page.getByRole("button", {name: /^MCP servers\b/}).first()
     // The section appearing is also this page's sign of life: an agent's playground opens a
     // session first, so there is nothing to assert on until the configuration panel is up.
     // The setup warms this route, so the ordinary budget is usually right. It is kept generous
@@ -217,11 +221,14 @@ const openAddMcpDrawer = async (page: Page) => {
     // minutes, and a gate keyed on a symptom would still license a reload on a real
     // dynamic-import failure, which is a defect and not a flake. A panel that does not fill
     // fails here, whatever the reason (decision 54).
-    await expect(sectionHeader.or(addLink).first()).toBeVisible({timeout: PLAYGROUND_WARMUP_MS})
-    if (!(await addLink.isVisible())) {
-        await sectionHeader.first().click()
+    await expect(sectionHeader).toBeVisible({timeout: PLAYGROUND_WARMUP_MS})
+    // Opened as a person would before adding: the rows the cases read afterwards belong to
+    // the open section.
+    if ((await sectionHeader.getAttribute("aria-expanded")) !== "true") {
+        await sectionHeader.click()
     }
-    await expect(addLink).toBeVisible({timeout: 15000})
+    await expect(sectionHeader).toHaveAttribute("aria-expanded", "true", {timeout: 15000})
+    await expect(addButton).toBeVisible({timeout: 15000})
 
     // INVARIANT: a drawer may only be opened once the session route has landed.
     //
@@ -237,7 +244,7 @@ const openAddMcpDrawer = async (page: Page) => {
     // the assertions that follow are what decide whether the drawer is there.
     await page.waitForURL(/session_id=/, {timeout: PLAYGROUND_WARMUP_MS}).catch(() => undefined)
 
-    await addLink.click()
+    await addButton.click()
     const drawer = addDrawer(page)
     await expect(drawer).toBeVisible({timeout: 15000})
     return drawer

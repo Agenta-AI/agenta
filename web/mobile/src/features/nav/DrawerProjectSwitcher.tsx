@@ -6,6 +6,7 @@ import {
     type SwitcherEntry,
     type SwitcherThemeControl,
 } from "@agenta/navigation-ui"
+import {message} from "@agenta/ui/app-message"
 import {KeyboardShortcutsSheet} from "@agenta/ui/shortcuts"
 import {THEME_OPTIONS, themeIcon, useThemeMode} from "@agenta/ui/theme"
 import {useMutation, useQuery} from "@tanstack/react-query"
@@ -15,9 +16,11 @@ import {fetchProjects, projectHomeUrl, writeLastContext} from "@/lib/context"
 
 import {useLogout} from "../auth/useLogout"
 import {groupByOrganization} from "../context/workspaceGroups"
+import {LiveChatNavButton} from "../support/LiveChatNavButton"
+import {useLiveChatEnabled} from "../support/useLiveChatEnabled"
 
 import {CreateProjectSheet} from "./CreateProjectSheet"
-import {useMobileHelpItem, useMobileVersion} from "./useMobileNavItems"
+import {useMobileHelpItem} from "./useMobileNavItems"
 
 /**
  * The drawer's header switcher: the desktop rail's component, bound to mobile's project data.
@@ -41,7 +44,7 @@ export const DrawerProjectSwitcher = ({
     const helpItem = useMobileHelpItem({
         onOpenShortcuts: useCallback(() => setShortcutsOpen(true), []),
     })
-    const version = useMobileVersion()
+    const liveChatEnabled = useLiveChatEnabled(projectId)
     const query = useQuery({
         queryKey: ["mobile", "projects"],
         queryFn: () => fetchProjects(),
@@ -113,6 +116,12 @@ export const DrawerProjectSwitcher = ({
             await query.refetch()
             goTo(created.workspace_id ?? workspaceId, created.project_id)
         },
+        // The API's refusal is written for people (e.g. the plan's project limit).
+        onError: (error) => {
+            const detail = (error as {response?: {data?: {detail?: unknown}}})?.response?.data
+                ?.detail
+            message.error(typeof detail === "string" ? detail : "Unable to create project")
+        },
     })
 
     // Inside the nav drawer the panel must portal into the sheet or it renders behind it. In the
@@ -155,8 +164,12 @@ export const DrawerProjectSwitcher = ({
                 theme={theme}
                 onCreateProject={() => setCreateOpen(true)}
                 onLogout={() => void logout()}
-                triggerMeta={version ? `v${version}` : undefined}
-                trailing={<SidebarIconMenu item={helpItem} />}
+                trailing={
+                    <>
+                        {liveChatEnabled ? <LiveChatNavButton /> : null}
+                        <SidebarIconMenu item={helpItem} />
+                    </>
+                }
             />
             <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
             <CreateProjectSheet
