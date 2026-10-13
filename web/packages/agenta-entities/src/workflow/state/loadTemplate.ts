@@ -1,4 +1,5 @@
 import {projectIdAtom} from "@agenta/shared/state"
+import {generateId} from "@agenta/shared/utils"
 import type {AgentaApi} from "@agentaai/api-client"
 import {atom} from "jotai"
 
@@ -139,7 +140,8 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
                         "The build kit is still loading. Try again before starting the template.",
                     )
                 intent = {
-                    key: `agent-template:${revisionId}:${sourceKey}`,
+                    // External source JSON can outgrow the 255-character Idempotency-Key.
+                    key: `agent-template:${revisionId}:${source.kind === "internal" ? source.key : generateId()}`,
                     buildKitState,
                     request: {
                         source,

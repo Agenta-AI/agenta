@@ -167,7 +167,7 @@ describe("template package loading", () => {
                 initial_message: "Set up this agent.",
                 connection_choices: [],
             }),
-            `agent-template:${REVISION_ID}:${JSON.stringify(source)}`,
+            expect.stringMatching(new RegExp(`^agent-template:${REVISION_ID}:[0-9a-f-]{36}$`)),
             "project-1",
         )
     })
