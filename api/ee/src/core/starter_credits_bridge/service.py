@@ -905,6 +905,36 @@ def _email_domain(organization_email: str) -> str:
     return domain.lower() or "unknown"
 
 
+def email_rules_allow(organization_email: str, policy: MintPolicy) -> bool:
+    """The mint policy's email rules alone, without the Redis counters. A refusal logs
+    the rule and the domain, never the address."""
+    local_part, _, _ = organization_email.rpartition("@")
+    domain = _email_domain(organization_email)
+    rule = None
+
+    if policy.is_disposable(domain):
+        rule = "disposable_domain"
+    elif "+" in local_part and domain not in PLUS_ALIAS_ALLOWLIST_DOMAINS:
+        rule = "plus_local_part"
+    elif (
+        not policy.is_freemail(domain)
+        and domain not in PLUS_ALIAS_ALLOWLIST_DOMAINS
+        and policy.block_digit_locals
+        and any(character.isdigit() for character in local_part)
+    ):
+        rule = "digit_local_part"
+
+    if rule is not None:
+        log.warning(
+            "[starter_credits_bridge] policy refused mint; skipping seed",
+            rule=rule,
+            # The domain, never the address: it is what makes a refusal diagnosable
+            # (which provider, which rule) without logging who signed up.
+            domain=domain,
+        )
+    return rule is None
+
+
 async def _mint_policy_allows(
     organization_email: str,
     policy: MintPolicy,
@@ -912,31 +942,8 @@ async def _mint_policy_allows(
     """Apply the mint policy: eligibility rules, then Redis counters (global
     daily + hourly; per-domain daily on non-free-mail domains only). Fail closed
     on Redis errors: an unverifiable mint is a skipped mint."""
-    local_part, _, _ = organization_email.rpartition("@")
     domain = _email_domain(organization_email)
-    freemail = policy.is_freemail(domain)
-
-    if "+" in local_part and domain not in PLUS_ALIAS_ALLOWLIST_DOMAINS:
-        log.warning(
-            "[starter_credits_bridge] policy refused mint; skipping seed",
-            rule="plus_local_part",
-            domain=domain,
-        )
-        return False
-
-    if (
-        not freemail
-        and domain not in PLUS_ALIAS_ALLOWLIST_DOMAINS
-        and policy.block_digit_locals
-        and any(character.isdigit() for character in local_part)
-    ):
-        log.warning(
-            "[starter_credits_bridge] policy refused mint; skipping seed",
-            rule="digit_local_part",
-            # The domain, never the address: it is what makes a refusal diagnosable
-            # (which provider, which rule) without logging who signed up.
-            domain=domain,
-        )
+    if not email_rules_allow(organization_email, policy):
         return False
 
     engine = get_cache_engine()

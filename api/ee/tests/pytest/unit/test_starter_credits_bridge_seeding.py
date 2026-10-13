@@ -1084,6 +1084,21 @@ class TestMintPolicyAllows:
 
         assert await service._mint_policy_allows(address, policy) is True
 
+    @pytest.mark.parametrize(
+        "address", ["abcxyz@throwaway.test", "abcxyz@mx.throwaway.test"]
+    )
+    async def test_a_disposable_domain_is_refused_before_any_counter(self, address):
+        policy = _policy(disposable_domains=[" Throwaway.TEST "])
+
+        assert await service._mint_policy_allows(address, policy) is False
+        assert service.email_rules_allow(address, policy) is False
+        assert self.engine.counts == {}
+
+    async def test_a_domain_that_only_ends_like_a_disposable_one_passes(self):
+        policy = _policy(disposable_domains=["throwaway.test"])
+
+        assert service.email_rules_allow("abc@notthrowaway.test", policy) is True
+
     async def test_global_hourly_cap_blocks(self):
         policy = _policy(global_hourly=2)
 

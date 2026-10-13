@@ -111,6 +111,8 @@ class MintPolicy(BaseModel):
     work_domain_daily: int
     freemail_domains: list[str] = []
     block_digit_locals: bool
+    # Throwaway mail domains. A signup on one of them, or on a subdomain, is refused.
+    disposable_domains: list[str] = []
     grant_usd: float
     key_max_parallel_requests: int
     key_rpm_limit: int
@@ -150,8 +152,20 @@ class MintPolicy(BaseModel):
             raise ValueError("policy limits must be positive")
         return value
 
+    @field_validator("disposable_domains")
+    @classmethod
+    def _normalize_disposable_domains(cls, domains: list[str]) -> list[str]:
+        return sorted({domain.strip().lower() for domain in domains if domain.strip()})
+
     def is_freemail(self, domain: str) -> bool:
         return domain.lower() in self.freemail_domains
+
+    def is_disposable(self, domain: str) -> bool:
+        domain = domain.lower()
+        return any(
+            domain == listed or domain.endswith(f".{listed}")
+            for listed in self.disposable_domains
+        )
 
 
 class StarterCreditsBridgeError(Exception):
