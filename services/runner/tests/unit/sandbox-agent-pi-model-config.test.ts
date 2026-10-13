@@ -296,7 +296,7 @@ describe("buildPiModelConfigPlan (built-in metadata onto the custom provider)", 
     assert.equal(plan.models[0].maxTokens, 384000);
   });
 
-  it("carries the vendor request dialect only on the vendor's own endpoint", () => {
+  it("carries the definition only on the vendor's own endpoint", () => {
     const onVendor = buildPiModelConfigPlan(
       deepseekRequest("https://api.deepseek.com/v1"),
       completeSecrets,
@@ -304,15 +304,14 @@ describe("buildPiModelConfigPlan (built-in metadata onto the custom provider)", 
     );
     assert.equal(onVendor?.models[0].compat?.thinkingFormat, "deepseek");
 
-    // A proxy that only serves the same id: limits ride, the vendor dialect does not.
+    // A proxy that merely serves the same id proves nothing about its limits, so nothing is
+    // carried and Pi keeps its own defaults rather than budget on unverified numbers.
     const offVendor = buildPiModelConfigPlan(
       deepseekRequest("https://my-proxy.test/v1"),
       completeSecrets,
       registry,
     );
-    assert.equal(offVendor?.models[0].contextWindow, 1000000);
-    assert.equal(offVendor?.models[0].maxTokens, 384000);
-    assert.equal(offVendor?.models[0].compat, undefined);
+    assert.deepEqual(offVendor?.models, [{ id: "deepseek-flash" }]);
   });
 
   it("leaves an unknown model metadata-free (current behavior)", () => {

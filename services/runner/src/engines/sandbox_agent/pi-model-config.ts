@@ -179,21 +179,11 @@ function urlHost(url: string | undefined | null): string | undefined {
   }
 }
 
-/** A built-in Pi definition matched to a requested custom-connection model. */
-export interface PiBuiltinMatch {
-  model: PiBuiltinModel;
-  /**
-   * True when the connection base URL points at the SAME host as the built-in model, so the
-   * endpoint is the vendor's own and the built-in request dialect applies.
-   */
-  sameVendorEndpoint: boolean;
-}
-
 /**
  * Find the built-in Pi definition that describes a requested custom-connection model.
  *
  * A custom provider is keyed by its connection slug and, before this, carried NO model metadata, so
- * Pi fell back to its generic 128K window and 16K output cap for EVERY model on it — including a
+ * Pi fell back to its generic 128K window and 16K output cap for EVERY model on it -- including a
  * model Pi already describes exactly. That is the bug: `deepseek-flash` is a 1M/384K reasoning model
  * in Pi's own catalog, but a custom connection stripped it to 128K/16K, and once a session exceeded
  * 128K tokens Pi's `clampMaxTokensToContext` floored `max_tokens` to 1, so the agent answered with a
@@ -201,58 +191,31 @@ export interface PiBuiltinMatch {
  * reading the registry live means a Pi bump that adds or updates a model is picked up with no change
  * here.
  *
- * Matching is by exact id. A tie (the same id under several built-in providers) is resolved ONLY by
- * an unambiguous base-URL host match, because the endpoint then identifies the vendor. Otherwise
- * nothing is returned and no metadata is guessed.
+ * A match needs the exact model id AND the connection endpoint's host. The id alone is not enough: a
+ * proxy or reseller serves a model under its vendor's id with limits of its own, and Pi budgets
+ * requests -- and compacts -- from whatever the entry declares, so carrying the vendor's limits onto
+ * an unverified endpoint can produce overlong, rejected requests. The shared host is what makes the
+ * built-in definition known to describe THIS endpoint. A tie (one id on several built-in providers
+ * that share the host) is not resolved: nothing is returned rather than guessed.
  */
-export function findBuiltinModel(
+function findBuiltinModel(
   modelId: string,
   connectionBaseUrl: string | undefined,
   registry: PiBuiltinRegistry | undefined,
-): PiBuiltinMatch | undefined {
+): PiBuiltinModel | undefined {
   if (!registry) return undefined;
+  const host = urlHost(connectionBaseUrl);
+  if (!host) return undefined;
 
   const matches: PiBuiltinModel[] = [];
   for (const provider of registry.providers()) {
     for (const model of registry.models(provider)) {
-      if (model.id === modelId) matches.push(model);
+      if (model.id === modelId && urlHost(model.baseUrl) === host) {
+        matches.push(model);
+      }
     }
   }
-  if (matches.length === 0) return undefined;
-
-  const host = urlHost(connectionBaseUrl);
-  const vendorMatches = host
-    ? matches.filter((model) => urlHost(model.baseUrl) === host)
-    : [];
-  if (vendorMatches.length === 1) {
-    return { model: vendorMatches[0], sameVendorEndpoint: true };
-  }
-  if (matches.length === 1) {
-    return { model: matches[0], sameVendorEndpoint: false };
-  }
-  return undefined;
-}
-
-/**
- * The `models.json` entry for a matched built-in model.
- *
- * On the vendor's own endpoint the WHOLE definition is safe to carry — limits, reasoning support,
- * thinking levels, and the request dialect (`compat`) that vendor's API needs. On any other endpoint
- * only the LIMITS ride: they describe the model's capacity, which the clamp and compaction read,
- * while the dialect describes the vendor's wire format and would mis-shape a third-party
- * OpenAI-compatible endpoint that merely serves a model under the same id.
- */
-function entryForBuiltinMatch(match: PiBuiltinMatch): PiModelEntry {
-  if (match.sameVendorEndpoint) return entryFromBuiltin(match.model.id, match.model);
-  return {
-    id: match.model.id,
-    ...(match.model.contextWindow !== undefined
-      ? { contextWindow: match.model.contextWindow }
-      : {}),
-    ...(match.model.maxTokens !== undefined
-      ? { maxTokens: match.model.maxTokens }
-      : {}),
-  };
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 /**
@@ -417,11 +380,11 @@ export function isPiModelConfigApplicable(request: AgentRunRequest): boolean {
  * The plan holds only an env-var reference for a provider key; the raw key never enters it.
  *
  * `registry` is Pi's own built-in catalog. When the requested model id matches a built-in
- * definition, that definition's metadata (context window, output cap, and — on the vendor's own
- * endpoint — reasoning support and request dialect) rides on the model entry. A custom provider
- * entry with no metadata makes Pi assume a 128K window and a 16K output cap; a session that then
- * exceeds 128K tokens has `max_tokens` clamped to 1 and the agent answers nothing (see
- * `findBuiltinModel`). Pass `undefined` to keep the metadata-free entry.
+ * definition ON the same endpoint host, that definition's metadata (context window, output cap,
+ * reasoning support, request dialect) rides on the model entry. A custom provider entry with no
+ * metadata makes Pi assume a 128K window and a 16K output cap; a session that then exceeds 128K
+ * tokens has `max_tokens` clamped to 1 and the agent answers nothing (see `findBuiltinModel`).
+ * Pass `undefined` to keep the metadata-free entry.
  */
 export function buildPiModelConfigPlan(
   request: AgentRunRequest,
@@ -485,7 +448,7 @@ export function buildPiModelConfigPlan(
       ? GATEWAY_PLACEHOLDER_API_KEY
       : `$${OPENAI_API_KEY_ENV}`,
     apiKeyEnv: OPENAI_API_KEY_ENV,
-    models: [builtin ? entryForBuiltinMatch(builtin) : { id: modelId }],
+    models: [builtin ? entryFromBuiltin(builtin.id, builtin) : { id: modelId }],
     ...(gatewayCredentials
       ? { headers: { [gatewayCredentials.header]: `$${GATEWAY_CREDENTIALS_VALUE_ENV}` } }
       : {}),
