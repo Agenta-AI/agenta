@@ -56,6 +56,7 @@ const LLM_STANDARD_PROVIDER_ENV_BY_KIND: Partial<Record<StandardProviderKind, st
     [StandardProviderKind.Gemini]: "GEMINI_API_KEY",
     [StandardProviderKind.Minimax]: "MINIMAX_API_KEY",
     [StandardProviderKind.Xai]: "XAI_API_KEY",
+    [StandardProviderKind.Llmapi]: "LLMAPI_API_KEY",
 }
 
 const MCP_STANDARD_PROVIDER_ENV_BY_KIND: Record<McpStandardProviderKind, string> = {

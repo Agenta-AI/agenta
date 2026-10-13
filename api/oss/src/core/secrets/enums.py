@@ -198,6 +198,7 @@ class LLMStandardProviderKind(str, Enum):
     OPENROUTER = "openrouter"
     GEMINI = "gemini"
     XAI = "xai"
+    LLMAPI = "llmapi"
 
 
 # The user-facing name of each standard provider, used to name an unnamed connection on create.
@@ -220,6 +221,7 @@ LLM_STANDARD_PROVIDER_DISPLAY_NAMES = {
     LLMStandardProviderKind.OPENROUTER: "OpenRouter",
     LLMStandardProviderKind.GEMINI: "Google Gemini",
     LLMStandardProviderKind.XAI: "xAI",
+    LLMStandardProviderKind.LLMAPI: "LLM API",
 }
 
 
@@ -261,6 +263,7 @@ class LLMCustomProviderKind(str, Enum):
     OPENROUTER = "openrouter"
     GEMINI = "gemini"
     XAI = "xai"
+    LLMAPI = "llmapi"
 
 
 class LLMEndpointProtocol(str, Enum):

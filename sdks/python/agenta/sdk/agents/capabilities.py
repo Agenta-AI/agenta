@@ -43,7 +43,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from agenta.sdk.utils.assets import supported_llm_models
 
-# The nine Agenta-vault-mapped providers Pi reaches directly via its env-key map (a stored
+# The ten Agenta-vault-mapped providers Pi reaches directly via its env-key map (a stored
 # ``provider_key`` secret of these drives Pi). Kept in agreement with the SDK resolver
 # provider-env maps.
 PI_VAULT_PROVIDERS: List[str] = [
@@ -56,6 +56,7 @@ PI_VAULT_PROVIDERS: List[str] = [
     "together_ai",
     "openrouter",
     "xai",
+    "llmapi",
 ]
 
 # Subscription/OAuth-only providers Pi also reaches. ``openai-codex`` is OpenAI's ChatGPT/Codex
@@ -143,6 +144,7 @@ PROVIDER_ENV_VARS: Dict[str, str] = {
     "together_ai": "TOGETHER_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
     "xai": "XAI_API_KEY",
+    "llmapi": "LLMAPI_API_KEY",
 }
 
 
@@ -152,6 +154,12 @@ PROVIDER_ENV_VARS: Dict[str, str] = {
 # ids are the shared catalog spelling (``provider/id``); each harness republishes them below in
 # the spelling it accepts. A saved list on a connection — including an empty one — always wins.
 PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
+    # LLM API chat models verified against https://api.llmapi.ai/v1/models (2026-09-23).
+    "llmapi": [
+        "llmapi/gpt-5.4",
+        "llmapi/claude-sonnet-4-6",
+        "llmapi/gemini-2.5-flash",
+    ],
     "openai": [
         "openai/gpt-6-astra",
         "openai/gpt-6.1-sol",

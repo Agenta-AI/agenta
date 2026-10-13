@@ -43,4 +43,5 @@ export const llmAvailableProviders: LlmProvider[] = [
     {title: "Google Gemini", key: "", name: "GEMINI_API_KEY"},
     {title: "MiniMax", key: "", name: "MINIMAX_API_KEY"},
     {title: "xAI", key: "", name: "XAI_API_KEY"},
+    {title: "LLM API", key: "", name: "LLMAPI_API_KEY"},
 ]

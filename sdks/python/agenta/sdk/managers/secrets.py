@@ -254,12 +254,10 @@ class SecretsManager:
         if not family:
             return False
 
-        target = SecretsManager._litellm_model(model=model, family=family)
+        # Saved model ids belong to this connection, even when another provider uses the same id.
+        target = litellm_model_id(model, family)
 
-        return any(
-            SecretsManager._litellm_model(model=slug, family=family) == target
-            for slug in saved
-        )
+        return any(litellm_model_id(slug, family) == target for slug in saved)
 
     # ------------------------------------------------------------------
     # Resolution
@@ -288,11 +286,16 @@ class SecretsManager:
         parsed = SecretsManager._parse_secrets(secrets=secrets)
 
         if connection:
-            return SecretsManager._settings_by_connection(
+            settings = SecretsManager._settings_by_connection(
                 secrets=parsed, model=model, connection=connection
             )
-
-        return SecretsManager._settings_by_family(secrets=parsed, model=model)
+        else:
+            settings = SecretsManager._settings_by_family(secrets=parsed, model=model)
+        # LLM API uses OpenAI's wire format but owns its model ids and credentials.
+        if settings and settings["model"].startswith("llmapi/"):
+            settings["model"] = f"openai/{settings['model'].removeprefix('llmapi/')}"
+            settings.setdefault("api_base", "https://api.llmapi.ai/v1")
+        return settings
 
     @staticmethod
     def _settings_by_connection(
@@ -357,6 +360,8 @@ class SecretsManager:
         not know passes through untouched — manual and freshly released ids must keep working.
         """
         model_family = _standard_providers.get(model)
+        if not model_family and model.startswith("llmapi/"):
+            model_family = "llmapi"
         record_family = record.get("data", {}).get("kind", "")
         if not model_family or not record_family:
             return
@@ -379,6 +384,8 @@ class SecretsManager:
 
         # STEP 1: check model exists in supported standard models
         standard_family = _standard_providers.get(request_provider_model)
+        if not standard_family and request_provider_model.startswith("llmapi/"):
+            standard_family = "llmapi"
         provider = standard_family
         if not provider:
             # check and get provider kind if model exists in custom provider models

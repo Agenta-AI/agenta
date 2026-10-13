@@ -58,12 +58,12 @@ const connection = (overrides: Partial<ProviderConnection> = {}): ProviderConnec
 })
 
 describe("provider catalog", () => {
-    it("offers every provider once: 13 standard keys plus the 4 credential-set kinds", () => {
+    it("offers every provider once: 14 standard keys plus the 4 credential-set kinds", () => {
         const kinds = PROVIDER_CATALOG.map((entry) => entry.kind)
 
         expect(kinds).toContain("openai")
         expect(kinds).toContain("xai")
-        expect(kinds).toHaveLength(17)
+        expect(kinds).toHaveLength(18)
         expect(new Set(kinds).size).toBe(kinds.length)
     })
 

@@ -38,6 +38,7 @@ export type PiProviderApi = "openai-completions";
  * document references it as `$OPENAI_API_KEY`; the raw value never enters the plan or the file.
  */
 export const OPENAI_API_KEY_ENV = "OPENAI_API_KEY";
+const LLMAPI_API_KEY_ENV = "LLMAPI_API_KEY";
 
 /** The file Pi reads a custom provider registry from, inside its agent dir (PI_CODING_AGENT_DIR). */
 export const PI_MODELS_JSON_FILENAME = "models.json";
@@ -49,8 +50,8 @@ export const PI_MODELS_JSON_FILENAME = "models.json";
 export interface PiModelConfigPlan {
   /** Pi provider id — the connection slug (stable, portable, disambiguates two custom endpoints). */
   providerId: string;
-  /** The resolved provider family. Only "openai" in v1. */
-  providerFamily: "openai";
+  /** The resolved provider family. */
+  providerFamily: "openai" | "llmapi";
   /** The API dialect Pi speaks to the endpoint. */
   api: PiProviderApi;
   /** The custom endpoint base URL (e.g. https://host/v1). */
@@ -61,9 +62,9 @@ export interface PiModelConfigPlan {
    * The env var Pi reads the actual provider key from on a direct managed route; the file
    * carries only `$OPENAI_API_KEY`, never the key value.
    */
-  apiKeyEnv: typeof OPENAI_API_KEY_ENV;
+  apiKeyEnv: typeof OPENAI_API_KEY_ENV | typeof LLMAPI_API_KEY_ENV;
   /** The exact selected model(s). v1 registers exactly one. */
-  models: Array<{ id: string }>;
+  models: Array<{ id: string; input?: string[] }>;
   /**
    * Gateway credentials use `$ENV_VAR` indirection so raw values never reach this file.
    * Absent when the connection is not gateway-routed.
@@ -291,9 +292,8 @@ function isPiHarness(harness: string | undefined): boolean {
 /**
  * Applicability (which KIND of run this is) — ALL must hold, else this builder does not apply:
  *   - the harness is Pi;
- *   - the resolved provider family is "openai";
- *   - the resolved deployment is "custom";
- *   - the connection is a named Agenta connection (`mode === "agenta"`).
+ *   - a custom OpenAI-compatible endpoint, or native LLM API (absent from Pi's registry);
+ *   - the connection is an Agenta connection (`mode === "agenta"`).
  *
  * Exported so `buildPiExtensionEnv` can skip the generic Pi provider-override env for runs this
  * models.json path already routes (two competing registrations would race for the provider).
@@ -301,9 +301,12 @@ function isPiHarness(harness: string | undefined): boolean {
 export function isPiModelConfigApplicable(request: AgentRunRequest): boolean {
   return (
     isPiHarness(request.harness) &&
-    request.modelConnection?.provider === "openai" &&
-    request.modelConnection?.deployment === "custom" &&
-    request.connection?.mode === "agenta"
+    ((request.modelConnection?.provider === "openai" &&
+      request.modelConnection?.deployment === "custom" &&
+      request.connection?.mode === "agenta") ||
+      (request.modelConnection?.provider === "llmapi" &&
+        request.modelConnection?.deployment === "direct" &&
+        (request.connection?.mode ?? "agenta") === "agenta"))
   );
 }
 
@@ -332,11 +335,17 @@ export function buildPiModelConfigPlan(
 ): PiModelConfigPlan | undefined {
   if (!isPiModelConfigApplicable(request)) return undefined;
 
+  const provider =
+    request.modelConnection?.provider === "llmapi" ? "llmapi" : "openai";
+  const apiKeyEnv =
+    provider === "llmapi" ? LLMAPI_API_KEY_ENV : OPENAI_API_KEY_ENV;
   const credentialMode = request.modelConnection?.credentialMode;
-  const slug = request.connection?.slug?.trim();
+  const slug =
+    request.connection?.slug?.trim() ||
+    (provider === "llmapi" ? "llmapi" : undefined);
   const baseUrl = request.modelConnection?.endpoint?.baseUrl?.trim();
   const model = request.model?.trim();
-  const hasKey = !!secrets[OPENAI_API_KEY_ENV]?.trim();
+  const hasKey = !!secrets[apiKeyEnv]?.trim();
   const gatewayCredentials = request.modelConnection?.gatewayCredentials;
   // Gateway routes use credential mode "none" with explicit gateway credentials.
   const credentialModeOk =
@@ -348,7 +357,7 @@ export function buildPiModelConfigPlan(
   if (!credentialModeOk)
     missing.push(`credential mode "env" (got "${credentialMode ?? "none"}")`);
   if (credentialMode === "env" && !hasKey)
-    missing.push(`${OPENAI_API_KEY_ENV} in the resolved secrets`);
+    missing.push(`${apiKeyEnv} in the resolved secrets`);
   if (!model) missing.push("a model id");
 
   if (missing.length > 0) {
@@ -369,10 +378,16 @@ export function buildPiModelConfigPlan(
       ? (model as string).slice(declaredProvider.length + 1)
       : (model as string);
   const modelId = stripped || (model as string);
+  const input =
+    provider === "llmapi"
+      ? request.modelCapabilities?.inputModalities?.filter(
+          (modality) => modality === "text" || modality === "image",
+        )
+      : undefined;
 
   return {
     providerId: slug as string,
-    providerFamily: "openai",
+    providerFamily: provider,
     api: "openai-completions",
     baseUrl: baseUrl as string,
     // Pi requires a non-empty apiKey to select any custom-provider model. On a gateway route
@@ -381,9 +396,9 @@ export function buildPiModelConfigPlan(
     // over this provider-shaped Authorization header.
     apiKey: gatewayCredentials
       ? GATEWAY_PLACEHOLDER_API_KEY
-      : `$${OPENAI_API_KEY_ENV}`,
-    apiKeyEnv: OPENAI_API_KEY_ENV,
-    models: [{ id: modelId }],
+      : `$${apiKeyEnv}`,
+    apiKeyEnv,
+    models: [{ id: modelId, ...(input?.length ? { input } : {}) }],
     ...(gatewayCredentials
       ? { headers: { [gatewayCredentials.header]: `$${GATEWAY_CREDENTIALS_VALUE_ENV}` } }
       : {}),
@@ -410,7 +425,10 @@ export function serializePiModelsJson(plan: PiModelsJsonPlan): string {
         api: plan.api,
         apiKey: plan.apiKey,
         ...(plan.headers ? { headers: plan.headers } : {}),
-        models: plan.models.map((model) => ({ id: model.id })),
+        models: plan.models.map((model) => ({
+          id: model.id,
+          ...(model.input ? { input: model.input } : {}),
+        })),
       };
   const document = { providers: { [piModelsJsonProviderId(plan)]: block } };
   return `${JSON.stringify(document, null, 2)}\n`;

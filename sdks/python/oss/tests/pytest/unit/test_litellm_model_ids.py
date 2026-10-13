@@ -152,6 +152,9 @@ def test_no_catalog_model_carries_a_prefix_litellm_cannot_route():
     with no models to offer, but never for a family we ship models for — there it would break
     every one of them. Scoped to families with catalog models so it holds regardless of which
     defunct providers this litellm build still lists.
+
+    LLMapi keeps its credential identity until SecretsManager selects OpenAI's transport.
+    test_supported_llm_models checks that adapter route for every LLMapi catalog entry.
     """
     import litellm
 
@@ -159,7 +162,10 @@ def test_no_catalog_model_carries_a_prefix_litellm_cannot_route():
     unroutable = {
         family: prefix
         for family, prefix in litellm_provider_prefixes.items()
-        if prefix and prefix not in known and supported_llm_models.get(family)
+        if prefix
+        and prefix not in known
+        and supported_llm_models.get(family)
+        and family != "llmapi"
     }
 
     assert not unroutable, (
