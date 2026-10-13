@@ -20,14 +20,10 @@ describe("readBrowserAccess", () => {
         })
         expect(readBrowserAccess({mode: "selected"})).toEqual({mode: "selected", profiles: []})
     })
-
-    it("reads the legacy single profile as that login selected", () => {
-        expect(readBrowserAccess({profile: "a"})).toEqual({mode: "selected", profiles: ["a"]})
-    })
 })
 
 describe("writeBrowserAccess", () => {
-    const config = {instructions: {agents_md: "x"}, browser: {profile: "a"}}
+    const config = {instructions: {agents_md: "x"}, browser: {mode: "off"}}
 
     it("drops the browser key for all logins", () => {
         expect(writeBrowserAccess(config, {mode: "all"})).toEqual({

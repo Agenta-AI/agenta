@@ -389,10 +389,6 @@ def _browser(browser):
         ({}, ("all", [])),
         ({"mode": "selected", "profiles": [" p1 ", "p2"]}, ("selected", ["p1", "p2"])),
         ({"mode": "off"}, ("off", [])),
-        ({"profile": "p1"}, ("selected", ["p1"])),
-        ({"profile": ""}, ("off", [])),
-        ({"profile": None}, ("off", [])),
-        ({"mode": "all", "profile": "p1"}, ("all", [])),
     ],
 )
 def test_from_params_parses_browser(browser, expected):
@@ -405,7 +401,7 @@ def test_from_params_parses_browser(browser, expected):
         ({"mode": "some"}, "browser.mode"),
         ({"mode": "selected", "profiles": "p1"}, "browser.profiles"),
         ({"mode": "selected", "profiles": [""]}, "browser.profiles"),
-        ({"profile": 3}, "browser.profile must be a string"),
+        ({"profile": "p1"}, "unknown key"),
         ({"mode": "all", "logins": []}, "unknown key"),
     ],
 )

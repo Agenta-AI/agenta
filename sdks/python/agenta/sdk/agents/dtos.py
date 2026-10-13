@@ -1560,7 +1560,7 @@ _SELECTOR_ALLOWED_KEYS: Dict[str, frozenset] = {
     "harness": frozenset({"kind", "permissions", "extras"}),
     "sandbox": frozenset({"kind", "permissions", "credentials"}),
     "runner": frozenset({"kind", "permissions"}),
-    "browser": frozenset({"mode", "profiles", "profile"}),
+    "browser": frozenset({"mode", "profiles"}),
 }
 
 
@@ -1773,16 +1773,6 @@ def _parse_browser(params: Dict[str, Any], defaults: AgentTemplate) -> AgentBrow
     browser = _template(params).get("browser")
     if not isinstance(browser, dict):
         return defaults.browser
-    if "mode" not in browser and "profile" in browser:
-        # The old one-login picker; it left a cleared picker as null or "", which meant no browser.
-        profile = browser["profile"]
-        if profile is None or (isinstance(profile, str) and not profile.strip()):
-            return AgentBrowser(mode="off")
-        if not isinstance(profile, str):
-            raise AgentTemplateShapeError(
-                "agent template browser.profile must be a string"
-            )
-        return AgentBrowser(mode="selected", profiles=[profile.strip()])
     mode = browser.get("mode") or "all"
     if mode not in ("all", "selected", "off"):
         raise AgentTemplateShapeError(

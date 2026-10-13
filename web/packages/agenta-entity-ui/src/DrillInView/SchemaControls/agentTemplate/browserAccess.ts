@@ -3,7 +3,7 @@ export type BrowserAccess = {mode: "all"} | {mode: "off"} | {mode: "selected"; p
 
 export type BrowserAccessMode = BrowserAccess["mode"]
 
-/** Absent means "all"; the legacy `{profile: id}` reads as that one login selected. */
+/** Absent or unknown means "all". */
 export function readBrowserAccess(value: unknown): BrowserAccess {
     if (!value || typeof value !== "object" || Array.isArray(value)) return {mode: "all"}
     const browser = value as Record<string, unknown>
@@ -14,7 +14,6 @@ export function readBrowserAccess(value: unknown): BrowserAccess {
             : []
         return {mode: "selected", profiles}
     }
-    if (typeof browser.profile === "string") return {mode: "selected", profiles: [browser.profile]}
     return {mode: "all"}
 }
 

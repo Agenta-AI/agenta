@@ -122,12 +122,6 @@ async def test_selected_keeps_only_the_chosen_ready_logins():
     assert "browser_request_login" not in _permissions(tools)
 
 
-async def test_a_legacy_profile_selects_that_login():
-    _, rc = await _run(browser={"profile": "prof-1"})
-
-    assert rc.to_wire()["browser"]["profile_ids"] == ["prof-1"]
-
-
 async def test_off_skips_the_check_and_adds_nothing():
     checks: List[dict] = []
     tools, rc = await _run(browser={"mode": "off"}, checks=checks)
