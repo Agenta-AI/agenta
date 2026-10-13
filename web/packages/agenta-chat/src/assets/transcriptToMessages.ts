@@ -117,6 +117,56 @@ interface DraftMessage {
 interface TranscriptIndex {
     tools: Map<string, Part>
     approvals: Map<string, Part>
+    /**
+     * `tool_result` payloads whose `tool_call` has not been seen yet, by tool call id. Two record
+     * writers can commit concurrently, so the durable log can store a result before its call. The
+     * result waits here and settles the part when the call arrives.
+     */
+    pendingResults: Map<string, Record<string, unknown>>
+    /** Tool calls a parked client tool or elicitation owns; their row state settles them. */
+    interactive: Set<string>
+}
+
+const newTranscriptIndex = (): TranscriptIndex => ({
+    tools: new Map(),
+    approvals: new Map(),
+    pendingResults: new Map(),
+    interactive: new Set(),
+})
+
+/** Settle a tool part from its `tool_result` payload. */
+function applyToolResult(part: Part, payload: Record<string, unknown>): void {
+    if (payload.denied) {
+        part.state = "output-denied"
+    } else if (payload.isError) {
+        part.state = "output-error"
+        part.errorText =
+            typeof payload.output === "string"
+                ? payload.output
+                : payload.output == null
+                  ? ""
+                  : String(payload.output)
+    } else {
+        part.state = "output-available"
+        part.output = payload.data !== undefined ? payload.data : payload.output
+    }
+}
+
+const OPEN_TOOL_STATES = new Set(["input-available", "input-streaming"])
+
+/**
+ * Close the tool parts a finished turn left open. A turn that ended (done or cancelled) runs no
+ * more tools, so a part still waiting for input there lost its result and would show as running
+ * forever. Parked client tools and elicitations are left alone: their interaction rows own them.
+ */
+function settleOpenToolParts(draft: DraftMessage, index: TranscriptIndex): void {
+    for (const part of draft.parts) {
+        const toolCallId = part.toolCallId
+        if (typeof toolCallId !== "string" || !toolCallId) continue
+        if (!OPEN_TOOL_STATES.has(part.state as string)) continue
+        if (index.interactive.has(toolCallId)) continue
+        part.state = "output-available"
+    }
 }
 
 const roleOf = (sender?: string | null): "user" | "assistant" =>
@@ -330,7 +380,7 @@ export function reconcileInteractionRowStates(
         ...message,
         parts: message.parts.map((part) => ({...part})) as UIMessage["parts"],
     }))
-    const index: TranscriptIndex = {tools: new Map(), approvals: new Map()}
+    const index = newTranscriptIndex()
     for (const message of cloned) {
         for (const rawPart of message.parts) {
             const part = rawPart as Part
@@ -365,6 +415,7 @@ function replayClientTool(
         reqPayload.toolCallId ?? toolCall.id ?? toolCall.toolCallId ?? payload.id,
     )
     if (!toolCallId) return
+    index.interactive.add(toolCallId)
     const toolName = str(reqPayload.toolName ?? toolCall.name ?? toolCall.title)
     const input = unwrapToolArguments(reqPayload.input ?? toolCall.rawInput ?? toolCall.input)
     let part = index.tools.get(toolCallId)
@@ -473,20 +524,23 @@ function applyEvent(
             }
             draft.parts.push(part)
             index.tools.set(toolCallId, part)
+            // Its result was stored first: settle the part with it now.
+            const earlyResult = index.pendingResults.get(toolCallId)
+            if (earlyResult) {
+                index.pendingResults.delete(toolCallId)
+                applyToolResult(part, earlyResult)
+            }
             return
         }
         case "tool_result": {
-            const part = index.tools.get(str(payload.id))
-            if (!part) return
-            if (payload.denied) {
-                part.state = "output-denied"
-            } else if (payload.isError) {
-                part.state = "output-error"
-                part.errorText = str(payload.output)
-            } else {
-                part.state = "output-available"
-                part.output = payload.data !== undefined ? payload.data : payload.output
+            const toolCallId = str(payload.id)
+            const part = index.tools.get(toolCallId)
+            if (!part) {
+                // The log stored this result before its call. Keep it for the call.
+                if (toolCallId) index.pendingResults.set(toolCallId, payload)
+                return
             }
+            applyToolResult(part, payload)
             return
         }
         case "interaction_request": {
@@ -494,6 +548,15 @@ function applyEvent(
             // (a parked browser-fulfilled call). `user_input` is left to its tool_call/result parts.
             if (payload.kind === "client_tool") {
                 replayClientTool(draft, payload, index, str)
+                return
+            }
+            if (payload.kind === "user_input") {
+                const reqPayload = (payload.payload ?? {}) as Record<string, unknown>
+                const toolCall = (reqPayload.toolCall ?? {}) as Record<string, unknown>
+                const toolCallId = str(
+                    reqPayload.toolCallId ?? toolCall.id ?? toolCall.toolCallId ?? payload.id,
+                )
+                if (toolCallId) index.interactive.add(toolCallId)
                 return
             }
             if (payload.kind !== "user_approval") return
@@ -666,7 +729,7 @@ export function transcriptToMessages(
         {user?: DraftMessage; assistant?: DraftMessage; hasUser: boolean}
     >()
     // Paused resumes close the draft, but later answers and results still target its tool part.
-    const index: TranscriptIndex = {tools: new Map(), approvals: new Map()}
+    const index = newTranscriptIndex()
 
     for (const row of records) {
         const payload = row.payload
@@ -783,6 +846,12 @@ export function transcriptToMessages(
 
     // Recorded results win; otherwise saved answers, neutral terminal state, then pending.
     applyInteractionRowStates(index, options?.interactionRowStates)
+
+    // A finished turn (done, not paused, or cancelled) runs no more tools.
+    for (const d of drafts) {
+        if (d.paused || !(d.recordTerminal || d.runStopped)) continue
+        settleOpenToolParts(d, index)
+    }
 
     // A resumed turn's remaining approval gate was answered even when its response row is absent.
     // A continuation turn proves the same thing: the runner emits no records under its new
