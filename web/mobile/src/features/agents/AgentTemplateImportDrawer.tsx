@@ -46,7 +46,7 @@ export const AgentTemplateImportDrawer = ({
             onClose={onClose}
             title="Import an agent from a repo"
             hint="Scan a public GitHub repository for agent templates."
-            noun={["agent template", "agent templates"]}
+            noun="agent templates"
             scan={scan}
             confirmLabel={() => "Create agent"}
             onConfirm={confirm}

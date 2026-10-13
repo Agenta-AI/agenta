@@ -108,10 +108,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             templatesHref={`${base}/templates`}
             newAction={
                 <NewAgentAction
-                    create={handoff.newAgent.create}
-                    createFromSource={handoff.newAgent.createFromSource}
-                    creating={handoff.newAgent.creating}
-                    error={handoff.newAgent.error}
+                    newAgent={handoff.newAgent}
                     base={base}
                     align="end"
                     variant="outline"

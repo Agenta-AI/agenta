@@ -1,5 +1,6 @@
 import {useCallback, useState} from "react"
 
+import {uploadAttachment} from "@agenta/chat/assets"
 import {markSessionFresh, revealConfigPaneAtom} from "@agenta/chat/state"
 import {
     agentTemplateByKey,
@@ -10,6 +11,8 @@ import {
     type AgentTemplateSource,
 } from "@agenta/entities/workflow"
 import {useCreateAgent} from "@agenta/home-ui"
+import {projectIdAtom} from "@agenta/shared/state"
+import {extractApiErrorMessage} from "@agenta/shared/utils"
 import type {FileUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -42,6 +45,7 @@ export const useNewAgentAction = (base: string) => {
     const revealConfigPane = useSetAtom(revealConfigPaneAtom)
     // The fetched catalogue, read at call time — a key is only ever resolved against what loaded.
     const templates = useAtomValue(agentTemplatesAtom)
+    const projectId = useAtomValue(projectIdAtom)
 
     const run = useCallback(
         async (params?: {
@@ -240,5 +244,42 @@ export const useNewAgentAction = (base: string) => {
         [run],
     )
 
-    return {create, createFromTemplate, createFromPrompt, createFromSource, creating, error}
+    /** Stage a template .zip in a fresh scope (the agent does not exist yet), then load it. */
+    const createFromUpload = useCallback(
+        async (file: File) => {
+            if (!projectId) return false
+            const stagingSessionId = newId()
+            setCreating(true)
+            setError(null)
+            try {
+                const {attachment} = await uploadAttachment({
+                    file,
+                    sessionId: stagingSessionId,
+                    projectId,
+                    idempotencyKey: newId(),
+                })
+                setCreating(false)
+                return await createFromSource({
+                    kind: "upload",
+                    staging_session_id: stagingSessionId,
+                    attachment_id: attachment.attachment_id,
+                })
+            } catch (err) {
+                setError(extractApiErrorMessage(err))
+                setCreating(false)
+                return false
+            }
+        },
+        [createFromSource, projectId],
+    )
+
+    return {
+        create,
+        createFromTemplate,
+        createFromPrompt,
+        createFromSource,
+        createFromUpload,
+        creating,
+        error,
+    }
 }

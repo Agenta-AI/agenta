@@ -189,11 +189,8 @@ export const AgentListScreen = ({
                                     <HowThisWorksButton guide="agents" className="max-sm:hidden" />
                                 )}
                                 <NewAgentAction
-                                    create={() => void newAgent.create()}
-                                    createFromSource={newAgent.createFromSource}
+                                    newAgent={newAgent}
                                     base={base}
-                                    creating={newAgent.creating}
-                                    error={newAgent.error}
                                     align="end"
                                     className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
                                 />
