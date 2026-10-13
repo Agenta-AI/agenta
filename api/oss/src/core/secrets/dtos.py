@@ -564,6 +564,10 @@ def _validate_secret_data_based_on_kind(
                 "The provided request secret dto is missing required fields for OAuthGrantSettingsDTO"
             )
         values["data"] = OAuthGrantDTO.model_validate(data)
+    elif kind == SecretKind.BROWSER_LOGIN.value:
+        raise ValueError(
+            "browser_login secrets are written only through /browser-profiles"
+        )
     else:
         raise ValueError("The provided kind is not a valid SecretKind enum")
 

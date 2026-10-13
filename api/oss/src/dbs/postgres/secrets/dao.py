@@ -24,6 +24,9 @@ from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
 )
 
+# Browser logins share this table but belong to /browser-profiles; no vault read, write or binding sees them.
+VAULT_KINDS = SecretsDBE.kind.is_distinct_from(SecretKind.BROWSER_LOGIN)
+
 
 class SecretsDAO(SecretsDAOInterface):
     def __init__(self, engine: TransactionsEngine = None):
@@ -89,9 +92,13 @@ class SecretsDAO(SecretsDAOInterface):
     ):
         async with self.engine.session() as session:
             scope_filter = self._scope_filter(project_id, organization_id)
-            stmt = select(SecretsDBE).filter_by(
-                id=secret_id,
-                **scope_filter,
+            stmt = (
+                select(SecretsDBE)
+                .filter_by(
+                    id=secret_id,
+                    **scope_filter,
+                )
+                .where(VAULT_KINDS)
             )
             result = await session.execute(stmt)  # type: ignore
             secrets_dbe = result.scalar()
@@ -110,9 +117,13 @@ class SecretsDAO(SecretsDAOInterface):
     ):
         async with self.engine.session() as session:
             scope_filter = self._scope_filter(project_id, organization_id)
-            stmt = select(SecretsDBE).filter_by(
-                slug=secret_slug,
-                **scope_filter,
+            stmt = (
+                select(SecretsDBE)
+                .filter_by(
+                    slug=secret_slug,
+                    **scope_filter,
+                )
+                .where(VAULT_KINDS)
             )
             result = await session.execute(stmt)  # type: ignore
             secrets_dbe = result.scalar()
@@ -125,7 +136,7 @@ class SecretsDAO(SecretsDAOInterface):
     async def list(self, project_id: UUID | None, organization_id: UUID | None):
         async with self.engine.session() as session:
             scope_filter = self._scope_filter(project_id, organization_id)
-            stmt = select(SecretsDBE).filter_by(**scope_filter)
+            stmt = select(SecretsDBE).filter_by(**scope_filter).where(VAULT_KINDS)
 
             results = await session.execute(stmt)  # type: ignore
             secrets_dbes = results.scalars().all()
@@ -156,6 +167,7 @@ class SecretsDAO(SecretsDAOInterface):
                     id=secret_id,
                     **scope_filter,
                 )
+                .where(VAULT_KINDS)
                 .with_for_update()
             )
             result = await session.execute(stmt)
@@ -207,6 +219,7 @@ class SecretsDAO(SecretsDAOInterface):
                     id=secret_id,
                     **scope_filter,
                 )
+                .where(VAULT_KINDS)
                 .with_for_update()
             )
             result = await session.execute(stmt)  # type: ignore

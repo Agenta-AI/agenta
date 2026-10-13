@@ -78,6 +78,7 @@ CREDENTIAL_MAP_FIELDS: Tuple[str, ...] = ("extras", "extra")
 # form of its credential at all.
 DATA_CREDENTIAL_FIELDS: Dict[str, Tuple[str, ...]] = {
     "subscription_provider": ("login", "login_attempt"),
+    "browser_login": ("storage_state",),
 }
 
 

@@ -723,3 +723,12 @@ class TestCredentialNormalization:
         )
 
         assert "\n" in settings.content
+
+
+def test_the_generic_vault_refuses_to_write_a_browser_login():
+    secret = {"kind": "browser_login", "data": {"allowed_hosts": ["github.com"]}}
+
+    with pytest.raises(ValidationError, match="/browser-profiles"):
+        CreateSecretDTO.model_validate({"header": {"name": "GitHub"}, "secret": secret})
+    with pytest.raises(ValidationError, match="/browser-profiles"):
+        UpdateSecretDTO.model_validate({"secret": secret})

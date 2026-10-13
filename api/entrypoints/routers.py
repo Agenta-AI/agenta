@@ -80,6 +80,7 @@ from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
 from oss.src.dbs.postgres.folders.dao import FoldersDAO
+from oss.src.dbs.postgres.browser_profiles.dao import BrowserProfilesDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
@@ -97,6 +98,7 @@ from oss.src.core.queries.service import SimpleQueriesService
 from oss.src.core.applications.service import ApplicationsService
 from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
+from oss.src.core.browser_profiles.service import BrowserProfilesService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.service import SimpleWorkflowsService
 from oss.src.core.workflows.dtos import WorkflowServiceRequest
@@ -129,6 +131,7 @@ from oss.src.apis.fastapi.queries.router import SimpleQueriesRouter
 from oss.src.apis.fastapi.applications.router import ApplicationsRouter
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.apis.fastapi.folders.router import FoldersRouter
+from oss.src.apis.fastapi.browser_profiles.router import BrowserProfilesRouter
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
 from oss.src.apis.fastapi.agent_templates.router import AgentTemplatesRouter
 from oss.src.apis.fastapi.skills.router import SkillsRouter
@@ -797,6 +800,10 @@ folders_service = FoldersService(
     folders_dao=folders_dao,
 )
 
+browser_profiles_service = BrowserProfilesService(
+    browser_profiles_dao=BrowserProfilesDAO(engine=_transactions_engine),
+)
+
 _lock_engine = get_lock_engine()
 
 # M3 live relay: lifecycle/interaction change notifications for the SSE watch
@@ -1146,6 +1153,11 @@ folders = FoldersRouter(
     folders_service=folders_service,
 )
 
+browser_profiles = BrowserProfilesRouter(
+    browser_profiles_service=browser_profiles_service,
+    workflows_service=workflows_service,
+)
+
 workflows = WorkflowsRouter(
     workflows_service=workflows_service,
     environments_service=environments_service,
@@ -1209,6 +1221,7 @@ tools = ToolsRouter(
     workflows_service=workflows_service,
     tracing_service=tracing_service,
     mounts_service=mounts_service,
+    browser_profiles_service=browser_profiles_service,
 )
 
 triggers = TriggersRouter(
@@ -1845,6 +1858,14 @@ app.include_router(
     prefix="/folders",
     tags=["Folders"],
 )
+
+# Unmounted while the cloud browser is off, so every route answers 404.
+if env.browser.enabled:
+    app.include_router(
+        router=browser_profiles.router,
+        prefix="/browser-profiles",
+        tags=["Browser Profiles"],
+    )
 
 app.include_router(
     router=sessions.streams.router,
