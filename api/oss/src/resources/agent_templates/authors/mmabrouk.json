@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "id": "mmabrouk",
+  "name": "Mahmoud Mabrouk",
+  "bio": "Creator of the SEO Content Agent template.",
+  "links": [
+    {"kind": "github", "url": "https://github.com/mmabrouk"}
+  ]
+}

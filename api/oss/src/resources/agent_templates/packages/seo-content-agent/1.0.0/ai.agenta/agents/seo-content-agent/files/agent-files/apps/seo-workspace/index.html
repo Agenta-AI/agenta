@@ -1,0 +1,448 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Content workspace</title><script>const defaults={"--ag-bg": "#ffffff", "--ag-fg": "#242424", "--ag-muted": "#676770", "--ag-line": "#e5e5e3", "--ag-accent": "#242424", "--ag-accent-soft": "#f0efed", "--ag-ok": "#2e7d3a", "--ag-warn": "#8a6400", "--ag-crit": "#5e0908", "--ag-font": "Inter, ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", Roboto, Arial, sans-serif", "--ag-radius": "6px"};for(const [k,v] of Object.entries(defaults))if(!getComputedStyle(document.documentElement).getPropertyValue(k).trim())document.documentElement.style.setProperty(k,v);</script><style>/* Agenta app kit. Colour only via --ag-* (KIT_TOKENS); no remote assets, imports or font faces. */
+:root {
+    --ag-shadow:
+        0 1px 2px light-dark(color-mix(in srgb, var(--ag-fg) 8%, transparent), transparent),
+        0 1px 6px -1px light-dark(color-mix(in srgb, var(--ag-fg) 5%, transparent), transparent);
+    --ag-hover: color-mix(in srgb, var(--ag-fg) 5%, transparent);
+    --ag-press: color-mix(in srgb, var(--ag-fg) 10%, transparent);
+    --ag-well: color-mix(in srgb, var(--ag-fg) 4%, transparent);
+}
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+html {
+    height: 100%;
+    font-size: 12px;
+}
+body {
+    margin: 0;
+    min-height: 100%;
+    font: 12px/1.45 var(--ag-font);
+    background: var(--ag-bg);
+    color: var(--ag-fg);
+    -webkit-font-smoothing: antialiased;
+}
+h1,
+h2,
+h3,
+p {
+    margin: 0 0 0.5em;
+}
+h1 {
+    font-size: 16px;
+    font-weight: 600;
+}
+h2 {
+    font-size: 13px;
+    font-weight: 600;
+}
+h3 {
+    font-size: 12px;
+    font-weight: 600;
+}
+a {
+    color: var(--ag-accent);
+    text-decoration: underline;
+}
+small,
+.ag-muted {
+    color: var(--ag-muted);
+}
+button,
+input,
+select,
+textarea {
+    font: inherit;
+    color: inherit;
+}
+[hidden] {
+    display: none !important;
+}
+[aria-busy="true"] {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+/* Layout */
+.ag-app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    padding: 12px 16px;
+}
+/* The toolbar and columns stay full width: cancel the page padding around them. */
+.ag-app > .ag-toolbar {
+    margin: -12px -16px 12px;
+}
+.ag-app > .ag-columns {
+    margin: 0 -16px -12px;
+}
+.ag-app > .ag-toolbar + .ag-columns {
+    margin-top: -12px;
+}
+.ag-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--ag-bg);
+    border-bottom: 1px solid var(--ag-line);
+}
+.ag-toolbar h1 {
+    margin: 0 auto 0 0;
+}
+.ag-columns {
+    display: flex;
+    flex: 1;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    overflow-x: auto;
+}
+.ag-column {
+    display: flex;
+    flex: 1 1 240px;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    padding: 8px;
+    background: var(--ag-well);
+    border-radius: var(--ag-radius);
+}
+.ag-column > h2 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 2px;
+    padding: 0 2px;
+}
+.ag-column[data-over] {
+    outline: 2px dashed var(--ag-accent);
+    outline-offset: -2px;
+}
+.ag-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.ag-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+    font-variant-numeric: tabular-nums;
+}
+@media (max-width: 480px) {
+    .ag-columns {
+        flex-direction: column;
+        align-items: stretch;
+        overflow-x: visible;
+    }
+    .ag-column {
+        flex-basis: auto;
+    }
+}
+
+/* Controls */
+.ag-btn,
+.ag-input,
+.ag-select {
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--ag-line);
+    border-radius: var(--ag-radius);
+    background: var(--ag-bg);
+    color: var(--ag-fg);
+}
+.ag-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+.ag-btn:hover {
+    background: var(--ag-hover);
+}
+.ag-btn:active {
+    background: var(--ag-press);
+}
+.ag-btn-primary,
+.ag-btn-primary:hover,
+.ag-btn-primary:active {
+    background: var(--ag-accent);
+    border-color: var(--ag-accent);
+    color: var(--ag-bg);
+}
+.ag-btn-primary:hover {
+    background: color-mix(in srgb, var(--ag-accent) 85%, var(--ag-bg));
+}
+.ag-btn-primary:active {
+    background: color-mix(in srgb, var(--ag-accent) 75%, var(--ag-bg));
+}
+.ag-input,
+.ag-select {
+    padding: 0 8px;
+    min-width: 0;
+}
+.ag-input::placeholder {
+    color: var(--ag-muted);
+}
+textarea.ag-input {
+    height: auto;
+    min-height: 56px;
+    padding: 6px 8px;
+    resize: vertical;
+}
+.ag-check {
+    position: relative;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    margin: 0 4px 0 0;
+    border: 1px solid var(--ag-line);
+    border-radius: 3px;
+    background: var(--ag-bg);
+    vertical-align: -2px;
+    cursor: pointer;
+}
+.ag-check:checked {
+    background: var(--ag-accent);
+    border-color: var(--ag-accent);
+}
+.ag-check:checked::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 3px;
+    height: 7px;
+    border: solid var(--ag-bg);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+.ag-btn:focus-visible,
+.ag-input:focus-visible,
+.ag-select:focus-visible,
+.ag-check:focus-visible,
+.ag-card:focus-visible {
+    outline: 2px solid var(--ag-accent);
+    outline-offset: 1px;
+}
+.ag-btn:disabled,
+.ag-input:disabled,
+.ag-select:disabled,
+.ag-check:disabled,
+[aria-disabled="true"] {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Surfaces */
+.ag-card {
+    padding: 8px 10px;
+    border: 1px solid var(--ag-line);
+    border-radius: var(--ag-radius);
+    background: var(--ag-bg);
+    box-shadow: var(--ag-shadow);
+    transition:
+        transform 0.12s ease,
+        opacity 0.12s ease,
+        box-shadow 0.12s ease;
+}
+.ag-card[draggable="true"] {
+    cursor: grab;
+}
+.ag-card[data-dragging] {
+    opacity: 0.65;
+    transform: scale(0.98);
+    box-shadow: none;
+    cursor: grabbing;
+}
+.ag-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--ag-accent-soft);
+    color: var(--ag-fg);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+}
+/* Tone text leans 25% toward --ag-fg so it keeps 4.5:1 on its own tint in both themes. */
+.ag-badge[data-tone="ok"] {
+    color: color-mix(in srgb, var(--ag-ok) 75%, var(--ag-fg));
+    background: color-mix(in srgb, var(--ag-ok) 10%, transparent);
+}
+.ag-badge[data-tone="warn"] {
+    color: color-mix(in srgb, var(--ag-warn) 75%, var(--ag-fg));
+    background: color-mix(in srgb, var(--ag-warn) 12%, transparent);
+}
+.ag-badge[data-tone="crit"] {
+    color: color-mix(in srgb, var(--ag-crit) 75%, var(--ag-fg));
+    background: color-mix(in srgb, var(--ag-crit) 10%, transparent);
+}
+.ag-empty {
+    padding: 24px 12px;
+    border: 1px dashed var(--ag-line);
+    border-radius: var(--ag-radius);
+    color: var(--ag-muted);
+    text-align: center;
+}
+.ag-toast {
+    position: fixed;
+    right: 12px;
+    bottom: 12px;
+    z-index: 100;
+    max-width: min(320px, calc(100vw - 24px));
+    padding: 8px 12px;
+    border-radius: var(--ag-radius);
+    background: var(--ag-fg);
+    color: var(--ag-bg);
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--ag-fg) 20%, transparent);
+    animation: ag-toast-in 0.16s ease-out;
+}
+.ag-toast[data-fade] {
+    animation:
+        ag-toast-in 0.16s ease-out,
+        ag-toast-out 0.3s ease-in 3s forwards;
+}
+@keyframes ag-toast-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+}
+@keyframes ag-toast-out {
+    to {
+        opacity: 0;
+        visibility: hidden;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ag-card,
+    .ag-toast {
+        transition: none;
+        animation: none;
+    }
+    .ag-toast[data-fade] {
+        animation: ag-toast-out 1ms linear 3s forwards;
+    }
+}
+
+/* Only extends the kit for workspace navigation, tables, reading, dialogs and responsive layout. */
+body{font-size:14px;line-height:1.5}button,input,select,textarea{font:inherit}.ag-btn,.ag-input,.ag-select{height:34px}.ag-badge{font-size:12px;height:23px;border-radius:4px}.ag-card{box-shadow:none;padding:20px}h1{font-size:20px;line-height:1.4}h2{font-size:16px}h3{font-size:14px}p{margin-bottom:12px}.ag-app{padding:0}.ag-toolbar{position:static;padding:16px 24px}.ag-grid{gap:20px}.ag-app> .ag-toolbar{margin:0}.ag-btn svg{width:16px;height:16px;flex-shrink:0}.ag-btn[aria-pressed=true]{background:var(--ag-accent-soft);border-color:var(--ag-muted)}.ag-btn-primary[aria-pressed=true]{background:var(--ag-accent)}.ag-btn:disabled{opacity:.55}.shell{display:grid;grid-template-columns:196px minmax(0,1fr);min-height:100vh}.sidebar{border-right:1px solid var(--ag-line);padding:20px 12px;display:flex;flex-direction:column;gap:6px;background:var(--ag-well)}.sidebar .ag-btn{justify-content:flex-start;background:transparent;border-color:transparent;height:38px}.sidebar .ag-btn[aria-current=page]{background:var(--ag-bg);border-color:var(--ag-line);font-weight:600}.workspace-name{padding:4px 10px 24px;font-weight:600}.sidebar-footer{margin-top:auto;padding:24px 10px 0;font-size:13px;color:var(--ag-muted)}.main{min-width:0}.topbar{padding:12px 24px;border-bottom:1px solid var(--ag-line);font-size:13px;color:var(--ag-muted);display:flex;align-items:center;justify-content:space-between;gap:12px}.page{padding:24px}.page>.ag-toolbar{padding:0 0 20px;border:0}.subtitle{color:var(--ag-muted);margin:4px 0 0}.mode{border:1px solid var(--ag-line);padding:3px 8px;border-radius:4px;color:var(--ag-muted)}.saved{font-size:13px;color:var(--ag-muted)}.saved[data-error=true]{color:var(--ag-crit)}.notice{padding:12px 16px;border:1px solid var(--ag-line);border-left:3px solid var(--ag-warn);border-radius:var(--ag-radius);margin-bottom:20px;background:var(--ag-bg)}.tabs{display:flex;gap:20px;overflow-x:auto;border-bottom:1px solid var(--ag-line);margin-bottom:20px}.tabs .ag-btn{border:0;border-radius:0;background:transparent;height:42px;padding:0 2px;color:var(--ag-muted)}.tabs .ag-btn[aria-selected=true]{border-bottom:2px solid var(--ag-fg);color:var(--ag-fg);font-weight:600}.filterbar{padding:0 0 16px;border:0;gap:10px;align-items:flex-end}.filterbar label{font-size:13px;color:var(--ag-muted);display:flex;flex-direction:column;gap:5px}.filterbar label:first-child{flex:1;min-width:180px}.filterbar .ag-select{min-width:110px;max-width:190px}.resultbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 12px;color:var(--ag-muted);font-size:13px}.table-scroll{overflow:auto;border:1px solid var(--ag-line);border-radius:var(--ag-radius)}table{border-collapse:collapse;width:100%;text-align:left;font-size:14px}thead{background:var(--ag-well)}th{font-size:13px;color:var(--ag-muted);font-weight:500;padding:11px 16px;white-space:nowrap}td{padding:16px;border-top:1px solid var(--ag-line);vertical-align:top}tbody tr:hover{background:var(--ag-hover)}td:first-child{min-width:260px;width:39%}td:nth-child(3){min-width:190px}.text-button{border:0;background:transparent;text-align:left;padding:0;font:inherit;color:var(--ag-fg);cursor:pointer;font-weight:500}.text-button:hover{text-decoration:underline}.secondary{color:var(--ag-muted);font-size:13px;margin-top:5px}.row-stack{display:flex;flex-direction:column;align-items:flex-start;gap:6px}.ag-columns{padding:0;gap:12px;align-items:stretch}.ag-column{min-width:245px;padding:12px}.ag-column h2{margin-bottom:8px;font-size:14px}.ag-column .ag-card{padding:14px}.ag-column .text-button{line-height:1.5;margin:12px 0}.count{font-size:12px;color:var(--ag-muted);margin-left:5px}.article-layout{display:grid;grid-template-columns:minmax(0,1fr) 304px;gap:24px;align-items:start}.reading{max-width:860px}.reading p{line-height:1.75;font-size:16px;white-space:pre-wrap}.field{padding:18px 0;border-bottom:1px solid var(--ag-line)}.field:last-child{border:0}.field h3{margin:0 0 8px}.field p{margin:0}.decision{position:sticky;top:16px}.decision h2{margin:0 0 14px}.decision .ag-btn{width:100%;margin-top:10px;height:auto;min-height:36px;white-space:normal;text-align:center;padding:8px 10px}.steps{list-style:none;padding:0;margin:0}.steps li{padding:0 0 16px 18px;border-left:1px solid var(--ag-line);position:relative}.steps li:before{content:'';position:absolute;width:7px;height:7px;border:1px solid var(--ag-muted);background:var(--ag-bg);border-radius:50%;left:-4px;top:6px}.steps p{margin:4px 0 0;color:var(--ag-muted);font-size:13px}.crumb{margin-bottom:18px;display:flex;gap:10px;align-items:center;font-size:13px;color:var(--ag-muted)}.checks{padding:0;list-style:none}.checks li{padding:18px 0;border-bottom:1px solid var(--ag-line)}.checks h3{display:flex;gap:12px;align-items:center;margin-bottom:6px}.check-detail{color:var(--ag-muted);margin:0 0 8px;font-size:14px}.document-note{font-size:13px;color:var(--ag-muted);border-bottom:1px solid var(--ag-line);padding-bottom:16px;margin-bottom:20px}.title-meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}.ag-empty{margin:20px 0;font-size:14px}.ag-empty h2{color:var(--ag-fg)}.log{padding:0;list-style:none}.log li{padding:16px 0;border-bottom:1px solid var(--ag-line)}.log small{display:block;margin-bottom:5px}.setting-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.setting-grid .ag-card p{color:var(--ag-muted);font-size:14px}.setting-grid code{word-break:break-word}dialog{background:var(--ag-bg);color:var(--ag-fg);border:1px solid var(--ag-line);border-radius:8px;padding:24px;width:min(540px,calc(100vw - 32px));max-height:calc(100vh - 40px);overflow:auto;box-shadow:0 12px 48px #0003}dialog::backdrop{background:#0005}dialog h2{font-size:18px;margin:0 0 12px}dialog .ag-toolbar{padding:20px 0 0;border:0;justify-content:flex-end}dialog label{display:block;font-weight:500;margin-top:16px}dialog .ag-input,dialog .ag-select{width:100%;margin-top:6px}dialog textarea{min-height:100px!important}dialog p{color:var(--ag-muted)}.error{color:var(--ag-crit);font-size:13px;margin-top:8px}.ag-toast{max-width:440px;font-size:14px}.skip{position:absolute;top:-100px;left:10px;z-index:200;background:var(--ag-bg);padding:12px}.skip:focus{top:10px}button:focus-visible,a:focus-visible{outline:2px solid var(--ag-accent);outline-offset:3px}.mobile-label{display:none}code{font-size:13px} .empty-actions{margin-top:14px}.live-region{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+@media(max-width:1100px){.shell{grid-template-columns:164px minmax(0,1fr)}.article-layout{grid-template-columns:minmax(0,1fr) 260px}.page{padding:20px}.filterbar{gap:8px}.filterbar label:first-child{flex-basis:100%}.filterbar .ag-select{max-width:150px}}@media(max-width:850px){.article-layout{grid-template-columns:1fr}.decision{position:static;grid-row:1}.decision .steps{display:none}.decision .ag-btn{width:auto;margin:8px 8px 0 0}.setting-grid{grid-template-columns:1fr}}@media(max-width:600px){.shell{display:block}.sidebar{padding:10px;border-right:0;border-bottom:1px solid var(--ag-line);flex-direction:row;flex-wrap:wrap;gap:4px}.workspace-name{width:100%;padding:0 5px 8px}.sidebar .ag-btn{font-size:13px;height:34px;padding:0 8px}.sidebar-footer{display:none}#nav{flex-direction:row;flex-wrap:wrap;width:100%}.topbar{padding:10px 16px;font-size:12px}.page{padding:16px}.filterbar label{flex:1;min-width:40%}.filterbar .ag-select{width:100%;max-width:none}.ag-columns{flex-direction:column}.ag-column{min-width:0}.tabs{gap:16px}.title-meta{font-size:13px}h1{font-size:20px}.ag-card{padding:16px}.resultbar{align-items:flex-start}.ag-btn{min-height:34px}.page>.ag-toolbar{gap:16px}.reading p{font-size:16px}}
+
+/* Editorial CRM extensions; retain the approved type scale, neutral palette and controls. */
+.nav-count{margin-left:auto;font-size:12px;color:var(--ag-muted)}.tag-list{display:flex;gap:5px;flex-wrap:wrap}.title-meta{margin-bottom:16px}.doc-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}.markdown h2{font-size:19px;margin:28px 0 12px}.markdown h3{font-size:16px;margin:24px 0 10px}.markdown h2:first-child,.markdown h3:first-child{margin-top:0}.markdown p,.markdown li{font-size:16px;line-height:1.75}.markdown p{white-space:normal}.markdown ul{padding-left:24px;margin-bottom:24px}.markdown .text-button{font-size:inherit;text-decoration:underline}.markdown-editor{width:100%;min-height:520px!important;font:14px/1.8 ui-monospace,SFMono-Regular,Consolas,monospace!important;padding:18px!important;tab-size:2}.rail-section{border-top:1px solid var(--ag-line);padding-top:18px;margin-top:22px}.related-note{margin:14px 0}.related-note .secondary{display:block}.related-note .text-button{font-size:13px;line-height:1.6}.remember{display:flex!important;align-items:center;gap:6px;font-size:13px;font-weight:400!important;margin:14px 0}#comment{width:100%;margin-top:8px}.setup-summary{display:flex;justify-content:space-between;align-items:center;gap:24px;border-bottom:1px solid var(--ag-line);padding:0 0 24px;margin-bottom:24px}.total-progress{width:230px;text-align:right}.total-progress strong{font-size:22px}.setup-tracks{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.track-number{font-size:13px;color:var(--ag-muted);margin-bottom:12px}.track-title{display:flex;justify-content:space-between;align-items:center;gap:12px}.track-title h2{margin:0}.setup-tracks .ag-card>p{min-height:42px;line-height:1.6}.setup-tracks .ag-card{padding:20px}progress{appearance:none;width:100%;height:5px;border:0;display:block;margin:16px 0 10px;background:var(--ag-well);border-radius:3px;overflow:hidden}progress::-webkit-progress-bar{background:var(--ag-well)}progress::-webkit-progress-value{background:var(--ag-accent);border-radius:3px}progress::-moz-progress-bar{background:var(--ag-accent)}.setup-list{list-style:none;padding:0;margin:18px -8px -6px}.setup-list li+li{border-top:1px solid var(--ag-line)}.setup-task{display:flex;align-items:flex-start;gap:10px;width:100%;padding:15px 8px;background:none;border:0;text-align:left;border-radius:5px;cursor:pointer;line-height:1.5}.setup-task:hover{background:var(--ag-hover)}.setup-task>span:nth-child(2){flex:1}.setup-task .secondary{display:block;font-size:12px;line-height:1.6}.task-check{width:17px;height:17px;flex-shrink:0;border:1px solid var(--ag-line);border-radius:50%;display:inline-flex;justify-content:center;align-items:center;font-size:11px;margin-top:2px}.task-check.done{background:var(--ag-accent-soft);color:var(--ag-fg);border-color:var(--ag-muted)}.section-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:32px 0 16px}.custom-request{margin-top:28px;padding:22px 0;border-top:1px solid var(--ag-line)}.custom-request .ag-btn{margin-top:16px}.setup-related{border:1px solid var(--ag-line);border-radius:6px;padding:12px;margin:16px 0}.reading{min-width:0}.crumb>span{overflow-wrap:anywhere}.ag-grid.setup-tracks .secondary{color:var(--ag-muted)}
+@media(max-width:1150px){.setup-tracks{grid-template-columns:1fr}.setup-tracks .ag-card>p{min-height:0}.setup-list{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}.setup-list li+li{border:0}.setup-list li:nth-child(n+3){border-top:1px solid var(--ag-line)}}@media(max-width:600px){.setup-summary{align-items:flex-start;gap:16px}.total-progress{width:100px;flex-shrink:0}.setup-list{display:block}.setup-list li+li{border-top:1px solid var(--ag-line)}.section-heading{align-items:flex-start;flex-direction:column}.markdown-editor{min-height:420px!important}.article-layout .decision{grid-row:auto}.sidebar .ag-btn{font-size:13px}.nav-count{display:none}.setup-tracks .ag-card{padding:16px}.track-title h2{font-size:16px}}
+</style></head><body><a class="skip" href="#main">Skip to content</a><div class="ag-app"><div class="shell"><nav class="sidebar" aria-label="Workspace"><div class="workspace-name">Content workspace</div><div id="nav" class="ag-list"></div><div class="sidebar-footer">Agenta<br>SEO Content Agent</div></nav><div class="main"><header class="topbar"><span>Workspace / <span id="location">Knowledge</span></span><div style="display:flex;gap:12px;align-items:center"><span id="save" class="saved" role="status"></span><button class="ag-btn" data-action="ask-agent">Ask agent</button></div></header><main class="page" id="main" tabindex="-1"><p>Opening workspace…</p></main></div></div></div><dialog id="dialog" aria-labelledby="dialog-title"></dialog><div id="toast" class="ag-toast" role="status" hidden></div><script id="seed" type="application/json">{}</script><script>'use strict';
+const $=id=>document.getElementById(id),copy=x=>JSON.parse(JSON.stringify(x)),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const initial={};let files={},page='Knowledge',selected=null,tab='Read',view='All notes',q='',filter='All',tagFilter='All tags',editing=false,bridge=null,pending=null,busy=false;const unsaved=new Map();
+function parse(text,path){const m=text.match(/^---\n([\s\S]*?)\n---\n*/);let meta={};if(m)for(const line of m[1].split('\n')){const i=line.indexOf(':');if(i<0)continue;try{meta[line.slice(0,i)]=JSON.parse(line.slice(i+1).trim())}catch{meta[line.slice(0,i)]=line.slice(i+1).trim()}}return{path,meta,body:m?text.slice(m[0].length):text}}
+function serial(n){return'---\n'+Object.entries(n.meta).map(([k,v])=>k+': '+JSON.stringify(v)).join('\n')+'\n---\n\n'+n.body.trim()+'\n'}
+function all(){return Object.entries(files).map(([path,text])=>parse(text,path))}function get(id){return all().find(n=>n.meta.id===id)}function current(){return get(selected)}
+const badge=(s,t='')=>`<span class="ag-badge" ${t?`data-tone="${t}"`:''}>${esc(s)}</span>`;
+const button=(label,action,attrs='',primary=false)=>`<button class="ag-btn ${primary?'ag-btn-primary':''}" data-action="${action}" ${attrs}>${label}</button>`;
+const textButton=(label,id)=>`<button class="text-button" data-action="open" data-id="${esc(id)}">${esc(label)}</button>`;
+const icon=(p)=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">${({Knowledge:'<path d="M3 4h7l2 2 2-2h7v16h-7l-2 2-2-2H3zM12 6v16"/>',Discoveries:'<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6M8 10h4m-2-2v4"/>',Briefs:'<path d="M5 3h14v18H5zM8 8h8m-8 4h8m-8 4h5"/>',Drafts:'<path d="m4 16 12-12 4 4L8 20H4zM14 6l4 4"/>',Published:'<path d="M5 12v8h14v-8M12 16V3m-5 5 5-5 5 5"/>',Setup:'<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="16" cy="12" r="2"/><circle cx="9" cy="18" r="2"/>'})[p]}</svg>`;
+function toast(s){if(s==='Saved'&&unsaved.size)s='Updated';$('toast').textContent=s;$('toast').hidden=false;clearTimeout(window.timer);window.timer=setTimeout(()=>$('toast').hidden=true,4000)}
+function saveLabel(){ $('save').textContent=busy?'Saving…':unsaved.size?'Unsaved changes':''; }
+function render(){ $('nav').innerHTML=['Knowledge','Discoveries','Briefs','Drafts','Published','Setup'].map(p=>`<button class="ag-btn" data-action="nav" data-page="${p}" ${page===p?'aria-current="page"':''}>${icon(p)}${p}${p==='Setup'?`<span class="nav-count">${progress().pct}%</span>`:''}</button>`).join('');$('location').textContent=page;$('main').innerHTML=selected?detail():page==='Setup'?setup():listing();saveLabel(); }
+function heading(t,d,actions=''){return `<div class="ag-toolbar"><div style="flex:1"><h1>${esc(t)}</h1><p class="subtitle">${esc(d)}</p></div>${actions}</div>`}
+function tabs(values,active,key){return `<div class="tabs" role="tablist">${values.map(v=>`<button class="ag-btn" role="tab" aria-selected="${v===active}" data-action="${key}" data-value="${v}">${v}</button>`).join('')}</div>`}
+function baseRows(){return all().filter(n=>page==='Knowledge'?n.meta.type==='knowledge':page==='Discoveries'?n.meta.type==='discovery':n.meta.type==='content'&&(page==='Briefs'?n.meta.stage==='Brief':page==='Drafts'?['Draft','Review','Ready to publish'].includes(n.meta.stage):n.meta.stage==='Published'))}
+function listing(){const desc={Knowledge:'The business, audience, and perspective behind your content.',Discoveries:'Evidence, interpretation, and ideas worth pursuing.',Briefs:'Decide what deserves a draft.',Drafts:'Shape the article, give feedback, and prepare it for publishing.',Published:'Your content library and what to improve next.'};const opts=page==='Knowledge'?['All notes','Needs review']:page==='Discoveries'?['Needs review','Pursuing','Dismissed','All discoveries']:page==='Briefs'?['All briefs','Needs approval','Changes requested','Declined']:page==='Drafts'?['All drafts','In review','Writing','Ready to publish']:['All published'];if(!opts.includes(view))view=opts[0];let key=page==='Knowledge'?'category':page==='Discoveries'?'source':'topic';let options=[...new Set(baseRows().map(n=>n.meta[key]).filter(Boolean))];let tags=[...new Set(baseRows().flatMap(n=>n.meta.tags||[]))];return heading(page,desc[page],page==='Knowledge'?button('+ Add note','new-note','',true):page==='Discoveries'?button('+ Add discovery','new-discovery','',true):page==='Briefs'?button('+ New brief','new-brief','',true):'')+tabs(opts,view,'view')+`<div class="ag-toolbar filterbar"><label>Search<input class="ag-input" type="search" data-filter="q" value="${esc(q)}" placeholder="Search ${page.toLowerCase()}…"></label><label>${key==='category'?'Category':key==='source'?'Source':'Topic'}<select class="ag-select" data-filter="filter" aria-label="${key}">${['All',...options].map(v=>`<option ${filter===v?'selected':''}>${esc(v)}</option>`).join('')}</select></label><label>Tags<select class="ag-select" data-filter="tag" aria-label="Tags">${['All tags',...tags].map(v=>`<option ${tagFilter===v?'selected':''}>${esc(v)}</option>`).join('')}</select></label>${button('Clear filters','clear')}</div><div id="results">${results()}</div>`}
+function results(){const key=page==='Knowledge'?'category':page==='Discoveries'?'source':'topic';const rows=baseRows().filter(n=>(view.startsWith('All')||n.meta.status===view)&&(filter==='All'||n.meta[key]===filter)&&(tagFilter==='All tags'||(n.meta.tags||[]).includes(tagFilter))&&(!q||(n.meta.title+' '+n.body+' '+(n.meta.tags||[]).join(' ')).toLowerCase().includes(q.toLowerCase())));let headers=page==='Knowledge'?['Note','Category','Tags','Status']:page==='Discoveries'?['Discovery','Source','Suggested action','Status']:['Article','Topic','Owner','Status'];return `<div class="resultbar"><span>${rows.length} ${page==='Knowledge'?'notes':page==='Discoveries'?'discoveries':'articles'}</span><span>${page==='Discoveries'?'Review a direction before it becomes a brief.':''}</span></div>${rows.length?`<div class="table-scroll"><table><thead><tr>${headers.map(h=>`<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${rows.map(n=>`<tr><td>${textButton(n.meta.title,n.meta.id)}<div class="secondary">${page==='Knowledge'?'Updated '+n.meta.updated:page==='Discoveries'?(n.meta.tags||[]).join(' · '):(n.meta.related||[]).filter(id=>get(id)?.meta.type==='discovery').length+' linked discoveries'}</div></td><td>${esc(n.meta[key]||'—')}</td><td>${page==='Knowledge'?`<div class="tag-list">${(n.meta.tags||[]).map(t=>badge(t)).join('')}</div>`:esc(page==='Discoveries'?n.meta.suggestion:n.meta.owner)}</td><td>${badge(n.meta.status,n.meta.status==='Needs review'||n.meta.status==='Changes requested'?'warn':'')}</td></tr>`).join('')}</tbody></table></div>`:`<div class="ag-empty"><h2>Nothing here yet</h2><p>Try another view or clear your filters.</p>${button('Clear filters','clear')}</div>`}`}
+function inline(s){return esc(s).replace(/\[\[([^\]]+)\]\]/g,(_,id)=>{const n=get(id);return n?textButton(n.meta.title,id):esc(id)}).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/`([^`]+)`/g,'<code>$1</code>')}
+function md(body){let out='',list=false;for(const line of body.split('\n')){if(line.startsWith('- ')){if(!list){out+='<ul>';list=true}out+='<li>'+inline(line.slice(2))+'</li>';continue}if(list){out+='</ul>';list=false}if(/^#{1,3} /.test(line)){let depth=Math.min(3,line.match(/^#+/)[0].length+1);out+=`<h${depth}>${inline(line.replace(/^#+ /,''))}</h${depth}>`}else if(line.trim())out+='<p>'+inline(line)+'</p>'}return out+(list?'</ul>':'')}
+function detail(){const n=current();if(!n){selected=null;return listing()}const isContent=n.meta.type==='content';let sections=isContent?['Brief',...(n.meta.stage==='Brief'?[]:['Draft']),'Feedback']:['Read','Feedback'];if(!sections.includes(tab))tab=sections[0];const related=(n.meta.related||[]).map(get).filter(Boolean);return `<div class="crumb">${button('← '+page,'back')}<span>/</span><span>${esc(n.meta.type==='content'?'Article':n.meta.type==='knowledge'?'Note':'Discovery')}</span></div>`+heading(n.meta.title,'',n.meta.generated?'':button('Edit properties','properties'))+`<div class="title-meta">${badge(n.meta.status)}${(n.meta.tags||[]).map(t=>badge(t)).join('')}</div>`+tabs(sections,tab,'tab')+`<div class="article-layout"><section class="reading">${tab==='Feedback'?feedback(n):editorOrDoc(n)}</section><aside class="ag-card decision">${actions(n)}${workPanel(n)}<div class="rail-section"><h3>Linked notes</h3>${related.length?related.map(r=>`<div class="related-note">${textButton(r.meta.title,r.meta.id)}<span class="secondary">${esc(r.meta.type)}</span></div>`).join(''):'<p class="secondary">No linked notes yet.</p>'}</div>${isContent?`<div class="rail-section"><h3>Article details</h3><p class="secondary">${esc(n.meta.owner)} · ${esc(n.meta.topic)}<br>${esc(n.meta.priority)} priority</p></div>`:''}</aside></div>`}
+function docPath(n){return tab==='Draft'?n.path.replace('brief.md','draft.md'):n.path}
+function editorOrDoc(n){const path=docPath(n);if(n.meta.generated){const source=files[path]?parse(files[path],path):null;return `<p class="secondary">Source record · ${esc(source?.meta.canonical_path||n.meta.canonical_path)}</p>${source?`<div class="markdown">${md(source.body)}</div>`:'<p>The article draft is not stored locally. See the source brief for its pull request.</p>'}<p class="secondary">Request changes through the agent to update the original record.</p>`}const doc=files[path]?parse(files[path],path):{path,meta:{id:n.meta.id+'-draft',type:'draft',title:n.meta.title,version:1},body:''};return `<div class="doc-toolbar">${editing?'<span class="secondary">Markdown</span>':'<span></span>'}<div>${editing?button('Cancel','cancel-edit')+' '+button('Save changes','save-doc','',true):button('Edit Markdown','edit-doc')}</div></div>${editing?`<textarea id="markdown-editor" aria-label="Markdown content" class="ag-input markdown-editor">${esc(doc.body)}</textarea>`:doc.body?`<div class="markdown">${md(doc.body)}</div>`:`<div class="ag-empty"><h2>The brief is ready for drafting</h2><p>Add a first draft here, or leave guidance in Feedback.</p>${button('Start draft','edit-doc')}</div>`}`}
+function feedback(n){const path=feedbackPath(n);return `<h2>Feedback</h2><p class="subtitle">Keep the discussion beside the work.</p><form id="comment-form"><label for="comment" class="secondary">Your feedback</label><textarea class="ag-input" id="comment" required placeholder="What should change, and why?" rows="4"></textarea><label class="remember"><input id="remember" class="ag-check" type="checkbox"> Also save this as guidance in Knowledge</label><div class="doc-toolbar">${button('Add feedback','comment','',true)}</div></form><div class="markdown">${files[path]?md(parse(files[path],path).body):'<p class="secondary">No feedback yet.</p>'}</div>`}
+function feedbackPath(n){return n.meta.type==='content'?n.path.replace('brief.md','feedback.md'):n.path.replace('.md','.feedback.md')}
+function actions(n){if(n.meta.generated)return `<h2>Source record</h2><p class="secondary">Use the agent to review or update this record. Saved publication history is not a fresh live-site check.</p>${button('Give feedback','show-feedback')}`;if(n.meta.type==='knowledge')return `<h2>Keep this useful</h2><p class="secondary">Edit the note or leave feedback when our understanding changes.</p>${n.meta.status==='Needs review'?button('Confirm this note','confirm-note','',true):''}${button('Give feedback','show-feedback')}`;if(n.meta.type==='discovery')return `<h2>Suggested next step</h2><p>${esc(n.meta.suggestion)}</p><p class="secondary">${n.meta.suggestion==='Create brief'?'Turn this direction into a brief. You will review it before drafting.':'Keep investigating this direction before committing to an article.'}</p>${n.meta.brief_id?button('Open linked brief','open','data-id="'+esc(n.meta.brief_id)+'"',true):button(n.meta.suggestion==='Create brief'?'Ask agent for a brief':'Ask agent to investigate','pursue','',true)}${button('Discuss / change angle','show-feedback')}${n.meta.status==='Dismissed'?button('Reconsider','reconsider'):button('Dismiss','dismiss')}`;
+ if(n.meta.stage==='Brief')return `<h2>Decide the direction</h2><p class="secondary">Approve this brief version and ask the agent to draft it. The article moves forward when work begins.</p>${n.meta.status==='Declined'?button('Reopen brief','reopen','',true):button('Approve & ask for draft','approve','',true)}${button('Request changes','request-changes')}${button('Explore related briefs','more-briefs')}${n.meta.status!=='Declined'?button('Decline brief','decline'):''}`;
+ if(n.meta.stage==='Published')return `<h2>What comes next?</h2><p class="secondary">Keep the article useful as your audience and product change.</p>${button('Request an update','refresh','',true)}${button('Suggest a follow-up','more-briefs')}`;
+ return `<h2>${n.meta.stage==='Ready to publish'?'Publishing handoff':'Review the article'}</h2><p class="secondary">${n.meta.stage==='Ready to publish'?'Review the destination and ask the agent to prepare the publishing handoff.':'Edit the draft or ask the agent for revisions. The agent verifies the article before preparing publication.'}</p>${button(n.meta.stage==='Ready to publish'?'Prepare handoff':'Approve draft',n.meta.stage==='Ready to publish'?'handoff':'approve-draft','',true)}${button('Request revisions','request-changes')}`}
+const tracks=['Learn the business','Ongoing research','Publishing'];const stepOrder=['knowledge-company','knowledge-audience','knowledge-focus','knowledge-voice','research-sources','research-schedule','research-review','research-custom','publish-destination','publish-access','publish-format','publish-review'];function progress(track){const notes=all().filter(n=>n.meta.type==='setup'&&(!track||n.meta.track===track)).sort((a,b)=>stepOrder.indexOf(a.meta.id)-stepOrder.indexOf(b.meta.id));const done=notes.filter(n=>n.meta.done).length;return{notes,done,total:notes.length,pct:notes.length?Math.round(done/notes.length*100):0}}
+function setup(){const total=progress();return heading('Setup','Build the knowledge, inputs, and publishing habits behind your content.')+`<div class="setup-summary"><div><strong>${total.done} of ${total.total} steps complete</strong><p class="secondary">${total.total-total.done} steps left · Start anywhere and return when you need to.</p></div><div class="total-progress"><strong>${total.pct}%</strong><progress value="${total.done}" max="${total.total}" aria-label="Overall setup progress"></progress></div></div><div class="ag-grid setup-tracks">${tracks.map((t,i)=>{const p=progress(t);return `<section class="ag-card"><div class="track-number">0${i+1}</div><div class="track-title"><h2>${t}</h2><strong>${p.pct}%</strong></div><p class="secondary">${['Help the agent understand your company and point of view.','Choose what to watch and how often to bring back discoveries.','Teach the agent where content goes and how it should get there.'][i]}</p><progress value="${p.done}" max="${p.total}" aria-label="${t} progress"></progress><div class="secondary">${p.done} of ${p.total} complete</div><ul class="setup-list">${p.notes.map(n=>`<li><button class="setup-task" data-action="setup-task" data-id="${n.meta.id}"><span class="task-check ${n.meta.done?'done':''}" aria-hidden="true">${n.meta.done?'✓':''}</span><span>${esc(n.meta.title)}<span class="secondary">${n.meta.done?'Completed':esc(n.body.split('\n')[0])}</span></span><span aria-hidden="true">›</span></button></li>`).join('')}</ul>${button('Ask agent to help','ask-agent','data-id="'+esc((p.notes.find(x=>!x.meta.done)||p.notes[0]).meta.id)+'"')}</section>`}).join('')}</div><div class="section-heading"><div><h2>Your research inputs</h2><p class="subtitle">Saved research inputs. A plan is not an active connection or schedule.</p></div>${button('+ Add input','new-input')}</div><div class="table-scroll"><table><thead><tr><th>Input</th><th>Source</th><th>Cadence</th><th></th></tr></thead><tbody>${all().filter(n=>n.meta.type==='input').map(n=>`<tr><td>${esc(n.meta.title)}<div class="secondary">${esc(n.body)}</div></td><td>${esc(n.meta.source)}</td><td>${esc(n.meta.cadence)}</td><td>${button('Configure','input','data-id="'+n.meta.id+'"')} ${button('Ask agent','ask-agent','data-id="'+n.meta.id+'"')}</td></tr>`).join('')}</tbody></table></div><div class="custom-request"><h2>Something else you want to watch?</h2><p class="subtitle">A particular competitor, customer question, industry change, or source we have not listed.</p>${button('Describe a custom input','new-input')}</div>`}
+function modal(kind,id=selected){const n=get(id);pending={kind,id};let title='',body='',cta='Save';if(['new-note','new-discovery','new-brief'].includes(kind)){title=kind==='new-note'?'Add a knowledge note':kind==='new-discovery'?'Add a discovery':'Create a brief';body=`<label>Title<input id="form-title" class="ag-input" required maxlength="160"></label><label>Tags<input id="form-tags" class="ag-input" placeholder="Separate with commas"></label><label>Content<textarea id="form-body" class="ag-input" rows="8" placeholder="Write in Markdown…"></textarea></label>`;cta='Create'}
+ if(kind==='properties'){title='Edit properties';body=`<label>Title<input id="form-title" class="ag-input" value="${esc(n.meta.title)}" required></label><label>Tags<input id="form-tags" class="ag-input" value="${esc((n.meta.tags||[]).join(', '))}"></label><label>${n.meta.type==='knowledge'?'Category':n.meta.type==='discovery'?'Source':'Topic'}<input id="form-category" class="ag-input" value="${esc(n.meta.category||n.meta.source||n.meta.topic)}"></label>`}
+ if(kind==='setup-task'){title=n.meta.title;cta='Save & mark complete';body=`<p>${esc(n.body)}</p>${(n.meta.related||[]).map(id=>get(id)?`<div class="setup-related">${textButton('Review '+get(id).meta.title,id)}</div>`:'').join('')}<label>${({'knowledge-company':'Company website and short description','knowledge-audience':'Who do you want to reach?','knowledge-focus':'Topics to focus on — and avoid','knowledge-voice':'Writing examples and preferences','research-sources':'Inputs to include','research-schedule':'Cadence and topics to watch','research-review':'When should discoveries be ready for review?','research-custom':'What should we investigate?','publish-destination':'Website, repository, or CMS','publish-access':'Publishing account and integration','publish-format':'Example article and format requirements','publish-review':'Who approves, and what happens next?'})[id]||'Your preferences'}<textarea id="form-body" class="ag-input" rows="5" placeholder="Add details or links…">${esc(n.meta.answer||'')}</textarea></label>${n.meta.done?'<label class="remember"><input id="mark-incomplete" type="checkbox" class="ag-check"> Reopen this step</label>':''}`}
+ if(kind==='input'||kind==='new-input'){title=kind==='input'?'Configure research input':'Add a research input';body=`<label>Name<input id="form-title" class="ag-input" required value="${esc(n?.meta.title||'')}"></label><label>Source<select id="form-source" aria-label="Source" class="ag-select">${['Search Console','Ahrefs','Competitor websites','Reddit','X','News','Peec','Granola','Other'].map(s=>`<option ${n?.meta.source===s?'selected':''}>${s}</option>`).join('')}</select></label><label>Cadence<select id="form-cadence" aria-label="Cadence" class="ag-select">${['Weekly','Daily','Monthly','On request'].map(s=>`<option ${n?.meta.cadence===s?'selected':''}>${s}</option>`).join('')}</select></label><label>What should this find?<textarea id="form-body" class="ag-input" required>${esc(n?.body||'')}</textarea></label>`}
+ if(['dismiss','decline','request-changes','more-briefs','refresh','handoff'].includes(kind)){title=({dismiss:'Why is this not a fit?',decline:'Decline this brief', 'request-changes':'Request changes','more-briefs':'Explore related briefs',refresh:'Request an article update',handoff:'Prepare publishing handoff'})[kind];cta=({dismiss:'Dismiss discovery',decline:'Decline brief','request-changes':'Save feedback','more-briefs':'Save direction',refresh:'Move to Drafts',handoff:'Save handoff'})[kind];body=`<p>${esc(n.meta.title)}</p><label>${kind==='handoff'?'Publishing instructions':kind==='more-briefs'?'Which other angles should we explore?':'Your feedback'}<textarea id="form-body" class="ag-input" rows="5" ${['request-changes','more-briefs'].includes(kind)?'required':''}></textarea></label>${['dismiss','decline','request-changes'].includes(kind)?'<label class="remember"><input class="ag-check" id="form-remember" type="checkbox"> Save this as guidance in Knowledge</label>':''}`}
+ if(['approve','approve-draft'].includes(kind)){title=kind==='approve'?'Approve this brief for drafting?':'Approve this draft?';cta=kind==='approve'?'Approve & move to Drafts':'Approve draft';body=`<p>${esc(n.meta.title)}</p><p>${kind==='approve'?'The article moves to Drafts. Its brief, sources, and feedback stay together.':'The article becomes Ready to publish. You can review the publishing handoff next.'}</p>`}
+ $('dialog').innerHTML=`<form id="modal-form"><h2 id="dialog-title">${title}</h2>${body}<div id="form-error" class="error" role="alert"></div><div class="ag-toolbar">${button('Cancel','cancel','type="button"')}<button class="ag-btn ag-btn-primary" type="submit">${cta}</button></div></form>`;$('dialog').showModal(); }
+function close(){ $('dialog').close();pending=null; }
+async function store(path,after){const before=files[path];if(bridge?.canWrite){try{await bridge.fs.write(path,after)}catch(e){if(e.code!=='conflict')throw e;let latest;try{latest=await bridge.fs.read(path)}catch(err){if(err.code!=='not_found')throw err}if(latest!==before)throw Error('This note changed elsewhere. Reopen it before saving.');await bridge.fs.write(path,after)}unsaved.delete(path)}else{if(!unsaved.has(path))unsaved.set(path,{before,after});else unsaved.get(path).after=after}files[path]=after}
+async function save(n){n.meta.updated=new Date().toISOString().slice(0,10);await store(n.path,serial(n))}
+async function addFeedback(n,text){const path=feedbackPath(n),doc=files[path]?parse(files[path],path):{path,meta:{id:n.meta.id+'-feedback',type:'feedback',related:[n.meta.id]},body:''};doc.body+='\n\n## Owner · '+new Date().toLocaleDateString()+'\n'+text;await save(doc)}
+async function remember(n,text){if(!text.trim())return;const id='guidance-'+crypto.randomUUID().slice(0,8);await save({path:'knowledge/'+id+'.md',meta:{id,type:'knowledge',title:text.slice(0,72),category:'Guidance',status:'Confirmed',tags:['owner-feedback'],related:[n.meta.id]},body:text})}
+async function submitModal(e){e.preventDefault();if(busy||!pending)return;busy=true;let {kind,id}=pending,n=copy(get(id)||{});let value=$('form-body')?.value.trim()||'',title=$('form-title')?.value.trim(),tags=($('form-tags')?.value||'').split(',').map(s=>s.trim()).filter(Boolean);try{
+ if(['new-note','new-discovery','new-brief'].includes(kind)){if(!title)throw Error('Add a title.');const uid=crypto.randomUUID().slice(0,8),type=kind==='new-note'?'knowledge':kind==='new-discovery'?'discovery':'content';n={path:type==='content'?`content/${uid}/brief.md`:`${type==='knowledge'?'knowledge':'discoveries'}/${uid}.md`,meta:{id:uid,type,title,tags,status:type==='knowledge'?'Needs review':type==='discovery'?'Needs review':'Needs approval',...(type==='knowledge'?{category:'Notes'}:type==='discovery'?{source:'Manual',suggestion:'Create brief',topic:'Unsorted'}:{stage:'Brief',topic:'Unsorted',owner:'Owner',priority:'Medium',version:1}),related:[]},body:value};await save(n);selected=uid;page=type==='knowledge'?'Knowledge':type==='discovery'?'Discoveries':'Briefs';tab=type==='content'?'Brief':'Read'}
+ else if(kind==='properties'){n.meta.title=title;n.meta.tags=tags;n.meta[n.meta.type==='knowledge'?'category':n.meta.type==='discovery'?'source':'topic']=$('form-category').value;await save(n)}
+ else if(kind==='setup-task'){n.meta.done=!$('mark-incomplete')?.checked;n.meta.answer=value;await save(n)}
+ else if(kind==='input'||kind==='new-input'){if(!title)throw Error('Add a name.');if(kind==='new-input'){const uid='input-'+crypto.randomUUID().slice(0,8);n={path:'inputs/'+uid+'.md',meta:{id:uid,type:'input',tags:[]}}}n.meta={...n.meta,title,source:$('form-source').value,cadence:$('form-cadence').value,status:'Planned'};n.body=value;await save(n)}
+ else if(kind==='approve'){n.meta.stage='Draft';n.meta.status='Writing';n.meta.approved_brief_version=n.meta.version||1;await save(n);page='Drafts';tab='Draft'}
+ else if(kind==='approve-draft'){n.meta.stage='Ready to publish';n.meta.status='Ready to publish';await save(n)}
+ else{if(['request-changes','more-briefs'].includes(kind)&&!value)throw Error('Add the direction you want to give.');if(value)await addFeedback(n,value);if($('form-remember')?.checked)await remember(n,value);if(kind==='dismiss')n.meta.status='Dismissed';if(kind==='decline')n.meta.status='Declined';if(kind==='request-changes')n.meta.status='Changes requested';if(kind==='refresh'){n.meta.stage='Draft';n.meta.status='In review';page='Drafts';tab='Draft'}if(kind==='more-briefs'){tab='Feedback'}if(kind==='handoff'){n.meta.status='Handoff prepared';tab='Feedback'}await save(n)}close();editing=false;render();toast(kind==='setup-task'?'Setup updated':kind==='approve'?'Moved to Drafts':kind==='approve-draft'?'Ready to publish':'Saved')
+ }catch(e){$('form-error').textContent=e.message||'Could not save. Try again.'}finally{busy=false;saveLabel()}}
+async function simple(action){if(busy)return;busy=true;saveLabel();try{let n=copy(current());if(action==='save-doc'){const path=docPath(n);const doc=files[path]?parse(files[path],path):{path,meta:{id:n.meta.id+'-draft',type:'draft',title:n.meta.title,version:0},body:''};doc.body=$('markdown-editor').value;doc.meta.version=(doc.meta.version||0)+1;await save(doc);editing=false}
+ if(action==='comment'){const value=$('comment').value.trim();if(!value)throw Error('Add your feedback first.');await addFeedback(n,value);if($('remember').checked)await remember(n,value)}
+ if(action==='pursue'){if(n.meta.suggestion==='Create brief'){const id='brief-'+n.meta.id;if(!get(id)){await save({path:`content/${id}/brief.md`,meta:{id,type:'content',title:n.meta.title,stage:'Brief',status:'Needs approval',topic:n.meta.topic||'Unsorted',owner:'Owner',priority:'Medium',tags:n.meta.tags||[],related:[n.meta.id,...(n.meta.related||[])],version:1},body:'## Direction\n'+n.meta.title+'\n\n## Source discovery\n[['+n.meta.id+']]\n\n## Proposed angle\nDevelop the suggested direction into a specific reader question.\n\n## Proof to gather\nReview the linked evidence and confirm what we can demonstrate.'})}n.meta.brief_id=id;n.meta.related=[...new Set([...(n.meta.related||[]),id])];n.meta.status='Pursuing';await save(n);selected=id;page='Briefs';tab='Brief';toast('Brief created. Review the direction before approving a draft.')}else{n.meta.status='Pursuing';await save(n);toast('Added to directions to pursue')}}
+ if(['confirm-note','reconsider','reopen'].includes(action)){n.meta.status=action==='confirm-note'?'Confirmed':action==='reconsider'?'Needs review':'Needs approval';await save(n)}render();if(!['pursue'].includes(action))toast('Saved')
+ }catch(e){toast(e.message||'Could not save changes.')}finally{busy=false;saveLabel()}}
+function navigate(p){page=p;selected=null;editing=false;q='';filter='All';tagFilter='All tags';view='';render()}
+document.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;if(a==='nav'){navigate(el.dataset.page);return}if(a==='open'){if($('dialog').open)close();selected=el.dataset.id;let n=current();page=n.meta.type==='knowledge'?'Knowledge':n.meta.type==='discovery'?'Discoveries':n.meta.stage==='Brief'?'Briefs':n.meta.stage==='Published'?'Published':'Drafts';tab=n.meta.type==='content'?(n.meta.stage==='Brief'?'Brief':'Draft'):'Read';editing=false;render();return}if(['new-note','new-discovery','new-brief','properties','setup-task','input','new-input','dismiss','decline','request-changes','more-briefs','refresh','handoff','approve','approve-draft'].includes(a)){modal(a,el.dataset.id||selected);return}if(['save-doc','comment','pursue','confirm-note','reconsider','reopen'].includes(a)){e.preventDefault();simple(a);return}if(a==='cancel'){close();return}if(a==='back'){selected=null;editing=false}if(a==='view')view=el.dataset.value;if(a==='tab'){tab=el.dataset.value;editing=false}if(a==='show-feedback'){tab='Feedback';editing=false}if(a==='clear'){q='';filter='All';tagFilter='All tags'}if(a==='edit-doc')editing=true;if(a==='cancel-edit')editing=false;render()});
+document.addEventListener('input',e=>{if(e.target.dataset.filter==='q'){q=e.target.value;$('results').innerHTML=results()}});document.addEventListener('change',e=>{if(e.target.dataset.filter==='filter')filter=e.target.value;if(e.target.dataset.filter==='tag')tagFilter=e.target.value;if(e.target.dataset.filter)$('results').innerHTML=results()});document.addEventListener('submit',e=>{if(e.target.id==='modal-form')submitModal(e);else if(e.target.id==='comment-form'){e.preventDefault();simple('comment')}});document.addEventListener('keydown',e=>{if(e.target.getAttribute('role')==='tab'&&['ArrowRight','ArrowLeft'].includes(e.key)){e.preventDefault();const ts=[...e.target.parentElement.children],i=ts.indexOf(e.target),target=ts[(i+(e.key==='ArrowRight'?1:-1)+ts.length)%ts.length],v=target.dataset.value;target.click();document.querySelector('[role=tab][data-value="'+v+'"]')?.focus()}});
+async function scan(dir){let entries;try{entries=await bridge.fs.list(dir)}catch(e){if(e.code==='not_found')return;throw e}for(const entry of entries){let path=entry.path.startsWith(dir+'/')?entry.path:dir+'/'+entry.path;if(entry.isFolder)await scan(path);else if(path.endsWith('.md'))files[path]=await bridge.fs.read(path)}}
+async function load(){if(!window.agenta){$('main').innerHTML='<div class="ag-empty"><h2>Open this workspace in Agenta</h2><p>Your records load from durable storage. No sample data is displayed.</p></div>';return}try{await window.agenta.ready;bridge=window.agenta;await loadActions();files={};for(const dir of ['knowledge','discoveries','content','setup','inputs','requests'])await scan(dir);render();bridge.addEventListener('access',async()=>{if(!bridge.canWrite)return;try{for(const [path,v] of [...unsaved]){let current;try{current=await bridge.fs.read(path)}catch(e){if(e.code!=='not_found')throw e}if(current!==v.before)throw Error('A note changed elsewhere. Reopen before saving your changes.');await bridge.fs.write(path,v.after);unsaved.delete(path)}saveLabel()}catch(e){toast(e.message||'Could not save changes.')}});bridge.addEventListener('changed',async()=>{if(busy||editing||unsaved.size||$('dialog').open)return;try{files={};for(const dir of ['knowledge','discoveries','content','setup','inputs','requests'])await scan(dir);render()}catch{toast('Could not refresh notes.')}})}catch(e){$('main').innerHTML='<div class="ag-empty"><h2>Could not open your notes</h2><p>Please reopen the workspace to try again.</p></div>'}}
+// Entry point follows the request handoff module.
+
+
+// File-backed work requests. Transport into chat is explicit until Agenta exposes it.
+let actionCatalog=null,workKinds=[];
+async function loadActions(){const data=bridge?await bridge.fs.readJSON('actions.json'):await (await fetch('actions.json')).json();if(data.version!==1||!Array.isArray(data.actions))throw Error('Unsupported action catalog');actionCatalog=data;workKinds=data.actions.map(a=>a.label)}
+const activeStates=['saved','in_progress','blocked'];
+function workFor(n){return all().filter(x=>x.meta.type==='agent_request'&&x.meta.target_id===(n?.meta.id||'workspace')).sort((a,b)=>String(b.meta.created).localeCompare(String(a.meta.created)))}
+function workPanel(n){const r=workFor(n)[0];return `<div class="rail-section"><h3>Work with the agent</h3>${r?`<p class="secondary">${esc(r.meta.task)} · ${esc(({saved:'Ready to send',in_progress:'Working',completed:'Completed',blocked:'Needs attention',cancelled:'Cancelled',failed:'Failed'})[r.meta.status]||r.meta.status)}</p>${r.meta.result_summary?`<p>${esc(r.meta.result_summary)}</p>`:''}${(r.meta.result_paths||[]).map(p=>all().find(x=>x.path===p)).filter(x=>x&&['knowledge','discovery','content'].includes(x.meta.type)).map(x=>`<div>${textButton(x.meta.title,x.meta.id)}</div>`).join('')}${r.meta.status==='saved'?button('Continue in chat','open-request','data-request="'+esc(r.meta.id)+'"'):''}`:''}${button('Ask agent to work on this','ask-agent','data-id="'+esc(n?.meta.id||'')+'"')}</div>`}
+function intentFor(n){return !n?'Custom task':n.meta.type==='knowledge'?'Update knowledge':n.meta.type==='discovery'?(n.meta.suggestion==='Create brief'?'Create brief':'Investigate discovery'):n.meta.type==='setup'?(n.meta.track==='Publishing'?'Configure publishing':n.meta.track==='Ongoing research'?'Configure research':'Help with setup'):n.meta.type==='input'?'Configure research':n.meta.stage==='Brief'?'Draft article':n.meta.stage==='Published'?'Refresh article':'Revise article'}
+function openWork(n,kind,approval=null){if(editing){toast('Save or cancel your edits before asking the agent.');return}pending={kind:'agent-work',id:n?.meta.id||'workspace',approval};const task=kind||intentFor(n);$('dialog').innerHTML=`<form id="work-form"><h2 id="dialog-title">Ask the agent</h2><p>${esc(n?.meta.title||'Content workspace')}</p><label>Task<select class="ag-select" id="work-kind" aria-label="Task">${workKinds.map(k=>`<option ${k===task?'selected':''}>${k}</option>`).join('')}</select></label><label>What should I do?<textarea id="work-instructions" class="ag-input" rows="5" required placeholder="Describe the outcome you want…">${esc(approval==='brief'?'Use this approved brief to prepare the article.':approval==='draft'?'Review this draft for publication using my approval of this version.':'')}</textarea></label><label class="remember"><input type="checkbox" id="work-knowledge" class="ag-check"> Update relevant Knowledge notes from my feedback</label><p class="secondary">I’ll use this record, its linked notes, and its feedback. Saving prepares a request; continue in chat to start the work.</p><div id="form-error" class="error" role="alert"></div><div class="ag-toolbar">${button('Cancel','cancel','type="button"')}<button class="ag-btn ag-btn-primary" type="submit">Save request & continue</button></div></form>`;$('dialog').showModal()}
+async function hashText(text){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return [...new Uint8Array(bytes)].map(n=>n.toString(16).padStart(2,'0')).join('')}
+function attachedPaths(n){const set=new Set();const add=x=>{if(!x)return;set.add(x.path);const f=feedbackPath(x);if(files[f])set.add(f);if(x.meta.type==='content'){const d=x.path.replace('brief.md','draft.md');if(files[d])set.add(d)}};add(n);for(const id of n?.meta.related||[])add(get(id));if(!n){for(const x of all().filter(x=>['knowledge','setup','input'].includes(x.meta.type)))add(x)}return [...set].sort()}
+async function saveWork(e){e.preventDefault();e.stopImmediatePropagation();if(busy)return;const task=$('work-kind').value,instructions=$('work-instructions').value.trim();if(!instructions)return;const context=copy(pending),n=get(context.id),approved=context.approval==='brief'&&task==='Draft article'?'brief':context.approval==='draft'&&task==='Review for publication'?'draft':null;
+ if(!bridge?.canWrite||unsaved.size){$('form-error').textContent='Grant write access and save your changes before preparing a request.';return}
+ busy=true;const submit=$('work-form').querySelector('[type=submit]');submit.disabled=true;try{
+ const snapshots={};for(const path of attachedPaths(n)){const latest=await bridge.fs.read(path);if(latest!==files[path])throw Error('A linked note changed. Reopen the workspace and review it before sending.');snapshots[path]=await hashText(latest)}
+ const approvalPath=approved==='brief'?n?.path:approved==='draft'?n?.path.replace('brief.md','draft.md'):null;if(approvalPath&&!snapshots[approvalPath])throw Error('There is no saved document to approve.');
+ const route=actionCatalog?.actions.find(a=>a.label===task);if(!route)throw Error('Reload the workspace to load its action routes.');
+ const fingerprint=await hashText(JSON.stringify({target:context.id,task,action_id:route.id,action_version:actionCatalog.version,instructions,snapshots,approved,knowledge:$('work-knowledge').checked}));
+ await scan('requests');const old=workFor(n).find(r=>r.meta.fingerprint===fingerprint);if(old){close();showRequest(old);return}
+ const id='work-'+fingerprint.slice(0,32);const request={path:'requests/'+id+'.md',meta:{id,type:'agent_request',schema:1,title:task+' · '+(n?.meta.title||'Workspace'),task,action_id:route.id,action_version:actionCatalog.version,target_id:context.id,target_path:n?.path||null,status:'saved',created:new Date().toISOString(),source_hashes:snapshots,fingerprint,approval:approved?{kind:approved,path:approvalPath,sha256:snapshots[approvalPath]}:null,update_knowledge:$('work-knowledge').checked,result_paths:[],result_summary:'',workspace:'agent-files/apps/seo-workspace'},body:'## Request\n'+instructions};
+ await save(request);close();render();showRequest(request)
+ }catch(err){$('form-error').textContent=err.message||'Could not save request.';submit.disabled=false}finally{busy=false;saveLabel()}}
+function showRequest(r){pending=null;if(r.meta.status!=='saved'){$('dialog').innerHTML=`<h2 id="dialog-title">${esc(({completed:'Work completed',in_progress:'Work in progress',blocked:'Needs attention',failed:'Work failed',cancelled:'Request cancelled'})[r.meta.status]||r.meta.status)}</h2><p>${esc(r.meta.result_summary||r.meta.title)}</p><div class="ag-toolbar">${button('Close','cancel')}</div>`;if(!$('dialog').open)$('dialog').showModal();return}const command='Please process editorial request agent-files/apps/seo-workspace/requests/'+r.meta.id+'.md and update the linked records with the result.';$('dialog').innerHTML=`<h2 id="dialog-title">Request ready</h2><p>${esc(r.meta.title)}</p><p>Paste this message into a conversation with SEO Content Agent to start the work.</p><textarea id="handoff-message" class="ag-input" aria-label="Message to agent" readonly rows="5">${esc(command)}</textarea><p class="secondary">Your request and the relevant note versions are saved. Work has not started yet.</p><div class="ag-toolbar">${button('Close','cancel')}${button('Copy message','copy-request','',true)}</div>`;if(!$('dialog').open)$('dialog').showModal()}
+document.addEventListener('submit',e=>{if(e.target.id==='work-form')saveWork(e)},true);
+document.addEventListener('click',e=>{const el=e.target.closest('[data-action]');if(!el)return;const a=el.dataset.action;const delegated={approve:'Draft article','approve-draft':'Review for publication',pursue:null,'request-changes':'Revise article','more-briefs':'Explore related briefs',refresh:'Refresh article',handoff:'Prepare publishing handoff'};
+ if(a==='ask-agent'||Object.hasOwn(delegated,a)){e.preventDefault();e.stopImmediatePropagation();const n=get(el.dataset.id||selected);const task=a==='ask-agent'?null:a==='pursue'?intentFor(n):a==='request-changes'&&n?.meta.stage==='Brief'?'Create brief':delegated[a];openWork(n,task,a==='approve'?'brief':a==='approve-draft'?'draft':null);return}
+ if(a==='open-request'){e.preventDefault();e.stopImmediatePropagation();const r=get(el.dataset.request);if(r)showRequest(r);return}
+ if(a==='copy-request'){e.preventDefault();e.stopImmediatePropagation();const t=$('handoff-message');t.focus();t.select();try{if(!document.execCommand('copy'))throw Error();toast('Message copied')}catch{toast('Message selected. Copy it and paste it into chat.')}}
+},true);
+
+load();</script></body></html>
