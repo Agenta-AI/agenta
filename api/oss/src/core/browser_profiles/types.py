@@ -63,7 +63,7 @@ class BrowserUnavailable(BrowserToolError):
 class BrowserDisabled(BrowserToolError):
     def __init__(self):
         super().__init__(
-            code="browser_unavailable",
+            code="browser_disabled",
             message="The cloud browser is not enabled on this deployment.",
             retryable=False,
         )

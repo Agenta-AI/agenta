@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 from oss.src.core.browser_profiles.dtos import (
     BrowserProfile,
@@ -16,6 +17,11 @@ def map_browser_login_dbe_to_dto(*, dbe: SecretsDBE) -> BrowserProfile:
         allowed_hosts=data["allowed_hosts"],
         state=BrowserProfileState(data["state"]),
         generation=data["generation"],
+        signed_in_at=(
+            datetime.fromisoformat(data["signed_in_at"])
+            if data.get("signed_in_at")
+            else None
+        ),
         created_at=dbe.created_at,  # type: ignore
         updated_at=dbe.updated_at,  # type: ignore
         created_by_id=dbe.created_by_id,  # type: ignore

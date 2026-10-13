@@ -31,7 +31,7 @@ PROFILES = {
         state=BrowserProfileState.READY,
         generation=4,
         created_by_id=OWNER,
-        updated_at=datetime(2026, 10, 9, tzinfo=timezone.utc),
+        signed_in_at=datetime(2026, 10, 9, tzinfo=timezone.utc),
     ),
     BITBUCKET: BrowserProfile(
         id=BITBUCKET,
@@ -40,7 +40,7 @@ PROFILES = {
         state=BrowserProfileState.READY,
         generation=2,
         created_by_id=OWNER,
-        updated_at=datetime(2026, 10, 1, tzinfo=timezone.utc),
+        signed_in_at=datetime(2026, 10, 1, tzinfo=timezone.utc),
     ),
     NOT_MINE: BrowserProfile(
         id=NOT_MINE,
@@ -123,7 +123,7 @@ class Controller:
         self.logins.append(logins)
         self.args = args
         if self.warm_with is not None and not self.setups:
-            if sorted(self.warm_with) != sorted(logins or []):
+            if self.warm_with != logins:
                 raise BrowserToolError(
                     code="logins_changed", message="Other logins than the run may use."
                 )
@@ -241,7 +241,10 @@ async def test_a_committed_run_of_another_authors_revision_gets_no_browser():
 
 @pytest.mark.asyncio
 async def test_a_warm_browser_with_other_logins_is_replaced_before_acting():
-    runner, controller = Runner(), Controller(warm_with=[str(GITHUB), str(BITBUCKET)])
+    runner, controller = (
+        Runner(),
+        Controller(warm_with={str(GITHUB): 4, str(BITBUCKET): 2}),
+    )
     service = _service(DAO(), runner, controller)
 
     await service.run_tool(
@@ -267,7 +270,7 @@ async def test_a_warm_browser_with_other_logins_is_replaced_before_acting():
     ]
     assert len(runner.ensured) == 2
     assert controller.setups[0][2] == {str(GITHUB): 4}
-    assert controller.logins == [[str(GITHUB)], [str(GITHUB)]]
+    assert controller.logins == [{str(GITHUB): 4}, {str(GITHUB): 4}]
 
 
 @pytest.mark.asyncio
@@ -303,7 +306,7 @@ async def test_all_logins_reads_the_logins_at_each_call(monkeypatch):
     )
 
     assert result.content == "done"
-    assert controller.logins[-1] == [str(GITHUB), str(BITBUCKET)]
+    assert controller.logins[-1] == {str(GITHUB): 4, str(BITBUCKET): 2}
 
 
 @pytest.mark.asyncio
@@ -322,7 +325,7 @@ async def test_the_intent_comes_from_the_tool_never_the_model(
     from oss.src.utils.env import env
 
     monkeypatch.setattr(env.browser, "enabled", True)
-    controller = Controller(warm_with=[str(GITHUB)])
+    controller = Controller(warm_with={str(GITHUB): 4})
     service = _service(DAO(), Runner(), controller)
 
     await handlers.BROWSER_TOOL_HANDLERS[call_ref](
@@ -341,3 +344,48 @@ async def test_the_intent_comes_from_the_tool_never_the_model(
 
     assert controller.args.get("intent") == intent
     assert controller.args["ref"] == "e1"
+
+
+@pytest.mark.asyncio
+async def test_a_login_signed_in_again_restarts_a_warm_browser():
+    # The warm browser loaded GitHub at generation 3; the login is now at 4.
+    runner, controller = Runner(), Controller(warm_with={str(GITHUB): 3})
+    service = _service(DAO(), runner, controller)
+
+    await service.run_tool(
+        project_id=PROJECT,
+        user_id=OWNER,
+        session_id="sess-1",
+        profile_ids=[GITHUB],
+        all_logins=False,
+        revision_id=None,
+        is_draft=True,
+        op="navigate",
+        args={"url": "https://github.com"},
+    )
+
+    assert len(runner.deleted) == 1
+    assert controller.setups[0][2] == {str(GITHUB): 4}
+
+
+@pytest.mark.asyncio
+async def test_a_failed_save_keeps_the_ops_result():
+    class FailingDAO(DAO):
+        async def save_session_state(self, **_):
+            raise RuntimeError("database is down")
+
+    service = _service(FailingDAO())
+
+    text = await service.run_tool(
+        project_id=PROJECT,
+        user_id=OWNER,
+        session_id="sess-1",
+        profile_ids=[GITHUB],
+        all_logins=False,
+        revision_id=None,
+        is_draft=True,
+        op="click",
+        args={"ref": "e1"},
+    )
+
+    assert text == "done"

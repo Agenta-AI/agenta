@@ -27,6 +27,9 @@ class BrowserProfile(BaseModel):
     state: BrowserProfileState
     generation: int
 
+    # The last sign-in; on a site two logins share, the newest sign-in wins.
+    signed_in_at: Optional[datetime] = None
+
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     created_by_id: Optional[UUID] = None

@@ -19,7 +19,7 @@ def session_label(user_id: UUID) -> str:
 def _newest_first(profiles: List[BrowserProfile]) -> List[BrowserProfile]:
     return sorted(
         profiles,
-        key=lambda p: p.updated_at or p.created_at or _OLDEST,
+        key=lambda p: p.signed_in_at or p.created_at or _OLDEST,
         reverse=True,
     )
 

@@ -112,9 +112,9 @@ class BrowserControllerClient:
         *,
         op: str,
         args: Dict[str, Any],
-        logins: Optional[List[str]] = None,
+        logins: Optional[Dict[str, int]] = None,
     ) -> BrowserOpResult:
-        """`logins`: the profile ids the browser must hold; it refuses (`logins_changed`) otherwise."""
+        """`logins`: profile id -> generation the browser must hold; it refuses (`logins_changed`) otherwise."""
         body: Dict[str, Any] = {"op": op, "args": args}
         if logins is not None:
             body["logins"] = logins

@@ -58,6 +58,7 @@ def test_a_login_row_maps_to_a_profile_without_its_storage_state():
         "allowed_hosts": ["github.com"],
         "state": BrowserProfileState.READY,
         "generation": 2,
+        "signed_in_at": None,
         "created_by_id": OWNER,
     }
 
@@ -67,3 +68,17 @@ def test_a_login_row_maps_to_its_session_state():
 
     assert state.generation == 2
     assert state.storage_state == DATA["storage_state"]
+
+
+def test_a_login_row_maps_its_last_sign_in():
+    dbe = SecretsDBE(
+        id=LOGIN,
+        kind=SecretKind.BROWSER_LOGIN,
+        name="GitHub",
+        data=json.dumps({**DATA, "signed_in_at": "2026-10-13T10:00:00+00:00"}),
+        created_by_id=OWNER,
+    )
+
+    assert map_browser_login_dbe_to_dto(dbe=dbe).signed_in_at.isoformat() == (
+        "2026-10-13T10:00:00+00:00"
+    )

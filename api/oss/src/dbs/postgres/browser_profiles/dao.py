@@ -237,6 +237,7 @@ class BrowserProfilesDAO(BrowserProfilesDAOInterface):
                 "storage_state": storage_state,
                 "generation": data["generation"] + 1,
                 "state": BrowserProfileState.READY.value,
+                "signed_in_at": datetime.now(timezone.utc).isoformat(),
             },
             updated_by_id=user_id,
         )

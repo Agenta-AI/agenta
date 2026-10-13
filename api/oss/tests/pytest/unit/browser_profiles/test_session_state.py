@@ -23,7 +23,7 @@ def profile(id: UUID, hosts, updated: int) -> BrowserProfile:
         allowed_hosts=hosts,
         state=BrowserProfileState.READY,
         generation=1,
-        updated_at=datetime(2026, 10, updated, tzinfo=timezone.utc),
+        signed_in_at=datetime(2026, 10, updated, tzinfo=timezone.utc),
     )
 
 
@@ -140,3 +140,12 @@ def test_parent_domain_cookies_survive_a_merge_and_a_split():
     assert [c["name"] for c in merged["cookies"]] == ["sessionid"]
     shares = split_storage_state(merged, [INSTAGRAM])
     assert [c["name"] for c in shares[GITHUB]["cookies"]] == ["sessionid"]
+
+
+def test_a_rename_or_a_save_does_not_change_which_login_owns_a_site():
+    older = profile(OTHER, ["github.com"], 1)
+    newer = profile(USER, ["github.com"], 9)
+    # A later rename or session save moves updated_at, never the sign-in.
+    older.updated_at = datetime(2026, 10, 20, tzinfo=timezone.utc)
+
+    assert host_owner("github.com", [older, newer]) == USER

@@ -324,7 +324,8 @@ class BrowserProfilesService:
             revision_id=revision_id,
             is_draft=is_draft,
         )
-        logins = [str(p.id) for p in profiles]
+        # The generation too: a login signed in again makes a warm browser start over.
+        logins = {str(p.id): p.generation for p in profiles}
         label = session_label(user_id)
         sandbox = await self.runner_client.ensure(
             project_id=project_id,
@@ -483,17 +484,27 @@ class BrowserProfilesService:
         loaded = [p for p in profiles if str(p.id) in generations]
         shares = split_storage_state(state.storage_state, loaded)
         for profile in loaded:
-            saved = await self.browser_profiles_dao.save_session_state(
-                project_id=project_id,
-                profile_id=profile.id,
-                generation=int(generations[str(profile.id)]),
-                rebase=partial(
-                    rebase_share,
-                    share=shares[profile.id],
+            # The op already ran: a failed save must not turn its result into a failure.
+            try:
+                saved = await self.browser_profiles_dao.save_session_state(
+                    project_id=project_id,
                     profile_id=profile.id,
-                    profiles=loaded,
-                ),
-            )
+                    generation=int(generations[str(profile.id)]),
+                    rebase=partial(
+                        rebase_share,
+                        share=shares[profile.id],
+                        profile_id=profile.id,
+                        profiles=loaded,
+                    ),
+                )
+            except Exception as e:  # pylint: disable=broad-except
+                log.warning(
+                    "browser.state",
+                    outcome="save_failed",
+                    profile_id=str(profile.id),
+                    error=str(e),
+                )
+                continue
             if not saved:
                 log.info(
                     "browser.state",
