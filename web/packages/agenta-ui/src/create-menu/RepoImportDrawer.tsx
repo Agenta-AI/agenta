@@ -41,12 +41,9 @@ export interface RepoImportDrawerProps {
 
 /** The server's own sentence for a failure, rather than the status code and raw JSON body. */
 const failureMessage = (err: unknown): string | null => {
-    const body = (err as {body?: unknown})?.body
+    const body = (err as {body?: {next_step?: unknown; detail?: {next_step?: unknown}}})?.body
     const message = body ? extractApiErrorMessage(body) : null
-    const nextStep =
-        body && typeof body === "object" && "detail" in body
-            ? (body as {detail?: {next_step?: unknown}}).detail?.next_step
-            : undefined
+    const nextStep = body?.next_step ?? body?.detail?.next_step
     if (message) return typeof nextStep === "string" ? `${message} ${nextStep}` : message
     return err instanceof Error && err.message ? err.message : null
 }

@@ -13,8 +13,6 @@ export interface NewSkillMenuButtonProps {
     disabled?: boolean
     /** "outline" for in-drawer placements; "default" for the page header. */
     variant?: "default" | "outline"
-    /** Per-entry gating while flows ship incrementally; every entry defaults available. */
-    availability?: {write?: boolean; upload?: boolean; import?: boolean}
     /** Layout classes from the placement — e.g. the toolbar pinning it to the right edge. */
     className?: string
 }
@@ -23,7 +21,6 @@ export function NewSkillMenuButton({
     onWrite,
     onUpload,
     onImport,
-    availability,
     ...button
 }: NewSkillMenuButtonProps) {
     const options: CreateMenuOption[] = [
@@ -32,7 +29,6 @@ export function NewSkillMenuButton({
             title: "Write from scratch",
             hint: "Start with an empty SKILL.md and write it here",
             onSelect: onWrite,
-            disabled: availability?.write === false,
         },
     ]
     if (onUpload)
@@ -43,14 +39,12 @@ export function NewSkillMenuButton({
             accept: ".zip,.skill,.md,text/markdown,text/plain",
             multiple: true,
             onFiles: (files) => onUpload(scanSkillFromFileList(files)),
-            disabled: availability?.upload === false,
         })
     options.push({
         kind: "import",
         title: "Import from a repo",
         hint: "Scan a public GitHub repository for SKILL.md folders",
         onSelect: onImport,
-        disabled: availability?.import === false,
     })
     return <CreateMenuButton label="New skill" options={options} {...button} />
 }

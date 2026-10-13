@@ -31,7 +31,6 @@ export interface CreateMenuOption {
     onFiles?: (files: FileList) => void
     accept?: string
     multiple?: boolean
-    disabled?: boolean
 }
 
 export interface CreateMenuButtonProps {
@@ -86,7 +85,6 @@ export function CreateMenuButton({
                     <Fragment key={option.kind}>
                         {index === 1 ? <DropdownMenuSeparator /> : null}
                         <DropdownMenuItem
-                            disabled={option.disabled}
                             onSelect={() =>
                                 option.onFiles ? pickFiles(option) : option.onSelect?.()
                             }

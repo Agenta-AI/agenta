@@ -17,7 +17,7 @@ export const AgentTemplateImportDrawer = ({
 }: {
     open: boolean
     onClose: () => void
-    onPick: (source: AgentTemplateSource) => Promise<unknown>
+    onPick: (source: AgentTemplateSource) => Promise<boolean>
 }) => {
     const projectId = useAtomValue(projectIdAtom)
     // The pick loads at the commit the scan resolved, not whatever the branch points at later.
@@ -35,7 +35,9 @@ export const AgentTemplateImportDrawer = ({
     const confirm = useCallback(
         async (_repoUrl: string, [path]: string[]) => {
             const {repo_url, commit} = scanned.current ?? {}
-            if (repo_url && commit) await onPick({kind: "github", repo_url, commit, path})
+            // A failed create keeps the drawer open; its reason shows under the New agent button.
+            if (!repo_url || !commit || !(await onPick({kind: "github", repo_url, commit, path})))
+                throw new Error()
         },
         [onPick],
     )
