@@ -18,6 +18,7 @@ export {
 } from "./PreferencesPage"
 export {AccountPage, type AccountPageProps} from "./AccountPage"
 export {ApiKeysPage, type ApiKeysPageProps} from "./ApiKeysPage"
+export {BrowserLoginsPage, type BrowserLoginsPageProps} from "./browser/BrowserLoginsPage"
 export {NamedSecretTable, type NamedSecretTableProps} from "./secrets/NamedSecretTable"
 export {
     AIProvidersPage,

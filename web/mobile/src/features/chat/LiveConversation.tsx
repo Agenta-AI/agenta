@@ -6,7 +6,11 @@ import {
     shouldShowStopControl,
     restoreRefusedSend as restoreRefusedSendInto,
 } from "@agenta/chat/assets"
-import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
+import {
+    ClientToolPart,
+    getPendingBrowserInteractions,
+    getPendingSecretInteractions,
+} from "@agenta/chat/clientTools"
 import {
     ConnectionDock,
     ConnectionFocusProvider,
@@ -189,6 +193,10 @@ export const LiveConversation = ({
     )
     const pendingSecret = useMemo(
         () => getPendingSecretInteractions(conversation.messages)[0],
+        [conversation.messages],
+    )
+    const pendingBrowserAsk = useMemo(
+        () => getPendingBrowserInteractions(conversation.messages)[0],
         [conversation.messages],
     )
 
@@ -656,7 +664,12 @@ export const LiveConversation = ({
         onOutput: conversation.sendToolOutput,
     })
     // The docks know an ask is answered before `hitlPending` does; an ask with no dock stays a wait.
-    const cardOpen = approvalsOpen || elicits.open || connects.open || Boolean(pendingSecret)
+    const cardOpen =
+        approvalsOpen ||
+        elicits.open ||
+        connects.open ||
+        Boolean(pendingSecret) ||
+        Boolean(pendingBrowserAsk)
     const answerInFlight =
         conversation.approvals.settledIds.size > 0 ||
         elicits.settlingIds.size > 0 ||
@@ -860,6 +873,20 @@ export const LiveConversation = ({
                                     onOutput={conversation.sendToolOutput}
                                 />
                             </ContentRail>
+                        ) : null}
+                        {!streamingHere &&
+                        !stopping &&
+                        !conversation.stopped &&
+                        pendingBrowserAsk ? (
+                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                                <ContentRail>
+                                    <ClientToolPart
+                                        key={pendingBrowserAsk.toolCallId}
+                                        part={pendingBrowserAsk.part}
+                                        onOutput={conversation.sendToolOutput}
+                                    />
+                                </ContentRail>
+                            </div>
                         ) : null}
                         {elicits.open ? (
                             <div className="bg-background shrink-0 px-3 pt-3 pb-0">

@@ -19,6 +19,8 @@ export const CLIENT_TOOL_DESCRIPTORS = {
     secret: {toolName: "request_secret", renderKind: "secret"},
     connection: {toolName: "request_connection", renderKind: "connect"},
     elicitation: {toolName: "request_input", renderKind: "elicitation"},
+    browser: {toolName: "browser_wait_for_user", renderKind: "browser"},
+    browserLogin: {toolName: "browser_request_login", renderKind: "browser_login"},
 } as const
 
 export const CLIENT_TOOL_NAMES: ReadonlySet<string> = new Set(
