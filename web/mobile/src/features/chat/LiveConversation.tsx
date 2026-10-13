@@ -69,7 +69,7 @@ import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
 import {hasUnsavedConfigEdits} from "./hasUnsavedConfigEdits"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
-import {selectedRevisionAtomFamily} from "./selectedRevision"
+import {heldCommitAtomFamily, selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
 import {PendingTaskError} from "./states/PendingTaskError"
 import {cancelledStopAction} from "./stopHereState"
@@ -207,7 +207,10 @@ export const LiveConversation = ({
         if (revisionId === entityId) return
         // Unsaved edits in the config pane belong to the pinned revision. Switching now would drop
         // them, so the version pill offers the commit instead.
-        if (hasUnsavedConfigEdits(store, entityId)) return
+        if (hasUnsavedConfigEdits(store, entityId)) {
+            store.set(heldCommitAtomFamily(sessionId), revisionId)
+            return
+        }
         adoptSecretRevision(revisionId)
     }
     const [commitFollower] = useState(() =>
