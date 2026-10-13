@@ -147,6 +147,31 @@ describe("template package loading", () => {
         )
     })
 
+    it("loads a source from outside the catalog without connection choices", async () => {
+        const source = {
+            kind: "github" as const,
+            repo_url: "https://github.com/acme/templates",
+            commit: "a".repeat(40),
+            path: "packages/triage",
+        }
+
+        await store.set(loadAgentTemplateFromEphemeralAtom, {
+            revisionId: REVISION_ID,
+            source,
+            initialMessage: "Set up this agent.",
+        })
+
+        expect(loadAgentTemplateMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                source,
+                initial_message: "Set up this agent.",
+                connection_choices: [],
+            }),
+            `agent-template:${REVISION_ID}:${JSON.stringify(source)}`,
+            "project-1",
+        )
+    })
+
     it("reuses one in-flight request for rapid duplicate activation", async () => {
         const template = AGENT_TEMPLATES.find((item) => item.key === "pr-reviewer")!
         let resolveLoad: ((value: AgentTemplateLoadResult) => void) | null = null

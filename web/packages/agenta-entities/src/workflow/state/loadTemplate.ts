@@ -12,6 +12,7 @@ import {fetchAgentBuildKitOverlay} from "../api"
 import {
     loadAgentTemplate,
     type AgentTemplateLoadRequest,
+    type AgentTemplateSource,
     type AgentTemplateLoadResult,
 } from "../api/agentTemplates"
 import {resolveBuildKitPermissions, type BuildKitUiState} from "../buildKitPolicy"
@@ -27,7 +28,9 @@ import {
 
 export interface LoadAgentTemplateFromEphemeralParams {
     revisionId: string
-    template: AgentStarterTemplate
+    /** A catalog template, or `source` for a package from outside the catalog. */
+    template?: AgentStarterTemplate
+    source?: AgentTemplateSource
     /** Preserve the host's editable template prompt when it differs from the card default. */
     stagingSessionId?: string
     attachmentIds?: string[]
@@ -106,6 +109,7 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
         {
             revisionId,
             template,
+            source = template?.source,
             initialMessage,
             setup,
             stagingSessionId,
@@ -114,13 +118,15 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
     ): Promise<AgentTemplateLoadResult> => {
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("No project ID available")
+        if (!source) throw new Error("No template source to load")
+        const sourceKey = source.kind === "internal" ? source.key : JSON.stringify(source)
 
-        const inflightKey = `${projectId}:${revisionId}:${template.source.key}`
+        const inflightKey = `${projectId}:${revisionId}:${sourceKey}`
         const existing = inflightLoads.get(inflightKey)
         if (existing) return existing
 
         const pending = (async () => {
-            const intentScope = `agent-template-intent:${projectId}:${template.source.key}`
+            const intentScope = `agent-template-intent:${projectId}:${sourceKey}`
             let intent = readIntent(intentScope)
             if (!intent) {
                 const {data} = buildCreatePayloadFromEphemeral(get, revisionId)
@@ -133,18 +139,22 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
                         "The build kit is still loading. Try again before starting the template.",
                     )
                 intent = {
-                    key: `agent-template:${revisionId}:${template.source.key}`,
+                    key: `agent-template:${revisionId}:${sourceKey}`,
                     buildKitState,
                     request: {
-                        source: template.source,
+                        source,
                         base_revision: (data ?? {}) as AgentaApi.WorkflowRevisionDataInput,
-                        initial_message: initialMessage?.trim() || templateBuilderMessage(template),
+                        initial_message:
+                            initialMessage?.trim() ||
+                            (template ? templateBuilderMessage(template) : ""),
                         staging_session_id: stagingSessionId,
                         attachment_ids: attachmentIds,
                         ui_build_kit_enabled: buildKitState.enabled,
                         ui_disabled_ops: buildKitState.disabledOps,
                         ui_op_permissions: resolveBuildKitPermissions(overlay, buildKitState),
-                        connection_choices: templateConnectionChoices(template, setup),
+                        connection_choices: template
+                            ? templateConnectionChoices(template, setup)
+                            : [],
                     },
                 }
             }

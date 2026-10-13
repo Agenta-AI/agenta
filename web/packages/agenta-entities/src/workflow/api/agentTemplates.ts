@@ -32,10 +32,19 @@ export interface SessionFileAgentTemplateSource {
     pin?: AgentTemplateSourcePin
 }
 
+/** A package directory in a public GitHub repository, pinned to a full commit SHA. */
+export interface GitHubAgentTemplateSource {
+    kind: "github"
+    repo_url: string
+    commit: string
+    path: string
+}
+
 export type AgentTemplateSource =
     | InternalAgentTemplateSource
     | UploadAgentTemplateSource
     | SessionFileAgentTemplateSource
+    | GitHubAgentTemplateSource
 
 // Hand-written until the Fern client is regenerated with the new source union.
 export type AgentTemplateLoadRequest = Omit<AgentaApi.TemplateLoadRequest, "source"> & {
@@ -66,6 +75,19 @@ export async function queryAgentTemplates(
 ): Promise<AgentaApi.TemplatesResponse> {
     // maxRetries 0: the catalog query retries; transport retries on top multiplied into a 40s wait.
     return getWorkflowsClient().queryAgentTemplates(query, {
+        queryParams: {project_id: projectId},
+        maxRetries: 0,
+    })
+}
+
+export type AgentTemplateRepositoryScan = AgentaApi.TemplateRepositoryScan
+
+/** `POST /agent-templates/sources/scan`: list the template packages in a public GitHub repo. */
+export async function scanAgentTemplateSource(
+    projectId: string,
+    request: AgentaApi.TemplateSourceScanRequest,
+): Promise<AgentTemplateRepositoryScan> {
+    return getWorkflowsClient().scanAgentTemplateSource(request, {
         queryParams: {project_id: projectId},
         maxRetries: 0,
     })
