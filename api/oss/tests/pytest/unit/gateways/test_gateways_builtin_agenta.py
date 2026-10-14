@@ -24,7 +24,7 @@ from oss.src.core.gateways.llms.dtos import (
 )
 from oss.src.core.gateways.llms.providers.passthrough.adapter import (
     RelayLLMAdapter,
-    _StreamUsageReader,
+    _StreamReader,
     _usage_from_body,
 )
 from oss.src.core.gateways.llms.providers.passthrough.routing import build_url
@@ -450,7 +450,7 @@ def test_a_stream_cut_before_its_last_frame_reports_no_usage():
     """The remaining gap: Vertex sends usage only on the final frame, so a stream the
     upstream itself cuts off before it (or one still running past the drain bound) measures
     nothing. Recorded as None (unknown), never as zero."""
-    reader = _StreamUsageReader(LLMProtocol.CHAT_COMPLETIONS)
+    reader = _StreamReader(LLMProtocol.CHAT_COMPLETIONS)
     reader.feed(b'data: {"choices": [{"delta": {"content": "Hi"}}]}\n\n')
     reader.flush()
 

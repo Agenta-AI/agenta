@@ -185,7 +185,7 @@ class ChannelDestinationsQueryRequest(_ChannelToolRequest):
 
 class ChannelMessageSendRequest(_ChannelToolRequest):
     session_id: str = Field(min_length=1, max_length=200)
-    tool_call_id: str = Field(min_length=1, max_length=200)
+    tool_call_id: str = Field(min_length=1)
     destination_id: str = Field(max_length=256)
     text: str = Field(min_length=1, max_length=40000)
     thread_id: Optional[str] = Field(default=None, max_length=256)
