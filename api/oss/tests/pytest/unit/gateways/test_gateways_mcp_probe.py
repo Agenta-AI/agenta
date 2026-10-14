@@ -1114,3 +1114,160 @@ async def test_a_slow_registration_check_keeps_the_oauth_answer(monkeypatch):
     assert result.auth.registration is None
     assert result.problem is None
     assert elapsed < 1
+
+
+# ---------------------------------------------------------------------------
+# The legacy HTTP+SSE transport, which Agenta does not speak (#6915)
+# ---------------------------------------------------------------------------
+
+
+def _refusal(www_authenticate: str) -> dict:
+    return {
+        "status_code": 401,
+        "json": {
+            "error": "invalid_token",
+            "error_description": "Missing or invalid access token",
+        },
+        "headers": {"WWW-Authenticate": www_authenticate},
+    }
+
+
+# What Atlassian's `/v1/sse` and `/v1/mcp` both answered an anonymous POST and GET, recorded
+# on 2026-10-14. The two addresses send the same refusal byte for byte.
+_ATLASSIAN_REFUSAL = _refusal(
+    'Bearer realm="OAuth", error="invalid_token", '
+    'error_description="Missing or invalid access token"'
+)
+
+# What Asana's `/sse` answered, recorded the same day. It names a resource metadata
+# document, so without the address check it would have been offered OAuth.
+_ASANA_SSE_REFUSAL = _refusal(
+    'Bearer realm="OAuth", '
+    'resource_metadata="https://mcp.asana.com/.well-known/oauth-protected-resource", '
+    'error="invalid_token", error_description="Missing or invalid access token"'
+)
+
+
+def _recorded(answer, requests: list[httpx.Request]):
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(**answer)
+
+    return handler
+
+
+def _legacy_sse_server(requests: list[httpx.Request], *, post_status: int = 405):
+    """A server on the legacy transport: it refuses the POST and streams to a GET."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                content=b"event: endpoint\ndata: /messages?sessionId=1\n\n",
+                headers={"content-type": "text/event-stream"},
+            )
+        return httpx.Response(post_status, text="Method Not Allowed")
+
+    return handler
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "server_url,answer",
+    [
+        ("https://mcp.atlassian.com/v1/sse", _ATLASSIAN_REFUSAL),
+        ("https://mcp.asana.com/sse", _ASANA_SSE_REFUSAL),
+        ("https://mcp.asana.com/sse/", _ASANA_SSE_REFUSAL),
+    ],
+)
+async def test_a_refused_sse_address_is_an_unsupported_transport(server_url, answer):
+    requests: list[httpx.Request] = []
+    result = await _probe(_recorded(answer, requests)).probe(server_url=server_url)
+
+    assert result.reachable is True
+    assert result.problem.cause == "unsupported_transport"
+    assert result.problem.message == (
+        "This address uses the older SSE transport, which Agenta does not support."
+    )
+    assert result.problem.response.status == 401
+    # Neither OAuth discovery nor a second request: a 401 is never followed by the GET.
+    assert [request.method for request in requests] == ["POST"]
+
+
+@pytest.mark.asyncio
+async def test_the_same_refusal_at_a_streamable_address_is_still_a_challenge():
+    requests: list[httpx.Request] = []
+    result = await _probe(_recorded(_ATLASSIAN_REFUSAL, requests)).probe(
+        server_url="https://mcp.atlassian.com/v1/mcp"
+    )
+
+    assert result.problem.cause == "auth_undiscoverable"
+    assert result.auth.challenge_status == 401
+    assert all(
+        request.url.path.startswith("/.well-known/")
+        for request in requests
+        if request.method == "GET"
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("post_status", [404, 405])
+async def test_a_refused_post_and_an_event_stream_is_an_unsupported_transport(
+    post_status,
+):
+    requests: list[httpx.Request] = []
+    result = await _probe(_legacy_sse_server(requests, post_status=post_status)).probe(
+        server_url="https://mcp.acme.io/events"
+    )
+
+    assert result.problem.cause == "unsupported_transport"
+    assert result.problem.response.status == post_status
+    get = requests[-1]
+    assert get.method == "GET"
+    assert get.headers["accept"] == "text/event-stream"
+    assert "authorization" not in get.headers
+
+
+@pytest.mark.asyncio
+async def test_a_refused_post_with_no_stream_is_not_an_mcp_server():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, text="Not Found")
+
+    result = await _probe(handler).probe(server_url="https://mcp.acme.io/events")
+
+    assert result.problem.cause == "not_an_mcp_server"
+
+
+@pytest.mark.asyncio
+async def test_a_stream_that_does_not_open_is_not_evidence_of_one():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            raise httpx.ReadTimeout("no stream", request=request)
+        return httpx.Response(405)
+
+    result = await _probe(handler).probe(server_url="https://mcp.acme.io/events")
+
+    assert result.problem.cause == "not_an_mcp_server"
+
+
+@pytest.mark.asyncio
+async def test_other_failures_never_send_the_get():
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(500)
+
+    result = await _probe(handler).probe(server_url="https://mcp.acme.io/events")
+
+    assert result.problem.cause == "not_an_mcp_server"
+    assert [request.method for request in requests] == ["POST"]
+
+
+@pytest.mark.asyncio
+async def test_an_sse_address_that_answers_the_handshake_connects():
+    result = await _probe(_open_server()).probe(server_url="https://mcp.acme.io/sse")
+
+    assert result.problem is None
+    assert result.auth.mode is MCPProbeAuthMode.NONE

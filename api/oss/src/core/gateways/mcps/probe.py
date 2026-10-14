@@ -84,6 +84,14 @@ _PROTOCOL_VERSION = "2025-06-18"
 
 _CLIENT_INFO = {"name": "agenta-connect-probe", "version": "1"}
 
+# How long the legacy-transport check waits for a stream to open. A server on that transport
+# answers the GET at once, and the check only runs after the handshake already failed.
+_EVENT_STREAM_TIMEOUT_SECONDS = 5.0
+
+_UNSUPPORTED_TRANSPORT_MESSAGE = (
+    "This address uses the older SSE transport, which Agenta does not support."
+)
+
 
 class MCPProbeAuthMode(str, Enum):
     """What the server asked for, as far as the probe could establish."""
@@ -183,6 +191,15 @@ def _event_payload(event: str) -> str:
     return "\n".join(data_lines) if data_lines else event.strip()
 
 
+def _media_type(response: httpx.Response) -> str:
+    return (response.headers.get("content-type") or "").split(";")[0].strip().lower()
+
+
+def _names_legacy_event_stream(server_url: str) -> bool:
+    """Whether the address ends in an `/sse` segment, the legacy HTTP+SSE convention."""
+    return httpx.URL(server_url).path.rstrip("/").endswith("/sse")
+
+
 def _initialize_result(response: httpx.Response) -> Optional[Dict[str, Any]]:
     """The handshake's `result`, or `None` when the body is not one.
 
@@ -200,8 +217,7 @@ def _initialize_result(response: httpx.Response) -> Optional[Dict[str, Any]]:
     if not body:
         return None
 
-    media_type = (response.headers.get("content-type") or "").split(";")[0].strip()
-    if media_type == "text/event-stream":
+    if _media_type(response) == "text/event-stream":
         text = body.decode("utf-8", "replace").strip()
         frames = [
             payload
@@ -264,6 +280,19 @@ def _challenge_schemes(response: httpx.Response) -> List[str]:
         if token not in schemes:
             schemes.append(token)
     return schemes
+
+
+def _unsupported_transport(
+    response: httpx.Response, *, server_url: str
+) -> MCPServerProbeResult:
+    return MCPServerProbeResult(
+        reachable=True,
+        problem=MCPProbeProblem(
+            cause="unsupported_transport",
+            message=_UNSUPPORTED_TRANSPORT_MESSAGE,
+            response=_excerpt(response, server_url=server_url),
+        ),
+    )
 
 
 class MCPServerProbe:
@@ -412,9 +441,22 @@ class MCPServerProbe:
 
         # The server answered something, so it exists. What it answered decides the rest.
         if response.status_code in (401, 403):
+            # An SSE endpoint and a Streamable HTTP endpoint behind the same sign-in refuse
+            # an anonymous request identically (Atlassian's `/v1/sse` and `/v1/mcp` send the
+            # same 401), so only the address can tell them apart. Without this the SSE
+            # address went on to OAuth or the key screen and failed after a credential.
+            if _names_legacy_event_stream(server_url):
+                return _unsupported_transport(response, server_url=server_url)
             return await self._challenged(
                 server_url=server_url, response=response, deadline=deadline
             )
+
+        # A legacy server takes messages at an address it names on its stream, not at this
+        # one, so it refuses the POST. The GET is what tells it from a wrong address.
+        if response.status_code in (404, 405) and await self._opens_event_stream(
+            target, deadline=deadline
+        ):
+            return _unsupported_transport(response, server_url=server_url)
 
         # A result-shaped body under an error status is not a handshake. A redirect, a 404
         # and a login page all answer, and none of them is a server to connect.
@@ -441,6 +483,34 @@ class MCPServerProbe:
             server_name=name if isinstance(name, str) and name else None,
             protocol_version=version if isinstance(version, str) else None,
             auth=MCPProbeAuth(mode=MCPProbeAuthMode.NONE),
+        )
+
+    async def _opens_event_stream(self, target, *, deadline: float) -> bool:
+        """Whether a plain GET opens an event stream, as the legacy HTTP+SSE transport does.
+
+        Only the status and the media type are read. The stream is closed before its first
+        event, because what that event says is of no use to a transport Agenta does not
+        speak. A failed check is not evidence of anything, so it reads as no stream.
+        """
+        try:
+            async with (
+                asyncio.timeout_at(deadline),
+                egress_client(
+                    timeout=_EVENT_STREAM_TIMEOUT_SECONDS, transport=self._transport
+                ) as client,
+            ):
+                request = client.build_request(
+                    "GET",
+                    target.url,
+                    headers={**target.headers, "accept": "text/event-stream"},
+                    extensions=target.extensions,
+                )
+                response = await client.send(request, stream=True)
+                await response.aclose()
+        except (TimeoutError, httpx.HTTPError):
+            return False
+        return (
+            response.status_code == 200 and _media_type(response) == "text/event-stream"
         )
 
     async def _challenged(

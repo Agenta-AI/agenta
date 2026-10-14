@@ -308,6 +308,38 @@ describe("C2, the address refused", () => {
         )
         expect(text()).not.toContain("Private-network servers must be reachable")
     })
+
+    it("names the SSE transport and suggests the /mcp address", async () => {
+        // #6915. The address answered, so reachability advice is wrong here too, and the
+        // probe's sentence is the headline already.
+        await open(
+            failed(
+                "unsupported_transport",
+                "This address uses the older SSE transport, which Agenta does not support.",
+            ),
+        )
+
+        expect(text()).toContain(
+            "This address uses the older SSE transport, which Agenta does not support. Try https://mcp.internal.acme.dev/mcp.",
+        )
+        expect(text().match(/older SSE transport/g)).toHaveLength(1)
+        expect(text()).not.toContain("Private-network servers must be reachable")
+        expect(button("Try again")).toBeDefined()
+    })
+
+    it("suggests no address where the rule has nothing to replace", async () => {
+        await open(
+            state({
+                ...failed("unsupported_transport", "This address uses the older SSE transport."),
+                url: "https://mcp.internal.acme.dev/events",
+            }),
+        )
+
+        expect(text()).toContain(
+            "This address uses the older SSE transport, which Agenta does not support.",
+        )
+        expect(text()).not.toContain("Try https://")
+    })
 })
 
 describe("the address field's description, in both states", () => {

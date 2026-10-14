@@ -47,6 +47,7 @@ import {
     isBusy,
     mcpChallengeSchemeToShow,
     mcpDefaultKeyHeader,
+    mcpStreamableHttpSuggestion,
     readMcpProbeResponse,
     toolPrefixFromName,
     useMcpConnectJourney,
@@ -146,6 +147,11 @@ const SECRET_HELP =
 /** What a failed check is told, by what the probe found rather than by what it returned. */
 const UNREACHABLE_HEADLINE = "Couldn't reach this server."
 const NOT_AN_MCP_SERVER_HEADLINE = "Reached the address, but it isn't an MCP server."
+const FAILURE_HEADLINES: Record<string, string> = {
+    not_an_mcp_server: NOT_AN_MCP_SERVER_HEADLINE,
+    unsupported_transport:
+        "This address uses the older SSE transport, which Agenta does not support.",
+}
 const UNREACHABLE_ADVICE =
     "Check the address and that the server speaks HTTP transport. Private-network servers must be reachable from Agenta."
 
@@ -632,6 +638,26 @@ export function McpConnectSheet({
     const secretChosen = screen === "api_key" && !!selectedSecretId()
     const host = hostOf(state.url)
     const probeResponse = readMcpProbeResponse(state.probe?.problem)
+    const failureCause = state.probe?.problem?.cause
+    const failureHeadline =
+        (failureCause && FAILURE_HEADLINES[failureCause]) || UNREACHABLE_HEADLINE
+    const streamableSuggestion =
+        failureCause === "unsupported_transport" ? mcpStreamableHttpSuggestion(state.url) : null
+    // The SSE headline is the whole diagnosis, so the probe's sentence, which says the same,
+    // is not repeated under it. Reachability advice is wrong wherever the address answered.
+    const failureBody =
+        failureCause === "unsupported_transport" ? (
+            streamableSuggestion ? (
+                <>
+                    Try <span className="font-mono">{streamableSuggestion}</span>.
+                </>
+            ) : null
+        ) : (
+            <>
+                {state.error ? withMonoHost(state.error, host) : null}{" "}
+                {failureCause === "not_an_mcp_server" ? null : UNREACHABLE_ADVICE}
+            </>
+        )
     // What the server named when it refused the anonymous handshake, where that is anything
     // the Authorization default does not already cover.
     const challengeScheme = mcpChallengeSchemeToShow(state.probe)
@@ -692,18 +718,8 @@ export function McpConnectSheet({
                     ) : null}
 
                     {screen === "url_failed" ? (
-                        <InlineError
-                            id={URL_PROBLEM_ID}
-                            headline={
-                                state.probe?.problem?.cause === "not_an_mcp_server"
-                                    ? NOT_AN_MCP_SERVER_HEADLINE
-                                    : UNREACHABLE_HEADLINE
-                            }
-                        >
-                            {state.error ? withMonoHost(state.error, host) : null}{" "}
-                            {state.probe?.problem?.cause === "not_an_mcp_server"
-                                ? null
-                                : UNREACHABLE_ADVICE}{" "}
+                        <InlineError id={URL_PROBLEM_ID} headline={failureHeadline}>
+                            {failureBody}{" "}
                             {/* Only where the check carried an answer to show. See
                                 `readMcpProbeResponse`. */}
                             {probeResponse ? (

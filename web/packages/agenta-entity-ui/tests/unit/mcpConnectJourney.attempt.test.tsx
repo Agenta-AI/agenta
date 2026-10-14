@@ -838,6 +838,36 @@ describe("an address that answered with something other than a handshake", () =>
     })
 })
 
+describe("an address on the legacy SSE transport", () => {
+    it("stops at the address even though the server answered 401", async () => {
+        // The SSE address refuses like any server behind a sign-in. Before #6915 that sent
+        // it to the key screen, and the key then failed with nothing naming the transport.
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                auth: {mode: "unknown"},
+                problem: {
+                    cause: "unsupported_transport",
+                    message:
+                        "This address uses the older SSE transport, which Agenta does not support.",
+                    response: {status: 401, body: '{"error":"invalid_token"}'},
+                },
+            },
+        })
+
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/sse"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/sse")
+        })
+
+        expect(journey.state.status).toBe("check_failed")
+        expect(journey.state.probe?.problem?.cause).toBe("unsupported_transport")
+        expect(createMcpEndpoint).not.toHaveBeenCalled()
+    })
+})
+
 describe("a credential the server refused", () => {
     it("takes the row away with it, so nothing reports itself connected", async () => {
         // The row carries a secret that does not work, and the registry has no health field

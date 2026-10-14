@@ -8,6 +8,7 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    mcpStreamableHttpSuggestion,
     PROBE_RESPONSE_BODY_LIMIT,
     readMcpProbeResponse,
 } from "../../src/mcpEndpoint/core/probeResponse"
@@ -55,5 +56,29 @@ describe("readMcpProbeResponse", () => {
             status: "HTTP 502",
             body: "",
         })
+    })
+})
+
+describe("mcpStreamableHttpSuggestion", () => {
+    it("replaces a trailing /sse segment with /mcp", () => {
+        expect(mcpStreamableHttpSuggestion("https://mcp.atlassian.com/v1/sse")).toBe(
+            "https://mcp.atlassian.com/v1/mcp",
+        )
+        expect(mcpStreamableHttpSuggestion("https://mcp.example.com/sse")).toBe(
+            "https://mcp.example.com/mcp",
+        )
+        expect(mcpStreamableHttpSuggestion(" https://mcp.example.com/sse/ ")).toBe(
+            "https://mcp.example.com/mcp/",
+        )
+        expect(mcpStreamableHttpSuggestion("https://mcp.example.com/sse?team=a")).toBe(
+            "https://mcp.example.com/mcp?team=a",
+        )
+    })
+
+    it("suggests nothing where there is no /sse segment to replace", () => {
+        expect(mcpStreamableHttpSuggestion("https://mcp.example.com/events")).toBeNull()
+        expect(mcpStreamableHttpSuggestion("https://mcp.example.com/sse/extra")).toBeNull()
+        expect(mcpStreamableHttpSuggestion("https://mcp.example.com/messages-sse")).toBeNull()
+        expect(mcpStreamableHttpSuggestion("not a url")).toBeNull()
     })
 })

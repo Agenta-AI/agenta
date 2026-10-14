@@ -99,3 +99,24 @@ export function mcpDefaultKeyHeader(probe: MCPServerProbe | null | undefined): s
     if (!probe) return "Authorization"
     return mcpChallengeScheme(probe) ? "Authorization" : "x-api-key"
 }
+
+/**
+ * The Streamable HTTP address to suggest for one the probe found on the legacy SSE transport.
+ *
+ * A generic rule, not a list of providers: the usual convention serves the newer transport at
+ * the same address with the trailing `/sse` segment replaced by `/mcp`. It is a suggestion the
+ * person can probe, not a claim. Null for an address with no such segment, because there is
+ * then no rule to apply.
+ */
+export function mcpStreamableHttpSuggestion(url: string): string | null {
+    let parsed: URL
+    try {
+        parsed = new URL(url.trim())
+    } catch {
+        return null
+    }
+    const pathname = parsed.pathname.replace(/\/sse(\/?)$/, "/mcp$1")
+    if (pathname === parsed.pathname) return null
+    parsed.pathname = pathname
+    return parsed.toString()
+}
