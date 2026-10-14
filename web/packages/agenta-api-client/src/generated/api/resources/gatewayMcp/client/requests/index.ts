@@ -1,5 +1,7 @@
+export type { CancelMcpConnectAttemptRequest } from "./CancelMcpConnectAttemptRequest.js";
 export type { DeleteMcpEndpointRequest } from "./DeleteMcpEndpointRequest.js";
 export type { DisconnectMcpEndpointRequest } from "./DisconnectMcpEndpointRequest.js";
+export type { FetchMcpConnectAttemptRequest } from "./FetchMcpConnectAttemptRequest.js";
 export type { FetchMcpEndpointRequest } from "./FetchMcpEndpointRequest.js";
 export type { McpAgentaCredentialRequest } from "./McpAgentaCredentialRequest.js";
 export type { McpConnectRequest } from "./McpConnectRequest.js";
