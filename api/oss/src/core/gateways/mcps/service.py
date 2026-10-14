@@ -47,7 +47,7 @@ from oss.src.core.gateways.mcps.interfaces import (
     MCPRelayResult,
 )
 from oss.src.core.gateways.mcps.oauth.interfaces import MCPOAuthRefresherInterface
-from oss.src.core.gateways.mcps.oauth.storage import grant_settings_expired
+from oss.src.core.gateways.mcps.oauth.storage import grant_refresh_due
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthRefreshFailedError
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.providers.managed.adapter import ManagedMCPAdapter
@@ -135,17 +135,28 @@ _INSUFFICIENT_SCOPE_RE = re.compile(
     r"""\berror\s*=\s*"insufficient_scope"|\berror\s*=\s*insufficient_scope\b"""
 )
 _SCOPE_PARAM_RE = re.compile(r'\bscope\s*=\s*"([^"]*)"')
+_ERROR_DESCRIPTION_PARAM_RE = re.compile(r'\berror_description\s*=\s*"([^"]*)"')
+
+
+def _www_authenticate(headers: Dict[str, str]) -> Optional[str]:
+    return next(
+        (v for k, v in headers.items() if k.lower() == "www-authenticate"), None
+    )
 
 
 def _parse_scope_challenge(headers: Dict[str, str]) -> Optional[List[str]]:
     """Extract scopes from an RFC 6750 insufficient-scope challenge."""
-    header = next(
-        (v for k, v in headers.items() if k.lower() == "www-authenticate"), None
-    )
+    header = _www_authenticate(headers)
     if not header or not _INSUFFICIENT_SCOPE_RE.search(header):
         return None
     match = _SCOPE_PARAM_RE.search(header)
     return match.group(1).split() if match else []
+
+
+def _challenge_description(headers: Dict[str, str]) -> Optional[str]:
+    """The `error_description` of an RFC 6750 challenge: the server's own words."""
+    match = _ERROR_DESCRIPTION_PARAM_RE.search(_www_authenticate(headers) or "")
+    return match.group(1) if match else None
 
 
 def _elapsed_ms(started: float) -> int:
@@ -837,26 +848,61 @@ class MCPGatewayService:
             and route.url.rstrip("/") == env.mock_gateways.mcp_url.rstrip("/")
         ):
             adapter_key = "mock_http"
-        try:
-            result = await self.upstream_registry.get(adapter_key).relay(
-                route=route,
-                auth=auth,
-                context=context,
-                body=body,
-                headers=headers,
-            )
-        except MCPUpstreamError as exc:
-            await record(GatewayOutcome(status_code=exc.status_code))
-            raise
 
-        # A refused credential is a reconnect, not a relayed 401.
+        async def dispatch(auth: MCPRelayAuth) -> MCPRelayResult:
+            try:
+                return await self.upstream_registry.get(adapter_key).relay(
+                    route=route,
+                    auth=auth,
+                    context=context,
+                    body=body,
+                    headers=headers,
+                )
+            except MCPUpstreamError as exc:
+                await record(GatewayOutcome(status_code=exc.status_code))
+                raise
+
+        result = await dispatch(auth)
+
+        oauth_connection = (
+            namespace == GatewayEndpointNamespace.CUSTOM
+            and target.endpoint.auth_mode == MCPAuthScheme.OAUTH
+        )
+
+        # A refused token is refreshed and the call made again, once. The provider can
+        # retire a token before the expiry it stated, and a grant with a refresh token
+        # recovers from that without the person. Only on a real HTTP 401: a timeout or a
+        # transport failure raised above and is never retried, a tool's own error is a
+        # 200, and a 403 is a refusal of the request, not of the token.
+        presented = _presented_access_token(auth)
+        if (
+            oauth_connection
+            and result.status_code == 401
+            and isinstance(auth, MCPDirectAuth)
+            and auth.secret is not None
+            and presented is not None
+            and self.oauth_refresher is not None
+        ):
+            try:
+                secret = await self._renewed(
+                    scope=scope,
+                    target=target,
+                    endpoint=target.endpoint,
+                    secret=auth.secret,
+                    failed_access_token=presented,
+                )
+            except MCPAuthRequiredError:
+                await record(GatewayOutcome(status_code=401))
+                raise
+            auth = MCPDirectAuth(secret=secret)
+            result = await dispatch(auth)
+
+        # A credential still refused is a reconnect, not a relayed 401.
         #
-        # `_renewed` above only renews a grant this deployment can see has expired. It
-        # cannot see a grant the provider retired early — someone removing the
-        # application at the provider, an administrator revoking the account's
-        # authorization, a server that expires a token sooner than it said it would. In
-        # every one of those the stored grant looks live, the relay sends it, and the
-        # upstream answers 401.
+        # The refresh above cannot help a grant the provider retired outright — someone
+        # removing the application at the provider, an administrator revoking the
+        # account's authorization — and the call made with the refreshed token answers
+        # 401 again.
         #
         # That 401 used to travel back to the caller as the upstream's own response, so
         # the connection went on reporting itself connected, the settings screen showed
@@ -869,11 +915,7 @@ class MCPGatewayService:
         # Scoped to a stored OAuth connection: a 401 from an unauthenticated or
         # API-key connection is that server's own answer about that server's own
         # credential, and neither has a consent flow to send anyone back through.
-        if (
-            namespace == GatewayEndpointNamespace.CUSTOM
-            and target.endpoint.auth_mode == MCPAuthScheme.OAUTH
-            and result.status_code == 401
-        ):
+        if oauth_connection and result.status_code == 401:
             await record(GatewayOutcome(status_code=401))
             await self._invalidate_endpoint(
                 scope=scope,
@@ -890,12 +932,10 @@ class MCPGatewayService:
                 ),
             )
 
-        # Convert OAuth insufficient-scope challenges into a reconnect interaction.
-        if (
-            namespace == GatewayEndpointNamespace.CUSTOM
-            and target.endpoint.auth_mode == MCPAuthScheme.OAUTH
-            and result.status_code == 403
-        ):
+        # Convert OAuth insufficient-scope challenges into a reconnect interaction, in the
+        # server's own words when it gave any. Any other 403 is the server's refusal of
+        # this request and is relayed as it came.
+        if oauth_connection and result.status_code == 403:
             challenged_scopes = _parse_scope_challenge(result.headers)
             if challenged_scopes is not None:
                 await record(GatewayOutcome(status_code=403))
@@ -908,6 +948,7 @@ class MCPGatewayService:
                     ),
                     scopes=challenged_scopes,
                     endpoint_id=target.endpoint.id,
+                    detail=_challenge_description(result.headers),
                 )
 
         # Record the relay and filter tool listings when configured.
@@ -1143,8 +1184,10 @@ class MCPGatewayService:
         target: _ResolvedTarget,
         endpoint: MCPEndpoint,
         secret: ResolvedSecret,
+        failed_access_token: Optional[str] = None,
     ) -> ResolvedSecret:
-        """Return a live grant for an OAuth endpoint, refreshing it if it has expired.
+        """Return a live grant for an OAuth endpoint, refreshing it if it is due, or if
+        the upstream just refused `failed_access_token`.
 
         Without this the relay sends an expired access token, the upstream answers 401,
         and the endpoint goes on reporting READY because a secret still exists (OR55).
@@ -1153,7 +1196,7 @@ class MCPGatewayService:
         caller gets the same reconnect affordance a never-connected endpoint gets.
         """
         grant = getattr(secret.secret.data, "grant", None)
-        if not grant_settings_expired(grant):
+        if failed_access_token is None and not grant_refresh_due(grant):
             return secret
 
         server_url = endpoint.data.route.base_url or ""
@@ -1172,6 +1215,7 @@ class MCPGatewayService:
                 project_id=scope.project_id,
                 endpoint_id=endpoint.id,
                 server_url=server_url,
+                failed_access_token=failed_access_token,
             )
         except MCPOAuthRefreshFailedError as e:
             await self._invalidate_endpoint(
@@ -1179,7 +1223,9 @@ class MCPGatewayService:
                 endpoint=endpoint,
                 presented_access_token=getattr(grant, "access_token", None),
             )
-            raise self._reconnect_required(endpoint=endpoint, path=path) from e
+            raise self._reconnect_required(
+                endpoint=endpoint, path=path, message=e.reconnect_message
+            ) from e
 
         # The refresh rewrote the row this reference already names, so the same lookup
         # returns the new tokens.
@@ -1191,9 +1237,10 @@ class MCPGatewayService:
 
     @staticmethod
     def _reconnect_required(
-        *, endpoint: MCPEndpoint, path: str
+        *, endpoint: MCPEndpoint, path: str, message: Optional[str] = None
     ) -> MCPAuthRequiredError:
         return MCPAuthRequiredError(
+            message=message,
             requirement=GatewayConnectionRequirement(
                 target=path,
                 state=GatewayConnectionState.NEEDS_AUTH,
@@ -1201,7 +1248,7 @@ class MCPGatewayService:
                     endpoint=f"/gateways/mcps/endpoints/{endpoint.id}/connect",
                     body={},
                 ),
-            )
+            ),
         )
 
     async def _credential_was_replaced(

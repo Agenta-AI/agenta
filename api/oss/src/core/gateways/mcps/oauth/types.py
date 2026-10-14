@@ -59,7 +59,12 @@ class MCPOAuthRefreshFailedError(GatewaysError):
     refused the one there is. Either way the grant is dead and only the person who
     granted it can replace it, so the data plane turns this into a reconnect refusal
     rather than relaying a call that would come back 401 forever.
+
+    `reconnect_message` is what that refusal tells the person, where a failure has
+    something to say they can act on. Most do not, and their detail stays internal.
     """
+
+    reconnect_message: Optional[str] = None
 
     def __init__(self, *, server_url: str, detail: Optional[str] = None):
         self.server_url = server_url
@@ -69,6 +74,19 @@ class MCPOAuthRefreshFailedError(GatewaysError):
             f"renewed: {detail}"
             if detail
             else f"The stored authorization for {server_url} expired and could not be renewed"
+        )
+
+
+class MCPOAuthNoRefreshTokenError(MCPOAuthRefreshFailedError):
+    """The grant expired, or its token was refused, and it carries no refresh token."""
+
+    reconnect_message = (
+        "No refresh token was issued for this connection. Reconnect to continue."
+    )
+
+    def __init__(self, *, server_url: str):
+        super().__init__(
+            server_url=server_url, detail="the stored grant carries no refresh token"
         )
 
 

@@ -23,13 +23,21 @@ class MCPOAuthRefresherInterface(ABC):
 
     @abstractmethod
     async def refresh_grant(
-        self, *, project_id: UUID, endpoint_id: UUID, server_url: str
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+        server_url: str,
+        failed_access_token: Optional[str] = None,
     ) -> None:
         """Refresh one connection's stored grant, in place.
 
         `endpoint_id` is which grant, because several connections in one project can
         name the same server and each holds its own. `server_url` is where to rediscover
-        the token endpoint, which is routing rather than identity.
+        the token endpoint, which is routing rather than identity. `failed_access_token`
+        is the token the upstream refused, when that is why the refresh is asked for: the
+        grant is then renewed though it has not expired, unless the row no longer holds
+        that token.
 
         Returns nothing: the caller re-reads the secret it already holds a reference to,
         because the refreshed tokens are written back to that same row. Raises

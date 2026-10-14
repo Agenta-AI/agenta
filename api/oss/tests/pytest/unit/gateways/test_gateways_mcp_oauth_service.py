@@ -8,8 +8,9 @@ in-memory fake DAO — no real network, no real authorization server, no real MC
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import datetime, timedelta, timezone
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 from uuid import UUID, uuid4
 
@@ -29,7 +30,10 @@ from oss.src.core.gateways.mcps.oauth.service import (
     MCPOAuthConnectService,
     callback_redirect_uri,
 )
-from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage
+from oss.src.core.gateways.mcps.oauth.storage import (
+    SecretsTokenStorage,
+    grant_refresh_due,
+)
 from oss.src.core.gateways.mcps.oauth.state import STATE_TTL_SECONDS
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthAttemptCancelledError,
@@ -39,11 +43,12 @@ from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthCallerMismatchError,
     MCPOAuthClientNotRegisteredError,
     MCPOAuthIssuerChangedError,
+    MCPOAuthNoRefreshTokenError,
     MCPOAuthRefreshFailedError,
     MCPOAuthStateExpiredError,
     MCPOAuthStateInvalidError,
 )
-from oss.src.core.secrets.dtos import SecretResponseDTO
+from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO, SecretResponseDTO
 from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.secrets.services import VaultService
 from oss.tests.pytest.utils.mcp_endpoints import InMemoryMCPEndpoints
@@ -850,8 +855,10 @@ async def _seed_expired_grant(
     renewable: bool = True,
     access_token: str = "stale-access",
     refresh_token: str = "renewal-handle-1",
+    expires_in: int = -3600,
 ) -> SecretsTokenStorage:
-    """Store a grant that expired an hour ago, as a long-lived connection would hold."""
+    """Store a grant, by default one that expired an hour ago, as a long-lived
+    connection would hold."""
     storage = SecretsTokenStorage(
         vault_service=service.vault_service,
         project_id=project_id,
@@ -863,7 +870,7 @@ async def _seed_expired_grant(
         OAuthToken(
             access_token=access_token,
             token_type="Bearer",
-            expires_in=-3600,
+            expires_in=expires_in,
             refresh_token=refresh_token if renewable else None,
             scope="read write",
         )
@@ -946,12 +953,177 @@ async def test_refresh_grant_raises_when_the_stored_grant_has_no_renewal_handle(
     project_id = uuid4()
     await _seed_expired_grant(service=service, project_id=project_id, renewable=False)
 
-    with pytest.raises(MCPOAuthRefreshFailedError):
+    with pytest.raises(MCPOAuthNoRefreshTokenError):
         await service.refresh_grant(
             project_id=project_id, endpoint_id=_ENDPOINT_ID, server_url=_SERVER_URL
         )
 
     assert calls == []
+
+
+def _grant(*, expires_in: int, refresh_token: Optional[str]) -> OAuthGrantSettingsDTO:
+    return OAuthGrantSettingsDTO(
+        server=_SERVER_URL,
+        access_token="live-access",
+        refresh_token=refresh_token,
+        expires_at=int(time.time()) + expires_in,
+        scopes=["read"],
+    )
+
+
+def test_a_renewable_grant_is_due_inside_the_skew():
+    assert grant_refresh_due(_grant(expires_in=30, refresh_token="renewal-handle-1"))
+
+
+def test_a_grant_without_a_refresh_token_is_used_until_it_really_expires():
+    """Nothing can renew it early, so treating the skew as expiry only took the last
+    minute of a working token away (DataforSEO registers no refresh grant)."""
+    assert not grant_refresh_due(_grant(expires_in=30, refresh_token=None))
+    assert grant_refresh_due(_grant(expires_in=-1, refresh_token=None))
+
+
+@pytest.mark.asyncio
+async def test_a_grant_without_a_refresh_token_inside_the_skew_is_left_alone():
+    calls: List[str] = []
+    service, _dao, _attempts = _service(handler=_refreshing_as_handler(calls=calls))
+    project_id = uuid4()
+    storage = await _seed_expired_grant(
+        service=service,
+        project_id=project_id,
+        access_token="live-access",
+        expires_in=30,
+        renewable=False,
+    )
+
+    await service.refresh_grant(
+        project_id=project_id, endpoint_id=_ENDPOINT_ID, server_url=_SERVER_URL
+    )
+
+    assert calls == []
+    kept = await storage.get_grant()
+    assert kept is not None and kept.access_token == "live-access"
+
+
+@pytest.mark.asyncio
+async def test_a_refused_token_is_refreshed_though_it_has_not_expired():
+    """A provider can retire a token before the expiry it stated."""
+    calls: List[str] = []
+    service, _dao, _attempts = _service(handler=_refreshing_as_handler(calls=calls))
+    project_id = uuid4()
+    storage = await _seed_expired_grant(
+        service=service,
+        project_id=project_id,
+        access_token="live-access",
+        expires_in=3600,
+    )
+
+    await service.refresh_grant(
+        project_id=project_id,
+        endpoint_id=_ENDPOINT_ID,
+        server_url=_SERVER_URL,
+        failed_access_token="live-access",
+    )
+
+    assert calls == ["refresh_token"]
+    renewed = await storage.get_grant()
+    assert renewed is not None and renewed.access_token == "renewed-1"
+
+
+@pytest.mark.asyncio
+async def test_a_refused_token_the_row_no_longer_holds_is_not_refreshed_again():
+    """The row was renewed or reconnected after the refused call went out. Its token is
+    the one to use, and spending its refresh token again would retire it."""
+    calls: List[str] = []
+    service, _dao, _attempts = _service(handler=_refreshing_as_handler(calls=calls))
+    project_id = uuid4()
+    await _seed_expired_grant(
+        service=service,
+        project_id=project_id,
+        access_token="live-access",
+        expires_in=3600,
+    )
+
+    await service.refresh_grant(
+        project_id=project_id,
+        endpoint_id=_ENDPOINT_ID,
+        server_url=_SERVER_URL,
+        failed_access_token="an-older-access",
+    )
+
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_refused_token_with_no_refresh_token_asks_for_a_reconnect():
+    calls: List[str] = []
+    service, _dao, _attempts = _service(handler=_refreshing_as_handler(calls=calls))
+    project_id = uuid4()
+    await _seed_expired_grant(
+        service=service,
+        project_id=project_id,
+        access_token="live-access",
+        expires_in=3600,
+        renewable=False,
+    )
+
+    with pytest.raises(MCPOAuthNoRefreshTokenError) as refusal:
+        await service.refresh_grant(
+            project_id=project_id,
+            endpoint_id=_ENDPOINT_ID,
+            server_url=_SERVER_URL,
+            failed_access_token="live-access",
+        )
+
+    assert refusal.value.reconnect_message == (
+        "No refresh token was issued for this connection. Reconnect to continue."
+    )
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_two_workers_refreshing_one_grant_perform_one_exchange():
+    """Two API workers share the database and nothing else: each has its own in-worker
+    lock. The connection's OAuth lock is what keeps the second from spending a refresh
+    token the first has already rotated."""
+    calls: List[str] = []
+    dao = _FakeSecretsDAO()
+    attempts = InMemoryMCPOAuthAttemptsDAO()
+    endpoints = InMemoryMCPEndpoints(attempts=attempts)
+
+    respond = _refreshing_as_handler(calls=calls)
+
+    async def slow_token_endpoint(request: httpx.Request) -> httpx.Response:
+        # The exchange takes time, as a real one does, so the other worker gets to run
+        # while it is in flight.
+        await asyncio.sleep(0.05)
+        return respond(request)
+
+    def worker() -> MCPOAuthConnectService:
+        return MCPOAuthConnectService(
+            vault_service=VaultService(secrets_dao=dao),
+            client=MCPOAuthClient(transport=httpx.MockTransport(slow_token_endpoint)),
+            api_url=_API_URL,
+            attempts_dao=attempts,
+            endpoints_dao=endpoints,
+            resolve=_private_resolve,
+        )
+
+    first, second = worker(), worker()
+    project_id = uuid4()
+    storage = await _seed_expired_grant(service=first, project_id=project_id)
+
+    await asyncio.gather(
+        first.refresh_grant(
+            project_id=project_id, endpoint_id=_ENDPOINT_ID, server_url=_SERVER_URL
+        ),
+        second.refresh_grant(
+            project_id=project_id, endpoint_id=_ENDPOINT_ID, server_url=_SERVER_URL
+        ),
+    )
+
+    assert calls == ["refresh_token"]
+    renewed = await storage.get_grant()
+    assert renewed is not None and renewed.access_token == "renewed-1"
 
 
 @pytest.mark.asyncio
