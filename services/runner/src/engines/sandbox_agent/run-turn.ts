@@ -336,7 +336,7 @@ export async function runTurn(
    * transcript is exactly the completed turns before it, so it records the same pointer and
    * completes the same ledger row a finished turn does, and the next turn loads it natively.
    */
-  const settleFailedTurnContinuity = async (): Promise<void> => {
+  const settleFailedTurnContinuity = async (): Promise<boolean> => {
     let rolledBack = false;
     // Only a harness in this runner can roll its own transcript back.
     const session = env.session as Partial<InRunnerSessionHandle> | undefined;
@@ -363,7 +363,7 @@ export async function runTurn(
           turnLedgerForFailure.sessionId,
           turnLedgerForFailure.turnIndex,
         );
-      return;
+      return false;
     }
     continuityStore.record(
       sessionId,
@@ -380,6 +380,7 @@ export async function runTurn(
         { authorization: credential(), log: logger },
       ).catch(() => {});
     }
+    return true;
   };
   /**
    * Ask the subscription recovery what to do about a failure, or undefined when this run carries
@@ -803,6 +804,17 @@ export async function runTurn(
         );
       });
       turnLedgerForFailure = turnLedgerContext;
+      const completeTurn = sessionTurnClient.complete;
+      for (const stalled of continuityStore.takeStalledTurns(
+        turnLedgerContext.sessionId,
+      )) {
+        void completeTurn?.(
+          turnLedgerContext.sessionId,
+          stalled.turnIndex,
+          { endTime: stalled.endTime },
+          { authorization: credential(), log: logger },
+        ).catch(() => {});
+      }
     }
 
     // A cold pause sends the harness a cancel (`destroySession`). Claude and Codex answer the open
@@ -2115,7 +2127,7 @@ export async function runTurn(
     otel?.emitEvent(errorEventWithDetail(error, outputLimitReason ? "output_limit_exceeded" : classified.code, classified.detail));
     // An aborted turn may have left a partial turn in the native transcript: roll it back, or
     // drop the resume point.
-    await settleFailedTurnContinuity();
+    const turnRowCompleted = await settleFailedTurnContinuity();
     // Same ordering as the happy path: settle the durable rows before the terminal record goes out.
     await settleInBandInteractions?.();
     // finish() must not throw uncaught — tracing must not mask the run error.
@@ -2138,6 +2150,12 @@ export async function runTurn(
       !opts.settleApprovalsThenPrompt &&
       !approvalReplyOnly &&
       !signal?.aborted;
+    // A stalled attempt did nothing, so its row is finished; the next turn closes it.
+    if (stalledBeforeFirstResponse && turnLedgerForFailure && !turnRowCompleted)
+      continuityStore.noteStalledTurn(turnLedgerForFailure.sessionId, {
+        turnIndex: turnLedgerForFailure.turnIndex,
+        endTime: new Date().toISOString(),
+      });
     return {
       ok: false,
       error,
