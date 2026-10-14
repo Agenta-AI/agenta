@@ -180,3 +180,92 @@ def test_stdlib_records_keep_the_exception(no_product_tracing):
 
     assert line["severity"] == "ERROR"
     assert "ValueError: boom" in line["exception"]
+
+
+def _render_safe(**fields):
+    import json
+
+    from agenta.sdk.utils.logging import json_renderer
+
+    return json.loads(
+        json_renderer()(None, None, {"event": "hi", "level": "INFO.", **fields})
+    )
+
+
+def test_json_renderer_stringifies_uuid_keys():
+    import uuid
+
+    key = uuid.uuid4()
+
+    assert _render_safe(ids={key: 1})["ids"] == {str(key): 1}
+
+
+def test_json_renderer_stringifies_nested_uuid_keys():
+    import uuid
+
+    a, b = uuid.uuid4(), uuid.uuid4()
+    out = _render_safe(ids={a: {"x": [{b: 2}]}})
+
+    assert out["ids"] == {str(a): {"x": [{str(b): 2}]}}
+    assert out["message"] == "hi"
+
+
+def test_json_renderer_survives_object_whose_str_raises():
+    class Bad:
+        def __str__(self):
+            raise RuntimeError("no str")
+
+        def __repr__(self):
+            return "<Bad>"
+
+    out = _render_safe(obj=Bad(), keyed={Bad(): 1})
+
+    assert out["message"] == "hi"
+    assert out["severity"] == "INFO"
+
+
+def test_json_renderer_survives_a_cycle():
+    import uuid
+
+    loop: dict = {uuid.uuid4(): 1}
+    loop["self"] = loop
+    out = _render_safe(loop=loop)
+
+    assert out["message"] == "hi"
+    assert out["severity"] == "INFO"
+
+
+def test_json_formatter_survives_non_str_keys_in_message():
+    import json
+    import logging
+    import uuid
+
+    from agenta.sdk.utils.logging import JsonFormatter
+
+    record = logging.LogRecord(
+        "x", logging.INFO, "f", 1, "%s", ({uuid.uuid4(): 1},), None
+    )
+
+    assert json.loads(JsonFormatter().format(record))["severity"] == "INFO"
+
+
+def test_text_renderer_survives_object_whose_str_raises():
+    from agenta.sdk.utils.logging import colored_console_renderer
+
+    class Bad:
+        def __str__(self):
+            raise RuntimeError("no str")
+
+    line = colored_console_renderer()(
+        None,
+        None,
+        {
+            "event": "hi",
+            "level": "INFO.",
+            "Timestamp": "2026-01-01T00:00:00.000000Z",
+            "logger": "x",
+            "obj": Bad(),
+        },
+    )
+
+    assert "hi" in line
