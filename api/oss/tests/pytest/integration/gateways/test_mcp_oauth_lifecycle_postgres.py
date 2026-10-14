@@ -26,7 +26,10 @@ from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.dtos import MCPOAuthAttemptStatus
 from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
 from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage, grant_slug
-from oss.src.core.gateways.mcps.oauth.types import MCPOAuthAttemptCancelledError
+from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthAttemptCancelledError,
+    MCPOAuthBindFailedError,
+)
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.service import MCPGatewayService
 from oss.src.core.gateways.policy.resolution import SecretsResolver
@@ -337,8 +340,8 @@ async def test_an_old_callback_cannot_overwrite_the_grant_of_a_newer_attempt(
 async def test_cleanup_cannot_delete_a_grant_a_newer_attempt_binds(
     services, project, local_mcp_oauth_provider
 ):
-    """An address edit pauses in its cleanup. A consent for the new address completes
-    meanwhile. It waits for the edit, then binds a grant that stays."""
+    """An address edit pauses in its cleanup. A consent for the new address starts
+    meanwhile. It waits for the edit, then completes and binds a grant that stays."""
     connect, gateway, endpoints = services
     endpoint = await _connection(
         endpoints, project, local_mcp_oauth_provider, "pg-cleanup-race"
@@ -352,27 +355,28 @@ async def test_cleanup_cannot_delete_a_grant_a_newer_attempt_binds(
     reached, release = _pause_after(connect, "cancel_attempts")
     editing = asyncio.create_task(_edit(gateway, project, endpoint, base_url=new_url))
     await reached.wait()
-    start_b = await connect.begin(
-        project_id=project["project_id"],
-        user_id=project["user_id"],
-        endpoint_id=endpoint.id,
-        server_url=new_url,
-        scopes=["tools:call"],
-    )
-    attempt_b = await connect.claim(
-        state=start_b.state, caller_user_id=project["user_id"]
-    )
-    completing_b = asyncio.create_task(
-        connect.complete(
-            attempt=attempt_b,
-            code=local_mcp_oauth_provider.callback_params(state=start_b.state)["code"],
+    # The new consent starts while the cleanup is paused, and waits for it.
+    beginning = asyncio.create_task(
+        connect.begin(
+            project_id=project["project_id"],
+            user_id=project["user_id"],
+            endpoint_id=endpoint.id,
+            server_url=new_url,
+            scopes=["tools:call"],
         )
     )
     await asyncio.sleep(0.3)
-    assert not completing_b.done()
+    assert not beginning.done()
     release.set()
     await editing
-    completion_b = await completing_b
+    start_b = await beginning
+    attempt_b = await connect.claim(
+        state=start_b.state, caller_user_id=project["user_id"]
+    )
+    completion_b = await connect.complete(
+        attempt=attempt_b,
+        code=local_mcp_oauth_provider.callback_params(state=start_b.state)["code"],
+    )
 
     bound = await endpoints.fetch_endpoint(
         project_id=project["project_id"], endpoint_id=endpoint.id
