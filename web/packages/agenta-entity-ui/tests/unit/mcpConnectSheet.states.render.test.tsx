@@ -650,6 +650,22 @@ describe("the OAuth screen's Advanced section", () => {
         expect(writeText).toHaveBeenCalledWith(redirect)
     })
 
+    it("selects the callback for a copy by hand where there is no clipboard", async () => {
+        // A deployment served over plain HTTP has no clipboard API at all.
+        vi.stubGlobal("navigator", {...navigator, clipboard: undefined})
+        const redirect = "http://api.example.test/gateways/mcps/connect/callback"
+        await open(
+            naming({
+                probe: {...OAUTH_PROBE, auth: {...OAUTH_PROBE.auth, redirect_uri: redirect}},
+            }),
+        )
+        await press(button("Advanced"))
+        await press(button("Copy"))
+
+        expect(text()).toContain("Select the URL and copy it.")
+        expect(window.getSelection()?.toString()).toBe(redirect)
+    })
+
     it("hands the typed client ID to the journey", async () => {
         await open(naming())
         await press(button("Advanced"))

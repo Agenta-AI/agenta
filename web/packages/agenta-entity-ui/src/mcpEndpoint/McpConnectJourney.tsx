@@ -1079,6 +1079,9 @@ export function McpConnectSheet({
                                 secretFor === "key" ? (binding.name ?? undefined) : undefined
                             }
                             serverName={state.name}
+                            nameSuffix={
+                                secretFor === "oauth_client" ? "OAUTH_CLIENT_SECRET" : "API_KEY"
+                            }
                             initialValue={secretSeed}
                             onCreated={(row) =>
                                 secretFor === "oauth_client"

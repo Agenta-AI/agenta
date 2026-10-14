@@ -7,10 +7,11 @@
  * server that registers no clients and takes no client ID metadata document opens it, and
  * says why: without an app of the person's own there is nothing to sign in as.
  */
-import {useState, type ReactElement} from "react"
+import {useRef, useState, type ReactElement} from "react"
 
 import type {MCPTokenEndpointAuthMethod} from "@agenta/entities/mcpEndpoint"
-import {CopyButton} from "@agenta/ui/components/presentational"
+import {copyToClipboard} from "@agenta/ui"
+import {message} from "@agenta/ui/app-message"
 import {
     Button,
     Checkbox,
@@ -37,6 +38,8 @@ const SCOPES_HELP =
     "All scopes the server offers are checked. Uncheck one to ask for less. Servers that offer no scopes show nothing here."
 
 const CALLBACK_HELP = "Register this callback URL in your OAuth app."
+
+const COPY_BY_HAND = "Select the URL and copy it."
 
 const AUTH_METHOD_LABEL: Record<MCPTokenEndpointAuthMethod, string> = {
     client_secret_post: "Send the secret in the request body",
@@ -79,6 +82,21 @@ export const OAuthAdvancedFields = ({
     const open = toggled ?? needsOwnApp
     const Caret = open ? CaretDown : CaretRight
     const hasClient = !!clientId.trim()
+    const callbackRef = useRef<HTMLElement>(null)
+    const [copyFailed, setCopyFailed] = useState(false)
+
+    const copyCallback = async () => {
+        if (!redirectUri) return
+        if (await copyToClipboard(redirectUri)) {
+            setCopyFailed(false)
+            message.success("Copied to clipboard!")
+            return
+        }
+        // A page served over plain HTTP has no clipboard, so the URL is selected instead and
+        // the person copies it by hand.
+        if (callbackRef.current) window.getSelection()?.selectAllChildren(callbackRef.current)
+        setCopyFailed(true)
+    }
 
     return (
         <div className="flex flex-col gap-3" data-testid="mcp-oauth-advanced">
@@ -106,13 +124,18 @@ export const OAuthAdvancedFields = ({
                         <div className="flex flex-col gap-1.5">
                             <span className="text-field-md text-colorText">Callback URL</span>
                             <div className="flex items-center gap-2">
-                                <code className="min-w-0 flex-1 truncate font-mono text-[13px] text-colorText">
+                                <code
+                                    ref={callbackRef}
+                                    className="min-w-0 flex-1 truncate font-mono text-[13px] text-colorText"
+                                >
                                     {redirectUri}
                                 </code>
-                                <CopyButton text={redirectUri} variant="outline" size="xs" />
+                                <Button variant="outline" size="xs" onClick={copyCallback}>
+                                    Copy
+                                </Button>
                             </div>
                             <p className="m-0 text-xs leading-normal text-colorTextTertiary">
-                                {CALLBACK_HELP}
+                                {copyFailed ? `${CALLBACK_HELP} ${COPY_BY_HAND}` : CALLBACK_HELP}
                             </p>
                         </div>
                     ) : null}
