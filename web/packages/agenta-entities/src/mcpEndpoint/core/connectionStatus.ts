@@ -14,7 +14,11 @@ import {timeAgo} from "@agenta/shared/utils"
 import {getMcpConnectionState} from "./connectionState"
 import type {MCPEndpoint} from "./types"
 
-export type McpConnectionStatus = "connected" | "login_expired" | "unreachable"
+export type McpConnectionStatus =
+    | "connected"
+    | "login_expired"
+    | "waiting_for_sign_in"
+    | "unreachable"
 
 /**
  * The last explicit check of a connection, or null when nobody has checked it.
@@ -53,10 +57,23 @@ export function getMcpConnectionCheckLabel(health: McpConnectionHealth): string 
  * OAuth grant that was revoked and an API key the server started refusing are the same sentence to
  * the person and differ only in which reconnect path the row offers, which the caller takes from
  * `auth_mode` rather than from here. "Unreachable" is never derived yet; see
- * `readMcpConnectionHealth`.
+ * `readMcpConnectionHealth`. The one exception is an OAuth connection never signed in, which is
+ * waiting for its first sign-in rather than for a new one.
  */
 export function getMcpConnectionStatus(endpoint: MCPEndpoint): McpConnectionStatus {
-    return getMcpConnectionState(endpoint) === "ready" ? "connected" : "login_expired"
+    if (getMcpConnectionState(endpoint) === "ready") return "connected"
+    // An OAuth connection that has never held a grant has no login to expire: its first
+    // sign-in is still under way, or was left unfinished. A finished sign-in records a check,
+    // so a row with no grant, no refusal and no check has never been signed in.
+    if (
+        endpoint.auth_mode === "oauth" &&
+        !endpoint.secret_id &&
+        endpoint.flags?.is_valid !== false &&
+        !endpoint.data?.check
+    ) {
+        return "waiting_for_sign_in"
+    }
+    return "login_expired"
 }
 
 /** One word per status, on every surface, as `getMcpConnectionStateLabel` does for the other set. */
@@ -66,6 +83,8 @@ export function getMcpConnectionStatusLabel(status: McpConnectionStatus): string
             return "Connected"
         case "login_expired":
             return "Login expired"
+        case "waiting_for_sign_in":
+            return "Waiting for sign-in"
         case "unreachable":
             return "Unreachable"
     }

@@ -85,6 +85,7 @@ const DEFAULT_COPY: McpServersSectionCopy = {
 const STATUS_TONE: Record<McpConnectionStatus, "success" | "warning" | "error"> = {
     connected: "success",
     login_expired: "warning",
+    waiting_for_sign_in: "warning",
     unreachable: "error",
 }
 

@@ -131,12 +131,19 @@ const endpoint = (over: Partial<Endpoint> & Pick<Endpoint, "id" | "name">): Endp
 const LINEAR = endpoint({id: "linear", name: "Linear", auth_mode: "oauth", secret_id: "sec-1"})
 const AXIOM = endpoint({id: "axiom", name: "Axiom", auth_mode: "api_key", secret_id: "sec-2"})
 const MEMORY = endpoint({id: "memory", name: "Memory", auth_mode: "none", secret_id: null})
+// Signed in once, then its grant went: the check from that sign-in stays on the row.
 const OCTOLENS = endpoint({
     id: "octolens",
     name: "Octolens",
     auth_mode: "oauth",
     secret_id: null,
+    data: {
+        route: {base_url: "https://mcp.octolens.example/mcp"},
+        check: {ok: true, checked_at: "2026-10-14T12:00:00Z"},
+    },
 })
+// Made by a connect sheet whose sign-in has not finished.
+const PENDING = endpoint({id: "pending", name: "Pending", auth_mode: "oauth", secret_id: null})
 
 const state: {
     query: {data: Endpoint[] | undefined; isPending: boolean}
@@ -268,6 +275,13 @@ describe("the status cell", () => {
         expect(statusTone(cell)).toContain("text-colorWarning")
         expect(statusTone(cell)).not.toContain("text-colorSuccess")
         expect(within(cell).getByRole("button", {name: "Reconnect"})).toBeTruthy()
+    })
+
+    it("reads Waiting for sign-in for a connection whose first sign-in is under way", () => {
+        show([PENDING])
+        const cell = screen.getByTestId("mcp-connection-status")
+        expect(within(cell).getByText("Waiting for sign-in")).toBeTruthy()
+        expect(statusTone(cell)).toContain("text-colorWarning")
     })
 
     it("reads Login expired for a key the server stopped accepting", () => {
