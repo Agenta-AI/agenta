@@ -69,8 +69,9 @@ _TIMEOUT_SECONDS = 10.0
 # enough that a hostile or broken server cannot spend the process's memory; the deadline
 # is twice the inactivity timeout, so an ordinary slow server still completes.
 #
-# The handshake and the discovery a challenge starts share the deadline, so the browser's
-# own bound (`PROBE_TIMEOUT_MS` in `web/packages/agenta-entities`) sits just above it.
+# The whole probe shares the deadline: name resolution, the handshake, the discovery a
+# challenge starts, and the registration check. The browser's own bound
+# (`PROBE_TIMEOUT_MS` in `web/packages/agenta-entities`) sits just above it.
 _DEADLINE_SECONDS = 20.0
 _MAX_RESPONSE_BYTES = 1 * 1024 * 1024
 
@@ -347,8 +348,11 @@ class MCPServerProbe:
             )
 
     async def _probe(self, *, server_url: str) -> MCPServerProbeResult:
+        deadline = asyncio.get_running_loop().time() + _DEADLINE_SECONDS
         try:
-            target = await open_egress(server_url)
+            async with asyncio.timeout_at(deadline):
+                target = await open_egress(server_url)
+                response = await self._handshake(target)
         except EgressRefusedError as e:
             return MCPServerProbeResult(
                 problem=MCPProbeProblem(
@@ -367,11 +371,6 @@ class MCPServerProbe:
                     ),
                 )
             )
-
-        deadline = asyncio.get_running_loop().time() + _DEADLINE_SECONDS
-        try:
-            async with asyncio.timeout_at(deadline):
-                response = await self._handshake(target)
         except _ResponseTooLarge as e:
             return MCPServerProbeResult(
                 reachable=True,
@@ -487,13 +486,21 @@ class MCPServerProbe:
                 ),
             )
 
+        try:
+            async with asyncio.timeout_at(deadline):
+                registration = await self._registration(discovery.registration_endpoint)
+        except TimeoutError:
+            # OAuth was found. Only the client-identity strategy is unknown, and saying
+            # nothing about it is truer than a guess.
+            registration = None
+
         return MCPServerProbeResult(
             reachable=True,
             auth=MCPProbeAuth(
                 mode=MCPProbeAuthMode.OAUTH,
                 authorization_server=discovery.authorization_server,
                 scopes_offered=discovery.scopes_offered,
-                registration=await self._registration(discovery.registration_endpoint),
+                registration=registration,
             ),
         )
 

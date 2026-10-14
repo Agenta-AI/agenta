@@ -947,24 +947,54 @@ async def test_the_excerpt_is_at_most_two_kilobytes():
     assert result.problem.response.body == "y" * 2048
 
 
-@pytest.mark.asyncio
-async def test_the_excerpt_never_carries_a_key_from_the_url():
-    """A person can type a key into the address, and an error page that echoes the
-    request then holds it. The key is removed before the body is cut, so a key that
-    straddles the cut cannot leave its first half behind."""
-    key = "sk-live-0123456789abcdef"
-    url = f"https://mcp.acme.io/mcp?api_key={key}"
-    echoed = "z" * 2040 + f"GET /mcp?api_key={key} not found"
+def _echoing(body: str):
+    """A server that answers 404 with this body, as an error page that echoes a request."""
 
     def handler(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(404, text=echoed)
+        return httpx.Response(404, text=body)
 
-    result = await _probe(handler).probe(server_url=url)
+    return handler
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("written", "echoed"),
+    [
+        ("sk-live-0123456789abcdef", "sk-live-0123456789abcdef"),
+        # Shorter than any header rule would scan for. A short key is still a key.
+        ("secret7", "secret7"),
+        # A query `+` is a space, and an echo can carry either form.
+        ("abcdefgh+ijklmnop", "abcdefgh+ijklmnop"),
+        ("abcdefgh+ijklmnop", "abcdefgh ijklmnop"),
+        ("sk%2Flive%2F0123", "sk/live/0123"),
+    ],
+)
+async def test_the_excerpt_never_carries_a_key_from_the_url(written, echoed):
+    """A person can type a key into the address, and an error page that echoes the
+    request then holds it."""
+    url = f"https://mcp.acme.io/mcp?api_key={written}"
+
+    result = await _probe(_echoing(f"no route for api_key={echoed} here")).probe(
+        server_url=url
+    )
 
     body = result.problem.response.body
-    assert key not in body
-    assert key[:8] not in body
-    assert len(body) <= 2048
+    assert body == "no route for api_key=[REDACTED] here"
+
+
+@pytest.mark.asyncio
+async def test_a_key_across_the_cut_leaves_no_prefix_behind():
+    """The key is removed before the body is cut, so a key that straddles the cut
+    cannot leave its first half in the excerpt."""
+    key = "sk-live-0123456789abcdef"
+    url = f"https://mcp.acme.io/mcp?api_key={key}"
+
+    result = await _probe(_echoing("z" * 2040 + key)).probe(server_url=url)
+
+    body = result.problem.response.body
+    assert len(body) == 2048
+    assert body[2040:] == "[REDACTED]"[:8]
+    assert not any(key[:length] in body for length in range(2, len(key) + 1))
 
 
 # ---------------------------------------------------------------------------
@@ -1026,3 +1056,48 @@ async def test_the_handshake_and_discovery_share_one_deadline(monkeypatch):
     assert "in time" in result.problem.message
     # Two separate deadlines would run past 0.85 s.
     assert elapsed < 0.75
+
+
+@pytest.mark.asyncio
+async def test_a_slow_name_resolution_spends_the_same_deadline(monkeypatch):
+    import oss.src.core.gateways.mcps.probe as probe_module
+
+    monkeypatch.setattr(probe_module, "_DEADLINE_SECONDS", 0.2)
+
+    async def slow_open_egress(_url):
+        await asyncio.sleep(5)
+
+    monkeypatch.setattr(probe_module, "open_egress", slow_open_egress)
+
+    started = time.monotonic()
+    result = await _probe(_open_server()).probe(server_url=_SERVER_URL)
+    elapsed = time.monotonic() - started
+
+    assert result.reachable is False
+    assert result.problem.cause == "unreachable"
+    assert result.problem.transport == "timeout"
+    assert elapsed < 1
+
+
+@pytest.mark.asyncio
+async def test_a_slow_registration_check_keeps_the_oauth_answer(monkeypatch):
+    """The registration check resolves this deployment's own name. When that outlasts
+    the deadline, OAuth was still found, and only the registration is left unsaid."""
+    import oss.src.core.gateways.mcps.probe as probe_module
+
+    monkeypatch.setattr(probe_module, "_DEADLINE_SECONDS", 0.2)
+
+    async def slow_check(_api_url: str) -> bool:
+        await asyncio.sleep(5)
+        return True
+
+    monkeypatch.setattr(probe_module, "is_publicly_resolvable_async", slow_check)
+
+    started = time.monotonic()
+    result = await _probe(_protected_server()).probe(server_url=_SERVER_URL)
+    elapsed = time.monotonic() - started
+
+    assert result.auth.mode is MCPProbeAuthMode.OAUTH
+    assert result.auth.registration is None
+    assert result.problem is None
+    assert elapsed < 1

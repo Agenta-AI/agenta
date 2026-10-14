@@ -21,7 +21,7 @@ because its SSE path yields bytes as they arrive, therefore has no caller here.
 """
 
 from typing import Dict, Mapping, Optional, Tuple
-from urllib.parse import unquote, urlsplit
+from urllib.parse import unquote_plus, urlsplit
 
 from oss.src.core.gateways.dtos import (
     CredentialEchoScanner,
@@ -69,18 +69,16 @@ def url_credentials(url: str) -> Tuple[bytes, ...]:
     """The values a URL's query carries, which is where a typed key sits (`?api_key=...`).
 
     A server that echoes the request into its error page then holds the key. Each value is
-    taken as written and percent-decoded, because an echo can carry either form. Userinfo
-    is not read: the egress check refuses a URL that carries it before anything is sent.
-    The values go through `injected_mcp_credentials`, so the minimum length has one
-    definition.
+    taken as written and query-decoded, because an echo can carry either form. No header
+    rule applies: a query value has no scheme prefix, and a short key is still a key.
+    Userinfo is not read: the egress check refuses a URL that carries it before anything
+    is sent.
     """
     written = [pair.partition("=")[2] for pair in urlsplit(url).query.split("&")]
     forms = dict.fromkeys(
-        form for value in written if value for form in (value, unquote(value))
+        form for value in written if value for form in (value, unquote_plus(value))
     )
-    return injected_mcp_credentials(
-        {str(index): form for index, form in enumerate(forms)}
-    )
+    return tuple(form.encode() for form in forms)
 
 
 def redact_credentials(data: bytes, credentials: Tuple[bytes, ...]) -> bytes:
