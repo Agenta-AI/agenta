@@ -53,7 +53,10 @@ export const sanitizeErrorText = (text: string): string =>
         )
         .replace(/\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9._-]+/g, "[secret]")
         // A provider's own masked copy of the key ("sk-proj-****...abcd") still shows its ends.
-        .replace(/\b(?:sk|pk|rk)-[A-Za-z0-9_-]*(?:\*{3,}|\.{3})[A-Za-z0-9_-]*/g, "[secret]")
+        .replace(
+            /\b(?:sk|pk|rk)-[A-Za-z0-9_-]{0,24}(?:\*{3,}|\.{3})[A-Za-z0-9_-]{0,24}/g,
+            "[secret]",
+        )
         .replace(/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}/g, "[secret]")
         .trim()
 

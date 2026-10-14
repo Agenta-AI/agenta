@@ -333,6 +333,7 @@ def test_ordinary_words_before_a_colon_are_kept():
 def test_redaction_stays_fast_on_a_long_hyphenated_text():
     started = time.monotonic()
     upstream_error_message(code=UPSTREAM_ERROR, provider_message="a-" * 500_000)
+    upstream_error_message(code=UPSTREAM_ERROR, provider_message="sk-a-" * 200_000)
 
     assert time.monotonic() - started < 1
 
