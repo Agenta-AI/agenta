@@ -320,6 +320,15 @@ async def test_a_challenge_naming_several_schemes_reports_them_in_order():
 
 
 @pytest.mark.asyncio
+async def test_a_comma_inside_a_quoted_parameter_is_not_a_scheme():
+    result = await _probe(
+        _key_server(challenge='Bearer realm="one,two", error="a \\"b,c\\""')
+    ).probe(server_url=_SERVER_URL)
+
+    assert result.auth.challenge_schemes == ["Bearer"]
+
+
+@pytest.mark.asyncio
 async def test_a_challenge_naming_no_scheme_reports_none():
     """Nothing is guessed from a bare 401. A screen with no prefill is honest; a screen
     prefilled with a header the server never named is not."""

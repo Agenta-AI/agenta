@@ -250,8 +250,11 @@ def _challenge_schemes(response: httpx.Response) -> List[str]:
     while the token is the one part every challenge has.
 
     Case is preserved as sent, because this is shown to a person rather than compared.
+    Quoted parameter values are emptied first: a comma inside one (`realm="a,b"`) does not
+    separate challenges.
     """
     header = response.headers.get("WWW-Authenticate") or ""
+    header = re.sub(r'"(?:[^"\\]|\\.)*"', '""', header)
     schemes: List[str] = []
     for challenge in header.split(","):
         token = challenge.strip().split(" ", 1)[0].strip()
