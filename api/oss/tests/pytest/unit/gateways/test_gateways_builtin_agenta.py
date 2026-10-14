@@ -112,7 +112,7 @@ def test_a_project_without_a_credential_document_serves_nothing(monkeypatch):
     assert builtin_llm_endpoint(provider_key="agenta") is None
 
 
-def test_agenta_serves_the_two_gemini_flash_models_from_vertex(vertex):
+def test_agenta_serves_the_gemini_models_from_vertex(vertex):
     endpoint = builtin_llm_endpoint(provider_key="agenta")
 
     assert endpoint is not None
@@ -123,6 +123,7 @@ def test_agenta_serves_the_two_gemini_flash_models_from_vertex(vertex):
     assert endpoint.data.models.allowlist == [
         "google/gemini-3.7-flash",
         "google/gemini-3.8-flash",
+        "google/gemini-4-argon",
     ]
 
 

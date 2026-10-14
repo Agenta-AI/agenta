@@ -1067,7 +1067,7 @@ show the MCP settings tab, so set these in the file every container loads and re
 The LLM gateway can serve models from a Google Cloud Vertex AI account that your deployment
 owns, instead of from a key in the project's vault. An agent then picks them from the
 **Built-in: agenta** group in the model picker, and the call is made with your account's
-credential. Today these are Gemini 3.7 Flash and Gemini 3.8 Flash.
+credential. Today these are Gemini 3.7 Flash, Gemini 3.8 Flash, and Gemini 4 Argon.
 
 To turn this on, set both of these on the API container:
 
@@ -1075,7 +1075,7 @@ To turn this on, set both of these on the API container:
   (`base64 -w0 key.json`). The service account needs the Vertex AI User role on the project.
 - `AGENTA_LLM_GATEWAY_VERTEX_PROJECT`: the Google Cloud project id.
 
-The models are called on the Vertex AI `global` location, where both are available. If
+The models are called on the Vertex AI `global` location, where all three are available. If
 either variable is not set, the models are not offered. The LLM gateway must also be on
 (`AGENTA_LLM_GATEWAY_ENABLED=true`).
 
