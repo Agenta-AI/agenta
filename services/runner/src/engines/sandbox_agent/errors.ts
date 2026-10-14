@@ -718,8 +718,8 @@ function providerBodyReason(body: string): string | undefined {
 
 /**
  * A raw `NNN {json}` provider error as one sentence with the provider's own reason, redacted. A
- * 4xx is a refusal of this request (`provider_error`); a 429 or a 5xx is the provider busy or
- * failing, which a retry may fix.
+ * 4xx is a refusal of this request (`provider_error`); a 408 (the LLM gateway gave up waiting), a
+ * 429 or a 5xx is the provider slow, busy or failing, which a retry may fix.
  */
 function describeRawProviderError(
   line: string,
@@ -729,7 +729,7 @@ function describeRawProviderError(
   const status = match[1]!;
   const reason = providerBodyReason(line.slice(line.indexOf("{", match.index)));
   const said = reason === undefined ? undefined : providerSentence(reason);
-  if (status === "429" || status.startsWith("5")) {
+  if (status === "408" || status === "429" || status.startsWith("5")) {
     return {
       message: `The model provider could not answer (HTTP ${status})${said ? `: ${said}` : "."} Try again in a moment.`,
       code: "runner_error",

@@ -637,7 +637,7 @@ provider.
 |---|---|---|---|---|
 | `AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS` | Hard deadline for one run, measured from the first message | `2700000` (45 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS` |
 | `AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS` | Longest gap between two progress events before the run is abandoned | `1800000` (30 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS` |
-| `AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` | Longest wait for the first response after the run starts | `120000` (2 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` |
+| `AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` | Longest wait for the first response after the run starts | `480000` (8 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` |
 | `AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` | Longest a single tool call may take. Also the longest a shell command may run | `1800000` (30 minutes) | no | `agentRunner.env.AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` |
 
 Four rules govern how they interact:

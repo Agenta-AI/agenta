@@ -392,8 +392,13 @@ _DENIAL_CASES = [
         "upstream_error",
     ),
     (
+        LLMUpstreamError(provider_key="openai", status_code=504, detail="slow"),
+        502,
+        "upstream_error",
+    ),
+    (
         LLMUpstreamTimeoutError(provider_key="openai"),
-        504,
+        408,
         "upstream_timeout",
     ),
 ]

@@ -46,8 +46,11 @@ from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
 from oss.src.core.gateways.llms.types import LLMUpstreamError, LLMUpstreamTimeoutError
 from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
 
-# Default timeout for outbound LLM requests.
-_DEFAULT_TIMEOUT_SECONDS = 60.0
+# LiteLLM's defaults: a route's `timeout_seconds`, else 600 s, bounds each read (the wait for
+# the headers, and every gap between two chunks of a stream), not the length of the answer. A
+# provider that does not accept a connection in 5 s is down, not slow.
+_DEFAULT_TIMEOUT_SECONDS = 600.0
+_CONNECT_TIMEOUT_SECONDS = 5.0
 
 
 class LLMUpstreamCredentialEchoError(LLMUpstreamError):
@@ -378,10 +381,11 @@ class RelayLLMAdapter(LLMUpstreamInterface):
                 detail=exc.relay_detail,
             ) from exc
         scanner = CredentialEchoScanner(injected_secrets)
-        timeout = (
+        timeout = httpx.Timeout(
             route.settings.timeout_seconds
             if route.settings.timeout_seconds is not None
-            else _DEFAULT_TIMEOUT_SECONDS
+            else _DEFAULT_TIMEOUT_SECONDS,
+            connect=_CONNECT_TIMEOUT_SECONDS,
         )
 
         client = self._client_for(_pool_origin(target.original_url or url))
@@ -521,8 +525,16 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         # byte of the key.
         relay = CredentialEchoRelay(scanner.secrets)
         reader = _StreamReader(protocol, sign=sign, provider_key=provider_key)
+        # An error body that stalls is the gateway's own timeout. A 2xx stream that stalls after
+        # it started stays an `httpx` error, so `relay_upstream_errors` ends it with the
+        # connection-lost event.
+        chunks = (
+            _timed_bytes(response, provider_key)
+            if response.status_code >= 400
+            else response.aiter_bytes()
+        )
         try:
-            async for chunk in response.aiter_bytes():
+            async for chunk in chunks:
                 try:
                     safe = relay.release(chunk)
                 except CredentialEchoDetected as exc:
@@ -544,6 +556,17 @@ class RelayLLMAdapter(LLMUpstreamInterface):
             # response stayed open and its connection leaked until the pool timed it out
             # (OR48). Shielded, the close completes; the cancellation still propagates.
             await run_shielded(response.aclose())
+
+
+async def _timed_bytes(
+    response: httpx.Response, provider_key: Optional[str]
+) -> AsyncIterator[bytes]:
+    """The response's bytes, with a read that outlasts the timeout raised as the gateway's own."""
+    try:
+        async for chunk in response.aiter_bytes():
+            yield chunk
+    except httpx.TimeoutException as exc:
+        raise LLMUpstreamTimeoutError(provider_key=provider_key) from exc
 
 
 async def _empty_body() -> AsyncIterator[bytes]:

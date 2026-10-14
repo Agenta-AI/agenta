@@ -27,7 +27,10 @@ from oss.src.core.gateways.llms.providers.passthrough.adapter import (
     _MAX_FRAME_BYTES,
     RelayLLMAdapter,
 )
-from oss.src.core.gateways.llms.types import LLMUpstreamError, LLMUpstreamTimeoutError
+from oss.src.core.gateways.llms.types import (
+    LLMUpstreamError,
+    LLMUpstreamTimeoutError,
+)
 from oss.src.core.gateways.policy.dtos import (
     SecretOwner,
     SecretOwnerKind,
@@ -482,14 +485,16 @@ async def test_configured_timeout_overrides_default():
 
     adapter = _adapter(handler)
     await adapter.relay_chat_completion(
-        route=_route(timeout_seconds=5.0),
+        route=_route(timeout_seconds=42.0),
         secret=None,
         context=_context(),
         body=_body(),
         headers={},
     )
 
-    assert captured["request"].extensions["timeout"]["connect"] == 5.0
+    timeout = captured["request"].extensions["timeout"]
+    assert timeout["read"] == timeout["write"] == timeout["pool"] == 42.0
+    assert timeout["connect"] == 5.0
 
 
 @pytest.mark.asyncio
@@ -711,7 +716,9 @@ async def test_default_timeout_used_when_route_leaves_it_unset():
         headers={},
     )
 
-    assert captured["request"].extensions["timeout"]["connect"] == 60.0
+    timeout = captured["request"].extensions["timeout"]
+    assert timeout["read"] == timeout["write"] == timeout["pool"] == 600.0
+    assert timeout["connect"] == 5.0
 
 
 # --- OR49: usage on the streaming path ------------------------------------------ #

@@ -98,7 +98,7 @@ export const readableTraceError = (raw?: string | null): string | null => {
               .slice(0, 300)
               .replace(/[.!?]?$/, ".")
         : ""
-    if (status === "429" || status.startsWith("5"))
+    if (status === "408" || status === "429" || status.startsWith("5"))
         return `The model provider could not answer (HTTP ${status})${said ? `: ${said}` : "."} Try again in a moment.`
     return `The model provider refused the request (HTTP ${status})${said ? `: ${said}` : "."}`
 }

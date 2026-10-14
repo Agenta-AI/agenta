@@ -82,7 +82,7 @@ export interface AppendSessionTurnFn {
     turnIndex: number,
     turn: SessionTurnAppend,
     deps: DurableContinuityDeps,
-  ): Promise<void>;
+  ): Promise<boolean>;
   complete?: CompleteSessionTurnFn;
 }
 
@@ -288,7 +288,8 @@ export async function completeSessionTurn(
 /**
  * Start one ledger row per conversation turn. A 409 throws `SessionTurnIndexTaken`, unlogged:
  * an approval resume reuses its paused turn's row that way, and the caller tells it apart from
- * another runner's turn. Every other failure is logged and swallowed.
+ * another runner's turn. Every other failure is logged and swallowed. Resolves true when the row
+ * was written.
  */
 export const appendSessionTurn: AppendSessionTurnFn = async function appendSessionTurn(
   sessionId,
@@ -296,7 +297,7 @@ export const appendSessionTurn: AppendSessionTurnFn = async function appendSessi
   turnIndex,
   turn,
   deps,
-): Promise<void> {
+): Promise<boolean> {
   const log = deps.log ?? defaultLog;
   let res: Response;
   try {
@@ -328,12 +329,13 @@ export const appendSessionTurn: AppendSessionTurnFn = async function appendSessi
       ? "the turn was cancelled"
       : String(err instanceof Error ? err.message : err).slice(0, 160);
     log(`append failed session=${sessionId} harness=${harness}: ${detail}`);
-    return;
+    return false;
   }
   if (res.status === 409) throw new SessionTurnIndexTaken(sessionId, turnIndex);
   log(
     `append ${res.ok ? "OK" : `HTTP ${res.status}`} session=${sessionId} harness=${harness} turn=${turnIndex}`,
   );
+  return res.ok;
 };
 
 appendSessionTurn.complete = completeSessionTurn;
