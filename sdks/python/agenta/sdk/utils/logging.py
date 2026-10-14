@@ -113,7 +113,7 @@ def colored_console_renderer() -> Processor:
         padded = f"[{level:<5}]"
         logger = f"\033[38;5;245m[{event_dict.pop('logger', '')}]\033[0m"
         extras = " ".join(
-            f"\033[38;5;245m{k}={v}\033[0m"
+            f"\033[38;5;245m{k}={_safe_str(v)}\033[0m"
             for k, v in event_dict.items()
             if k not in hidden
         )
@@ -185,6 +185,68 @@ def trace_fields(project: Optional[str] = None) -> dict:
     }
 
 
+def _safe_str(value: Any) -> str:
+    try:
+        return str(value)
+    except Exception:  # pylint: disable=broad-except
+        try:
+            return repr(value)
+        except Exception:  # pylint: disable=broad-except
+            return f"<unprintable {type(value).__name__}>"
+
+
+def _json_safe(value: Any, _seen: Optional[set] = None) -> Any:
+    """Copy a value into JSON-safe types: str keys at any depth, no cycles."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+
+    seen = _seen if _seen is not None else set()
+    if id(value) in seen:
+        return "<cycle>"
+
+    if isinstance(value, dict):
+        seen.add(id(value))
+        try:
+            return {
+                (k if isinstance(k, str) else _safe_str(k)): _json_safe(v, seen)
+                for k, v in value.items()
+            }
+        finally:
+            seen.discard(id(value))
+    if isinstance(value, (list, tuple, set, frozenset)):
+        seen.add(id(value))
+        try:
+            return [_json_safe(v, seen) for v in value]
+        finally:
+            seen.discard(id(value))
+
+    return _safe_str(value)
+
+
+def dumps_log_record(record: dict) -> str:
+    """Serialize a log record. Never raises: a log call must not break a request."""
+    try:
+        return json.dumps(record, default=str)
+    except Exception:  # pylint: disable=broad-except
+        pass
+    try:
+        return json.dumps(_json_safe(record))
+    except Exception:  # pylint: disable=broad-except
+        pass
+    # last resort: the message plus a repr of the other fields
+    fields = {
+        k: v for k, v in record.items() if k not in ("severity", "message", "time")
+    }
+    return json.dumps(
+        {
+            "severity": _safe_str(record.get("severity", "DEFAULT")),
+            "message": _safe_str(record.get("message", "")),
+            "time": _safe_str(record.get("time", "")),
+            "fields": _safe_str(fields),
+        }
+    )
+
+
 def json_renderer(project: Optional[str] = None) -> Processor:
     """Render a structlog event as one JSON object (Google Cloud Logging fields)."""
 
@@ -200,7 +262,7 @@ def json_renderer(project: Optional[str] = None) -> Processor:
             if key not in JSON_HIDDEN:
                 record[key] = value
         record.update(trace_fields(project))
-        return json.dumps(record, default=str)
+        return dumps_log_record(record)
 
     return render
 
@@ -224,7 +286,7 @@ class JsonFormatter(logging.Formatter):
         if record.exc_info:
             entry["exception"] = self.formatException(record.exc_info)
         entry.update(trace_fields(self.project))
-        return json.dumps(entry, default=str)
+        return dumps_log_record(entry)
 
 
 def console_renderer(

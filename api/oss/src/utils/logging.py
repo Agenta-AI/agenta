@@ -94,6 +94,14 @@ def add_logger_info(
     return event_dict
 
 
+def _safe_str(value) -> str:
+    # a field whose __str__ raises must not break the log call
+    try:
+        return str(value)
+    except Exception:
+        return f"<unprintable {type(value).__name__}>"
+
+
 def colored_console_renderer() -> Processor:
     hidden = {
         "SeverityText",
@@ -113,7 +121,7 @@ def colored_console_renderer() -> Processor:
         padded = f"[{level:<5}]"
         logger = f"\033[38;5;245m[{event_dict.pop('logger', '')}]\033[0m"
         extras = " ".join(
-            f"\033[38;5;245m{k}={v}\033[0m"
+            f"\033[38;5;245m{k}={_safe_str(v)}\033[0m"
             for k, v in event_dict.items()
             if k not in hidden
         )
