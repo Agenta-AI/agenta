@@ -9,8 +9,10 @@ from uuid import UUID
 
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
+from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
+    MCPAuthScheme,
     MCPOAuthConfig,
     api_key_value,
     is_oauth_connection_for,
@@ -44,6 +46,7 @@ from oss.src.core.gateways.mcps.oauth.storage import (
 )
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthAttemptCancelledError,
+    MCPOAuthBindFailedError,
     MCPOAuthCallerMismatchError,
     MCPOAuthClientNotRegisteredError,
     MCPOAuthIssuerChangedError,
@@ -214,6 +217,36 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         server_url: str,
         scopes: List[str],
         oauth_config: Optional[MCPOAuthConfig] = None,
+    ) -> MCPOAuthAuthorizationStart:
+        """Start a consent: discover, choose the client, and record the attempt.
+
+        All of it under the connection's OAuth lock, discovery included, so a disconnect,
+        edit or delete that arrives meanwhile waits for the attempt to exist and then
+        cancels it. Recording the attempt first and filling it in after discovery would
+        hold the lock for less time, but needs a half-written attempt row; the lock costs
+        the connection's other OAuth changes a wait of one discovery at most.
+        """
+        async with self.endpoints_dao.oauth_lock(
+            project_id=project_id, endpoint_id=endpoint_id
+        ):
+            return await self._begin(
+                project_id=project_id,
+                user_id=user_id,
+                endpoint_id=endpoint_id,
+                server_url=server_url,
+                scopes=scopes,
+                oauth_config=oauth_config,
+            )
+
+    async def _begin(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        endpoint_id: UUID,
+        server_url: str,
+        scopes: List[str],
+        oauth_config: Optional[MCPOAuthConfig],
     ) -> MCPOAuthAuthorizationStart:
         discovery = await self.client.discover(server_url=server_url)
         redirect_uri = callback_redirect_uri(api_url=self.api_url)
@@ -449,12 +482,22 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             # the authorization server that actually issued it. `refresh_grant` requires
             # that pin to still hold before it presents the refresh token anywhere.
             grant = await storage.write_tokens(tokens, client_id=client_id)
-            await self.endpoints_dao.bind_endpoint_secret(
+            bound = await self.endpoints_dao.bind_endpoint_secret(
                 project_id=attempt.project_id,
                 user_id=attempt.user_id,
                 endpoint_id=attempt.endpoint_id,
                 secret_id=grant.id,
             )
+            if bound is None:
+                # A grant no connection names is a live token nothing can use or revoke.
+                await storage.delete_grant()
+                failure = MCPOAuthBindFailedError()
+                await self.settle(
+                    attempt=attempt,
+                    status=MCPOAuthAttemptStatus.FAILED,
+                    error=failure.message,
+                )
+                raise failure
             await self.settle(attempt=attempt, status=MCPOAuthAttemptStatus.CONNECTED)
 
         return MCPOAuthCompletion(
@@ -526,21 +569,34 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         return storage, client_info.client_id, tokens
 
     async def disconnect(
-        self, *, project_id: UUID, user_id: UUID, endpoint_id: UUID, server_url: str
+        self, *, project_id: UUID, user_id: UUID, endpoint_id: UUID
     ) -> Optional[MCPEndpoint]:
         """Drop one connection's authorization and keep the connection.
 
-        Under the connection's OAuth lock: the consents in flight are cancelled, the
-        binding is cleared, and the grant row goes, so no callback can bind a grant
-        afterwards. Keyed by connection, so another account at the same server keeps
-        its own. The client registration is not touched: it names this deployment to
-        the authorization server, and other connections there still use it.
+        Under the connection's OAuth lock, and decided on the connection as it stands
+        there: a custom OAuth connection has its consents in flight cancelled, its
+        binding cleared and its grant row deleted, so no callback can bind a grant
+        afterwards. Any other connection, such as one an edit just moved to an API key,
+        is returned unchanged. `None` when there is no connection. Keyed by connection,
+        so another account at the same server keeps its own. The client registration is
+        not touched: it names this deployment to the authorization server.
         """
         async with self.endpoints_dao.oauth_lock(
             project_id=project_id, endpoint_id=endpoint_id
         ):
+            endpoint = await self.endpoints_dao.fetch_endpoint(
+                project_id=project_id, endpoint_id=endpoint_id
+            )
+            if (
+                endpoint is None
+                or endpoint.namespace != GatewayEndpointNamespace.CUSTOM
+                or endpoint.auth_mode != MCPAuthScheme.OAUTH
+            ):
+                return endpoint
             await self.release_grant(
-                project_id=project_id, endpoint_id=endpoint_id, server_url=server_url
+                project_id=project_id,
+                endpoint_id=endpoint_id,
+                server_url=endpoint.data.route.base_url or "",
             )
             return await self.endpoints_dao.bind_endpoint_secret(
                 project_id=project_id,

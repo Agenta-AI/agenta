@@ -18,7 +18,11 @@ import pytest
 from mcp.shared.auth import OAuthToken
 
 from oss.src.core.gateways.dtos import GatewayAuthScheme
-from oss.src.core.gateways.mcps.dtos import MCPEndpointData, MCPEndpointRoute
+from oss.src.core.gateways.mcps.dtos import (
+    MCPEndpoint,
+    MCPEndpointData,
+    MCPEndpointRoute,
+)
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.dtos import MCPOAuthAttemptStatus
 from oss.src.core.gateways.mcps.oauth.service import (
@@ -29,6 +33,7 @@ from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage
 from oss.src.core.gateways.mcps.oauth.state import STATE_TTL_SECONDS
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthAttemptCancelledError,
+    MCPOAuthBindFailedError,
     MCPOAuthTokenExchangeError,
     MCPOAuthRegistrationUnavailableError,
     MCPOAuthCallerMismatchError,
@@ -723,7 +728,6 @@ async def test_disconnect_cancels_a_consent_still_in_flight():
         project_id=project_id,
         user_id=user_id,
         endpoint_id=endpoint_id,
-        server_url=_SERVER_URL,
     )
 
     with pytest.raises(MCPOAuthAttemptCancelledError):
@@ -1449,7 +1453,6 @@ async def test_a_disconnect_during_the_exchange_wins_and_nothing_is_written():
             project_id=project_id,
             user_id=user_id,
             endpoint_id=endpoint_id,
-            server_url=_SERVER_URL,
         )
 
     (outcome,) = await _complete_around(service, start, user_id, disconnect)
@@ -1534,3 +1537,98 @@ async def test_a_refused_exchange_is_recorded_as_the_attempts_failure():
     record = attempts.attempts[start.state]
     assert record.status == MCPOAuthAttemptStatus.FAILED
     assert "invalid_grant" in record.error
+
+
+def _connection(
+    service, endpoint_id, *, auth_mode=GatewayAuthScheme.OAUTH, secret_id=None
+):
+    service.endpoints_dao.put(
+        MCPEndpoint(
+            id=endpoint_id,
+            slug="acme",
+            auth_mode=auth_mode,
+            secret_id=secret_id,
+            data=MCPEndpointData(route=MCPEndpointRoute(base_url=_SERVER_URL)),
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_disconnect_decides_on_the_connection_as_it_stands_under_the_lock():
+    """Disconnect was refused or allowed on a read taken before the lock. An edit to an
+    API key landing in between then had its key cleared."""
+    service, _dao, _attempts = _service()
+    project_id, user_id, endpoint_id, key = uuid4(), uuid4(), uuid4(), uuid4()
+    _connection(
+        service, endpoint_id, auth_mode=GatewayAuthScheme.API_KEY, secret_id=key
+    )
+
+    unchanged = await service.disconnect(
+        project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+
+    assert unchanged.auth_mode == GatewayAuthScheme.API_KEY
+    assert service.endpoints_dao.endpoints[endpoint_id].secret_id == key
+
+
+@pytest.mark.asyncio
+async def test_a_bind_that_fails_is_a_failure_and_leaves_no_grant():
+    service, dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+    start = await _begin(
+        service, project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+
+    async def no_row(**_kwargs):
+        return None
+
+    service.endpoints_dao.bind_endpoint_secret = no_row
+
+    with pytest.raises(MCPOAuthBindFailedError):
+        await _callback(
+            service, code="auth-code-1", state=start.state, caller_user_id=user_id
+        )
+
+    assert _grant_rows(dao) == []
+    record = attempts.attempts[start.state]
+    assert record.status == MCPOAuthAttemptStatus.FAILED
+    assert record.error == MCPOAuthBindFailedError().message
+
+
+@pytest.mark.asyncio
+async def test_a_disconnect_during_a_begin_cancels_the_attempt_it_creates():
+    """Begin holds the connection's lock from discovery to the recorded attempt. A
+    disconnect arriving meanwhile waits for the attempt, then cancels it."""
+    service, dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+    _connection(service, endpoint_id)
+    reached, release = asyncio.Event(), asyncio.Event()
+    original = service.client.discover
+
+    async def paused(**kwargs):
+        reached.set()
+        await release.wait()
+        return await original(**kwargs)
+
+    service.client.discover = paused
+    beginning = asyncio.create_task(
+        _begin(service, project_id=project_id, user_id=user_id, endpoint_id=endpoint_id)
+    )
+    await reached.wait()
+    disconnecting = asyncio.create_task(
+        service.disconnect(
+            project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+        )
+    )
+    await asyncio.sleep(0.05)
+    assert not disconnecting.done()
+    release.set()
+    start = await beginning
+    await disconnecting
+
+    with pytest.raises(MCPOAuthAttemptCancelledError):
+        await _callback(
+            service, code="auth-code-1", state=start.state, caller_user_id=user_id
+        )
+    assert _grant_rows(dao) == []
+    assert service.endpoints_dao.endpoints[endpoint_id].secret_id is None

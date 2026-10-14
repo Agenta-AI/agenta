@@ -92,6 +92,10 @@ class MCPEndpointsDAOInterface(ABC):
         `secret_id=None` is the disconnect: the handle goes and the connection stays
         valid, because nothing died — it simply holds no authorization now.
 
+        Returns `None`, and writes nothing, when the connection is gone or the write
+        failed. A caller binding a grant must check it: `None` means no connection names
+        the grant.
+
         Separate from `edit_endpoint` because a credential transition is not an edit of
         the connection. `edit_endpoint` is a full PUT built from a snapshot the caller
         read earlier, so expressing "the grant changed" through it wrote back every other

@@ -184,3 +184,14 @@ class MCPOAuthClientNotRegisteredError(GatewaysError):
     def __init__(self, *, server_url: str):
         self.server_url = server_url
         super().__init__(f"No OAuth client registration on file for {server_url}")
+
+
+class MCPOAuthBindFailedError(GatewaysError):
+    """The consent succeeded and the tokens were issued, but the connection could not be
+    pointed at them, because its row is gone or the write failed. The tokens are removed
+    rather than left in the vault with nothing naming them."""
+
+    def __init__(self):
+        super().__init__(
+            "The sign-in worked, but the connection could not be saved. Connect again."
+        )

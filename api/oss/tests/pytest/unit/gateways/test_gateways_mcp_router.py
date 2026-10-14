@@ -233,8 +233,10 @@ class MockMCPOAuthConnectService:
             raise MCPOAuthCallerMismatchError()
         return self.claim_return
 
-    async def disconnect(self, *, project_id, user_id, endpoint_id, server_url):
-        self.calls.append(("disconnect", server_url))
+    async def disconnect(self, *, project_id, user_id, endpoint_id):
+        # The service decides on the row it reads under the lock and answers with it:
+        # `None` for no row, the row unchanged when it is not an OAuth connection.
+        self.calls.append(("disconnect", endpoint_id))
         self.disconnected.append(endpoint_id)
         if self.disconnect_return is True:
             return _oauth_endpoint(endpoint_id, secret_id=None)
@@ -1260,22 +1262,22 @@ def test_disconnect_leaves_the_connection_itself_in_place(
 
 
 def test_disconnect_missing_endpoint_404s(client, service, oauth_service, allow):
-    service.fetch_return = None
+    oauth_service.disconnect_return = None
 
     response = client.delete(f"/endpoints/{uuid4()}/connect")
 
     assert response.status_code == 404, response.text
-    assert oauth_service.disconnected == []
 
 
 def test_disconnect_rejects_a_non_oauth_endpoint(client, service, oauth_service, allow):
     endpoint_id = uuid4()
-    service.fetch_return = _endpoint(endpoint_id)
+    oauth_service.disconnect_return = _endpoint(endpoint_id)
 
     response = client.delete(f"/endpoints/{endpoint_id}/connect")
 
     assert response.status_code == 400, response.text
-    assert oauth_service.disconnected == []
+    # Nothing was changed: the service answered with the row as it found it.
+    assert service.calls == []
 
 
 def test_disconnect_denied_check_short_circuits_before_anything_is_dropped(

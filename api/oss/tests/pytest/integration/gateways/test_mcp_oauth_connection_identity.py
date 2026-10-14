@@ -404,7 +404,9 @@ async def test_disconnecting_one_account_leaves_the_other_at_the_same_url_workin
     assert len(await _grants(project_id=project_id)) == 2
 
     await connect_service.disconnect(
-        project_id=project_id, user_id=user_id, endpoint_id=account_a.id, server_url=url
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=account_a.id,
     )
 
     remaining = await _grants(project_id=project_id)
@@ -471,7 +473,6 @@ async def test_disconnecting_something_already_disconnected_changes_nothing(
             project_id=project_id,
             user_id=user_id,
             endpoint_id=connection.id,
-            server_url=url,
         )
         assert await _grants(project_id=project_id) == []
 
@@ -498,7 +499,6 @@ async def test_a_disconnected_connection_can_consent_again(
         project_id=project_id,
         user_id=user_id,
         endpoint_id=connection.id,
-        server_url=url,
     )
 
     second = await _consent(

@@ -574,40 +574,27 @@ class MCPGatewayRouter:
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
 
-        endpoint = await self.service.fetch_endpoint(
+        # Decided by the service on the connection as it stands under its OAuth lock, so a
+        # connection an edit just moved to an API key keeps its key.
+        disconnected = await self.oauth_connect_service.disconnect(
             project_id=scope.project_id,
-            #
+            user_id=scope.user_id,
             endpoint_id=endpoint_id,
         )
-        if not endpoint:
+        if disconnected is None:
+            # A write that produced no row is not a disconnect. Reporting one would say
+            # the authorization is gone while the connection still names it (D20).
             raise MCPEndpointNotFoundError(
                 namespace=GatewayEndpointNamespace.CUSTOM,
                 name=str(endpoint_id),
             )
         if (
-            endpoint.namespace != GatewayEndpointNamespace.CUSTOM
-            or endpoint.auth_mode != GatewayAuthScheme.OAUTH
+            disconnected.namespace != GatewayEndpointNamespace.CUSTOM
+            or disconnected.auth_mode != GatewayAuthScheme.OAUTH
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="endpoint is not a custom OAuth target",
-            )
-
-        # The handle goes whether or not a row was there to delete: a `secret_id`
-        # pointing at nothing is the state that made an endpoint report itself ready
-        # and then fail every call.
-        disconnected = await self.oauth_connect_service.disconnect(
-            project_id=scope.project_id,
-            user_id=scope.user_id,
-            endpoint_id=endpoint.id,
-            server_url=endpoint.data.route.base_url or "",
-        )
-        if disconnected is None:
-            # A write that produced no row is not a disconnect. Reporting one would say
-            # the authorization is gone while the connection still names it (D20).
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="endpoint not found",
             )
 
         return MCPEndpointResponse(count=1, endpoint=disconnected)
