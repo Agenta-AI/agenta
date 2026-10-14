@@ -96,6 +96,8 @@ export interface McpConnectJourneyProps {
         slug: string
         name: string
         url: string
+        /** The secret it is saved with, which the secret select starts on. */
+        secretId?: string | null
         /** How the connection authorizes, so a reconnect repairs the right thing. */
         authMode?: "oauth" | "api_key" | "none"
         /** Where its credential is already sent, which a repair keeps. */
@@ -417,7 +419,17 @@ export function McpConnectSheet({
         (hasUrlSecretPlaceholder(state.url)
             ? MCP_URL_CREDENTIAL_BINDING
             : mcpDefaultCredentialBinding(state.probe))
-    const [secretSlug, setSecretSlug] = useState("")
+    /** The secret as the person picked it, or null while they have picked none. */
+    const [pickedSecretSlug, setSecretSlug] = useState<string | null>(null)
+    // A reconnect starts on the secret the connection is saved with, for the same reason
+    // its binding does.
+    const savedSecretId = reconnect?.secretId
+    const secretSlug =
+        pickedSecretSlug ??
+        (savedSecretId
+            ? namedSecrets.find((secret) => secret.id === savedSecretId)?.slug
+            : undefined) ??
+        ""
     const [creatingSecret, setCreatingSecret] = useState(false)
     /** The Basic helper's encoded value, which the create drawer opens with. */
     const [secretSeed, setSecretSeed] = useState<string | undefined>(undefined)

@@ -226,6 +226,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                                   slug: selected.slug,
                                   name: selected.name || selected.slug,
                                   url: selected.data.route.base_url || "",
+                                  secretId: selected.secret_id,
                                   authMode: selected.auth_mode,
                                   credentialBinding: selected.data.route.credential_binding,
                               }

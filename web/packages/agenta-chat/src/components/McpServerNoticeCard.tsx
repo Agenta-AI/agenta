@@ -82,6 +82,7 @@ export const McpServerNoticeCard = ({notice, className}: McpServerNoticeCardProp
                         slug: endpoint.slug,
                         name: endpoint.name || endpoint.slug,
                         url: endpoint.data?.route?.base_url || "",
+                        secretId: endpoint.secret_id,
                         authMode: endpoint.auth_mode,
                         credentialBinding: endpoint.data?.route?.credential_binding,
                     }}
