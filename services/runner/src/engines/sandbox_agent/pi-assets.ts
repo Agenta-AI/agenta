@@ -821,6 +821,10 @@ export function withGatewayPiRetry(existing: string | undefined): string {
   );
 }
 
+/**
+ * Best-effort, like the Daytona upload below: a run whose write failed keeps Pi's default retries,
+ * which is how every run behaved before, so it is not stopped for it.
+ */
 function writeGatewayPiRetryLocal(agentDir: string, log: Log): void {
   const file = join(agentDir, PI_SETTINGS_FILENAME);
   try {
