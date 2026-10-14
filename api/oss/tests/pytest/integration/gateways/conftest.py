@@ -18,6 +18,7 @@ from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+from oss.tests.pytest.utils.mcp_endpoints import InMemoryMCPEndpoints
 from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
 
 # The shared guard, and the one statement this layer keeps the default for: it reads the core
@@ -327,11 +328,13 @@ def connect_service(local_mcp_oauth_provider, _public_dns_for_the_oauth_provider
     secrets DAO beside the service: the cases that use this one assert on rows a unique
     index arbitrates, which only real Postgres has.
     """
+    attempts = InMemoryMCPOAuthAttemptsDAO()
     return MCPOAuthConnectService(
         vault_service=VaultService(secrets_dao=SecretsDAO()),
         client=MCPOAuthClient(transport=local_mcp_oauth_provider.transport),
         api_url="https://api.oauth.local",
-        attempts_dao=InMemoryMCPOAuthAttemptsDAO(),
+        attempts_dao=attempts,
+        endpoints_dao=InMemoryMCPEndpoints(attempts=attempts),
         resolve=lambda _hostname: ["10.0.0.1"],
     )
 
@@ -342,11 +345,13 @@ def local_mcp_oauth_connect_service(
 ):
     """Service+vault fixture for the local OAuth provider integration contract."""
     dao = _InMemorySecretsDAO()
+    attempts = InMemoryMCPOAuthAttemptsDAO()
     service = MCPOAuthConnectService(
         vault_service=VaultService(secrets_dao=dao),
         client=MCPOAuthClient(transport=local_mcp_oauth_provider.transport),
         api_url="https://api.oauth.local",
-        attempts_dao=InMemoryMCPOAuthAttemptsDAO(),
+        attempts_dao=attempts,
+        endpoints_dao=InMemoryMCPEndpoints(attempts=attempts),
         resolve=lambda _hostname: ["10.0.0.1"],
     )
     return service, dao

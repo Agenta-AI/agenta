@@ -348,6 +348,23 @@ describe("watchOauthConsent completion check", () => {
         expect(watch.onFailed).toHaveBeenCalledOnce()
     })
 
+    it("reports the window's own reading when the check never answers", async () => {
+        const popup = {closed: false}
+        const watch = setup({popup, checkOutcome: () => new Promise<Outcome>(() => undefined)})
+
+        popup.closed = true
+        watch.tickPoll()
+        await flush()
+        expect(watch.onFailed).not.toHaveBeenCalled()
+
+        // The check's own bound, the only timer left once the window has closed.
+        expect(attached(watch)).toEqual({listeners: 0, intervals: 0, timeouts: 1})
+        watch.fireTimeout()
+
+        expect(watch.onFailed).toHaveBeenCalledWith(CONSENT_CLOSED_MESSAGE)
+        expect(attached(watch)).toEqual({listeners: 0, intervals: 0, timeouts: 0})
+    })
+
     it("delivers nothing when stopped while the server is being asked", async () => {
         let answer!: (outcome: Outcome) => void
         const popup = {closed: false}

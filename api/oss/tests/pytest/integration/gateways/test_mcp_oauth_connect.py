@@ -70,10 +70,15 @@ class _EndpointStore:
         return self.endpoint
 
     async def bind_endpoint_secret(
-        self, *, project_id, user_id, endpoint_id, secret_id
+        self, *, project_id, user_id, endpoint_id, secret_id, oauth_server_url=None
     ):
         # Two columns, the way the real DAO writes a credential transition (D3).
         if endpoint_id != self.endpoint.id:
+            return None
+        if oauth_server_url is not None and (
+            self.endpoint.auth_mode != GatewayAuthScheme.OAUTH
+            or self.endpoint.data.route.base_url != oauth_server_url
+        ):
             return None
         self.endpoint = self.endpoint.model_copy(
             update={
@@ -103,6 +108,8 @@ def test_dashboard_connect_callback_and_scope_step_up_share_one_grant_handle(
         data=MCPEndpointData(route=MCPEndpointRoute(base_url=provider.server_url)),
     )
     store = _EndpointStore(endpoint)
+    # One store behind both, so the service binds the connection the router serves.
+    oauth_service.endpoints_dao = store
     router = MCPGatewayRouter(
         mcp_gateway_service=store,
         oauth_connect_service=oauth_service,

@@ -237,7 +237,7 @@ async def test_cancelling_attempts_for_a_connection_that_has_none_is_not_an_erro
 
 
 @pytest.mark.asyncio
-async def test_a_cancel_by_id_reaches_only_that_pending_attempt(seeded_project):
+async def test_a_cancel_by_id_reaches_only_that_active_attempt(seeded_project):
     dao = MCPOAuthAttemptsDAO()
     endpoint_id = uuid4()
     named, other, claimed = [
@@ -264,10 +264,12 @@ async def test_a_cancel_by_id_reaches_only_that_pending_attempt(seeded_project):
             attempt.id: (await dao.fetch_attempt(state=attempt.state)).status
             for attempt in (named, other, claimed)
         }
+        # A claimed attempt is mid-exchange, and its finalization re-checks it under
+        # the lock, so a cancel reaches it too.
         assert statuses == {
             named.id: MCPOAuthAttemptStatus.CANCELLED,
             other.id: MCPOAuthAttemptStatus.PENDING,
-            claimed.id: MCPOAuthAttemptStatus.CLAIMED,
+            claimed.id: MCPOAuthAttemptStatus.CANCELLED,
         }
     finally:
         await _cleanup(seeded_project["project_id"])
@@ -306,5 +308,68 @@ async def test_a_settled_attempt_is_read_back_by_id_with_its_outcome(seeded_proj
             )
             is None
         )
+    finally:
+        await _cleanup(seeded_project["project_id"])
+
+
+@pytest.mark.asyncio
+async def test_a_cancel_waits_for_a_finalization_in_progress_and_then_changes_nothing(
+    seeded_project,
+):
+    """The grant is written and bound inside the block. A cancel that arrives then must
+    not report the attempt cancelled over a connection that is bound."""
+    dao = MCPOAuthAttemptsDAO()
+    created = await dao.create_attempt(
+        attempt=_attempt(
+            project_id=seeded_project["project_id"],
+            user_id=seeded_project["user_id"],
+        )
+    )
+    await dao.consume_attempt(state=created.state)
+
+    try:
+        async with dao.finalize_attempt(attempt_id=created.id) as settle:
+            assert settle is not None
+            cancelling = asyncio.create_task(
+                dao.cancel_attempts(
+                    project_id=seeded_project["project_id"],
+                    endpoint_id=created.endpoint_id,
+                )
+            )
+            await asyncio.sleep(0.2)
+            assert not cancelling.done()
+            await settle(MCPOAuthAttemptStatus.CONNECTED)
+
+        assert await cancelling == 0
+        read = await dao.fetch_attempt(state=created.state)
+        assert read.status == MCPOAuthAttemptStatus.CONNECTED
+    finally:
+        await _cleanup(seeded_project["project_id"])
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_attempt_cannot_be_finalized_or_settled(seeded_project):
+    dao = MCPOAuthAttemptsDAO()
+    created = await dao.create_attempt(
+        attempt=_attempt(
+            project_id=seeded_project["project_id"],
+            user_id=seeded_project["user_id"],
+        )
+    )
+    await dao.consume_attempt(state=created.state)
+    await dao.cancel_attempts(
+        project_id=seeded_project["project_id"], endpoint_id=created.endpoint_id
+    )
+
+    try:
+        async with dao.finalize_attempt(attempt_id=created.id) as settle:
+            assert settle is None
+        await dao.settle_attempt(
+            attempt_id=created.id, status=MCPOAuthAttemptStatus.FAILED, error="late"
+        )
+
+        read = await dao.fetch_attempt(state=created.state)
+        assert read.status == MCPOAuthAttemptStatus.CANCELLED
+        assert read.error is None
     finally:
         await _cleanup(seeded_project["project_id"])

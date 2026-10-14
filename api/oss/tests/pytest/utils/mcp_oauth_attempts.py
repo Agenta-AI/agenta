@@ -6,6 +6,7 @@ outcome — so a test that passes here and
 fails against Postgres is a real disagreement, not a fixture artifact.
 """
 
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Dict, Optional
 from uuid import uuid4
@@ -62,10 +63,35 @@ class InMemoryMCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
 
     async def settle_attempt(self, *, attempt_id, status, error=None) -> None:
         for state, record in self.attempts.items():
-            if record.id == attempt_id:
+            if (
+                record.id == attempt_id
+                and record.status == MCPOAuthAttemptStatus.CLAIMED
+            ):
                 self.attempts[state] = record.model_copy(
-                    update={"status": status, "error": error, "code_verifier": ""}
+                    update={"status": status, "error": error}
                 )
+
+    @asynccontextmanager
+    async def finalize_attempt(self, *, attempt_id):
+        found = [
+            (state, record)
+            for state, record in self.attempts.items()
+            if record.id == attempt_id
+            and record.status == MCPOAuthAttemptStatus.CLAIMED
+            and record.expires_at > datetime.now(timezone.utc)
+        ]
+        if not found:
+            yield None
+            return
+        state = found[0][0]
+        outcome = {}
+
+        async def settle(status) -> None:
+            outcome["status"] = status
+
+        yield settle
+        if outcome:
+            self.attempts[state] = self.attempts[state].model_copy(update=outcome)
 
     async def cancel_attempts(
         self,
@@ -79,7 +105,8 @@ class InMemoryMCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
             for state, record in self.attempts.items()
             if record.project_id == project_id
             and record.endpoint_id == endpoint_id
-            and record.status == MCPOAuthAttemptStatus.PENDING
+            and record.status
+            in (MCPOAuthAttemptStatus.PENDING, MCPOAuthAttemptStatus.CLAIMED)
             and (attempt_id is None or record.id == attempt_id)
         ]
         for state in cancelled:

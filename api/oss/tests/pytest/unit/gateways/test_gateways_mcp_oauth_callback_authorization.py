@@ -51,8 +51,13 @@ class _EndpointStore:
         return [self.endpoint]
 
     async def bind_endpoint_secret(
-        self, *, project_id, user_id, endpoint_id, secret_id
+        self, *, project_id, user_id, endpoint_id, secret_id, oauth_server_url=None
     ):
+        if oauth_server_url is not None and (
+            self.endpoint.auth_mode != GatewayAuthScheme.OAUTH
+            or self.endpoint.data.route.base_url != oauth_server_url
+        ):
+            return None
         self.endpoint = self.endpoint.model_copy(update={"secret_id": secret_id})
         return self.endpoint
 
@@ -81,6 +86,8 @@ def _start_consent(monkeypatch):
             data=MCPEndpointData(route=MCPEndpointRoute(base_url=_SERVER_URL)),
         )
     )
+    # One store behind both, so the service sees the connection the router edits.
+    service.endpoints_dao = store
     router = MCPGatewayRouter(
         mcp_gateway_service=store, oauth_connect_service=service, server_probe=None
     )
@@ -237,3 +244,54 @@ def test_a_completed_attempt_reports_connected_to_the_sheet(monkeypatch):
         "status": "connected",
     }
     assert len(_grants(dao, project_id=project_id)) == 1
+
+
+@pytest.mark.parametrize("caller", ["nobody", "somebody else"])
+def test_an_error_callback_the_caller_cannot_claim_leaves_the_attempt(
+    monkeypatch, caller
+):
+    """The authorization server holds `state` too. Without the claim it could end the
+    person's attempt by sending an error with no Agenta session behind it."""
+    client, handle, store, dao, project_id, start, _permitted = _start_consent(
+        monkeypatch
+    )
+    stranger = None if caller == "nobody" else uuid4()
+
+    async def _session_user(_request):
+        return stranger
+
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.mcps.router.resolve_session_user_id",
+        _session_user,
+    )
+
+    response = client.get(
+        "/connect/callback", params={"state": handle, "error": "access_denied"}
+    )
+
+    assert response.status_code == 400
+    assert _outcome(client, store, start)["status"] == "pending"
+
+
+@pytest.mark.parametrize("first", ["error", "success"])
+def test_of_a_success_and_an_error_for_one_attempt_exactly_one_wins(monkeypatch, first):
+    client, handle, store, dao, project_id, start, _permitted = _start_consent(
+        monkeypatch
+    )
+    error = {"state": handle, "error": "access_denied"}
+    success = {"state": handle, "code": "auth-code-1"}
+    requests = [error, success] if first == "error" else [success, error]
+
+    responses = [client.get("/connect/callback", params=p) for p in requests]
+
+    assert [r.status_code for r in responses] == (
+        [400, 400] if first == "error" else [200, 400]
+    )
+    outcome = _outcome(client, store, start)["status"]
+    if first == "error":
+        assert outcome == "failed"
+        assert _grants(dao, project_id=project_id) == []
+        assert store.endpoint.secret_id is None
+    else:
+        assert outcome == "connected"
+        assert len(_grants(dao, project_id=project_id)) == 1

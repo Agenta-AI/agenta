@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Optional
+from typing import AsyncContextManager, Awaitable, Callable, Optional
 from uuid import UUID
 
 from oss.src.core.gateways.mcps.oauth.dtos import (
@@ -36,6 +36,10 @@ class MCPOAuthRefresherInterface(ABC):
         `MCPOAuthRefreshFailedError` when no usable grant can be produced.
         """
         raise NotImplementedError
+
+
+# Records how a locked attempt ended, inside the transaction that holds its lock.
+MCPOAuthAttemptSettler = Callable[[MCPOAuthAttemptStatus], Awaitable[None]]
 
 
 class MCPOAuthAttemptsDAOInterface(ABC):
@@ -98,7 +102,23 @@ class MCPOAuthAttemptsDAOInterface(ABC):
         status: MCPOAuthAttemptStatus,
         error: Optional[str] = None,
     ) -> None:
-        """Record how a claimed attempt ended."""
+        """Record how a claimed attempt ended. An attempt no longer claimed, because a
+        cancel or another outcome got there first, is left as it is."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def finalize_attempt(
+        self,
+        *,
+        attempt_id: UUID,
+    ) -> AsyncContextManager[Optional[MCPOAuthAttemptSettler]]:
+        """Lock a claimed, unexpired attempt for the rest of the block.
+
+        Yields a settler while the attempt is still active, and `None` when it was
+        cancelled or has expired. A cancel arriving while the block runs waits for it, so
+        the outcome recorded inside the block cannot be overtaken. The outcome is
+        committed when the block ends without raising.
+        """
         raise NotImplementedError
 
     @abstractmethod
@@ -109,7 +129,10 @@ class MCPOAuthAttemptsDAOInterface(ABC):
         endpoint_id: UUID,
         attempt_id: Optional[UUID] = None,
     ) -> int:
-        """Cancel one connection's pending attempts, or the one named, and return how many.
+        """Cancel one connection's active attempts, or the one named, and return how many.
+
+        Active is pending or claimed: a claimed attempt is mid-exchange, and its
+        finalization re-checks the attempt under its lock, so the cancel wins.
 
         A consent already in flight completes against the record it was issued, so
         without this a browser tab opened before a cancel, a disconnect or a change of

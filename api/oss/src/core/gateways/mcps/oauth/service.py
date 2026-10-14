@@ -7,8 +7,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
-from mcp.shared.auth import OAuthClientInformationFull
+from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
+from oss.src.core.gateways.mcps.dtos import is_oauth_connection_at
+from oss.src.core.gateways.mcps.interfaces import MCPEndpointsDAOInterface
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient, same_issuer
 from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttempt,
@@ -45,6 +47,7 @@ from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthTokenExchangeError,
     MCPOAuthRegistrationUnavailableError,
 )
+from oss.src.core.gateways.types import GatewaysError
 from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO
 from oss.src.core.secrets.services import VaultService
 
@@ -76,12 +79,15 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         client: MCPOAuthClient,
         api_url: str,
         attempts_dao: MCPOAuthAttemptsDAOInterface,
+        endpoints_dao: MCPEndpointsDAOInterface,
         resolve: Optional[Resolver] = None,
     ) -> None:
         self.vault_service = vault_service
         self.client = client
         self.api_url = api_url
         self.attempts_dao = attempts_dao
+        # The connection a completed attempt binds its grant to. See `complete`.
+        self.endpoints_dao = endpoints_dao
         # Tests may inject DNS resolution.
         self._resolve_kwargs = {"resolve": resolve} if resolve is not None else {}
         # One lock per connection, for as long as a refresh is using it. See
@@ -293,7 +299,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         endpoint_id: UUID,
         attempt_id: Optional[UUID] = None,
     ) -> int:
-        """Cancel one pending attempt, or every pending attempt of a connection.
+        """Cancel one active attempt, or every active attempt of a connection.
 
         Every attempt, when the connection's mode or address changes: a consent started
         against the old one must not bind a grant to the new one.
@@ -330,11 +336,76 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         attempt: MCPOAuthAttempt,
         code: str,
     ) -> MCPOAuthCompletion:
-        """Exchange the code for a grant and write it into the attempt's project.
+        """Exchange the code, then write and bind the grant, or write nothing at all.
 
         Takes the attempt `claim()` returned rather than the `state` handle: everything
         here writes, so the caller has already authorised itself against that record.
+
+        The exchange runs first and outside any lock, because it is a call to another
+        server. Everything after it runs with the attempt locked: the attempt must still
+        be claimed and unexpired, and the connection must still be OAuth at the address
+        the attempt was started for. Only then is the grant written and bound, and the
+        attempt settled as connected. A cancel, a disconnect, or an edit of the mode or
+        address that lands during the exchange therefore wins, and the stale code
+        writes no grant and binds nothing. An edit that commits after the check and
+        before the bind is refused by the bind; the grant row written then is removed
+        by that edit, which drops the connection's grant once this lock is released.
+
+        Raises `MCPOAuthAttemptCancelledError` when the attempt no longer applies, and the
+        exchange's own refusal, recorded as the attempt's failure, when it fails.
         """
+        try:
+            storage, tokens = await self._exchange(attempt=attempt, code=code)
+        except GatewaysError as e:
+            await self.settle(
+                attempt=attempt, status=MCPOAuthAttemptStatus.FAILED, error=e.message
+            )
+            raise
+
+        bound = None
+        async with self.attempts_dao.finalize_attempt(attempt_id=attempt.id) as settle:
+            if settle is not None:
+                # Read before the write, so a connection already moved never has the
+                # stale tokens written into its grant row at all.
+                endpoint = await self.endpoints_dao.fetch_endpoint(
+                    project_id=attempt.project_id, endpoint_id=attempt.endpoint_id
+                )
+                if is_oauth_connection_at(endpoint, attempt.server_url):
+                    # `storage` carries the attempt's issuer, so the grant is written
+                    # pinned to the authorization server that actually issued it.
+                    # `refresh_grant` requires that pin to still hold before it presents
+                    # the refresh token anywhere.
+                    grant = await storage.write_tokens(tokens)
+                    # Conditional on the same facts, under the connection's own row
+                    # lock, so an edit that commits after the read above is caught.
+                    bound = await self.endpoints_dao.bind_endpoint_secret(
+                        project_id=attempt.project_id,
+                        user_id=attempt.user_id,
+                        endpoint_id=attempt.endpoint_id,
+                        secret_id=grant.id,
+                        oauth_server_url=attempt.server_url,
+                    )
+                await settle(
+                    MCPOAuthAttemptStatus.CONNECTED
+                    if bound is not None
+                    else MCPOAuthAttemptStatus.CANCELLED
+                )
+
+        if bound is None:
+            raise MCPOAuthAttemptCancelledError()
+
+        return MCPOAuthCompletion(
+            project_id=attempt.project_id,
+            user_id=attempt.user_id,
+            endpoint_id=attempt.endpoint_id,
+            server_url=attempt.server_url,
+            secret_id=bound.secret_id,
+        )
+
+    async def _exchange(
+        self, *, attempt: MCPOAuthAttempt, code: str
+    ) -> Tuple[SecretsTokenStorage, OAuthToken]:
+        """Spend the code at the token endpoint the attempt recorded."""
         # Issuer, token endpoint and redirect URI come from the record, not from a
         # fresh discovery round: the server cannot move its token endpoint between the
         # redirect it was handed and the code it returns.
@@ -372,18 +443,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             client_info=client_info,
             resource=attempt.resource,
         )
-        # `storage` carries the attempt's issuer, so the grant is written pinned to the
-        # authorization server that actually issued it. `refresh_grant` requires that
-        # pin to still hold before it presents the refresh token anywhere.
-        grant = await storage.write_tokens(tokens)
-
-        return MCPOAuthCompletion(
-            project_id=attempt.project_id,
-            user_id=attempt.user_id,
-            endpoint_id=attempt.endpoint_id,
-            server_url=attempt.server_url,
-            secret_id=grant.id,
-        )
+        return storage, tokens
 
     async def disconnect(
         self, *, project_id: UUID, endpoint_id: UUID, server_url: str

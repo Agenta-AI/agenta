@@ -1417,6 +1417,7 @@ mcp_oauth_connect_service = MCPOAuthConnectService(
     client=MCPOAuthClient(),
     api_url=env.agenta.api_url,
     attempts_dao=mcp_oauth_attempts_dao,
+    endpoints_dao=mcp_endpoints_dao,
 )
 
 mcp_gateway_service = MCPGatewayService(

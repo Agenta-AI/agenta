@@ -8,8 +8,9 @@ with `ON DELETE CASCADE`, so deleting a project takes its in-flight attempts wit
 which nothing in Redis would do for us.
 """
 
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Optional
+from typing import AsyncIterator, Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import delete, select, update
@@ -19,7 +20,10 @@ from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttemptCreate,
     MCPOAuthAttemptStatus,
 )
-from oss.src.core.gateways.mcps.oauth.interfaces import MCPOAuthAttemptsDAOInterface
+from oss.src.core.gateways.mcps.oauth.interfaces import (
+    MCPOAuthAttemptSettler,
+    MCPOAuthAttemptsDAOInterface,
+)
 from oss.src.dbs.postgres.gateways.mcps.dbes import MCPOAuthAttemptDBE
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -175,9 +179,41 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
             await session.execute(
                 update(self.MCPOAuthAttemptDBE)
                 .where(self.MCPOAuthAttemptDBE.id == attempt_id)
-                .values(status=status.value, error=error, code_verifier="")
+                .where(
+                    self.MCPOAuthAttemptDBE.status
+                    == MCPOAuthAttemptStatus.CLAIMED.value
+                )
+                .values(status=status.value, error=error)
                 .execution_options(synchronize_session=False)
             )
+            await session.commit()
+
+    @asynccontextmanager
+    async def finalize_attempt(
+        self,
+        *,
+        attempt_id: UUID,
+    ) -> AsyncIterator[Optional[MCPOAuthAttemptSettler]]:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(self.MCPOAuthAttemptDBE)
+                .where(self.MCPOAuthAttemptDBE.id == attempt_id)
+                .where(
+                    self.MCPOAuthAttemptDBE.status
+                    == MCPOAuthAttemptStatus.CLAIMED.value
+                )
+                .where(self.MCPOAuthAttemptDBE.expires_at > datetime.now(timezone.utc))
+                .with_for_update()
+            )
+            dbe = result.scalars().first()
+            if dbe is None:
+                yield None
+                return
+
+            async def settle(status: MCPOAuthAttemptStatus) -> None:
+                dbe.status = status.value
+
+            yield settle
             await session.commit()
 
     async def cancel_attempts(
@@ -192,7 +228,12 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
             .where(self.MCPOAuthAttemptDBE.project_id == project_id)
             .where(self.MCPOAuthAttemptDBE.endpoint_id == endpoint_id)
             .where(
-                self.MCPOAuthAttemptDBE.status == MCPOAuthAttemptStatus.PENDING.value
+                self.MCPOAuthAttemptDBE.status.in_(
+                    [
+                        MCPOAuthAttemptStatus.PENDING.value,
+                        MCPOAuthAttemptStatus.CLAIMED.value,
+                    ]
+                )
             )
         )
         if attempt_id is not None:

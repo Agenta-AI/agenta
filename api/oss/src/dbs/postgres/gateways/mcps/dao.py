@@ -12,6 +12,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointCreate,
     MCPEndpointEdit,
     MCPEndpointQuery,
+    is_oauth_connection_at,
 )
 from oss.src.core.gateways.mcps.interfaces import (
     MCPEndpointsDAOInterface,
@@ -209,6 +210,7 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
         #
         endpoint_id: UUID,
         secret_id: Optional[UUID],
+        oauth_server_url: Optional[str] = None,
     ) -> Optional[MCPEndpoint]:
         async with self.engine.session() as session:
             dbe = await self._locked(
@@ -216,6 +218,13 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
             )
             if dbe is None:
                 return None
+            if oauth_server_url is not None:
+                # Checked under the row lock, so an edit that moved the connection off
+                # this OAuth address cannot land between the check and the write.
+                if not is_oauth_connection_at(
+                    map_mcp_endpoint_dbe_to_dto(dbe=dbe), oauth_server_url
+                ):
+                    return None
 
             await check_secret_is_owned_by_project(
                 session,

@@ -18,6 +18,8 @@ import {isTrustedOauthConnectedMessage, type McpOauthCompletionMessage} from "./
 import type {MCPConnectAttempt} from "./types"
 
 export const CONSENT_POLL_MS = 1_000
+/** Just above the time the API takes to read one attempt, so a stalled check still ends. */
+export const CONSENT_CHECK_TIMEOUT_MS = 10_000
 
 export const CONSENT_CLOSED_MESSAGE = "Authorization window closed before completion."
 export const CONSENT_TIMEOUT_MESSAGE = "Authorization did not complete in time. Try again."
@@ -53,6 +55,7 @@ export interface WatchOauthConsentOptions {
     timeoutMs: number
     timers?: OauthConsentTimers
     pollMs?: number
+    checkTimeoutMs?: number
 }
 
 const defaultTimers: OauthConsentTimers = {
@@ -77,6 +80,7 @@ export function watchOauthConsent({
     timeoutMs,
     timers = defaultTimers,
     pollMs = CONSENT_POLL_MS,
+    checkTimeoutMs = CONSENT_CHECK_TIMEOUT_MS,
 }: WatchOauthConsentOptions): () => void {
     let settled = false
     let pollHandle: TimerHandle
@@ -103,11 +107,13 @@ export function watchOauthConsent({
 
     /**
      * The window closed or the wait ran out with no message. Everything is released while the
-     * API is asked, and a stop that lands during the question still wins.
+     * API is asked, and a stop that lands during the question still wins. The question has its
+     * own bound, because a request that never answers would otherwise leave nothing to end it.
      */
     const settleFromServer = (fallback: string) => {
         if (settled) return
         release()
+        timeoutHandle = timers.setTimeout(() => settle(() => onFailed(fallback)), checkTimeoutMs)
         void checkOutcome()
             .catch(() => null)
             .then((outcome) =>
