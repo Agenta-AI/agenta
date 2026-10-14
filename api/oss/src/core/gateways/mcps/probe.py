@@ -2,9 +2,14 @@
 
 The connect journey asks for a server URL first and has to say something true about it
 before asking for anything else: is it reachable, what does it call itself, and does it
-want OAuth. Nothing here creates, edits or reads a row, and nothing here accepts or sends
-a credential — there is no endpoint to carry one, and a credential must never be sent to
-an origin that has not been chosen yet.
+want OAuth. Nothing here creates, edits or reads a row, and nothing here sends a credential
+in a header — there is no endpoint to carry one, and a credential must never be sent to an
+origin that has not been chosen yet.
+
+An address whose path holds `{secret}` (Firecrawl `/{secret}/v2/mcp`) is the one case that
+carries a credential, because without its key that address does not exist. The person
+chose that origin and the secret together, the value goes only in the path of the requests
+sent to it, and everything returned is redacted of it.
 
 Two protocol facts shape the order of the checks:
 
@@ -23,8 +28,9 @@ a credential into a form that may have no use for it.
 import asyncio
 import json
 import re
+from dataclasses import replace
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 from pydantic import BaseModel
@@ -36,7 +42,12 @@ from oss.src.core.gateways.egress import (
     egress_client,
     open_egress,
 )
-from oss.src.core.gateways.mcps.echo import redact_credentials, url_credentials
+from oss.src.core.gateways.mcps.dtos import with_url_secret
+from oss.src.core.gateways.mcps.echo import (
+    redact_credentials,
+    url_credentials,
+    url_value_forms,
+)
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.registration import (
     is_publicly_resolvable_async,
@@ -255,8 +266,10 @@ def _initialize_result(response: httpx.Response) -> Optional[Dict[str, Any]]:
     return result if isinstance(result, dict) else None
 
 
-def _excerpt(response: httpx.Response, *, server_url: str) -> MCPProbeResponse:
-    body = redact_credentials(response.content, url_credentials(server_url))
+def _excerpt(
+    response: httpx.Response, *, credentials: Tuple[bytes, ...]
+) -> MCPProbeResponse:
+    body = redact_credentials(response.content, credentials)
     return MCPProbeResponse(
         status=response.status_code,
         body=body[:_EXCERPT_BYTES].decode("utf-8", "replace"),
@@ -289,14 +302,14 @@ def _challenge_schemes(response: httpx.Response) -> List[str]:
 
 
 def _unsupported_transport(
-    response: httpx.Response, *, server_url: str
+    response: httpx.Response, *, credentials: Tuple[bytes, ...]
 ) -> MCPServerProbeResult:
     return MCPServerProbeResult(
         reachable=True,
         problem=MCPProbeProblem(
             cause="unsupported_transport",
             message=_UNSUPPORTED_TRANSPORT_MESSAGE,
-            response=_excerpt(response, server_url=server_url),
+            response=_excerpt(response, credentials=credentials),
         ),
     )
 
@@ -351,8 +364,12 @@ class MCPServerProbe:
         # what says whether the answer is JSON or a single SSE event.
         return decoded_response(response, bytes(body))
 
-    async def probe(self, *, server_url: str) -> MCPServerProbeResult:
+    async def probe(
+        self, *, server_url: str, url_secret: Optional[str] = None
+    ) -> MCPServerProbeResult:
         """Inspect `server_url`. Never raises for a server that behaves badly.
+
+        `url_secret` is the value for the address's `{secret}`, and only for that.
 
         The promise in that sentence is the reason for the outer guard: this is the first
         thing a person's typed address touches, and the connect dialog has a place to show
@@ -361,7 +378,7 @@ class MCPServerProbe:
         presented itself before that was fixed at the source.
         """
         try:
-            return await self._probe(server_url=server_url)
+            return await self._probe(server_url=server_url, url_secret=url_secret)
         except httpx.HTTPError as e:
             # Every transport and protocol failure httpx raises, including the decoding
             # ones that are not raised until a body is touched.
@@ -386,11 +403,24 @@ class MCPServerProbe:
                 )
             )
 
-    async def _probe(self, *, server_url: str) -> MCPServerProbeResult:
+    async def _probe(
+        self, *, server_url: str, url_secret: Optional[str]
+    ) -> MCPServerProbeResult:
+        # What every excerpt is cleaned of: the URL's own query values, and the value put in
+        # place of `{secret}`.
+        credentials = url_credentials(server_url) + url_value_forms(
+            [url_secret] if url_secret else []
+        )
         deadline = asyncio.get_running_loop().time() + _DEADLINE_SECONDS
         try:
             async with asyncio.timeout_at(deadline):
+                # Checked with the placeholder, which sits in the path and so cannot move
+                # the host, and filled only in the URL that is sent.
                 target = await open_egress(server_url)
+                if url_secret:
+                    target = replace(
+                        target, url=with_url_secret(target.url, url_secret)
+                    )
                 response = await self._handshake(target)
         except EgressRefusedError as e:
             return MCPServerProbeResult(
@@ -419,7 +449,7 @@ class MCPServerProbe:
                         "The address answered with more data than an MCP handshake "
                         "should return, so it was not read."
                     ),
-                    response=_excerpt(e.response, server_url=server_url),
+                    response=_excerpt(e.response, credentials=credentials),
                 ),
             )
         except TimeoutError:
@@ -452,7 +482,10 @@ class MCPServerProbe:
             # same 401), so nothing here proves the transport. The address is only grounds
             # for a warning, and the sign-in goes ahead as for any other server.
             challenged = await self._challenged(
-                server_url=server_url, response=response, deadline=deadline
+                server_url=server_url,
+                response=response,
+                deadline=deadline,
+                credentials=credentials,
             )
             challenged.legacy_transport_suspected = _names_legacy_event_stream(
                 server_url
@@ -464,7 +497,7 @@ class MCPServerProbe:
         if response.status_code in (404, 405) and await self._opens_event_stream(
             target, deadline=deadline
         ):
-            return _unsupported_transport(response, server_url=server_url)
+            return _unsupported_transport(response, credentials=credentials)
 
         # A result-shaped body under an error status is not a handshake. A redirect, a 404
         # and a login page all answer, and none of them is a server to connect.
@@ -478,7 +511,7 @@ class MCPServerProbe:
                         "The address answered, but not with an MCP handshake "
                         f"(HTTP {response.status_code})."
                     ),
-                    response=_excerpt(response, server_url=server_url),
+                    response=_excerpt(response, credentials=credentials),
                 ),
             )
 
@@ -522,9 +555,18 @@ class MCPServerProbe:
         )
 
     async def _challenged(
-        self, *, server_url: str, response: httpx.Response, deadline: float
+        self,
+        *,
+        server_url: str,
+        response: httpx.Response,
+        deadline: float,
+        credentials: Tuple[bytes, ...],
     ) -> MCPServerProbeResult:
-        """A server that refused the anonymous handshake. Ask it how to authorize."""
+        """A server that refused the handshake. Ask it how to authorize.
+
+        Discovery is asked about `server_url` as stored, placeholder and all, so the value
+        for `{secret}` never travels to a metadata address or an authorization server.
+        """
         challenged = MCPProbeAuth(
             mode=MCPProbeAuthMode.UNKNOWN,
             challenge_status=response.status_code,
@@ -548,7 +590,7 @@ class MCPServerProbe:
                         "The server requires authorization but did not finish "
                         "publishing its OAuth configuration in time."
                     ),
-                    response=_excerpt(response, server_url=server_url),
+                    response=_excerpt(response, credentials=credentials),
                 ),
             )
         except MCPOAuthDiscoveryError as e:
@@ -564,7 +606,7 @@ class MCPServerProbe:
                         "The server requires authorization but did not publish an OAuth "
                         f"configuration we could read: {e.detail or 'no metadata found'}."
                     ),
-                    response=_excerpt(response, server_url=server_url),
+                    response=_excerpt(response, credentials=credentials),
                 ),
             )
 

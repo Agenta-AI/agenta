@@ -46,6 +46,7 @@ from oss.src.core.gateways.mcps.types import (
     MCPUpstreamError,
 )
 from oss.src.core.gateways.policy.dtos import (
+    BoundSecretRef,
     SecretOwner,
     SecretOwnerKind,
     PolicyDecision,
@@ -2456,3 +2457,30 @@ async def test_a_key_connection_to_a_server_that_publishes_oauth_relays_with_the
 
     assert adapter.relay_calls == 1
     assert adapter.last_auth.secret is not None
+
+
+@pytest.mark.asyncio
+async def test_the_url_secret_is_the_project_secret_the_relay_would_send():
+    """The probe of a `{secret}` address reads the value the way the relay does: the bound
+    project secret, scoped to the project."""
+    from unittest.mock import AsyncMock
+
+    secret_id = uuid4()
+    resolver = AsyncMock()
+    resolver.resolve.return_value = SimpleNamespace(
+        secret=SimpleNamespace(
+            data=SimpleNamespace(secret=SimpleNamespace(content="test-key-one"))
+        )
+    )
+    scope = _scope()
+
+    value = await _service(resolver=resolver).url_secret_value(
+        scope=scope, secret_id=secret_id
+    )
+
+    assert value == "test-key-one"
+    resolver.resolve.assert_awaited_once_with(
+        scope=scope,
+        ref=BoundSecretRef(secret_id=secret_id),
+        mode=SecretMode.PROJECT_ONLY,
+    )

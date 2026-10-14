@@ -34,10 +34,15 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     connectionNameProblem,
+    credentialBindingComplete,
     detectedAuthMode,
+    hasUrlSecretPlaceholder,
     isBusy,
+    MCP_URL_CREDENTIAL_BINDING,
+    MCP_URL_SECRET_PLACEHOLDER,
     mcpChallengeScheme,
     mcpDefaultCredentialBinding,
+    urlMatchesCredentialBinding,
     readMcpProbeResponse,
     toolPrefixFromName,
     useMcpConnectJourney,
@@ -128,12 +133,26 @@ const KEY_PROBLEM_ID = "mcp-key-problem"
 const NAME_HELP =
     "What the model sees on this server's tools. Frozen when the connection was chosen, so renaming the connection does not rename tools here."
 
-const SECRET_HELP_TARGET: Record<MCPCredentialBinding["kind"], string> = {
-    header: "header",
-    query: "query parameter",
+const SECRET_HELP_DELIVERY: Record<MCPCredentialBinding["kind"], string> = {
+    header: "is sent as this header",
+    query: "is sent as this query parameter",
+    url: "is put into the address",
 }
 const secretHelpFor = (kind: MCPCredentialBinding["kind"]): string =>
-    `Pick a project secret or create one. The value is sent as this ${SECRET_HELP_TARGET[kind]} when the agent runs and is never shown again.`
+    `Pick a project secret or create one. The value ${SECRET_HELP_DELIVERY[kind]} when the agent runs and is never shown again.`
+
+/** Under the address on the key screen, by whether the binding fills its `{secret}`. */
+const urlSecretHint = (binding: MCPCredentialBinding) => {
+    const placeholder = <span className="font-mono">{MCP_URL_SECRET_PLACEHOLDER}</span>
+    return binding.kind === "url" ? (
+        <>
+            The secret replaces {placeholder} when Agenta calls the server. It is never stored in
+            the URL.
+        </>
+    ) : (
+        <>This URL contains {placeholder}. Set Send as to In the URL so the secret replaces it.</>
+    )
+}
 
 /** What a failed check is told, by what the probe found rather than by what it returned. */
 const UNREACHABLE_HEADLINE = "Couldn't reach this server."
@@ -174,6 +193,7 @@ const KEY_REJECTED_HEADLINE = "The server rejected this key."
 const keyRejectedHeadlineFor = (status: number | null): string =>
     status ? `The server rejected this key (${status}).` : KEY_REJECTED_HEADLINE
 const KEY_REJECTED_ADVICE = "Check the header the server expects, or pick another secret."
+const URL_KEY_REJECTED_ADVICE = "Check where {secret} sits in the URL, or pick another secret."
 /**
  * The same advice, preceded by what the server asked for where it said so.
  *
@@ -186,8 +206,11 @@ const KEY_REJECTED_ADVICE = "Check the header the server expects, or pick anothe
  * into the Header field, which is the one thing that cannot be right. The sentence the Prefix
  * field's own hint already uses says the same fact correctly, so it says it here too.
  */
-const keyRejectedAdviceFor = (scheme: string | null): string =>
-    scheme ? `${headerSchemeHint(scheme)} ${KEY_REJECTED_ADVICE}` : KEY_REJECTED_ADVICE
+const keyRejectedAdviceFor = (scheme: string | null, binding: MCPCredentialBinding): string => {
+    // A key in the address has no header to check and no scheme to name.
+    if (binding.kind === "url") return URL_KEY_REJECTED_ADVICE
+    return scheme ? `${headerSchemeHint(scheme)} ${KEY_REJECTED_ADVICE}` : KEY_REJECTED_ADVICE
+}
 
 /** None was chosen over what the server or the saved row suggested, and the server refused. */
 const keyRefusedWithoutKeyFor = (status: number | null): string =>
@@ -385,9 +408,15 @@ export function McpConnectSheet({
      * repairs a credential and changes nothing else (decisions 10 and 34). Offering the
      * probe's default there put `Authorization` over a saved `X-Api-Key`, so accepting what
      * was on screen broke a working connection.
+     *
+     * An address with `{secret}` starts on "In the URL", the only binding that fills it.
      */
     const binding =
-        bindingDraft ?? reconnect?.credentialBinding ?? mcpDefaultCredentialBinding(state.probe)
+        bindingDraft ??
+        reconnect?.credentialBinding ??
+        (hasUrlSecretPlaceholder(state.url)
+            ? MCP_URL_CREDENTIAL_BINDING
+            : mcpDefaultCredentialBinding(state.probe))
     const [secretSlug, setSecretSlug] = useState("")
     const [creatingSecret, setCreatingSecret] = useState(false)
     /** The Basic helper's encoded value, which the create drawer opens with. */
@@ -573,6 +602,8 @@ export function McpConnectSheet({
 
     const confirm = useCallback(() => {
         const keyBinding = path === "api_key" ? binding : undefined
+        // `submitName` checks a `{secret}` address with it before the row is made.
+        const keySecretId = keyBinding ? selectedSecretId() : undefined
         switch (state.status) {
             case "url_entry":
             case "check_failed":
@@ -582,13 +613,13 @@ export function McpConnectSheet({
                 if (nameProblem) return
                 if (path === "oauth") requestConsent()
                 if (path === "api_key") setAfterCreate("credential")
-                void journey.submitName(keyBinding)
+                void journey.submitName(keyBinding, keySecretId)
                 return
             case "create_failed":
                 // The window opened for the first attempt was closed when this screen
                 // replaced the wait, so the retry needs one of its own, opened in this tap.
                 if (path === "oauth") requestConsent()
-                void journey.submitName(keyBinding)
+                void journey.submitName(keyBinding, keySecretId)
                 return
             case "scopes_failed":
             case "consent_cancelled":
@@ -606,7 +637,7 @@ export function McpConnectSheet({
                 // screen's first press takes.
                 if (!state.endpointId) {
                     if (path === "api_key") setAfterCreate("credential")
-                    void journey.submitName(keyBinding)
+                    void journey.submitName(keyBinding, keySecretId)
                     return
                 }
                 // A connection that authorizes with nothing is repaired by saying so; there
@@ -630,6 +661,7 @@ export function McpConnectSheet({
         path,
         requestConsent,
         retryConsent,
+        selectedSecretId,
         state.endpointId,
         state.status,
         state.url,
@@ -731,13 +763,20 @@ export function McpConnectSheet({
 
                     {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (
                         <>
-                            <ProbeResultCard
-                                url={reconnect?.url ?? state.url}
-                                mode={detected ?? reconnect?.authMode ?? path}
-                                // A reconnect is repairing one address. Offering to change it
-                                // would offer to point a saved connection somewhere else.
-                                onChange={reconnect ? undefined : () => journey.setUrl(state.url)}
-                            />
+                            {/* A `{secret}` address is checked only with its key, so on a
+                                first connect there is no finding to report yet, and the
+                                address is on the key screen instead. */}
+                            {state.probe || reconnect ? (
+                                <ProbeResultCard
+                                    url={reconnect?.url ?? state.url}
+                                    mode={detected ?? reconnect?.authMode ?? path}
+                                    // A reconnect is repairing one address. Offering to change it
+                                    // would offer to point a saved connection somewhere else.
+                                    onChange={
+                                        reconnect ? undefined : () => journey.setUrl(state.url)
+                                    }
+                                />
+                            ) : null}
                             <AuthModeSelector
                                 value={path}
                                 detected={detected}
@@ -813,6 +852,21 @@ export function McpConnectSheet({
                                             : undefined
                                     }
                                 />
+                                {binding.kind === "url" || hasUrlSecretPlaceholder(state.url) ? (
+                                    <HintedField label="Server URL" hint={urlSecretHint(binding)}>
+                                        <Input
+                                            className="font-mono text-[13px]"
+                                            value={state.url}
+                                            // A reconnect repairs one address and never
+                                            // points a saved connection somewhere else.
+                                            disabled={!!reconnect || busy}
+                                            aria-label="Server URL"
+                                            onChange={(event) =>
+                                                journey.editUrl(event.target.value)
+                                            }
+                                        />
+                                    </HintedField>
+                                ) : null}
                                 {binding.prefix === "Basic" ? (
                                     <BasicCredentialHelper
                                         disabled={busy}
@@ -834,7 +888,7 @@ export function McpConnectSheet({
                                                 ? KEY_PROBLEM_ID
                                                 : undefined
                                         }
-                                        canCreate={!!binding.name.trim()}
+                                        canCreate={credentialBindingComplete(binding)}
                                         onCreate={() => openSecretDrawer()}
                                     />
                                 </Field>
@@ -857,7 +911,7 @@ export function McpConnectSheet({
                                 that made deleting them look right was our own client's "did
                                 not answer initialize", and that failure no longer reaches
                                 this screen at all (round 4, D133 reopened). */}
-                            {state.error} {keyRejectedAdviceFor(challengeScheme)}
+                            {state.error} {keyRejectedAdviceFor(challengeScheme, binding)}
                         </InlineError>
                     ) : null}
 
@@ -927,7 +981,7 @@ export function McpConnectSheet({
                                 setCreatingSecret(false)
                                 setSecretSeed(undefined)
                             }}
-                            headerName={binding.name}
+                            headerName={binding.name ?? undefined}
                             serverName={state.name}
                             initialValue={secretSeed}
                             onCreated={(row) => setSecretSlug(row.slug)}
@@ -950,7 +1004,9 @@ export function McpConnectSheet({
                                         state,
                                         nameProblem,
                                         secretChosen,
-                                        bindingNamed: !!binding.name.trim(),
+                                        bindingReady:
+                                            credentialBindingComplete(binding) &&
+                                            urlMatchesCredentialBinding(state.url, binding),
                                         busy,
                                     })
                                 }
@@ -986,20 +1042,23 @@ const canConfirm = ({
     state,
     nameProblem,
     secretChosen,
-    bindingNamed,
+    bindingReady,
     busy,
 }: {
     screen: Screen
     state: McpJourneyState
     nameProblem: string | null
     secretChosen: boolean
-    bindingNamed: boolean
+    /** Says where the key goes, and agrees with the address about `{secret}`. */
+    bindingReady: boolean
     busy: boolean
 }): boolean => {
     if (busy && screen !== "waiting") return false
     if (screen === "url" || screen === "url_failed") return isProbeableUrl(state.url)
     if (nameProblem) return false
-    if (screen === "api_key") return !!state.name.trim() && secretChosen && bindingNamed
+    if (screen === "api_key") return !!state.name.trim() && secretChosen && bindingReady
+    // Only a key sent in the URL can fill `{secret}`, so no other mode can connect it.
+    if (hasUrlSecretPlaceholder(state.url)) return false
     return !!state.name.trim()
 }
 

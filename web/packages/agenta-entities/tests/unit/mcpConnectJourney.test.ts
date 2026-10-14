@@ -837,3 +837,34 @@ describe("the authentication the person selects", () => {
         expect(back.endpointId).toBe("e")
     })
 })
+
+describe("an address with {secret}", () => {
+    const FIRECRAWL = "https://mcp.firecrawl.dev/{secret}/v2/mcp"
+
+    it("goes to the key screen without a check, because it needs its key to exist", () => {
+        const state = run(
+            {type: "url_changed", url: FIRECRAWL},
+            {type: "url_secret_submitted", suggestedName: "mcp.firecrawl.dev"},
+        )
+
+        expect(state.status).toBe("naming")
+        expect(state.authMode).toBe("api_key")
+        expect(state.probe).toBeNull()
+        expect(state.name).toBe("mcp.firecrawl.dev")
+    })
+
+    it("takes an edited address on the key screen and stays there", () => {
+        const state = run(
+            {type: "url_changed", url: "https://mcp.firecrawl.dev/v2/mcp"},
+            {type: "submit_url"},
+            {type: "probe_succeeded", probe: probe("none"), suggestedName: "Firecrawl"},
+            {type: "auth_mode_selected", mode: "api_key"},
+            {type: "url_edited", url: FIRECRAWL},
+        )
+
+        expect(state.status).toBe("naming")
+        expect(state.url).toBe(FIRECRAWL)
+        expect(state.authMode).toBe("api_key")
+        expect(state.probe).not.toBeNull()
+    })
+})

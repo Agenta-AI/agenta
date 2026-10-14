@@ -32,10 +32,15 @@ export {
 export type {McpProbeResponse} from "./probeResponse"
 export {
     basicCredentialValue,
+    credentialBindingComplete,
     credentialBindingPreview,
+    hasUrlSecretPlaceholder,
     MCP_DEFAULT_CREDENTIAL_BINDING,
+    MCP_URL_CREDENTIAL_BINDING,
+    MCP_URL_SECRET_PLACEHOLDER,
     mcpDefaultCredentialBinding,
     normalizeCredentialBinding,
+    urlMatchesCredentialBinding,
     withoutCredentialParameter,
 } from "./credentialBinding"
 export type {

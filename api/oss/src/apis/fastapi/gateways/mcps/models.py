@@ -5,6 +5,7 @@ The house triple, matching `triggers/models.py`, plus the connect shapes.
 """
 
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -72,13 +73,16 @@ class MCPConnectResponse(BaseModel):
 class MCPEndpointProbeRequest(BaseModel):
     """Inspect a server URL before an endpoint exists.
 
-    `url` is the only field, and deliberately: the probe routes a request and reports what
-    came back. It takes no name (nothing is being labelled), no slug or id (nothing is
-    being identified), and no credential — there is no endpoint to carry one, and a
-    credential must never be sent to an origin nobody has chosen yet.
+    The probe routes a request and reports what came back. It takes no name (nothing is
+    being labelled), no slug or id (nothing is being identified), and no credential value.
+
+    `secret_id` names the project secret that fills a `{secret}` in the URL's path, and is
+    accepted only for such a URL: that address does not exist without its key. The API
+    reads the value from the vault, so the browser never sends it.
     """
 
     url: str
+    secret_id: Optional[UUID] = None
 
 
 class MCPEndpointProbeResponse(BaseModel):

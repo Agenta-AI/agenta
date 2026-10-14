@@ -1010,6 +1010,48 @@ async def test_a_key_across_the_cut_leaves_no_prefix_behind():
     assert not any(key[:length] in body for length in range(2, len(key) + 1))
 
 
+_PLACEHOLDER_URL = "https://mcp.acme.io/{secret}/v2/mcp"
+
+
+@pytest.mark.asyncio
+async def test_a_placeholder_address_is_handshaked_with_the_secret_in_its_path():
+    """The address does not exist without its key, so the probe fills it, and only in the
+    path: no header carries it."""
+    requests: list[httpx.Request] = []
+
+    result = await _probe(_open_server(requests)).probe(
+        server_url=_PLACEHOLDER_URL, url_secret="test key/one"
+    )
+
+    assert result.reachable and result.server_name == "Acme Tools"
+    assert [r.url.raw_path for r in requests] == [b"/test%20key%2Fone/v2/mcp"]
+    assert "authorization" not in {k.lower() for k in requests[0].headers}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("echoed", ["test key/one", "test%20key%2Fone"])
+async def test_the_excerpt_never_carries_the_secret_from_the_path(echoed):
+    result = await _probe(_echoing(f"no route for /{echoed}/v2/mcp")).probe(
+        server_url=_PLACEHOLDER_URL, url_secret="test key/one"
+    )
+
+    assert result.problem.response.body == "no route for /[REDACTED]/v2/mcp"
+
+
+@pytest.mark.asyncio
+async def test_discovery_after_a_refused_secret_never_carries_the_secret():
+    """A wrong key earns a challenge, and the OAuth discovery it starts asks about the
+    stored address, so no metadata request holds the value."""
+    requests: list[httpx.Request] = []
+
+    await _probe(_protected_server(requests=requests)).probe(
+        server_url=_PLACEHOLDER_URL, url_secret="test-key-one"
+    )
+
+    assert len(requests) > 1
+    assert [r for r in requests[1:] if b"test-key-one" in r.url.raw_path] == []
+
+
 # ---------------------------------------------------------------------------
 # Discovery starts from the challenge the handshake already received
 # ---------------------------------------------------------------------------

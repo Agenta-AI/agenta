@@ -994,6 +994,64 @@ describe("a pasted address that already carries the key", () => {
     })
 })
 
+describe("an address with {secret}", () => {
+    // Firecrawl takes the key as a path segment. The address does not exist without it, so
+    // it is checked with the chosen secret, named by its id, and never anonymously.
+    const firecrawl = "https://mcp.firecrawl.dev/{secret}/v2/mcp"
+    const binding = {kind: "url" as const}
+
+    const submitFirecrawl = async () => {
+        await mountJourney()
+        await act(async () => journey.setUrl(firecrawl))
+        await act(async () => {
+            await journey.submitUrl(firecrawl)
+        })
+    }
+
+    it("skips the anonymous check and asks for the key", async () => {
+        await submitFirecrawl()
+
+        expect(probeMcpUrl).not.toHaveBeenCalled()
+        expect(journey.state.status).toBe("naming")
+        expect(journey.state.authMode).toBe("api_key")
+    })
+
+    it("checks the address with the chosen secret, then stores it with the placeholder", async () => {
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {reachable: true, server_name: "Firecrawl", auth: {mode: "none"}},
+        })
+        await submitFirecrawl()
+        await act(async () => {
+            await journey.submitName(binding, "sec-1")
+        })
+
+        expect(probeMcpUrl).toHaveBeenCalledWith(firecrawl, "project-1", "sec-1")
+        const route = createMcpEndpoint.mock.calls.at(-1)?.[0].data.route
+        expect(route).toEqual({base_url: firecrawl, credential_binding: binding})
+        expect(journey.state.status).toBe("manual_auth")
+    })
+
+    it("reads a server still asking for authorization as a refused key, and makes no row", async () => {
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                auth: {mode: "unknown", challenge_status: 401, challenge_schemes: []},
+                problem: {cause: "auth_undiscoverable", message: "requires authorization"},
+            },
+        })
+        await submitFirecrawl()
+        await act(async () => {
+            await journey.submitName(binding, "sec-1")
+        })
+
+        expect(createMcpEndpoint).not.toHaveBeenCalled()
+        expect(journey.state.status).toBe("verify_failed")
+        expect(journey.state.failureStatus).toBe(401)
+    })
+})
+
 describe("the authentication the person selects", () => {
     // The probe found OAuth (the default stub). The person's choice is what the row is
     // created in, and the probe is only where the choice started.

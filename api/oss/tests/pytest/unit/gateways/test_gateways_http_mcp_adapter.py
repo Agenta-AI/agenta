@@ -687,6 +687,61 @@ async def test_a_refused_query_credential_target_is_the_stored_url():
     assert _SYNTHETIC_API_KEY not in str(excinfo.value)
 
 
+_URL_SECRET_ROUTE = f"https://{_PUBLIC_IP}/{{secret}}/v2/mcp"
+
+
+@pytest.mark.asyncio
+async def test_api_key_replaces_the_url_placeholder_encoded_as_one_segment():
+    """A url binding puts the value where the stored URL holds `{secret}`, at send time,
+    with a `/` in the key kept inside its segment. Nothing goes in a header."""
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["path"] = request.url.raw_path
+        captured["headers"] = request.headers
+        return _json_response()
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+    route = MCPResolvedRoute(
+        url=_URL_SECRET_ROUTE, credential_binding=MCPCredentialBinding(kind="url")
+    )
+
+    await adapter.relay(
+        route=route,
+        auth=_named_secret_auth("test key/one"),
+        context=_context(),
+        body=b"{}",
+        headers={},
+    )
+
+    assert captured["path"] == b"/test%20key%2Fone/v2/mcp"
+    assert "authorization" not in captured["headers"]
+    assert route.url == _URL_SECRET_ROUTE
+
+
+@pytest.mark.asyncio
+async def test_a_refused_url_credential_target_shows_the_placeholder():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(MCPUpstreamError) as excinfo:
+        await adapter.relay(
+            route=MCPResolvedRoute(
+                url=_URL_SECRET_ROUTE,
+                credential_binding=MCPCredentialBinding(kind="url"),
+            ),
+            auth=_named_secret_auth(_SYNTHETIC_API_KEY),
+            context=_context(),
+            body=b"{}",
+            headers={},
+        )
+
+    assert excinfo.value.target == _URL_SECRET_ROUTE
+    assert _SYNTHETIC_API_KEY not in str(excinfo.value)
+
+
 @pytest.mark.asyncio
 async def test_api_key_without_a_registered_header_falls_back_to_bearer():
     captured = {}
@@ -879,6 +934,36 @@ async def test_upstream_echoing_an_api_key_from_a_query_parameter_is_refused(ech
             headers={},
         )
 
+    assert _QUERY_KEY not in str(excinfo.value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "echoed",
+    [_QUERY_KEY, "test%20key%2Fone"],
+    ids=["as stored", "percent-encoded"],
+)
+async def test_upstream_echoing_an_api_key_from_the_url_path_is_refused(echoed):
+    """The same refusal for a value a url binding put in the path."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, content=f"no route for /{echoed}/v2/mcp".encode())
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(MCPUpstreamCredentialEchoError) as excinfo:
+        await adapter.relay(
+            route=MCPResolvedRoute(
+                url=_URL_SECRET_ROUTE,
+                credential_binding=MCPCredentialBinding(kind="url"),
+            ),
+            auth=_named_secret_auth(_QUERY_KEY),
+            context=_context(),
+            body=b"{}",
+            headers={},
+        )
+
+    assert excinfo.value.target == _URL_SECRET_ROUTE
     assert _QUERY_KEY not in str(excinfo.value)
 
 

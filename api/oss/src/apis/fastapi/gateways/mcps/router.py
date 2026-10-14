@@ -30,8 +30,10 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.dtos import GatewayAuthScheme, GatewayEndpointNamespace
 from oss.src.core.gateways.egress import validate_egress_url_format
 from oss.src.core.gateways.mcps.dtos import (
+    MCPCredentialBinding,
     MCPEndpoint,
     MCPOAuthData,
+    check_url_secret_placeholder,
 )
 from oss.src.core.gateways.mcps.providers.agenta.entitlement import (
     entitled_agenta_tools,
@@ -452,8 +454,31 @@ class MCPGatewayRouter:
         # The same check a create runs, so a URL the probe accepts is one that can be
         # saved and a person is refused at the first step rather than the last.
         _guard_custom_endpoint_url(url=body.url)
+        # A `{secret}` address is checked with the key it needs, and only such an address
+        # takes one: the rule a create applies to `base_url` and its binding.
+        try:
+            check_url_secret_placeholder(
+                body.url,
+                MCPCredentialBinding(kind="url") if body.secret_id else None,
+            )
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+            ) from e
+        url_secret = None
+        if body.secret_id:
+            url_secret = await self.service.url_secret_value(
+                scope=scope, secret_id=body.secret_id
+            )
+            if not url_secret:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="The secret holds no single value to put in the URL.",
+                )
 
-        result = await self.server_probe.probe(server_url=body.url)
+        result = await self.server_probe.probe(
+            server_url=body.url, url_secret=url_secret
+        )
 
         return MCPEndpointProbeResponse(count=1, probe=result)
 

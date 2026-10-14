@@ -1,7 +1,7 @@
 """HTTP relay for custom MCP servers."""
 
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import httpx
 
@@ -12,6 +12,8 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPDirectAuth,
     MCPRelayAuth,
     MCPResolvedRoute,
+    api_key_value,
+    with_url_secret,
 )
 from oss.src.core.gateways.egress import (
     EgressRefusedError,
@@ -49,33 +51,31 @@ _DEFAULT_CREDENTIAL_BINDING = MCPCredentialBinding(
 
 @dataclass(frozen=True)
 class InjectedCredentials:
-    """What the gateway adds to one upstream request: headers, and query parameters.
+    """What the gateway adds to one upstream request: headers, query parameters, and the
+    value for the URL's `{secret}`.
 
-    The query parameters are added to the request at send time and never to `route.url`,
-    which is the stored URL that error targets, logs and traces show.
+    The URL parts are added to the request at send time and never to `route.url`, which is
+    the stored URL that error targets, logs and traces show.
     """
 
     headers: Dict[str, str] = field(default_factory=dict)
     query: Dict[str, str] = field(default_factory=dict)
+    url_secret: Optional[str] = None
 
+    @property
+    def url_values(self) -> List[str]:
+        """Every value this request carries in its URL, for the echo scanner."""
+        values = list(self.query.values())
+        if self.url_secret is not None:
+            values.append(self.url_secret)
+        return values
 
-def _api_key_value(data: object) -> Optional[str]:
-    """The key inside an API-key secret, whichever vault shape holds it.
-
-    Two shapes reach an MCP endpoint. A project-named secret (`custom_secret`), which is
-    what the agent config's `header_secret_refs` picks and therefore what registration
-    binds, keeps its value in `secret.content`; a provider-key record keeps it in
-    `provider.key`. A JSON-format named secret is a map with no single credential in it,
-    so it yields nothing rather than a guess at which entry is the key.
-    """
-    provider = getattr(data, "provider", None)
-    key = getattr(provider, "key", None) if provider is not None else None
-    if isinstance(key, str) and key:
-        return key
-
-    stored = getattr(data, "secret", None)
-    content = getattr(stored, "content", None) if stored is not None else None
-    return content if isinstance(content, str) and content else None
+    def request_url(self, url: str) -> httpx.URL:
+        """`url` with the URL parts added. Merged into the URL rather than passed as
+        `params`, which would replace the stored URL's own query."""
+        if self.url_secret is not None:
+            url = with_url_secret(url, self.url_secret)
+        return httpx.URL(url).copy_merge_params(self.query)
 
 
 def injected_credentials(
@@ -105,11 +105,13 @@ def injected_credentials(
             headers={_DEFAULT_CREDENTIAL_HEADER: f"{token_type} {access_token}"}
         )
 
-    key = _api_key_value(data)
+    key = api_key_value(data)
     if not key:
         return InjectedCredentials()
 
     binding = route.credential_binding or _DEFAULT_CREDENTIAL_BINDING
+    if binding.kind == "url":
+        return InjectedCredentials(url_secret=key)
     value = f"{binding.prefix} {key}" if binding.prefix else key
     if binding.kind == "query":
         return InjectedCredentials(query={binding.name: value})
@@ -166,10 +168,8 @@ class HttpMCPAdapter(MCPUpstreamInterface):
             ) as client:
                 response = await client.post(
                     # Added here and nowhere earlier, so the egress check, its refusals
-                    # and `route.url` all carry the URL without the credential. Merged
-                    # into the URL rather than passed as `params`, which would replace
-                    # the stored URL's own query.
-                    httpx.URL(target.url).copy_merge_params(credentials.query),
+                    # and `route.url` all carry the URL without the credential.
+                    credentials.request_url(target.url),
                     content=body,
                     headers=target.headers,
                     extensions=target.extensions,
@@ -185,7 +185,7 @@ class HttpMCPAdapter(MCPUpstreamInterface):
         # before any of it is relayed.
         refuse_credential_echo(
             scanner=credential_echo_scanner(
-                credentials.headers, query=credentials.query
+                credentials.headers, url_values=credentials.url_values
             ),
             target=route.url,
             status_code=response.status_code,

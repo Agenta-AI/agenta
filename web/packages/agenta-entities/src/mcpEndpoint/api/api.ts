@@ -63,16 +63,19 @@ export const deleteMcpEndpoint = async (endpointId: string, projectId?: string):
 /**
  * Ask what a URL is, before any endpoint exists.
  *
- * Read-only: it creates nothing, and it takes no credential, because there is no endpoint
- * to carry one and a credential must never be sent to an origin nobody has chosen yet.
+ * Read-only: it creates nothing, and it takes no credential value, because there is no
+ * endpoint to carry one and a credential must never be sent to an origin nobody has chosen
+ * yet. An address with `{secret}` does not exist without its key, so it names the project
+ * secret that fills it, and the API reads the value from the vault.
  */
 export const probeMcpUrl = async (
     url: string,
     projectId?: string,
+    secretId?: string,
 ): Promise<MCPEndpointProbeResponse> => {
     const response = await axios.post(
         `${getAgentaApiUrl()}${BASE}/probe`,
-        {url},
+        secretId ? {url, secret_id: secretId} : {url},
         {params: projectId ? {project_id: projectId} : undefined},
     )
     return response.data
