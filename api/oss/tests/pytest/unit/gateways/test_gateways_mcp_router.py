@@ -32,6 +32,7 @@ from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthDiscovery,
 )
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthDiscoveryError
+from oss.src.core.gateways.mcps.types import MCPConnectionChangedError
 from oss.src.core.gateways.mcps.probe import (
     MCPProbeAuth,
     MCPProbeAuthMode,
@@ -113,6 +114,7 @@ class MockMCPGatewayService:
         self.fetch_return = None
         self.edit_return = None
         self.delete_return = True
+        self.delete_raises = None
         self.url_secret_return = "test-key-one"
 
     async def create_endpoint(self, *, project_id, user_id, endpoint):
@@ -152,8 +154,11 @@ class MockMCPGatewayService:
         self.bound_secret_id = secret_id
         return self.edit_return
 
-    async def delete_endpoint(self, *, project_id, endpoint_id):
+    async def delete_endpoint(self, *, project_id, endpoint_id, pending_auth_mode=None):
         self.calls.append("delete_endpoint")
+        self.pending_auth_mode = pending_auth_mode
+        if self.delete_raises is not None:
+            raise self.delete_raises
         return self.delete_return
 
     async def probe_secret_value(self, *, scope, secret_id):
@@ -1138,6 +1143,20 @@ def test_delete_endpoint_reaches_the_service(client, service, allow):
     assert response.status_code == 204
     # The service takes the connection's grant with it, under the connection's lock.
     assert service.calls == ["delete_endpoint"]
+
+
+def test_a_pending_delete_of_a_row_another_tab_took_over_is_refused(
+    client, service, allow
+):
+    service.delete_raises = MCPConnectionChangedError()
+
+    response = client.delete(
+        f"/endpoints/{uuid4()}", params={"pending_auth_mode": "oauth"}
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "mcp_connection_changed"
+    assert service.pending_auth_mode == "oauth"
 
 
 # ---------------------------------------------------------------------------

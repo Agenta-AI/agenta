@@ -581,7 +581,10 @@ export class GatewayMcpClient {
         request: AgentaApi.DeleteMcpEndpointRequest,
         requestOptions?: GatewayMcpClient.RequestOptions,
     ): Promise<core.WithRawResponse<void>> {
-        const { endpoint_id: endpointId } = request;
+        const { endpoint_id: endpointId, pending_auth_mode: pendingAuthMode } = request;
+        const _queryParams: Record<string, unknown> = {
+            pending_auth_mode: pendingAuthMode != null ? pendingAuthMode : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -597,7 +600,7 @@ export class GatewayMcpClient {
             ),
             method: "DELETE",
             headers: _headers,
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,

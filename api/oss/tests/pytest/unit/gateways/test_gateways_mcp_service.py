@@ -42,6 +42,7 @@ from oss.src.core.gateways.mcps.service import MCPGatewayService
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthRefreshFailedError
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
+    MCPConnectionChangedError,
     MCPConnectionNameTakenError,
     MCPEndpointNotFoundError,
     MCPScopeInsufficientError,
@@ -348,6 +349,53 @@ async def test_delete_endpoint_delegates_to_dao():
 
     assert dao.calls == ["fetch_endpoint", "delete_endpoint"]
     assert deleted is True
+
+
+@pytest.mark.asyncio
+async def test_a_sheet_abandoning_its_pending_row_deletes_it():
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+    pending = await _oauth_endpoint(dao, connected=False)
+
+    deleted = await service.delete_endpoint(
+        project_id=uuid4(),
+        endpoint_id=pending.id,
+        pending_auth_mode=MCPAuthScheme.OAUTH,
+    )
+
+    assert deleted is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "auth_mode", [MCPAuthScheme.API_KEY, MCPAuthScheme.OAUTH], ids=["key", "grant"]
+)
+async def test_a_sheet_abandoning_a_row_another_tab_took_over_keeps_it(auth_mode):
+    """Another tab saved a key on the row, or finished its sign-in. The sheet that made
+    the row only gives up its own attempt."""
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+    taken = await dao.create_endpoint(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint=MCPEndpointCreate(
+            slug="acme-notion",
+            auth_mode=auth_mode,
+            secret_id=uuid4(),
+            data=MCPEndpointData(
+                route=MCPEndpointRoute(base_url="https://example.com/mcp")
+            ),
+        ),
+    )
+
+    with pytest.raises(MCPConnectionChangedError):
+        await service.delete_endpoint(
+            project_id=uuid4(),
+            endpoint_id=taken.id,
+            pending_auth_mode=MCPAuthScheme.OAUTH,
+        )
+
+    assert "delete_endpoint" not in dao.calls
 
 
 @pytest.mark.asyncio

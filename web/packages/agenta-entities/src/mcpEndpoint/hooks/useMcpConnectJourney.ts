@@ -311,7 +311,9 @@ export function useMcpConnectJourney({
                 const abandoned = endpointRef.current
                 if (cancelDeletesEndpoint(state) && abandoned) {
                     endpointRef.current = null
-                    void deleteMcpEndpoint(abandoned.id, projectId).catch(() => undefined)
+                    void deleteMcpEndpoint(abandoned.id, projectId, state.authMode).catch(
+                        () => undefined,
+                    )
                 }
             }
             dispatch({type: "url_changed", url})
@@ -333,7 +335,9 @@ export function useMcpConnectJourney({
             if (state.probe) {
                 const abandoned = endpointRef.current
                 if (cancelDeletesEndpoint(state) && abandoned) {
-                    void deleteMcpEndpoint(abandoned.id, projectId).catch(() => undefined)
+                    void deleteMcpEndpoint(abandoned.id, projectId, state.authMode).catch(
+                        () => undefined,
+                    )
                 }
                 endpointRef.current = null
                 createdHereRef.current = false
@@ -1108,6 +1112,10 @@ export function useMcpConnectJourney({
     /**
      * Abandon the journey. Deletes the pending row it created, and nothing else: a
      * reconnect leaves the working connection exactly as it found it.
+     *
+     * The API makes the last call, under the connection's lock: the row goes only while it
+     * is still in the mode this journey made it in, with no credential. Another tab can
+     * reconnect a pending row, and its key must not go with this tab's cancel.
      */
     const cancel = useCallback(async () => {
         abandonAttempt()
@@ -1115,10 +1123,10 @@ export function useMcpConnectJourney({
         if (cancelDeletesEndpoint(state) && endpoint) {
             endpointRef.current = null
             try {
-                await deleteMcpEndpoint(endpoint.id, projectId)
+                await deleteMcpEndpoint(endpoint.id, projectId, state.authMode)
             } catch {
-                // The row is inactive and expirable, so a failed cleanup is not worth
-                // blocking the person on.
+                // A row another tab took over is kept on purpose, and an abandoned pending
+                // row is inert, so a refused cleanup is not worth blocking the person on.
             }
         }
     }, [abandonAttempt, projectId, state])

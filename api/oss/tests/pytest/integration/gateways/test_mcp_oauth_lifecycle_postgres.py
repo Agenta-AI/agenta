@@ -8,7 +8,7 @@ the real attempt, endpoint and vault DAOs, and pause one side of each race on pu
 from __future__ import annotations
 
 import asyncio
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import text
@@ -32,6 +32,7 @@ from oss.src.core.gateways.mcps.oauth.types import (
 )
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.service import MCPGatewayService
+from oss.src.core.gateways.mcps.types import MCPConnectionBusyError
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.secrets.dtos import (
@@ -285,6 +286,35 @@ async def test_an_edit_during_a_completion_waits_then_retires_what_it_bound(
     )
     assert (edited.data.route.base_url, edited.secret_id) == (_NEW_URL, None)
     assert await _grant_ids(project, endpoint.id) == []
+
+
+@pytest.mark.asyncio
+async def test_a_change_waits_for_the_connection_lock_only_so_long(monkeypatch):
+    """A waiter holds a pooled connection, so it gives up rather than wait forever
+    behind a holder that does not let go."""
+    monkeypatch.setattr(endpoints_dao_module, "_OAUTH_LOCK_TIMEOUT", "200ms")
+    endpoints = MCPEndpointsDAO(engine=get_transactions_engine())
+    ids = {"project_id": uuid4(), "endpoint_id": uuid4()}
+    held, release = asyncio.Event(), asyncio.Event()
+
+    async def holder():
+        async with endpoints.oauth_lock(**ids):
+            held.set()
+            await release.wait()
+
+    holding = asyncio.create_task(holder())
+    await held.wait()
+    try:
+        with pytest.raises(MCPConnectionBusyError):
+            async with endpoints.oauth_lock(**ids):
+                pass
+    finally:
+        release.set()
+        await holding
+
+    # Released, the lock is taken at once.
+    async with endpoints.oauth_lock(**ids):
+        pass
 
 
 @pytest.mark.asyncio

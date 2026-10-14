@@ -4,7 +4,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from sqlalchemy import delete, select, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
 from oss.src.core.gateways.mcps.dtos import (
@@ -18,6 +18,7 @@ from oss.src.core.gateways.mcps.dtos import (
 from oss.src.core.gateways.mcps.interfaces import (
     MCPEndpointsDAOInterface,
 )
+from oss.src.core.gateways.mcps.types import MCPConnectionBusyError
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.dbs.postgres.gateways.mcps.dbes import MCPEndpointDBE
@@ -37,6 +38,12 @@ from oss.src.utils.exceptions import suppress_exceptions
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+# How long a change waits for a connection's OAuth lock. Each waiter holds a pooled
+# connection while it waits, so an unbounded wait behind a stuck holder can drain the pool.
+_OAUTH_LOCK_TIMEOUT = "30s"
+# Postgres reports an expired `lock_timeout` as `lock_not_available`.
+_LOCK_NOT_AVAILABLE = "55P03"
 
 
 class MCPEndpointsDAO(MCPEndpointsDAOInterface):
@@ -210,9 +217,17 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
         # pooled connection for as long as the block runs.
         async with self.engine.transaction() as connection:
             await connection.execute(
-                text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-                {"key": f"mcps_endpoint_oauth:{project_id}:{endpoint_id}"},
+                text(f"SET LOCAL lock_timeout = '{_OAUTH_LOCK_TIMEOUT}'")
             )
+            try:
+                await connection.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+                    {"key": f"mcps_endpoint_oauth:{project_id}:{endpoint_id}"},
+                )
+            except DBAPIError as e:
+                if getattr(e.orig, "sqlstate", None) == _LOCK_NOT_AVAILABLE:
+                    raise MCPConnectionBusyError() from e
+                raise
             yield
 
     # Excluded for the same reason `edit_endpoint` excludes it: this write refuses a

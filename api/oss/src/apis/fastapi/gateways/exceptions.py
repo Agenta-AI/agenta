@@ -23,6 +23,8 @@ from oss.src.core.gateways.llms.types import (
 from oss.src.core.gateways.mcps.types import (
     MCPAgentaToolNotEntitledError,
     MCPAuthRequiredError,
+    MCPConnectionBusyError,
+    MCPConnectionChangedError,
     MCPConnectionNameTakenError,
     MCPEndpointNotFoundError,
     MCPScopeInsufficientError,
@@ -226,6 +228,23 @@ def handle_gateway_exceptions():
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail=e.message,
+                ) from e
+            except MCPConnectionBusyError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=gateway_error_envelope(
+                        code="mcp_connection_busy",
+                        message=e.message,
+                        retryable=True,
+                        next_step="Try again.",
+                    ),
+                ) from e
+            except MCPConnectionChangedError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=gateway_error_envelope(
+                        code="mcp_connection_changed", message=e.message
+                    ),
                 ) from e
             except MCPConnectionNameTakenError as e:
                 # A conflict rather than a validation failure: the request is

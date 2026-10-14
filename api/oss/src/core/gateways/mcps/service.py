@@ -56,6 +56,7 @@ from oss.src.core.managed_tools.dtos import ManagedActionContext
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
+    MCPConnectionChangedError,
     MCPConnectionNameTakenError,
     MCPEndpointNotFoundError,
     MCPScopeInsufficientError,
@@ -427,12 +428,17 @@ class MCPGatewayService:
         project_id: UUID,
         #
         endpoint_id: UUID,
+        pending_auth_mode: Optional[MCPAuthScheme] = None,
     ) -> bool:
         """Delete a connection, and its OAuth grant and consents with it.
 
         A grant left behind would sit in the vault with nothing naming it, still holding
         a live token. Under the connection's OAuth lock, so no consent binds a grant to
         the row as it goes.
+
+        With `pending_auth_mode`, only a connection still in that mode with no credential
+        bound is deleted: the pending row a connect sheet made and is abandoning. A row
+        that another tab moved on since raises `MCPConnectionChangedError` and stays.
         """
         async with self.mcp_endpoints_dao.oauth_lock(
             project_id=project_id, endpoint_id=endpoint_id
@@ -440,6 +446,15 @@ class MCPGatewayService:
             current = await self.mcp_endpoints_dao.fetch_endpoint(
                 project_id=project_id, endpoint_id=endpoint_id
             )
+            if (
+                current is not None
+                and pending_auth_mode is not None
+                and (
+                    current.auth_mode != pending_auth_mode
+                    or current.secret_id is not None
+                )
+            ):
+                raise MCPConnectionChangedError()
             server_url = current.data.route.base_url if current is not None else None
             if (
                 server_url

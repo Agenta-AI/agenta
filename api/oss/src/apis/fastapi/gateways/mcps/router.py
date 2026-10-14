@@ -411,7 +411,15 @@ class MCPGatewayRouter:
         request: Request,
         *,
         endpoint_id: UUID,
+        pending_auth_mode: Optional[GatewayAuthScheme] = Query(default=None),
     ) -> None:
+        """Delete a connection.
+
+        A connect sheet abandoning the row it made sends `pending_auth_mode`, the mode it
+        made the row in. The row is then deleted only while it is still in that mode with
+        no credential bound, decided under the connection's lock. A row that another tab
+        took over since is kept, and the answer is 409.
+        """
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
 
@@ -419,6 +427,7 @@ class MCPGatewayRouter:
             project_id=scope.project_id,
             #
             endpoint_id=endpoint_id,
+            pending_auth_mode=pending_auth_mode,
         )
         if not deleted:
             raise MCPEndpointNotFoundError(

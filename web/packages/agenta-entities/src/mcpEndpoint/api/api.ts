@@ -13,6 +13,7 @@ import {
 } from "../core/mcpRpc"
 import {gatewayRefusalCode, gatewayRefusalMessage, gatewayRefusalStatus} from "../core/refusal"
 import type {
+    MCPAuthMode,
     MCPConnectAttemptResponse,
     MCPConnectResponse,
     MCPCredentialBinding,
@@ -56,9 +57,18 @@ export const editMcpEndpoint = async (
     return response.data
 }
 
-export const deleteMcpEndpoint = async (endpointId: string, projectId?: string): Promise<void> => {
+/**
+ * Delete a connection. A connect sheet abandoning the row it made passes the mode it made the
+ * row in, and the API then deletes the row only while it is still in that mode with no
+ * credential: another tab may have taken it over since, and that tab's work stays.
+ */
+export const deleteMcpEndpoint = async (
+    endpointId: string,
+    projectId?: string,
+    pendingAuthMode?: MCPAuthMode,
+): Promise<void> => {
     await axios.delete(`${getAgentaApiUrl()}${BASE}/${endpointId}`, {
-        params: projectId ? {project_id: projectId} : undefined,
+        params: {project_id: projectId, pending_auth_mode: pendingAuthMode},
     })
 }
 

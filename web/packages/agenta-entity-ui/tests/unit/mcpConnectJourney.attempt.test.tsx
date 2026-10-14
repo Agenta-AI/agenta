@@ -535,7 +535,7 @@ describe("leaving one address for another", () => {
         await act(async () => journey.setUrl("https://mcp.elsewhere.test/"))
         await settle()
 
-        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1")
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1", "oauth")
         expect(journey.state.endpointId).toBeNull()
 
         createMcpEndpoint.mockResolvedValue({
@@ -663,6 +663,21 @@ describe("the server-side consent attempt", () => {
             await journey.cancel()
         })
 
+        expect(cancelMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-1", "project-1")
+    })
+
+    it("lets the server keep a pending row that another tab took over", async () => {
+        // Another tab reconnected the row with a key while this sheet waited. Which row goes
+        // is decided under the connection's lock, so the delete names the mode this sheet
+        // made the row in, and the server's refusal ends the cancel quietly.
+        await reachConsent(fakePopup())
+        deleteMcpEndpoint.mockRejectedValueOnce({response: {status: 409}})
+
+        await act(async () => {
+            await journey.cancel()
+        })
+
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1", "oauth")
         expect(cancelMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-1", "project-1")
     })
 
@@ -1214,7 +1229,7 @@ describe("the authentication the person selects", () => {
         await act(async () => journey.selectAuthMode("none"))
         await settle()
 
-        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1")
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1", "oauth")
         expect(journey.state.status).toBe("naming")
         expect(journey.state.endpointId).toBeNull()
     })
