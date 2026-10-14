@@ -1194,6 +1194,14 @@ class _ConnectionSchema(BaseModel):
         title="Slug",
         description="The named vault connection (agenta mode only); omit for the project default.",
     )
+    namespace: Optional[Literal["standard", "custom", "builtin"]] = Field(
+        default=None,
+        title="Namespace",
+        description=(
+            "The gateway namespace the slug was picked from (agenta mode with a slug only); "
+            "omit to let the gateway infer it."
+        ),
+    )
 
 
 class _LlmSchema(BaseModel):
