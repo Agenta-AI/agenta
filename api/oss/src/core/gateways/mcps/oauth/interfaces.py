@@ -8,6 +8,7 @@ from uuid import UUID
 from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttempt,
     MCPOAuthAttemptCreate,
+    MCPOAuthAttemptStatus,
 )
 
 
@@ -59,33 +60,61 @@ class MCPOAuthAttemptsDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def fetch_attempt_by_id(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+        attempt_id: UUID,
+    ) -> Optional[MCPOAuthAttempt]:
+        """Read one attempt the way the browser names it: by id, inside its project and
+        connection. The browser never holds `state`."""
+        raise NotImplementedError
+
+    @abstractmethod
     async def consume_attempt(
         self,
         *,
         state: str,
     ) -> Optional[MCPOAuthAttempt]:
-        """Remove the attempt and return it, in one statement.
+        """Move a pending attempt to `claimed` and return it as it was, in one transaction.
 
-        Exactly one caller can be handed a given record: the second concurrent
-        consumer's statement matches no row and gets `None`. Expiry is NOT applied
-        here — an expired record is still consumed, and the caller decides what to
-        say about it — so an expired handle cannot be probed repeatedly either.
+        Exactly one caller can be handed a given record: a second concurrent consumer
+        finds it no longer pending and gets `None`. The verifier is blanked on the row as
+        it is claimed, so it is readable for one exchange and no longer. Expiry is NOT
+        applied here: an expired record is still consumed, and the caller decides what to
+        say about it, so an expired handle cannot be probed repeatedly either.
+
+        The row itself stays until the sweep, carrying the outcome the callback writes,
+        so the browser can ask how the attempt ended when the popup's message is lost.
         """
         raise NotImplementedError
 
     @abstractmethod
-    async def drop_attempts_for_endpoint(
+    async def settle_attempt(
+        self,
+        *,
+        attempt_id: UUID,
+        status: MCPOAuthAttemptStatus,
+        error: Optional[str] = None,
+    ) -> None:
+        """Record how a claimed attempt ended."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def cancel_attempts(
         self,
         *,
         project_id: UUID,
         endpoint_id: UUID,
+        attempt_id: Optional[UUID] = None,
     ) -> int:
-        """Delete every outstanding attempt for one connection and return how many went.
+        """Cancel one connection's pending attempts, or the one named, and return how many.
 
-        Disconnecting has to reach these. A consent already in flight completes against
-        the record it was issued, so without this a browser tab opened before the
-        disconnect reconnects the account afterwards, and the person who revoked it is
-        never told (D5).
+        A consent already in flight completes against the record it was issued, so
+        without this a browser tab opened before a cancel, a disconnect or a change of
+        mode or address finishes afterwards and binds a grant nobody wants (D5). A
+        cancelled attempt's callback writes nothing.
         """
         raise NotImplementedError
 

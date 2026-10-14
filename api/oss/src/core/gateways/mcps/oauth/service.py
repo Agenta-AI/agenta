@@ -13,6 +13,8 @@ from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient, same_issuer
 from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttempt,
     MCPOAuthAttemptCreate,
+    MCPOAuthAttemptOutcome,
+    MCPOAuthAttemptStatus,
     MCPOAuthAuthorizationStart,
     MCPOAuthCompletion,
     MCPOAuthDiscovery,
@@ -33,6 +35,7 @@ from oss.src.core.gateways.mcps.oauth.storage import (
     grant_settings_expired,
 )
 from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthAttemptCancelledError,
     MCPOAuthCallerMismatchError,
     MCPOAuthClientNotRegisteredError,
     MCPOAuthIssuerChangedError,
@@ -51,6 +54,10 @@ _CALLBACK_PATH = "/gateways/mcps/connect/callback"
 def callback_redirect_uri(*, api_url: str) -> str:
     """Return the fixed OAuth callback URI."""
     return f"{api_url.rstrip('/')}{_CALLBACK_PATH}"
+
+
+def _expired(attempt: MCPOAuthAttempt) -> bool:
+    return attempt.expires_at <= datetime.now(timezone.utc)
 
 
 @dataclass
@@ -184,7 +191,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
 
         # The record is written BEFORE the browser is sent anywhere. A handle that
         # reaches the authorization server always has a record behind it.
-        await self.attempts_dao.create_attempt(
+        attempt = await self.attempts_dao.create_attempt(
             attempt=MCPOAuthAttemptCreate(
                 state=state,
                 project_id=project_id,
@@ -214,8 +221,15 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         )
 
         return MCPOAuthAuthorizationStart(
-            authorization_url=authorization_url, state=state
+            authorization_url=authorization_url,
+            state=state,
+            attempt_id=attempt.id,
+            expires_in=STATE_TTL_SECONDS,
         )
+
+    async def lookup(self, *, state: str) -> Optional[MCPOAuthAttempt]:
+        """The attempt a handle names, read only, so every callback page can name it."""
+        return await self.attempts_dao.fetch_attempt(state=state)
 
     async def claim(
         self,
@@ -228,8 +242,8 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         This is the first half of the callback, split from `complete()` so that the
         facts the caller must be authorised against — the project above all — are in
         the caller's hands BEFORE any code is exchanged or any grant is written. The
-        record is consumed atomically (`DELETE ... RETURNING`), so there is no read
-        that leaves the handle probeable, and a caller refused after this point has
+        record is claimed atomically, pending to claimed under a row lock, so there is
+        no read that leaves the handle reusable, and a caller refused after this point has
         spent the attempt: single-use is the property that makes the handle safe, and
         the person must start the connection again.
 
@@ -240,6 +254,8 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         attempt = await self.attempts_dao.fetch_attempt(state=state)
         if attempt is None:
             raise MCPOAuthStateInvalidError()
+        if attempt.status == MCPOAuthAttemptStatus.CANCELLED:
+            raise MCPOAuthAttemptCancelledError()
 
         # Refuse before consuming: a stranger presenting someone else's handle must
         # not be able to burn it, and this path writes nothing at all.
@@ -248,13 +264,65 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
 
         consumed = await self.attempts_dao.consume_attempt(state=state)
         if consumed is None:
-            # Another callback took it between the read and the delete.
+            # Another callback took it, or a cancel landed, between the read and the
+            # claim.
             raise MCPOAuthStateInvalidError()
 
-        if consumed.expires_at <= datetime.now(timezone.utc):
+        if _expired(consumed):
+            await self.settle(attempt=consumed, status=MCPOAuthAttemptStatus.CANCELLED)
             raise MCPOAuthStateExpiredError()
 
         return consumed
+
+    async def settle(
+        self,
+        *,
+        attempt: MCPOAuthAttempt,
+        status: MCPOAuthAttemptStatus,
+        error: Optional[str] = None,
+    ) -> None:
+        """Record how a claimed attempt ended, for the browser that may ask."""
+        await self.attempts_dao.settle_attempt(
+            attempt_id=attempt.id, status=status, error=error
+        )
+
+    async def cancel(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+        attempt_id: Optional[UUID] = None,
+    ) -> int:
+        """Cancel one pending attempt, or every pending attempt of a connection.
+
+        Every attempt, when the connection's mode or address changes: a consent started
+        against the old one must not bind a grant to the new one.
+        """
+        return await self.attempts_dao.cancel_attempts(
+            project_id=project_id, endpoint_id=endpoint_id, attempt_id=attempt_id
+        )
+
+    async def outcome(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+        attempt_id: UUID,
+    ) -> Optional[MCPOAuthAttemptOutcome]:
+        """How one attempt stands, for a browser whose popup message never arrived."""
+        attempt = await self.attempts_dao.fetch_attempt_by_id(
+            project_id=project_id, endpoint_id=endpoint_id, attempt_id=attempt_id
+        )
+        if attempt is None:
+            return None
+
+        status = attempt.status
+        if status == MCPOAuthAttemptStatus.CLAIMED:
+            status = MCPOAuthAttemptStatus.PENDING
+        if status == MCPOAuthAttemptStatus.PENDING and _expired(attempt):
+            status = MCPOAuthAttemptStatus.CANCELLED
+
+        return MCPOAuthAttemptOutcome(id=attempt.id, status=status, error=attempt.error)
 
     async def complete(
         self,
@@ -333,12 +401,10 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         # The outstanding consents go first. A consent already in flight completes
         # against the record it was issued, so a browser tab opened before this call
         # would otherwise finish afterwards and reconnect the account, leaving the
-        # person who pressed Disconnect believing they had revoked it (D5). Dropped
+        # person who pressed Disconnect believing they had revoked it (D5). Cancelled
         # before the grant, so there is no window in which the grant is gone and a
         # callback can still write a new one.
-        await self.attempts_dao.drop_attempts_for_endpoint(
-            project_id=project_id, endpoint_id=endpoint_id
-        )
+        await self.cancel(project_id=project_id, endpoint_id=endpoint_id)
 
         storage = SecretsTokenStorage(
             vault_service=self.vault_service,

@@ -27,10 +27,12 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {
     beginMcpConnect,
+    cancelMcpConnectAttempt,
     createMcpEndpoint,
     deleteMcpEndpoint,
     discoverMcpConnect,
     editMcpEndpoint,
+    fetchMcpConnectAttempt,
     listMcpTools,
     probeMcpUrl,
     queryMcpEndpoints,
@@ -180,6 +182,9 @@ export function useMcpConnectJourney({
      */
     const attemptRef = useRef(0)
     const stopWatchRef = useRef<(() => void) | null>(null)
+    // The server-side consent attempt still waiting on a callback, so leaving the journey can
+    // cancel it rather than let a late callback bind a grant nobody is waiting for.
+    const consentAttemptRef = useRef<{endpointId: string; attemptId: string} | null>(null)
     const popupNameRef = useRef(`mcp_oauth_${randomAlphanumeric(6)}`)
     // The reducer's state is not readable from inside an async step that already started,
     // so the identity is mirrored here for the teardown and the callbacks.
@@ -240,11 +245,27 @@ export function useMcpConnectJourney({
         stopWatchRef.current = null
     }, [])
 
+    /** Cancel one server-side consent attempt. A failed cancel expires on its own. */
+    const cancelServerAttempt = useCallback(
+        (endpointId: string, attemptId: string) => {
+            void cancelMcpConnectAttempt(endpointId, attemptId, projectId).catch(() => undefined)
+        },
+        [projectId],
+    )
+
+    /** Cancel the server's pending consent attempt, if there is one. */
+    const cancelConsentAttempt = useCallback(() => {
+        const pending = consentAttemptRef.current
+        consentAttemptRef.current = null
+        if (pending) cancelServerAttempt(pending.endpointId, pending.attemptId)
+    }, [cancelServerAttempt])
+
     /** Abandon whatever is in flight. Anything that returns after this is ignored. */
     const abandonAttempt = useCallback(() => {
         attemptRef.current += 1
         stopWatch()
-    }, [stopWatch])
+        cancelConsentAttempt()
+    }, [cancelConsentAttempt, stopWatch])
 
     /**
      * Whether the attempt a step started on is still the one the journey is on.
@@ -448,18 +469,25 @@ export function useMcpConnectJourney({
     const driveConsent = useCallback(
         async (popup: Window | null, endpointId: string, scopes: string[]) => {
             const attempt = attemptRef.current
+            // A new window replaces the last one, whose callback must not land after it.
+            cancelConsentAttempt()
             const result = await beginMcpConnect(endpointId, scopes, projectId)
 
             if (!isCurrent(attempt)) {
                 // The dialog closed while the authorization URL was being minted. Installing
                 // the watch now would hold a listener, an interval and a timeout on an
                 // attempt nobody is waiting for, which is the window OR67's own teardown
-                // cannot cover because there is nothing installed yet to tear down.
+                // cannot cover because there is nothing installed yet to tear down. The
+                // attempt it minted is cancelled for the same reason.
                 popup?.close()
+                if (result.attempt_id) cancelServerAttempt(endpointId, result.attempt_id)
                 return
             }
             const redirectUrl = result.redirect_url
-            if (!redirectUrl) throw new Error("No authorization URL returned.")
+            const attemptId = result.attempt_id
+            if (!redirectUrl || !attemptId || !result.expires_in) {
+                throw new Error("No authorization URL returned.")
+            }
 
             if (!popup) {
                 // Blocked, which mobile browsers and in-app webviews do far more readily than
@@ -479,19 +507,26 @@ export function useMcpConnectJourney({
             // The watch goes on BEFORE the popup is pointed anywhere. A provider that answers
             // without a consent screen — the mock does, and a provider that already holds a
             // grant does too — can be back at the callback before the next statements run, and
-            // the completion it posts then arrives at a window with no listener on it. Nothing
-            // recovers from that: the poll only notices a CLOSED popup, which is a failure, so
-            // a missed success waits out the three-minute timeout with the connection already
-            // authorized behind it.
+            // the completion it posts then arrives at a window with no listener on it, and only
+            // the completion check on close would recover it.
+            consentAttemptRef.current = {endpointId, attemptId}
             stopWatch()
             stopWatchRef.current = watchOauthConsent({
                 popup,
-                endpointId,
+                attemptId,
                 // The callback page is served by the API, so its origin is the only one
                 // that can legitimately post the completion.
                 trustedOrigins: buildTrustedOrigins([getAgentaApiUrl()]),
                 target: window,
-                onConnected: () => dispatch({type: "consent_succeeded"}),
+                checkOutcome: async () =>
+                    (await fetchMcpConnectAttempt(endpointId, attemptId, projectId)).attempt ??
+                    null,
+                // The same lifetime the callback enforces, so neither side gives up first.
+                timeoutMs: result.expires_in * 1000,
+                onConnected: () => {
+                    consentAttemptRef.current = null
+                    dispatch({type: "consent_succeeded"})
+                },
                 onFailed: (error) =>
                     dispatch(
                         error.toLowerCase().includes("closed")
@@ -502,7 +537,7 @@ export function useMcpConnectJourney({
 
             popup.location.href = redirectUrl
         },
-        [isCurrent, projectId, stopWatch],
+        [cancelConsentAttempt, cancelServerAttempt, isCurrent, projectId, stopWatch],
     )
 
     /**

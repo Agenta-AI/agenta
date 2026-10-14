@@ -14,6 +14,7 @@ from oss.src.apis.fastapi.gateways.flags import MCP_GATEWAY_ENABLED
 from oss.src.apis.fastapi.gateways.mcps.models import (
     MCPAgentaCredentialRequest,
     MCPAgentaCredentialResponse,
+    MCPConnectAttemptResponse,
     MCPConnectRequest,
     MCPConnectResponse,
     MCPEndpointCreateRequest,
@@ -35,6 +36,11 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPOAuthData,
     check_url_secret_placeholder,
 )
+from oss.src.core.gateways.mcps.oauth.dtos import (
+    MCPOAuthAttempt,
+    MCPOAuthAttemptStatus,
+)
+from oss.src.core.gateways.mcps.oauth.types import MCPOAuthAttemptCancelledError
 from oss.src.core.gateways.mcps.providers.agenta.entitlement import (
     entitled_agenta_tools,
 )
@@ -175,6 +181,21 @@ class MCPGatewayRouter:
             operation_id="disconnect_mcp_endpoint",
             response_model=MCPEndpointResponse,
             response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/endpoints/{endpoint_id}/connect/attempts/{attempt_id}",
+            self.fetch_connect_attempt,
+            methods=["GET"],
+            operation_id="fetch_mcp_connect_attempt",
+            response_model=MCPConnectAttemptResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/endpoints/{endpoint_id}/connect/attempts/{attempt_id}",
+            self.cancel_connect_attempt,
+            methods=["DELETE"],
+            operation_id="cancel_mcp_connect_attempt",
+            status_code=status.HTTP_204_NO_CONTENT,
         )
         self.router.add_api_route(
             "/connect/callback",
@@ -372,6 +393,12 @@ class MCPGatewayRouter:
 
         _guard_custom_endpoint_url(url=body.endpoint.data.route.base_url)
 
+        current = await self.service.fetch_endpoint(
+            project_id=scope.project_id,
+            #
+            endpoint_id=endpoint_id,
+        )
+
         endpoint = await self.service.edit_endpoint(
             project_id=scope.project_id,
             user_id=scope.user_id,
@@ -383,6 +410,22 @@ class MCPGatewayRouter:
                 namespace=GatewayEndpointNamespace.CUSTOM,
                 name=str(endpoint_id),
             )
+
+        # After the edit, so a refused edit changes nothing. A consent started against
+        # the old mode or address must not land on the new one, and a grant the
+        # connection no longer uses is Agenta's own row, so it goes the way a delete
+        # takes it. The secret the person chose for the new mode is theirs and stays.
+        if current is not None and (
+            current.auth_mode != endpoint.auth_mode
+            or current.data.route.base_url != endpoint.data.route.base_url
+        ):
+            if endpoint.auth_mode != GatewayAuthScheme.OAUTH:
+                # Cancels the pending attempts too.
+                await self._drop_grant(scope=scope, endpoint=current)
+            else:
+                await self.oauth_connect_service.cancel(
+                    project_id=scope.project_id, endpoint_id=endpoint_id
+                )
 
         return MCPEndpointResponse(count=1, endpoint=endpoint)
 
@@ -550,7 +593,12 @@ class MCPGatewayRouter:
             scopes=body.scopes,
         )
 
-        return MCPConnectResponse(count=1, redirect_url=start.authorization_url)
+        return MCPConnectResponse(
+            count=1,
+            redirect_url=start.authorization_url,
+            attempt_id=str(start.attempt_id),
+            expires_in=start.expires_in,
+        )
 
     @intercept_exceptions()
     @handle_gateway_exceptions()
@@ -616,6 +664,59 @@ class MCPGatewayRouter:
 
         return MCPEndpointResponse(count=1, endpoint=disconnected)
 
+    @intercept_exceptions()
+    @handle_gateway_exceptions()
+    async def fetch_connect_attempt(
+        self,
+        request: Request,
+        *,
+        endpoint_id: UUID,
+        attempt_id: UUID,
+    ) -> MCPConnectAttemptResponse:
+        """How one consent attempt stands.
+
+        The sheet asks when the popup closes or the wait runs out without a message from
+        the callback page, which is how a result posted to an opener that is gone, or to
+        an origin the app is not on, still reaches the person.
+        """
+        scope = get_auth_scope()
+        await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
+
+        outcome = await self.oauth_connect_service.outcome(
+            project_id=scope.project_id,
+            endpoint_id=endpoint_id,
+            attempt_id=attempt_id,
+        )
+        if outcome is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="attempt not found",
+            )
+
+        return MCPConnectAttemptResponse(count=1, attempt=outcome)
+
+    @intercept_exceptions()
+    @handle_gateway_exceptions()
+    async def cancel_connect_attempt(
+        self,
+        request: Request,
+        *,
+        endpoint_id: UUID,
+        attempt_id: UUID,
+    ) -> None:
+        """Cancel one pending consent attempt. Its callback then writes nothing.
+
+        Idempotent: an attempt already settled, cancelled or swept is left as it is.
+        """
+        scope = get_auth_scope()
+        await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
+
+        await self.oauth_connect_service.cancel(
+            project_id=scope.project_id,
+            endpoint_id=endpoint_id,
+            attempt_id=attempt_id,
+        )
+
     async def connect_callback(
         self,
         request: Request,
@@ -630,33 +731,49 @@ class MCPGatewayRouter:
         handler acts on comes from the server-side authorization attempt record that
         the opaque `state` names, and the handler resolves the browser's own session to
         check it against that record's user."""
+        # Every page names the connection and the attempt it answers for, success or
+        # failure alike, so the sheet that started this attempt can tell its own result
+        # from another's and show the provider's own words. The ids come from the
+        # record `state` names; a page with no record behind it names nothing.
+        known = await self.oauth_connect_service.lookup(state=state) if state else None
+
+        def page(status_code: int, *, error: Optional[str] = None) -> HTMLResponse:
+            return HTMLResponse(
+                status_code=status_code,
+                content=_connect_card(
+                    success=error is None,
+                    error=error,
+                    agenta_url=env.agenta.web_url,
+                    endpoint_id=str(known.endpoint_id) if known else None,
+                    attempt_id=str(known.id) if known else None,
+                ),
+            )
+
+        async def refuse(
+            status_code: int,
+            error: str,
+            *,
+            attempt: Optional[MCPOAuthAttempt],
+            outcome: MCPOAuthAttemptStatus = MCPOAuthAttemptStatus.FAILED,
+        ) -> HTMLResponse:
+            # Recorded for the sheet, which asks when this page's message never reaches it.
+            if attempt is not None:
+                await self.oauth_connect_service.settle(
+                    attempt=attempt, status=outcome, error=error
+                )
+            return page(status_code, error=error)
+
+        pending = (
+            known
+            if known is not None and known.status == MCPOAuthAttemptStatus.PENDING
+            else None
+        )
         if error:
-            return HTMLResponse(
-                status_code=400,
-                content=_connect_card(
-                    success=False,
-                    error=error_description or error,
-                    agenta_url=env.agenta.web_url,
-                ),
-            )
+            return await refuse(400, error_description or error, attempt=pending)
         if not state:
-            return HTMLResponse(
-                status_code=400,
-                content=_connect_card(
-                    success=False,
-                    error="Missing state parameter.",
-                    agenta_url=env.agenta.web_url,
-                ),
-            )
+            return page(400, error="Missing state parameter.")
         if not code:
-            return HTMLResponse(
-                status_code=400,
-                content=_connect_card(
-                    success=False,
-                    error="Missing authorization code.",
-                    agenta_url=env.agenta.web_url,
-                ),
-            )
+            return await refuse(400, "Missing authorization code.", attempt=pending)
 
         # The principal the callback is checked against. `None` means the browser has
         # no live Agenta session, which is a refusal: the authorization server holds
@@ -675,12 +792,7 @@ class MCPGatewayRouter:
                 caller_user_id=caller_user_id,
             )
         except GatewaysError as e:
-            return HTMLResponse(
-                status_code=400,
-                content=_connect_card(
-                    success=False, error=e.message, agenta_url=env.agenta.web_url
-                ),
-            )
+            return page(400, error=e.message)
 
         # The attempt named the user; the user must still be allowed to edit endpoints
         # in the attempt's project, which they can have lost while consenting. Nothing
@@ -692,18 +804,27 @@ class MCPGatewayRouter:
             permission=Permission.EDIT_MCP_ENDPOINTS,
         )
         if not allowed:
-            return HTMLResponse(
-                status_code=403,
-                content=_connect_card(
-                    success=False,
-                    error=(
-                        "You are no longer allowed to edit MCP endpoints in this "
-                        "project. Nothing was connected; start again from Agenta if "
-                        "this is wrong."
-                    ),
-                    agenta_url=env.agenta.web_url,
-                ),
+            return await refuse(
+                403,
+                "You are no longer allowed to edit MCP endpoints in this project. "
+                "Nothing was connected; start again from Agenta if this is wrong.",
+                attempt=attempt,
             )
+
+        async def cancelled() -> HTMLResponse:
+            return await refuse(
+                400,
+                MCPOAuthAttemptCancelledError().message,
+                attempt=attempt,
+                outcome=MCPOAuthAttemptStatus.CANCELLED,
+            )
+
+        # Before the exchange, not after it: the code buys tokens, and tokens for a
+        # connection that has since moved to an API key or another address must never
+        # be written. Changing either cancels the attempt; this catches a change that
+        # landed while the browser was on its way back.
+        if not _attempt_applies_to(await self._attempt_target(attempt), attempt):
+            return await cancelled()
 
         try:
             completion = await self.oauth_connect_service.complete(
@@ -711,58 +832,54 @@ class MCPGatewayRouter:
                 code=code,
             )
         except GatewaysError as e:
-            return HTMLResponse(
-                status_code=400,
-                content=_connect_card(
-                    success=False, error=e.message, agenta_url=env.agenta.web_url
-                ),
-            )
+            return await refuse(400, e.message, attempt=attempt)
 
-        # The endpoint comes from the attempt's bound id, not from a lookup by server
-        # URL: two endpoints in one project can name the same server, and the grant
-        # belongs to the one the user pressed connect on.
-        target = await self.service.fetch_endpoint(
-            project_id=completion.project_id,
-            #
-            endpoint_id=completion.endpoint_id,
-        )
-        if target is None or target.auth_mode != GatewayAuthScheme.OAUTH:
-            return HTMLResponse(
-                status_code=400,
-                content=_connect_card(
-                    success=False,
-                    error="No matching MCP endpoint found for this server.",
-                    agenta_url=env.agenta.web_url,
-                ),
-            )
+        # Again after the exchange, for a change that landed during it. A connection
+        # that left OAuth meanwhile may already have had its grant removed by that edit,
+        # so the grant this just wrote goes too: it is Agenta's own row.
+        target = await self._attempt_target(attempt)
+        if not _attempt_applies_to(target, attempt):
+            if target is None or target.auth_mode != GatewayAuthScheme.OAUTH:
+                await self.oauth_connect_service.disconnect(
+                    project_id=attempt.project_id,
+                    endpoint_id=attempt.endpoint_id,
+                    server_url=attempt.server_url,
+                )
+            return await cancelled()
 
         bound = await self.service.bind_endpoint_secret(
             project_id=completion.project_id,
             user_id=completion.user_id,
             #
-            endpoint_id=target.id,
+            endpoint_id=completion.endpoint_id,
             secret_id=completion.secret_id,
         )
         if bound is None:
             # The grant was written and the connection does not name it, so the person
             # would be told they were connected by a card over a connection that still
             # reads as needing authorization (D20).
-            return HTMLResponse(
-                status_code=400,
-                content=_connect_card(
-                    success=False,
-                    error="The authorization could not be saved to this connection.",
-                    agenta_url=env.agenta.web_url,
-                ),
+            return await refuse(
+                400,
+                "The authorization could not be saved to this connection.",
+                attempt=attempt,
             )
 
-        return HTMLResponse(
-            status_code=200,
-            content=_connect_card(
-                success=True,
-                agenta_url=env.agenta.web_url,
-                endpoint_id=str(target.id),
-            ),
+        await self.oauth_connect_service.settle(
+            attempt=attempt, status=MCPOAuthAttemptStatus.CONNECTED
+        )
+        return page(200)
+
+    async def _attempt_target(self, attempt: MCPOAuthAttempt) -> Optional[MCPEndpoint]:
+        """The connection the attempt was started on.
+
+        From the attempt's bound id, not from a lookup by server URL: two endpoints in
+        one project can name the same server, and the grant belongs to the one the user
+        pressed connect on.
+        """
+        return await self.service.fetch_endpoint(
+            project_id=attempt.project_id,
+            #
+            endpoint_id=attempt.endpoint_id,
         )
 
     # OAuth attempt expiry
@@ -778,6 +895,18 @@ class MCPGatewayRouter:
         count = await self.oauth_connect_service.sweep_expired_attempts()
 
         return {"count": count}
+
+
+def _attempt_applies_to(
+    target: Optional[MCPEndpoint], attempt: MCPOAuthAttempt
+) -> bool:
+    """Whether the connection is still the OAuth connection at the address the attempt
+    was started for."""
+    return (
+        target is not None
+        and target.auth_mode == GatewayAuthScheme.OAUTH
+        and target.data.route.base_url == attempt.server_url
+    )
 
 
 def _json_for_inline_script(value: Any) -> str:
@@ -828,6 +957,7 @@ def _connect_card(
     error: Optional[str] = None,
     agenta_url: Optional[str] = None,
     endpoint_id: Optional[str] = None,
+    attempt_id: Optional[str] = None,
 ) -> str:
     """A small self-contained HTML page for the browser landing on the callback
     directly. Posts `mcp:oauth:connected` to
@@ -843,6 +973,8 @@ def _connect_card(
         payload["error"] = error
     if endpoint_id:
         payload["endpoint_id"] = endpoint_id
+    if attempt_id:
+        payload["attempt_id"] = attempt_id
     oauth_complete_message_js = _json_for_inline_script(payload)
     # Where a stranded tab goes back to. The settings surface owns connections, and it is the
     # one place that is right whichever surface started the flow.

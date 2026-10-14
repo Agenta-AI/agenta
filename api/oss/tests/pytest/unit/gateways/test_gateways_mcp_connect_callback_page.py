@@ -63,6 +63,19 @@ class TestThePopupPath:
         assert "window.close()" in opener_branch
         assert "window.close()" not in page.split("} else if")[1]
 
+    def test_a_failure_names_the_connection_and_the_attempt_too(self):
+        """The sheet matches on the attempt, so a failure without it read as a closed
+        window and the provider's words never reached the person."""
+        page = _card(
+            success=False,
+            error="User declined",
+            attempt_id="01a0a000-0000-7000-8000-000000000002",
+        )
+
+        assert '"endpoint_id": "01a0a000-0000-7000-8000-000000000001"' in page
+        assert '"attempt_id": "01a0a000-0000-7000-8000-000000000002"' in page
+        assert '"error": "User declined"' in page
+
 
 class TestTheBlockedPopupPath:
     def test_it_sends_a_tab_with_no_opener_back_to_the_app(self):

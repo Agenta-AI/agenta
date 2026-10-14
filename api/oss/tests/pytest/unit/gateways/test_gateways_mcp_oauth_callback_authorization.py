@@ -50,6 +50,12 @@ class _EndpointStore:
     async def query_endpoints(self, *, project_id, endpoint=None, windowing=None):
         return [self.endpoint]
 
+    async def bind_endpoint_secret(
+        self, *, project_id, user_id, endpoint_id, secret_id
+    ):
+        self.endpoint = self.endpoint.model_copy(update={"secret_id": secret_id})
+        return self.endpoint
+
 
 def _grants(dao, *, project_id):
     return [
@@ -59,12 +65,11 @@ def _grants(dao, *, project_id):
     ]
 
 
-@pytest.fixture
-def callback(monkeypatch):
-    """A callback the caller may no longer use, with the vault open for inspection.
+def _start_consent(monkeypatch):
+    """A real `begin()` against a real service, with the vault open for inspection.
 
-    Returns the pieces the assertions need: the client, the attempt handle a real
-    `begin()` issued, the endpoint store and the secrets DAO.
+    Returns the client, the attempt handle, the endpoint store, the secrets DAO, the
+    project, the begin response, and the switch for the caller's permission.
     """
     service, dao, _attempts = _service()
     project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
@@ -116,6 +121,20 @@ def callback(monkeypatch):
     start = client.post(f"/endpoints/{endpoint_id}/connect", json={"scopes": ["read"]})
     assert start.status_code == 200, start.text
     handle = parse_qs(urlparse(start.json()["redirect_url"]).query)["state"][0]
+
+    return client, handle, store, dao, project_id, start.json(), permitted
+
+
+@pytest.fixture
+def callback(monkeypatch):
+    """A callback the caller may no longer use, with the vault open for inspection.
+
+    Returns the pieces the assertions need: the client, the attempt handle a real
+    `begin()` issued, the endpoint store and the secrets DAO.
+    """
+    client, handle, store, dao, project_id, _start, permitted = _start_consent(
+        monkeypatch
+    )
     permitted[0] = False
 
     return client, handle, store, dao, project_id
@@ -153,3 +172,68 @@ def test_the_refused_attempt_is_spent_and_cannot_be_replayed(callback):
     assert "invalid or expired" in replay.text.lower()
     assert _grants(dao, project_id=project_id) == []
     assert store.edits == 0
+
+
+def _outcome(client, store, start):
+    return client.get(
+        f"/endpoints/{store.endpoint.id}/connect/attempts/{start['attempt_id']}"
+    ).json()["attempt"]
+
+
+def test_a_callback_after_cancel_writes_nothing_and_says_so(monkeypatch):
+    client, handle, store, dao, project_id, start, _permitted = _start_consent(
+        monkeypatch
+    )
+
+    cancelled = client.delete(
+        f"/endpoints/{store.endpoint.id}/connect/attempts/{start['attempt_id']}"
+    )
+    response = client.get(
+        "/connect/callback", params={"code": "auth-code-1", "state": handle}
+    )
+
+    assert cancelled.status_code == 204
+    assert response.status_code == 400
+    assert "This sign-in was cancelled." in response.text
+    assert _grants(dao, project_id=project_id) == []
+    assert store.endpoint.secret_id is None
+    assert _outcome(client, store, start)["status"] == "cancelled"
+
+
+def test_a_callback_after_a_switch_to_an_api_key_writes_nothing(monkeypatch):
+    """The person moved the connection to an API key while the consent screen was open.
+    The late callback must not exchange its code, write a grant, or bind one."""
+    client, handle, store, dao, project_id, _start, _permitted = _start_consent(
+        monkeypatch
+    )
+    store.endpoint = store.endpoint.model_copy(
+        update={"auth_mode": GatewayAuthScheme.API_KEY}
+    )
+
+    response = client.get(
+        "/connect/callback", params={"code": "auth-code-1", "state": handle}
+    )
+
+    assert response.status_code == 400
+    assert "This sign-in was cancelled." in response.text
+    assert _grants(dao, project_id=project_id) == []
+    assert store.endpoint.secret_id is None
+
+
+def test_a_completed_attempt_reports_connected_to_the_sheet(monkeypatch):
+    client, handle, store, dao, project_id, start, _permitted = _start_consent(
+        monkeypatch
+    )
+
+    response = client.get(
+        "/connect/callback", params={"code": "auth-code-1", "state": handle}
+    )
+
+    assert response.status_code == 200, response.text
+    assert f'"attempt_id": "{start["attempt_id"]}"' in response.text
+    assert start["expires_in"] == 600
+    assert _outcome(client, store, start) == {
+        "id": start["attempt_id"],
+        "status": "connected",
+    }
+    assert len(_grants(dao, project_id=project_id)) == 1

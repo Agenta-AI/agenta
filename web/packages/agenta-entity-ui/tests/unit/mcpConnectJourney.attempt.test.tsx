@@ -23,7 +23,9 @@ const {
     deleteMcpEndpoint,
     editMcpEndpoint,
     beginMcpConnect,
+    cancelMcpConnectAttempt,
     discoverMcpConnect,
+    fetchMcpConnectAttempt,
     listMcpTools,
     queryMcpEndpoints,
 } = vi.hoisted(() => ({
@@ -32,7 +34,9 @@ const {
     deleteMcpEndpoint: vi.fn(),
     editMcpEndpoint: vi.fn(),
     beginMcpConnect: vi.fn(),
+    cancelMcpConnectAttempt: vi.fn(),
     discoverMcpConnect: vi.fn(),
+    fetchMcpConnectAttempt: vi.fn(),
     listMcpTools: vi.fn(),
     queryMcpEndpoints: vi.fn(),
 }))
@@ -44,7 +48,9 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
     deleteMcpEndpoint,
     editMcpEndpoint,
     beginMcpConnect,
+    cancelMcpConnectAttempt,
     discoverMcpConnect,
+    fetchMcpConnectAttempt,
     listMcpTools,
     queryMcpEndpoints,
 }))
@@ -105,7 +111,13 @@ beforeEach(() => {
         endpoint: {id: "mcp-1", slug: "acme-7mx", name: "Acme", auth_mode: "oauth"},
     })
     deleteMcpEndpoint.mockResolvedValue(undefined)
-    beginMcpConnect.mockResolvedValue({count: 1, redirect_url: "https://issuer.test/authorize"})
+    beginMcpConnect.mockResolvedValue({
+        count: 1,
+        redirect_url: "https://issuer.test/authorize",
+        attempt_id: "attempt-1",
+        expires_in: 600,
+    })
+    cancelMcpConnectAttempt.mockResolvedValue(undefined)
     discoverMcpConnect.mockResolvedValue({count: 1, scopes_offered: ["tools:list"]})
     queryMcpEndpoints.mockResolvedValue({count: 0, endpoints: []})
     host = document.createElement("div")
@@ -618,6 +630,103 @@ describe("a step that comes back to an abandoned attempt", () => {
     })
 })
 
+describe("the server-side consent attempt", () => {
+    const reachConsent = async (popup: Window | null) => {
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+        await act(async () => {
+            await journey.submitScopes(popup)
+        })
+    }
+
+    it("cancels the attempt on the server when the person cancels the consent", async () => {
+        await reachConsent(fakePopup())
+
+        await act(async () => journey.cancelConsent())
+
+        // Otherwise a late callback still exchanges its code and binds the grant.
+        expect(cancelMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-1", "project-1")
+    })
+
+    it("cancels the attempt when the whole journey is cancelled", async () => {
+        await reachConsent(fakePopup())
+
+        await act(async () => {
+            await journey.cancel()
+        })
+
+        expect(cancelMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-1", "project-1")
+    })
+
+    it("cancels the last attempt when a new window replaces it", async () => {
+        await reachConsent(fakePopup())
+        await act(async () => journey.cancelConsent())
+        cancelMcpConnectAttempt.mockClear()
+        beginMcpConnect.mockResolvedValueOnce({
+            count: 1,
+            redirect_url: "https://issuer.test/authorize",
+            attempt_id: "attempt-2",
+            expires_in: 600,
+        })
+
+        await act(async () => {
+            await journey.submitScopes(fakePopup())
+        })
+        await act(async () => journey.cancelConsent())
+
+        expect(cancelMcpConnectAttempt).toHaveBeenCalledTimes(1)
+        expect(cancelMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-2", "project-1")
+    })
+
+    it("cancels nothing once the attempt succeeded", async () => {
+        const listeners = vi.spyOn(window, "addEventListener")
+        await reachConsent(fakePopup())
+        const handler = listeners.mock.calls.find(([type]) => type === "message")?.[1] as (
+            event: MessageEvent,
+        ) => void
+        await act(async () => {
+            handler({
+                data: {type: "mcp:oauth:connected", success: true, attempt_id: "attempt-1"},
+                origin: "https://api.example.test",
+            } as MessageEvent)
+        })
+
+        await act(async () => journey.abandonAttempt())
+
+        expect(cancelMcpConnectAttempt).not.toHaveBeenCalled()
+        listeners.mockRestore()
+    })
+
+    it("asks the server how the attempt ended when the window closes without a message", async () => {
+        vi.useFakeTimers({toFake: ["setInterval", "clearInterval"]})
+        fetchMcpConnectAttempt.mockResolvedValue({
+            count: 1,
+            attempt: {id: "attempt-1", status: "failed", error: "User declined"},
+        })
+        const popup = {closed: false, close: vi.fn(), location: {href: ""}}
+        await reachConsent(popup as never)
+
+        popup.closed = true
+        await act(async () => {
+            vi.advanceTimersByTime(1_000)
+        })
+        await settle()
+
+        expect(fetchMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-1", "project-1")
+        // The provider's words, not "window closed".
+        expect(journey.state.error).toBe("User declined")
+        vi.useRealTimers()
+    })
+})
+
 describe("the popup contract", () => {
     it("gives each attempt its own window name", async () => {
         await mountJourney()
@@ -755,7 +864,12 @@ describe("the popup contract", () => {
         ) => void
         await act(async () => {
             handler({
-                data: {type: "mcp:oauth:connected", success: true, endpoint_id: "mcp-1"},
+                data: {
+                    type: "mcp:oauth:connected",
+                    success: true,
+                    endpoint_id: "mcp-1",
+                    attempt_id: "attempt-1",
+                },
                 origin: "https://evil.test",
             } as MessageEvent)
         })
@@ -763,7 +877,12 @@ describe("the popup contract", () => {
 
         await act(async () => {
             handler({
-                data: {type: "mcp:oauth:connected", success: true, endpoint_id: "mcp-1"},
+                data: {
+                    type: "mcp:oauth:connected",
+                    success: true,
+                    endpoint_id: "mcp-1",
+                    attempt_id: "attempt-1",
+                },
                 origin: "https://api.example.test",
             } as MessageEvent)
         })
