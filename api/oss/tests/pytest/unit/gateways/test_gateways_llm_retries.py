@@ -367,3 +367,26 @@ async def test_a_retryable_body_that_outlasts_the_routes_timeout_is_a_timeout():
 
     assert len(adapter.calls) == 1
     assert closed == [True]
+
+
+@pytest.mark.asyncio
+async def test_a_wait_that_the_read_of_the_discarded_answer_pushed_past_the_deadline_is_not_started(
+    sleeps,
+):
+    async def _slow_body() -> AsyncIterator[bytes]:
+        await asyncio.get_running_loop().run_in_executor(
+            None, __import__("time").sleep, 0.08
+        )
+        yield b'{"error": "slow down"}'
+
+    adapter = _MockAdapter(
+        result=LLMRelayResult(
+            status_code=429, headers={"retry-after": "0.05"}, body=_slow_body()
+        )
+    )
+
+    with pytest.raises(LLMUpstreamTimeoutError):
+        await _relay(_service(adapter, timeout_seconds=0.1))
+
+    assert len(adapter.calls) == 1
+    assert sleeps == []

@@ -871,6 +871,9 @@ class LLMGatewayService:
                 )
             except asyncio.TimeoutError as e:
                 raise LLMUpstreamTimeoutError(provider_key=target.provider_key) from e
+            # The read took time too: a wait that would now pass the deadline is not started.
+            if deadline is not None and loop.time() + delay >= deadline:
+                raise LLMUpstreamTimeoutError(provider_key=target.provider_key)
 
             retry += 1
             log.warning(
