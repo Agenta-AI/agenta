@@ -32,6 +32,12 @@ ZIP_RESPONSE = {
         }
     }
 }
+TEXT_READ_TOO_LARGE_RESPONSE = {
+    413: {
+        "description": "The `read` file is too large to return as text; "
+        "download it from `/mounts/{mount_id}/files/download` instead."
+    }
+}
 BINARY_RESPONSE = {
     200: {
         "content": {

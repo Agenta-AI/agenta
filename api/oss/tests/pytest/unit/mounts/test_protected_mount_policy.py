@@ -205,7 +205,7 @@ class _ObjectStore:
         assert bucket == _BUCKET
         return self.objects[key]
 
-    async def get_object_with_etag(self, *, bucket, key):
+    async def get_object_with_etag(self, *, bucket, key, max_bytes=None):
         return await self.get_object(bucket=bucket, key=key), "etag"
 
     async def list_objects_v2(self, *, bucket, prefix):
