@@ -72,7 +72,6 @@ export {
 } from "./mcpRpc"
 export type {McpToolPage} from "./mcpRpc"
 export {
-    canSelectOauth,
     cancelDeletesEndpoint,
     detectedAuthMode,
     isBusy,

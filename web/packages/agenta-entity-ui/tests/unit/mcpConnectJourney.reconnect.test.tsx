@@ -131,10 +131,48 @@ describe("a reconnect", () => {
         expect(journey.state.nameTouched).toBe(true)
     })
 
-    it("never asks for the URL again, because nothing about the server is being chosen", async () => {
+    it("never asks for the URL again, and checks the saved one only to offer OAuth", async () => {
         await mountJourney(EXISTING)
 
-        expect(probeMcpUrl).not.toHaveBeenCalled()
+        // In the background: the address is the connection's, so no screen asks for it.
+        expect(probeMcpUrl).toHaveBeenCalledWith("https://mcp.acme.test/", "project-1")
+        expect(journey.state.status).toBe("discovering_scopes")
+        expect(journey.state.probe).toBeNull()
+    })
+
+    it("lets a key connection switch to OAuth where the saved address publishes it", async () => {
+        // A GitHub connection made with a personal token, whose server also signs in with
+        // OAuth. The check of the saved address is what makes OAuth selectable.
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {reachable: true, auth: {mode: "oauth", scopes_offered: []}},
+        })
+        await mountJourney(KEY_AUTHENTICATED)
+        await act(async () => {
+            await Promise.resolve()
+        })
+        expect(journey.state.oauthOffered).toBe(true)
+
+        await act(async () => journey.selectAuthMode("oauth"))
+        expect(journey.state.status).toBe("discovering_scopes")
+        await act(async () => {
+            await journey.startScopeDiscovery()
+        })
+
+        // The same row moves to OAuth before the consent route, which refuses any other mode.
+        expect(editMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({id: "mcp-9", auth_mode: "oauth", secret_id: null}),
+            "project-1",
+        )
+        expect(discoverMcpConnect).toHaveBeenCalledWith("mcp-9", "project-1")
+    })
+
+    it("keeps OAuth off where the saved address does not publish it", async () => {
+        await mountJourney(KEY_AUTHENTICATED)
+        await act(async () => journey.selectAuthMode("oauth"))
+
+        expect(journey.state.oauthOffered).toBe(false)
+        expect(journey.state.authMode).toBe("api_key")
     })
 
     it("cannot delete the connection it is repairing", async () => {

@@ -39,15 +39,6 @@ export const detectedAuthMode = (probe: MCPServerProbe): MCPAuthMode => {
 }
 
 /**
- * Whether OAuth can be chosen at all. Consent needs authorization metadata, so OAuth is
- * offered where the probe found it, or on a reconnect of a connection saved with OAuth.
- */
-export const canSelectOauth = (
-    state: McpJourneyState,
-    savedAuthMode?: MCPAuthMode | null,
-): boolean => (state.probe ? state.probe.auth.mode === "oauth" : savedAuthMode === "oauth")
-
-/**
  * The address two rows are compared by: no trailing slash, no case, no surrounding space.
  *
  * Deliberately not a URL parse. What is being asked is "did this journey already write this
@@ -170,6 +161,11 @@ export interface McpJourneyState {
     authMode: MCPAuthMode
     /** Once true, a later probe of the same address may no longer change the choice. */
     authModeTouched: boolean
+    /**
+     * Whether OAuth can be chosen. Consent needs the server's authorization metadata, so it
+     * is offered only where a probe of the address found it.
+     */
+    oauthOffered: boolean
     /** Protocol context: the permissions the authorization server offers. */
     scopesOffered: string[]
     /** Which of them this attempt asks for. A reconnect uses it to step up. */
@@ -211,6 +207,11 @@ export type McpJourneyEvent =
       }
     | {type: "name_changed"; name: string}
     | {type: "auth_mode_selected"; mode: MCPAuthMode}
+    /**
+     * A reconnect's check of its saved address, which says whether OAuth can be offered. It
+     * changes nothing else: the reconnect keeps its row, its screen and its saved mode.
+     */
+    | {type: "saved_url_probed"; probe: MCPServerProbe}
     | {type: "submit_name"}
     | {
           type: "endpoint_created"
@@ -267,6 +268,7 @@ export function startJourney(): McpJourneyState {
         probe: null,
         authMode: "none",
         authModeTouched: false,
+        oauthOffered: false,
         scopesOffered: [],
         scopesSelected: [],
         endpointId: null,
@@ -302,6 +304,8 @@ export function startReconnect(endpoint: {
         status: authMode === "oauth" ? "discovering_scopes" : "manual_auth",
         url: endpoint.url,
         authMode,
+        // Until its address is checked, a connection saved with OAuth is known to have it.
+        oauthOffered: authMode === "oauth",
         name: endpoint.name,
         nameTouched: true,
         endpointId: endpoint.id,
@@ -374,6 +378,7 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                 status: "url_entry",
                 url: event.url,
                 probe: null,
+                oauthOffered: false,
                 error: null,
                 // A choice made for one server says nothing about the next one.
                 authModeTouched: sameAddress ? state.authModeTouched : false,
@@ -401,6 +406,7 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                 name: state.nameTouched ? state.name : event.suggestedName,
                 authMode: keepChoice ? state.authMode : detectedAuthMode(event.probe),
                 authModeTouched: keepChoice,
+                oauthOffered: event.probe.auth.mode === "oauth",
                 error: null,
             }
         }
@@ -418,8 +424,15 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
         case "name_changed":
             return {...state, name: event.name, nameTouched: true, error: null}
 
+        case "saved_url_probed":
+            return {
+                ...state,
+                oauthOffered: state.oauthOffered || event.probe.auth.mode === "oauth",
+            }
+
         case "auth_mode_selected": {
             if (event.mode === state.authMode) return state
+            if (event.mode === "oauth" && !state.oauthOffered) return state
             const chosen = {
                 ...state,
                 authMode: event.mode,

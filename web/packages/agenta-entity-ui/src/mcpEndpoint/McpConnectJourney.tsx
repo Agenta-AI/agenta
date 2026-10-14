@@ -43,7 +43,6 @@ import {
 } from "react"
 
 import {
-    canSelectOauth,
     connectionNameProblem,
     detectedAuthMode,
     isBusy,
@@ -199,6 +198,13 @@ const KEY_REJECTED_ADVICE = "Check the header the server expects, or pick anothe
  */
 const keyRejectedAdviceFor = (scheme: string | null): string =>
     scheme ? `${headerSchemeHint(scheme)} ${KEY_REJECTED_ADVICE}` : KEY_REJECTED_ADVICE
+
+/** None was chosen over what the server or the saved row suggested, and the server refused. */
+const keyRefusedWithoutKeyFor = (status: number | null): string =>
+    status
+        ? `The server refused a connection without a key (${status}).`
+        : "The server refused a connection without a key."
+const NO_KEY_REFUSED_ADVICE = "Pick another authentication mode above."
 
 const WAITING_BODY =
     "Finish signing in in the window that opened. This closes on its own when you're done."
@@ -594,18 +600,18 @@ export function McpConnectSheet({
                 return
             case "manual_auth":
             case "verify_failed":
+                // A refusal took its row with it, so trying again makes one, and the
+                // credential follows as soon as it exists — the same two steps this
+                // screen's first press takes.
+                if (!state.endpointId) {
+                    if (path === "api_key") setAfterCreate("credential")
+                    void journey.submitName()
+                    return
+                }
                 // A connection that authorizes with nothing is repaired by saying so; there
                 // is no credential on this screen to submit.
                 if (path === "none") {
                     void journey.skipAuthentication()
-                    return
-                }
-                // A refused credential took its row with it, so trying again makes one, and
-                // the credential follows as soon as it exists — the same two steps this
-                // screen's first press takes.
-                if (!state.endpointId) {
-                    setAfterCreate("credential")
-                    void journey.submitName()
                     return
                 }
                 submitCredential()
@@ -733,7 +739,7 @@ export function McpConnectSheet({
                             <AuthModeSelector
                                 value={path}
                                 detected={detected}
-                                oauthSelectable={canSelectOauth(state, reconnect?.authMode)}
+                                oauthSelectable={state.oauthOffered}
                                 disabled={busy || sealed}
                                 onChange={journey.selectAuthMode}
                             />
@@ -864,6 +870,12 @@ export function McpConnectSheet({
                                 not answer initialize", and that failure no longer reaches
                                 this screen at all (round 4, D133 reopened). */}
                             {state.error} {keyRejectedAdviceFor(challengeScheme)}
+                        </InlineError>
+                    ) : null}
+
+                    {screen === "no_auth" && state.status === "verify_failed" ? (
+                        <InlineError headline={keyRefusedWithoutKeyFor(refusedStatus)}>
+                            {state.error} {NO_KEY_REFUSED_ADVICE}
                         </InlineError>
                     ) : null}
 

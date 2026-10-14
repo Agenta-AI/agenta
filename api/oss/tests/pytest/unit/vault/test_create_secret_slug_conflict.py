@@ -7,7 +7,8 @@ occurred` with the operation `create_secret`, so the drawer could only report a 
 failure. The route now answers 409 with the reason.
 
 Drives the real `VaultRouter` + `VaultService` over an in-memory DAO that enforces the
-`(project_id, slug)` index the way the Postgres DAO reports it.
+`(project_id, slug)` index the way the Postgres DAO reports it. The caller's project comes
+from the `x-test-project` header, so one test can act as two projects.
 """
 
 from uuid import uuid4
@@ -25,12 +26,17 @@ from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.core.secrets.types import SecretSlugConflict
 
 
+PROJECT_ID = str(uuid4())
+OTHER_PROJECT_ID = str(uuid4())
+
+
 class _UniqueSlugSecretsDAO:
     def __init__(self):
         self.records: dict = {}
 
     async def create(self, project_id, organization_id, create_secret_dto):
-        if create_secret_dto.slug in self.records:
+        key = (project_id, create_secret_dto.slug)
+        if key in self.records:
             raise SecretSlugConflict(slug=create_secret_dto.slug)
         record = SecretResponseDTO(
             id=uuid4(),
@@ -40,7 +46,7 @@ class _UniqueSlugSecretsDAO:
             header=create_secret_dto.header,
             write_only=bool(create_secret_dto.write_only),
         )
-        self.records[create_secret_dto.slug] = record
+        self.records[key] = record
         return record
 
 
@@ -62,10 +68,12 @@ def _client(monkeypatch):
 
     app = FastAPI()
 
+    user_id = str(uuid4())
+
     @app.middleware("http")
     async def _principal(request, call_next):
-        request.state.user_id = str(uuid4())
-        request.state.project_id = str(uuid4())
+        request.state.user_id = user_id
+        request.state.project_id = request.headers.get("x-test-project", PROJECT_ID)
         return await call_next(request)
 
     app.include_router(router.router)
@@ -107,3 +115,15 @@ def test_a_fresh_slug_is_still_created(client):
 
     assert other.status_code == 200, other.text
     assert other.json()["slug"] == "github_token"
+
+
+def test_another_project_can_use_the_same_slug(client):
+    client.post("/secrets/", json=_drawer_body("GITHUB_API_KEY", "github_api_key"))
+
+    elsewhere = client.post(
+        "/secrets/",
+        json=_drawer_body("GITHUB_API_KEY", "github_api_key"),
+        headers={"x-test-project": OTHER_PROJECT_ID},
+    )
+
+    assert elsewhere.status_code == 200, elsewhere.text

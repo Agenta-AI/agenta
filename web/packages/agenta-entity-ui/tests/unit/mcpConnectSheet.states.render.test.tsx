@@ -100,6 +100,7 @@ const state = (over: Partial<McpJourneyState> & {status: McpJourneyStatus}): Mcp
     // The probe sets the first value, as in the journey.
     authMode: over.probe ? detectedAuthMode(over.probe) : "none",
     authModeTouched: false,
+    oauthOffered: over.probe?.auth.mode === "oauth",
     scopesOffered: [],
     scopesSelected: [],
     endpointId: null,
@@ -1129,6 +1130,25 @@ describe("the Authentication selector", () => {
             "The server answered without a key. Add one if your plan gives you a key for higher limits.",
         )
         expect(control("Header")).toBeTruthy()
+    })
+
+    it("keeps the sheet open with the refusal when None was wrong", async () => {
+        // None chosen over the probe's OAuth, and the server answered 401 without a key.
+        await open(
+            state({
+                ...GITHUB,
+                authMode: "none",
+                status: "verify_failed",
+                failureStatus: 401,
+                error: "The server requires authorization.",
+            }),
+        )
+
+        expect(text()).toContain(
+            "The server refused a connection without a key (401). The server requires authorization. Pick another authentication mode above.",
+        )
+        expect(button("Try again")?.disabled).toBe(false)
+        expect(radio("API key")?.disabled).toBe(false)
     })
 
     it("keeps the SSE warning on the screen it changes to", async () => {

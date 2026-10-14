@@ -10,7 +10,6 @@ import {describe, expect, it} from "vitest"
 
 import {
     adoptableEndpoint,
-    canSelectOauth,
     cancelDeletesEndpoint,
     detectedAuthMode,
     isBusy,
@@ -753,16 +752,29 @@ describe("the authentication the person selects", () => {
     })
 
     it("offers OAuth only where the probe found it", () => {
-        expect(canSelectOauth(run(...probed("oauth")))).toBe(true)
-        expect(canSelectOauth(run(...probed("none")))).toBe(false)
-        expect(canSelectOauth(run(...probed("unknown")))).toBe(false)
+        expect(run(...probed("oauth")).oauthOffered).toBe(true)
+        expect(run(...probed("none")).oauthOffered).toBe(false)
+        expect(run(...probed("unknown")).oauthOffered).toBe(false)
+
+        const refused = journeyReducer(run(...probed("none")), {
+            type: "auth_mode_selected",
+            mode: "oauth",
+        })
+        expect(refused.authMode).toBe("none")
     })
 
-    it("offers OAuth on a reconnect only of a connection saved with it", () => {
-        const oauth = startReconnect({id: "e", slug: "s", name: "n", url: URL, authMode: "oauth"})
+    it("offers OAuth on a reconnect once its saved address is found to publish it", () => {
         const key = startReconnect({id: "e", slug: "s", name: "n", url: URL, authMode: "api_key"})
-        expect(canSelectOauth(oauth, "oauth")).toBe(true)
-        expect(canSelectOauth(key, "api_key")).toBe(false)
+        expect(key.oauthOffered).toBe(false)
+        expect(startReconnect({...{id: "e", slug: "s", name: "n", url: URL}, authMode: "oauth"}).oauthOffered).toBe(true)
+
+        const checked = journeyReducer(key, {type: "saved_url_probed", probe: probe("oauth")})
+        // Nothing else about the reconnect changes: it keeps its row, screen and mode.
+        expect(checked).toEqual({...key, oauthOffered: true})
+
+        const switched = journeyReducer(checked, {type: "auth_mode_selected", mode: "oauth"})
+        expect(switched.status).toBe("discovering_scopes")
+        expect(switched.endpointId).toBe("e")
     })
 
     it("forgets a pending row made in the old mode, so the next press makes one in the new", () => {
@@ -816,6 +828,7 @@ describe("the authentication the person selects", () => {
         expect(key.endpointId).toBe("e")
 
         const back = journeyReducer(key, {type: "auth_mode_selected", mode: "oauth"})
+        // Saved with OAuth, so OAuth stays on offer after a switch away from it.
         expect(back.status).toBe("discovering_scopes")
         expect(back.endpointId).toBe("e")
     })

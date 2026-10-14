@@ -1019,6 +1019,7 @@ describe("the authentication the person selects", () => {
                 authMode: "oauth",
             },
         })
+        listMcpTools.mockResolvedValue([])
         await act(async () => journey.selectAuthMode("none"))
         expect(journey.state.status).toBe("manual_auth")
         await act(async () => {
@@ -1029,7 +1030,101 @@ describe("the authentication the person selects", () => {
             {...stored, auth_mode: "none", secret_id: null},
             "project-1",
         )
+        // None overrides the saved mode, so the server is asked before success.
+        expect(listMcpTools).toHaveBeenCalledWith("github", "project-1")
         expect(deleteMcpEndpoint).not.toHaveBeenCalled()
+        expect(journey.state.status).toBe("saving")
+    })
+
+    it("writes nothing when the sheet closes while the saved row is being read", async () => {
+        const read = deferred<unknown>()
+        queryMcpEndpoints.mockReturnValue(read.promise)
+
+        await mountJourney({
+            reconnect: {
+                id: "mcp-9",
+                slug: "github",
+                name: "GitHub",
+                url: "https://api.githubcopilot.test/mcp",
+                authMode: "api_key",
+            },
+        })
+        await act(async () => journey.selectAuthMode("none"))
+        let skipped: Promise<void> = Promise.resolve()
+        await act(async () => {
+            skipped = journey.skipAuthentication()
+        })
+        await act(async () => {
+            await journey.cancel()
+        })
+        await act(async () => {
+            read.release({
+                count: 1,
+                endpoints: [
+                    {
+                        id: "mcp-9",
+                        slug: "github",
+                        auth_mode: "api_key",
+                        secret_id: "key-1",
+                        data: {route: {base_url: "https://api.githubcopilot.test/mcp"}},
+                    },
+                ],
+            })
+            await skipped
+        })
+
+        expect(editMcpEndpoint).not.toHaveBeenCalled()
+        expect(listMcpTools).not.toHaveBeenCalled()
+    })
+})
+
+describe("None chosen over what the server suggested", () => {
+    const refused = Object.assign(new Error("Request failed with status code 401"), {
+        response: {status: 401, data: {detail: "The server requires authorization."}},
+    })
+
+    it("asks the server before success, and keeps the sheet open on its refusal", async () => {
+        // The probe found OAuth. Choosing None is a claim only the server can confirm.
+        listMcpTools.mockRejectedValue(refused)
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        await act(async () => journey.selectAuthMode("none"))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({auth_mode: "none"}),
+            "project-1",
+        )
+        expect(listMcpTools).toHaveBeenCalledWith("acme-7mx", "project-1")
+        expect(journey.state.status).toBe("verify_failed")
+        expect(journey.state.failureStatus).toBe(401)
+        // The pending row made for a connection that does not work goes with the refusal.
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1")
+    })
+
+    it("needs no second asking where the probe found no sign-in", async () => {
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {reachable: true, server_name: "Acme", auth: {mode: "none", scopes_offered: []}},
+        })
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        await act(async () => {
+            await journey.submitName()
+        })
+
+        expect(listMcpTools).not.toHaveBeenCalled()
         expect(journey.state.status).toBe("saving")
     })
 })
