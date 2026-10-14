@@ -31,6 +31,9 @@ from oss.src.core.gateways.llms.dtos import (
 from oss.src.core.gateways.llms.interfaces import LLMRelayResult, LLMUpstreamInterface
 from oss.src.core.gateways.llms.providers.passthrough.auth import build_auth_headers
 from oss.src.core.gateways.llms.providers.passthrough.routing import build_url
+from oss.src.core.gateways.llms.providers.passthrough.upstream_errors import (
+    relay_upstream_errors,
+)
 from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
     apply_static_fields,
     encode_thought_signatures,
@@ -418,20 +421,6 @@ class RelayLLMAdapter(LLMUpstreamInterface):
                 status_code=response.status_code,
             )
 
-        if response.status_code >= 500:
-            content = await response.aread()
-            await response.aclose()
-            if scanner.detects(content):
-                raise LLMUpstreamCredentialEchoError(
-                    provider_key=route.provider_key,
-                    status_code=response.status_code,
-                )
-            raise LLMUpstreamError(
-                provider_key=route.provider_key,
-                status_code=response.status_code,
-                detail=content.decode(errors="replace"),
-            )
-
         result = LLMRelayResult(
             status_code=response.status_code,
             headers=dict(response.headers),
@@ -455,6 +444,20 @@ class RelayLLMAdapter(LLMUpstreamInterface):
                 provider_key=route.provider_key,
                 sign=sign,
             )
+        )
+        if response.status_code >= 400:
+            # Whatever the upstream sent, the body becomes the protocol's JSON error.
+            result.headers["content-type"] = "application/json"
+        result.body = relay_upstream_errors(
+            result.body,
+            status_code=response.status_code,
+            stream=context.stream,
+            protocol=context.protocol,
+            label=route.label,
+            scanner=scanner,
+            echo_refusal=LLMUpstreamCredentialEchoError(
+                provider_key=route.provider_key, status_code=response.status_code
+            ),
         )
         return result
 
