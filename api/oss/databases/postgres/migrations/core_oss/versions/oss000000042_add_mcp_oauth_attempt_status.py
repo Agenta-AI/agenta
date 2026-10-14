@@ -9,7 +9,7 @@ words, and a cancel marks it instead of racing a late callback.
 Existing rows are in flight, so they start as `pending`.
 
 Revision ID: oss000000042
-Revises: oss000000040
+Revises: oss000000041
 Create Date: 2026-10-14 00:00:00.000000
 """
 
@@ -19,7 +19,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "oss000000042"
-down_revision: Union[str, None] = "oss000000040"
+down_revision: Union[str, None] = "oss000000041"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
