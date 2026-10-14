@@ -766,7 +766,10 @@ describe("the authentication the person selects", () => {
     it("offers OAuth on a reconnect once its saved address is found to publish it", () => {
         const key = startReconnect({id: "e", slug: "s", name: "n", url: URL, authMode: "api_key"})
         expect(key.oauthOffered).toBe(false)
-        expect(startReconnect({...{id: "e", slug: "s", name: "n", url: URL}, authMode: "oauth"}).oauthOffered).toBe(true)
+        expect(
+            startReconnect({...{id: "e", slug: "s", name: "n", url: URL}, authMode: "oauth"})
+                .oauthOffered,
+        ).toBe(true)
 
         const checked = journeyReducer(key, {type: "saved_url_probed", probe: probe("oauth")})
         // Nothing else about the reconnect changes: it keeps its row, screen and mode.
