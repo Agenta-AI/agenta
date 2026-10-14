@@ -25,6 +25,7 @@ from agenta.sdk.decorators.routing import (
 from agenta.sdk.decorators.running import invoke_workflow, inspect_workflow
 from agenta.sdk.models.workflows import WorkflowInvokeRequest, WorkflowInspectRequest
 from agenta.sdk.contexts.routing import RoutingContext, routing_context_manager
+from agenta.sdk.engines.tracing.server import instrument_fastapi, setup_server_tracing
 from agenta.sdk.litellm.mocks import MOCKS
 from oss.src.managed import (
     builtin_auto_ai_critique_app,
@@ -207,6 +208,15 @@ app.mount("/auto_semantic_similarity/v0", builtin_auto_semantic_similarity_app)
 #
 # Mount dispatch LAST so "/" only catches /invoke and /inspect after specific mounts
 app.mount("/", services_app)
+
+
+# Off unless AGENTA_SERVER_TRACING_ENDPOINT is set; separate from product tracing.
+if setup_server_tracing(
+    service_name="agenta-services",
+    endpoint=getenv("AGENTA_SERVER_TRACING_ENDPOINT"),
+    sample_ratio=getenv("AGENTA_SERVER_TRACING_SAMPLE_RATIO"),
+):
+    instrument_fastapi(app)
 
 
 if __name__ == "__main__":
