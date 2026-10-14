@@ -776,7 +776,7 @@ export async function runTurn(
         !!opts.resume || !!opts.settleApprovalsThenPrompt || approvalReplyOnly;
       // Row existence proves only that a turn started. Native continuation is trustworthy only
       // after `end_time` is set.
-      await sessionTurnClient(
+      const appended = await sessionTurnClient(
         turnLedgerContext.sessionId,
         plan.harness,
         turnLedgerContext.turnIndex,
@@ -804,10 +804,11 @@ export async function runTurn(
         );
       });
       turnLedgerForFailure = turnLedgerContext;
+      // Only once this turn's row is written: until then a closed stalled row would be the latest.
       const completeTurn = sessionTurnClient.complete;
-      for (const stalled of continuityStore.takeStalledTurns(
-        turnLedgerContext.sessionId,
-      )) {
+      for (const stalled of appended
+        ? continuityStore.takeStalledTurns(turnLedgerContext.sessionId)
+        : []) {
         void completeTurn?.(
           turnLedgerContext.sessionId,
           stalled.turnIndex,

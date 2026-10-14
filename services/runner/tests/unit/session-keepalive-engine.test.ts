@@ -146,6 +146,7 @@ function fakeHarness(options: FakeOptions = {}) {
     if (!calls.ledgerRows.has(turnIndex)) {
       calls.ledgerRows.set(turnIndex, { startTime: turn.startTime });
     }
+    return true;
   };
   sessionTurnClient.complete = async (_sessionId, turnIndex, turn) => {
     calls.completedTurnIndexes.push(turnIndex);

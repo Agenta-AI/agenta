@@ -62,12 +62,15 @@ function fixture() {
       return { stdout: "", exitCode: 0 };
     },
   };
+  const state = { appendFails: false };
   const appendSessionTurn: any = async (
     _sessionId: string,
     _harness: string,
     turnIndex: number,
   ) => {
+    if (state.appendFails) return false;
     ledger.push(`append ${turnIndex}`);
+    return true;
   };
   appendSessionTurn.complete = async (_sessionId: string, turnIndex: number) => {
     ledger.push(`complete ${turnIndex}`);
@@ -134,6 +137,7 @@ function fixture() {
     answer: () => {
       stall = false;
     },
+    state,
   };
 }
 
@@ -173,5 +177,16 @@ describe("a stalled attempt's turn row", () => {
     await runSandboxAgent(request, undefined, undefined, deps);
 
     assert.deepEqual(ledger, ["append 2", "complete 2"]);
+  });
+
+  it("stays open while the retry's own row could not be written", async () => {
+    const { deps, ledger, answer, state } = fixture();
+    await runSandboxAgent(request, undefined, undefined, deps);
+    answer();
+    state.appendFails = true;
+
+    await runSandboxAgent(request, undefined, undefined, deps);
+
+    assert.deepEqual(ledger, ["append 0", "complete 1"]);
   });
 });
