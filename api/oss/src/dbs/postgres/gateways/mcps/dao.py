@@ -3,11 +3,13 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
+from pydantic import BaseModel
 from sqlalchemy import delete, select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
 from oss.src.core.gateways.mcps.dtos import (
+    MCPEndpointCheck,
     MCPOAuthData,
     MCPEndpoint,
     MCPEndpointCreate,
@@ -320,6 +322,41 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
         endpoint_id: UUID,
         oauth: MCPOAuthData,
     ) -> Optional[MCPEndpoint]:
+        return await self._merge_data(
+            project_id=project_id,
+            user_id=user_id,
+            endpoint_id=endpoint_id,
+            key="oauth",
+            value=oauth,
+        )
+
+    @suppress_exceptions()
+    async def record_endpoint_check(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        endpoint_id: UUID,
+        check: MCPEndpointCheck,
+    ) -> Optional[MCPEndpoint]:
+        return await self._merge_data(
+            project_id=project_id,
+            user_id=user_id,
+            endpoint_id=endpoint_id,
+            key="check",
+            value=check,
+        )
+
+    async def _merge_data(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        endpoint_id: UUID,
+        key: str,
+        value: BaseModel,
+    ) -> Optional[MCPEndpoint]:
         async with self.engine.session() as session:
             dbe = await self._locked(
                 session, project_id=project_id, endpoint_id=endpoint_id
@@ -330,7 +367,7 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
             # One key of the stored data, merged into whatever the row holds now rather
             # than into the copy the caller read before it dialled out (D31).
             data = dict(dbe.data or {})
-            data["oauth"] = oauth.model_dump(mode="json", exclude_none=True)
+            data[key] = value.model_dump(mode="json", exclude_none=True)
             dbe.data = data
             flag_modified(dbe, "data")
             self._stamp(dbe, user_id)

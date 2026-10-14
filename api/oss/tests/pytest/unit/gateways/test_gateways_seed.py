@@ -424,6 +424,7 @@ def test_mcp_relay_result_and_ports():
             "bind_endpoint_secret",
             "invalidate_endpoint_secret",
             "cache_endpoint_discovery",
+            "record_endpoint_check",
             "delete_endpoint",
             "query_endpoints",
             # Serializes every change to one connection's OAuth state.

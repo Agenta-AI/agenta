@@ -41,7 +41,8 @@ class MCPOAuthRefresherInterface(ABC):
 
         Returns nothing: the caller re-reads the secret it already holds a reference to,
         because the refreshed tokens are written back to that same row. Raises
-        `MCPOAuthRefreshFailedError` when no usable grant can be produced.
+        `MCPOAuthRefreshFailedError` when the grant is dead, and
+        `MCPOAuthRefreshUnavailableError` when the token endpoint failed on its side.
         """
         raise NotImplementedError
 

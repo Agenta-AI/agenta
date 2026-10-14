@@ -36,6 +36,7 @@ import {
     listMcpTools,
     probeMcpUrl,
     queryMcpEndpoints,
+    recordMcpEndpointCheck,
 } from "../api/api"
 import {suggestConnectionName} from "../core/connectionName"
 import type {McpReconnectTarget} from "../core/connectionState"
@@ -577,41 +578,46 @@ export function useMcpConnectJourney({
      * One authenticated handshake through the gateway, which injects the credential, or none,
      * and surfaces the upstream's refusal. Without it a wrong key, or a server that wants one,
      * reads as connected until an agent run fails, which is a long way from here.
+     *
+     * The result is recorded on the connection, so its row can say when it was last checked.
      */
     const verifyConnection = useCallback(
         async (endpoint: {id: string; slug: string}, attempt: number) => {
             try {
                 await listMcpTools(endpoint.slug, projectId)
+                await recordMcpEndpointCheck(endpoint.id, {ok: true}, projectId)
                 if (!isCurrent(attempt)) return
                 dispatch({type: "verify_succeeded"})
             } catch (error) {
-                if (!isCurrent(attempt)) return
-                if (!isCredentialRefusal(error)) {
+                const refused = isCredentialRefusal(error)
+                const reason =
+                    gatewayRefusalMessage(error) ||
+                    (refused
+                        ? "The server did not accept that credential."
+                        : "The server could not be reached to check that key.")
+                if (!refused) {
                     // Nothing answered about the credential, so nothing may say it was
                     // rejected. This is the check failing, which is the screen the design
                     // draws for a server that did not answer (round 4, D133 reopened).
-                    dispatch({
-                        type: "probe_failed",
-                        probe: state.probe,
-                        error:
-                            gatewayRefusalMessage(error) ||
-                            "The server could not be reached to check that key.",
-                    })
+                    await recordMcpEndpointCheck(endpoint.id, {ok: false, reason}, projectId)
+                    if (!isCurrent(attempt)) return
+                    dispatch({type: "probe_failed", probe: state.probe, error: reason})
                     return
                 }
+                if (!isCurrent(attempt)) return
                 const abandoned = endpointRef.current
                 const discardedRow = createdHereRef.current && !!abandoned
                 if (discardedRow && abandoned) {
                     endpointRef.current = null
                     createdHereRef.current = false
                     await deleteMcpEndpoint(abandoned.id, projectId).catch(() => undefined)
+                } else {
+                    await recordMcpEndpointCheck(endpoint.id, {ok: false, reason}, projectId)
                 }
                 dispatch({
                     type: "verify_failed",
                     status: credentialRefusalStatus(error),
-                    error:
-                        gatewayRefusalMessage(error) ||
-                        "The server did not accept that credential.",
+                    error: reason,
                     discardedRow,
                 })
             }

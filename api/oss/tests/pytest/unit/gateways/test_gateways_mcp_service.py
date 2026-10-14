@@ -42,6 +42,7 @@ from oss.src.core.gateways.mcps.service import MCPGatewayService
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthNoRefreshTokenError,
     MCPOAuthRefreshFailedError,
+    MCPOAuthRefreshUnavailableError,
 )
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
@@ -140,6 +141,19 @@ class MockMCPEndpointsDAO(MCPEndpointsDAOInterface):
         # One key of the stored data, like the real DAO (D31).
         updated = existing.model_copy(
             update={"data": existing.data.model_copy(update={"oauth": oauth})}
+        )
+        self._by_id[endpoint_id] = updated
+        return updated
+
+    async def record_endpoint_check(
+        self, *, project_id, user_id, endpoint_id, check
+    ) -> Optional[MCPEndpoint]:
+        self.calls.append("record_endpoint_check")
+        existing = self._by_id.get(endpoint_id)
+        if existing is None:
+            return None
+        updated = existing.model_copy(
+            update={"data": existing.data.model_copy(update={"check": check})}
         )
         self._by_id[endpoint_id] = updated
         return updated
@@ -2096,6 +2110,93 @@ async def test_a_grant_without_a_refresh_token_asks_for_a_reconnect_in_plain_wor
     assert adapter.relay_calls == 1
     stored = await dao.fetch_endpoint(project_id=uuid4(), endpoint_id=endpoint.id)
     assert stored.flags.is_valid is False
+
+
+class _UnavailableOnceRefresher(_StubRefresher):
+    """A token endpoint that fails on its side once, then answers."""
+
+    async def refresh_grant(
+        self, *, project_id, endpoint_id, server_url, failed_access_token=None
+    ) -> None:
+        await super().refresh_grant(
+            project_id=project_id,
+            endpoint_id=endpoint_id,
+            server_url=server_url,
+            failed_access_token=failed_access_token,
+        )
+        if len(self.calls) == 1:
+            raise MCPOAuthRefreshUnavailableError(
+                server_url=server_url, detail="503 from https://auth.example.com"
+            )
+
+
+@pytest.mark.asyncio
+async def test_a_token_endpoint_outage_fails_the_call_and_keeps_the_connection():
+    """A 503 from the token endpoint says nothing about the grant. The call fails, the
+    connection stays valid, and the next call refreshes and goes through."""
+    import time
+
+    adapter = _SequenceAdapter(
+        results=[
+            _refused_credential_result(),
+            _refused_credential_result(),
+            MCPRelayResult(status_code=200, headers={}, body=b"{}"),
+        ]
+    )
+    refresher = _UnavailableOnceRefresher()
+    policy = MockPolicyService()
+    dao, service = _live_grant_service(
+        adapter=adapter,
+        refresher=refresher,
+        policy=policy,
+        secrets=[
+            _grant_secret(access_token="revoked", expires_at=int(time.time()) + 3600),
+            _grant_secret(access_token="revoked", expires_at=int(time.time()) + 3600),
+            _grant_secret(access_token="renewed", expires_at=int(time.time()) + 3600),
+        ],
+    )
+    endpoint = await _oauth_endpoint(dao)
+
+    with pytest.raises(MCPUpstreamError) as failure:
+        await _relay_write_page(service)
+
+    assert failure.value.status_code == 503
+    assert policy.record_calls[-1]["outcome"].status_code == 401
+    stored = await dao.fetch_endpoint(project_id=uuid4(), endpoint_id=endpoint.id)
+    assert stored.flags.is_valid is True
+
+    result = await _relay_write_page(service)
+
+    assert result.status_code == 200
+    assert refresher.failed_access_tokens == ["revoked", "revoked"]
+    assert adapter.sent_tokens == ["revoked", "revoked", "renewed"]
+
+
+@pytest.mark.asyncio
+async def test_a_check_is_recorded_on_the_connection_and_stamped_now():
+    dao = MockMCPEndpointsDAO()
+    endpoint = await _oauth_endpoint(dao)
+    service = _relay_service(mcp_endpoints_dao=dao, adapters={})
+
+    passed = await service.record_endpoint_check(
+        project_id=uuid4(), user_id=uuid4(), endpoint_id=endpoint.id, ok=True
+    )
+    assert passed.data.check.ok is True
+    assert passed.data.check.reason is None
+    assert passed.data.check.checked_at is not None
+
+    failed = await service.record_endpoint_check(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint_id=endpoint.id,
+        ok=False,
+        reason="The server did not accept that credential.",
+    )
+    assert failed.data.check.ok is False
+    assert failed.data.check.reason == "The server did not accept that credential."
+    assert failed.data.check.checked_at >= passed.data.check.checked_at
+    # The rest of the stored data is untouched.
+    assert failed.data.route == endpoint.data.route
 
 
 # ---------------------------------------------------------------------------

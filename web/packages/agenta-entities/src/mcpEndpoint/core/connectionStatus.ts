@@ -9,35 +9,41 @@
  *
  * Three values, and only two of them can be derived today. See `readMcpConnectionHealth`.
  */
+import {timeAgo} from "@agenta/shared/utils"
+
 import {getMcpConnectionState} from "./connectionState"
 import type {MCPEndpoint} from "./types"
 
 export type McpConnectionStatus = "connected" | "login_expired" | "unreachable"
 
 /**
- * The last health check on a connection, as the row would report it.
+ * The last explicit check of a connection, or null when nobody has checked it.
  *
- * Always null. Nothing on the connection row carries it: the query response has no health field,
- * and `flags.is_valid` is not one. The backend writes `is_valid: false` only when a data-plane call
- * failed with the same secret handle the row still holds, so it reports a credential the server
- * rejected and says nothing at all about a server that is simply down. Deriving "Unreachable" from
- * it would label an expired login as an unreachable host.
- *
- * This is the seam rather than the fix. The status derivation below reads it, so the day the query
- * response carries a health field this function is the only thing that changes. Until then every
- * row reports Connected or Login expired, and Unreachable is never rendered.
- *
- * Tracked as the API gap filed for decision 30.
+ * Written only when the connect sheet or a reconnect verifies the connection, never by an agent
+ * call, so it says when someone last looked rather than how the connection is doing now. That is
+ * why it does not drive the status: a check that failed last week must not relabel a working row.
+ * Telling an unreachable server from an expired login needs a live health signal (issue #6907).
  */
-export function readMcpConnectionHealth(_endpoint: MCPEndpoint): McpConnectionHealth | null {
-    return null
+export function readMcpConnectionHealth(endpoint: MCPEndpoint): McpConnectionHealth | null {
+    const check = endpoint.data?.check
+    if (!check?.checked_at) return null
+    return {ok: check.ok, reason: check.reason ?? null, checkedAt: check.checked_at}
 }
 
 export interface McpConnectionHealth {
-    /** Whether the last check reached the server at all. */
-    reachable: boolean
-    /** When it ran, for the row's secondary line. */
-    checkedAt?: string | null
+    /** Whether the check passed. */
+    ok: boolean
+    /** The short reason a failed check gave. */
+    reason: string | null
+    /** When it ran. */
+    checkedAt: string
+}
+
+/** The row's line for the last check: "Checked 5m ago", or "Check failed 5m ago: <reason>". */
+export function getMcpConnectionCheckLabel(health: McpConnectionHealth): string {
+    const when = timeAgo(Date.parse(health.checkedAt))
+    if (health.ok) return `Checked ${when}`
+    return health.reason ? `Check failed ${when}: ${health.reason}` : `Check failed ${when}`
 }
 
 /**
@@ -46,11 +52,10 @@ export interface McpConnectionHealth {
  * Every state that is not ready reads as an expired login, whatever kind of credential it is: an
  * OAuth grant that was revoked and an API key the server started refusing are the same sentence to
  * the person and differ only in which reconnect path the row offers, which the caller takes from
- * `auth_mode` rather than from here.
+ * `auth_mode` rather than from here. "Unreachable" is never derived yet; see
+ * `readMcpConnectionHealth`.
  */
 export function getMcpConnectionStatus(endpoint: MCPEndpoint): McpConnectionStatus {
-    const health = readMcpConnectionHealth(endpoint)
-    if (health && !health.reachable) return "unreachable"
     return getMcpConnectionState(endpoint) === "ready" ? "connected" : "login_expired"
 }
 

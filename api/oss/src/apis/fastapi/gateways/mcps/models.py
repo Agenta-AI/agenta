@@ -44,6 +44,13 @@ class MCPEndpointsResponse(BaseModel):
     endpoints: List[MCPEndpoint] = Field(default_factory=list)
 
 
+class MCPEndpointCheckRequest(BaseModel):
+    """The result of a check the connect sheet just ran against the connection."""
+
+    ok: bool
+    reason: Optional[str] = Field(default=None, max_length=300)
+
+
 class MCPConnectRequest(BaseModel):
     """Request MCP OAuth scope discovery or authorization.
     `scopes` present (an empty list is a legal "no scopes") is the begin step."""

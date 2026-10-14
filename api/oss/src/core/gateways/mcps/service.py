@@ -3,6 +3,7 @@
 import json
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from time import monotonic
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from urllib.parse import urlparse
@@ -31,6 +32,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPCallContext,
     MCPDirectAuth,
     MCPEndpoint,
+    MCPEndpointCheck,
     MCPEndpointCreate,
     MCPEndpointData,
     MCPEndpointRoute,
@@ -48,7 +50,10 @@ from oss.src.core.gateways.mcps.interfaces import (
 )
 from oss.src.core.gateways.mcps.oauth.interfaces import MCPOAuthRefresherInterface
 from oss.src.core.gateways.mcps.oauth.storage import grant_refresh_due
-from oss.src.core.gateways.mcps.oauth.types import MCPOAuthRefreshFailedError
+from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthRefreshFailedError,
+    MCPOAuthRefreshUnavailableError,
+)
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.providers.managed.adapter import ManagedMCPAdapter
 from oss.src.core.gateways.run_claims import gateway_run_id, gateway_run_labels
@@ -373,6 +378,29 @@ class MCPGatewayService:
             #
             endpoint_id=endpoint_id,
             oauth=oauth,
+        )
+
+    async def record_endpoint_check(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        endpoint_id: UUID,
+        ok: bool,
+        reason: Optional[str] = None,
+    ) -> Optional[MCPEndpoint]:
+        """Record an explicit check of a connection, stamped now. See the DAO."""
+        return await self.mcp_endpoints_dao.record_endpoint_check(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            endpoint_id=endpoint_id,
+            check=MCPEndpointCheck(
+                ok=ok,
+                reason=None if ok else reason,
+                checked_at=datetime.now(timezone.utc),
+            ),
         )
 
     async def edit_endpoint(
@@ -891,30 +919,14 @@ class MCPGatewayService:
                     secret=auth.secret,
                     failed_access_token=presented,
                 )
-            except MCPAuthRequiredError:
+            except (MCPAuthRequiredError, MCPUpstreamError):
                 await record(GatewayOutcome(status_code=401))
                 raise
             auth = MCPDirectAuth(secret=secret)
             result = await dispatch(auth)
 
-        # A credential still refused is a reconnect, not a relayed 401.
-        #
-        # The refresh above cannot help a grant the provider retired outright — someone
-        # removing the application at the provider, an administrator revoking the
-        # account's authorization — and the call made with the refreshed token answers
-        # 401 again.
-        #
-        # That 401 used to travel back to the caller as the upstream's own response, so
-        # the connection went on reporting itself connected, the settings screen showed
-        # nothing wrong, and an agent saw an authentication error from a server it had
-        # no way to re-authorize. There is nothing the caller can retry: the credential
-        # is dead and only its owner can replace it. So the connection is marked invalid
-        # — which is what `_connection_state` reads — and the caller is handed the same
-        # reconnect affordance a never-connected connection gets.
-        #
-        # Scoped to a stored OAuth connection: a 401 from an unauthenticated or
-        # API-key connection is that server's own answer about that server's own
-        # credential, and neither has a consent flow to send anyone back through.
+        # Still refused with a fresh token, so only the person can repair the grant: mark
+        # the connection and ask for a reconnect rather than relay the 401.
         if oauth_connection and result.status_code == 401:
             await record(GatewayOutcome(status_code=401))
             await self._invalidate_endpoint(
@@ -1217,6 +1229,12 @@ class MCPGatewayService:
                 server_url=server_url,
                 failed_access_token=failed_access_token,
             )
+        except MCPOAuthRefreshUnavailableError as e:
+            raise MCPUpstreamError(
+                target=path,
+                status_code=503,
+                detail="The authorization server did not renew the sign-in. Try again.",
+            ) from e
         except MCPOAuthRefreshFailedError as e:
             await self._invalidate_endpoint(
                 scope=scope,

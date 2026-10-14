@@ -17,14 +17,21 @@ import {useMcpConnectJourney} from "@agenta/entities/mcpEndpoint"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {probeMcpUrl, discoverMcpConnect, editMcpEndpoint, listMcpTools, queryMcpEndpoints} =
-    vi.hoisted(() => ({
-        probeMcpUrl: vi.fn(),
-        discoverMcpConnect: vi.fn(),
-        editMcpEndpoint: vi.fn(),
-        listMcpTools: vi.fn(),
-        queryMcpEndpoints: vi.fn(),
-    }))
+const {
+    probeMcpUrl,
+    discoverMcpConnect,
+    editMcpEndpoint,
+    listMcpTools,
+    queryMcpEndpoints,
+    recordMcpEndpointCheck,
+} = vi.hoisted(() => ({
+    probeMcpUrl: vi.fn(),
+    discoverMcpConnect: vi.fn(),
+    editMcpEndpoint: vi.fn(),
+    listMcpTools: vi.fn(),
+    queryMcpEndpoints: vi.fn(),
+    recordMcpEndpointCheck: vi.fn(),
+}))
 
 vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOriginal) => ({
     ...(await importOriginal<typeof import("../../../agenta-entities/src/mcpEndpoint/api/api")>()),
@@ -33,6 +40,7 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
     editMcpEndpoint,
     listMcpTools,
     queryMcpEndpoints,
+    recordMcpEndpointCheck,
 }))
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test"}))
@@ -81,6 +89,8 @@ const unmountJourney = async () => {
 
 beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
+    recordMcpEndpointCheck.mockReset()
+    recordMcpEndpointCheck.mockResolvedValue(undefined)
     probeMcpUrl.mockResolvedValue({
         count: 1,
         probe: {reachable: true, server_name: "Acme", auth: {mode: "none", scopes_offered: []}},
@@ -304,6 +314,8 @@ describe("repairing a key-authenticated connection", () => {
         // Saving a reference to a secret proves nothing about the secret.
         expect(editMcpEndpoint).toHaveBeenCalled()
         expect(listMcpTools).toHaveBeenCalledWith("acme-prod", "project-1")
+        // And the row can say when it was last checked.
+        expect(recordMcpEndpointCheck).toHaveBeenCalledWith("mcp-9", {ok: true}, "project-1")
         expect(journey.state.status).toBe("saving")
     })
 
@@ -324,6 +336,11 @@ describe("repairing a key-authenticated connection", () => {
         // Before this the journey said connected and the run failed much later.
         expect(journey.state.status).toBe("verify_failed")
         expect(journey.state.error).toBeTruthy()
+        expect(recordMcpEndpointCheck).toHaveBeenCalledWith(
+            "mcp-9",
+            {ok: false, reason: journey.state.error},
+            "project-1",
+        )
     })
 
     it("checks a changed key first and saves nothing when the server refuses it", async () => {

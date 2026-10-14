@@ -52,6 +52,7 @@ from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthIssuerChangedError,
     MCPOAuthNoRefreshTokenError,
     MCPOAuthRefreshFailedError,
+    MCPOAuthRefreshUnavailableError,
     MCPOAuthRegistrationUnresolvablePinError,
     MCPOAuthStateExpiredError,
     MCPOAuthStateInvalidError,
@@ -769,6 +770,10 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                     resource=discovery.resource,
                 )
             except MCPOAuthTokenExchangeError as e:
+                if e.temporary:
+                    raise MCPOAuthRefreshUnavailableError(
+                        server_url=server_url, detail=e.detail
+                    ) from e
                 raise MCPOAuthRefreshFailedError(
                     server_url=server_url, detail=e.detail
                 ) from e

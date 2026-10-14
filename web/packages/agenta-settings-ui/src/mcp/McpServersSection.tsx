@@ -20,8 +20,10 @@ import {
     deleteMcpEndpointAtom,
     editMcpEndpoint,
     disconnectMcpEndpointAtom,
+    getMcpConnectionCheckLabel,
     getMcpConnectionStatus,
     getMcpConnectionStatusLabel,
+    readMcpConnectionHealth,
     mcpEndpointsQueryAtom,
     readMcpToolCount,
     refreshMcpEndpointsAtom,
@@ -301,6 +303,8 @@ export default function McpServersSection({
                 }
                 renderRow={(record) => {
                     const status = getMcpConnectionStatus(record)
+                    const health = readMcpConnectionHealth(record)
+                    const checkLabel = health ? getMcpConnectionCheckLabel(health) : null
                     const secretName = record.secret_id
                         ? secretNameById.get(record.secret_id)
                         : undefined
@@ -377,12 +381,23 @@ export default function McpServersSection({
                                 data-testid="mcp-connection-status"
                                 className="flex min-w-0 items-center gap-2"
                             >
-                                <StatusIndicator
-                                    tone={STATUS_TONE[status]}
-                                    label={getMcpConnectionStatusLabel(status)}
-                                    // min-w-0 lets the label truncate instead of pushing Reconnect under the menu.
-                                    className="min-w-0 text-[13px]"
-                                />
+                                <span className="flex min-w-0 flex-col">
+                                    <StatusIndicator
+                                        tone={STATUS_TONE[status]}
+                                        label={getMcpConnectionStatusLabel(status)}
+                                        // min-w-0 lets the label truncate instead of pushing Reconnect under the menu.
+                                        className="min-w-0 text-[13px]"
+                                    />
+                                    {checkLabel ? (
+                                        <span
+                                            data-testid="mcp-connection-check"
+                                            className="truncate text-xs text-muted-foreground"
+                                            title={checkLabel}
+                                        >
+                                            {checkLabel}
+                                        </span>
+                                    ) : null}
+                                </span>
                                 {/* The repair is offered where the problem is reported, so a row
                                     that needs attention does not send the reader to a menu. */}
                                 {status !== "connected" && !readOnly ? (

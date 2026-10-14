@@ -45,6 +45,7 @@ from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthIssuerChangedError,
     MCPOAuthNoRefreshTokenError,
     MCPOAuthRefreshFailedError,
+    MCPOAuthRefreshUnavailableError,
     MCPOAuthStateExpiredError,
     MCPOAuthStateInvalidError,
 )
@@ -1078,6 +1079,49 @@ async def test_a_refused_token_with_no_refresh_token_asks_for_a_reconnect():
         "No refresh token was issued for this connection. Reconnect to continue."
     )
     assert calls == []
+
+
+@pytest.mark.parametrize("status_code", [429, 503])
+@pytest.mark.asyncio
+async def test_a_token_endpoint_failing_on_its_side_is_temporary(status_code):
+    """It says nothing about the grant, so the grant is kept as it was for the next try."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path == "/.well-known/oauth-protected-resource":
+            return httpx.Response(200, json=_PRM)
+        if path == "/.well-known/oauth-authorization-server":
+            return httpx.Response(200, json=_AS_METADATA)
+        if path == "/token":
+            return httpx.Response(status_code)
+        return httpx.Response(404)
+
+    service, _dao, _attempts = _service(handler=handler)
+    project_id = uuid4()
+    storage = await _seed_expired_grant(service=service, project_id=project_id)
+
+    with pytest.raises(MCPOAuthRefreshUnavailableError):
+        await service.refresh_grant(
+            project_id=project_id, endpoint_id=_ENDPOINT_ID, server_url=_SERVER_URL
+        )
+
+    kept = await storage.get_grant()
+    assert kept is not None and kept.refresh_token == "renewal-handle-1"
+
+
+@pytest.mark.asyncio
+async def test_a_token_endpoint_refusing_the_grant_is_definitive():
+    calls: List[str] = []
+    service, _dao, _attempts = _service(
+        handler=_refreshing_as_handler(calls=calls, refusal=True)
+    )
+    project_id = uuid4()
+    await _seed_expired_grant(service=service, project_id=project_id)
+
+    with pytest.raises(MCPOAuthRefreshFailedError):
+        await service.refresh_grant(
+            project_id=project_id, endpoint_id=_ENDPOINT_ID, server_url=_SERVER_URL
+        )
 
 
 @pytest.mark.asyncio

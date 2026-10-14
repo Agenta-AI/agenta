@@ -73,6 +73,24 @@ export const deleteMcpEndpoint = async (
 }
 
 /**
+ * Record the result of a check the sheet just ran, so the connection's row can say when it was
+ * last checked. Best effort: the row is the only reader, and the journey must not fail on it.
+ */
+export const recordMcpEndpointCheck = async (
+    endpointId: string,
+    check: {ok: boolean; reason?: string},
+    projectId?: string,
+): Promise<void> => {
+    try {
+        await axios.post(`${getAgentaApiUrl()}${BASE}/${endpointId}/check`, check, {
+            params: projectId ? {project_id: projectId} : undefined,
+        })
+    } catch {
+        // Best effort, see above.
+    }
+}
+
+/**
  * Ask what a URL is, before any endpoint exists.
  *
  * Read-only: it creates nothing, and it takes no credential value. It can name a project
