@@ -704,8 +704,8 @@ export function McpConnectSheet({
                             {state.probe?.problem?.cause === "not_an_mcp_server"
                                 ? null
                                 : UNREACHABLE_ADVICE}{" "}
-                            {/* Only where the check carried an answer to show, which the
-                                probe does not do today. See `readMcpProbeResponse`. */}
+                            {/* Only where the check carried an answer to show. See
+                                `readMcpProbeResponse`. */}
                             {probeResponse ? (
                                 <ShowResponsePanel
                                     statusLine={probeResponse.status}

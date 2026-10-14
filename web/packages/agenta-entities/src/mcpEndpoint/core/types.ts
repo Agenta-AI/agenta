@@ -94,6 +94,12 @@ export interface MCPConnectResponse {
 export type MCPProbeAuthMode = "none" | "oauth" | "unknown"
 export type MCPProbeRegistration = "dynamic" | "metadata" | "unavailable"
 
+/** What the server answered: its status and the start of its body, credentials removed. */
+export interface MCPProbeResponse {
+    status: number
+    body: string
+}
+
 export interface MCPProbeProblem {
     cause: string
     message: string
@@ -105,6 +111,8 @@ export interface MCPProbeProblem {
      * to anything deciding whether this deployment has outbound access at all.
      */
     transport?: string | null
+    /** The server's own answer, when something answered. Absent when nothing did. */
+    response?: MCPProbeResponse | null
 }
 
 export interface MCPProbeAuth {

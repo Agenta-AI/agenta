@@ -7,10 +7,8 @@
  * HTML in a dialog helps nobody. The reader cuts it too; this is the same constant, so the
  * panel cannot be the place a longer body gets through.
  *
- * It renders only when there IS a body. The probe does not return one today
- * (`api/oss/src/core/gateways/mcps/probe.py` keeps the status and the sentence and drops the
- * payload), so nothing in the product reaches this yet; it is here because the panel is the
- * spec's, and the day the probe carries a body the panel is already the right shape.
+ * It renders only when the probe carried the server's answer, which it does whenever
+ * something answered (`problem.response` in `api/oss/src/core/gateways/mcps/probe.py`).
  */
 import {useState} from "react"
 

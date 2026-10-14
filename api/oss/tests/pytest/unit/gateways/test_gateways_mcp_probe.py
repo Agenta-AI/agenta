@@ -841,3 +841,188 @@ async def test_a_blocked_address_names_no_transport(resolves_to):
     assert result.problem is not None
     assert result.problem.cause == "address_refused"
     assert result.problem.transport is None
+
+
+# ---------------------------------------------------------------------------
+# One answer per result, and the server's own words with it
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(301, headers={"location": "https://acme.io/"}),
+        httpx.Response(404, html="<html>Not Found</html>"),
+        httpx.Response(405, text="Method Not Allowed"),
+        httpx.Response(200, html="<html>Sign in</html>"),
+    ],
+    ids=["redirect", "not-found", "method-not-allowed", "login-page"],
+)
+async def test_an_address_that_answers_with_no_handshake_is_not_an_mcp_server(
+    response,
+):
+    result = await _probe(lambda _request: response).probe(server_url=_SERVER_URL)
+
+    assert result.reachable is True
+    assert result.auth.mode is MCPProbeAuthMode.UNKNOWN
+    assert result.problem is not None
+    assert result.problem.cause == "not_an_mcp_server"
+    assert result.problem.response is not None
+    assert result.problem.response.status == response.status_code
+    assert result.problem.response.body == response.text
+
+
+@pytest.mark.asyncio
+async def test_a_result_under_an_error_status_is_not_a_handshake():
+    """A body shaped like the handshake's result proves nothing when the status says the
+    request failed."""
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(500, json=_INITIALIZE_RESULT)
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.server_name is None
+    assert result.problem is not None
+    assert result.problem.cause == "not_an_mcp_server"
+    assert result.problem.response.status == 500
+
+
+@pytest.mark.asyncio
+async def test_a_success_with_no_initialize_result_is_not_a_handshake():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"jsonrpc": "2.0", "id": 1, "error": {"code": -32601}}
+        )
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.problem is not None
+    assert result.problem.cause == "not_an_mcp_server"
+
+
+@pytest.mark.asyncio
+async def test_a_challenge_with_no_oauth_carries_the_refusal():
+    result = await _probe(_key_server()).probe(server_url=_SERVER_URL)
+
+    assert result.problem is not None
+    assert result.problem.cause == "auth_undiscoverable"
+    assert result.problem.response.status == 401
+    assert json.loads(result.problem.response.body) == {"error": "invalid_token"}
+
+
+@pytest.mark.asyncio
+async def test_a_server_that_never_answered_carries_no_response():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused")
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.problem.cause == "unreachable"
+    assert result.problem.response is None
+
+
+@pytest.mark.asyncio
+async def test_an_oversized_answer_carries_only_its_start():
+    oversized = b"x" * (2 * 1024 * 1024)
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=oversized)
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.problem.cause == "not_an_mcp_server"
+    assert result.problem.response.status == 200
+    assert result.problem.response.body == "x" * 2048
+
+
+@pytest.mark.asyncio
+async def test_the_excerpt_is_at_most_two_kilobytes():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, text="y" * 10_000)
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.problem.response.body == "y" * 2048
+
+
+@pytest.mark.asyncio
+async def test_the_excerpt_never_carries_a_key_from_the_url():
+    """A person can type a key into the address, and an error page that echoes the
+    request then holds it. The key is removed before the body is cut, so a key that
+    straddles the cut cannot leave its first half behind."""
+    key = "sk-live-0123456789abcdef"
+    url = f"https://mcp.acme.io/mcp?api_key={key}"
+    echoed = "z" * 2040 + f"GET /mcp?api_key={key} not found"
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, text=echoed)
+
+    result = await _probe(handler).probe(server_url=url)
+
+    body = result.problem.response.body
+    assert key not in body
+    assert key[:8] not in body
+    assert len(body) <= 2048
+
+
+# ---------------------------------------------------------------------------
+# Discovery starts from the challenge the handshake already received
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_discovery_reads_the_handshake_challenge_rather_than_asking_again():
+    """Many servers answer GET with 405, so a second anonymous GET lost the hint the
+    POST carried. The document here lives at a location only the challenge names."""
+    requests: list[httpx.Request] = []
+    prm_url = "https://mcp.acme.io/meta/prm.json"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path == "/meta/prm.json":
+            return httpx.Response(200, json=_PRM)
+        if request.url.path == "/.well-known/oauth-authorization-server":
+            return httpx.Response(200, json=_AS_METADATA)
+        if request.method == "GET":
+            return httpx.Response(405)
+        return httpx.Response(
+            401,
+            headers={"WWW-Authenticate": f'Bearer resource_metadata="{prm_url}"'},
+        )
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.auth.mode is MCPProbeAuthMode.OAUTH
+    to_server = [r for r in requests if r.url.path == "/"]
+    assert [r.method for r in to_server] == ["POST"]
+
+
+@pytest.mark.asyncio
+async def test_the_handshake_and_discovery_share_one_deadline(monkeypatch):
+    """A slow handshake leaves discovery only what remains, so a challenged probe ends
+    when the browser expects it to."""
+    import oss.src.core.gateways.mcps.probe as probe_module
+
+    monkeypatch.setattr(probe_module, "_DEADLINE_SECONDS", 0.5)
+
+    async def trickle():
+        while True:
+            yield b" "
+            await asyncio.sleep(0.02)
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/.well-known/"):
+            return httpx.Response(200, content=trickle())
+        await asyncio.sleep(0.35)
+        return httpx.Response(401, headers={"WWW-Authenticate": "Bearer"})
+
+    started = time.monotonic()
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+    elapsed = time.monotonic() - started
+
+    assert result.problem.cause == "auth_undiscoverable"
+    assert "in time" in result.problem.message
+    # Two separate deadlines would run past 0.85 s.
+    assert elapsed < 0.75

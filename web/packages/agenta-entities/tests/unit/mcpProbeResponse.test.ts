@@ -21,40 +21,37 @@ const problem = (extra: Record<string, unknown> = {}): MCPProbeProblem =>
     }) as MCPProbeProblem
 
 describe("readMcpProbeResponse", () => {
-    it("has nothing to show for the refusals the probe returns today", () => {
-        // The probe carries a cause and one English sentence. The status code reaches the message
-        // only as prose, and reading it back out would be parsing copy as data.
+    it("has nothing to show where nothing answered", () => {
         expect(readMcpProbeResponse(problem())).toBeNull()
         expect(readMcpProbeResponse(problem({transport: "unresolvable"}))).toBeNull()
         expect(readMcpProbeResponse(null)).toBeNull()
         expect(readMcpProbeResponse(undefined)).toBeNull()
     })
 
-    it("reads the response the day the probe returns one", () => {
-        expect(
-            readMcpProbeResponse(problem({response: {status: "404 Not Found", body: "<html>"}})),
-        ).toEqual({status: "404 Not Found", body: "<html>"})
+    it("reads the status and the body the probe carried", () => {
+        expect(readMcpProbeResponse(problem({response: {status: 404, body: "<html>"}}))).toEqual(
+            {status: "HTTP 404", body: "<html>"},
+        )
     })
 
     it("truncates a body nobody is going to read in a panel", () => {
         const long = "x".repeat(PROBE_RESPONSE_BODY_LIMIT + 50)
 
-        expect(readMcpProbeResponse(problem({response: {status: "500", body: long}}))?.body).toBe(
+        expect(readMcpProbeResponse(problem({response: {status: 500, body: long}}))?.body).toBe(
             "x".repeat(PROBE_RESPONSE_BODY_LIMIT),
         )
     })
 
-    it("treats a response with no status line as no response", () => {
+    it("treats a response with no status as no response", () => {
         expect(readMcpProbeResponse(problem({response: {body: "<html>"}}))).toBeNull()
-        expect(readMcpProbeResponse(problem({response: {status: "   ", body: "x"}}))).toBeNull()
-        expect(readMcpProbeResponse(problem({response: "404"}))).toBeNull()
+        expect(readMcpProbeResponse(problem({response: {status: 0, body: "x"}}))).toBeNull()
     })
 
     it("shows a status line with an empty body rather than refusing it", () => {
         // An empty body IS the answer for a server that refused with nothing in it, and the status
         // line alone is what the person needs.
-        expect(readMcpProbeResponse(problem({response: {status: "502 Bad Gateway"}}))).toEqual({
-            status: "502 Bad Gateway",
+        expect(readMcpProbeResponse(problem({response: {status: 502}}))).toEqual({
+            status: "HTTP 502",
             body: "",
         })
     })

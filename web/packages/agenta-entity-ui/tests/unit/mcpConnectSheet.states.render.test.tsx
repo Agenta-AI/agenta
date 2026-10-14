@@ -272,9 +272,7 @@ describe("C2, the address refused", () => {
     })
 
     it("offers the raw answer only when the check carried one", async () => {
-        // The probe returns a cause and a sentence and no body, so the control is absent
-        // everywhere in the product today. It appears the moment a response is carried,
-        // which is the seam the data layer left for it.
+        // A server that never answered carries no response, so there is nothing to show.
         await open(failed("unreachable", "No MCP response from mcp.internal.acme.dev."))
         expect(button("Show response")).toBeUndefined()
 
@@ -287,8 +285,8 @@ describe("C2, the address refused", () => {
                     problem: {
                         cause: "unreachable",
                         message: "No MCP response.",
-                        response: {status: "502 Bad Gateway", body: "upstream refused"},
-                    } as NonNullable<NonNullable<McpJourneyState["probe"]>["problem"]>,
+                        response: {status: 502, body: "upstream refused"},
+                    },
                 },
             }),
         )
