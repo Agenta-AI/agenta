@@ -1019,19 +1019,26 @@ describe("the authentication the person selects", () => {
                 authMode: "oauth",
             },
         })
-        listMcpTools.mockResolvedValue([])
+        // The saved address publishes OAuth, so None is checked: asked without a key, the
+        // server answers.
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {reachable: true, server_name: "GitHub", auth: {mode: "none"}},
+        })
         await act(async () => journey.selectAuthMode("none"))
         expect(journey.state.status).toBe("manual_auth")
         await act(async () => {
             await journey.skipAuthentication()
         })
 
+        expect(probeMcpUrl).toHaveBeenLastCalledWith(
+            "https://api.githubcopilot.test/mcp",
+            "project-1",
+        )
         expect(editMcpEndpoint).toHaveBeenCalledWith(
             {...stored, auth_mode: "none", secret_id: null},
             "project-1",
         )
-        // None overrides the saved mode, so the server is asked before success.
-        expect(listMcpTools).toHaveBeenCalledWith("github", "project-1")
         expect(deleteMcpEndpoint).not.toHaveBeenCalled()
         expect(journey.state.status).toBe("saving")
     })

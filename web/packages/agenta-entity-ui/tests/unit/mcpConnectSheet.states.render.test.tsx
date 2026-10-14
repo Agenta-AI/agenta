@@ -97,6 +97,7 @@ const state = (over: Partial<McpJourneyState> & {status: McpJourneyStatus}): Mcp
     name: "",
     nameTouched: false,
     probe: null,
+    savedUrlProbe: null,
     // The probe sets the first value, as in the journey.
     authMode: over.probe ? detectedAuthMode(over.probe) : "none",
     authModeTouched: false,
@@ -1033,6 +1034,33 @@ describe("C6, the key was refused", () => {
     })
 })
 
+describe("a reconnect, after its saved address was checked", () => {
+    const CONTEXT7 = {
+        id: "mcp-7",
+        slug: "context7",
+        name: "Context7",
+        url: "https://mcp.context7.test/mcp",
+        authMode: "api_key" as const,
+    }
+    const reconnecting = state({
+        status: "manual_auth",
+        url: CONTEXT7.url,
+        name: "Context7",
+        authMode: "api_key",
+        endpointId: "mcp-7",
+        slug: "context7",
+        createdHere: false,
+    })
+
+    it("labels the server by what the check found, not by the saved mode", async () => {
+        // Context7 was saved with a key, and answers without one.
+        await open({...reconnecting, savedUrlProbe: NO_AUTH_PROBE}, {reconnect: CONTEXT7})
+
+        expect(text()).toContain("Reachable · no sign-in needed")
+        expect(text()).not.toContain("Reachable · needs an API key")
+    })
+})
+
 describe("success, which draws nothing", () => {
     it("closes instead of reporting, and says none of what it used to", async () => {
         const onClose = vi.fn()
@@ -1149,6 +1177,34 @@ describe("the Authentication selector", () => {
         )
         expect(button("Try again")?.disabled).toBe(false)
         expect(radio("API key")?.disabled).toBe(false)
+    })
+
+    it("names the challenge's scheme when a key chosen over OAuth is refused", async () => {
+        // The probe keeps the OAuth server's challenge, so the key screen can still say
+        // what it asked for. DPoP is an OAuth scheme that Authorization does not carry.
+        await open(
+            state({
+                ...GITHUB,
+                probe: {
+                    ...OAUTH_PROBE,
+                    auth: {
+                        ...OAUTH_PROBE.auth,
+                        challenge_status: 401,
+                        challenge_schemes: ["DPoP"],
+                    },
+                },
+                authMode: "api_key",
+                status: "verify_failed",
+                endpointId: "mcp-1",
+                failureStatus: 401,
+                error: "",
+            }),
+        )
+
+        expect(text()).toContain(
+            "The server rejected this key (401). This server asked for the DPoP scheme. " +
+                "Check the header the server expects, or pick another secret.",
+        )
     })
 
     it("keeps the SSE warning on the screen it changes to", async () => {

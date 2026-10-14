@@ -155,6 +155,12 @@ export interface McpJourneyState {
     /** Protocol context: what the probe established about the server. */
     probe: MCPServerProbe | null
     /**
+     * Protocol context: what a reconnect's check of its saved address found. Kept apart
+     * from `probe`, which a reconnect never has, so the card and the None check read the
+     * server's answer rather than the saved row's mode.
+     */
+    savedUrlProbe: MCPServerProbe | null
+    /**
      * Policy: how the connection authenticates. The probe sets the first value; the person's
      * choice replaces it, and every transition and the row itself read this, never the probe.
      */
@@ -266,6 +272,7 @@ export function startJourney(): McpJourneyState {
         name: "",
         nameTouched: false,
         probe: null,
+        savedUrlProbe: null,
         authMode: "none",
         authModeTouched: false,
         oauthOffered: false,
@@ -427,6 +434,7 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
         case "saved_url_probed":
             return {
                 ...state,
+                savedUrlProbe: event.probe,
                 oauthOffered: state.oauthOffered || event.probe.auth.mode === "oauth",
             }
 

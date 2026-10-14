@@ -429,10 +429,12 @@ export function McpConnectSheet({
     /** How the connection authenticates: the person's choice, which the probe only suggested. */
     const path = state.authMode
     /**
-     * What the probe found, which the card reports and the selector marks. A reconnect never
-     * probes, so its card reports how the connection was saved.
+     * What the probe found, which the card reports and the selector marks. A reconnect reads
+     * its check of the saved address, so a server that answers without a key says so; until
+     * that check answers, its card reports how the connection was saved.
      */
-    const detected = state.probe ? detectedAuthMode(state.probe) : null
+    const serverProbe = state.probe ?? state.savedUrlProbe
+    const detected = serverProbe ? detectedAuthMode(serverProbe) : null
     const screen = screenFor(state, path, consentRequested)
     /**
      * Whether something is in flight: the machine's answer, corrected for the one status that

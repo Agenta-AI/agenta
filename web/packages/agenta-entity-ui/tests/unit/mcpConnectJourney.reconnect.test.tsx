@@ -186,6 +186,72 @@ describe("a reconnect", () => {
     })
 })
 
+describe("None chosen on a reconnect", () => {
+    const NEEDS_A_KEY = {
+        count: 1,
+        probe: {
+            reachable: true,
+            auth: {mode: "unknown", challenge_status: 401, challenge_schemes: ["Bearer"]},
+            problem: {cause: "auth_undiscoverable", message: "The server requires authorization."},
+        },
+    }
+    const ANSWERS_WITHOUT_A_KEY = {
+        count: 1,
+        probe: {reachable: true, auth: {mode: "none", scopes_offered: []}},
+    }
+
+    it("writes nothing when the server refuses a connection without a key", async () => {
+        // QA: the mode was written first, so a refusal left the row on None with no secret.
+        probeMcpUrl.mockResolvedValue(NEEDS_A_KEY)
+        await mountJourney(KEY_AUTHENTICATED)
+        await act(async () => journey.selectAuthMode("none"))
+        await act(async () => {
+            await journey.skipAuthentication()
+        })
+
+        // The saved auth_mode and secret_id stay, because nothing was written.
+        expect(editMcpEndpoint).not.toHaveBeenCalled()
+        expect(journey.state.status).toBe("verify_failed")
+        expect(journey.state.failureStatus).toBe(401)
+    })
+
+    it("asks the server without a key first, and writes None once it answers", async () => {
+        probeMcpUrl.mockResolvedValueOnce(NEEDS_A_KEY).mockResolvedValueOnce(ANSWERS_WITHOUT_A_KEY)
+        await mountJourney(KEY_AUTHENTICATED)
+        await act(async () => journey.selectAuthMode("none"))
+        await act(async () => {
+            await journey.skipAuthentication()
+        })
+
+        expect(probeMcpUrl).toHaveBeenCalledTimes(2)
+        expect(editMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({id: "mcp-9", auth_mode: "none", secret_id: null}),
+            "project-1",
+        )
+        expect(journey.state.status).toBe("saving")
+    })
+
+    it("takes the saved address's answer over the saved mode", async () => {
+        // Context7: saved with a key, but its address answers without one.
+        probeMcpUrl.mockResolvedValue(ANSWERS_WITHOUT_A_KEY)
+        await mountJourney(KEY_AUTHENTICATED)
+        expect(journey.state.savedUrlProbe?.auth.mode).toBe("none")
+
+        await act(async () => journey.selectAuthMode("none"))
+        await act(async () => {
+            await journey.skipAuthentication()
+        })
+
+        // The server already answered without a key, so it is not asked again.
+        expect(probeMcpUrl).toHaveBeenCalledTimes(1)
+        expect(editMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({auth_mode: "none"}),
+            "project-1",
+        )
+        expect(journey.state.status).toBe("saving")
+    })
+})
+
 describe("a new attempt after one has run", () => {
     it("starts at URL entry with nothing carried over", async () => {
         await mountJourney(EXISTING)

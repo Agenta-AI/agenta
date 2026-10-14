@@ -772,8 +772,9 @@ describe("the authentication the person selects", () => {
         ).toBe(true)
 
         const checked = journeyReducer(key, {type: "saved_url_probed", probe: probe("oauth")})
-        // Nothing else about the reconnect changes: it keeps its row, screen and mode.
-        expect(checked).toEqual({...key, oauthOffered: true})
+        // Nothing else about the reconnect changes: it keeps its row, screen and mode, and
+        // keeps what the check found for the card.
+        expect(checked).toEqual({...key, oauthOffered: true, savedUrlProbe: probe("oauth")})
 
         const switched = journeyReducer(checked, {type: "auth_mode_selected", mode: "oauth"})
         expect(switched.status).toBe("discovering_scopes")

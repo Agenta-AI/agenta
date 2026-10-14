@@ -210,9 +210,12 @@ export function useMcpConnectJourney({
     /**
      * The mode the server or the saved row suggested. Choosing None over it is a claim the
      * server has not confirmed, so it is checked before the connection is called working.
+     * A reconnect's check of its saved address is the server's answer, so it wins over the
+     * saved row.
      */
-    const suggestedAuthMode = state.probe
-        ? detectedAuthMode(state.probe)
+    const serverProbe = state.probe ?? state.savedUrlProbe
+    const suggestedAuthMode = serverProbe
+        ? detectedAuthMode(serverProbe)
         : (reconnect?.authMode ?? "api_key")
     const mustVerifyNone = state.authMode === "none" && suggestedAuthMode !== "none"
 
@@ -742,6 +745,45 @@ export function useMcpConnectJourney({
     )
 
     /**
+     * Ask the server for a handshake with no key. Answers whether it gave one; a refusal or
+     * a failed check is dispatched here.
+     */
+    const checkWithoutKey = useCallback(
+        async (url: string, attempt: number): Promise<boolean> => {
+            try {
+                const {probe} = await probeMcpUrl(url, projectId)
+                if (!isCurrent(attempt)) return false
+                if (probe?.auth.mode === "none" && !probe.problem) return true
+                if (probe?.reachable && probe.auth.mode !== "none") {
+                    dispatch({
+                        type: "verify_failed",
+                        status: probe.auth.challenge_status ?? null,
+                        error: "",
+                    })
+                    return false
+                }
+                // Not the fresh probe: a reconnect has none, and the screens read one as a
+                // first connect.
+                dispatch({
+                    type: "probe_failed",
+                    probe: state.probe,
+                    error: probe?.problem?.message || "The server could not be checked.",
+                })
+                return false
+            } catch (error) {
+                if (!isCurrent(attempt)) return false
+                dispatch({
+                    type: "probe_failed",
+                    probe: state.probe,
+                    error: gatewayRefusalMessage(error) || "The server could not be checked.",
+                })
+                return false
+            }
+        },
+        [isCurrent, projectId, state.probe],
+    )
+
+    /**
      * Connect with no credential, writing the mode where a reconnect changed it, and asking
      * the server where None overrides what it or the saved row suggested.
      */
@@ -750,19 +792,35 @@ export function useMcpConnectJourney({
         const endpoint = endpointRef.current
         const attempt = attemptRef.current
         if (reconnecting && endpoint) {
+            // Asked before the write. The relay's check runs on the saved row, so after the
+            // write a refusal left the row on None with its key let go.
+            if (mustVerifyNone && reconnectUrl) {
+                if (!(await checkWithoutKey(reconnectUrl, attempt))) return
+            }
             const failure = await storeAuthMode(endpoint.id, "none", attempt)
             if (!isCurrent(attempt)) return
             if (failure) {
                 dispatch({type: "probe_failed", probe: state.probe, error: failure})
                 return
             }
+            dispatch({type: "verify_succeeded"})
+            return
         }
         if (mustVerifyNone && endpoint) {
             await verifyConnection(endpoint, attempt)
             return
         }
         dispatch({type: "verify_succeeded"})
-    }, [isCurrent, mustVerifyNone, reconnecting, state.probe, storeAuthMode, verifyConnection])
+    }, [
+        checkWithoutKey,
+        isCurrent,
+        mustVerifyNone,
+        reconnectUrl,
+        reconnecting,
+        state.probe,
+        storeAuthMode,
+        verifyConnection,
+    ])
 
     // A reconnect never asks for the address, but whether OAuth can be chosen depends on what
     // the server publishes, so its saved address is checked once in the background. The row,
