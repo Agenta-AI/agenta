@@ -9,7 +9,20 @@
  */
 import {useState, type ReactElement} from "react"
 
-import {Button, Checkbox, cn, Input, touchTargetExpansion} from "@agenta/ui/ui"
+import type {MCPTokenEndpointAuthMethod} from "@agenta/entities/mcpEndpoint"
+import {CopyButton} from "@agenta/ui/components/presentational"
+import {
+    Button,
+    Checkbox,
+    cn,
+    Input,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    touchTargetExpansion,
+} from "@agenta/ui/ui"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 
 import {HintedField} from "./HintedField"
@@ -23,11 +36,23 @@ const CLIENT_HELP =
 const SCOPES_HELP =
     "All scopes the server offers are checked. Uncheck one to ask for less. Servers that offer no scopes show nothing here."
 
+const CALLBACK_HELP = "Register this callback URL in your OAuth app."
+
+const AUTH_METHOD_LABEL: Record<MCPTokenEndpointAuthMethod, string> = {
+    client_secret_post: "Send the secret in the request body",
+    client_secret_basic: "Send the secret with Basic authentication",
+    none: "No secret",
+}
+
 export interface OAuthAdvancedFieldsProps {
     clientId: string
     onClientIdChange: (clientId: string) => void
     /** The project-secret picker for the app's secret, labelled by this section. */
     clientSecret: ReactElement<{"aria-describedby"?: string}>
+    authMethod: MCPTokenEndpointAuthMethod
+    onAuthMethodChange: (method: MCPTokenEndpointAuthMethod) => void
+    /** Agenta's callback, as the API reports it. Absent until a probe has answered. */
+    redirectUri: string | null
     scopesOffered: string[]
     scopesSelected: string[]
     onToggleScope: (scope: string) => void
@@ -40,6 +65,9 @@ export const OAuthAdvancedFields = ({
     clientId,
     onClientIdChange,
     clientSecret,
+    authMethod,
+    onAuthMethodChange,
+    redirectUri,
     scopesOffered,
     scopesSelected,
     onToggleScope,
@@ -50,6 +78,7 @@ export const OAuthAdvancedFields = ({
     const [toggled, setToggled] = useState<boolean | null>(null)
     const open = toggled ?? needsOwnApp
     const Caret = open ? CaretDown : CaretRight
+    const hasClient = !!clientId.trim()
 
     return (
         <div className="flex flex-col gap-3" data-testid="mcp-oauth-advanced">
@@ -73,6 +102,20 @@ export const OAuthAdvancedFields = ({
                             {OWN_OAUTH_APP_NOTICE}
                         </p>
                     ) : null}
+                    {redirectUri ? (
+                        <div className="flex flex-col gap-1.5">
+                            <span className="text-field-md text-colorText">Callback URL</span>
+                            <div className="flex items-center gap-2">
+                                <code className="min-w-0 flex-1 truncate font-mono text-[13px] text-colorText">
+                                    {redirectUri}
+                                </code>
+                                <CopyButton text={redirectUri} variant="outline" size="xs" />
+                            </div>
+                            <p className="m-0 text-xs leading-normal text-colorTextTertiary">
+                                {CALLBACK_HELP}
+                            </p>
+                        </div>
+                    ) : null}
                     <HintedField label="Client ID">
                         <Input
                             className="font-mono text-[13px]"
@@ -83,9 +126,39 @@ export const OAuthAdvancedFields = ({
                             onChange={(event) => onClientIdChange(event.target.value)}
                         />
                     </HintedField>
-                    <HintedField label="Client secret" hint={CLIENT_HELP}>
-                        {clientSecret}
-                    </HintedField>
+                    {hasClient ? (
+                        <div className="flex flex-col gap-1.5">
+                            <span className="text-field-md text-colorText">
+                                Client authentication
+                            </span>
+                            <Select
+                                value={authMethod}
+                                onValueChange={(value) =>
+                                    onAuthMethodChange(value as MCPTokenEndpointAuthMethod)
+                                }
+                            >
+                                <SelectTrigger
+                                    className="w-full"
+                                    disabled={disabled}
+                                    aria-label="Client authentication"
+                                >
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {Object.entries(AUTH_METHOD_LABEL).map(([value, label]) => (
+                                        <SelectItem key={value} value={value}>
+                                            {label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    ) : null}
+                    {hasClient && authMethod === "none" ? null : (
+                        <HintedField label="Client secret" hint={CLIENT_HELP}>
+                            {clientSecret}
+                        </HintedField>
+                    )}
                     {scopesOffered.length > 0 ? (
                         <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
                             <legend className="mb-1.5 p-0 text-field-md text-colorText">

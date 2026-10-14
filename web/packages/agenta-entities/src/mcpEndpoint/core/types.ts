@@ -45,8 +45,9 @@ export type MCPTokenEndpointAuthMethod = "client_secret_basic" | "client_secret_
 export interface MCPOAuthConfig {
     client_id?: string | null
     client_secret_id?: string | null
-    // Null sends the secret in the request body.
     token_endpoint_auth_method?: MCPTokenEndpointAuthMethod | null
+    // The scopes the person last asked for, so a reconnect starts from them.
+    scopes?: string[] | null
 }
 
 export interface MCPEndpointData {
@@ -172,6 +173,8 @@ export interface MCPProbeAuth {
      * challenge that named none reports none; nothing here is guessed.
      */
     challenge_schemes?: string[]
+    /** Where the authorization server sends the browser back. Set on OAuth answers. */
+    redirect_uri?: string | null
 }
 
 export interface MCPServerProbe {

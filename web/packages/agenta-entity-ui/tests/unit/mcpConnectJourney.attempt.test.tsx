@@ -1367,7 +1367,11 @@ describe("None chosen over what the server suggested", () => {
 })
 
 describe("the OAuth app the person entered", () => {
-    const connectWith = async (client?: {clientId?: string; clientSecretId?: string | null}) => {
+    const connectWith = async (client?: {
+        clientId?: string
+        clientSecretId?: string | null
+        authMethod?: "client_secret_basic" | "client_secret_post" | "none"
+    }) => {
         await mountJourney()
         await act(async () => journey.setUrl("https://mcp.acme.test/"))
         await act(async () => {
@@ -1384,7 +1388,58 @@ describe("the OAuth app the person entered", () => {
         })
     }
 
-    it("is saved to the row before the provider is asked", async () => {
+    it("goes with the row's first write, before the provider is asked", async () => {
+        await connectWith({clientId: "app-from-github", clientSecretId: "secret-1"})
+
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    oauth_config: {
+                        client_id: "app-from-github",
+                        client_secret_id: "secret-1",
+                        token_endpoint_auth_method: "client_secret_post",
+                        scopes: [],
+                    },
+                }),
+            }),
+            "project-1",
+        )
+        expect(beginMcpConnect).toHaveBeenCalledOnce()
+    })
+
+    it("writes nothing when the row already holds what is on screen", async () => {
+        // The probe and the discovery offer the same scopes, so the settings the create
+        // sent are the settings consent uses.
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                server_name: "Acme",
+                auth: {mode: "oauth", scopes_offered: ["tools:list"]},
+            },
+        })
+
+        await connectWith()
+
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    oauth_config: {
+                        client_id: null,
+                        client_secret_id: null,
+                        token_endpoint_auth_method: null,
+                        scopes: ["tools:list"],
+                    },
+                }),
+            }),
+            "project-1",
+        )
+        expect(queryMcpEndpoints).not.toHaveBeenCalled()
+        expect(editMcpEndpoint).not.toHaveBeenCalled()
+        expect(beginMcpConnect).toHaveBeenCalledOnce()
+    })
+
+    it("saves a Basic-authenticated app with its secret, and a changed secret again", async () => {
         const row = {
             id: "mcp-1",
             slug: "acme-7mx",
@@ -1393,44 +1448,44 @@ describe("the OAuth app the person entered", () => {
             data: {route: {base_url: "https://mcp.acme.test/"}},
         }
         queryMcpEndpoints.mockResolvedValue({count: 1, endpoints: [row]})
-        const order: string[] = []
-        editMcpEndpoint.mockImplementation(async () => {
-            order.push("edit")
-            return {count: 1, endpoint: row}
-        })
-        beginMcpConnect.mockImplementation(async () => {
-            order.push("begin")
-            return {
-                count: 1,
-                redirect_url: "https://issuer.test/authorize",
-                attempt_id: "attempt-1",
-                expires_in: 600,
-            }
-        })
+        editMcpEndpoint.mockResolvedValue({count: 1, endpoint: row})
 
-        await connectWith({clientId: "app-from-github", clientSecretId: "secret-1"})
-
-        expect(editMcpEndpoint).toHaveBeenCalledWith(
+        await connectWith({
+            clientId: "app-from-github",
+            clientSecretId: "secret-1",
+            authMethod: "client_secret_basic",
+        })
+        const saved = (config: Record<string, unknown>) =>
+            expect(editMcpEndpoint).toHaveBeenLastCalledWith(
+                expect.objectContaining({
+                    data: expect.objectContaining({oauth_config: config}),
+                }),
+                "project-1",
+            )
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
             expect.objectContaining({
-                id: "mcp-1",
                 data: expect.objectContaining({
                     oauth_config: {
                         client_id: "app-from-github",
                         client_secret_id: "secret-1",
-                        token_endpoint_auth_method: null,
+                        token_endpoint_auth_method: "client_secret_basic",
+                        scopes: [],
                     },
                 }),
             }),
             "project-1",
         )
-        expect(order).toEqual(["edit", "begin"])
-    })
-
-    it("writes nothing when the person entered none", async () => {
-        await connectWith()
-
-        expect(queryMcpEndpoints).not.toHaveBeenCalled()
         expect(editMcpEndpoint).not.toHaveBeenCalled()
-        expect(beginMcpConnect).toHaveBeenCalledOnce()
+
+        await act(async () => journey.setOauthClient({clientSecretId: "secret-2"}))
+        await act(async () => {
+            await journey.submitScopes(fakePopup())
+        })
+        saved({
+            client_id: "app-from-github",
+            client_secret_id: "secret-2",
+            token_endpoint_auth_method: "client_secret_basic",
+            scopes: [],
+        })
     })
 })

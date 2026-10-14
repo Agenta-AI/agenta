@@ -97,6 +97,8 @@ export {
     journeyReducer,
     needsOwnOauthApp,
     oauthConfigFrom,
+    oauthConfigReady,
+    DEFAULT_OAUTH_CLIENT_AUTH_METHOD,
     startJourney,
     startReconnect,
 } from "./connectJourney"

@@ -40,8 +40,10 @@ import {
     MCP_URL_CREDENTIAL_BINDING,
     MCP_URL_SECRET_PLACEHOLDER,
     mcpChallengeScheme,
+    DEFAULT_OAUTH_CLIENT_AUTH_METHOD,
     mcpDefaultCredentialBinding,
     needsOwnOauthApp,
+    oauthConfigReady,
     urlMatchesCredentialBinding,
     urlSecretProblem,
     readMcpProbeResponse,
@@ -895,6 +897,13 @@ export function McpConnectSheet({
                                     onCreate={() => openSecretDrawer(undefined, "oauth_client")}
                                 />
                             }
+                            authMethod={
+                                state.oauthClientAuthMethod ?? DEFAULT_OAUTH_CLIENT_AUTH_METHOD
+                            }
+                            onAuthMethodChange={(authMethod) =>
+                                journey.setOauthClient({authMethod})
+                            }
+                            redirectUri={serverProbe?.auth.redirect_uri ?? null}
                             scopesOffered={state.scopesOffered}
                             scopesSelected={state.scopesSelected}
                             onToggleScope={journey.toggleScope}
@@ -1081,7 +1090,7 @@ export function McpConnectSheet({
                                         nameProblem,
                                         secretChosen,
                                         oauthClientReady:
-                                            !needsOwnApp || !!state.oauthClientId.trim(),
+                                            screen !== "oauth" || oauthConfigReady(state),
                                         bindingReady:
                                             credentialBindingComplete(binding) &&
                                             urlMatchesCredentialBinding(state.url, binding),
@@ -1128,7 +1137,7 @@ const canConfirm = ({
     state: McpJourneyState
     nameProblem: string | null
     secretChosen: boolean
-    /** Names an OAuth app where the server signs in no other. */
+    /** The OAuth settings on screen can be saved. See `oauthConfigReady`. */
     oauthClientReady: boolean
     /** Says where the key goes, and agrees with the address about `{secret}`. */
     bindingReady: boolean
@@ -1138,7 +1147,7 @@ const canConfirm = ({
     if (screen === "url" || screen === "url_failed") return isProbeableUrl(state.url)
     if (nameProblem) return false
     if (screen === "api_key") return !!state.name.trim() && secretChosen && bindingReady
-    if (screen === "oauth" && !oauthClientReady) return false
+    if (!oauthClientReady) return false
     // Only a key sent in the URL can fill `{secret}`, so no other mode can connect it.
     if (hasUrlSecretPlaceholder(state.url)) return false
     return !!state.name.trim()

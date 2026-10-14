@@ -22,7 +22,7 @@
  *   the caller's list, not this dialog, is what says so (decision 26).
  */
 import {normalizeConnectionName} from "./connectionName"
-import type {MCPAuthMode, MCPOAuthConfig, MCPServerProbe} from "./types"
+import type {MCPAuthMode, MCPOAuthConfig, MCPServerProbe, MCPTokenEndpointAuthMethod} from "./types"
 
 /**
  * The authentication a probe suggests, which is where the selector starts.
@@ -48,26 +48,50 @@ export const detectedAuthMode = (probe: MCPServerProbe): MCPAuthMode => {
 export const needsOwnOauthApp = (probe: MCPServerProbe | null | undefined): boolean =>
     probe?.auth.registration === "unavailable"
 
-/** The OAuth app the person entered, as the row stores it, or null for none. */
-export const oauthConfigFrom = (
-    state: Pick<McpJourneyState, "oauthClientId" | "oauthClientSecretId">,
-): MCPOAuthConfig | null => {
+/** How an app the person entered authenticates, until they pick otherwise. */
+export const DEFAULT_OAUTH_CLIENT_AUTH_METHOD: MCPTokenEndpointAuthMethod = "client_secret_post"
+
+/**
+ * The OAuth settings on screen, as the row stores them: the app the person entered, if
+ * any, and the scopes they asked for. Saved and checked as one, so a method is never kept
+ * for an app or a secret that is gone.
+ */
+export const oauthConfigFrom = (state: McpJourneyState): MCPOAuthConfig => {
     const clientId = state.oauthClientId.trim()
-    if (!clientId) return null
-    return {client_id: clientId, client_secret_id: state.oauthClientSecretId}
+    const method = state.oauthClientAuthMethod ?? DEFAULT_OAUTH_CLIENT_AUTH_METHOD
+    return {
+        client_id: clientId || null,
+        client_secret_id: clientId && method !== "none" ? state.oauthClientSecretId : null,
+        token_endpoint_auth_method: clientId ? method : null,
+        scopes: state.scopesSelected,
+    }
+}
+
+/**
+ * Whether the OAuth settings on screen can be saved: a server that registers no clients
+ * needs an app, and an app that sends a secret needs one.
+ */
+export const oauthConfigReady = (state: McpJourneyState): boolean => {
+    const config = oauthConfigFrom(state)
+    if (!config.client_id) return !needsOwnOauthApp(state.probe ?? state.savedUrlProbe)
+    return config.token_endpoint_auth_method === "none" || !!config.client_secret_id
 }
 
 /**
  * The scopes a server now offers, with the person's choices kept.
  *
  * A scope already on the list keeps its check, so a re-read after the person unchecked one
- * does not ask for it again. A scope new to the list starts checked, like every scope the
- * first time: the person narrows what was offered rather than building a request (D17).
+ * does not ask for it again. A scope new to the list is checked when the connection saved
+ * no selection, or saved one that includes it: a reconnect asks for what was asked for
+ * last time, and a first connect narrows what was offered rather than building a request
+ * (D17).
  */
 const withOfferedScopes = (state: McpJourneyState, offered: string[]) => ({
     scopesOffered: offered,
-    scopesSelected: offered.filter(
-        (scope) => !state.scopesOffered.includes(scope) || state.scopesSelected.includes(scope),
+    scopesSelected: offered.filter((scope) =>
+        state.scopesOffered.includes(scope)
+            ? state.scopesSelected.includes(scope)
+            : (state.scopesSaved?.includes(scope) ?? true),
     ),
 })
 
@@ -216,6 +240,10 @@ export interface McpJourneyState {
     oauthClientId: string
     /** The project secret holding that app's secret. */
     oauthClientSecretId: string | null
+    /** How that app authenticates at the token endpoint. Null until the person picks. */
+    oauthClientAuthMethod: MCPTokenEndpointAuthMethod | null
+    /** The scopes a reconnected row was saved with, or null for a row that saved none. */
+    scopesSaved: string[] | null
     /** Once true, the saved app a reconnect reads back may no longer replace the fields. */
     oauthClientTouched: boolean
     /** Identity, once the row exists. Null until then, and never regenerated after. */
@@ -285,7 +313,12 @@ export type McpJourneyEvent =
     | {type: "scopes_discovered"; scopes: string[]}
     | {type: "scopes_failed"; error: string}
     | {type: "scope_toggled"; scope: string}
-    | {type: "oauth_client_changed"; clientId?: string; clientSecretId?: string | null}
+    | {
+          type: "oauth_client_changed"
+          clientId?: string
+          clientSecretId?: string | null
+          authMethod?: MCPTokenEndpointAuthMethod
+      }
     /** The OAuth app a reconnected row is saved with, read back after the sheet opened. */
     | {type: "oauth_client_loaded"; config: MCPOAuthConfig | null}
     | {type: "submit_scopes"}
@@ -337,7 +370,9 @@ export function startJourney(): McpJourneyState {
         scopesSelected: [],
         oauthClientId: "",
         oauthClientSecretId: null,
+        oauthClientAuthMethod: null,
         oauthClientTouched: false,
+        scopesSaved: null,
         endpointId: null,
         slug: null,
         createdHere: false,
@@ -456,6 +491,7 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                           scopesSelected: [],
                           oauthClientId: "",
                           oauthClientSecretId: null,
+                          oauthClientAuthMethod: null,
                           oauthClientTouched: false,
                       }),
                 endpointId: sameAddress ? state.endpointId : null,
@@ -608,6 +644,7 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                     event.clientSecretId === undefined
                         ? state.oauthClientSecretId
                         : event.clientSecretId,
+                oauthClientAuthMethod: event.authMethod ?? state.oauthClientAuthMethod,
                 oauthClientTouched: true,
             }
 
@@ -617,6 +654,8 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                 ...state,
                 oauthClientId: event.config?.client_id ?? "",
                 oauthClientSecretId: event.config?.client_secret_id ?? null,
+                oauthClientAuthMethod: event.config?.token_endpoint_auth_method ?? null,
+                scopesSaved: event.config?.scopes ?? null,
             }
 
         case "submit_scopes":

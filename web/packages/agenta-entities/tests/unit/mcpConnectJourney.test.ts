@@ -17,6 +17,7 @@ import {
     journeyReducer,
     needsOwnOauthApp,
     oauthConfigFrom,
+    oauthConfigReady,
     startJourney,
     startReconnect,
     type McpJourneyEvent,
@@ -440,9 +441,14 @@ describe("the scope checklist on the OAuth screen", () => {
 })
 
 describe("an OAuth app the person registered", () => {
-    it("is stored as the row's client, or not at all when the field is blank", () => {
-        const blank = run(...beforeCreate("oauth"))
-        expect(oauthConfigFrom(blank)).toBeNull()
+    it("is saved with the scopes as one setting, and only what applies to it", () => {
+        const blank = run(...beforeCreate("oauth").slice(0, -1))
+        expect(oauthConfigFrom(blank)).toEqual({
+            client_id: null,
+            client_secret_id: null,
+            token_endpoint_auth_method: null,
+            scopes: ["tools:list"],
+        })
 
         const entered = journeyReducer(blank, {
             type: "oauth_client_changed",
@@ -452,7 +458,53 @@ describe("an OAuth app the person registered", () => {
         expect(oauthConfigFrom(entered)).toEqual({
             client_id: "app-from-github",
             client_secret_id: "secret-1",
+            token_endpoint_auth_method: "client_secret_post",
+            scopes: ["tools:list"],
         })
+
+        // No secret is sent, so none is kept.
+        const publicApp = journeyReducer(entered, {
+            type: "oauth_client_changed",
+            authMethod: "none",
+        })
+        expect(oauthConfigFrom(publicApp)).toMatchObject({
+            client_secret_id: null,
+            token_endpoint_auth_method: "none",
+        })
+    })
+
+    it("is ready only with the secret its auth method sends", () => {
+        const app = journeyReducer(run(...beforeCreate("oauth").slice(0, -1)), {
+            type: "oauth_client_changed",
+            clientId: "app-from-github",
+            authMethod: "client_secret_basic",
+        })
+        expect(oauthConfigReady(app)).toBe(false)
+        expect(
+            oauthConfigReady(
+                journeyReducer(app, {type: "oauth_client_changed", clientSecretId: "secret-1"}),
+            ),
+        ).toBe(true)
+        expect(
+            oauthConfigReady(
+                journeyReducer(app, {type: "oauth_client_changed", authMethod: "none"}),
+            ),
+        ).toBe(true)
+    })
+
+    it("restores the scopes a reconnect asked for last time", () => {
+        // Saved with `write` unchecked; the check of the saved address offers both again.
+        const loaded = journeyReducer(
+            startReconnect({id: "e", slug: "s", name: "n", url: URL, authMode: "oauth"}),
+            {type: "oauth_client_loaded", config: {scopes: ["read"]}},
+        )
+        const checked = journeyReducer(loaded, {
+            type: "saved_url_probed",
+            probe: {...probe("oauth"), auth: {mode: "oauth", scopes_offered: ["read", "write"]}},
+        })
+
+        expect(checked.scopesOffered).toEqual(["read", "write"])
+        expect(checked.scopesSelected).toEqual(["read"])
     })
 
     it("starts a reconnect on the app its row is saved with", () => {

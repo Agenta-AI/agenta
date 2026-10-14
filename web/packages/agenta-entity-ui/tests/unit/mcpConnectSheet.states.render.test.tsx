@@ -106,7 +106,9 @@ const state = (over: Partial<McpJourneyState> & {status: McpJourneyStatus}): Mcp
     scopesSelected: [],
     oauthClientId: "",
     oauthClientSecretId: null,
+    oauthClientAuthMethod: null,
     oauthClientTouched: false,
+    scopesSaved: null,
     endpointId: null,
     slug: null,
     createdHere: true,
@@ -586,7 +588,7 @@ describe("the OAuth screen's Advanced section", () => {
         expect(button("Connect")?.disabled).toBe(true)
     })
 
-    it("lets Connect go once that server has a client ID", async () => {
+    it("lets Connect go once that server has an app with its secret", async () => {
         const probe = {
             ...OAUTH_PROBE,
             auth: {...OAUTH_PROBE.auth, registration: "unavailable" as const},
@@ -594,7 +596,60 @@ describe("the OAuth screen's Advanced section", () => {
         await open(naming({probe, oauthClientId: "app-from-github", oauthClientTouched: true}))
 
         expect((control("Client ID") as HTMLInputElement | null)?.value).toBe("app-from-github")
+        // The secret is sent in the request body by default, so it is needed first.
+        expect(control("Client authentication")?.textContent).toBe(
+            "Send the secret in the request body",
+        )
+        expect(button("Connect")?.disabled).toBe(true)
+
+        await open(
+            naming({
+                probe,
+                oauthClientId: "app-from-github",
+                oauthClientSecretId: "sec-1",
+                oauthClientTouched: true,
+            }),
+        )
         expect(button("Connect")?.disabled).toBe(false)
+    })
+
+    it("asks for no secret for an app that sends none", async () => {
+        await open(
+            naming({
+                oauthClientId: "app-from-github",
+                oauthClientAuthMethod: "none",
+                oauthClientTouched: true,
+            }),
+        )
+        await press(button("Advanced"))
+
+        expect(control("Client authentication")?.textContent).toBe("No secret")
+        expect(control("Client secret")).toBeNull()
+        expect(button("Connect")?.disabled).toBe(false)
+    })
+
+    it("shows the method only once an app is entered", async () => {
+        await open(naming())
+        await press(button("Advanced"))
+
+        expect(control("Client authentication")).toBeNull()
+    })
+
+    it("shows the callback to register the app with, and copies it", async () => {
+        const writeText = vi.fn(async () => undefined)
+        vi.stubGlobal("navigator", {...navigator, clipboard: {writeText}})
+        const redirect = "https://api.example.test/gateways/mcps/connect/callback"
+        await open(
+            naming({
+                probe: {...OAUTH_PROBE, auth: {...OAUTH_PROBE.auth, redirect_uri: redirect}},
+            }),
+        )
+        await press(button("Advanced"))
+
+        expect(text()).toContain(redirect)
+        expect(text()).toContain("Register this callback URL in your OAuth app.")
+        await press(button("Copy"))
+        expect(writeText).toHaveBeenCalledWith(redirect)
     })
 
     it("hands the typed client ID to the journey", async () => {

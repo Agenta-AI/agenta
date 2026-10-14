@@ -31,6 +31,7 @@ const {
     discoverMcpConnect,
     beginMcpConnect,
     queryMcpEndpoints,
+    editMcpEndpoint,
 } = vi.hoisted(() => ({
     probeMcpUrl: vi.fn(),
     createMcpEndpoint: vi.fn(),
@@ -38,6 +39,7 @@ const {
     discoverMcpConnect: vi.fn(),
     beginMcpConnect: vi.fn(),
     queryMcpEndpoints: vi.fn(),
+    editMcpEndpoint: vi.fn(),
 }))
 
 vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOriginal) => ({
@@ -48,6 +50,7 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
     discoverMcpConnect,
     beginMcpConnect,
     queryMcpEndpoints,
+    editMcpEndpoint,
 }))
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test"}))
@@ -198,6 +201,8 @@ beforeEach(() => {
         endpoints: [{id: "mcp-9", slug: "acme-7mx", auth_mode: "oauth", data: {route: {}}}],
     })
     discoverMcpConnect.mockResolvedValue({count: 1, scopes_offered: ["tools:list"]})
+    // The OAuth settings, scopes included, are saved to the row before consent.
+    editMcpEndpoint.mockResolvedValue({count: 1})
     // Held open: the provider's window is what ends this step, and nothing in a unit test
     // is going to open one.
     beginMcpConnect.mockImplementation(() => new Promise(() => undefined))

@@ -64,7 +64,13 @@ import {
     isNameTakenRefusal,
 } from "../core/refusal"
 import {rememberMcpReturnPath} from "../core/returnPath"
-import type {MCPAuthMode, MCPCredentialBinding, MCPEndpoint, MCPOAuthConfig} from "../core/types"
+import type {
+    MCPAuthMode,
+    MCPCredentialBinding,
+    MCPEndpoint,
+    MCPOAuthConfig,
+    MCPTokenEndpointAuthMethod,
+} from "../core/types"
 import {refreshMcpEndpointsAtom} from "../state/atoms"
 
 export interface McpConnectJourneyOptions {
@@ -155,6 +161,21 @@ const findAdoptableEndpoint = async ({
     }
 }
 
+/** Whether two OAuth settings would sign in the same way and ask for the same scopes. */
+const sameOauthConfig = (
+    a: MCPOAuthConfig | null | undefined,
+    b: MCPOAuthConfig | null | undefined,
+): boolean => {
+    const key = (config: MCPOAuthConfig | null | undefined) =>
+        JSON.stringify([
+            config?.client_id ?? null,
+            config?.client_secret_id ?? null,
+            config?.token_endpoint_auth_method ?? null,
+            [...(config?.scopes ?? [])].sort(),
+        ])
+    return key(a) === key(b)
+}
+
 export function useMcpConnectJourney({
     existingNames = [],
     reconnect = null,
@@ -192,6 +213,9 @@ export function useMcpConnectJourney({
     const endpointRef = useRef<{id: string; slug: string} | null>(
         reconnect ? {id: reconnect.id, slug: reconnect.slug} : null,
     )
+    // The OAuth settings the row is known to hold, so a consent that changes nothing
+    // writes nothing.
+    const savedOauthConfigRef = useRef<{endpointId: string; config: MCPOAuthConfig} | null>(null)
     /**
      * What a create in THIS journey may already have written, when it may have written
      * anything: the name and address it carried, or null.
@@ -632,6 +656,7 @@ export function useMcpConnectJourney({
 
                 // No slug is sent: the API derives one from the name and hands it back,
                 // and that returned slug is what agents reference.
+                const oauthConfig = mode === "oauth" ? oauthConfigFrom(state) : null
                 const created = await createMcpEndpoint(
                     {
                         name: state.name.trim(),
@@ -643,6 +668,7 @@ export function useMcpConnectJourney({
                                 base_url: url,
                                 credential_binding: binding && normalizeCredentialBinding(binding),
                             },
+                            oauth_config: oauthConfig,
                         },
                     },
                     projectId,
@@ -650,6 +676,9 @@ export function useMcpConnectJourney({
                 const endpoint = created.endpoint
                 if (!endpoint?.id || !endpoint.slug) {
                     throw new Error("The server did not return the created connection.")
+                }
+                if (oauthConfig) {
+                    savedOauthConfigRef.current = {endpointId: endpoint.id, config: oauthConfig}
                 }
 
                 if (!isCurrent(attempt)) {
@@ -699,73 +728,52 @@ export function useMcpConnectJourney({
                 )
             }
         },
-        [
-            checkWithSecret,
-            mustVerifyNone,
-            projectId,
-            state.authMode,
-            state.name,
-            state.url,
-            verifyConnection,
-        ],
+        [checkWithSecret, mustVerifyNone, projectId, state, verifyConnection],
     )
 
     const toggleScope = useCallback((scope: string) => dispatch({type: "scope_toggled", scope}), [])
 
     /** The OAuth app the person registered with the provider, as they type it. */
     const setOauthClient = useCallback(
-        (client: {clientId?: string; clientSecretId?: string | null}) =>
-            dispatch({type: "oauth_client_changed", ...client}),
+        (client: {
+            clientId?: string
+            clientSecretId?: string | null
+            authMethod?: MCPTokenEndpointAuthMethod
+        }) => dispatch({type: "oauth_client_changed", ...client}),
         [],
     )
 
     /**
-     * Save the OAuth app on screen to the row before consent, where the row holds another.
+     * Save the OAuth settings on screen to the row before consent, where it holds others.
      *
-     * Here rather than at create, because a retry after a refused consent reuses the row and
-     * the person may have entered the app the refusal asked for. The auth method is not on
-     * the screen, so one already saved for the same app is kept.
+     * Here rather than only at create, because the scopes are final only now and a retry
+     * after a refused consent reuses the row with whatever the person changed. The row
+     * the journey created or read is enough to tell; a write reads the row fresh, because
+     * the edit route replaces the whole row.
      */
-    const {oauthClientId, oauthClientSecretId, oauthClientTouched} = state
     const storeOauthClient = useCallback(
-        async (endpointId: string) => {
-            // Untouched, the fields hold what the row holds: nothing on a new row, and on a
-            // reconnect the app read back from it.
-            if (!oauthClientTouched) return
+        async (endpointId: string, wanted: MCPOAuthConfig) => {
+            const known = savedOauthConfigRef.current
+            if (known && known.endpointId === endpointId && sameOauthConfig(known.config, wanted)) {
+                return
+            }
             const stored = await storedEndpointFrom(endpointId, projectId)
             if (!stored) {
                 throw new Error(
                     "This connection could not be read back, so nothing was changed. Try again.",
                 )
             }
-            const saved = stored.data.oauth_config ?? null
-            const wanted = oauthConfigFrom({oauthClientId, oauthClientSecretId})
-            if (
-                (saved?.client_id ?? null) === (wanted?.client_id ?? null) &&
-                (saved?.client_secret_id ?? null) === (wanted?.client_secret_id ?? null)
-            ) {
-                return
+            if (!sameOauthConfig(stored.data.oauth_config, wanted)) {
+                await editMcpEndpoint(
+                    {...stored, id: endpointId, data: {...stored.data, oauth_config: wanted}},
+                    projectId,
+                )
             }
-            const config: MCPOAuthConfig | null = wanted && {
-                ...wanted,
-                token_endpoint_auth_method:
-                    saved?.client_id === wanted.client_id
-                        ? (saved?.token_endpoint_auth_method ?? null)
-                        : null,
-            }
-            await editMcpEndpoint(
-                {...stored, id: endpointId, data: {...stored.data, oauth_config: config}},
-                projectId,
-            )
+            savedOauthConfigRef.current = {endpointId, config: wanted}
         },
-        [oauthClientId, oauthClientSecretId, oauthClientTouched, projectId],
+        [projectId],
     )
 
-    /**
-     * Confirm the scopes and go to the provider.
-     *
-     * `popup` must be opened by the caller, synchronously in the tap that called this.
-     */
     const submitScopes = useCallback(
         async (popup: Window | null) => {
             const endpointId = endpointRef.current?.id
@@ -773,7 +781,7 @@ export function useMcpConnectJourney({
             dispatch({type: "submit_scopes"})
             const attempt = attemptRef.current
             try {
-                await storeOauthClient(endpointId)
+                await storeOauthClient(endpointId, oauthConfigFrom(state))
                 if (!isCurrent(attempt)) {
                     popup?.close()
                     return
@@ -789,7 +797,7 @@ export function useMcpConnectJourney({
                 })
             }
         },
-        [driveConsent, isCurrent, state.scopesSelected, storeOauthClient],
+        [driveConsent, isCurrent, state, storeOauthClient],
     )
 
     const storedEndpoint = useCallback(
@@ -1023,44 +1031,38 @@ export function useMcpConnectJourney({
         verifyConnection,
     ])
 
-    // An OAuth reconnect starts on the app its row is saved with, read back here because the
-    // hosts that open a reconnect pass the row's address and mode, not its OAuth settings.
-    const reconnectId = reconnect?.authMode === "oauth" ? reconnect.id : null
-    useEffect(() => {
-        if (!reconnectId) return
-        let live = true
-        storedEndpointFrom(reconnectId, projectId)
-            .then((row) => {
-                if (live && row) {
-                    dispatch({type: "oauth_client_loaded", config: row.data.oauth_config ?? null})
-                }
-            })
-            .catch(() => undefined)
-        return () => {
-            live = false
-        }
-    }, [projectId, reconnectId])
-
     // A reconnect never asks for the address, but whether OAuth can be chosen depends on what
     // the server publishes, so its saved address is checked once in the background. The row,
     // its screen and its saved mode stay as they are.
     // An address with `{secret}` cannot be checked without its key, and it has no OAuth to
     // find either.
+    //
+    // An OAuth reconnect first reads back the OAuth settings its row is saved with, because
+    // the hosts pass only the address and the mode. Before the check, so the scope checklist
+    // the check fills starts from the scopes asked for last time.
+    const reconnectId = reconnect?.authMode === "oauth" ? reconnect.id : null
     useEffect(() => {
-        if (!reconnectUrl || hasUrlSecretPlaceholder(reconnectUrl)) return
         let live = true
-        Promise.resolve()
-            .then(() => probeMcpUrl(reconnectUrl, projectId))
-            .then((response) => {
-                if (live && response?.probe) {
-                    dispatch({type: "saved_url_probed", probe: response.probe})
-                }
-            })
-            .catch(() => undefined)
+        // Both read at once, applied in order: the settings, then the check that fills
+        // the checklist from them.
+        Promise.all([
+            reconnectId ? storedEndpointFrom(reconnectId, projectId).catch(() => null) : null,
+            reconnectUrl && !hasUrlSecretPlaceholder(reconnectUrl)
+                ? probeMcpUrl(reconnectUrl, projectId).catch(() => null)
+                : null,
+        ]).then(([row, response]) => {
+            if (!live) return
+            if (row && reconnectId) {
+                const config = row.data.oauth_config ?? null
+                if (config) savedOauthConfigRef.current = {endpointId: reconnectId, config}
+                dispatch({type: "oauth_client_loaded", config})
+            }
+            if (response?.probe) dispatch({type: "saved_url_probed", probe: response.probe})
+        })
         return () => {
             live = false
         }
-    }, [projectId, reconnectUrl])
+    }, [projectId, reconnectId, reconnectUrl])
 
     /**
      * Credentials are persisted. Pick up what the server wrote and tell the caller.
