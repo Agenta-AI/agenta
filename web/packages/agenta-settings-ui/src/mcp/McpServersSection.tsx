@@ -511,7 +511,7 @@ export default function McpServersSection({
                 existingNames={names}
                 onReconnect={openReconnect}
                 onDisconnect={handleDisconnect}
-                onChanged={() => void refresh()}
+                onChanged={refresh}
             />
         </div>
     )
