@@ -342,6 +342,7 @@ def test_exported_spans_are_redacted():
             "http.target": "/bot123:AAHdqTcvCH1vGWJxfSe/sendMessage?chat=1",
             "url.query": "token=secret",
             "http.status_code": 401,
+            "urls": ["https://user:pass@example.com/v1?token=secret", url],
         },
     ) as span:
         span.add_event("retry", {"reason": f"failed for url {url}"})
@@ -353,6 +354,10 @@ def test_exported_spans_are_redacted():
     assert exported.attributes["http.target"] == "/botREDACTED/sendMessage"
     assert exported.attributes["url.query"] == server.REDACTED
     assert exported.attributes["http.status_code"] == 401
+    assert exported.attributes["urls"] == (
+        "https://example.com/v1",
+        "https://api.telegram.org/botREDACTED/sendMessage",
+    )
     assert exported.events[0].attributes["reason"] == (
         "failed for url https://api.telegram.org/botREDACTED/sendMessage"
     )

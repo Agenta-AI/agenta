@@ -293,13 +293,22 @@ def redact_text(text: str) -> str:
     return _TELEGRAM_TOKEN.sub(f"bot{REDACTED}", text)
 
 
+def _redact_value(key: str, value: str) -> str:
+    return redact_url(value) if key in _URL_KEYS else redact_text(value)
+
+
 def _redact_attributes(attributes: Any) -> dict:
     redacted = {}
     for key, value in (attributes or {}).items():
         if key in _QUERY_KEYS:
             value = REDACTED
         elif isinstance(value, str):
-            value = redact_url(value) if key in _URL_KEYS else redact_text(value)
+            value = _redact_value(key, value)
+        elif isinstance(value, (list, tuple)):
+            value = tuple(
+                _redact_value(key, item) if isinstance(item, str) else item
+                for item in value
+            )
         redacted[key] = value
     return redacted
 
