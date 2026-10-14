@@ -938,3 +938,28 @@ async def test_a_raw_transport_error_mid_stream_ends_cleanly_without_its_text():
     assert _last_sse_event(relayed)["data"]["error"]["code"] == "upstream_error"
     assert b"sk-x" not in relayed
     assert b"peer closed" not in relayed
+
+
+@pytest.mark.asyncio
+async def test_a_stream_the_client_leaves_closes_the_relayed_body_at_once():
+    """The relayed body records the call in its `finally`, which is how a stream the client
+    left is still charged. The wrapper must close it when it is closed, not leave it to GC."""
+    closed = []
+
+    async def _body_that_records() -> AsyncIterator[bytes]:
+        try:
+            yield b'data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n'
+            yield b'data: {"choices":[{"delta":{"content":"lo"}}]}\n\n'
+        finally:
+            closed.append(True)
+
+    proxy = _proxy_over(_body_that_records())
+
+    with _auth_scope():
+        response = await proxy.chat_completions_custom(
+            _request(body=_body(stream=True)), "my-slug"
+        )
+        await anext(response.body_iterator)
+        await response.body_iterator.aclose()
+
+    assert closed == [True]

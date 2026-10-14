@@ -22,6 +22,7 @@ from oss.src.core.gateways.dtos import (
     forwardable_request_headers,
     with_code_marker,
 )
+from oss.src.core.gateways.cleanup import run_shielded
 from oss.src.core.gateways.egress import classify_transport_error
 from oss.src.core.gateways.llms.dtos import LLMCallContext, LLMProtocol
 from oss.src.core.gateways.llms.errors import UPSTREAM_ERROR, connection_lost_message
@@ -321,6 +322,14 @@ async def _stream_with_terminal_error(
                 exc_info=True,
             )
         yield _stream_error_frame(protocol, exc)
+    finally:
+        # Closing this generator does not close the one it reads. Closed here, the relay's
+        # own `finally` runs now and records the call, so a stream the client left is
+        # still measured and charged once (OR48). Shielded for the same reason as there.
+        # `LLMRelayResult.body` is typed as an iterator; every adapter yields a generator.
+        aclose = getattr(body, "aclose", None)
+        if aclose is not None:
+            await run_shielded(aclose())
 
 
 class LLMGatewayProxy:
