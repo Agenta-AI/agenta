@@ -588,7 +588,7 @@ Daytona, one warm sandbox per parked session:
 
 | Variable | Role | Default | Secret | Helm |
 |---|---|---|---|---|
-| `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` | How long a sandbox stays running with its live session after a clean turn | `480000` (8 minutes) | no | `...daytona.sessionIdleTtlMs` |
+| `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` | How long a sandbox stays running with its live session after a clean turn | `120000` (2 minutes) | no | `...daytona.sessionIdleTtlMs` |
 | `AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM` | How many idle sandboxes may stay running between turns | `20` | no | `...daytona.sessionMaxWarm` |
 
 Set `AGENTA_RUNNER_DAYTONA_SESSION_IDLE_TTL_MS` to `0` to stop a sandbox after each turn. There is
