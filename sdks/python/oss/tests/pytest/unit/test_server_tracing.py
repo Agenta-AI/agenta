@@ -574,6 +574,7 @@ def test_captured_headers_are_dropped():
 
 
 def _mounted_app(provider):
+    pytest.importorskip("opentelemetry.instrumentation.fastapi")
     from fastapi import FastAPI
 
     from agenta.sdk.engines.tracing.server import RouteSpanNameMiddleware
