@@ -165,6 +165,9 @@ spec:
       volumes:
         {{- $redisCaVolume | nindent 8 }}
       {{- end }}
+      {{- with $services.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with $services.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

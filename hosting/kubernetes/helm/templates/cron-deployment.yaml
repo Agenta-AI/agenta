@@ -99,6 +99,9 @@ spec:
       volumes:
         {{- $redisCaVolume | nindent 8 }}
       {{- end }}
+      {{- with $cron.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with $cron.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
