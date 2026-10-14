@@ -96,4 +96,23 @@ describe("mountFileExistsAtomFamily", () => {
         expect(await exists(makeStore(), "missing/clip.mp4")).toBe(false)
         expect(readCalls()).toHaveLength(0)
     })
+
+    it("stays unknown when the listing fails, and finds the file on the next fetch", async () => {
+        fern.getMountFiles
+            .mockRejectedValueOnce(Object.assign(new Error("503"), {statusCode: 503}))
+            .mockResolvedValue({files: [{path: "media/clip.mp4"}]})
+        const store = makeStore()
+        const target = mountFileExistsAtomFamily({mountId: MOUNT_ID, path: "media/clip.mp4"})
+        const unsub = store.sub(target, () => undefined)
+        const client = store.get(queryClientAtom)
+        const listing = () => client.getQueryCache().getAll()[0]?.state.status
+        await vi.waitFor(() => expect(listing()).toBe("error"))
+
+        // A failed listing is not "no file here": the answer stays unknown, not false.
+        expect(store.get(target)).toBeNull()
+
+        await client.refetchQueries()
+        await vi.waitFor(() => expect(store.get(target)).toBe(true))
+        unsub()
+    })
 })

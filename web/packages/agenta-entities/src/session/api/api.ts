@@ -1311,7 +1311,8 @@ export async function queryMountDir({
     return validated?.files ?? null
 }
 
-/** One raw folder level (no git pruning, no counts); a missing folder is a silent 404. */
+/** One raw folder level (no git pruning, no counts). A missing folder (404) is `null`; any other
+ * failure throws, so the query retries it instead of caching "no file here" for every mention. */
 export async function listMountFolder({
     mountId,
     projectId,
@@ -1321,16 +1322,17 @@ export async function listMountFolder({
 }: Omit<MountFilesParams, "lowPriority">): Promise<MountFile[] | null> {
     if (!projectId || !mountId) return null
 
-    const data = await callFern(
-        "[listMountFolder]",
-        () =>
-            getLowPriorityMountsClient().getMountFiles(
-                {mount_id: mountId, path: path || undefined, depth: 1},
-                projectScopedRequest(projectId, appId, abortSignal, 1),
-            ),
-        isNotFound,
-    )
-    if (!data) return null
+    let data
+    try {
+        // maxRetries 0: the query owns the retries.
+        data = await getLowPriorityMountsClient().getMountFiles(
+            {mount_id: mountId, path: path || undefined, depth: 1},
+            projectScopedRequest(projectId, appId, abortSignal, 0),
+        )
+    } catch (error) {
+        if (isNotFound(error)) return null
+        throw error
+    }
 
     const validated = safeParseWithLogging(mountFileListResponseSchema, data, "[listMountFolder]")
     return validated?.files ?? null
