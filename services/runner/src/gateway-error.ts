@@ -47,6 +47,34 @@ const NEXT_STEPS: Record<string, string> = {
   adapter_not_found: "check the endpoint configuration",
 };
 
+/**
+ * The model endpoint behind the gateway failed, and the gateway wrote the sentence
+ * (`api/oss/src/core/gateways/llms/errors.py`): by code, whether another attempt may work. The
+ * marker's code wins over the body's `code`, which is the provider's own (`insufficient_quota`).
+ */
+const UPSTREAM_RETRYABLE: Record<string, boolean> = {
+  upstream_error: true,
+  upstream_rejected: false,
+};
+
+/** Is this the gateway's report of an upstream failure, rather than a refusal of its own? */
+export function isUpstreamFailure(
+  detail: AgentErrorDetail | undefined,
+): detail is AgentErrorDetail {
+  return !!detail && detail.code in UPSTREAM_RETRYABLE;
+}
+
+/**
+ * The gateway's sentence for an upstream failure, out of whatever a harness wrapped around it
+ * (pi-acp's `Internal error: `, Pi's `Error Code upstream_error: `, a trailing stack). The
+ * sentence always starts the same way and ends at its marker.
+ */
+function upstreamSentence(text: string): string {
+  const start = Math.max(text.indexOf("The model endpoint"), 0);
+  const end = text.search(CODE_MARKER_RE);
+  return text.slice(start, end > start ? end : undefined).trim();
+}
+
 /** The first balanced `{...}` JSON object in `text`, or undefined if none parses. Scans left to
  * right so the FIRST candidate wins, matching where a formatted error message places the body. */
 function firstJsonObject(text: string): unknown {
@@ -116,8 +144,8 @@ export function carriesGatewayRefusalMarker(text: string | undefined): boolean {
 export function errorEventWithDetail(
   message: string,
   code?: string,
+  detail: AgentErrorDetail | undefined = parseGatewayErrorDetail(message),
 ): Extract<AgentEvent, { type: "error" }> {
-  const detail = parseGatewayErrorDetail(message);
   return {
     type: "error",
     message,
@@ -178,19 +206,26 @@ function parseFromBody(raw: string): AgentErrorDetail | undefined {
   // exported and the next caller will not know to.
   const wrapped = (parsed as { error?: GatewayErrorBody }).error;
   const candidate = wrapped ?? (parsed as GatewayErrorBody);
-  const identifiable =
+  const marker =
     typeof candidate === "object" &&
     candidate !== null &&
-    typeof candidate.message === "string" &&
-    CODE_MARKER_RE.test(candidate.message) &&
-    (typeof candidate.code === "string" || !!jsonRpcCause(candidate));
+    typeof candidate.message === "string"
+      ? candidate.message.match(CODE_MARKER_RE)?.[1]
+      : undefined;
+  const upstream = !!marker && marker in UPSTREAM_RETRYABLE;
+  const identifiable =
+    !!marker &&
+    (upstream ||
+      typeof candidate.code === "string" ||
+      !!jsonRpcCause(candidate));
   const body = identifiable ? candidate : undefined;
   if (!body || typeof body !== "object") return undefined;
   // The LLM plane's string `code` wins where it exists; otherwise this is the MCP plane's
   // JSON-RPC shape and the cause comes from `error.data`. Checked in that order so a body
   // carrying both keeps the behaviour it had before the MCP shape was understood here.
-  const rpc = typeof body.code === "string" ? undefined : jsonRpcCause(body);
-  const code = typeof body.code === "string" ? body.code : rpc?.code;
+  const rpc =
+    upstream || typeof body.code === "string" ? undefined : jsonRpcCause(body);
+  const code = upstream ? marker : typeof body.code === "string" ? body.code : rpc?.code;
   const message = typeof body.message === "string" ? body.message : undefined;
   if (!code || !message) return undefined;
 
@@ -200,9 +235,9 @@ function parseFromBody(raw: string): AgentErrorDetail | undefined {
 
   return {
     code,
-    message,
-    // Parsed gateway refusals are non-retryable without changing the request or configuration.
-    retryable: false,
+    message: upstream ? upstreamSentence(message) : message,
+    // Gateway refusals are non-retryable without changing the request or configuration.
+    retryable: UPSTREAM_RETRYABLE[code] ?? false,
     ...(NEXT_STEPS[code] ? { next_step: NEXT_STEPS[code] } : {}),
     ...(Object.keys(details).length > 0 ? { details } : {}),
   };
@@ -217,7 +252,9 @@ function parseFromBody(raw: string): AgentErrorDetail | undefined {
 function parseFromMarker(raw: string): AgentErrorDetail | undefined {
   const match = raw.match(CODE_MARKER_RE);
   if (!match) return undefined;
-  const code = match[1];
+  const code = match[1]!;
+  if (code in UPSTREAM_RETRYABLE)
+    return { code, message: upstreamSentence(raw), retryable: UPSTREAM_RETRYABLE[code]! };
   const message = raw.replace(CODE_MARKER_RE, "").trim() || raw;
   return { code, message, retryable: false };
 }

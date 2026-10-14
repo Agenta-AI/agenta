@@ -63,6 +63,7 @@ def _route(
         provider_key="openai",
         deployment_kind=LLMDeploymentKind.CUSTOM,
         model="gpt-4o",
+        label="my-endpoint",
         base_url=base_url,
         headers={"x-route": "1"},
         settings=LLMEndpointSettings(timeout_seconds=timeout_seconds),
@@ -365,28 +366,31 @@ async def test_connection_failure_raises_llm_upstream_error_never_something_else
 
 
 @pytest.mark.asyncio
-async def test_non_timeout_5xx_raises_llm_upstream_error_with_status_code():
+async def test_a_5xx_without_a_json_body_is_relayed_as_a_marked_error():
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(503, text="upstream broke")
+        return httpx.Response(503, text="<html>upstream broke</html>")
 
     adapter = _adapter(handler)
+    result = await adapter.relay_chat_completion(
+        route=_route(), secret=None, context=_context(), body=_body(), headers={}
+    )
 
-    with pytest.raises(LLMUpstreamError) as excinfo:
-        await adapter.relay_chat_completion(
-            route=_route(),
-            secret=None,
-            context=_context(),
-            body=_body(),
-            headers={},
-        )
-
-    assert excinfo.value.status_code == 503
+    assert result.status_code == 503
+    assert result.headers["content-type"] == "application/json"
+    error = json.loads((await _drain(result.body))[0])["error"]
+    assert error["message"] == (
+        'The model endpoint "my-endpoint" reported an error. Try again.'
+        " ⟦agenta_code:upstream_error⟧"
+    )
 
 
 @pytest.mark.asyncio
-async def test_4xx_response_passes_through_untouched():
+async def test_a_4xx_keeps_its_envelope_with_only_the_message_rewritten():
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(400, json={"error": {"message": "bad request"}})
+        return httpx.Response(
+            400,
+            json={"error": {"message": "bad request", "type": "invalid_request_error"}},
+        )
 
     adapter = _adapter(handler)
     result = await adapter.relay_chat_completion(
@@ -395,7 +399,14 @@ async def test_4xx_response_passes_through_untouched():
 
     assert result.status_code == 400
     chunks = await _drain(result.body)
-    assert json.loads(chunks[0]) == {"error": {"message": "bad request"}}
+    assert json.loads(chunks[0]) == {
+        "error": {
+            "message": 'The model endpoint "my-endpoint" reported an error: "bad request".'
+            " Check the endpoint's key, account and model, or change the request."
+            " ⟦agenta_code:upstream_rejected⟧",
+            "type": "invalid_request_error",
+        }
+    }
 
 
 @pytest.mark.asyncio

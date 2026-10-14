@@ -29,6 +29,9 @@ _ALLOWED = {
     # Decodes the platform's own Vertex service-account document from configuration, for
     # the `builtin/agenta` endpoint. Not a request or a response.
     "catalog.py",
+    # Reads an upstream ERROR (status body or stream event) to rewrite its message for the
+    # person. Every other response byte is relayed as received.
+    "providers/passthrough/upstream_errors.py",
 }
 
 _JSON_LOADS = re.compile(r"\bjson\.loads\(")

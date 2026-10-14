@@ -123,6 +123,8 @@ class LLMResolvedRoute(BaseModel):
     provider_key: Optional[str] = None
     deployment_kind: LLMDeploymentKind
     model: str
+    # The endpoint's name as the person knows it, for the errors they read.
+    label: Optional[str] = None
     #
     base_url: Optional[str] = None
     api_version: Optional[str] = None

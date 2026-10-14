@@ -57,6 +57,8 @@ export const RETRYABLE_CODES = new Set([
     // Another session refreshed the subscription sign-in while this turn was using the old one.
     // The newer sign-in is already stored, so the next attempt uses it.
     "subscription_login_refreshed",
+    // The model endpoint failed in a way another attempt may get past.
+    "upstream_error",
 ])
 
 /**

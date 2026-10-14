@@ -1,5 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { personFacingGatewayRefusal } from "../../gateway-error.ts";
+import {
+  isUpstreamFailure,
+  parseGatewayErrorDetail,
+  personFacingGatewayRefusal,
+} from "../../gateway-error.ts";
+import type { AgentErrorDetail } from "../../protocol.ts";
 import { SubstitutionStuckError } from "./credential-preflight.ts";
 
 /** Map a provider family to its human-facing vault key label, for the credit/auth hint. */
@@ -159,6 +164,13 @@ export type RunErrorCode =
   // carries the provider's own sentence, redacted. Not retryable as is: the same request is
   // refused the same way. The failed turn leaves the conversation, so the next message is not.
   | "provider_error"
+  // The model endpoint failed and another attempt may work. Behind the gateway, the gateway wrote
+  // the sentence, endpoint named (`api/oss/src/core/gateways/llms/errors.py`); also Pi's
+  // `malformed_function_call` verdict on the model's output.
+  | "upstream_error"
+  // The same, for a failure that needs a change first: the endpoint's credits or key, or the
+  // request. Not retryable as is.
+  | "upstream_rejected"
   // A fresh prompt found its turn index already written by another runner, so this runner's view
   // of the conversation was stale. Nothing was sent to the model. Retryable: the next send
   // rebuilds from the latest turn.
@@ -177,6 +189,8 @@ export type RunErrorCode =
 export interface ClassifiedRunError {
   message: string;
   code: RunErrorCode;
+  /** The gateway's envelope, carried on because `message` no longer holds its marker. */
+  detail?: AgentErrorDetail;
 }
 
 /*
@@ -399,6 +413,10 @@ export function withinCredentialPropagationWindow(
   );
 }
 
+const MALFORMED_FUNCTION_CALL = /finish_reason: malformed_function_call/;
+const MALFORMED_FUNCTION_CALL_MESSAGE =
+  "The model sent a tool call that could not be read (malformed_function_call). Try again, or pick another model.";
+
 /** The proxy answered but cannot reach its own store, or was not reachable at all. */
 const PROXY_NO_DATABASE = /no_db_connection/i;
 const CONNECTION_FAILURE =
@@ -471,6 +489,15 @@ export function classifyRunError(
   const refusal = personFacingGatewayRefusal(raw);
   if (refusal)
     return { message: refusal.message, code: refusal.code as RunErrorCode };
+  // A failed model call the gateway already put into words, before any rule below reads the
+  // provider's text.
+  const upstream = parseGatewayErrorDetail(raw);
+  if (isUpstreamFailure(upstream))
+    return {
+      message: sanitizeErrorText(upstream.message),
+      code: upstream.code as RunErrorCode,
+      detail: upstream,
+    };
   const msg = raw.split("\n")[0].trim();
   const keyHint = keyHintFor(provider, harness, options.connection);
   // FIRST, and matched on the ERROR CLASS rather than on any text. Every sandbox this run built
@@ -492,6 +519,9 @@ export function classifyRunError(
   if (raw.includes(ABANDONED_TURN_MARKER)) {
     return { message: EXECUTION_LOST_MESSAGE, code: "execution_lost" };
   }
+  // Pi's own verdict on a completion the gateway relayed as a success, so no marker.
+  if (MALFORMED_FUNCTION_CALL.test(raw))
+    return { message: MALFORMED_FUNCTION_CALL_MESSAGE, code: "upstream_error" };
   // A budget refusal is checked first: it is the most specific reading of a 429, and its body also
   // trips the rate-limit and quota matchers below.
   if (BUDGET_REFUSAL.test(raw)) {

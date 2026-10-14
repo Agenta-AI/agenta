@@ -211,6 +211,7 @@ class _ResolvedLlmTarget:
             provider_key=self.provider_key,
             deployment_kind=self.deployment_kind,
             model=context.model,
+            label=self.name,
             base_url=self.route_data.base_url,
             api_version=self.route_data.api_version,
             region=self.route_data.region,
