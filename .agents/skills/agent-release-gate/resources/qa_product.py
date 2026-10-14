@@ -2296,7 +2296,7 @@ GREP_TOOL_NAMES = {"grep"}
 DAYTONA_PLACEHOLDER_PREFIX = "dtn_secret_"
 # Prefixes real provider keys start with. Seeing one of these is positive proof that hiding did
 # not happen, as opposed to merely failing to see the placeholder.
-REAL_KEY_PREFIXES = ("sk-", "sk_")
+REAL_KEY_PREFIXES = ("sk-", "sk_", "AIza")
 # The fixed value the runner puts in the provider variable when the model call goes through the
 # LLM gateway (`GATEWAY_PLACEHOLDER_API_KEY` in services/runner/src/extensions/
 # model-provider-override.ts). It selects the gateway route; the gateway adds the real key.
@@ -2531,16 +2531,28 @@ def j_secret_opaque(cell: dict) -> dict:
     )
 
     reply = t.reply or ""
-    saw_hidden = hidden_word in reply
-    saw_gateway = gateway_word in reply
-    saw_plain = plain_word in reply
-    saw_empty = empty_word in reply
-    leak_count_match = re.search(re.escape(leaks_word) + r"(\d+)", reply)
+    bash_call, outcome = _bash_call_outcome(t)
+    # Every verdict word is in the prompt, so the reply alone does not prove the command ran.
+    # Read the verdict from the shell call's own output whenever the wire shows that call. Codex
+    # runs shell through native exec frames this driver cannot see, so the reply stays the
+    # source there.
+    if bash_call is not None:
+        payload = t.tool_payloads.get(bash_call["toolCallId"], {})
+        evidence = str(payload.get("output") or "") if outcome == "available" else ""
+    elif cell["harness"] == "codex":
+        evidence = reply
+    else:
+        evidence = ""
+    saw_hidden = hidden_word in evidence
+    saw_gateway = gateway_word in evidence
+    saw_plain = plain_word in evidence
+    saw_empty = empty_word in evidence
+    leak_count_match = re.search(re.escape(leaks_word) + r"(\d+)", evidence)
     leak_count = int(leak_count_match.group(1)) if leak_count_match else None
     # Belt and braces: the probe cannot emit key material, but a model that ignored it and ran
-    # something else might. Treat any real-key prefix in the reply as a loud failure.
-    leaked = next((p for p in REAL_KEY_PREFIXES if p in reply), None)
-    _, outcome = _bash_call_outcome(t)
+    # something else might. Treat any real-key prefix in the reply or the output as a loud
+    # failure.
+    leaked = next((p for p in REAL_KEY_PREFIXES if p in reply or p in evidence), None)
     # Pi chosen on Daytona runs in the runner (`inprocess`), and only its tool calls run in the
     # sandbox, so the sandbox holds no provider key at all. Claude Code runs inside the sandbox
     # and needs its variable, so an empty one there is a delivery failure.
@@ -2569,9 +2581,9 @@ def j_secret_opaque(cell: dict) -> dict:
         )
     elif leak_count is None:
         why = (
-            f"the sandbox never reported a verdict (bash outcome={outcome}). The journey proves "
-            "nothing unless the command actually ran, so this is a FAIL rather than a pass on "
-            "absence."
+            f"the sandbox never reported a verdict in the shell call's own output (bash "
+            f"outcome={outcome}). The journey proves nothing unless the command actually ran, so "
+            "this is a FAIL rather than a pass on absence."
         )
     elif leak_count:
         why = (
