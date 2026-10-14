@@ -585,6 +585,8 @@ export function useMcpConnectJourney({
         async (endpoint: {id: string; slug: string}, attempt: number) => {
             try {
                 await listMcpTools(endpoint.slug, projectId)
+                // A cancelled attempt records nothing, so it cannot overwrite a newer check.
+                if (!isCurrent(attempt)) return
                 await recordMcpEndpointCheck(endpoint.id, {ok: true}, projectId)
                 if (!isCurrent(attempt)) return
                 dispatch({type: "verify_succeeded"})
@@ -599,6 +601,7 @@ export function useMcpConnectJourney({
                     // Nothing answered about the credential, so nothing may say it was
                     // rejected. This is the check failing, which is the screen the design
                     // draws for a server that did not answer (round 4, D133 reopened).
+                    if (!isCurrent(attempt)) return
                     await recordMcpEndpointCheck(endpoint.id, {ok: false, reason}, projectId)
                     if (!isCurrent(attempt)) return
                     dispatch({type: "probe_failed", probe: state.probe, error: reason})

@@ -1693,6 +1693,19 @@ def test_a_check_is_recorded_and_the_endpoint_returned(client, service, allow):
     )
 
 
+def test_a_long_check_reason_is_cut_rather_than_refused(client, service, allow):
+    endpoint_id = uuid4()
+    service.edit_return = _endpoint(endpoint_id)
+
+    response = client.post(
+        f"/endpoints/{endpoint_id}/check",
+        json={"ok": False, "reason": "x" * 1000},
+    )
+
+    assert response.status_code == 200
+    assert service.recorded_check == (False, "x" * 300)
+
+
 def test_a_check_on_a_missing_endpoint_is_not_found(client, service, allow):
     service.edit_return = None
 

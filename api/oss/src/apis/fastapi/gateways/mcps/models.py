@@ -48,7 +48,14 @@ class MCPEndpointCheckRequest(BaseModel):
     """The result of a check the connect sheet just ran against the connection."""
 
     ok: bool
-    reason: Optional[str] = Field(default=None, max_length=300)
+    reason: Optional[str] = None
+
+    @field_validator("reason")
+    @classmethod
+    def clip_reason(cls, reason: Optional[str]) -> Optional[str]:
+        """The reason can carry a server's own error text whole. A long one is cut, not
+        refused, so the failed check is still recorded."""
+        return reason[:300] if reason else reason
 
 
 class MCPConnectRequest(BaseModel):
