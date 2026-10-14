@@ -149,6 +149,7 @@ import {
   carriesGatewayRefusalMarker,
   personFacingGatewayRefusal,
   errorEventWithDetail,
+  isUpstreamFailure,
   parseGatewayErrorDetail,
 } from "../../gateway-error.ts";
 import { mcpHandshakeFailureMessage } from "./mcp-handshake.ts";
@@ -1907,6 +1908,7 @@ export async function runTurn(
         ? parseGatewayErrorDetail(visibleOutput)
         : undefined;
     let swallowedError: string | undefined;
+    let swallowedDetail = swallowedGatewayRefusal;
     if (swallowedGatewayRefusal) {
       const personFacing = personFacingGatewayRefusal(visibleOutput);
       swallowedError = personFacing?.message ?? swallowedGatewayRefusal.message;
@@ -1914,7 +1916,11 @@ export async function runTurn(
       run.emitEvent({
         type: "error",
         message: swallowedError,
-        code: (personFacing?.code as RunErrorCode | undefined) ?? "runner_error",
+        code:
+          (personFacing?.code as RunErrorCode | undefined) ??
+          (isUpstreamFailure(swallowedGatewayRefusal)
+            ? (swallowedGatewayRefusal.code as RunErrorCode)
+            : "runner_error"),
         detail: swallowedGatewayRefusal,
       });
     } else if (swallowedPiError) {
@@ -1944,8 +1950,11 @@ export async function runTurn(
           },
         );
       swallowedError = classified.message;
+      swallowedDetail = classified.detail;
       run.recordError(swallowedError, request.modelConnection?.provider);
-      run.emitEvent(errorEventWithDetail(classified.message, classified.code));
+      run.emitEvent(
+        errorEventWithDetail(classified.message, classified.code, classified.detail),
+      );
     }
     // A shutdown cancels like a Stop, but nobody stopped this turn. It ends with an error the
     // client offers to retry; the cancel's park and continuity stay those of a Stop.
@@ -1974,15 +1983,12 @@ export async function runTurn(
       // A failed turn may have left a partial turn in the native transcript: roll it back, or
       // drop the resume point.
       await settleFailedTurnContinuity();
-      // The envelope is attached HERE for the folded-refusal path, because its message has had
-      // the marker stripped out: `withGatewayErrorDetail` scans the text and would find nothing
-      // left to recover. The Pi path keeps its text intact and is recovered there as before.
+      // The envelope is attached HERE, because the message has had the marker stripped out:
+      // `withGatewayErrorDetail` scans the text and would find nothing left to recover.
       return {
         ok: false,
         error: swallowedError,
-        ...(swallowedGatewayRefusal
-          ? { errorDetail: swallowedGatewayRefusal }
-          : {}),
+        ...(swallowedDetail ? { errorDetail: swallowedDetail } : {}),
       };
     }
 
@@ -2106,7 +2112,7 @@ export async function runTurn(
     } else if (nativeTraceBatches === 0) {
       await harnessTrace.emitMissingBatchFallback(otel, error);
     }
-    otel?.emitEvent(errorEventWithDetail(error, outputLimitReason ? "output_limit_exceeded" : classified.code));
+    otel?.emitEvent(errorEventWithDetail(error, outputLimitReason ? "output_limit_exceeded" : classified.code, classified.detail));
     // An aborted turn may have left a partial turn in the native transcript: roll it back, or
     // drop the resume point.
     await settleFailedTurnContinuity();
@@ -2135,6 +2141,7 @@ export async function runTurn(
     return {
       ok: false,
       error,
+      ...(classified.detail ? { errorDetail: classified.detail } : {}),
       ...(stalledBeforeFirstResponse
         ? { stalledBeforeFirstResponse: true }
         : {}),

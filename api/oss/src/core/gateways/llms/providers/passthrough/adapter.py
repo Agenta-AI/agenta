@@ -23,6 +23,10 @@ from oss.src.core.gateways.egress import (
     harden_pooled_client,
     open_egress,
 )
+from oss.src.core.gateways.llms.catalog import (
+    BUILTIN_LLM_PROVIDERS,
+    RETIRED_STARTER_CREDITS_SLUG,
+)
 from oss.src.core.gateways.llms.dtos import (
     LLMCallContext,
     LLMProtocol,
@@ -31,6 +35,9 @@ from oss.src.core.gateways.llms.dtos import (
 from oss.src.core.gateways.llms.interfaces import LLMRelayResult, LLMUpstreamInterface
 from oss.src.core.gateways.llms.providers.passthrough.auth import build_auth_headers
 from oss.src.core.gateways.llms.providers.passthrough.routing import build_url
+from oss.src.core.gateways.llms.providers.passthrough.upstream_errors import (
+    relay_upstream_errors,
+)
 from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
     apply_static_fields,
     encode_thought_signatures,
@@ -418,22 +425,10 @@ class RelayLLMAdapter(LLMUpstreamInterface):
                 status_code=response.status_code,
             )
 
-        if response.status_code >= 500:
-            content = await response.aread()
-            await response.aclose()
-            if scanner.detects(content):
-                raise LLMUpstreamCredentialEchoError(
-                    provider_key=route.provider_key,
-                    status_code=response.status_code,
-                )
-            raise LLMUpstreamError(
-                provider_key=route.provider_key,
-                status_code=response.status_code,
-                detail=content.decode(errors="replace"),
-            )
-
         result = LLMRelayResult(
-            status_code=response.status_code,
+            # Every upstream 5xx reaches the caller as 502, as before: harnesses retry on 502
+            # but not on every 5xx (Pi does not retry 501, 505 or 507).
+            status_code=502 if response.status_code >= 500 else response.status_code,
             headers=dict(response.headers),
             body=_empty_body(),
         )
@@ -455,6 +450,25 @@ class RelayLLMAdapter(LLMUpstreamInterface):
                 provider_key=route.provider_key,
                 sign=sign,
             )
+        )
+        if response.status_code >= 400:
+            # Whatever the upstream sent, the body becomes the protocol's JSON error.
+            result.headers["content-type"] = "application/json"
+        # The retired starter-credits connection relays its credit proxy's own errors, which
+        # the runner reads by their text (a budget refusal is "your free credits are used up").
+        if route.label == RETIRED_STARTER_CREDITS_SLUG:
+            return result
+        result.body = relay_upstream_errors(
+            result.body,
+            status_code=response.status_code,
+            stream=context.stream,
+            protocol=context.protocol,
+            scanner=scanner,
+            echo_refusal=LLMUpstreamCredentialEchoError(
+                provider_key=route.provider_key, status_code=response.status_code
+            ),
+            # The platform's own account: its errors name the cloud project and region.
+            quote_upstream=route.provider_key not in BUILTIN_LLM_PROVIDERS,
         )
         return result
 

@@ -14,10 +14,11 @@ from oss.src.apis.fastapi.gateways.llms.utils import (
     parse_responses_call_context,
 )
 from oss.src.apis.fastapi.gateways.flags import llm_gateway_serves_caller
-from oss.src.apis.fastapi.gateways.utils import response_headers, with_code_marker
+from oss.src.apis.fastapi.gateways.utils import response_headers
 from oss.src.core.gateways.dtos import (
     GatewayEndpointNamespace,
     forwardable_request_headers,
+    with_code_marker,
 )
 from oss.src.core.gateways.llms.dtos import LLMCallContext, LLMProtocol
 from oss.src.core.gateways.types import (
@@ -461,7 +462,7 @@ class LLMGatewayProxy:
                 run_labels=gateway_run_labels(request),
             )
 
-            if context.stream:
+            if context.stream and result.status_code < 400:
                 return StreamingResponse(
                     result.body,
                     status_code=result.status_code,
@@ -469,12 +470,13 @@ class LLMGatewayProxy:
                     media_type="text/event-stream",
                 )
 
-            chunk = await anext(result.body)
+            # Read whole, even on a stream, so a refusal raised while reading is answered here.
+            content = b"".join([chunk async for chunk in result.body])
         except _DOMAIN_EXCEPTIONS as exc:
             return _map_domain_exception(exc)
 
         return Response(
-            content=chunk,
+            content=content,
             status_code=result.status_code,
             headers=response_headers(result.headers),
         )
