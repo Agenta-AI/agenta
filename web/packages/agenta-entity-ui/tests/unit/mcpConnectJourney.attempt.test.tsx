@@ -1365,3 +1365,72 @@ describe("None chosen over what the server suggested", () => {
         expect(journey.state.status).toBe("saving")
     })
 })
+
+describe("the OAuth app the person entered", () => {
+    const connectWith = async (client?: {clientId?: string; clientSecretId?: string | null}) => {
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        if (client) await act(async () => journey.setOauthClient(client))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+        await act(async () => {
+            await journey.submitScopes(fakePopup())
+        })
+    }
+
+    it("is saved to the row before the provider is asked", async () => {
+        const row = {
+            id: "mcp-1",
+            slug: "acme-7mx",
+            name: "Acme",
+            auth_mode: "oauth",
+            data: {route: {base_url: "https://mcp.acme.test/"}},
+        }
+        queryMcpEndpoints.mockResolvedValue({count: 1, endpoints: [row]})
+        const order: string[] = []
+        editMcpEndpoint.mockImplementation(async () => {
+            order.push("edit")
+            return {count: 1, endpoint: row}
+        })
+        beginMcpConnect.mockImplementation(async () => {
+            order.push("begin")
+            return {
+                count: 1,
+                redirect_url: "https://issuer.test/authorize",
+                attempt_id: "attempt-1",
+                expires_in: 600,
+            }
+        })
+
+        await connectWith({clientId: "app-from-github", clientSecretId: "secret-1"})
+
+        expect(editMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({
+                id: "mcp-1",
+                data: expect.objectContaining({
+                    oauth_config: {
+                        client_id: "app-from-github",
+                        client_secret_id: "secret-1",
+                        token_endpoint_auth_method: null,
+                    },
+                }),
+            }),
+            "project-1",
+        )
+        expect(order).toEqual(["edit", "begin"])
+    })
+
+    it("writes nothing when the person entered none", async () => {
+        await connectWith()
+
+        expect(queryMcpEndpoints).not.toHaveBeenCalled()
+        expect(editMcpEndpoint).not.toHaveBeenCalled()
+        expect(beginMcpConnect).toHaveBeenCalledOnce()
+    })
+})

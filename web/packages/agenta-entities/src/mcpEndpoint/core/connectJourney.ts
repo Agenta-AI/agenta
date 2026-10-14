@@ -22,7 +22,7 @@
  *   the caller's list, not this dialog, is what says so (decision 26).
  */
 import {normalizeConnectionName} from "./connectionName"
-import type {MCPAuthMode, MCPServerProbe} from "./types"
+import type {MCPAuthMode, MCPOAuthConfig, MCPServerProbe} from "./types"
 
 /**
  * The authentication a probe suggests, which is where the selector starts.
@@ -37,6 +37,39 @@ export const detectedAuthMode = (probe: MCPServerProbe): MCPAuthMode => {
     if (probe.auth.mode === "none") return "none"
     return "api_key"
 }
+
+/**
+ * Whether the server signs in only clients registered with it by hand.
+ *
+ * The probe's answer for a server with no dynamic registration that takes no client ID
+ * metadata document from this deployment either (GitHub, HubSpot, Asana). The OAuth screen
+ * then asks for the person's own OAuth app.
+ */
+export const needsOwnOauthApp = (probe: MCPServerProbe | null | undefined): boolean =>
+    probe?.auth.registration === "unavailable"
+
+/** The OAuth app the person entered, as the row stores it, or null for none. */
+export const oauthConfigFrom = (
+    state: Pick<McpJourneyState, "oauthClientId" | "oauthClientSecretId">,
+): MCPOAuthConfig | null => {
+    const clientId = state.oauthClientId.trim()
+    if (!clientId) return null
+    return {client_id: clientId, client_secret_id: state.oauthClientSecretId}
+}
+
+/**
+ * The scopes a server now offers, with the person's choices kept.
+ *
+ * A scope already on the list keeps its check, so a re-read after the person unchecked one
+ * does not ask for it again. A scope new to the list starts checked, like every scope the
+ * first time: the person narrows what was offered rather than building a request (D17).
+ */
+const withOfferedScopes = (state: McpJourneyState, offered: string[]) => ({
+    scopesOffered: offered,
+    scopesSelected: offered.filter(
+        (scope) => !state.scopesOffered.includes(scope) || state.scopesSelected.includes(scope),
+    ),
+})
 
 /**
  * The address two rows are compared by: no trailing slash, no case, no surrounding space.
@@ -176,6 +209,15 @@ export interface McpJourneyState {
     scopesOffered: string[]
     /** Which of them this attempt asks for. A reconnect uses it to step up. */
     scopesSelected: string[]
+    /**
+     * Configuration: an OAuth app the person registered with the provider. Empty for the
+     * usual case, where Agenta registers itself.
+     */
+    oauthClientId: string
+    /** The project secret holding that app's secret. */
+    oauthClientSecretId: string | null
+    /** Once true, the saved app a reconnect reads back may no longer replace the fields. */
+    oauthClientTouched: boolean
     /** Identity, once the row exists. Null until then, and never regenerated after. */
     endpointId: string | null
     slug: string | null
@@ -243,6 +285,9 @@ export type McpJourneyEvent =
     | {type: "scopes_discovered"; scopes: string[]}
     | {type: "scopes_failed"; error: string}
     | {type: "scope_toggled"; scope: string}
+    | {type: "oauth_client_changed"; clientId?: string; clientSecretId?: string | null}
+    /** The OAuth app a reconnected row is saved with, read back after the sheet opened. */
+    | {type: "oauth_client_loaded"; config: MCPOAuthConfig | null}
     | {type: "submit_scopes"}
     | {type: "consent_started"}
     | {type: "consent_succeeded"}
@@ -290,6 +335,9 @@ export function startJourney(): McpJourneyState {
         oauthOffered: false,
         scopesOffered: [],
         scopesSelected: [],
+        oauthClientId: "",
+        oauthClientSecretId: null,
+        oauthClientTouched: false,
         endpointId: null,
         slug: null,
         createdHere: false,
@@ -401,6 +449,15 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                 error: null,
                 // A choice made for one server says nothing about the next one.
                 authModeTouched: sameAddress ? state.authModeTouched : false,
+                ...(sameAddress
+                    ? {}
+                    : {
+                          scopesOffered: [],
+                          scopesSelected: [],
+                          oauthClientId: "",
+                          oauthClientSecretId: null,
+                          oauthClientTouched: false,
+                      }),
                 endpointId: sameAddress ? state.endpointId : null,
                 slug: sameAddress ? state.slug : null,
                 createdHere: sameAddress ? state.createdHere : false,
@@ -441,6 +498,7 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                 authMode: keepChoice ? state.authMode : detectedAuthMode(event.probe),
                 authModeTouched: keepChoice,
                 oauthOffered: event.probe.auth.mode === "oauth",
+                ...withOfferedScopes(state, event.probe.auth.scopes_offered ?? []),
                 error: null,
             }
         }
@@ -463,6 +521,9 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                 ...state,
                 savedUrlProbe: event.probe,
                 oauthOffered: state.oauthOffered || event.probe.auth.mode === "oauth",
+                ...(event.probe.auth.mode === "oauth"
+                    ? withOfferedScopes(state, event.probe.auth.scopes_offered ?? [])
+                    : {}),
             }
 
         case "auth_mode_selected": {
@@ -525,8 +586,7 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
             return {
                 ...state,
                 status: "choosing_scopes",
-                scopesOffered: event.scopes,
-                scopesSelected: event.scopes,
+                ...withOfferedScopes(state, event.scopes),
                 error: null,
             }
 
@@ -539,6 +599,25 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                 : [...state.scopesSelected, event.scope]
             return {...state, scopesSelected: selected}
         }
+
+        case "oauth_client_changed":
+            return {
+                ...state,
+                oauthClientId: event.clientId === undefined ? state.oauthClientId : event.clientId,
+                oauthClientSecretId:
+                    event.clientSecretId === undefined
+                        ? state.oauthClientSecretId
+                        : event.clientSecretId,
+                oauthClientTouched: true,
+            }
+
+        case "oauth_client_loaded":
+            if (state.oauthClientTouched) return state
+            return {
+                ...state,
+                oauthClientId: event.config?.client_id ?? "",
+                oauthClientSecretId: event.config?.client_secret_id ?? null,
+            }
 
         case "submit_scopes":
             return {...state, status: "awaiting_consent", error: null}

@@ -52,9 +52,16 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test"}))
 
+// The project's named secrets, which the OAuth screen's client secret picker reads.
+const NAMED_SECRETS_ATOM = vi.hoisted(() => ({}))
+vi.mock("@agenta/entities/secret", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/entities/secret")>()),
+    customNamedSecretsAtom: NAMED_SECRETS_ATOM,
+}))
+
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
-    useAtomValue: () => "project-1",
+    useAtomValue: (atom: unknown) => (atom === NAMED_SECRETS_ATOM ? [] : "project-1"),
     useSetAtom: () => async () => undefined,
 }))
 

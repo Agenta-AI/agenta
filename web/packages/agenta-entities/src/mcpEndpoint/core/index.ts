@@ -59,6 +59,7 @@ export type {
     MCPEndpointRoute,
     MCPEndpointSettings,
     MCPEndpointsResponse,
+    MCPOAuthConfig,
     MCPOAuthData,
     MCPEndpointProbeResponse,
     MCPProbeAuth,
@@ -67,6 +68,7 @@ export type {
     MCPProbeRegistration,
     MCPServerProbe,
     MCPToolFilter,
+    MCPTokenEndpointAuthMethod,
 } from "./types"
 export {
     gatewayRefusalCode,
@@ -93,6 +95,8 @@ export {
     isBusy,
     isConnected,
     journeyReducer,
+    needsOwnOauthApp,
+    oauthConfigFrom,
     startJourney,
     startReconnect,
 } from "./connectJourney"

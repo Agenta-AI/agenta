@@ -62,9 +62,16 @@ vi.mock("../../src/mcpEndpoint/McpPermissionDrawer", () => ({
         createElement("button", {onClick: onReconnect}, "Reconnect from the drawer"),
 }))
 
+// The project's named secrets, which the OAuth screen's client secret picker reads.
+const NAMED_SECRETS_ATOM = vi.hoisted(() => ({}))
+vi.mock("@agenta/entities/secret", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/entities/secret")>()),
+    customNamedSecretsAtom: NAMED_SECRETS_ATOM,
+}))
+
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
-    useAtomValue: () => ({data: endpoints}),
+    useAtomValue: (atom: unknown) => (atom === NAMED_SECRETS_ATOM ? [] : {data: endpoints}),
 }))
 
 import {McpServerFormView} from "../../src/DrillInView/SchemaControls/McpServerFormView"
