@@ -560,6 +560,13 @@ export class GatewayMcpClient {
     }
 
     /**
+     * Delete a connection.
+     *
+     * A connect sheet abandoning the row it made sends `pending_auth_mode`, the mode it
+     * made the row in. The row is then deleted only while it is still in that mode with
+     * no credential bound, decided under the connection's lock. A row that another tab
+     * took over since is kept, and the answer is 409.
+     *
      * @param {AgentaApi.DeleteMcpEndpointRequest} request
      * @param {GatewayMcpClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -583,7 +590,7 @@ export class GatewayMcpClient {
     ): Promise<core.WithRawResponse<void>> {
         const { endpoint_id: endpointId, pending_auth_mode: pendingAuthMode } = request;
         const _queryParams: Record<string, unknown> = {
-            pending_auth_mode: pendingAuthMode != null ? pendingAuthMode : undefined,
+            pending_auth_mode: pendingAuthMode !== undefined ? pendingAuthMode : undefined,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
