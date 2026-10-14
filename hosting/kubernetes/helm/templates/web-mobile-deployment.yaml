@@ -145,6 +145,9 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      {{- with $webMobile.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with $webMobile.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

@@ -111,6 +111,9 @@ spec:
       volumes:
         {{- $redisCaVolume | nindent 8 }}
       {{- end }}
+      {{- with $workerQueues.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with $workerQueues.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

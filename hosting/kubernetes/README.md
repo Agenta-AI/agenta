@@ -372,6 +372,26 @@ The block in `values.yaml` under "Availability under disruption" is the source o
 truth. The operator-facing guide is
 [Prepare a Kubernetes deployment for production](../../docs/docs/self-host/deploy/05-kubernetes-production.mdx).
 
+## Pod priority and spare capacity
+
+A system pod can evict one of your pods when a node is full. The scheduler makes room by evicting
+pods with a lower priority, and system pods run at up to 2000001000, above the 1000000000 limit on
+a PriorityClass you create. So a priority on your pod alone does not protect it. Two settings, both
+off by default, give the scheduler something cheaper to evict.
+
+```yaml
+spareCapacity:
+  enabled: true           # placeholder pods at priority -10 that only hold room
+  replicas: 1
+  resources:
+    requests: {cpu: 500m, memory: 512Mi}
+redisVolatile:
+  priorityClassName: agenta-stateful   # any workload takes this key
+```
+
+The placeholders cost what any pod with the same requests costs. The block in `values.yaml` under
+"Pod priority and spare capacity" explains each key.
+
 ## Restricting the bundled data stores
 
 Nothing stops one pod in the namespace from reaching the bundled Redis instances

@@ -420,6 +420,9 @@
         },
         "strategy": {
           "$ref": "#/$defs/workloadStrategy"
+        },
+        "priorityClassName": {
+          "$ref": "#/$defs/priorityClassName"
         }
       }
     },
@@ -839,6 +842,9 @@
             },
             "lifecycle": {
               "$ref": "#/$defs/containerLifecycle"
+            },
+            "priorityClassName": {
+              "$ref": "#/$defs/priorityClassName"
             }
           }
         }
@@ -1038,6 +1044,9 @@
               ]
             }
           }
+        },
+        "priorityClassName": {
+          "$ref": "#/$defs/priorityClassName"
         }
       }
     },
@@ -1135,6 +1144,9 @@
         },
         "lifecycle": {
           "$ref": "#/$defs/containerLifecycle"
+        },
+        "priorityClassName": {
+          "$ref": "#/$defs/priorityClassName"
         }
       }
     },
@@ -1441,6 +1453,61 @@
           "description": "false removes every generated constraint."
         }
       }
+    },
+    "spareCapacity": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Placeholder pods at a negative priority that hold spare room on the nodes, so the scheduler evicts them before any real pod. Off by default. The placeholders cost what any pod with the same requests costs.",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Requests that set how much room each placeholder holds. Default 500m CPU and 512Mi memory."
+        },
+        "priorityClass": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "The PriorityClass the chart creates for the placeholders. It is a cluster-wide object.",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Default <namespace>-<release fullname>-spare-capacity, unique per release."
+            },
+            "value": {
+              "type": "integer",
+              "maximum": -1,
+              "description": "Default -10. Keep it at -10 or above. On GKE a pod below -10 does not make the autoscaler add a node, so an evicted placeholder would not come back. Kubernetes does not let a PriorityClass value change, so change the name together with the value."
+            }
+          }
+        },
+        "image": {
+          "type": "string",
+          "description": "Default registry.k8s.io/pause:3.10."
+        },
+        "nodeSelector": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "tolerations": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "affinity": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
     }
   },
   "$defs": {
@@ -1648,6 +1715,9 @@
           "type": "object",
           "description": "A liveness probe for this workload, passed through as written. The chart sets none: cron and the two workers run their process as PID 1, so the container lifecycle already restarts a process that exits, and detecting one that is alive but idle needs an application heartbeat that does not exist yet (agenta#7334).",
           "additionalProperties": true
+        },
+        "priorityClassName": {
+          "$ref": "#/$defs/priorityClassName"
         }
       }
     },
@@ -1731,6 +1801,9 @@
               "description": "PEM of the authority that signed an external Redis instance's certificate, or the string from-existing-secret when secrets.existingSecret supplies REDIS_DURABLE_CA_CERT. Implemented for redisDurable only: the chart mounts it at /etc/agenta/redis-durable/ca.pem, and the connection string points at that path with ?ssl_ca_certs=. Setting it on redisVolatile fails the render."
             }
           }
+        },
+        "priorityClassName": {
+          "$ref": "#/$defs/priorityClassName"
         }
       }
     },
@@ -1842,6 +1915,10 @@
           "type": "string"
         }
       }
+    },
+    "priorityClassName": {
+      "type": "string",
+      "description": "Name of an existing PriorityClass for this workload's pods. Unset leaves the cluster default, usually priority 0."
     }
   }
 }

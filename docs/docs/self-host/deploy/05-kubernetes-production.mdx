@@ -124,6 +124,37 @@ agentRunner:
     protectSingleton: true
 ```
 
+A system pod can also evict one of these pods. When a node is full, the scheduler makes room for
+a new pod by evicting pods with a lower priority. Your pods run at priority 0, system pods run at up
+to 2000001000, and a PriorityClass you create can be at most 1000000000. No priority you set can
+stop a system pod. What you can do is give the scheduler a cheaper pod to evict first.
+
+`spareCapacity` runs placeholder pods at priority -10 that only hold room. The scheduler evicts a
+placeholder before any real pod, and the evicted placeholder waits for a new node. A
+`priorityClassName` on a single-pod data store makes the scheduler pick your other pods before it
+when no placeholder is left. The placeholders cost what any pod with the same requests costs, and
+on GKE Autopilot you pay for their requests.
+
+```yaml
+spareCapacity:
+  enabled: true
+  replicas: 1
+  resources:
+    requests: {cpu: 500m, memory: 512Mi}   # fit the largest pod you want to start at once
+redisVolatile:
+  priorityClassName: agenta-stateful
+extraObjects:
+  - apiVersion: scheduling.k8s.io/v1
+    kind: PriorityClass
+    metadata:
+      name: agenta-stateful
+    value: 1000000
+    globalDefault: false
+```
+
+The chart creates the placeholder PriorityClass, which is a cluster-wide object, so the account
+that runs `helm` needs permission to create one.
+
 ### Step 4: override a budget or a constraint, if you need to
 
 `<workload>.pdb.maxUnavailable` and `<workload>.pdb.minAvailable` replace the generated budget. Set

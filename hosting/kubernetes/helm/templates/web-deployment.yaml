@@ -146,6 +146,9 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      {{- with $web.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with $web.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
