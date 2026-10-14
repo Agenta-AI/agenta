@@ -1181,18 +1181,49 @@ def _legacy_sse_server(requests: list[httpx.Request], *, post_status: int = 405)
         ("https://mcp.asana.com/sse/", _ASANA_SSE_REFUSAL),
     ],
 )
-async def test_a_refused_sse_address_is_an_unsupported_transport(server_url, answer):
+async def test_a_refused_sse_address_is_warned_about_not_refused(server_url, answer):
+    # Neither recorded answer proves the transport, so the sign-in goes ahead. Both
+    # servers refuse discovery here, which lands on credential entry.
     requests: list[httpx.Request] = []
     result = await _probe(_recorded(answer, requests)).probe(server_url=server_url)
 
-    assert result.reachable is True
-    assert result.problem.cause == "unsupported_transport"
-    assert result.problem.message == (
-        "This address uses the older SSE transport, which Agenta does not support."
+    assert result.legacy_transport_suspected is True
+    assert result.problem.cause == "auth_undiscoverable"
+    assert result.auth.challenge_status == 401
+    # No address is suggested anywhere: a computed one sent Asana to the wrong place.
+    suggested = server_url.rstrip("/").removesuffix("/sse") + "/mcp"
+    assert suggested not in result.model_dump_json()
+    # The GET that proves a legacy stream is never sent after a 401.
+    assert all(
+        request.url.path.startswith("/.well-known/")
+        for request in requests
+        if request.method == "GET"
     )
-    assert result.problem.response.status == 401
-    # Neither OAuth discovery nor a second request: a 401 is never followed by the GET.
-    assert [request.method for request in requests] == ["POST"]
+
+
+@pytest.mark.asyncio
+async def test_a_custom_sse_address_with_oauth_metadata_reaches_oauth_with_a_warning():
+    result = await _probe(_protected_server()).probe(
+        server_url="https://mcp.acme.io/sse"
+    )
+
+    assert result.problem is None
+    assert result.auth.mode is MCPProbeAuthMode.OAUTH
+    assert result.legacy_transport_suspected is True
+
+
+@pytest.mark.asyncio
+async def test_a_custom_sse_address_without_metadata_reaches_credential_entry_with_a_warning():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/.well-known/"):
+            return httpx.Response(404)
+        return httpx.Response(401, headers={"WWW-Authenticate": "Bearer"})
+
+    result = await _probe(handler).probe(server_url="https://mcp.acme.io/sse")
+
+    assert result.problem.cause == "auth_undiscoverable"
+    assert result.auth.mode is MCPProbeAuthMode.UNKNOWN
+    assert result.legacy_transport_suspected is True
 
 
 @pytest.mark.asyncio
@@ -1204,6 +1235,7 @@ async def test_the_same_refusal_at_a_streamable_address_is_still_a_challenge():
 
     assert result.problem.cause == "auth_undiscoverable"
     assert result.auth.challenge_status == 401
+    assert result.legacy_transport_suspected is False
     assert all(
         request.url.path.startswith("/.well-known/")
         for request in requests
@@ -1222,6 +1254,9 @@ async def test_a_refused_post_and_an_event_stream_is_an_unsupported_transport(
     )
 
     assert result.problem.cause == "unsupported_transport"
+    assert result.problem.message.startswith(
+        "This address uses the older SSE transport, which Agenta does not support."
+    )
     assert result.problem.response.status == post_status
     get = requests[-1]
     assert get.method == "GET"

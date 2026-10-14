@@ -26,7 +26,6 @@ export {
     mcpChallengeSchemeToShow,
     mcpChallengeStatus,
     mcpDefaultKeyHeader,
-    mcpStreamableHttpSuggestion,
     PROBE_RESPONSE_BODY_LIMIT,
     readMcpProbeResponse,
 } from "./probeResponse"

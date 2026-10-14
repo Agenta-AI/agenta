@@ -47,7 +47,6 @@ import {
     isBusy,
     mcpChallengeSchemeToShow,
     mcpDefaultKeyHeader,
-    mcpStreamableHttpSuggestion,
     readMcpProbeResponse,
     toolPrefixFromName,
     useMcpConnectJourney,
@@ -152,6 +151,13 @@ const FAILURE_HEADLINES: Record<string, string> = {
     unsupported_transport:
         "This address uses the older SSE transport, which Agenta does not support.",
 }
+/**
+ * Where to look instead of a computed address. A rewrite of the path was right for some
+ * providers and wrong for others, and only the provider knows its newer address.
+ */
+const NEWER_TRANSPORT_ADVICE =
+    "Many providers serve the newer transport at an address ending in /mcp. Check the provider's docs."
+const LEGACY_TRANSPORT_WARNING = `This address may use the older SSE transport, which Agenta does not support. ${NEWER_TRANSPORT_ADVICE}`
 const UNREACHABLE_ADVICE =
     "Check the address and that the server speaks HTTP transport. Private-network servers must be reachable from Agenta."
 
@@ -641,17 +647,11 @@ export function McpConnectSheet({
     const failureCause = state.probe?.problem?.cause
     const failureHeadline =
         (failureCause && FAILURE_HEADLINES[failureCause]) || UNREACHABLE_HEADLINE
-    const streamableSuggestion =
-        failureCause === "unsupported_transport" ? mcpStreamableHttpSuggestion(state.url) : null
-    // The SSE headline is the whole diagnosis, so the probe's sentence, which says the same,
-    // is not repeated under it. Reachability advice is wrong wherever the address answered.
+    // The probe's sentence repeats the SSE headline, so only the advice goes under it.
+    // Reachability advice is wrong wherever the address answered.
     const failureBody =
         failureCause === "unsupported_transport" ? (
-            streamableSuggestion ? (
-                <>
-                    Try <span className="font-mono">{streamableSuggestion}</span>.
-                </>
-            ) : null
+            NEWER_TRANSPORT_ADVICE
         ) : (
             <>
                 {state.error ? withMonoHost(state.error, host) : null}{" "}
@@ -738,6 +738,21 @@ export function McpConnectSheet({
                             // A reconnect is repairing one address. Offering to change it
                             // would offer to point a saved connection somewhere else.
                             onChange={reconnect ? undefined : () => journey.setUrl(state.url)}
+                        />
+                    ) : null}
+
+                    {(screen === "oauth" || screen === "api_key") &&
+                    state.probe?.legacy_transport_suspected ? (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            icon={<WarningCircle size={15} weight="regular" />}
+                            className="items-start border-colorWarningBorder bg-colorWarningBg px-3 py-2.5"
+                            message={
+                                <span className="text-xs font-normal leading-normal text-colorText">
+                                    {LEGACY_TRANSPORT_WARNING}
+                                </span>
+                            }
                         />
                     ) : null}
 

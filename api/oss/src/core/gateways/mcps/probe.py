@@ -89,7 +89,9 @@ _CLIENT_INFO = {"name": "agenta-connect-probe", "version": "1"}
 _EVENT_STREAM_TIMEOUT_SECONDS = 5.0
 
 _UNSUPPORTED_TRANSPORT_MESSAGE = (
-    "This address uses the older SSE transport, which Agenta does not support."
+    "This address uses the older SSE transport, which Agenta does not support. "
+    "Many providers serve the newer transport at an address ending in /mcp. "
+    "Check the provider's docs."
 )
 
 
@@ -164,6 +166,10 @@ class MCPServerProbeResult(BaseModel):
     protocol_version: Optional[str] = None
     auth: MCPProbeAuth = MCPProbeAuth()
     problem: Optional[MCPProbeProblem] = None
+    # The address follows the legacy HTTP+SSE convention but refused before anything could
+    # prove which transport it speaks. A warning for the next screen, never a verdict: a
+    # Streamable HTTP server may live at such an address too.
+    legacy_transport_suspected: bool = False
 
 
 def _initialize_request() -> bytes:
@@ -443,13 +449,15 @@ class MCPServerProbe:
         if response.status_code in (401, 403):
             # An SSE endpoint and a Streamable HTTP endpoint behind the same sign-in refuse
             # an anonymous request identically (Atlassian's `/v1/sse` and `/v1/mcp` send the
-            # same 401), so only the address can tell them apart. Without this the SSE
-            # address went on to OAuth or the key screen and failed after a credential.
-            if _names_legacy_event_stream(server_url):
-                return _unsupported_transport(response, server_url=server_url)
-            return await self._challenged(
+            # same 401), so nothing here proves the transport. The address is only grounds
+            # for a warning, and the sign-in goes ahead as for any other server.
+            challenged = await self._challenged(
                 server_url=server_url, response=response, deadline=deadline
             )
+            challenged.legacy_transport_suspected = _names_legacy_event_stream(
+                server_url
+            )
+            return challenged
 
         # A legacy server takes messages at an address it names on its stream, not at this
         # one, so it refuses the POST. The GET is what tells it from a wrong address.
