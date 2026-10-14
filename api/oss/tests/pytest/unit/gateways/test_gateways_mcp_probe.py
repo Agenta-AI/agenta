@@ -967,6 +967,9 @@ def _echoing(body: str):
         ("abcdefgh+ijklmnop", "abcdefgh+ijklmnop"),
         ("abcdefgh+ijklmnop", "abcdefgh ijklmnop"),
         ("sk%2Flive%2F0123", "sk/live/0123"),
+        # A raw value can come back encoded.
+        ("sk/live/0123", "sk%2Flive%2F0123"),
+        ("abcdefgh+ijklmnop", "abcdefgh%20ijklmnop"),
     ],
 )
 async def test_the_excerpt_never_carries_a_key_from_the_url(written, echoed):

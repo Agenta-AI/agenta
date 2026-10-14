@@ -29,9 +29,10 @@ describe("readMcpProbeResponse", () => {
     })
 
     it("reads the status and the body the probe carried", () => {
-        expect(readMcpProbeResponse(problem({response: {status: 404, body: "<html>"}}))).toEqual(
-            {status: "HTTP 404", body: "<html>"},
-        )
+        expect(readMcpProbeResponse(problem({response: {status: 404, body: "<html>"}}))).toEqual({
+            status: "HTTP 404",
+            body: "<html>",
+        })
     })
 
     it("truncates a body nobody is going to read in a panel", () => {
