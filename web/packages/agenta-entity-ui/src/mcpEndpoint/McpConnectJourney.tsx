@@ -186,12 +186,32 @@ const keyRejectedAdviceFor = (scheme: string | null): string =>
     scheme ? `${headerSchemeHint(scheme)} ${KEY_REJECTED_ADVICE}` : KEY_REJECTED_ADVICE
 
 const WAITING_BODY =
-    "Finish signing in in the window that opened. This closes on its own when you're done."
+    "Finish in the window that opened. Sign in to the provider if it asks, then approve Agenta. This closes on its own when you're done."
 
 /** The existing sentence for the window between a granted consent and a refreshed list. */
 const SAVING_BODY = "Setting up the connection…"
 
-const CONSENT_POPUP_FEATURES = "width=600,height=700,popup=yes"
+const CONSENT_POPUP_WIDTH = 1024
+const CONSENT_POPUP_HEIGHT = 768
+
+/**
+ * The consent window's features, read off the screen at the moment it opens.
+ *
+ * A provider's sign-in page is laid out for a desktop tab: at 600 by 700 DataforSEO's form
+ * sat below the fold. So the window asks for a laptop-sized viewport, shrinks to a screen
+ * smaller than that, and sits centered over the window that opened it.
+ */
+export const consentPopupFeatures = (
+    opener: Pick<Window, "screenX" | "screenY" | "outerWidth" | "outerHeight"> & {
+        screen: Pick<Window["screen"], "availWidth" | "availHeight">
+    },
+): string => {
+    const width = Math.min(CONSENT_POPUP_WIDTH, opener.screen.availWidth)
+    const height = Math.min(CONSENT_POPUP_HEIGHT, opener.screen.availHeight)
+    const left = Math.round(opener.screenX + (opener.outerWidth - width) / 2)
+    const top = Math.round(opener.screenY + (opener.outerHeight - height) / 2)
+    return `width=${width},height=${height},left=${left},top=${top},popup=yes`
+}
 
 /** The six screens the statuses render as. */
 type Screen = "url" | "url_failed" | "oauth" | "api_key" | "no_auth" | "waiting"
@@ -459,10 +479,20 @@ export function McpConnectSheet({
      * way, because it is the request and not the window that the chain below waits on.
      */
     const requestConsent = useCallback(() => {
-        consentPopupRef.current = window.open("", journey.popupName, CONSENT_POPUP_FEATURES)
+        const popup = window.open("", journey.popupName, consentPopupFeatures(window))
+        // The window stays blank for two round trips before it goes to the provider, so it
+        // says what it is waiting on. A window kept from an earlier attempt may already be on
+        // the provider's origin, where its document is not ours to write.
+        try {
+            const body = popup?.document.body
+            if (body) body.textContent = `Opening ${state.name}…`
+        } catch {
+            // Cross-origin: the provider's page is already showing.
+        }
+        consentPopupRef.current = popup
         consentSteps.current = {discovery: false, scopes: false}
         setConsentRequested(true)
-    }, [journey.popupName])
+    }, [journey.popupName, state.name])
 
     // The consent popup reports back through the journey's watch, which outlives this
     // component's render; unmounting with the popup still open has to release it.
