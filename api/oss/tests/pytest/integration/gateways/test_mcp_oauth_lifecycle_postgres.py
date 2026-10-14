@@ -419,6 +419,139 @@ async def test_a_client_change_during_the_exchange_binds_nothing(
     )
 
 
+async def _api_key(connect, project, slug):
+    return (
+        await connect.vault_service.create_secret(
+            project_id=project["project_id"],
+            create_secret_dto=CreateSecretDTO(
+                slug=slug,
+                header=Header(name=slug),
+                secret=SecretDTO(
+                    kind=SecretKind.PROVIDER_KEY,
+                    data=StandardProviderDTO(
+                        kind=LLMStandardProviderKind.OPENAI,
+                        provider=StandardProviderSettingsDTO(key="test-key-one"),
+                    ),
+                ),
+            ),
+        )
+    ).id
+
+
+@pytest.mark.asyncio
+async def test_a_disconnect_behind_a_switch_to_an_api_key_keeps_the_key(
+    services, project, local_mcp_oauth_provider
+):
+    """The disconnect was decided on the connection read before an edit moved it to an
+    API key. It waits for the edit, reads the connection again, and changes nothing."""
+    connect, gateway, endpoints = services
+    endpoint = await _connection(
+        endpoints, project, local_mcp_oauth_provider, "pg-disconnect-key"
+    )
+    _start, attempt, code = await _claimed(
+        connect, project, local_mcp_oauth_provider, endpoint
+    )
+    await connect.complete(attempt=attempt, code=code)
+    key = await _api_key(connect, project, "pg-disconnect-key-k")
+
+    reached, release = _pause_after(connect, "cancel_attempts")
+    editing = asyncio.create_task(
+        _edit(
+            gateway, project, endpoint, auth_mode=MCPAuthScheme.API_KEY, secret_id=key
+        )
+    )
+    await reached.wait()
+    disconnecting = asyncio.create_task(
+        connect.disconnect(
+            project_id=project["project_id"],
+            user_id=project["user_id"],
+            endpoint_id=endpoint.id,
+        )
+    )
+    await asyncio.sleep(0.3)
+    assert not disconnecting.done()
+    release.set()
+    await editing
+    answered = await disconnecting
+
+    final = await endpoints.fetch_endpoint(
+        project_id=project["project_id"], endpoint_id=endpoint.id
+    )
+    assert answered.auth_mode == MCPAuthScheme.API_KEY
+    assert (final.auth_mode, final.secret_id) == (MCPAuthScheme.API_KEY, key)
+
+
+@pytest.mark.asyncio
+async def test_a_bind_that_fails_records_a_failure_and_removes_the_grant(
+    services, project, local_mcp_oauth_provider, monkeypatch
+):
+    connect, _gateway, endpoints = services
+    endpoint = await _connection(
+        endpoints, project, local_mcp_oauth_provider, "pg-bind-fails"
+    )
+    start, attempt, code = await _claimed(
+        connect, project, local_mcp_oauth_provider, endpoint
+    )
+
+    async def no_row(**_kwargs):
+        return None
+
+    monkeypatch.setattr(endpoints, "bind_endpoint_secret", no_row)
+
+    with pytest.raises(MCPOAuthBindFailedError):
+        await connect.complete(attempt=attempt, code=code)
+
+    assert await _grant_ids(project, endpoint.id) == []
+    assert await _status(connect, project, endpoint, start) == (
+        MCPOAuthAttemptStatus.FAILED
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_disconnect_during_a_begin_leaves_nothing_to_bind(
+    services, project, local_mcp_oauth_provider
+):
+    """Begin pauses in discovery. A disconnect waits for it, then cancels the attempt it
+    recorded, so that consent never binds a grant."""
+    connect, _gateway, endpoints = services
+    endpoint = await _connection(
+        endpoints, project, local_mcp_oauth_provider, "pg-begin-disconnect"
+    )
+    reached, release = _pause_after(connect.client, "discover")
+    beginning = asyncio.create_task(
+        connect.begin(
+            project_id=project["project_id"],
+            user_id=project["user_id"],
+            endpoint_id=endpoint.id,
+            server_url=local_mcp_oauth_provider.server_url,
+            scopes=["tools:call"],
+        )
+    )
+    await reached.wait()
+    disconnecting = asyncio.create_task(
+        connect.disconnect(
+            project_id=project["project_id"],
+            user_id=project["user_id"],
+            endpoint_id=endpoint.id,
+        )
+    )
+    await asyncio.sleep(0.3)
+    assert not disconnecting.done()
+    release.set()
+    start = await beginning
+    await disconnecting
+
+    with pytest.raises(MCPOAuthAttemptCancelledError):
+        attempt = await connect.claim(
+            state=start.state, caller_user_id=project["user_id"]
+        )
+        await connect.complete(
+            attempt=attempt,
+            code=local_mcp_oauth_provider.callback_params(state=start.state)["code"],
+        )
+    assert await _grant_ids(project, endpoint.id) == []
+
+
 @pytest.mark.asyncio
 async def test_a_reader_during_an_address_edit_never_sees_the_new_address_with_the_old_grant(
     services, project, local_mcp_oauth_provider, monkeypatch
