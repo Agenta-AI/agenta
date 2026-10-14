@@ -1,4 +1,4 @@
-"""The sentence a person reads when the model endpoint behind the gateway fails.
+"""The sentence a person reads when the model behind the gateway fails.
 
 Two codes, carried in the message's code marker so the runner can tell the gateway's sentence
 from a provider's raw text: `upstream_error` means another attempt may work, and is the
@@ -43,6 +43,9 @@ _CONNECTION_LOST = "stopped before the answer finished (connection error)"
 
 _MESSAGE_MAX_CHARS = 300
 
+# Every sentence starts so; the runner finds it by these words inside a harness's wrapper.
+UPSTREAM_SENTENCE_START = "The model"
+
 _REDACTIONS = (
     (re.compile(r"\b(Bearer|Basic)\s+\S{6,}", re.IGNORECASE), r"\1 [secret]"),
     (re.compile(r"\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}"), "[secret]"),
@@ -79,26 +82,20 @@ def classify_upstream_error(*, status: Optional[int], code: Any, message: Any) -
     return UPSTREAM_REJECTED
 
 
-def upstream_error_message(
-    *, label: Optional[str], code: str, provider_message: Any
-) -> str:
-    """One marked sentence that names the endpoint and quotes what it said, cleaned."""
+def upstream_error_message(*, code: str, provider_message: Any) -> str:
+    """One marked sentence that quotes what the model said, cleaned."""
     said = _cleaned(provider_message)
     quoted = f': "{said}"' if said else ""
     return with_code_marker(
-        f"{_endpoint(label)} reported an error{quoted}. {_ADVICE[code]}", code
+        f"{UPSTREAM_SENTENCE_START} reported an error{quoted}. {_ADVICE[code]}", code
     )
 
 
-def connection_lost_message(*, label: Optional[str]) -> str:
+def connection_lost_message() -> str:
     return with_code_marker(
-        f"{_endpoint(label)} {_CONNECTION_LOST}. {_ADVICE[UPSTREAM_ERROR]}",
+        f"{UPSTREAM_SENTENCE_START} {_CONNECTION_LOST}. {_ADVICE[UPSTREAM_ERROR]}",
         UPSTREAM_ERROR,
     )
-
-
-def _endpoint(label: Optional[str]) -> str:
-    return f'The model endpoint "{label}"' if label else "The model endpoint"
 
 
 def _cleaned(text: Any) -> str:

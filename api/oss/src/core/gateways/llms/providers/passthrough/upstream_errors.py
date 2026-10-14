@@ -44,7 +44,6 @@ async def relay_upstream_errors(
     status_code: int,
     stream: bool,
     protocol: LLMProtocol,
-    label: Optional[str],
     scanner: CredentialEchoScanner,
     echo_refusal: Exception,
     quote_upstream: bool = True,
@@ -75,7 +74,7 @@ async def relay_upstream_errors(
                 kept.pop("type", None)
             holder.update(kept)
         holder["message"] = upstream_error_message(
-            label=label, code=code, provider_message=said if quote_upstream else None
+            code=code, provider_message=said if quote_upstream else None
         )
         # The raw bytes were scanned already; decoded JSON can still hold an escaped key.
         if scanner.detects(_dumps(payload)):
@@ -116,10 +115,10 @@ async def relay_upstream_errors(
             yield relayed
     except httpx.TransportError:
         # The upstream broke off after it started answering. The half event it was in the
-        # middle of is dropped, and the caller learns which endpoint failed.
+        # middle of is dropped, and the caller gets one error event instead.
         if not relay.finished:
             error = _error_payload(protocol, code=UPSTREAM_ERROR, event=True)
-            _error_holder(error)["message"] = connection_lost_message(label=label)
+            _error_holder(error)["message"] = connection_lost_message()
             name = (
                 b"" if protocol == LLMProtocol.CHAT_COMPLETIONS else b"event: error\n"
             )

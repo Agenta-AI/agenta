@@ -379,8 +379,7 @@ async def test_a_5xx_without_a_json_body_is_relayed_as_a_marked_error():
     assert result.headers["content-type"] == "application/json"
     error = json.loads((await _drain(result.body))[0])["error"]
     assert error["message"] == (
-        'The model endpoint "my-endpoint" reported an error. Try again.'
-        " ⟦agenta_code:upstream_error⟧"
+        "The model reported an error. Try again. ⟦agenta_code:upstream_error⟧"
     )
 
 
@@ -401,7 +400,7 @@ async def test_a_4xx_keeps_its_envelope_with_only_the_message_rewritten():
     chunks = await _drain(result.body)
     assert json.loads(chunks[0]) == {
         "error": {
-            "message": 'The model endpoint "my-endpoint" reported an error: "bad request".'
+            "message": 'The model reported an error: "bad request".'
             " Check the endpoint's key, account and model, or change the request."
             " ⟦agenta_code:upstream_rejected⟧",
             "type": "invalid_request_error",

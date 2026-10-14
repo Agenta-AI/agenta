@@ -48,7 +48,7 @@ const NEXT_STEPS: Record<string, string> = {
 };
 
 /**
- * The model endpoint behind the gateway failed, and the gateway wrote the sentence
+ * The model behind the gateway failed, and the gateway wrote the sentence
  * (`api/oss/src/core/gateways/llms/errors.py`): by code, whether another attempt may work. The
  * marker's code wins over the body's `code`, which is the provider's own (`insufficient_quota`).
  */
@@ -69,8 +69,10 @@ export function isUpstreamFailure(
  * (pi-acp's `Internal error: `, Pi's `Error Code upstream_error: `, a trailing stack). The
  * sentence always starts the same way and ends at its marker.
  */
+const UPSTREAM_SENTENCE_START = "The model ";
+
 function upstreamSentence(text: string): string {
-  const start = Math.max(text.indexOf("The model endpoint"), 0);
+  const start = Math.max(text.indexOf(UPSTREAM_SENTENCE_START), 0);
   const end = text.search(CODE_MARKER_RE);
   return text.slice(start, end > start ? end : undefined).trim();
 }

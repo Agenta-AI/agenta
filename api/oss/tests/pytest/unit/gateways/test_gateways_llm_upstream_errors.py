@@ -1,7 +1,7 @@
-"""What a caller reads when the model endpoint behind the gateway fails.
+"""What a caller reads when the model behind the gateway fails.
 
 The relay keeps each protocol's own error shape and rewrites only its `message`: one sentence
-that names the endpoint, quotes what it said, cleaned, and carries the code marker the runner
+that quotes what the model said, cleaned, and carries the code marker the runner
 reads (`upstream_error` or `upstream_rejected`). Nothing running: httpx.MockTransport.
 """
 
@@ -54,7 +54,7 @@ from oss.tests.pytest.unit.gateways.test_gateways_llm_proxy import (
 )
 
 _INCIDENT = (
-    'The model endpoint "my-endpoint" reported an error: "Upstream request failed". Try again.'
+    'The model reported an error: "Upstream request failed". Try again.'
     " ⟦agenta_code:upstream_error⟧"
 )
 _CHUNKS = [
@@ -63,12 +63,14 @@ _CHUNKS = [
 ]
 
 
-def _route(provider_key: str = "openai") -> LLMResolvedRoute:
+def _route(
+    provider_key: str = "openai", label: str = "my-endpoint"
+) -> LLMResolvedRoute:
     return LLMResolvedRoute(
         provider_key=provider_key,
         deployment_kind=LLMDeploymentKind.CUSTOM,
         model="m",
-        label="my-endpoint",
+        label=label,
         base_url="https://upstream.example/v1",
     )
 
@@ -155,7 +157,6 @@ def test_classification(status, code, message, expected):
 
 def test_the_provider_text_is_cleaned_before_it_is_quoted():
     message = upstream_error_message(
-        label="my-endpoint",
         code=UPSTREAM_ERROR,
         provider_message=(
             "bad\x00 key sk-abcdefghijklmnop, Authorization: Bearer abcdefghijk, "
@@ -189,16 +190,14 @@ def test_the_provider_text_is_cleaned_before_it_is_quoted():
     ],
 )
 def test_common_credential_shapes_are_redacted(said, leaked):
-    message = upstream_error_message(
-        label="my-endpoint", code=UPSTREAM_REJECTED, provider_message=said
-    )
+    message = upstream_error_message(code=UPSTREAM_REJECTED, provider_message=said)
 
     assert leaked not in message
 
 
 def test_direction_changing_characters_are_removed():
     message = upstream_error_message(
-        label="my-endpoint", code=UPSTREAM_ERROR, provider_message="abc\u202edef\u200b"
+        code=UPSTREAM_ERROR, provider_message="abc\u202edef\u200b"
     )
 
     assert '"abcdef"' in message
@@ -226,7 +225,6 @@ async def test_the_built_in_endpoint_never_quotes_its_upstream():
             status_code=403,
             stream=False,
             protocol=LLMProtocol.CHAT_COMPLETIONS,
-            label="agenta",
             scanner=CredentialEchoScanner([]),
             echo_refusal=RuntimeError(),
             quote_upstream=False,
@@ -238,7 +236,7 @@ async def test_the_built_in_endpoint_never_quotes_its_upstream():
     error = json.loads(b"".join(chunks))["error"]
     assert set(error) == {"message", "code", "type"}
     message = error["message"]
-    assert message.startswith('The model endpoint "agenta" reported an error. Check')
+    assert message.startswith("The model reported an error. Check")
 
 
 @pytest.mark.asyncio
@@ -257,7 +255,6 @@ async def test_an_oversized_error_body_is_read_only_up_to_the_bound():
             status_code=502,
             stream=False,
             protocol=LLMProtocol.CHAT_COMPLETIONS,
-            label="my-endpoint",
             scanner=CredentialEchoScanner([]),
             echo_refusal=RuntimeError(),
         )
@@ -265,8 +262,29 @@ async def test_an_oversized_error_body_is_read_only_up_to_the_bound():
 
     assert len(pulled) < 100
     assert json.loads(b"".join(chunks))["error"]["message"].startswith(
-        'The model endpoint "my-endpoint" reported an error: "xxx'
+        'The model reported an error: "xxx'
     )
+
+
+@pytest.mark.asyncio
+async def test_the_retired_starter_credits_endpoint_relays_its_errors_unchanged():
+    body = {
+        "error": {"message": "Budget has been exceeded!", "type": "budget_exceeded"}
+    }
+    adapter = RelayLLMAdapter(
+        client=httpx.AsyncClient(
+            transport=httpx.MockTransport(lambda _: httpx.Response(400, json=body))
+        )
+    )
+    result = await adapter.relay_chat_completion(
+        route=_route(label="starter-credits"),
+        secret=None,
+        context=LLMCallContext(model="m", stream=False),
+        body=b'{"model": "m"}',
+        headers={},
+    )
+
+    assert json.loads(b"".join([chunk async for chunk in result.body])) == body
 
 
 @pytest.mark.asyncio
@@ -292,7 +310,7 @@ async def test_an_account_out_of_credit_keeps_the_providers_fields():
     assert result.status_code == 429
     assert json.loads(chunks[0]) == {
         "error": {
-            "message": 'The model endpoint "my-endpoint" reported an error: "You have no credits'
+            "message": 'The model reported an error: "You have no credits'
             " remaining\". Check the endpoint's key, account and model, or change the"
             " request. ⟦agenta_code:upstream_rejected⟧",
             "type": "insufficient_quota",
@@ -384,7 +402,7 @@ async def test_a_connection_lost_after_partial_output_ends_with_one_error_event(
         b"data: " if protocol == LLMProtocol.CHAT_COMPLETIONS else b"event: error\n"
     )
     assert _data(chunks[2]) == shape(
-        'The model endpoint "my-endpoint" stopped before the answer finished (connection'
+        "The model stopped before the answer finished (connection"
         " error). Try again. ⟦agenta_code:upstream_error⟧"
     )
 

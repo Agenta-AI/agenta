@@ -164,8 +164,8 @@ export type RunErrorCode =
   // carries the provider's own sentence, redacted. Not retryable as is: the same request is
   // refused the same way. The failed turn leaves the conversation, so the next message is not.
   | "provider_error"
-  // The model endpoint failed and another attempt may work. Behind the gateway, the gateway wrote
-  // the sentence, endpoint named (`api/oss/src/core/gateways/llms/errors.py`); also Pi's
+  // The model failed and another attempt may work. Behind the gateway, the gateway wrote the
+  // sentence (`api/oss/src/core/gateways/llms/errors.py`); also Pi's
   // `malformed_function_call` verdict on the model's output.
   | "upstream_error"
   // The same, for a failure that needs a change first: the endpoint's credits or key, or the
@@ -413,8 +413,6 @@ export function withinCredentialPropagationWindow(
   );
 }
 
-/** How the gateway's sentence starts for the retired starter-credits connection (slug `starter-credits`). */
-const STARTER_CREDITS_ENDPOINT = 'The model endpoint "starter-credits"';
 const MALFORMED_FUNCTION_CALL = /finish_reason: malformed_function_call/;
 const MALFORMED_FUNCTION_CALL_MESSAGE =
   "The model sent a tool call that could not be read (malformed_function_call). Try again, or pick another model.";
@@ -492,10 +490,10 @@ export function classifyRunError(
   if (refusal)
     return { message: refusal.message, code: refusal.code as RunErrorCode };
   // A failed model call the gateway already put into words, before any rule below reads the
-  // provider's text. Except on the retired starter-credits connection, which reaches the credits
-  // proxy through the gateway: its budget refusal keeps its own sentence and class below.
+  // provider's text. The retired starter-credits connection's errors carry no marker
+  // (`passthrough/adapter.py`), so its budget refusal still reaches the rules below.
   const upstream = parseGatewayErrorDetail(raw);
-  if (isUpstreamFailure(upstream) && !upstream.message.startsWith(STARTER_CREDITS_ENDPOINT))
+  if (isUpstreamFailure(upstream))
     return {
       message: sanitizeErrorText(upstream.message),
       code: upstream.code as RunErrorCode,

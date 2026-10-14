@@ -18,13 +18,13 @@ import type { AgentEvent } from "../../src/protocol.ts";
 import { fakeHarness } from "../utils/sandbox-agent-harness.ts";
 
 const INCIDENT_SENTENCE =
-  'The model endpoint "my-endpoint" reported an error: "Upstream request failed". Try again.';
+  'The model reported an error: "Upstream request failed". Try again.';
 // An SSE error frame after HTTP 200: Pi keeps the frame's message, pi-acp prefixes it.
 const INCIDENT =
   `Internal error: ${INCIDENT_SENTENCE} ⟦agenta_code:upstream_error⟧`;
 
 const CREDITS_SENTENCE =
-  'The model endpoint "my-endpoint" reported an error: "You have no credits remaining". ' +
+  'The model reported an error: "You have no credits remaining". ' +
   "Check the endpoint's key, account and model, or change the request.";
 // An HTTP 402: Pi reports `<status>: <the unwrapped error object>`, provider fields kept.
 const CREDITS =
@@ -36,7 +36,7 @@ const CREDITS =
   });
 
 const CONNECTION_LOST_SENTENCE =
-  'The model endpoint "my-endpoint" stopped before the answer finished (connection error). Try again.';
+  'The model stopped before the answer finished (connection error). Try again.';
 // A Responses stream the gateway closed with an `error` event; Pi prefixes the event's code.
 const CONNECTION_LOST =
   `Internal error: Error Code upstream_error: ${CONNECTION_LOST_SENTENCE} ` +
@@ -89,14 +89,11 @@ describe("classifyRunError shows the three observed failures", () => {
     assert.equal(classified.detail?.retryable, false);
   });
 
-  it("a starter-credits budget refusal keeps its own sentence and class", () => {
+  it("a starter-credits budget refusal, relayed unmarked, keeps its own sentence and class", () => {
     const budget =
       "Internal error: 400: " +
       JSON.stringify({
-        message:
-          'The model endpoint "starter-credits" reported an error: "Budget has been exceeded! ' +
-          'Current cost: 5.01, Max budget: 5.0". Check the endpoint\'s key, account and model, ' +
-          "or change the request. ⟦agenta_code:upstream_rejected⟧",
+        message: "Budget has been exceeded! Current cost: 5.01, Max budget: 5.0",
         type: "budget_exceeded",
         code: "400",
       });
@@ -110,7 +107,7 @@ describe("classifyRunError shows the three observed failures", () => {
       "Internal error: 400: " +
       JSON.stringify({
         message:
-          'The model endpoint "team-proxy" reported an error: "Budget has been exceeded". ' +
+          'The model reported an error: "Budget has been exceeded". ' +
           "Check the endpoint's key, account and model, or change the request. " +
           "⟦agenta_code:upstream_rejected⟧",
         code: "400",
@@ -165,13 +162,13 @@ describe("Pi retries exactly as it did before the gateway rewrote the message", 
     [
       "a rate limit",
       '429: {"message":"Rate limit reached","code":"rate_limit_exceeded"}',
-      '429: {"message":"The model endpoint \\"my-endpoint\\" reported an error: \\"Rate limit reached\\". Try again.","code":"rate_limit_exceeded"}',
+      '429: {"message":"The model reported an error: \\"Rate limit reached\\". Try again.","code":"rate_limit_exceeded"}',
     ],
     ["a stream cut off mid-answer", "terminated", CONNECTION_LOST_SENTENCE],
     [
       "a server error, relayed with the upstream's status instead of 502",
       '502: {"message":"upstream request failed","code":"upstream_error"}',
-      '503: {"message":"The model endpoint \\"my-endpoint\\" reported an error: \\"Service Unavailable\\". Try again.","code":null}',
+      '503: {"message":"The model reported an error: \\"Service Unavailable\\". Try again.","code":null}',
     ],
   ])("%s", (_name, before, after) => {
     assert.equal(retries(after), retries(before));
