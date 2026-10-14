@@ -1029,7 +1029,13 @@ const InlineError = ({
         className={`items-start border-colorErrorBorder bg-colorErrorBg px-3 py-2.5 ${className ?? ""}`}
         message={
             <span className="text-xs font-normal leading-normal text-colorTextSecondary">
-                {headline ? <span className="font-medium text-colorText">{headline} </span> : null}
+                {/* The space sits outside the span: inside it, an accessible name read the
+                    headline and the body as one word ("(401).Check"). */}
+                {headline ? (
+                    <>
+                        <span className="font-medium text-colorText">{headline}</span>{" "}
+                    </>
+                ) : null}
                 {children}
             </span>
         }

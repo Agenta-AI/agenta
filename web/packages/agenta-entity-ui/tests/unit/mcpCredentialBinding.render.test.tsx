@@ -57,6 +57,7 @@ const keyScreen: McpJourneyState = {
     name: "mcp.dataforseo.com",
     nameTouched: false,
     probe: DATAFORSEO_PROBE,
+    savedUrlProbe: null,
     authMode: "api_key",
     authModeTouched: true,
     oauthOffered: detectedAuthMode(DATAFORSEO_PROBE) === "oauth",
@@ -199,6 +200,33 @@ describe("the binding presets", () => {
         expect(text()).toContain(
             "The value is sent as this query parameter when the agent runs and is never shown again.",
         )
+    })
+})
+
+describe("a refusal's headline, as a screen reader reads it", () => {
+    it("keeps the space before the sentence outside the headline", async () => {
+        // A screen reader trims each element's text, so a space inside the headline was
+        // lost and the description read "(401).Check".
+        await open()
+        const journey = useMcpConnectJourney.mock.results.at(-1)?.value
+        useMcpConnectJourney.mockReturnValue({
+            ...journey,
+            state: {
+                ...keyScreen,
+                status: "verify_failed",
+                endpointId: "mcp-1",
+                failureStatus: 401,
+                error: "",
+            },
+        })
+        await act(async () => {
+            root.render(createElement(McpConnectJourney, {open: true, onClose: vi.fn()}))
+        })
+
+        const headline = [...document.querySelectorAll("span")].find(
+            (node) => node.textContent === "The server rejected this key (401).",
+        )
+        expect(headline?.nextSibling?.textContent).toBe(" ")
     })
 })
 
