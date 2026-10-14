@@ -257,6 +257,11 @@ def _retry_after_seconds(value: Optional[str]) -> Optional[float]:
     return (when - datetime.now(timezone.utc)).total_seconds()
 
 
+def _may_retry(retry: int, delay: float, deadline: Optional[float], now: float) -> bool:
+    """Whether retry number `retry` may start after `delay` and still meet `deadline`."""
+    return retry < UPSTREAM_MAX_RETRIES and (deadline is None or now + delay < deadline)
+
+
 def _retry_delay(retry: int, retry_after: Optional[str]) -> float:
     """Seconds to wait before retry number `retry`, counted from zero."""
     asked = _retry_after_seconds(retry_after)
@@ -820,6 +825,11 @@ class LLMGatewayService:
         retried attempt is neither admitted again nor charged.
         """
         route = target.route(context)
+        loop = asyncio.get_running_loop()
+        # A route's `timeout_seconds` bounds the whole sequence, retries and their waits
+        # included, so the caller's own deadline can be set above it.
+        timeout = target.settings.timeout_seconds
+        deadline = loop.time() + timeout if timeout is not None else None
         retry = 0
         while True:
             # Enforced here, not per adapter: `timeout_seconds` is a property of the
@@ -836,22 +846,21 @@ class LLMGatewayService:
                         body=body,
                         headers=headers,
                     ),
-                    timeout=target.settings.timeout_seconds,
+                    timeout=None if deadline is None else deadline - loop.time(),
                 )
             except asyncio.TimeoutError as e:
                 raise LLMUpstreamTimeoutError(provider_key=target.provider_key) from e
-            # The relay adapter answers every upstream 5xx as a 502 result.
-            if retry >= UPSTREAM_MAX_RETRIES or not (
-                result.status_code in _RETRYABLE_STATUSES or result.status_code >= 500
-            ):
-                return result
             status_code = result.status_code
             retry_after = result.headers.get("retry-after")
+            delay = _retry_delay(retry, retry_after)
+            # The relay adapter answers every upstream 5xx as a 502 result.
+            retryable = status_code in _RETRYABLE_STATUSES or status_code >= 500
+            if not retryable or not _may_retry(retry, delay, deadline, loop.time()):
+                return result
             # Read to its end so the adapter closes the upstream response.
             async for _ in result.body:
                 pass
 
-            delay = _retry_delay(retry, retry_after)
             retry += 1
             log.warning(
                 "[gateways] retrying an LLM call",

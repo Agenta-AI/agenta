@@ -328,3 +328,18 @@ async def test_a_stream_that_stalls_after_it_started_ends_with_the_connection_lo
     assert sleeps == []
     assert b"Hi" in chunks[0]
     assert b"connection error" in chunks[-1]
+
+
+@pytest.mark.asyncio
+async def test_a_retry_that_would_outlast_the_routes_timeout_is_not_started(sleeps):
+    adapter, calls = _upstream(
+        httpx.Response(429, json={"error": "slow down"}, headers={"Retry-After": "30"}),
+        httpx.Response(503, headers={"Retry-After": "30"}),
+    )
+    service = _service(adapter, timeout_seconds=10)
+
+    assert (await _relay(service)).status_code == 429
+    assert (await _relay(service)).status_code == 502
+
+    assert len(calls) == 2
+    assert sleeps == []
