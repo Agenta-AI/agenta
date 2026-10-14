@@ -53,6 +53,7 @@ from oss.src.core.gateways.mcps.echo import (
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.dtos import MCPOAuthDiscovery
 from oss.src.core.gateways.mcps.oauth.registration import (
+    callback_redirect_uri,
     is_publicly_resolvable_async,
 )
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthDiscoveryError
@@ -174,6 +175,9 @@ class MCPProbeAuth(BaseModel):
     # named no scheme reports none rather than a guessed one.
     challenge_status: Optional[int] = None
     challenge_schemes: List[str] = []
+    # Where the authorization server sends the browser back, for a person registering
+    # an OAuth app of their own with the provider. Set on OAuth answers.
+    redirect_uri: Optional[str] = None
 
 
 class MCPServerProbeResult(BaseModel):
@@ -741,6 +745,7 @@ class MCPServerProbe:
                 authorization_server=discovery.authorization_server,
                 scopes_offered=discovery.scopes_offered,
                 registration=registration,
+                redirect_uri=callback_redirect_uri(api_url=self.api_url),
                 challenge_status=challenged.challenge_status,
                 challenge_schemes=challenged.challenge_schemes,
             ),

@@ -60,12 +60,6 @@ from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO
 from oss.src.core.secrets.services import VaultService
 
 
-def _entered_client(attempt: MCPOAuthAttempt) -> Optional[str]:
-    """The client the person entered that the attempt signs in as, `None` for one
-    Agenta chose. The connection must still select the same one when it completes."""
-    return attempt.client_id if attempt.strategy == "explicit" else None
-
-
 def _expired(attempt: MCPOAuthAttempt) -> bool:
     return attempt.expires_at <= datetime.now(timezone.utc)
 
@@ -260,7 +254,9 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 code_verifier=pkce.code_verifier,
                 scopes=list(scopes),
                 strategy=strategy,
-                client_id=client_info.client_id,
+                # Only a client the person entered: the connection must still name it
+                # when the attempt completes.
+                client_id=client_info.client_id if strategy == "explicit" else None,
                 expires_at=datetime.now(timezone.utc)
                 + timedelta(seconds=STATE_TTL_SECONDS),
             )
@@ -442,7 +438,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 or current.status != MCPOAuthAttemptStatus.CLAIMED
                 or _expired(current)
                 or not is_oauth_connection_for(
-                    endpoint, attempt.server_url, _entered_client(attempt)
+                    endpoint, attempt.server_url, attempt.client_id
                 )
             ):
                 await self.settle(

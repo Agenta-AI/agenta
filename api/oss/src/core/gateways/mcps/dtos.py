@@ -168,9 +168,10 @@ class MCPOAuthConfig(BaseModel):
     server that registers no clients on its own (GitHub, HubSpot, Asana). It is used before
     any registration Agenta would make. `client_secret_id` names the project secret that
     holds the app's secret; the value stays in the vault. `token_endpoint_auth_method` is
-    how that secret is sent, and defaults to the request body when a secret is set.
+    how the app authenticates at the token endpoint; unset takes RFC 7591's default.
 
-    The scopes are not here: the connect request carries the person's selection.
+    `scopes` is the selection the person last asked for, so a reconnect starts from it.
+    What the server offers lives in the discovery cache beside this.
     """
 
     client_id: Optional[
@@ -178,6 +179,7 @@ class MCPOAuthConfig(BaseModel):
     ] = None
     client_secret_id: Optional[UUID] = None
     token_endpoint_auth_method: Optional[MCPTokenEndpointAuthMethod] = None
+    scopes: Optional[List[str]] = None
 
     @model_validator(mode="after")
     def _client_fields_need_a_client(self) -> "MCPOAuthConfig":

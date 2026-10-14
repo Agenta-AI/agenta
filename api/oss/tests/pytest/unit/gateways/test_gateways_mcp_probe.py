@@ -439,6 +439,16 @@ async def test_the_request_is_pinned_to_the_checked_address(resolves_to):
 
 
 @pytest.mark.asyncio
+async def test_an_oauth_answer_names_the_callback_to_register_an_app_with():
+    result = await _probe(_protected_server()).probe(server_url=_SERVER_URL)
+
+    assert (
+        result.auth.redirect_uri
+        == "https://agenta.example/api/gateways/mcps/connect/callback"
+    )
+
+
+@pytest.mark.asyncio
 async def test_an_issuer_offering_registration_reports_dynamic():
     result = await _probe(
         _protected_server(registration_endpoint="https://auth.acme.io/register")

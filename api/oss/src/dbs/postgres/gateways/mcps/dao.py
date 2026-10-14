@@ -206,7 +206,8 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
         # endpoint row's own lock. The block writes the row, the grant and the attempt
         # through DAOs with their own sessions, and a row lock held on this connection
         # would make every one of those writes wait for it forever, the grant delete
-        # included, because its foreign key updates the row.
+        # included, because its foreign key updates the row. The price is a second
+        # pooled connection for as long as the block runs.
         async with self.engine.transaction() as connection:
             await connection.execute(
                 text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
