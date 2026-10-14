@@ -47,9 +47,15 @@ _REDACTIONS = (
     (re.compile(r"\b(Bearer|Basic)\s+\S{6,}", re.IGNORECASE), r"\1 [secret]"),
     (re.compile(r"\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}"), "[secret]"),
     (re.compile(r"\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9._-]+"), "[secret]"),
+    # Google API keys, AWS access key ids and Google OAuth access tokens.
+    (re.compile(r"\bAIza[0-9A-Za-z_-]{20,}"), "[secret]"),
+    (re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), "[secret]"),
+    (re.compile(r"\bya29\.[0-9A-Za-z._-]+"), "[secret]"),
+    # A named value, in prose or in a URL's query string (`?key=`, `X-Amz-Signature=`).
     (
         re.compile(
-            r"\b([A-Za-z0-9_-]*(?:api[_-]?key|token|secret|password))\b\s*[=:]\s*\S+",
+            r"\b([A-Za-z0-9_-]*(?:key|token|secret|password|signature|sig|credential))\b"
+            r"\s*[=:]\s*\S+",
             re.IGNORECASE,
         ),
         r"\1=[secret]",
@@ -57,6 +63,8 @@ _REDACTIONS = (
     # No marker in the provider's words may read as the gateway's own, nested ones included.
     (re.compile(r"[⟦⟧]"), ""),
     (re.compile(r"[\x00-\x1f\x7f]+"), " "),
+    # Invisible and direction-changing characters, which can make the quote read differently.
+    (re.compile(r"[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]"), ""),
 )
 
 

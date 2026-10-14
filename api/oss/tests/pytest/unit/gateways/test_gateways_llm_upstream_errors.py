@@ -12,6 +12,7 @@ import httpx
 import pytest
 
 from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy
+from oss.src.core.gateways.dtos import CredentialEchoScanner
 from oss.src.core.gateways.llms.dtos import (
     LLMCallContext,
     LLMDeploymentKind,
@@ -25,6 +26,9 @@ from oss.src.core.gateways.llms.errors import (
     upstream_error_message,
 )
 from oss.src.core.gateways.llms.interfaces import LLMRelayResult
+from oss.src.core.gateways.llms.providers.passthrough.upstream_errors import (
+    relay_upstream_errors,
+)
 from oss.src.core.gateways.llms.providers.passthrough.adapter import (
     LLMUpstreamCredentialEchoError,
     RelayLLMAdapter,
@@ -168,6 +172,70 @@ def test_the_provider_text_is_cleaned_before_it_is_quoted():
     assert "\x00" not in message
     assert message.count("x") <= 300
     assert message.endswith('..". Try again. ⟦agenta_code:upstream_error⟧')
+
+
+@pytest.mark.parametrize(
+    "said,leaked",
+    [
+        ("Google rejected AIza" + "x" * 35, "AIzaxxx"),
+        (
+            "GET https://host.example/v1/models?key=hunter2222 failed",
+            "hunter2222",
+        ),
+        ("The security token is invalid. AKIAIOSFODNN7EXAMPLE", "AKIAIOSFODNN7"),
+        ("https://b.example/o?X-Amz-Signature=abcdef0123456789", "abcdef0123456789"),
+        ("token ya29.a0AfH6SMBabcdefghijklmnop expired", "a0AfH6SMB"),
+    ],
+)
+def test_common_credential_shapes_are_redacted(said, leaked):
+    message = upstream_error_message(
+        label="my-endpoint", code=UPSTREAM_REJECTED, provider_message=said
+    )
+
+    assert leaked not in message
+
+
+def test_direction_changing_characters_are_removed():
+    message = upstream_error_message(
+        label="my-endpoint", code=UPSTREAM_ERROR, provider_message="abc\u202edef\u200b"
+    )
+
+    assert '"abcdef"' in message
+
+
+@pytest.mark.asyncio
+async def test_the_built_in_endpoint_never_quotes_its_upstream():
+    body = {
+        "error": {
+            "message": "Permission denied on resource projects/internal-project-1",
+            "code": 403,
+            "status": "PERMISSION_DENIED",
+            "details": [{"metadata": {"consumer": "projects/internal-project-1"}}],
+        }
+    }
+
+    async def upstream():
+        yield json.dumps(body).encode()
+
+    chunks = [
+        chunk
+        async for chunk in relay_upstream_errors(
+            upstream(),
+            status_code=403,
+            stream=False,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+            label="agenta",
+            scanner=CredentialEchoScanner([]),
+            echo_refusal=RuntimeError(),
+            quote_upstream=False,
+        )
+    ]
+
+    assert b"internal-project-1" not in b"".join(chunks)
+    error = json.loads(b"".join(chunks))["error"]
+    assert set(error) == {"message", "code"}
+    message = error["message"]
+    assert message.startswith('The model endpoint "agenta" reported an error. Check')
 
 
 @pytest.mark.asyncio

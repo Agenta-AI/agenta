@@ -89,6 +89,22 @@ describe("classifyRunError shows the three observed failures", () => {
     assert.equal(classified.detail?.retryable, false);
   });
 
+  it("a starter-credits budget refusal keeps its own sentence and class", () => {
+    const budget =
+      "Internal error: 400: " +
+      JSON.stringify({
+        message:
+          'The model endpoint "starter-credits" reported an error: "Budget has been exceeded! ' +
+          'Current cost: 5.01, Max budget: 5.0". Check the endpoint\'s key, account and model, ' +
+          "or change the request. ⟦agenta_code:upstream_rejected⟧",
+        type: "budget_exceeded",
+        code: "400",
+      });
+    const classified = classify(budget);
+    assert.equal(classified.code, "starter_credits_exhausted");
+    assert.doesNotMatch(classified.message, /5\.01/);
+  });
+
   it("a tool call the provider could not read", () => {
     const classified = classify(MALFORMED);
     assert.equal(classified.code, "upstream_error");
@@ -139,6 +155,11 @@ describe("Pi retries exactly as it did before the gateway rewrote the message", 
       '429: {"message":"The model endpoint \\"my-endpoint\\" reported an error: \\"Rate limit reached\\". Try again.","code":"rate_limit_exceeded"}',
     ],
     ["a stream cut off mid-answer", "terminated", CONNECTION_LOST_SENTENCE],
+    [
+      "a server error, relayed with the upstream's status instead of 502",
+      '502: {"message":"upstream request failed","code":"upstream_error"}',
+      '503: {"message":"The model endpoint \\"my-endpoint\\" reported an error: \\"Service Unavailable\\". Try again.","code":null}',
+    ],
   ])("%s", (_name, before, after) => {
     assert.equal(retries(after), retries(before));
   });

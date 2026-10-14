@@ -23,6 +23,7 @@ from oss.src.core.gateways.egress import (
     harden_pooled_client,
     open_egress,
 )
+from oss.src.core.gateways.llms.catalog import BUILTIN_LLM_PROVIDERS
 from oss.src.core.gateways.llms.dtos import (
     LLMCallContext,
     LLMProtocol,
@@ -458,6 +459,8 @@ class RelayLLMAdapter(LLMUpstreamInterface):
             echo_refusal=LLMUpstreamCredentialEchoError(
                 provider_key=route.provider_key, status_code=response.status_code
             ),
+            # The platform's own account: its errors name the cloud project and region.
+            quote_upstream=route.provider_key not in BUILTIN_LLM_PROVIDERS,
         )
         return result
 

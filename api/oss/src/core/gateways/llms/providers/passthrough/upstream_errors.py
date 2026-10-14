@@ -25,6 +25,9 @@ _LINE_END = re.compile(rb"\r\n|\r|\n")
 # The usage reader's bound: an event longer than this is relayed as it stands.
 _MAX_EVENT_BYTES = 1_048_576
 
+# An error's fields that name no account, kept when the upstream's words are not quoted.
+_KEPT_WHEN_UNQUOTED = frozenset({"type", "code", "param"})
+
 # Events after which the upstream has nothing more to say, so a broken connection is not news.
 _TERMINAL_MARKERS = (
     b"data: [DONE]",
@@ -44,6 +47,7 @@ async def relay_upstream_errors(
     label: Optional[str],
     scanner: CredentialEchoScanner,
     echo_refusal: Exception,
+    quote_upstream: bool = True,
 ) -> AsyncIterator[bytes]:
     def marked(
         payload: Any, status: Optional[int], said: Optional[str] = None
@@ -60,8 +64,12 @@ async def relay_upstream_errors(
         if holder is None:
             payload = _error_payload(protocol, code=code, event=False)
             holder = _error_holder(payload)
+        if not quote_upstream:
+            # Vertex AI puts the project and region in fields like `status` and `details`.
+            for key in [key for key in holder if key not in _KEPT_WHEN_UNQUOTED]:
+                del holder[key]
         holder["message"] = upstream_error_message(
-            label=label, code=code, provider_message=said
+            label=label, code=code, provider_message=said if quote_upstream else None
         )
         # The raw bytes were scanned already; decoded JSON can still hold an escaped key.
         if scanner.detects(_dumps(payload)):

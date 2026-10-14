@@ -489,15 +489,6 @@ export function classifyRunError(
   const refusal = personFacingGatewayRefusal(raw);
   if (refusal)
     return { message: refusal.message, code: refusal.code as RunErrorCode };
-  // A failed model call the gateway already put into words, before any rule below reads the
-  // provider's text.
-  const upstream = parseGatewayErrorDetail(raw);
-  if (isUpstreamFailure(upstream))
-    return {
-      message: sanitizeErrorText(upstream.message),
-      code: upstream.code as RunErrorCode,
-      detail: upstream,
-    };
   const msg = raw.split("\n")[0].trim();
   const keyHint = keyHintFor(provider, harness, options.connection);
   // FIRST, and matched on the ERROR CLASS rather than on any text. Every sandbox this run built
@@ -546,6 +537,17 @@ export function classifyRunError(
       code: "starter_credits_unavailable",
     };
   }
+  // A failed model call the gateway already put into words, before any rule below reads the
+  // provider's text. After the starter-credits rules: a project that still holds the retired
+  // starter-credits connection reaches the credits proxy through the gateway, and its budget
+  // refusal keeps its own sentence and class.
+  const upstream = parseGatewayErrorDetail(raw);
+  if (isUpstreamFailure(upstream))
+    return {
+      message: sanitizeErrorText(upstream.message),
+      code: upstream.code as RunErrorCode,
+      detail: upstream,
+    };
   if (
     /credit balance is too low|exceeded your current quota|insufficient_quota|insufficient credits/i.test(
       raw,
