@@ -3,6 +3,8 @@
 import asyncio
 import json
 import random
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 from uuid import UUID
@@ -238,12 +240,26 @@ _RETRY_JITTER_SECONDS = 0.75
 _RETRY_AFTER_MAX_SECONDS = 60.0
 
 
+def _retry_after_seconds(value: Optional[str]) -> Optional[float]:
+    """A `Retry-After` header in seconds, from either of its two forms."""
+    if not value:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return (when - datetime.now(timezone.utc)).total_seconds()
+
+
 def _retry_delay(retry: int, retry_after: Optional[str]) -> float:
     """Seconds to wait before retry number `retry`, counted from zero."""
-    try:
-        asked = float(retry_after) if retry_after else None
-    except ValueError:
-        asked = None
+    asked = _retry_after_seconds(retry_after)
     if asked is not None and 0 < asked <= _RETRY_AFTER_MAX_SECONDS:
         return asked
     backoff = min(_RETRY_BASE_DELAY_SECONDS * 2**retry, _RETRY_MAX_DELAY_SECONDS)

@@ -6,6 +6,8 @@ the provider's own status and headers. `asyncio.sleep` is replaced so no test wa
 
 import asyncio
 import json
+from datetime import datetime, timedelta, timezone
+from email.utils import format_datetime
 from typing import AsyncIterator, List
 from uuid import uuid4
 
@@ -267,3 +269,39 @@ async def test_a_retried_answer_is_read_to_its_end_so_its_connection_closes(slee
 
 async def _one_chunk(data: bytes) -> AsyncIterator[bytes]:
     yield data
+
+
+@pytest.mark.asyncio
+async def test_a_retry_after_given_as_a_date_is_honored(sleeps):
+    when = format_datetime(
+        datetime.now(timezone.utc) + timedelta(seconds=30), usegmt=True
+    )
+    adapter, _ = _upstream(
+        httpx.Response(429, headers={"Retry-After": when}),
+        httpx.Response(200, json=_OK),
+    )
+
+    await _relay(_service(adapter))
+
+    (waited,) = sleeps
+    assert 25 < waited <= 30
+
+
+class _StallingBody(httpx.AsyncByteStream):
+    async def __aiter__(self):
+        raise httpx.ReadTimeout("timed out")
+        yield b""  # pragma: no cover
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status,stream", [(429, True), (429, False), (503, False)])
+async def test_an_error_body_that_never_arrives_is_a_timeout_and_is_not_retried(
+    sleeps, status, stream
+):
+    adapter, calls = _upstream(httpx.Response(status, stream=_StallingBody()))
+
+    with pytest.raises(LLMUpstreamTimeoutError):
+        await _relay(_service(adapter), stream=stream)
+
+    assert len(calls) == 1
+    assert sleeps == []
