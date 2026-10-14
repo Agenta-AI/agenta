@@ -1,6 +1,8 @@
 import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {message} from "@agenta/ui"
 
+import {consentPopupFeatures} from "../../shared/consentPopupFeatures"
+
 const trustedOrigins = () => {
     const origins = new Set<string>([window.location.origin])
     for (const url of [getAgentaApiUrl(), getAgentaWebUrl()]) {
@@ -16,7 +18,7 @@ const trustedOrigins = () => {
 
 /** Open a provider's auth popup; `onDone` fires once. `null` means blocked, so the tab redirected. */
 export const openToolAuthPopup = (redirectUrl: string, onDone: () => void) => {
-    const popup = window.open(redirectUrl, "tools_oauth", "width=600,height=700,popup=yes")
+    const popup = window.open(redirectUrl, "tools_oauth", consentPopupFeatures(window))
     if (!popup) {
         message.warning("Popup blocked. Redirecting in this tab.")
         window.location.assign(redirectUrl)

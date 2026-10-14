@@ -51,6 +51,7 @@ vi.mock("jotai", async (importOriginal) => ({
 }))
 
 import McpConnectJourney from "../../src/mcpEndpoint/McpConnectJourney"
+import {consentPopupFeatures} from "../../src/shared/consentPopupFeatures"
 
 /** jsdom has none, and a Radix trigger on the reconnect screen measures itself on mount. */
 class StubResizeObserver {
@@ -426,6 +427,13 @@ describe("connecting a server that uses OAuth", () => {
             },
         })
         createMcpEndpoint.mockImplementation(() => new Promise(() => undefined))
+        const popupDocument = document.implementation.createHTMLDocument()
+        vi.mocked(window.open).mockReturnValue({
+            closed: false,
+            close: vi.fn(),
+            focus: vi.fn(),
+            document: popupDocument,
+        } as unknown as Window)
 
         await openJourney()
         await typeInto(field("Server URL")!, "https://mcp.acme.test/")
@@ -434,7 +442,41 @@ describe("connecting a server that uses OAuth", () => {
 
         expect(window.open).toHaveBeenCalledOnce()
         // Blank, and named, so the callback can find it again.
-        expect(vi.mocked(window.open).mock.calls[0][0]).toBe("")
+        const [url, , features] = vi.mocked(window.open).mock.calls[0]
+        expect(url).toBe("")
+        expect(features).toBe(consentPopupFeatures(window))
+        // The window says what it is waiting on while the row is still being created.
+        expect(popupDocument.body.textContent).toBe("Opening Acme…")
+        expect(createMcpEndpoint).toHaveBeenCalled()
+    })
+
+    it("goes on to consent when the window's document cannot be read", async () => {
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                server_name: "Acme",
+                auth: {mode: "oauth", scopes_offered: ["tools:list"]},
+            },
+        })
+        vi.mocked(window.open).mockReturnValue({
+            closed: false,
+            close: vi.fn(),
+            focus: vi.fn(),
+            get document(): Document {
+                throw new DOMException("Blocked a frame", "SecurityError")
+            },
+        } as unknown as Window)
+
+        await openJourney()
+        await typeInto(field("Server URL")!, "https://mcp.acme.test/")
+        await press(button("Continue"))
+        await press(button("Connect"))
+
+        await waitFor(
+            () => document.body.textContent?.includes("Waiting for Acme") ?? false,
+            "the consent wait",
+        )
         expect(createMcpEndpoint).toHaveBeenCalled()
     })
 })

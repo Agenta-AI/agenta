@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {consentPopupFeatures} from "../../src/mcpEndpoint/McpConnectJourney"
+import {consentPopupFeatures} from "../../src/shared/consentPopupFeatures"
 
 describe("consentPopupFeatures", () => {
     it("opens at 1024 by 768, centered over the opener, on a large screen", () => {
