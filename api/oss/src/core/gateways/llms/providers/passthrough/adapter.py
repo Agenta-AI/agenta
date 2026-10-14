@@ -537,6 +537,17 @@ class RelayLLMAdapter(LLMUpstreamInterface):
             tail = reader.feed(relay.flush()) + reader.flush()
             if tail:
                 yield tail
+        except httpx.TimeoutException as exc:
+            raise LLMUpstreamTimeoutError(provider_key=provider_key) from exc
+        except httpx.RequestError as exc:
+            # The upstream dropped the stream after its headers, e.g. closed the socket
+            # mid-body. Its text may quote what it was sent, so it is classified (OR86).
+            failure = classify_transport_error(exc)
+            raise LLMUpstreamError(
+                provider_key=provider_key,
+                status_code=None,
+                detail=failure.detail,
+            ) from exc
         finally:
             result.usage = reader.usage or result.usage
             # A client that disconnects mid-stream cancels this task, and a bare `await`

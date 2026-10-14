@@ -1007,3 +1007,62 @@ async def test_a_gemini_chunk_larger_than_the_frame_limit_keeps_its_whole_lines(
 async def test_a_gemini_frame_larger_than_the_limit_fails_instead_of_losing_a_signature():
     with pytest.raises(LLMUpstreamError):
         await _relay(_gemini_route(), True, b"data: " + b"x" * _MAX_FRAME_BYTES)
+
+
+@pytest.mark.asyncio
+async def test_a_stream_the_upstream_drops_mid_way_raises_llm_upstream_error():
+    """A socket closed mid-body surfaces as `httpx.RemoteProtocolError`; the relay must
+    raise its own domain error, whose detail never quotes the transport's text."""
+
+    class _DroppedBody(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield b'data: {"choices":[]}\n\n'
+            raise httpx.RemoteProtocolError(
+                "peer closed connection without sending complete message body"
+            )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            stream=_DroppedBody(),
+            headers={"content-type": "text/event-stream"},
+        )
+
+    adapter = _adapter(handler)
+    result = await adapter.relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=_context(stream=True),
+        body=_body(),
+        headers={},
+    )
+
+    assert await anext(result.body) == b'data: {"choices":[]}\n\n'
+    with pytest.raises(LLMUpstreamError) as excinfo:
+        await anext(result.body)
+    assert not isinstance(excinfo.value, LLMUpstreamTimeoutError)
+    assert "peer closed" not in (excinfo.value.detail or "")
+
+
+@pytest.mark.asyncio
+async def test_a_stream_that_stalls_mid_way_raises_llm_upstream_timeout_error():
+    class _StallingBody(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield b'data: {"choices":[]}\n\n'
+            raise httpx.ReadTimeout("timed out")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, stream=_StallingBody())
+
+    adapter = _adapter(handler)
+    result = await adapter.relay_chat_completion(
+        route=_route(),
+        secret=None,
+        context=_context(stream=True),
+        body=_body(),
+        headers={},
+    )
+
+    await anext(result.body)
+    with pytest.raises(LLMUpstreamTimeoutError):
+        await anext(result.body)

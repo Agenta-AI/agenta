@@ -812,3 +812,101 @@ async def test_an_upstream_failure_leaves_retrying_to_the_harness():
         )
 
     assert "x-should-retry" not in response.headers
+
+
+# --- a stream that fails after the response started ---------------------------- #
+
+
+async def _dropped_stream(exc: Exception) -> AsyncIterator[bytes]:
+    yield b'data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n'
+    yield b'data: {"choices":[{"delta":{"con'
+    raise exc
+
+
+def _last_sse_event(body: bytes) -> Dict[str, Any]:
+    blocks = [block for block in body.split(b"\n\n") if block.strip()]
+    fields = dict(line.split(b": ", 1) for line in blocks[-1].split(b"\n"))
+    return {"event": fields.get(b"event"), "data": json.loads(fields[b"data"])}
+
+
+def _proxy_over(body: AsyncIterator[bytes]) -> LLMGatewayProxy:
+    result = LLMRelayResult(status_code=200, headers={}, body=body)
+    return LLMGatewayProxy(
+        llm_gateway_service=_MockLlmGatewayService(relay_result=result)
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "route, body, event, error_code",
+    [
+        (
+            "chat_completions_custom",
+            _body(stream=True),
+            None,
+            lambda data: data["error"]["code"],
+        ),
+        (
+            "responses_custom",
+            _responses_body(stream=True),
+            b"error",
+            lambda data: data["code"],
+        ),
+        (
+            "messages_custom",
+            _messages_body(stream=True),
+            b"error",
+            lambda data: data["error"]["type"],
+        ),
+    ],
+)
+async def test_a_stream_the_upstream_drops_ends_with_a_terminal_error_event(
+    route, body, event, error_code
+):
+    """The upstream closed its socket mid-stream, after the status line was sent. Raised
+    out of the `StreamingResponse`, the error left the response unterminated and Traefik
+    answered the next request on that keep-alive connection with a 502."""
+    proxy = _proxy_over(
+        _dropped_stream(
+            LLMUpstreamError(provider_key="openai", status_code=None, detail="sk-x")
+        )
+    )
+
+    with _auth_scope():
+        response = await getattr(proxy, route)(_request(body=body), "my-slug")
+        relayed = await _read_body(response)
+
+    assert response.status_code == 200
+    assert relayed.startswith(b'data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n')
+    assert b"sk-x" not in relayed
+    assert relayed.endswith(b"\n\n")
+    last = _last_sse_event(relayed)
+    assert last["event"] == event
+    assert error_code(last["data"]) in ("upstream_error", "api_error")
+
+
+@pytest.mark.asyncio
+async def test_a_stream_that_times_out_mid_way_ends_with_an_upstream_timeout_event():
+    proxy = _proxy_over(_dropped_stream(LLMUpstreamTimeoutError(provider_key="openai")))
+
+    with _auth_scope():
+        response = await proxy.chat_completions_custom(
+            _request(body=_body(stream=True)), "my-slug"
+        )
+        relayed = await _read_body(response)
+
+    assert _last_sse_event(relayed)["data"]["error"]["code"] == "upstream_timeout"
+
+
+@pytest.mark.asyncio
+async def test_an_unexpected_failure_mid_stream_still_ends_the_stream_cleanly():
+    proxy = _proxy_over(_dropped_stream(RuntimeError("boom")))
+
+    with _auth_scope():
+        response = await proxy.chat_completions_custom(
+            _request(body=_body(stream=True)), "my-slug"
+        )
+        relayed = await _read_body(response)
+
+    assert _last_sse_event(relayed)["data"]["error"]["code"] == "upstream_error"
+    assert b"boom" not in relayed

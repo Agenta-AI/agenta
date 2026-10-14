@@ -1,6 +1,7 @@
 """Protocol-shaped LLM gateway proxy responses."""
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+import json
+from typing import TYPE_CHECKING, Any, AsyncIterator, Callable, Dict, List, Optional
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
@@ -249,6 +250,67 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
     )
 
 
+def _stream_error_frame(protocol: LLMProtocol, exc: Exception) -> bytes:
+    """The terminal SSE event that tells a streaming caller its answer is cut short.
+
+    In each protocol's own error shape, so the caller's SDK raises it instead of reading
+    the partial answer as complete. It opens with a blank line: the upstream may have
+    stopped mid-line, and the event must not be read as part of that line.
+    """
+    if isinstance(exc, LLMUpstreamTimeoutError):
+        code = "upstream_timeout"
+        message = "The model provider did not answer in time."
+    else:
+        code = "upstream_error"
+        message = "The model provider stream failed before it finished."
+
+    if protocol == LLMProtocol.MESSAGES:
+        event = b"error"
+        data = {"type": "error", "error": {"type": "api_error", "message": message}}
+    elif protocol == LLMProtocol.RESPONSES:
+        event = b"error"
+        data = {"type": "error", "code": code, "message": message, "param": None}
+    else:
+        event = None
+        data = {"error": {"message": message, "type": "api_error", "code": code}}
+
+    frame = b"\n\n"
+    if event is not None:
+        frame += b"event: " + event + b"\n"
+    return frame + b"data: " + json.dumps(data).encode() + b"\n\n"
+
+
+async def _stream_with_terminal_error(
+    body: AsyncIterator[bytes], *, protocol: LLMProtocol
+) -> AsyncIterator[bytes]:
+    """Relay `body`, and end the stream cleanly if it fails after the headers were sent.
+
+    The status line is already on the wire, so an error can no longer become a response
+    of its own. Raised out of the `StreamingResponse`, it left the HTTP response
+    unterminated and uvicorn closed the connection, which a keep-alive proxy in front
+    (Traefik) could reuse for the next request and answer with a 502.
+    """
+    try:
+        async for chunk in body:
+            yield chunk
+    except Exception as exc:  # pylint: disable=broad-except
+        if isinstance(exc, LLMUpstreamError):
+            # The class and the status only: a detail can quote the upstream's bytes.
+            log.warning(
+                "[gateways] upstream stream failed after the response started",
+                error_class=type(exc).__name__,
+                provider_key=exc.provider_key,
+                status_code=exc.status_code,
+            )
+        else:
+            log.error(
+                "[gateways] relayed stream failed after the response started",
+                error_class=type(exc).__name__,
+                exc_info=True,
+            )
+        yield _stream_error_frame(protocol, exc)
+
+
 class LLMGatewayProxy:
     def __init__(self, *, llm_gateway_service: "LLMGatewayService") -> None:
         self.service = llm_gateway_service
@@ -464,7 +526,7 @@ class LLMGatewayProxy:
 
             if context.stream and result.status_code < 400:
                 return StreamingResponse(
-                    result.body,
+                    _stream_with_terminal_error(result.body, protocol=protocol),
                     status_code=result.status_code,
                     headers=response_headers(result.headers),
                     media_type="text/event-stream",
