@@ -3,6 +3,7 @@
 import json
 from typing import TYPE_CHECKING, Any, AsyncIterator, Callable, Dict, List, Optional
 
+import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
@@ -21,7 +22,9 @@ from oss.src.core.gateways.dtos import (
     forwardable_request_headers,
     with_code_marker,
 )
+from oss.src.core.gateways.egress import classify_transport_error
 from oss.src.core.gateways.llms.dtos import LLMCallContext, LLMProtocol
+from oss.src.core.gateways.llms.errors import UPSTREAM_ERROR, connection_lost_message
 from oss.src.core.gateways.types import (
     GatewayEndpointInactiveError,
     GatewayPlaneDisabledError,
@@ -253,16 +256,20 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
 def _stream_error_frame(protocol: LLMProtocol, exc: Exception) -> bytes:
     """The terminal SSE event that tells a streaming caller its answer is cut short.
 
-    In each protocol's own error shape, so the caller's SDK raises it instead of reading
-    the partial answer as complete. It opens with a blank line: the upstream may have
-    stopped mid-line, and the event must not be read as part of that line.
+    A safety net for what the relay's own error handling (`relay_upstream_errors`) does not
+    turn into an event: a credential echo, a timeout, a route that bypasses the relay. The
+    shape and the marked sentence are the relay's, so the caller's SDK raises it and the
+    runner reads it like any other upstream error. It opens with a blank line: a route that
+    bypasses the relay may have stopped mid-line, and the event must not join that line.
     """
     if isinstance(exc, LLMUpstreamTimeoutError):
         code = "upstream_timeout"
-        message = "The model provider did not answer in time."
+        message = with_code_marker(
+            "The model provider did not answer in time.", UPSTREAM_ERROR
+        )
     else:
-        code = "upstream_error"
-        message = "The model provider stream failed before it finished."
+        code = UPSTREAM_ERROR
+        message = connection_lost_message()
 
     if protocol == LLMProtocol.MESSAGES:
         event = b"error"
@@ -277,7 +284,8 @@ def _stream_error_frame(protocol: LLMProtocol, exc: Exception) -> bytes:
     frame = b"\n\n"
     if event is not None:
         frame += b"event: " + event + b"\n"
-    return frame + b"data: " + json.dumps(data).encode() + b"\n\n"
+    # Unescaped, as the relay writes it, so a harness that keeps the raw text reads the marker.
+    return frame + b"data: " + json.dumps(data, ensure_ascii=False).encode() + b"\n\n"
 
 
 async def _stream_with_terminal_error(
@@ -288,7 +296,8 @@ async def _stream_with_terminal_error(
     The status line is already on the wire, so an error can no longer become a response
     of its own. Raised out of the `StreamingResponse`, it left the HTTP response
     unterminated and uvicorn closed the connection, which a keep-alive proxy in front
-    (Traefik) could reuse for the next request and answer with a 502.
+    (Traefik) could reuse for the next request and answer with a 502. A client disconnect
+    arrives here as a cancellation, which `except Exception` does not catch.
     """
     try:
         async for chunk in body:
@@ -302,6 +311,9 @@ async def _stream_with_terminal_error(
                 provider_key=exc.provider_key,
                 status_code=exc.status_code,
             )
+        elif isinstance(exc, httpx.RequestError):
+            # Logs the class and a safe cause; the text may quote what was sent (OR86).
+            classify_transport_error(exc)
         else:
             log.error(
                 "[gateways] relayed stream failed after the response started",

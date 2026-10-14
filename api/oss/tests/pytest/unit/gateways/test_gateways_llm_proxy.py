@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from typing import Any, AsyncIterator, Dict, List, Optional
 from uuid import uuid4
 
+import httpx
 import pytest
 from starlette.requests import Request
 
@@ -823,6 +824,9 @@ async def _dropped_stream(exc: Exception) -> AsyncIterator[bytes]:
     raise exc
 
 
+_MARKER = "⟦agenta_code:upstream_error⟧".encode()
+
+
 def _last_sse_event(body: bytes) -> Dict[str, Any]:
     blocks = [block for block in body.split(b"\n\n") if block.strip()]
     fields = dict(line.split(b": ", 1) for line in blocks[-1].split(b"\n"))
@@ -883,6 +887,9 @@ async def test_a_stream_the_upstream_drops_ends_with_a_terminal_error_event(
     last = _last_sse_event(relayed)
     assert last["event"] == event
     assert error_code(last["data"]) in ("upstream_error", "api_error")
+    # The relay's own marked sentence, which the runner reads and Pi retries on.
+    assert _MARKER in relayed
+    assert b"connection error" in relayed
 
 
 @pytest.mark.asyncio
@@ -895,7 +902,10 @@ async def test_a_stream_that_times_out_mid_way_ends_with_an_upstream_timeout_eve
         )
         relayed = await _read_body(response)
 
-    assert _last_sse_event(relayed)["data"]["error"]["code"] == "upstream_timeout"
+    error = _last_sse_event(relayed)["data"]["error"]
+    assert error["code"] == "upstream_timeout"
+    assert error["message"].startswith("The model provider did not answer in time.")
+    assert error["message"].endswith("⟦agenta_code:upstream_error⟧")
 
 
 @pytest.mark.asyncio
@@ -910,3 +920,21 @@ async def test_an_unexpected_failure_mid_stream_still_ends_the_stream_cleanly():
 
     assert _last_sse_event(relayed)["data"]["error"]["code"] == "upstream_error"
     assert b"boom" not in relayed
+
+
+@pytest.mark.asyncio
+async def test_a_raw_transport_error_mid_stream_ends_cleanly_without_its_text():
+    """A route that bypasses the relay's error handling hands the raw httpx error up."""
+    proxy = _proxy_over(
+        _dropped_stream(httpx.RemoteProtocolError("peer closed connection sk-x"))
+    )
+
+    with _auth_scope():
+        response = await proxy.chat_completions_custom(
+            _request(body=_body(stream=True)), "my-slug"
+        )
+        relayed = await _read_body(response)
+
+    assert _last_sse_event(relayed)["data"]["error"]["code"] == "upstream_error"
+    assert b"sk-x" not in relayed
+    assert b"peer closed" not in relayed
