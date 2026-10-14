@@ -366,7 +366,7 @@ async def test_connection_failure_raises_llm_upstream_error_never_something_else
 
 
 @pytest.mark.asyncio
-async def test_a_5xx_without_a_json_body_is_relayed_as_a_marked_error():
+async def test_a_5xx_without_a_json_body_is_relayed_as_a_marked_502():
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(503, text="<html>upstream broke</html>")
 
@@ -375,7 +375,7 @@ async def test_a_5xx_without_a_json_body_is_relayed_as_a_marked_error():
         route=_route(), secret=None, context=_context(), body=_body(), headers={}
     )
 
-    assert result.status_code == 503
+    assert result.status_code == 502
     assert result.headers["content-type"] == "application/json"
     error = json.loads((await _drain(result.body))[0])["error"]
     assert error["message"] == (

@@ -93,12 +93,18 @@ def classify_upstream_error(*, status: Optional[int], code: Any, message: Any) -
     return UPSTREAM_REJECTED
 
 
-def upstream_error_message(*, code: str, provider_message: Any) -> str:
-    """One marked sentence that quotes what the model said, cleaned."""
-    said = _cleaned(provider_message)
+def upstream_error_message(
+    *, code: str, provider_message: Any, built_in: bool = False
+) -> str:
+    """One marked sentence that quotes what the model said, cleaned.
+
+    The built-in model quotes nothing, and a rejection there gets no advice: the person
+    cannot change the platform's key or account."""
+    said = "" if built_in else _cleaned(provider_message)
     quoted = f': "{said}"' if said else ""
+    advice = "" if built_in and code == UPSTREAM_REJECTED else f" {_ADVICE[code]}"
     return with_code_marker(
-        f"{UPSTREAM_SENTENCE_START} reported an error{quoted}. {_ADVICE[code]}", code
+        f"{UPSTREAM_SENTENCE_START} reported an error{quoted}.{advice}", code
     )
 
 

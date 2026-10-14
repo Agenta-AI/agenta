@@ -74,7 +74,7 @@ async def relay_upstream_errors(
                 kept.pop("type", None)
             holder.update(kept)
         holder["message"] = upstream_error_message(
-            code=code, provider_message=said if quote_upstream else None
+            code=code, provider_message=said, built_in=not quote_upstream
         )
         # The raw bytes were scanned already; decoded JSON can still hold an escaped key.
         if scanner.detects(_dumps(payload)):

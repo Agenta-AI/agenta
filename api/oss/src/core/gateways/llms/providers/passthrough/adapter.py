@@ -426,7 +426,9 @@ class RelayLLMAdapter(LLMUpstreamInterface):
             )
 
         result = LLMRelayResult(
-            status_code=response.status_code,
+            # Every upstream 5xx reaches the caller as 502, as before: harnesses retry on 502
+            # but not on every 5xx (Pi does not retry 501, 505 or 507).
+            status_code=502 if response.status_code >= 500 else response.status_code,
             headers=dict(response.headers),
             body=_empty_body(),
         )

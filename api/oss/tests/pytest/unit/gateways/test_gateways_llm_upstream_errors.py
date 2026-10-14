@@ -239,7 +239,33 @@ async def test_the_built_in_endpoint_never_quotes_its_upstream():
     error = json.loads(b"".join(chunks))["error"]
     assert set(error) == {"message", "code", "type"}
     message = error["message"]
-    assert message.startswith("The model reported an error. Check")
+    assert message == ("The model reported an error. ⟦agenta_code:upstream_rejected⟧")
+
+
+@pytest.mark.parametrize("status", [501, 505, 507])
+@pytest.mark.asyncio
+async def test_every_upstream_5xx_reaches_the_caller_as_502(status):
+    result, chunks = await _relay(
+        httpx.Response(status, json={"error": {"message": "Insufficient Storage"}}),
+        stream=False,
+    )
+
+    assert result.status_code == 502
+    assert json.loads(chunks[0])["error"]["message"] == (
+        'The model reported an error: "Insufficient Storage". Try again.'
+        " ⟦agenta_code:upstream_error⟧"
+    )
+
+
+def test_a_retryable_built_in_failure_keeps_its_advice():
+    message = upstream_error_message(
+        code=UPSTREAM_ERROR, provider_message="projects/p", built_in=True
+    )
+
+    assert (
+        message
+        == "The model reported an error. Try again. ⟦agenta_code:upstream_error⟧"
+    )
 
 
 @pytest.mark.asyncio

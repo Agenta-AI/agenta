@@ -166,9 +166,9 @@ describe("Pi retries exactly as it did before the gateway rewrote the message", 
     ],
     ["a stream cut off mid-answer", "terminated", CONNECTION_LOST_SENTENCE],
     [
-      "a server error, relayed with the upstream's status instead of 502",
+      "a server error, still relayed as 502 with the upstream's words",
       '502: {"message":"upstream request failed","code":"upstream_error"}',
-      '503: {"message":"The model reported an error: \\"Service Unavailable\\". Try again.","code":null}',
+      '502: {"message":"The model reported an error: \\"Service Unavailable\\". Try again.","code":null}',
     ],
   ])("%s", (_name, before, after) => {
     assert.equal(retries(after), retries(before));
