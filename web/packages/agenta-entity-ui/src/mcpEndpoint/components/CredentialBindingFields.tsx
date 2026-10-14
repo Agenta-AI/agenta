@@ -128,7 +128,10 @@ export const CredentialBindingFields = ({
                     value={value.kind}
                     options={KIND_LABEL}
                     disabled={disabled}
-                    onChange={(kind) => onChange({...value, kind})}
+                    // A query value takes no prefix (`normalizeCredentialBinding`).
+                    onChange={(kind) =>
+                        onChange({...value, kind, prefix: kind === "query" ? null : value.prefix})
+                    }
                 />
             </HintedField>
             <HintedField
@@ -146,31 +149,37 @@ export const CredentialBindingFields = ({
                     onChange={(event) => onChange({...value, name: event.target.value})}
                 />
             </HintedField>
-            <HintedField
-                label="Prefix"
-                hint={
-                    prefixHint.length || preview ? (
-                        <>
-                            {prefixHint.join(" ")}
-                            {prefixHint.length && preview ? " " : null}
-                            {preview ? (
-                                <>
-                                    Sent as <span className="font-mono">{preview}</span>.
-                                </>
-                            ) : null}
-                        </>
-                    ) : null
-                }
-            >
-                <ChoiceSelect
+            {value.kind === "header" ? (
+                <HintedField
                     label="Prefix"
-                    value={prefixChoice}
-                    options={PREFIX_LABEL}
-                    disabled={disabled}
-                    onChange={(choice) => onChange({...value, prefix: prefixFor(choice)})}
-                />
-            </HintedField>
-            {prefixChoice === "custom" ? (
+                    hint={
+                        prefixHint.length || preview ? (
+                            <>
+                                {prefixHint.join(" ")}
+                                {prefixHint.length && preview ? " " : null}
+                                {preview ? (
+                                    <>
+                                        Sent as <span className="font-mono">{preview}</span>.
+                                    </>
+                                ) : null}
+                            </>
+                        ) : null
+                    }
+                >
+                    <ChoiceSelect
+                        label="Prefix"
+                        value={prefixChoice}
+                        options={PREFIX_LABEL}
+                        disabled={disabled}
+                        onChange={(choice) => onChange({...value, prefix: prefixFor(choice)})}
+                    />
+                </HintedField>
+            ) : preview ? (
+                <p className="m-0 text-xs leading-normal text-colorTextTertiary">
+                    Sent as <span className="font-mono">{preview}</span>.
+                </p>
+            ) : null}
+            {value.kind === "header" && prefixChoice === "custom" ? (
                 <Input
                     className="-mt-1 font-mono text-[13px]"
                     value={value.prefix ?? ""}

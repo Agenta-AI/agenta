@@ -36,7 +36,7 @@ import {
     connectionNameProblem,
     detectedAuthMode,
     isBusy,
-    mcpChallengeSchemeToShow,
+    mcpChallengeScheme,
     mcpDefaultCredentialBinding,
     readMcpProbeResponse,
     toolPrefixFromName,
@@ -572,6 +572,7 @@ export function McpConnectSheet({
     }, [binding, journey, selectedSecretId])
 
     const confirm = useCallback(() => {
+        const keyBinding = path === "api_key" ? binding : undefined
         switch (state.status) {
             case "url_entry":
             case "check_failed":
@@ -581,13 +582,13 @@ export function McpConnectSheet({
                 if (nameProblem) return
                 if (path === "oauth") requestConsent()
                 if (path === "api_key") setAfterCreate("credential")
-                void journey.submitName()
+                void journey.submitName(keyBinding)
                 return
             case "create_failed":
                 // The window opened for the first attempt was closed when this screen
                 // replaced the wait, so the retry needs one of its own, opened in this tap.
                 if (path === "oauth") requestConsent()
-                void journey.submitName()
+                void journey.submitName(keyBinding)
                 return
             case "scopes_failed":
             case "consent_cancelled":
@@ -605,7 +606,7 @@ export function McpConnectSheet({
                 // screen's first press takes.
                 if (!state.endpointId) {
                     if (path === "api_key") setAfterCreate("credential")
-                    void journey.submitName()
+                    void journey.submitName(keyBinding)
                     return
                 }
                 // A connection that authorizes with nothing is repaired by saying so; there
@@ -622,6 +623,7 @@ export function McpConnectSheet({
                 onClose()
         }
     }, [
+        binding,
         journey,
         nameProblem,
         onClose,
@@ -654,9 +656,9 @@ export function McpConnectSheet({
                 {failureCause === "not_an_mcp_server" ? null : UNREACHABLE_ADVICE}
             </>
         )
-    // What the server named when it refused the anonymous handshake, where that is anything
-    // the Authorization default does not already cover.
-    const challengeScheme = mcpChallengeSchemeToShow(state.probe)
+    // What the server named when it refused the anonymous handshake. Named on a refusal even
+    // when it is Bearer, because the key it was sent is the thing in question.
+    const challengeScheme = mcpChallengeScheme(state.probe)
     // The status of the request that carried the key, not the one that carried nothing.
     const refusedStatus = state.failureStatus
 

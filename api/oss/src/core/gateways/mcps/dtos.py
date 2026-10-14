@@ -1,9 +1,11 @@
 """MCP gateway DTOs."""
 
+from urllib.parse import parse_qs, urlsplit
+
 from typing import Annotated, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from oss.src.core.gateway.connections.dtos import Connection
 from oss.src.core.gateways.dtos import (
@@ -53,6 +55,14 @@ class MCPCredentialBinding(BaseModel):
         Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     ] = None
 
+    @model_validator(mode="after")
+    def _no_query_prefix(self) -> "MCPCredentialBinding":
+        # A scheme word belongs in a header. In a query value it would be sent as part of
+        # the key, and the echo scanner would look for the prefixed form only.
+        if self.kind == "query" and self.prefix is not None:
+            raise ValueError("a query credential binding takes no prefix")
+        return self
+
 
 class MCPEndpointRoute(GatewayEndpointRoute):
     """Route for one MCP server.
@@ -63,6 +73,21 @@ class MCPEndpointRoute(GatewayEndpointRoute):
     """
 
     credential_binding: Optional[MCPCredentialBinding] = None
+
+    @model_validator(mode="after")
+    def _no_credential_in_base_url(self) -> "MCPEndpointRoute":
+        # The relay adds the bound parameter at request time. A stored URL that already
+        # carries it would keep the key in plain text on the row.
+        binding = self.credential_binding
+        if binding is None or binding.kind != "query" or not self.base_url:
+            return self
+        query = parse_qs(urlsplit(self.base_url).query, keep_blank_values=True)
+        if binding.name in query:
+            raise ValueError(
+                f"base_url carries the query parameter {binding.name!r}, which the "
+                "credential binding fills from the vault; remove it from the URL"
+            )
+        return self
 
 
 # The MCP plane's name for the shared filter. Same shape, same storage.

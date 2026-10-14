@@ -36,6 +36,7 @@ export {
     MCP_DEFAULT_CREDENTIAL_BINDING,
     mcpDefaultCredentialBinding,
     normalizeCredentialBinding,
+    withoutCredentialParameter,
 } from "./credentialBinding"
 export type {
     MCPAuthMode,

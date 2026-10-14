@@ -191,6 +191,8 @@ describe("the binding presets", () => {
 
         expect(control("Send as")?.textContent).toBe("Query parameter")
         expect(control("Header name")).toBeNull()
+        // A query value takes no prefix, so there is nothing to pick.
+        expect(control("Prefix")).toBeNull()
         await type(control("Parameter name"), "exaApiKey")
 
         expect(text()).toContain("Sent as ?exaApiKey=••••.")
@@ -217,6 +219,29 @@ describe("the Basic helper", () => {
         // Neither half is kept once the value is handed over.
         expect(labelled("Username")?.value).toBe("")
         expect(labelled("Password")?.value).toBe("")
+    })
+
+    it("refuses a colon in the username, which Basic would read as the end of it", async () => {
+        await open()
+        await press("Basic")
+
+        await type(labelled("Username"), "team:user")
+        await type(labelled("Password"), "test-password-one")
+
+        expect(text()).toContain("A username cannot contain a colon.")
+        expect(button("Create secret")?.disabled).toBe(true)
+    })
+
+    it("takes a colon in the password, which Basic keeps whole", async () => {
+        await open()
+        await press("Basic")
+
+        await type(labelled("Username"), "team-user")
+        await type(labelled("Password"), "pass:word")
+        await press("Create secret")
+
+        expect(text()).not.toContain("A username cannot contain a colon.")
+        expect(drawerProps.current?.initialValue).toBe(btoa("team-user:pass:word"))
     })
 
     it("is not offered for any other prefix", async () => {

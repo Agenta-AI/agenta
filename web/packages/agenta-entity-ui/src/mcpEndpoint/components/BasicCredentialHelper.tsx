@@ -17,9 +17,14 @@ export interface BasicCredentialHelperProps {
     onCreateSecret: (value: string) => void
 }
 
+const USERNAME_COLON_ERROR = "A username cannot contain a colon."
+
 export const BasicCredentialHelper = ({disabled, onCreateSecret}: BasicCredentialHelperProps) => {
     const [username, setUsername] = useState("")
     const [password, setPassword] = useState("")
+    // Basic splits `username:password` at the first colon, so a colon in the username would
+    // move part of it into the password. A password may hold one.
+    const usernameError = username.includes(":") ? USERNAME_COLON_ERROR : undefined
 
     return (
         <div
@@ -30,7 +35,7 @@ export const BasicCredentialHelper = ({disabled, onCreateSecret}: BasicCredentia
                 Basic (username and password)
             </span>
             <div className="grid grid-cols-2 gap-2">
-                <Field label="Username" className="gap-1.5">
+                <Field label="Username" className="gap-1.5" error={usernameError}>
                     <Input
                         placeholder="API login"
                         value={username}
@@ -58,7 +63,7 @@ export const BasicCredentialHelper = ({disabled, onCreateSecret}: BasicCredentia
                 <Button
                     variant="outline"
                     size="sm"
-                    disabled={disabled || !username || !password}
+                    disabled={disabled || !username || !password || !!usernameError}
                     onClick={() => {
                         onCreateSecret(basicCredentialValue(username, password))
                         setUsername("")

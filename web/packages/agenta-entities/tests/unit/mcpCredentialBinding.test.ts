@@ -12,6 +12,7 @@ import {
     credentialBindingPreview,
     mcpDefaultCredentialBinding,
     normalizeCredentialBinding,
+    withoutCredentialParameter,
 } from "../../src/mcpEndpoint/core/credentialBinding"
 import type {MCPServerProbe} from "../../src/mcpEndpoint/core/types"
 
@@ -56,6 +57,44 @@ describe("normalizeCredentialBinding", () => {
         expect(
             normalizeCredentialBinding({kind: "header", name: "Authorization", prefix: " Token "}),
         ).toEqual({kind: "header", name: "Authorization", prefix: "Token"})
+    })
+})
+
+describe("normalizeCredentialBinding on a query binding", () => {
+    it("drops a prefix, which a query value does not take", () => {
+        expect(normalizeCredentialBinding({kind: "query", name: "token", prefix: "Bearer"})).toEqual(
+            {kind: "query", name: "token", prefix: null},
+        )
+        expect(credentialBindingPreview({kind: "query", name: "token", prefix: "Bearer"})).toBe(
+            "?token=••••",
+        )
+    })
+})
+
+describe("withoutCredentialParameter", () => {
+    const binding = {kind: "query" as const, name: "exaApiKey"}
+
+    it("drops the parameter the binding fills, and keeps the rest", () => {
+        expect(
+            withoutCredentialParameter("https://mcp.exa.test/mcp?exaApiKey=test-key-one&debug=on", binding),
+        ).toBe("https://mcp.exa.test/mcp?debug=on")
+        expect(withoutCredentialParameter("https://mcp.exa.test/mcp?exaApiKey=test-key-one", binding)).toBe(
+            "https://mcp.exa.test/mcp",
+        )
+    })
+
+    it("leaves the URL as typed when there is nothing to drop", () => {
+        expect(withoutCredentialParameter("https://mcp.exa.test/mcp?debug=on", binding)).toBe(
+            "https://mcp.exa.test/mcp?debug=on",
+        )
+        // A header binding sends nothing in the URL.
+        expect(
+            withoutCredentialParameter("https://mcp.exa.test/mcp?exaApiKey=x", {
+                kind: "header",
+                name: "exaApiKey",
+            }),
+        ).toBe("https://mcp.exa.test/mcp?exaApiKey=x")
+        expect(withoutCredentialParameter("not a url", binding)).toBe("not a url")
     })
 })
 

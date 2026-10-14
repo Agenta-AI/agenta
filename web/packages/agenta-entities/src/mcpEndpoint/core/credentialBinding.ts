@@ -33,9 +33,12 @@ export function mcpDefaultCredentialBinding(
         : {kind: "header", name, prefix: null}
 }
 
-/** The binding as the API stores it: names trimmed, and a blank prefix is no prefix. */
+/**
+ * The binding as the API stores it: names trimmed, and a blank prefix is no prefix. A query
+ * binding takes no prefix, because a scheme word in a query value would be part of the key.
+ */
 export function normalizeCredentialBinding(binding: MCPCredentialBinding): MCPCredentialBinding {
-    const prefix = binding.prefix?.trim()
+    const prefix = binding.kind === "header" ? binding.prefix?.trim() : null
     return {kind: binding.kind, name: binding.name.trim(), prefix: prefix || null}
 }
 
@@ -54,6 +57,29 @@ export function credentialBindingPreview(binding: MCPCredentialBinding): string 
     if (!name) return null
     const value = renderedValue(binding, MASKED_CREDENTIAL)
     return binding.kind === "query" ? `?${name}=${value}` : `${name}: ${value}`
+}
+
+/**
+ * The URL to store for a connection: without the query parameter the binding fills.
+ *
+ * A pasted address can already carry the key (`?exaApiKey=...`). The relay adds the bound
+ * parameter at request time, so the stored URL drops it, and the API refuses a stored URL
+ * that still carries it.
+ */
+export function withoutCredentialParameter(
+    url: string,
+    binding: MCPCredentialBinding | null | undefined,
+): string {
+    const name = binding?.kind === "query" ? binding.name.trim() : ""
+    if (!name) return url
+    try {
+        const parsed = new URL(url)
+        if (!parsed.searchParams.has(name)) return url
+        parsed.searchParams.delete(name)
+        return parsed.toString()
+    } catch {
+        return url
+    }
 }
 
 /**
