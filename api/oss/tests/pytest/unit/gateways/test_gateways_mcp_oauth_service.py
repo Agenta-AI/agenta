@@ -118,7 +118,9 @@ class _FakeSecretsDAO:
         self.records[idx] = (project_id, record)
         return record
 
-    async def delete(self, secret_id, project_id=None, organization_id=None):
+    async def delete(
+        self, secret_id, project_id=None, organization_id=None, authorize_delete=None
+    ):
         self.records = [
             (p, r)
             for p, r in self.records
@@ -1481,7 +1483,7 @@ async def test_an_edit_during_the_exchange_wins_and_nothing_is_written(moved):
 
 
 @pytest.mark.asyncio
-async def test_an_edit_just_before_the_bind_leaves_the_connection_unbound():
+async def test_an_edit_just_before_the_bind_leaves_no_grant_and_no_binding():
     """The bind re-checks the connection under its own row lock, so an edit that lands
     after the attempt's check still keeps the grant off the moved connection."""
     service, _dao, attempts = _service()
@@ -1508,6 +1510,8 @@ async def test_an_edit_just_before_the_bind_leaves_the_connection_unbound():
 
     assert endpoints.endpoints[endpoint_id].secret_id is None
     assert attempts.attempts[start.state].status == MCPOAuthAttemptStatus.CANCELLED
+    # The tokens it wrote were for the old address, so they went with it.
+    assert _grant_rows(_dao) == []
 
 
 @pytest.mark.asyncio

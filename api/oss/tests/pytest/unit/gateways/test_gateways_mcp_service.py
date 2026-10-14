@@ -2484,3 +2484,65 @@ async def test_the_url_secret_is_the_project_secret_the_relay_would_send():
         ref=BoundSecretRef(secret_id=secret_id),
         mode=SecretMode.PROJECT_ONLY,
     )
+
+
+class _ReleasingRefresher:
+    """Records which grants an edit asked to retire."""
+
+    def __init__(self) -> None:
+        self.released: List[UUID] = []
+
+    async def refresh_grant(self, *, project_id, endpoint_id, server_url) -> None:
+        raise AssertionError("an edit does not refresh")
+
+    async def release_grant(self, *, project_id, endpoint_id, server_url) -> None:
+        self.released.append(endpoint_id)
+
+
+async def _edited_from_oauth(*, auth_mode, base_url):
+    dao = MockMCPEndpointsDAO()
+    refresher = _ReleasingRefresher()
+    service = _relay_service(
+        mcp_endpoints_dao=dao, adapters={}, oauth_refresher=refresher
+    )
+    endpoint = await _oauth_endpoint(dao)
+    await service.edit_endpoint(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint=MCPEndpointEdit(
+            id=endpoint.id,
+            name=endpoint.name,
+            auth_mode=auth_mode,
+            data=endpoint.data.model_copy(
+                update={"route": MCPEndpointRoute(base_url=base_url)}
+            ),
+        ),
+    )
+    return endpoint, refresher
+
+
+@pytest.mark.asyncio
+async def test_an_edit_off_oauth_retires_the_grant():
+    endpoint, refresher = await _edited_from_oauth(
+        auth_mode=MCPAuthScheme.API_KEY, base_url="https://example.com/mcp"
+    )
+
+    assert refresher.released == [endpoint.id]
+
+
+@pytest.mark.asyncio
+async def test_an_address_change_retires_the_grant_issued_for_the_old_address():
+    endpoint, refresher = await _edited_from_oauth(
+        auth_mode=MCPAuthScheme.OAUTH, base_url="https://mcp.other.example/"
+    )
+
+    assert refresher.released == [endpoint.id]
+
+
+@pytest.mark.asyncio
+async def test_an_edit_that_keeps_mode_and_address_retires_nothing():
+    endpoint, refresher = await _edited_from_oauth(
+        auth_mode=MCPAuthScheme.OAUTH, base_url="https://example.com/mcp"
+    )
+
+    assert refresher.released == []

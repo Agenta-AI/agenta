@@ -385,6 +385,15 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                         secret_id=grant.id,
                         oauth_server_url=attempt.server_url,
                     )
+                    if bound is None:
+                        # An edit moved the connection between the read and the
+                        # bind. The tokens just written are the old address's, so
+                        # they go, unless a newer consent has bound that row since.
+                        await self._delete_unbound_grant(
+                            storage=storage,
+                            project_id=attempt.project_id,
+                            endpoint_id=attempt.endpoint_id,
+                        )
                 await settle(
                     MCPOAuthAttemptStatus.CONNECTED
                     if bound is not None
@@ -473,6 +482,40 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             endpoint_id=endpoint_id,
         )
         return await storage.delete_grant()
+
+    async def release_grant(
+        self, *, project_id: UUID, endpoint_id: UUID, server_url: str
+    ) -> None:
+        """Retire a connection's grant after an edit moved it off OAuth or to another
+        address.
+
+        The edit has already cleared the connection's binding in its own transaction.
+        The active attempts are cancelled first, which waits for a finalization in
+        progress (the attempt row before the endpoint row, as `finalize_attempt`
+        requires). The grant row then goes, unless a newer consent bound it since.
+        """
+        await self.cancel(project_id=project_id, endpoint_id=endpoint_id)
+        await self._delete_unbound_grant(
+            storage=SecretsTokenStorage(
+                vault_service=self.vault_service,
+                project_id=project_id,
+                server_url=server_url,
+                endpoint_id=endpoint_id,
+            ),
+            project_id=project_id,
+            endpoint_id=endpoint_id,
+        )
+
+    async def _delete_unbound_grant(
+        self, *, storage: SecretsTokenStorage, project_id: UUID, endpoint_id: UUID
+    ) -> None:
+        """Drop the connection's grant row unless the connection is bound to it now."""
+        endpoint = await self.endpoints_dao.fetch_endpoint(
+            project_id=project_id, endpoint_id=endpoint_id
+        )
+        await storage.delete_grant(
+            unless=endpoint.secret_id if endpoint is not None else None
+        )
 
     # Refresh
 

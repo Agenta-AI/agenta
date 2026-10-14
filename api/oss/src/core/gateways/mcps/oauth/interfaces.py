@@ -37,6 +37,15 @@ class MCPOAuthRefresherInterface(ABC):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    async def release_grant(
+        self, *, project_id: UUID, endpoint_id: UUID, server_url: str
+    ) -> None:
+        """Retire a connection's grant after an edit moved it off OAuth or to another
+        address. The edit clears the binding itself; this cancels the attempts still in
+        flight and removes the grant row unless a newer consent bound it."""
+        raise NotImplementedError
+
 
 # Records how a locked attempt ended, inside the transaction that holds its lock.
 MCPOAuthAttemptSettler = Callable[[MCPOAuthAttemptStatus], Awaitable[None]]
@@ -118,6 +127,12 @@ class MCPOAuthAttemptsDAOInterface(ABC):
         cancelled or has expired. A cancel arriving while the block runs waits for it, so
         the outcome recorded inside the block cannot be overtaken. The outcome is
         committed when the block ends without raising.
+
+        The lock lives on its own connection, so DAO calls inside the block that commit
+        their own sessions do not release it. Lock order is required: the attempt row
+        first, then the endpoint row. Every path that takes both (this block's bind, a
+        cancel, `release_grant`) takes them in that order, or two of them can wait on
+        each other with no way for the database to see it.
         """
         raise NotImplementedError
 

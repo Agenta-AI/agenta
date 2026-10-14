@@ -181,7 +181,9 @@ class MCPEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
     status: Optional[Status] = None
 
 
-def is_oauth_connection_at(endpoint: Optional[MCPEndpoint], server_url: str) -> bool:
+def is_oauth_connection_at(
+    endpoint: Optional[Union[MCPEndpoint, "MCPEndpointEdit"]], server_url: str
+) -> bool:
     """Whether a connection is still OAuth at this address, so a grant issued for that
     address may be bound to it."""
     return (

@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateway.connections.dtos import Connection
 from oss.src.core.gateway.connections.service import ConnectionsService
-from oss.src.core.gateways.mcps.dtos import MCPAuthScheme
+from oss.src.core.gateways.mcps.dtos import MCPAuthScheme, is_oauth_connection_at
 from oss.src.core.gateways.dtos import (
     GatewayConnectAffordance,
     GatewayConnectionRequirement,
@@ -379,12 +379,28 @@ class MCPGatewayService:
             await self._check_name_is_free(
                 project_id=project_id, name=endpoint.name, excluding=endpoint.id
             )
-        return await self.mcp_endpoints_dao.edit_endpoint(
+        edited = await self.mcp_endpoints_dao.edit_endpoint(
             project_id=project_id,
             user_id=user_id,
             #
             endpoint=endpoint,
         )
+        # The edit cleared the old binding in its own transaction. What is left is the
+        # consent still in flight and the grant row, both issued for the old address.
+        if (
+            edited is not None
+            and current is not None
+            and current.data.route.base_url
+            and is_oauth_connection_at(current, current.data.route.base_url)
+            and not is_oauth_connection_at(edited, current.data.route.base_url)
+            and self.oauth_refresher is not None
+        ):
+            await self.oauth_refresher.release_grant(
+                project_id=project_id,
+                endpoint_id=endpoint.id,
+                server_url=current.data.route.base_url,
+            )
+        return edited
 
     async def delete_endpoint(
         self,

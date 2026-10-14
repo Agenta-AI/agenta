@@ -157,18 +157,14 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
         endpoint: MCPEndpointEdit,
     ) -> Optional[MCPEndpoint]:
         async with self.engine.session() as session:
-            stmt = (
-                select(self.MCPEndpointDBE)
-                .filter(self.MCPEndpointDBE.project_id == project_id)
-                .filter(self.MCPEndpointDBE.id == endpoint.id)
-                .limit(1)
+            # Locked, so the binding cleared below and the address that replaces it
+            # are published together.
+            dbe = await self._locked(
+                session, project_id=project_id, endpoint_id=endpoint.id
             )
-
-            result = await session.execute(stmt)
-            dbe = result.scalars().first()
-
             if not dbe:
                 return None
+            before = map_mcp_endpoint_dbe_to_dto(dbe=dbe)
 
             # Before the mapping, not after: this edit is a full PUT that assigns the
             # row's credential from the payload, and a query issued against a session
@@ -186,6 +182,15 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
                 #
                 dto=endpoint,
             )
+            # An OAuth grant was issued for the old mode and address. Kept on the row,
+            # a relay would send the old server's token to the new address.
+            old_url = before.data.route.base_url or ""
+            if (
+                is_oauth_connection_at(before, old_url)
+                and not is_oauth_connection_at(endpoint, old_url)
+                and dbe.secret_id == before.secret_id
+            ):
+                dbe.secret_id = None
             flag_modified(dbe, "data")
             flag_modified(dbe, "flags")
 

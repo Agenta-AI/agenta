@@ -194,27 +194,29 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
         *,
         attempt_id: UUID,
     ) -> AsyncIterator[Optional[MCPOAuthAttemptSettler]]:
-        async with self.engine.session() as session:
-            result = await session.execute(
-                select(self.MCPOAuthAttemptDBE)
-                .where(self.MCPOAuthAttemptDBE.id == attempt_id)
-                .where(
-                    self.MCPOAuthAttemptDBE.status
-                    == MCPOAuthAttemptStatus.CLAIMED.value
-                )
-                .where(self.MCPOAuthAttemptDBE.expires_at > datetime.now(timezone.utc))
+        # Its own connection, not the task-scoped session: the block runs DAO calls that
+        # open that session and commit it on exit, which would release this lock.
+        table = self.MCPOAuthAttemptDBE.__table__
+        async with self.engine.transaction() as connection:
+            locked = await connection.execute(
+                select(table.c.id)
+                .where(table.c.id == attempt_id)
+                .where(table.c.status == MCPOAuthAttemptStatus.CLAIMED.value)
+                .where(table.c.expires_at > datetime.now(timezone.utc))
                 .with_for_update()
             )
-            dbe = result.scalars().first()
-            if dbe is None:
+            if locked.first() is None:
                 yield None
                 return
 
             async def settle(status: MCPOAuthAttemptStatus) -> None:
-                dbe.status = status.value
+                await connection.execute(
+                    update(table)
+                    .where(table.c.id == attempt_id)
+                    .values(status=status.value)
+                )
 
             yield settle
-            await session.commit()
 
     async def cancel_attempts(
         self,
