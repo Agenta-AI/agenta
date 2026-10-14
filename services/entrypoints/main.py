@@ -1,3 +1,4 @@
+import logging
 from os import getenv
 
 from fastapi import FastAPI, Request
@@ -6,7 +7,12 @@ from starlette.types import ASGIApp
 from starlette.middleware.base import BaseHTTPMiddleware
 
 import agenta as ag
-from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.utils.logging import (
+    AGENTA_LOG_FORMAT,
+    GOOGLE_CLOUD_PROJECT,
+    JsonFormatter,
+    get_module_logger,
+)
 from agenta.sdk.decorators.routing import (
     create_app,
     apply_invoke_prelude,
@@ -54,6 +60,17 @@ from entrypoints.prefix import ServicesPrefixStripMiddleware
 ag.init()
 
 log = get_module_logger(__name__)
+
+# gunicorn and uvicorn log through their own stdlib handlers, outside structlog
+if AGENTA_LOG_FORMAT == "json":
+    for name in (
+        "gunicorn.error",
+        "gunicorn.access",
+        "uvicorn.error",
+        "uvicorn.access",
+    ):
+        for handler in logging.getLogger(name).handlers:
+            handler.setFormatter(JsonFormatter(GOOGLE_CLOUD_PROJECT))
 
 
 # ---------------------------------------------------------------------------

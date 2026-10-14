@@ -3,9 +3,12 @@ from typing import Any, Optional
 import os
 import re
 import sys
+import json
 import logging
+from datetime import datetime, timezone
 
 import structlog
+from opentelemetry.trace import get_current_span
 from structlog.typing import EventDict, WrappedLogger, Processor
 
 TRACE_LEVEL = 1
@@ -30,6 +33,9 @@ structlog.stdlib.BoundLogger.trace = bound_logger_trace
 # ENV VARS
 AGENTA_LOG_CONSOLE_ENABLED = os.getenv("AGENTA_LOG_CONSOLE_ENABLED", "true") == "true"
 AGENTA_LOG_CONSOLE_LEVEL = os.getenv("AGENTA_LOG_CONSOLE_LEVEL", "TRACE").upper()
+# "text" (colored, the default) or "json" (one object per line, for log collectors)
+AGENTA_LOG_FORMAT = os.getenv("AGENTA_LOG_FORMAT", "text").strip().lower()
+GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT") or None
 
 # COLORS
 LEVEL_COLORS = {
@@ -116,6 +122,119 @@ def colored_console_renderer() -> Processor:
     return render
 
 
+# Google Cloud Logging severities: https://cloud.google.com/logging/docs/reference/v2/rest/v2/LogEntry#LogSeverity
+JSON_SEVERITIES = {
+    "TRACE": "DEBUG",
+    "DEBUG": "DEBUG",
+    "INFO": "INFO",
+    "INFO.": "INFO",
+    "WARNING": "WARNING",
+    "WARN.": "WARNING",
+    "ERROR": "ERROR",
+    "CRITICAL": "CRITICAL",
+    "FATAL": "CRITICAL",
+}
+
+JSON_HIDDEN = {
+    "SeverityText",
+    "SeverityNumber",
+    "MethodName",
+    "LoggerName",
+    "logger_factory",
+    "level",
+}
+
+
+def _is_product_span(span: Any) -> bool:
+    # spans of the Agenta product tracer belong to the customer's trace, not ours
+    # read, never import: agenta imports this module while it loads
+    ag = sys.modules.get("agenta")
+    provider = getattr(getattr(ag, "tracing", None), "tracer_provider", None)
+
+    return provider is not None and getattr(span, "resource", None) is getattr(
+        provider, "resource", None
+    )
+
+
+def trace_fields(project: Optional[str] = None) -> dict:
+    """Trace fields for the active sampled span, or {} when there is none."""
+    try:
+        span = get_current_span()
+        context = span.get_span_context()
+    except Exception:  # pylint: disable=broad-except
+        return {}
+
+    if not context.is_valid or not context.trace_flags.sampled:
+        return {}
+
+    if _is_product_span(span):
+        return {}
+
+    trace_id = format(context.trace_id, "032x")
+    span_id = format(context.span_id, "016x")
+
+    if not project:
+        # the names the OpenTelemetry logging instrumentation uses; a bare
+        # trace_id would clash with the product trace ids some log lines carry
+        return {"otelTraceID": trace_id, "otelSpanID": span_id}
+
+    return {
+        "logging.googleapis.com/trace": f"projects/{project}/traces/{trace_id}",
+        "logging.googleapis.com/spanId": span_id,
+        "logging.googleapis.com/trace_sampled": True,
+    }
+
+
+def json_renderer(project: Optional[str] = None) -> Processor:
+    """Render a structlog event as one JSON object (Google Cloud Logging fields)."""
+
+    def render(_, __, event_dict: EventDict) -> str:
+        level = event_dict.get("level", "INFO")
+        record = {
+            "severity": JSON_SEVERITIES.get(level, "DEFAULT"),
+            "message": event_dict.pop("event", ""),
+            "time": event_dict.pop("Timestamp", None)
+            or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        }
+        for key, value in event_dict.items():
+            if key not in JSON_HIDDEN:
+                record[key] = value
+        record.update(trace_fields(project))
+        return json.dumps(record, default=str)
+
+    return render
+
+
+class JsonFormatter(logging.Formatter):
+    """Format a plain stdlib record (uvicorn, gunicorn, ...) like json_renderer."""
+
+    def __init__(self, project: Optional[str] = None):
+        super().__init__()
+        self.project = project
+
+    def format(self, record: logging.LogRecord) -> str:
+        entry = {
+            "severity": JSON_SEVERITIES.get(record.levelname, "DEFAULT"),
+            "message": record.getMessage(),
+            "time": datetime.fromtimestamp(record.created, timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "logger": record.name,
+        }
+        if record.exc_info:
+            entry["exception"] = self.formatException(record.exc_info)
+        entry.update(trace_fields(self.project))
+        return json.dumps(entry, default=str)
+
+
+def console_renderer(
+    log_format: Optional[str] = None, project: Optional[str] = None
+) -> Processor:
+    if (log_format or AGENTA_LOG_FORMAT) == "json":
+        return json_renderer(project)
+    return colored_console_renderer()
+
+
 SHARED_PROCESSORS: list[Processor] = [
     structlog.processors.TimeStamper(fmt="iso", utc=True, key="Timestamp"),
     process_positional_args,
@@ -161,7 +280,11 @@ if AGENTA_LOG_CONSOLE_ENABLED and not _LOGGING_CONFIGURED:
         console_logger.setLevel(TRACE_LEVEL)
         console_logger.propagate = False
 
-    loggers.append(create_struct_logger([colored_console_renderer()], "console"))
+    loggers.append(
+        create_struct_logger(
+            [console_renderer(AGENTA_LOG_FORMAT, GOOGLE_CLOUD_PROJECT)], "console"
+        )
+    )
 
 
 class MultiLogger:

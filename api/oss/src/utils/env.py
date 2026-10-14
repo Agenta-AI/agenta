@@ -393,6 +393,11 @@ class LoggingConfig(BaseModel):
         or "INFO"
     ).upper()
 
+    # "text" (colored, the default) or "json" (one object per line)
+    format: str = (os.getenv("AGENTA_LOG_FORMAT") or "text").strip().lower()
+    # Prefixes trace ids in JSON logs for Google Cloud Logging
+    google_cloud_project: str | None = os.getenv("GOOGLE_CLOUD_PROJECT") or None
+
     model_config = ConfigDict(extra="ignore")
 
 
