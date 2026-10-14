@@ -294,7 +294,9 @@ class _StallingBody(httpx.AsyncByteStream):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status,stream", [(429, True), (429, False), (503, False)])
+@pytest.mark.parametrize(
+    "status,stream", [(429, True), (429, False), (503, True), (503, False)]
+)
 async def test_an_error_body_that_never_arrives_is_a_timeout_and_is_not_retried(
     sleeps, status, stream
 ):
@@ -305,3 +307,24 @@ async def test_an_error_body_that_never_arrives_is_a_timeout_and_is_not_retried(
 
     assert len(calls) == 1
     assert sleeps == []
+
+
+class _StallsAfterOneChunk(httpx.AsyncByteStream):
+    async def __aiter__(self):
+        yield b'data: {"choices": [{"delta": {"content": "Hi"}}]}\n\n'
+        raise httpx.ReadTimeout("timed out")
+
+
+@pytest.mark.asyncio
+async def test_a_stream_that_stalls_after_it_started_ends_with_the_connection_lost_event(
+    sleeps,
+):
+    adapter, calls = _upstream(httpx.Response(200, stream=_StallsAfterOneChunk()))
+
+    result = await _relay(_service(adapter), stream=True)
+    chunks = [chunk async for chunk in result.body]
+
+    assert len(calls) == 1
+    assert sleeps == []
+    assert b"Hi" in chunks[0]
+    assert b"connection error" in chunks[-1]
