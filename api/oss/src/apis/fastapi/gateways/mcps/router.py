@@ -391,12 +391,6 @@ class MCPGatewayRouter:
 
         _guard_custom_endpoint_url(url=body.endpoint.data.route.base_url)
 
-        current = await self.service.fetch_endpoint(
-            project_id=scope.project_id,
-            #
-            endpoint_id=endpoint_id,
-        )
-
         endpoint = await self.service.edit_endpoint(
             project_id=scope.project_id,
             user_id=scope.user_id,
@@ -407,26 +401,6 @@ class MCPGatewayRouter:
             raise MCPEndpointNotFoundError(
                 namespace=GatewayEndpointNamespace.CUSTOM,
                 name=str(endpoint_id),
-            )
-
-        if current is not None and (
-            current.auth_mode != endpoint.auth_mode
-            or current.data.route.base_url != endpoint.data.route.base_url
-        ):
-            if current.auth_mode == GatewayAuthScheme.OAUTH:
-                pass  # The service now retires the old binding, attempts and grant.
-            else:
-                await self.oauth_connect_service.cancel(
-                    project_id=scope.project_id, endpoint_id=endpoint_id
-                )
-        elif (
-            current is not None
-            and current.data.oauth_config != endpoint.data.oauth_config
-        ):
-            # A consent begun as one client must not finish as another. The grant stays:
-            # it renews only as the client it was issued to, and says so when it cannot.
-            await self.oauth_connect_service.cancel(
-                project_id=scope.project_id, endpoint_id=endpoint_id
             )
 
         return MCPEndpointResponse(count=1, endpoint=endpoint)

@@ -27,6 +27,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointFlags,
     MCPEndpointQuery,
     MCPEndpointRoute,
+    MCPOAuthConfig,
     MCPToolFilter,
 )
 from oss.src.core.gateways.mcps.interfaces import (
@@ -2491,6 +2492,7 @@ class _ReleasingRefresher:
 
     def __init__(self) -> None:
         self.released: List[UUID] = []
+        self.cancelled: List[UUID] = []
 
     async def refresh_grant(self, *, project_id, endpoint_id, server_url) -> None:
         raise AssertionError("an edit does not refresh")
@@ -2498,8 +2500,12 @@ class _ReleasingRefresher:
     async def release_grant(self, *, project_id, endpoint_id, server_url) -> None:
         self.released.append(endpoint_id)
 
+    async def cancel(self, *, project_id, endpoint_id, attempt_id=None) -> int:
+        self.cancelled.append(endpoint_id)
+        return 1
 
-async def _edited_from_oauth(*, auth_mode, base_url):
+
+async def _edited_from_oauth(*, auth_mode, base_url, oauth_config=None):
     dao = MockMCPEndpointsDAO()
     refresher = _ReleasingRefresher()
     service = _relay_service(
@@ -2514,7 +2520,10 @@ async def _edited_from_oauth(*, auth_mode, base_url):
             name=endpoint.name,
             auth_mode=auth_mode,
             data=endpoint.data.model_copy(
-                update={"route": MCPEndpointRoute(base_url=base_url)}
+                update={
+                    "route": MCPEndpointRoute(base_url=base_url),
+                    "oauth_config": oauth_config,
+                }
             ),
         ),
     )
@@ -2545,4 +2554,46 @@ async def test_an_edit_that_keeps_mode_and_address_retires_nothing():
         auth_mode=MCPAuthScheme.OAUTH, base_url="https://example.com/mcp"
     )
 
+    assert refresher.released == []
+    assert refresher.cancelled == []
+
+
+@pytest.mark.asyncio
+async def test_a_changed_oauth_client_cancels_the_consents_and_keeps_the_grant():
+    """A consent begun as one client must not finish as another. The grant stays: it
+    renews only as the client it was issued to."""
+    endpoint, refresher = await _edited_from_oauth(
+        auth_mode=MCPAuthScheme.OAUTH,
+        base_url="https://example.com/mcp",
+        oauth_config=MCPOAuthConfig(client_id="app-from-github"),
+    )
+
+    assert refresher.cancelled == [endpoint.id]
+    assert refresher.released == []
+
+
+@pytest.mark.asyncio
+async def test_a_switch_to_oauth_cancels_the_consents_and_retires_nothing():
+    dao = MockMCPEndpointsDAO()
+    refresher = _ReleasingRefresher()
+    service = _relay_service(
+        mcp_endpoints_dao=dao, adapters={}, oauth_refresher=refresher
+    )
+    endpoint = await _oauth_endpoint(dao)
+    dao._by_id[endpoint.id] = endpoint.model_copy(
+        update={"auth_mode": MCPAuthScheme.API_KEY}
+    )
+
+    await service.edit_endpoint(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint=MCPEndpointEdit(
+            id=endpoint.id,
+            name=endpoint.name,
+            auth_mode=MCPAuthScheme.OAUTH,
+            data=endpoint.data,
+        ),
+    )
+
+    assert refresher.cancelled == [endpoint.id]
     assert refresher.released == []

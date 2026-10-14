@@ -66,6 +66,9 @@ class MCPOAuthAttemptCreate(BaseModel):
     code_verifier: str
     scopes: List[str] = Field(default_factory=list)
     strategy: str = "outbound"
+    # The client id the authorization was started with. The callback binds the grant
+    # only while the connection still selects this client.
+    client_id: Optional[str] = None
     expires_at: datetime
 
 

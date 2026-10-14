@@ -235,6 +235,26 @@ def is_oauth_connection_at(
     )
 
 
+def configured_oauth_client(
+    endpoint: Optional[Union[MCPEndpoint, "MCPEndpointEdit"]],
+) -> Optional[str]:
+    """The OAuth client a person entered for this connection, or `None` for none."""
+    config = endpoint.data.oauth_config if endpoint is not None else None
+    return config.client_id if config is not None else None
+
+
+def is_oauth_connection_for(
+    endpoint: Optional[Union[MCPEndpoint, "MCPEndpointEdit"]],
+    server_url: str,
+    client_id: Optional[str],
+) -> bool:
+    """Whether a grant issued at this address, to this entered client (`None` for a
+    client Agenta chose), may still be bound to the connection."""
+    return is_oauth_connection_at(endpoint, server_url) and (
+        configured_oauth_client(endpoint) == client_id
+    )
+
+
 def _check_url_binding_mode(auth_mode: MCPAuthScheme, data: MCPEndpointData) -> None:
     """Refuse a `url` binding on a row that sends no API key. Raises `ValueError`.
 

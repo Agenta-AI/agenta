@@ -11,7 +11,11 @@ from uuid import UUID, uuid4
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateway.connections.dtos import Connection
 from oss.src.core.gateway.connections.service import ConnectionsService
-from oss.src.core.gateways.mcps.dtos import MCPAuthScheme, is_oauth_connection_at
+from oss.src.core.gateways.mcps.dtos import (
+    MCPAuthScheme,
+    configured_oauth_client,
+    is_oauth_connection_at,
+)
 from oss.src.core.gateways.dtos import (
     GatewayConnectAffordance,
     GatewayConnectionRequirement,
@@ -385,20 +389,30 @@ class MCPGatewayService:
             #
             endpoint=endpoint,
         )
+        if edited is None or current is None or self.oauth_refresher is None:
+            return edited
         # The edit cleared the old binding in its own transaction. What is left is the
         # consent still in flight and the grant row, both issued for the old address.
+        old_url = current.data.route.base_url
         if (
-            edited is not None
-            and current is not None
-            and current.data.route.base_url
-            and is_oauth_connection_at(current, current.data.route.base_url)
-            and not is_oauth_connection_at(edited, current.data.route.base_url)
-            and self.oauth_refresher is not None
+            old_url
+            and is_oauth_connection_at(current, old_url)
+            and not is_oauth_connection_at(edited, old_url)
         ):
             await self.oauth_refresher.release_grant(
-                project_id=project_id,
-                endpoint_id=endpoint.id,
-                server_url=current.data.route.base_url,
+                project_id=project_id, endpoint_id=endpoint.id, server_url=old_url
+            )
+        elif (
+            current.auth_mode != edited.auth_mode
+            or old_url != edited.data.route.base_url
+            or configured_oauth_client(current) != configured_oauth_client(edited)
+        ):
+            # A consent begun for another mode, address or client must not finish on
+            # this one. Finalization checks the same facts under the attempt lock, so
+            # one that completes before this cancel still binds nothing. The grant
+            # stays: it renews only as the client it was issued to.
+            await self.oauth_refresher.cancel(
+                project_id=project_id, endpoint_id=endpoint.id
             )
         return edited
 

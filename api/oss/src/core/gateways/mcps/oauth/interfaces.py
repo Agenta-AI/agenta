@@ -46,6 +46,17 @@ class MCPOAuthRefresherInterface(ABC):
         flight and removes the grant row unless a newer consent bound it."""
         raise NotImplementedError
 
+    @abstractmethod
+    async def cancel(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+        attempt_id: Optional[UUID] = None,
+    ) -> int:
+        """Cancel one active attempt, or every active attempt of a connection."""
+        raise NotImplementedError
+
 
 # Records how a locked attempt ended, inside the transaction that holds its lock.
 MCPOAuthAttemptSettler = Callable[[MCPOAuthAttemptStatus], Awaitable[None]]

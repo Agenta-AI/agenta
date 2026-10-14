@@ -51,7 +51,14 @@ class _EndpointStore:
         return [self.endpoint]
 
     async def bind_endpoint_secret(
-        self, *, project_id, user_id, endpoint_id, secret_id, oauth_server_url=None
+        self,
+        *,
+        project_id,
+        user_id,
+        endpoint_id,
+        secret_id,
+        oauth_server_url=None,
+        oauth_client_id=None,
     ):
         if oauth_server_url is not None and (
             self.endpoint.auth_mode != GatewayAuthScheme.OAUTH

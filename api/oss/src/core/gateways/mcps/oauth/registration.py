@@ -15,6 +15,7 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 _METADATA_PATH = "/gateways/mcps/oauth/client-metadata.json"
+_CALLBACK_PATH = "/gateways/mcps/connect/callback"
 
 # Long enough for a resolver that is merely slow, short enough that one that is gone does
 # not hold a consent step open.
@@ -25,6 +26,11 @@ Resolver = Callable[[str], List[str]]
 
 def _default_resolve(hostname: str) -> List[str]:
     return [info[4][0] for info in socket.getaddrinfo(hostname, None)]
+
+
+def callback_redirect_uri(*, api_url: str) -> str:
+    """Return the fixed OAuth callback URI."""
+    return f"{api_url.rstrip('/')}{_CALLBACK_PATH}"
 
 
 def client_metadata_url(*, api_url: str) -> str:

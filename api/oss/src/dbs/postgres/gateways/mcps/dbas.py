@@ -69,6 +69,8 @@ class MCPOAuthAttemptDBA(ProjectScopeDBA, UserScopeDBA, IdentifierDBA):
     code_verifier = Column(String, nullable=False)
     scopes = Column(JSONB, nullable=True)
     strategy = Column(String, nullable=False)
+    # The client the attempt signs in as. See `MCPOAuthAttemptCreate.client_id`.
+    client_id = Column(String, nullable=True)
     expires_at = Column(TIMESTAMP(timezone=True), nullable=False)
     # How the attempt ended, kept until the sweep so the browser can ask when the
     # popup's message never arrives. See `MCPOAuthAttemptStatus`.

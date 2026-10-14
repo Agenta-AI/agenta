@@ -1016,51 +1016,6 @@ def _edit(client, endpoint_id, *, auth_mode, base_url=_SERVER_URL):
     )
 
 
-def test_a_switch_to_oauth_cancels_attempts_and_removes_nothing(
-    client, service, oauth_service, allow
-):
-    endpoint_id = uuid4()
-    service.fetch_return = _endpoint(endpoint_id)
-    service.edit_return = _oauth_endpoint(endpoint_id)
-
-    response = _edit(client, endpoint_id, auth_mode="oauth")
-
-    assert response.status_code == 200
-    assert oauth_service.cancelled == [(endpoint_id, None)]
-    assert oauth_service.disconnected == []
-
-
-def test_a_changed_oauth_client_cancels_attempts_and_keeps_the_grant(
-    client, service, oauth_service, allow
-):
-    """A consent begun as one client must not finish as another."""
-    endpoint_id = uuid4()
-    service.fetch_return = _oauth_endpoint(endpoint_id)
-    service.edit_return = _oauth_endpoint(
-        endpoint_id, oauth_config=MCPOAuthConfig(client_id="app-from-github")
-    )
-
-    response = _edit(client, endpoint_id, auth_mode="oauth")
-
-    assert response.status_code == 200
-    assert oauth_service.cancelled == [(endpoint_id, None)]
-    assert oauth_service.disconnected == []
-
-
-def test_an_edit_that_keeps_mode_and_address_leaves_attempts_alone(
-    client, service, oauth_service, allow
-):
-    endpoint_id = uuid4()
-    service.fetch_return = _oauth_endpoint(endpoint_id)
-    service.edit_return = _oauth_endpoint(endpoint_id)
-
-    response = _edit(client, endpoint_id, auth_mode="oauth")
-
-    assert response.status_code == 200
-    assert oauth_service.cancelled == []
-    assert oauth_service.disconnected == []
-
-
 def test_connect_binds_the_attempt_to_the_endpoint_it_was_started_from(
     client, service, oauth_service, allow
 ):
@@ -1148,7 +1103,7 @@ def test_edit_endpoint_reaches_the_service(client, service, allow):
     )
 
     assert response.status_code == 200
-    assert service.calls == ["fetch_endpoint", "edit_endpoint"]
+    assert service.calls == ["edit_endpoint"]
 
 
 def test_edit_endpoint_rejects_a_path_body_id_mismatch(client, service, allow):

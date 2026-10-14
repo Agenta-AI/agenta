@@ -36,6 +36,7 @@ from oss.src.core.gateways.mcps.oauth.service import (
 from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthDiscoveryError,
+    MCPOAuthTokenExchangeError,
     MCPOAuthRegistrationUnavailableError,
     MCPOAuthRegistrationUnresolvablePinError,
 )
@@ -377,7 +378,11 @@ async def test_a_grant_from_an_entered_client_is_renewed_as_that_client():
     _put_endpoint(
         endpoints,
         endpoint_id,
-        MCPOAuthConfig(client_id="app-from-github", client_secret_id=secret_id),
+        MCPOAuthConfig(
+            client_id="app-from-github",
+            client_secret_id=secret_id,
+            token_endpoint_auth_method="client_secret_post",
+        ),
     )
     await _store_grant(
         service,
@@ -554,13 +559,40 @@ async def test_none_sends_only_the_client_id(send):
 
 
 @pytest.mark.asyncio
-async def test_a_registration_that_names_no_method_sends_the_secret_in_the_body():
+@pytest.mark.parametrize("send", [_exchange, _refresh])
+async def test_a_registration_that_names_no_method_takes_the_rfc_default(send):
+    """RFC 7591 s2: an unnamed method is `client_secret_basic` for a client with a
+    secret, and a client issued none is public."""
+    with_secret: List[httpx.Request] = []
+    await send(_token_client(with_secret), _client_info(None))
+    assert with_secret[0].headers["authorization"].startswith("Basic ")
+
+    without: List[httpx.Request] = []
+    await send(_token_client(without), _client_info(None, secret=None))
+    assert "authorization" not in without[0].headers
+    assert parse_qs(without[0].content.decode())["client_id"] == ["app-one"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("send", [_exchange, _refresh])
+@pytest.mark.parametrize(
+    "method, secret, refusal",
+    [
+        ("private_key_jwt", "app-secret-one", "does not support"),
+        ("none", "app-secret-one", "has a client secret"),
+        ("client_secret_basic", None, "has no client secret"),
+        ("client_secret_post", None, "has no client secret"),
+    ],
+)
+async def test_a_method_that_cannot_be_honored_is_refused_before_anything_is_sent(
+    send, method, secret, refusal
+):
     requests: List[httpx.Request] = []
 
-    await _exchange(_token_client(requests), _client_info(None))
+    with pytest.raises(MCPOAuthTokenExchangeError, match=refusal):
+        await send(_token_client(requests), _client_info(method, secret=secret))
 
-    form = parse_qs(requests[0].content.decode())
-    assert form["client_secret"] == ["app-secret-one"]
+    assert requests == []
 
 
 def test_basic_credentials_are_form_encoded_before_they_are_joined():
@@ -637,7 +669,7 @@ async def test_the_origin_is_not_tried_after_a_document_that_does_not_parse():
     )
     client = MCPOAuthClient(transport=httpx.MockTransport(server))
 
-    with pytest.raises(MCPOAuthDiscoveryError, match="no usable"):
+    with pytest.raises(MCPOAuthDiscoveryError, match="could not be read"):
         await client.discover(server_url=_SERVER_URL)
 
     assert "mcp.acme.io/.well-known/oauth-authorization-server" not in server.paths

@@ -52,6 +52,7 @@ def _to_dto(row) -> MCPOAuthAttempt:
         code_verifier=values["code_verifier"],
         scopes=values.get("scopes") or [],
         strategy=values["strategy"],
+        client_id=values.get("client_id"),
         expires_at=values["expires_at"],
         status=values["status"],
         error=values.get("error"),
@@ -96,6 +97,7 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
             code_verifier=attempt.code_verifier,
             scopes=list(attempt.scopes),
             strategy=attempt.strategy,
+            client_id=attempt.client_id,
             expires_at=attempt.expires_at,
         )
 

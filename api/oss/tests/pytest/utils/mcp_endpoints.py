@@ -13,7 +13,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
     MCPEndpointData,
     MCPEndpointRoute,
-    is_oauth_connection_at,
+    is_oauth_connection_for,
 )
 from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
 
@@ -56,13 +56,14 @@ class InMemoryMCPEndpoints:
         endpoint_id,
         secret_id,
         oauth_server_url=None,
+        oauth_client_id=None,
     ) -> Optional[MCPEndpoint]:
         # Read directly, as the real bind reads the row it locks.
         current = self._current(endpoint_id)
         if current is None:
             return None
-        if oauth_server_url is not None and not is_oauth_connection_at(
-            current, oauth_server_url
+        if oauth_server_url is not None and not is_oauth_connection_for(
+            current, oauth_server_url, oauth_client_id
         ):
             return None
         bound = current.model_copy(update={"secret_id": secret_id})

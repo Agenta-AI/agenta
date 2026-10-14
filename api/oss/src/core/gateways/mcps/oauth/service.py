@@ -12,7 +12,7 @@ from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 from oss.src.core.gateways.mcps.dtos import (
     MCPOAuthConfig,
     api_key_value,
-    is_oauth_connection_at,
+    is_oauth_connection_for,
 )
 from oss.src.core.gateways.mcps.interfaces import MCPEndpointsDAOInterface
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient, same_issuer
@@ -31,6 +31,7 @@ from oss.src.core.gateways.mcps.oauth.interfaces import (
 )
 from oss.src.core.gateways.mcps.oauth.registration import (
     Resolver,
+    callback_redirect_uri,
     identity_document_client_info,
     is_publicly_resolvable_async,
     registration_covers,
@@ -57,12 +58,11 @@ from oss.src.core.gateways.types import GatewaysError
 from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO
 from oss.src.core.secrets.services import VaultService
 
-_CALLBACK_PATH = "/gateways/mcps/connect/callback"
 
-
-def callback_redirect_uri(*, api_url: str) -> str:
-    """Return the fixed OAuth callback URI."""
-    return f"{api_url.rstrip('/')}{_CALLBACK_PATH}"
+def _entered_client(attempt: MCPOAuthAttempt) -> Optional[str]:
+    """The client the person entered that the attempt signs in as, `None` for one
+    Agenta chose. The connection must still select the same one when it completes."""
+    return attempt.client_id if attempt.strategy == "explicit" else None
 
 
 def _expired(attempt: MCPOAuthAttempt) -> bool:
@@ -259,6 +259,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 code_verifier=pkce.code_verifier,
                 scopes=list(scopes),
                 strategy=strategy,
+                client_id=client_info.client_id,
                 expires_at=datetime.now(timezone.utc)
                 + timedelta(seconds=STATE_TTL_SECONDS),
             )
@@ -406,6 +407,9 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             storage, client_id, tokens = await self._exchange(
                 attempt=attempt, code=code
             )
+        except MCPOAuthAttemptCancelledError:
+            await self.settle(attempt=attempt, status=MCPOAuthAttemptStatus.CANCELLED)
+            raise
         except GatewaysError as e:
             await self.settle(
                 attempt=attempt, status=MCPOAuthAttemptStatus.FAILED, error=e.message
@@ -420,7 +424,9 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 endpoint = await self.endpoints_dao.fetch_endpoint(
                     project_id=attempt.project_id, endpoint_id=attempt.endpoint_id
                 )
-                if is_oauth_connection_at(endpoint, attempt.server_url):
+                if is_oauth_connection_for(
+                    endpoint, attempt.server_url, _entered_client(attempt)
+                ):
                     # `storage` carries the attempt's issuer, so the grant is written
                     # pinned to the authorization server that actually issued it.
                     # `refresh_grant` requires that pin to still hold before it presents
@@ -434,6 +440,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                         endpoint_id=attempt.endpoint_id,
                         secret_id=grant.id,
                         oauth_server_url=attempt.server_url,
+                        oauth_client_id=_entered_client(attempt),
                     )
                     if bound is None:
                         # An edit moved the connection between the read and the
@@ -492,13 +499,14 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 api_url=self.api_url, redirect_uri=attempt.redirect_uri
             )
         elif attempt.strategy == "explicit":
-            # Read again rather than carried on the attempt. A change to the client
-            # cancels the attempts begun with the old one, so this is the same client.
+            # The secret is read now, from the client the attempt started with. A
+            # connection that has moved to another client since is cancelled here, and
+            # again under the attempt lock, so a change during the exchange binds nothing.
             oauth_config = await self._oauth_config(
                 project_id=attempt.project_id, endpoint_id=attempt.endpoint_id
             )
-            if oauth_config is None or not oauth_config.client_id:
-                raise MCPOAuthClientNotRegisteredError(server_url=attempt.server_url)
+            if oauth_config is None or oauth_config.client_id != attempt.client_id:
+                raise MCPOAuthAttemptCancelledError()
             client_info = await self._explicit_client_info(
                 project_id=attempt.project_id,
                 oauth_config=oauth_config,
