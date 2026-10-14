@@ -142,9 +142,9 @@ describe("a url binding", () => {
     const firecrawl = "https://mcp.firecrawl.dev/{secret}/v2/mcp"
 
     it("is stored with nothing to name, whatever the fields held before", () => {
-        expect(normalizeCredentialBinding({kind: "url", name: "Authorization", prefix: "Bearer"})).toEqual(
-            {kind: "url"},
-        )
+        expect(
+            normalizeCredentialBinding({kind: "url", name: "Authorization", prefix: "Bearer"}),
+        ).toEqual({kind: "url"})
         expect(credentialBindingComplete({kind: "url"})).toBe(true)
         expect(credentialBindingComplete({kind: "header", name: " "})).toBe(false)
     })
@@ -159,6 +159,14 @@ describe("a url binding", () => {
             false,
         )
         expect(urlMatchesCredentialBinding(`${firecrawl}/{secret}`, {kind: "url"})).toBe(false)
+        // Outside the path, as the API refuses it.
+        for (const misplaced of [
+            "https://mcp.example.test/mcp?key={secret}",
+            "https://mcp.example.test/mcp#{secret}",
+            "https://{secret}.example.test/mcp",
+        ]) {
+            expect(urlMatchesCredentialBinding(misplaced, {kind: "url"})).toBe(false)
+        }
         // A placeholder no other binding fills would be sent as the literal text.
         expect(urlMatchesCredentialBinding(firecrawl, {kind: "header", name: "x-api-key"})).toBe(
             false,

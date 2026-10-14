@@ -9,7 +9,7 @@ origin that has not been chosen yet.
 An address whose path holds `{secret}` (Firecrawl `/{secret}/v2/mcp`) is the one case that
 carries a credential, because without its key that address does not exist. The person
 chose that origin and the secret together, the value goes only in the path of the requests
-sent to it, and everything returned is redacted of it.
+sent to it, no OAuth discovery runs, and everything returned is redacted of it.
 
 Two protocol facts shape the order of the checks:
 
@@ -314,6 +314,44 @@ def _unsupported_transport(
     )
 
 
+def _redacted(
+    result: MCPServerProbeResult, credentials: Tuple[bytes, ...]
+) -> MCPServerProbeResult:
+    """`result` with every credential removed from each field the server could write."""
+
+    def clean(text: Optional[str]) -> Optional[str]:
+        if not text:
+            return text
+        return redact_credentials(text.encode(), credentials).decode()
+
+    auth = result.auth.model_copy(
+        update={
+            "authorization_server": clean(result.auth.authorization_server),
+            "scopes_offered": [clean(s) for s in result.auth.scopes_offered],
+            "challenge_schemes": [clean(s) for s in result.auth.challenge_schemes],
+        }
+    )
+    problem = result.problem
+    if problem is not None:
+        response = problem.response
+        problem = problem.model_copy(
+            update={
+                "message": clean(problem.message),
+                "response": response.model_copy(update={"body": clean(response.body)})
+                if response is not None
+                else None,
+            }
+        )
+    return result.model_copy(
+        update={
+            "server_name": clean(result.server_name),
+            "protocol_version": clean(result.protocol_version),
+            "auth": auth,
+            "problem": problem,
+        }
+    )
+
+
 class MCPServerProbe:
     def __init__(
         self,
@@ -377,8 +415,15 @@ class MCPServerProbe:
         them as a 500 with no cause, which is how a body the gateway could not decode
         presented itself before that was fixed at the source.
         """
+        # What the answer is cleaned of: the URL's own query values, and the value put in
+        # place of `{secret}`.
+        credentials = url_credentials(server_url) + url_value_forms(
+            [url_secret] if url_secret else []
+        )
         try:
-            return await self._probe(server_url=server_url, url_secret=url_secret)
+            result = await self._probe(
+                server_url=server_url, url_secret=url_secret, credentials=credentials
+            )
         except httpx.HTTPError as e:
             # Every transport and protocol failure httpx raises, including the decoding
             # ones that are not raised until a body is touched.
@@ -402,15 +447,17 @@ class MCPServerProbe:
                     transport=failure.cause if failure is not None else None,
                 )
             )
+        # A server that was sent a key can write it into any field it answers with, not
+        # only into a body that becomes an excerpt.
+        return _redacted(result, credentials) if url_secret else result
 
     async def _probe(
-        self, *, server_url: str, url_secret: Optional[str]
+        self,
+        *,
+        server_url: str,
+        url_secret: Optional[str],
+        credentials: Tuple[bytes, ...],
     ) -> MCPServerProbeResult:
-        # What every excerpt is cleaned of: the URL's own query values, and the value put in
-        # place of `{secret}`.
-        credentials = url_credentials(server_url) + url_value_forms(
-            [url_secret] if url_secret else []
-        )
         deadline = asyncio.get_running_loop().time() + _DEADLINE_SECONDS
         try:
             async with asyncio.timeout_at(deadline):
@@ -476,6 +523,18 @@ class MCPServerProbe:
             )
 
         # The server answered something, so it exists. What it answered decides the rest.
+        if response.status_code in (401, 403) and url_secret:
+            # The server refused the key it was sent. Discovery is not run: it follows
+            # addresses the server names, and those can carry the key to another origin.
+            return MCPServerProbeResult(
+                reachable=True,
+                auth=MCPProbeAuth(
+                    mode=MCPProbeAuthMode.UNKNOWN,
+                    challenge_status=response.status_code,
+                    challenge_schemes=_challenge_schemes(response),
+                ),
+            )
+
         if response.status_code in (401, 403):
             # An SSE endpoint and a Streamable HTTP endpoint behind the same sign-in refuse
             # an anonymous request identically (Atlassian's `/v1/sse` and `/v1/mcp` send the
@@ -562,11 +621,7 @@ class MCPServerProbe:
         deadline: float,
         credentials: Tuple[bytes, ...],
     ) -> MCPServerProbeResult:
-        """A server that refused the handshake. Ask it how to authorize.
-
-        Discovery is asked about `server_url` as stored, placeholder and all, so the value
-        for `{secret}` never travels to a metadata address or an authorization server.
-        """
+        """A server that refused the anonymous handshake. Ask it how to authorize."""
         challenged = MCPProbeAuth(
             mode=MCPProbeAuthMode.UNKNOWN,
             challenge_status=response.status_code,

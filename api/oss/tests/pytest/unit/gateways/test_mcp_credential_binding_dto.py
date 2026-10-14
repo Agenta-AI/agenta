@@ -5,11 +5,16 @@ already carry that parameter, and a query value takes no scheme prefix. A url bi
 value replaces `{secret}` in the stored URL's path, so the two must agree.
 """
 
+from uuid import uuid4
+
 import pytest
 from pydantic import ValidationError
 
 from oss.src.core.gateways.mcps.dtos import (
     MCPCredentialBinding,
+    MCPEndpointCreate,
+    MCPEndpointData,
+    MCPEndpointEdit,
     MCPEndpointRoute,
     with_url_secret,
 )
@@ -96,3 +101,25 @@ def test_the_value_is_encoded_as_one_path_segment():
         with_url_secret(_FIRECRAWL, "test key/one?x")
         == "https://mcp.firecrawl.dev/test%20key%2Fone%3Fx/v2/mcp"
     )
+
+
+def _url_data() -> MCPEndpointData:
+    return MCPEndpointData(
+        route=MCPEndpointRoute(
+            base_url=_FIRECRAWL, credential_binding=MCPCredentialBinding(kind="url")
+        )
+    )
+
+
+@pytest.mark.parametrize("auth_mode", ["none", "oauth"])
+def test_a_url_binding_is_refused_on_a_row_that_sends_no_key(auth_mode):
+    with pytest.raises(ValidationError, match="Only an API key"):
+        MCPEndpointCreate(name="Firecrawl", auth_mode=auth_mode, data=_url_data())
+    with pytest.raises(ValidationError, match="Only an API key"):
+        MCPEndpointEdit(
+            id=uuid4(), name="Firecrawl", auth_mode=auth_mode, data=_url_data()
+        )
+
+
+def test_a_url_binding_is_stored_on_an_api_key_row():
+    MCPEndpointCreate(name="Firecrawl", auth_mode="api_key", data=_url_data())

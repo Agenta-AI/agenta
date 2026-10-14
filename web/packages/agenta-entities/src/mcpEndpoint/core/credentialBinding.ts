@@ -27,13 +27,20 @@ export const MCP_URL_CREDENTIAL_BINDING: MCPCredentialBinding = {kind: "url"}
 export const hasUrlSecretPlaceholder = (url: string): boolean =>
     url.includes(MCP_URL_SECRET_PLACEHOLDER)
 
+/** The path of an address as typed: after the authority, before any query or fragment. */
+const typedPath = (url: string): string =>
+    url.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i, "").split(/[?#]/)[0]
+
 /**
  * Whether the address and the binding agree about the placeholder, as the API requires:
- * exactly one `{secret}` for a `url` binding, and none for any other.
+ * exactly one `{secret}`, in the path, for a `url` binding, and none for any other.
+ *
+ * Read from the text rather than `new URL`, which percent-encodes the braces in a path.
  */
 export function urlMatchesCredentialBinding(url: string, binding: MCPCredentialBinding): boolean {
     const count = url.split(MCP_URL_SECRET_PLACEHOLDER).length - 1
-    return binding.kind === "url" ? count === 1 : count === 0
+    if (binding.kind !== "url") return count === 0
+    return count === 1 && typedPath(url).includes(MCP_URL_SECRET_PLACEHOLDER)
 }
 
 /** Whether the binding says where the value goes: a name, or the URL's placeholder. */

@@ -181,12 +181,35 @@ class MCPEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
     status: Optional[Status] = None
 
 
+def _check_url_binding_mode(auth_mode: MCPAuthScheme, data: MCPEndpointData) -> None:
+    """Refuse a `url` binding on a row that sends no API key. Raises `ValueError`.
+
+    Only an API key fills `{secret}`, so any other mode would send the placeholder to the
+    server as the literal text.
+    """
+    binding = data.route.credential_binding
+    if (
+        binding is not None
+        and binding.kind == "url"
+        and auth_mode != MCPAuthScheme.API_KEY
+    ):
+        raise ValueError(
+            f"Only an API key can replace {URL_SECRET_PLACEHOLDER} in the URL. Choose API "
+            f"key, or remove {URL_SECRET_PLACEHOLDER} from the URL."
+        )
+
+
 class MCPEndpointCreate(Slug, Header, Metadata):
     auth_mode: MCPAuthScheme
     secret_id: Optional[UUID] = None
     #
     data: MCPEndpointData
     flags: MCPEndpointFlags = Field(default_factory=MCPEndpointFlags)
+
+    @model_validator(mode="after")
+    def _url_binding_needs_a_key(self) -> "MCPEndpointCreate":
+        _check_url_binding_mode(self.auth_mode, self.data)
+        return self
 
 
 class MCPEndpointEdit(Identifier, Header, Metadata):
@@ -195,6 +218,11 @@ class MCPEndpointEdit(Identifier, Header, Metadata):
     #
     data: MCPEndpointData
     flags: MCPEndpointFlags = Field(default_factory=MCPEndpointFlags)
+
+    @model_validator(mode="after")
+    def _url_binding_needs_a_key(self) -> "MCPEndpointEdit":
+        _check_url_binding_mode(self.auth_mode, self.data)
+        return self
 
 
 class MCPEndpointQuery(BaseModel):

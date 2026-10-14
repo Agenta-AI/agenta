@@ -1039,17 +1039,58 @@ async def test_the_excerpt_never_carries_the_secret_from_the_path(echoed):
 
 
 @pytest.mark.asyncio
-async def test_discovery_after_a_refused_secret_never_carries_the_secret():
-    """A wrong key earns a challenge, and the OAuth discovery it starts asks about the
-    stored address, so no metadata request holds the value."""
+async def test_a_refused_secret_is_reported_without_discovery():
+    """A challenge can name a metadata address on another origin that carries the key.
+    With a secret in the path, a 401 is the key refused, and nothing else is asked."""
     requests: list[httpx.Request] = []
 
-    await _probe(_protected_server(requests=requests)).probe(
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            401,
+            headers={
+                "WWW-Authenticate": (
+                    'Bearer resource_metadata="https://other.example/test-key-one/meta"'
+                )
+            },
+        )
+
+    result = await _probe(handler).probe(
         server_url=_PLACEHOLDER_URL, url_secret="test-key-one"
     )
 
-    assert len(requests) > 1
-    assert [r for r in requests[1:] if b"test-key-one" in r.url.raw_path] == []
+    # The handshake only, to the address the person typed.
+    assert [r.headers["host"] for r in requests] == ["mcp.acme.io"]
+    assert result.auth.mode == MCPProbeAuthMode.UNKNOWN
+    assert result.auth.challenge_status == 401
+    assert result.problem is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("echoed", ["test key/one", "test%20key%2Fone"])
+async def test_a_handshake_that_echoes_the_secret_returns_it_nowhere(echoed):
+    """A successful handshake can write the key into what it reports about itself."""
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                    "protocolVersion": f"v-{echoed}",
+                    "serverInfo": {"name": f"Acme {echoed}"},
+                },
+            },
+        )
+
+    result = await _probe(handler).probe(
+        server_url=_PLACEHOLDER_URL, url_secret="test key/one"
+    )
+
+    assert result.server_name == "Acme [REDACTED]"
+    assert result.protocol_version == "v-[REDACTED]"
+    assert echoed not in result.model_dump_json()
 
 
 # ---------------------------------------------------------------------------
