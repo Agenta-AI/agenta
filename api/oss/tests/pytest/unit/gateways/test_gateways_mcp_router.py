@@ -1285,13 +1285,15 @@ class _RecordingProbe:
     def __init__(self, result: MCPServerProbeResult) -> None:
         self.result = result
         self.probed: list[str] = []
-        self.url_secrets: list[str | None] = []
+        self.secrets: list[str | None] = []
+        self.bindings: list = []
 
     async def probe(
-        self, *, server_url: str, url_secret: str | None = None
+        self, *, server_url: str, secret: str | None = None, binding=None
     ) -> MCPServerProbeResult:
         self.probed.append(server_url)
-        self.url_secrets.append(url_secret)
+        self.secrets.append(secret)
+        self.bindings.append(binding)
         return self.result
 
 
@@ -1390,8 +1392,26 @@ def test_a_placeholder_url_is_probed_with_the_value_of_the_named_secret(
 
     assert response.status_code == 200, response.text
     assert probe.probed == [_PLACEHOLDER_URL]
-    assert probe.url_secrets == ["test-key-one"]
+    assert probe.secrets == ["test-key-one"]
+    assert probe.bindings[0].kind == "url"
     assert "test-key-one" not in response.text
+
+
+def test_a_key_is_probed_where_its_binding_sends_it(probe_client, probe, allow):
+    """A changed key is checked before a connection saves it, sent the way the relay
+    will send it."""
+    response = probe_client.post(
+        "/endpoints/probe",
+        json={
+            "url": _SERVER_URL,
+            "secret_id": str(uuid4()),
+            "credential_binding": {"kind": "header", "name": "X-Api-Key"},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert probe.secrets == ["test-key-one"]
+    assert probe.bindings[0].name == "X-Api-Key"
 
 
 @pytest.mark.parametrize(
@@ -1399,7 +1419,7 @@ def test_a_placeholder_url_is_probed_with_the_value_of_the_named_secret(
     [
         # A placeholder address cannot be probed anonymously.
         (_PLACEHOLDER_URL, False),
-        # And a secret is sent only to fill a placeholder.
+        # And a secret with no binding is sent only to fill a placeholder.
         (_SERVER_URL, True),
     ],
 )

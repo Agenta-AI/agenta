@@ -703,7 +703,7 @@ export function McpConnectSheet({
         )
     // What the server named when it refused the anonymous handshake. Named on a refusal even
     // when it is Bearer, because the key it was sent is the thing in question.
-    const challengeScheme = mcpChallengeScheme(state.probe)
+    const challengeScheme = mcpChallengeScheme(serverProbe)
     // The status of the request that carried the key, not the one that carried nothing.
     const refusedStatus = state.failureStatus
 

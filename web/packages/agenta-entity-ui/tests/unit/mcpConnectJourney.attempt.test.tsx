@@ -1026,7 +1026,7 @@ describe("an address with {secret}", () => {
             await journey.submitName(binding, "sec-1")
         })
 
-        expect(probeMcpUrl).toHaveBeenCalledWith(firecrawl, "project-1", "sec-1")
+        expect(probeMcpUrl).toHaveBeenCalledWith(firecrawl, "project-1", "sec-1", binding)
         const route = createMcpEndpoint.mock.calls.at(-1)?.[0].data.route
         expect(route).toEqual({base_url: firecrawl, credential_binding: binding})
         expect(journey.state.status).toBe("manual_auth")

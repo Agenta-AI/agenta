@@ -42,7 +42,7 @@ from oss.src.core.gateways.egress import (
     egress_client,
     open_egress,
 )
-from oss.src.core.gateways.mcps.dtos import with_url_secret
+from oss.src.core.gateways.mcps.dtos import MCPCredentialBinding
 from oss.src.core.gateways.mcps.echo import (
     redact_credentials,
     url_credentials,
@@ -53,6 +53,10 @@ from oss.src.core.gateways.mcps.oauth.registration import (
     is_publicly_resolvable_async,
 )
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthDiscoveryError
+from oss.src.core.gateways.mcps.providers.http.adapter import (
+    InjectedCredentials,
+    bound_credentials,
+)
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -403,11 +407,16 @@ class MCPServerProbe:
         return decoded_response(response, bytes(body))
 
     async def probe(
-        self, *, server_url: str, url_secret: Optional[str] = None
+        self,
+        *,
+        server_url: str,
+        secret: Optional[str] = None,
+        binding: Optional[MCPCredentialBinding] = None,
     ) -> MCPServerProbeResult:
         """Inspect `server_url`. Never raises for a server that behaves badly.
 
-        `url_secret` is the value for the address's `{secret}`, and only for that.
+        `secret` is an API key, sent where `binding` says, the way the relay would send
+        it. It fills a `{secret}` address, and checks a key before a connection saves it.
 
         The promise in that sentence is the reason for the outer guard: this is the first
         thing a person's typed address touches, and the connect dialog has a place to show
@@ -415,14 +424,15 @@ class MCPServerProbe:
         them as a 500 with no cause, which is how a body the gateway could not decode
         presented itself before that was fixed at the source.
         """
-        # What the answer is cleaned of: the URL's own query values, and the value put in
-        # place of `{secret}`.
+        sent = bound_credentials(binding, secret) if secret else None
+        # What the answer is cleaned of: the URL's own query values, and the key in every
+        # form it was sent.
         credentials = url_credentials(server_url) + url_value_forms(
-            [url_secret] if url_secret else []
+            [secret, *sent.headers.values(), *sent.url_values] if sent else []
         )
         try:
             result = await self._probe(
-                server_url=server_url, url_secret=url_secret, credentials=credentials
+                server_url=server_url, sent=sent, credentials=credentials
             )
         except httpx.HTTPError as e:
             # Every transport and protocol failure httpx raises, including the decoding
@@ -449,24 +459,26 @@ class MCPServerProbe:
             )
         # A server that was sent a key can write it into any field it answers with, not
         # only into a body that becomes an excerpt.
-        return _redacted(result, credentials) if url_secret else result
+        return _redacted(result, credentials) if sent else result
 
     async def _probe(
         self,
         *,
         server_url: str,
-        url_secret: Optional[str],
+        sent: Optional[InjectedCredentials],
         credentials: Tuple[bytes, ...],
     ) -> MCPServerProbeResult:
         deadline = asyncio.get_running_loop().time() + _DEADLINE_SECONDS
         try:
             async with asyncio.timeout_at(deadline):
                 # Checked with the placeholder, which sits in the path and so cannot move
-                # the host, and filled only in the URL that is sent.
+                # the host, and without the key, which is added only to what is sent.
                 target = await open_egress(server_url)
-                if url_secret:
+                if sent:
+                    headers = httpx.Headers(target.headers)
+                    headers.update(sent.headers)
                     target = replace(
-                        target, url=with_url_secret(target.url, url_secret)
+                        target, url=str(sent.request_url(target.url)), headers=headers
                     )
                 response = await self._handshake(target)
         except EgressRefusedError as e:
@@ -523,7 +535,7 @@ class MCPServerProbe:
             )
 
         # The server answered something, so it exists. What it answered decides the rest.
-        if response.status_code in (401, 403) and url_secret:
+        if response.status_code in (401, 403) and sent:
             # The server refused the key it was sent. Discovery is not run: it follows
             # addresses the server names, and those can carry the key to another origin.
             return MCPServerProbeResult(

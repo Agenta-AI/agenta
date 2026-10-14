@@ -109,7 +109,14 @@ def injected_credentials(
     if not key:
         return InjectedCredentials()
 
-    binding = route.credential_binding or _DEFAULT_CREDENTIAL_BINDING
+    return bound_credentials(route.credential_binding, key)
+
+
+def bound_credentials(
+    binding: Optional[MCPCredentialBinding], key: str
+) -> InjectedCredentials:
+    """An API key placed where `binding` says, or as a Bearer token when it says nothing."""
+    binding = binding or _DEFAULT_CREDENTIAL_BINDING
     if binding.kind == "url":
         return InjectedCredentials(url_secret=key)
     value = f"{binding.prefix} {key}" if binding.prefix else key

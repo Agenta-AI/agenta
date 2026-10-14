@@ -454,30 +454,30 @@ class MCPGatewayRouter:
         # The same check a create runs, so a URL the probe accepts is one that can be
         # saved and a person is refused at the first step rather than the last.
         _guard_custom_endpoint_url(url=body.url)
-        # A `{secret}` address is checked with the key it needs, and only such an address
-        # takes one: the rule a create applies to `base_url` and its binding.
+        # A `{secret}` address is checked with the key it needs, and only a url binding
+        # fills one: the rule a create applies to `base_url` and its binding.
+        binding = None
+        if body.secret_id:
+            binding = body.credential_binding or MCPCredentialBinding(kind="url")
         try:
-            check_url_secret_placeholder(
-                body.url,
-                MCPCredentialBinding(kind="url") if body.secret_id else None,
-            )
+            check_url_secret_placeholder(body.url, binding)
         except ValueError as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
             ) from e
-        url_secret = None
+        secret = None
         if body.secret_id:
-            url_secret = await self.service.url_secret_value(
+            secret = await self.service.url_secret_value(
                 scope=scope, secret_id=body.secret_id
             )
-            if not url_secret:
+            if not secret:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="The secret holds no single value to put in the URL.",
+                    detail="The secret holds no single value to send.",
                 )
 
         result = await self.server_probe.probe(
-            server_url=body.url, url_secret=url_secret
+            server_url=body.url, secret=secret, binding=binding
         )
 
         return MCPEndpointProbeResponse(count=1, probe=result)

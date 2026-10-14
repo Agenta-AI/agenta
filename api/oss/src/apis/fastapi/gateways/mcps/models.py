@@ -10,6 +10,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 from oss.src.core.gateways.mcps.dtos import (
+    MCPCredentialBinding,
     MCPEndpoint,
     MCPEndpointCreate,
     MCPEndpointEdit,
@@ -76,13 +77,16 @@ class MCPEndpointProbeRequest(BaseModel):
     The probe routes a request and reports what came back. It takes no name (nothing is
     being labelled), no slug or id (nothing is being identified), and no credential value.
 
-    `secret_id` names the project secret that fills a `{secret}` in the URL's path, and is
-    accepted only for such a URL: that address does not exist without its key. The API
-    reads the value from the vault, so the browser never sends it.
+    `secret_id` names a project secret to send the way `credential_binding` says, which
+    is a `{secret}` in the URL's path when it says nothing: that address does not exist
+    without its key. A key sent in a header or the query is how a changed key is checked
+    before a connection saves it. The API reads the value from the vault, so the browser
+    never sends it.
     """
 
     url: str
     secret_id: Optional[UUID] = None
+    credential_binding: Optional[MCPCredentialBinding] = None
 
 
 class MCPEndpointProbeResponse(BaseModel):

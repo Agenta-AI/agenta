@@ -419,7 +419,7 @@ class MCPGatewayService:
     async def url_secret_value(
         self, *, scope: AuthScope, secret_id: UUID
     ) -> Optional[str]:
-        """The value of a project secret, for the probe of an address with `{secret}`.
+        """The value of a project secret, for a probe that sends it as an API key.
 
         Resolved the way an API-key endpoint's secret is, so the probe reads the same value
         the relay will later put in the same place.

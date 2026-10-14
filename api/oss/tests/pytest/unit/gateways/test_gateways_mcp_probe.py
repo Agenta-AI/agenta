@@ -21,6 +21,7 @@ import socket
 import httpx
 import pytest
 
+from oss.src.core.gateways.mcps.dtos import MCPCredentialBinding
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.probe import (
     MCPProbeAuthMode,
@@ -1011,6 +1012,7 @@ async def test_a_key_across_the_cut_leaves_no_prefix_behind():
 
 
 _PLACEHOLDER_URL = "https://mcp.acme.io/{secret}/v2/mcp"
+_URL_BINDING = MCPCredentialBinding(kind="url")
 
 
 @pytest.mark.asyncio
@@ -1020,7 +1022,7 @@ async def test_a_placeholder_address_is_handshaked_with_the_secret_in_its_path()
     requests: list[httpx.Request] = []
 
     result = await _probe(_open_server(requests)).probe(
-        server_url=_PLACEHOLDER_URL, url_secret="test key/one"
+        server_url=_PLACEHOLDER_URL, secret="test key/one", binding=_URL_BINDING
     )
 
     assert result.reachable and result.server_name == "Acme Tools"
@@ -1032,7 +1034,7 @@ async def test_a_placeholder_address_is_handshaked_with_the_secret_in_its_path()
 @pytest.mark.parametrize("echoed", ["test key/one", "test%20key%2Fone"])
 async def test_the_excerpt_never_carries_the_secret_from_the_path(echoed):
     result = await _probe(_echoing(f"no route for /{echoed}/v2/mcp")).probe(
-        server_url=_PLACEHOLDER_URL, url_secret="test key/one"
+        server_url=_PLACEHOLDER_URL, secret="test key/one", binding=_URL_BINDING
     )
 
     assert result.problem.response.body == "no route for /[REDACTED]/v2/mcp"
@@ -1056,7 +1058,7 @@ async def test_a_refused_secret_is_reported_without_discovery():
         )
 
     result = await _probe(handler).probe(
-        server_url=_PLACEHOLDER_URL, url_secret="test-key-one"
+        server_url=_PLACEHOLDER_URL, secret="test-key-one", binding=_URL_BINDING
     )
 
     # The handshake only, to the address the person typed.
@@ -1085,7 +1087,7 @@ async def test_a_handshake_that_echoes_the_secret_returns_it_nowhere(echoed):
         )
 
     result = await _probe(handler).probe(
-        server_url=_PLACEHOLDER_URL, url_secret="test key/one"
+        server_url=_PLACEHOLDER_URL, secret="test key/one", binding=_URL_BINDING
     )
 
     assert result.server_name == "Acme [REDACTED]"
@@ -1389,3 +1391,48 @@ async def test_an_sse_address_that_answers_the_handshake_connects():
 
     assert result.problem is None
     assert result.auth.mode is MCPProbeAuthMode.NONE
+
+
+@pytest.mark.asyncio
+async def test_a_key_is_handshaked_in_the_header_its_binding_names():
+    """A changed key is checked before it is saved, sent the way the relay sends it."""
+    requests: list[httpx.Request] = []
+
+    result = await _probe(_open_server(requests)).probe(
+        server_url="https://mcp.acme.io/mcp",
+        secret="test-key-one",
+        binding=MCPCredentialBinding(kind="header", name="X-Api-Key", prefix="Token"),
+    )
+
+    assert result.auth.mode == MCPProbeAuthMode.NONE
+    assert requests[0].headers["x-api-key"] == "Token test-key-one"
+
+
+@pytest.mark.asyncio
+async def test_a_key_is_handshaked_in_the_query_parameter_its_binding_names():
+    requests: list[httpx.Request] = []
+
+    await _probe(_open_server(requests)).probe(
+        server_url="https://mcp.acme.io/mcp?region=eu",
+        secret="test-key-one",
+        binding=MCPCredentialBinding(kind="query", name="apiKey"),
+    )
+
+    assert requests[0].url.params["apiKey"] == "test-key-one"
+    assert requests[0].url.params["region"] == "eu"
+
+
+@pytest.mark.asyncio
+async def test_a_refused_header_key_is_reported_without_discovery_or_the_key():
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, text="bad key test-key-one", headers={})
+
+    result = await _probe(handler).probe(
+        server_url="https://mcp.acme.io/mcp",
+        secret="test-key-one",
+        binding=MCPCredentialBinding(kind="header", name="Authorization"),
+    )
+
+    assert result.auth.mode == MCPProbeAuthMode.UNKNOWN
+    assert result.auth.challenge_status == 401
+    assert "test-key-one" not in result.model_dump_json()
