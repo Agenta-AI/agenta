@@ -61,6 +61,7 @@ from oss.src.core.managed_tools.dtos import ManagedActionContext
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
+    MCPConnectionBusyError,
     MCPConnectionChangedError,
     MCPConnectionNameTakenError,
     MCPEndpointNotFoundError,
@@ -1234,6 +1235,12 @@ class MCPGatewayService:
                 target=path,
                 status_code=503,
                 detail="The authorization server did not renew the sign-in. Try again.",
+            ) from e
+        except MCPConnectionBusyError as e:
+            # Another change held the connection's lock past the wait. Nothing about the
+            # grant is known, so the connection is left as it is.
+            raise MCPUpstreamError(
+                target=path, status_code=503, detail=f"{e.message} Try again."
             ) from e
         except MCPOAuthRefreshFailedError as e:
             await self._invalidate_endpoint(

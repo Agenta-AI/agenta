@@ -15,7 +15,7 @@
  */
 import {act, createElement} from "react"
 
-import type {MCPEndpoint} from "@agenta/entities/mcpEndpoint"
+import {McpProtocolError, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -165,6 +165,33 @@ describe("McpConnectionDetail: whose tools are on screen", () => {
         expect(text()).toContain("Connect this server to see the tools it exposes.")
         expect(toolNames()).toEqual([])
         expect(listMcpTools).not.toHaveBeenCalled()
+    })
+
+    it("asks for a new sign-in when the relay could not renew the old one", async () => {
+        // The relay marked the connection, and the list behind the drawer is refreshed to
+        // learn it. The gateway's "Authorization required for custom/..." is not the
+        // person's sentence.
+        listMcpTools.mockRejectedValue(
+            new McpProtocolError("Authorization required for custom/acme", "auth_required", 409),
+        )
+        const onChanged = vi.fn()
+        await act(async () => {
+            root.render(
+                createElement(McpConnectionDetail, {
+                    endpoint: connected(),
+                    onClose: () => undefined,
+                    onReconnect: () => undefined,
+                    onDisconnect: () => undefined,
+                    onChanged,
+                }),
+            )
+        })
+        await settle()
+
+        expect(text()).toContain("Sign in again to keep using this connection.")
+        expect(text()).toContain("Needs authorization")
+        expect(text()).not.toContain("Authorization required")
+        expect(onChanged).toHaveBeenCalled()
     })
 })
 

@@ -18,6 +18,7 @@ import {
     connectionNameProblem,
     editMcpEndpoint,
     filterMcpTools,
+    gatewayRefusalCode,
     getMcpConnectionState,
     getMcpConnectionStateLabel,
     listMcpTools,
@@ -47,6 +48,9 @@ export interface McpConnectionDetailProps {
     onChanged?: () => void
 }
 
+/** An OAuth connection whose sign-in could not be renewed, in place of the gateway's words. */
+const SIGN_IN_AGAIN = "Sign in again to keep using this connection."
+
 type ToolsState =
     | {status: "idle"}
     | {status: "loading"}
@@ -66,9 +70,23 @@ export default function McpConnectionDetail({
     const [saving, setSaving] = useState(false)
     const [tools, setTools] = useState<ToolsState>({status: "idle"})
     const [filter, setFilter] = useState("")
+    // The tool list just learned that the sign-in could not be renewed. The relay marked the
+    // connection, and the list the endpoint comes from catches up after `onChanged`.
+    const [signInLost, setSignInLost] = useState(false)
 
-    const connectionState = endpoint ? getMcpConnectionState(endpoint) : null
+    const connectionState = signInLost
+        ? "needs_auth"
+        : endpoint
+          ? getMcpConnectionState(endpoint)
+          : null
     const isReady = connectionState === "ready"
+    const signInExpired =
+        signInLost ||
+        (endpoint?.auth_mode === "oauth" &&
+            !!endpoint.secret_id &&
+            endpoint.flags?.is_valid === false)
+
+    useEffect(() => setSignInLost(false), [endpoint?.id])
 
     useEffect(() => {
         setName(endpoint?.name || endpoint?.slug || "")
@@ -94,12 +112,17 @@ export default function McpConnectionDetail({
             setTools({status: "ready", tools})
         } catch (error) {
             if (shownFor.current !== slug) return
+            if (gatewayRefusalCode(error) === "auth_required") {
+                setSignInLost(true)
+                onChanged?.()
+                return
+            }
             setTools({
                 status: "failed",
                 error: (error as Error)?.message || "The tool list could not be read.",
             })
         }
-    }, [endpoint?.slug, isReady, projectId])
+    }, [endpoint?.slug, isReady, onChanged, projectId])
 
     // Only a connected server has tools to report; an unauthorized one would just 409.
     useEffect(() => {
@@ -243,6 +266,7 @@ export default function McpConnectionDetail({
                             <ToolList
                                 state={tools}
                                 isReady={isReady}
+                                signInExpired={signInExpired}
                                 onRetry={loadTools}
                                 filter={filter}
                             />
@@ -257,18 +281,20 @@ export default function McpConnectionDetail({
 const ToolList = ({
     state,
     isReady,
+    signInExpired,
     onRetry,
     filter,
 }: {
     state: ToolsState
     isReady: boolean
+    signInExpired: boolean
     onRetry: () => void
     filter: string
 }) => {
     if (!isReady) {
         return (
             <p className="m-0 text-sm text-colorTextDescription">
-                Connect this server to see the tools it exposes.
+                {signInExpired ? SIGN_IN_AGAIN : "Connect this server to see the tools it exposes."}
             </p>
         )
     }

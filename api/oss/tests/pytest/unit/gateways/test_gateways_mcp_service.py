@@ -46,6 +46,7 @@ from oss.src.core.gateways.mcps.oauth.types import (
 )
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
+    MCPConnectionBusyError,
     MCPConnectionChangedError,
     MCPConnectionNameTakenError,
     MCPEndpointNotFoundError,
@@ -1997,6 +1998,52 @@ async def test_a_second_401_after_the_refresh_is_a_reconnect_and_not_another_ret
 
     assert adapter.relay_calls == 2
     assert refresher.failed_access_tokens == ["revoked"]
+
+
+@pytest.mark.asyncio
+async def test_a_401_whose_refresh_is_refused_marks_the_connection_for_a_reconnect():
+    """The grant is dead, so the row has to stop reading as connected, not only this call."""
+    import time
+
+    refresher = _StubRefresher(
+        failure=MCPOAuthRefreshFailedError(server_url="https://example.com/mcp")
+    )
+    dao, service = _live_grant_service(
+        adapter=_SequenceAdapter(results=[_refused_credential_result()]),
+        refresher=refresher,
+        secrets=[
+            _grant_secret(access_token="revoked", expires_at=int(time.time()) + 3600)
+        ],
+    )
+    endpoint = await _oauth_endpoint(dao)
+
+    with pytest.raises(MCPAuthRequiredError):
+        await _relay_write_page(service)
+
+    stored = await dao.fetch_endpoint(project_id=uuid4(), endpoint_id=endpoint.id)
+    assert stored.flags.is_valid is False
+
+
+@pytest.mark.asyncio
+async def test_a_refresh_that_waited_too_long_for_the_lock_keeps_the_connection():
+    import time
+
+    refresher = _StubRefresher(failure=MCPConnectionBusyError())
+    dao, service = _live_grant_service(
+        adapter=_SequenceAdapter(results=[_refused_credential_result()]),
+        refresher=refresher,
+        secrets=[
+            _grant_secret(access_token="revoked", expires_at=int(time.time()) + 3600)
+        ],
+    )
+    endpoint = await _oauth_endpoint(dao)
+
+    with pytest.raises(MCPUpstreamError) as refusal:
+        await _relay_write_page(service)
+
+    assert refusal.value.status_code == 503
+    stored = await dao.fetch_endpoint(project_id=uuid4(), endpoint_id=endpoint.id)
+    assert stored.flags.is_valid is True
 
 
 @pytest.mark.asyncio
