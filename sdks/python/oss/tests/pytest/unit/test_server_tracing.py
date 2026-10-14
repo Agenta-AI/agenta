@@ -344,7 +344,7 @@ def test_exported_spans_are_redacted():
             "http.status_code": 401,
         },
     ) as span:
-        span.add_event("exception", {"exception.message": f"failed for url {url}"})
+        span.add_event("retry", {"reason": f"failed for url {url}"})
 
     (exported,) = memory.get_finished_spans()
     assert exported.attributes["http.url"] == (
@@ -353,9 +353,42 @@ def test_exported_spans_are_redacted():
     assert exported.attributes["http.target"] == "/botREDACTED/sendMessage"
     assert exported.attributes["url.query"] == server.REDACTED
     assert exported.attributes["http.status_code"] == 401
-    assert exported.events[0].attributes["exception.message"] == (
+    assert exported.events[0].attributes["reason"] == (
         "failed for url https://api.telegram.org/botREDACTED/sendMessage"
     )
+
+
+def test_exceptions_keep_the_type_and_frames_only():
+    memory = InMemorySpanExporter()
+    inner = TracerProvider(sampler=server.ServerSampler(1.0))
+    inner.add_span_processor(SimpleSpanProcessor(server.RedactingSpanExporter(memory)))
+    tracer = server._ServerTracerProvider(inner).get_tracer("test")
+
+    email = "a" + "@b.c"  # not in the source lines the frames keep
+
+    def query():
+        raise ValueError(
+            f"duplicate key\nDETAIL:  Key (email)=({email}) already exists.\n"
+            f"[parameters: ('{email}', 'pw')]"
+        )
+
+    with pytest.raises(RuntimeError):
+        with tracer.start_as_current_span("POST /users", kind=SpanKind.SERVER):
+            try:
+                query()
+            except ValueError as error:
+                raise RuntimeError(f"insert failed for {email}") from error
+
+    (exported,) = memory.get_finished_spans()
+    assert exported.status.description is None
+    (event,) = exported.events
+    assert event.attributes["exception.type"] == "RuntimeError"
+    assert "exception.message" not in event.attributes
+    stacktrace = event.attributes["exception.stacktrace"]
+    assert "in query" in stacktrace
+    assert "raise ValueError(" in stacktrace
+    for secret in (email, "'pw'", "DETAIL:", "[parameters:", "RuntimeError: "):
+        assert secret not in stacktrace
 
 
 # --------------------------------------------------------------------------- #
@@ -439,4 +472,20 @@ def test_service_name_can_be_overridden(monkeypatch):
         service_name="agenta-api", sample_ratio=1.0, exporter=InMemorySpanExporter()
     )
     assert srv.provider.resource.attributes["service.name"] == "custom"
+    srv.shutdown()
+
+
+def test_long_attributes_are_capped():
+    memory = InMemorySpanExporter()
+    srv = server.build_tracer_provider(
+        service_name="agenta-api", sample_ratio=1.0, exporter=memory
+    )
+    statement = "INSERT INTO spans VALUES " + ", ".join(["($1, $2)"] * 2000)
+    with srv.get_tracer("test").start_as_current_span(
+        "POST /otlp", kind=SpanKind.SERVER, attributes={"db.statement": statement}
+    ):
+        pass
+    srv.force_flush()
+    (span,) = memory.get_finished_spans()
+    assert len(span.attributes["db.statement"]) == server.MAX_ATTRIBUTE_LENGTH
     srv.shutdown()

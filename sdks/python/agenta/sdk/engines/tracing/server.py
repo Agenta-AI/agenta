@@ -37,7 +37,7 @@ from opentelemetry.context import (
 from opentelemetry.propagate import set_global_textmap
 from opentelemetry.propagators.textmap import TextMapPropagator
 from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import Event, ReadableSpan, TracerProvider
+from opentelemetry.sdk.trace import Event, ReadableSpan, SpanLimits, TracerProvider
 from opentelemetry.sdk.trace.export import (
     BatchSpanProcessor,
     SpanExporter,
@@ -60,6 +60,8 @@ log = get_module_logger(__name__)
 SERVER_TRACESTATE_KEY = "agenta-server"
 
 DEFAULT_SAMPLE_RATIO = 0.1
+
+MAX_ATTRIBUTE_LENGTH = 4096
 
 _SERVER_SPAN = create_key("agenta-server-span")
 _PRODUCT_SPAN = create_key("agenta-product-span")
@@ -302,20 +304,52 @@ def _redact_attributes(attributes: Any) -> dict:
     return redacted
 
 
+# A traceback line that names a frame. The lines after it are the source of that frame.
+_FRAME = re.compile(r'^\s*File "')
+
+
+def redact_stacktrace(stacktrace: str) -> str:
+    """Keep the frames of a traceback and drop its exception messages.
+
+    An exception message can carry data, e.g. SQLAlchemy puts the statement parameters in
+    it. The frames and their source lines carry code only.
+    """
+    kept = []
+    in_frame = False
+    for line in stacktrace.splitlines():
+        if line.startswith("Traceback") or _FRAME.match(line):
+            kept.append(line)
+            in_frame = _FRAME.match(line) is not None
+        elif in_frame and line.startswith("    "):
+            kept.append(line)
+        else:
+            in_frame = False
+    return "\n".join(kept)
+
+
+def _redact_event(event: Event) -> Event:
+    attributes = _redact_attributes(event.attributes)
+    if event.name == "exception":
+        # the type only: the message can carry data (SQL parameters, request values)
+        attributes.pop("exception.message", None)
+        stacktrace = attributes.get("exception.stacktrace")
+        if isinstance(stacktrace, str):
+            attributes["exception.stacktrace"] = redact_stacktrace(stacktrace)
+    return Event(event.name, attributes, event.timestamp)
+
+
 def redact_span(span: ReadableSpan) -> ReadableSpan:
     status = span.status
     if status.description:
-        status = Status(status.status_code, redact_text(status.description))
+        # instrumentations put the exception message here, so drop it like above
+        status = Status(status.status_code)
     return ReadableSpan(
         name=span.name,
         context=span.context,
         parent=span.parent,
         resource=span.resource,
         attributes=_redact_attributes(span.attributes),
-        events=[
-            Event(event.name, _redact_attributes(event.attributes), event.timestamp)
-            for event in span.events
-        ],
+        events=[_redact_event(event) for event in span.events],
         links=span.links,
         kind=span.kind,
         status=status,
@@ -366,6 +400,8 @@ def build_tracer_provider(
             {"service.name": os.environ.get("OTEL_SERVICE_NAME") or service_name}
         ),
         sampler=ServerSampler(sample_ratio),
+        # a bulk insert's statement lists every row's placeholders, so cap its size
+        span_limits=SpanLimits(max_span_attribute_length=MAX_ATTRIBUTE_LENGTH),
     )
     provider.add_span_processor(BatchSpanProcessor(RedactingSpanExporter(exporter)))
     return _ServerTracerProvider(provider)
@@ -444,11 +480,36 @@ def get_server_tracer(name: str) -> Optional[trace.Tracer]:
     return _provider.get_tracer(name) if _provider is not None else None
 
 
+class _RequestSpanMiddleware:
+    """Makes the request span the parent of the request's later server spans.
+
+    The FastAPI instrumentation makes its request span current with `use_span`, not through
+    the server tracer. Without this, a call made while a product span is current finds no
+    server parent, and the sampler drops it as a background root.
+    """
+
+    def __init__(self, app: Any):
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        span = trace.get_current_span()
+        if not is_server_span(span):
+            await self.app(scope, receive, send)
+            return
+        token = attach(set_value(_SERVER_SPAN, span))
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            detach(token)
+
+
 def instrument_fastapi(app: Any) -> None:
     if _provider is None:
         return
     from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
+    # runs inside the instrumentation's middleware, so the request span is current
+    app.add_middleware(_RequestSpanMiddleware)
     FastAPIInstrumentor.instrument_app(
         app,
         tracer_provider=_provider,

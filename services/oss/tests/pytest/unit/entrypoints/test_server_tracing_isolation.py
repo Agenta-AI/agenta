@@ -198,3 +198,48 @@ def test_fastapi_instrumentor_never_touches_the_global_provider(server_provider)
     server.instrument_fastapi(app)
     assert trace.get_tracer_provider() is before
     FastAPIInstrumentor.uninstrument_app(app)
+
+
+def test_calls_inside_a_routed_workflow_join_the_request(product, server_provider):
+    # The FastAPI instrumentation makes its request span current with use_span, not
+    # through the server tracer. A call made inside the product workflow must still
+    # parent on that request span, or the sampler drops it as a background root.
+    sent = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.update(request.headers)
+        return httpx.Response(200)
+
+    app = FastAPI()
+    app.add_middleware(OTelMiddleware)
+
+    @app.middleware("http")
+    async def _auth(request, call_next):
+        request.state.auth = {}
+        return await call_next(request)
+
+    async def workflow(value: str = "x"):
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        HTTPXClientInstrumentor.instrument_client(
+            client, tracer_provider=server._provider
+        )
+        async with client:
+            await client.post("http://llm/v1/chat", headers=inject({}))
+        return value
+
+    workflow.__name__ = f"wf_{uuid4().hex[:8]}"
+    route("/", app=app)(workflow)
+    server.instrument_fastapi(app)
+
+    _invoke(TestClient(app))
+
+    spans = server_provider.get_finished_spans()
+    (request,) = [span for span in spans if span.kind == SpanKind.SERVER]
+    (call,) = [span for span in spans if span.kind == SpanKind.CLIENT]
+    assert call.parent is not None
+    assert call.parent.span_id == request.context.span_id
+    assert call.context.trace_id == request.context.trace_id
+
+    (wf,) = product.get_finished_spans()
+    ids = f"{wf.context.trace_id:032x}-{wf.context.span_id:016x}"
+    assert sent["traceparent"].startswith(f"00-{ids}-")

@@ -60,7 +60,10 @@ What is recorded:
   worker polling Redis, are not recorded. `/health` is never traced.
 - URLs lose their query string and credentials, and long tokens in a URL path (such as a Telegram
   bot token) are replaced with `REDACTED`. Request and response bodies and headers are not
-  recorded. Redis spans carry the command name, not its arguments.
+  recorded. Redis spans carry the command name, not its arguments. Database spans carry the
+  statement, not its parameter values.
+- An error keeps the exception type and the stack frames, but not the exception message, because a
+  message can contain request data.
 - Each process traces on its own. The servers do not send `traceparent` headers to each other or to
   the services they call, and they ignore an incoming `traceparent` for these spans.
 
