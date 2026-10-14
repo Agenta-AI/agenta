@@ -218,6 +218,9 @@ const NO_KEY_REFUSED_ADVICE = "Pick another authentication mode above."
 const WAITING_BODY =
     "Finish signing in in the window that opened. This closes on its own when you're done."
 
+/** A reconnect could not read back the OAuth settings its connection is saved with. */
+const SAVED_OAUTH_UNREADABLE = "The saved OAuth settings could not be read. Try again."
+
 /** The existing sentence for the window between a granted consent and a refreshed list. */
 const SAVING_BODY = "Setting up the connection…"
 
@@ -626,6 +629,10 @@ export function McpConnectSheet({
     }, [binding, journey, selectedSecretId])
 
     const confirm = useCallback(() => {
+        if (screen === "oauth" && state.savedOauthConfig === "failed") {
+            journey.reloadSavedOauthConfig()
+            return
+        }
         const keyBinding = path === "api_key" ? binding : undefined
         // `submitName` checks a `{secret}` address with it before the row is made.
         const keySecretId = keyBinding ? selectedSecretId() : undefined
@@ -686,8 +693,10 @@ export function McpConnectSheet({
         path,
         requestConsent,
         retryConsent,
+        screen,
         selectedSecretId,
         state.endpointId,
+        state.savedOauthConfig,
         state.status,
         state.url,
         submitCredential,
@@ -908,7 +917,9 @@ export function McpConnectSheet({
                             scopesSelected={state.scopesSelected}
                             onToggleScope={journey.toggleScope}
                             needsOwnApp={needsOwnApp}
-                            disabled={busy}
+                            // Until the saved settings arrive, what is typed would be
+                            // replaced by them.
+                            disabled={busy || state.savedOauthConfig === "loading"}
                         />
                     ) : null}
 
@@ -1041,6 +1052,10 @@ export function McpConnectSheet({
                         </WaitingCard>
                     ) : null}
 
+                    {screen === "oauth" && state.savedOauthConfig === "failed" ? (
+                        <InlineError headline={null}>{SAVED_OAUTH_UNREADABLE}</InlineError>
+                    ) : null}
+
                     {screen === "oauth" && isConsentRefusal(state.status) ? (
                         <InlineError headline={null}>
                             {state.status === "consent_cancelled"
@@ -1090,7 +1105,10 @@ export function McpConnectSheet({
                                         nameProblem,
                                         secretChosen,
                                         oauthClientReady:
-                                            screen !== "oauth" || oauthConfigReady(state),
+                                            screen !== "oauth" ||
+                                            state.savedOauthConfig === "failed" ||
+                                            (state.savedOauthConfig !== "loading" &&
+                                                oauthConfigReady(state)),
                                         bindingReady:
                                             credentialBindingComplete(binding) &&
                                             urlMatchesCredentialBinding(state.url, binding),
@@ -1118,6 +1136,7 @@ const isConsentRefusal = (status: McpJourneyState["status"]) =>
 /** What the trailing button says, by screen and by whether it is a second attempt. */
 const confirmLabel = (screen: Screen, state: McpJourneyState): string => {
     if (screen === "url") return "Continue"
+    if (screen === "oauth" && state.savedOauthConfig === "failed") return "Try again"
     if (screen === "url_failed") return "Try again"
     if (isConsentRefusal(state.status)) return "Try again"
     if (state.status === "verify_failed" || state.status === "create_failed") return "Try again"

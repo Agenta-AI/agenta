@@ -107,7 +107,7 @@ const state = (over: Partial<McpJourneyState> & {status: McpJourneyStatus}): Mcp
     oauthClientId: "",
     oauthClientSecretId: null,
     oauthClientAuthMethod: null,
-    oauthClientTouched: false,
+    savedOauthConfig: null,
     scopesSaved: null,
     endpointId: null,
     slug: null,
@@ -593,7 +593,7 @@ describe("the OAuth screen's Advanced section", () => {
             ...OAUTH_PROBE,
             auth: {...OAUTH_PROBE.auth, registration: "unavailable" as const},
         }
-        await open(naming({probe, oauthClientId: "app-from-github", oauthClientTouched: true}))
+        await open(naming({probe, oauthClientId: "app-from-github"}))
 
         expect((control("Client ID") as HTMLInputElement | null)?.value).toBe("app-from-github")
         // The secret is sent in the request body by default, so it is needed first.
@@ -607,7 +607,6 @@ describe("the OAuth screen's Advanced section", () => {
                 probe,
                 oauthClientId: "app-from-github",
                 oauthClientSecretId: "sec-1",
-                oauthClientTouched: true,
             }),
         )
         expect(button("Connect")?.disabled).toBe(false)
@@ -618,7 +617,6 @@ describe("the OAuth screen's Advanced section", () => {
             naming({
                 oauthClientId: "app-from-github",
                 oauthClientAuthMethod: "none",
-                oauthClientTouched: true,
             }),
         )
         await press(button("Advanced"))

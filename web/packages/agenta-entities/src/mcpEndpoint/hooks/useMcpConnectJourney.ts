@@ -1036,33 +1036,54 @@ export function useMcpConnectJourney({
     // its screen and its saved mode stay as they are.
     // An address with `{secret}` cannot be checked without its key, and it has no OAuth to
     // find either.
-    //
-    // An OAuth reconnect first reads back the OAuth settings its row is saved with, because
-    // the hosts pass only the address and the mode. Before the check, so the scope checklist
-    // the check fills starts from the scopes asked for last time.
-    const reconnectId = reconnect?.authMode === "oauth" ? reconnect.id : null
     useEffect(() => {
+        if (!reconnectUrl || hasUrlSecretPlaceholder(reconnectUrl)) return
         let live = true
-        // Both read at once, applied in order: the settings, then the check that fills
-        // the checklist from them.
-        Promise.all([
-            reconnectId ? storedEndpointFrom(reconnectId, projectId).catch(() => null) : null,
-            reconnectUrl && !hasUrlSecretPlaceholder(reconnectUrl)
-                ? probeMcpUrl(reconnectUrl, projectId).catch(() => null)
-                : null,
-        ]).then(([row, response]) => {
-            if (!live) return
-            if (row && reconnectId) {
-                const config = row.data.oauth_config ?? null
-                if (config) savedOauthConfigRef.current = {endpointId: reconnectId, config}
-                dispatch({type: "oauth_client_loaded", config})
-            }
-            if (response?.probe) dispatch({type: "saved_url_probed", probe: response.probe})
-        })
+        Promise.resolve()
+            .then(() => probeMcpUrl(reconnectUrl, projectId))
+            .then((response) => {
+                if (live && response?.probe) {
+                    dispatch({type: "saved_url_probed", probe: response.probe})
+                }
+            })
+            .catch(() => undefined)
         return () => {
             live = false
         }
-    }, [projectId, reconnectId, reconnectUrl])
+    }, [projectId, reconnectUrl])
+
+    // An OAuth reconnect reads back the OAuth settings its row is saved with, because the
+    // hosts pass only the address and the mode. It cannot submit until they arrive, and a
+    // read that fails says so rather than passing for a row with no settings.
+    const reconnectId = reconnect?.authMode === "oauth" ? reconnect.id : null
+    const savedConfigLoading = state.savedOauthConfig === "loading"
+    useEffect(() => {
+        if (!reconnectId || !savedConfigLoading) return
+        let live = true
+        storedEndpointFrom(reconnectId, projectId)
+            .then((row) => {
+                if (!live) return
+                if (!row) {
+                    dispatch({type: "oauth_client_load_failed"})
+                    return
+                }
+                const config = row.data.oauth_config ?? null
+                if (config) savedOauthConfigRef.current = {endpointId: reconnectId, config}
+                dispatch({type: "oauth_client_loaded", config})
+            })
+            .catch(() => {
+                if (live) dispatch({type: "oauth_client_load_failed"})
+            })
+        return () => {
+            live = false
+        }
+    }, [projectId, reconnectId, savedConfigLoading])
+
+    /** Read the saved OAuth settings again, after a read that failed. */
+    const reloadSavedOauthConfig = useCallback(
+        () => dispatch({type: "oauth_client_load_started"}),
+        [],
+    )
 
     /**
      * Credentials are persisted. Pick up what the server wrote and tell the caller.
@@ -1133,6 +1154,7 @@ export function useMcpConnectJourney({
             submitName,
             toggleScope,
             setOauthClient,
+            reloadSavedOauthConfig,
             submitScopes,
             startScopeDiscovery,
             submitManualCredential,
@@ -1163,6 +1185,7 @@ export function useMcpConnectJourney({
             submitScopes,
             submitUrl,
             setOauthClient,
+            reloadSavedOauthConfig,
             toggleScope,
         ],
     )

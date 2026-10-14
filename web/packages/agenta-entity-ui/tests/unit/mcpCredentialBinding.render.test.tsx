@@ -66,7 +66,7 @@ const keyScreen: McpJourneyState = {
     oauthClientId: "",
     oauthClientSecretId: null,
     oauthClientAuthMethod: null,
-    oauthClientTouched: false,
+    savedOauthConfig: null,
     scopesSaved: null,
     endpointId: null,
     slug: null,

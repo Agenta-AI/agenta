@@ -244,8 +244,12 @@ export interface McpJourneyState {
     oauthClientAuthMethod: MCPTokenEndpointAuthMethod | null
     /** The scopes a reconnected row was saved with, or null for a row that saved none. */
     scopesSaved: string[] | null
-    /** Once true, the saved app a reconnect reads back may no longer replace the fields. */
-    oauthClientTouched: boolean
+    /**
+     * Where an OAuth reconnect stands in reading back its saved settings. It cannot
+     * submit until they have loaded: the fields would otherwise save as empty over them.
+     * Null where there is nothing to read.
+     */
+    savedOauthConfig: "loading" | "loaded" | "failed" | null
     /** Identity, once the row exists. Null until then, and never regenerated after. */
     endpointId: string | null
     slug: string | null
@@ -321,6 +325,8 @@ export type McpJourneyEvent =
       }
     /** The OAuth app a reconnected row is saved with, read back after the sheet opened. */
     | {type: "oauth_client_loaded"; config: MCPOAuthConfig | null}
+    | {type: "oauth_client_load_failed"}
+    | {type: "oauth_client_load_started"}
     | {type: "submit_scopes"}
     | {type: "consent_started"}
     | {type: "consent_succeeded"}
@@ -371,8 +377,8 @@ export function startJourney(): McpJourneyState {
         oauthClientId: "",
         oauthClientSecretId: null,
         oauthClientAuthMethod: null,
-        oauthClientTouched: false,
         scopesSaved: null,
+        savedOauthConfig: null,
         endpointId: null,
         slug: null,
         createdHere: false,
@@ -408,6 +414,7 @@ export function startReconnect(endpoint: {
         authMode,
         // Until its address is checked, a connection saved with OAuth is known to have it.
         oauthOffered: authMode === "oauth",
+        savedOauthConfig: authMode === "oauth" ? "loading" : null,
         name: endpoint.name,
         nameTouched: true,
         endpointId: endpoint.id,
@@ -492,7 +499,6 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                           oauthClientId: "",
                           oauthClientSecretId: null,
                           oauthClientAuthMethod: null,
-                          oauthClientTouched: false,
                       }),
                 endpointId: sameAddress ? state.endpointId : null,
                 slug: sameAddress ? state.slug : null,
@@ -645,18 +651,31 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                         ? state.oauthClientSecretId
                         : event.clientSecretId,
                 oauthClientAuthMethod: event.authMethod ?? state.oauthClientAuthMethod,
-                oauthClientTouched: true,
             }
 
-        case "oauth_client_loaded":
-            if (state.oauthClientTouched) return state
+        case "oauth_client_loaded": {
+            // The client fields and the scope selection come from the row together. The
+            // saved scopes win over the all-checked default a check may already have
+            // applied, because nothing could be submitted before this.
+            const saved = event.config?.scopes ?? null
             return {
                 ...state,
+                savedOauthConfig: "loaded",
                 oauthClientId: event.config?.client_id ?? "",
                 oauthClientSecretId: event.config?.client_secret_id ?? null,
                 oauthClientAuthMethod: event.config?.token_endpoint_auth_method ?? null,
-                scopesSaved: event.config?.scopes ?? null,
+                scopesSaved: saved,
+                scopesSelected: saved
+                    ? state.scopesOffered.filter((scope) => saved.includes(scope))
+                    : state.scopesSelected,
             }
+        }
+
+        case "oauth_client_load_failed":
+            return {...state, savedOauthConfig: "failed"}
+
+        case "oauth_client_load_started":
+            return {...state, savedOauthConfig: "loading"}
 
         case "submit_scopes":
             return {...state, status: "awaiting_consent", error: null}

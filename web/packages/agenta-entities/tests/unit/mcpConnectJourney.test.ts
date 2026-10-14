@@ -518,20 +518,41 @@ describe("an OAuth app the person registered", () => {
 
         expect(loaded.oauthClientId).toBe("app-from-github")
         expect(loaded.oauthClientSecretId).toBe("secret-1")
-        expect(loaded.oauthClientTouched).toBe(false)
+        expect(loaded.savedOauthConfig).toBe("loaded")
     })
 
-    it("is not replaced by the saved app once the person has typed", () => {
-        const typed = journeyReducer(
+    it("takes its saved scopes over the all-checked default a check already applied", () => {
+        // The check of the saved address answered first and checked everything.
+        const checked = journeyReducer(
             startReconnect({id: "e", slug: "s", name: "n", url: URL, authMode: "oauth"}),
-            {type: "oauth_client_changed", clientId: "app-new"},
+            {
+                type: "saved_url_probed",
+                probe: {
+                    ...probe("oauth"),
+                    auth: {mode: "oauth", scopes_offered: ["read", "write"]},
+                },
+            },
         )
-        const loaded = journeyReducer(typed, {
-            type: "oauth_client_loaded",
-            config: {client_id: "app-old"},
-        })
+        expect(checked.scopesSelected).toEqual(["read", "write"])
+        expect(checked.savedOauthConfig).toBe("loading")
 
-        expect(loaded.oauthClientId).toBe("app-new")
+        const loaded = journeyReducer(checked, {
+            type: "oauth_client_loaded",
+            config: {scopes: ["read"]},
+        })
+        expect(loaded.scopesSelected).toEqual(["read"])
+        expect(loaded.savedOauthConfig).toBe("loaded")
+    })
+
+    it("says when the saved settings could not be read, and reads them again", () => {
+        const failed = journeyReducer(
+            startReconnect({id: "e", slug: "s", name: "n", url: URL, authMode: "oauth"}),
+            {type: "oauth_client_load_failed"},
+        )
+        expect(failed.savedOauthConfig).toBe("failed")
+        expect(journeyReducer(failed, {type: "oauth_client_load_started"}).savedOauthConfig).toBe(
+            "loading",
+        )
     })
 
     it("is forgotten with the address it was entered for", () => {
@@ -542,7 +563,6 @@ describe("an OAuth app the person registered", () => {
         const moved = journeyReducer(entered, {type: "url_changed", url: "https://mcp.other.test/"})
 
         expect(moved.oauthClientId).toBe("")
-        expect(moved.oauthClientTouched).toBe(false)
     })
 
     it("is asked for where the server registers no clients", () => {
