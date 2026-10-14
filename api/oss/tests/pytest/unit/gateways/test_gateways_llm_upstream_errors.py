@@ -6,6 +6,7 @@ reads (`upstream_error` or `upstream_rejected`). Nothing running: httpx.MockTran
 """
 
 import json
+import time
 from typing import List, Optional
 
 import httpx
@@ -187,6 +188,8 @@ def test_the_provider_text_is_cleaned_before_it_is_quoted():
         ("https://b.example/o?X-Amz-Signature=abcdef0123456789", "abcdef0123456789"),
         ("token ya29.a0AfH6SMBabcdefghijklmnop expired", "a0AfH6SMB"),
         ('password="correct horse battery staple" rejected', "battery"),
+        ('{"api_key": "hunter2222"}', "hunter2222"),
+        ("{'password': 'hunter2222'}", "hunter2222"),
     ],
 )
 def test_common_credential_shapes_are_redacted(said, leaked):
@@ -285,6 +288,49 @@ async def test_the_retired_starter_credits_endpoint_relays_its_errors_unchanged(
     )
 
     assert json.loads(b"".join([chunk async for chunk in result.body])) == body
+
+
+def test_ordinary_words_before_a_colon_are_kept():
+    message = upstream_error_message(
+        code=UPSTREAM_REJECTED, provider_message="Invalid key: model, max_tokens: 4096"
+    )
+
+    assert '"Invalid key: model, max_tokens: 4096"' in message
+
+
+def test_redaction_stays_fast_on_a_long_hyphenated_text():
+    started = time.monotonic()
+    upstream_error_message(code=UPSTREAM_ERROR, provider_message="a-" * 500_000)
+
+    assert time.monotonic() - started < 1
+
+
+@pytest.mark.asyncio
+async def test_an_oversized_built_in_error_event_is_never_relayed_unread():
+    leak = b"projects/private-project/locations/europe-west1"
+    event = b'data: {"error":{"message":"' + leak + b" " + b"x" * 1_200_000 + b'"}}\n\n'
+
+    async def upstream():
+        for start in range(0, len(event), 65536):
+            yield event[start : start + 65536]
+
+    chunks = [
+        chunk
+        async for chunk in relay_upstream_errors(
+            upstream(),
+            status_code=200,
+            stream=True,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+            scanner=CredentialEchoScanner([]),
+            echo_refusal=RuntimeError(),
+            quote_upstream=False,
+        )
+    ]
+
+    assert leak not in b"".join(chunks)
+    assert _data(b"".join(chunks))["error"]["message"].startswith(
+        "The model reported an error."
+    )
 
 
 @pytest.mark.asyncio

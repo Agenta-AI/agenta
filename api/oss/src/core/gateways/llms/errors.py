@@ -42,9 +42,27 @@ _ADVICE = {
 _CONNECTION_LOST = "stopped before the answer finished (connection error)"
 
 _MESSAGE_MAX_CHARS = 300
+_REDACTED_MAX_CHARS = 8192
 
 # Every sentence starts so; the runner finds it by these words inside a harness's wrapper.
 UPSTREAM_SENTENCE_START = "The model"
+
+# A name starts only where no word or hyphen precedes it, so a long hyphenated text stays linear.
+_NAMED_VALUE = re.compile(
+    r"""(?<![\w-])(["']?)([\w-]*(?:key|token|secret|password|signature|sig|credential))\1"""
+    r"""\s*([=:])\s*("[^"]*"|'[^']*'|\S+)""",
+    re.IGNORECASE,
+)
+# Bare names that also appear in ordinary text ("Invalid key: model"): only `name=value`.
+_AMBIGUOUS_NAMES = frozenset({"key", "token", "sig"})
+
+
+def _redact_named_value(match: "re.Match[str]") -> str:
+    name, separator = match.group(2), match.group(3)
+    if separator == ":" and name.lower() in _AMBIGUOUS_NAMES:
+        return match.group(0)
+    return f"{name}=[secret]"
+
 
 _REDACTIONS = (
     (re.compile(r"\b(Bearer|Basic)\s+\S{6,}", re.IGNORECASE), r"\1 [secret]"),
@@ -54,15 +72,8 @@ _REDACTIONS = (
     (re.compile(r"\bAIza[0-9A-Za-z_-]{20,}"), "[secret]"),
     (re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), "[secret]"),
     (re.compile(r"\bya29\.[0-9A-Za-z._-]+"), "[secret]"),
-    # A named value, in prose or in a URL's query string (`?key=`, `X-Amz-Signature=`).
-    (
-        re.compile(
-            r"\b([A-Za-z0-9_-]*(?:key|token|secret|password|signature|sig|credential))\b"
-            r"\s*[=:]\s*(?:\"[^\"]*\"|'[^']*'|\S+)",
-            re.IGNORECASE,
-        ),
-        r"\1=[secret]",
-    ),
+    # A named value, in prose, JSON or a URL's query string (`?key=`, `X-Amz-Signature=`).
+    (_NAMED_VALUE, lambda match: _redact_named_value(match)),
     # No marker in the provider's words may read as the gateway's own, nested ones included.
     (re.compile(r"[⟦⟧]"), ""),
     (re.compile(r"[\x00-\x1f\x7f]+"), " "),
@@ -101,6 +112,8 @@ def connection_lost_message() -> str:
 def _cleaned(text: Any) -> str:
     if not isinstance(text, str):
         return ""
+    # Only the first 300 characters are shown, so the redaction never reads a whole 1 MiB body.
+    text = text[:_REDACTED_MAX_CHARS]
     for pattern, replacement in _REDACTIONS:
         text = pattern.sub(replacement, text)
     text = " ".join(text.split()).rstrip(". ")

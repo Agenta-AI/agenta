@@ -106,7 +106,9 @@ async def relay_upstream_errors(
             yield chunk
         return
 
-    relay = _SseRelay(lambda data: marked(data, None))
+    # The platform's own upstream is trusted with memory, and an oversized event of its own may
+    # be an error that names its cloud project, so it is never relayed unread.
+    relay = _SseRelay(lambda data: marked(data, None), relay_oversized=quote_upstream)
     try:
         async for chunk in body:
             if relayed := relay.feed(chunk):
@@ -132,8 +134,11 @@ class _SseRelay:
     stream that breaks off mid-event can still end with an error that parses.
     """
 
-    def __init__(self, mark: Callable[[Any], Dict[str, Any]]) -> None:
+    def __init__(
+        self, mark: Callable[[Any], Dict[str, Any]], *, relay_oversized: bool = True
+    ) -> None:
         self._mark = mark
+        self._relay_oversized = relay_oversized
         self._buffer = b""
         self.finished = False
 
@@ -146,7 +151,7 @@ class _SseRelay:
             start = 0
             event, self._buffer = self._buffer[: end.end()], self._buffer[end.end() :]
             out.append(self._event(event))
-        if len(self._buffer) > _MAX_EVENT_BYTES:
+        if self._relay_oversized and len(self._buffer) > _MAX_EVENT_BYTES:
             out.append(self._buffer)
             self._buffer = b""
         return b"".join(out)
