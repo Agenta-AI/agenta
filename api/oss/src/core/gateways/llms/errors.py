@@ -67,10 +67,11 @@ def _redact_named_value(match: "re.Match[str]") -> str:
 _REDACTIONS = (
     (re.compile(r"\b(Bearer|Basic)\s+\S{6,}", re.IGNORECASE), r"\1 [secret]"),
     # A provider's own masked copy of the key ("sk-proj-****...abcd", "sk-...3kKQ") still shows
-    # its first and last characters. Bounded on both sides, so a long run of "sk-a-" stays linear.
+    # its first and last characters. The part before the mask is bounded, so a long run of
+    # "sk-a-" stays linear.
     (
         re.compile(
-            r"\b(?:sk|pk|rk)-[A-Za-z0-9_-]{0,24}(?:\*{3,}|\.{3,})[A-Za-z0-9_-]{0,24}"
+            r"\b(?:sk|pk|rk)-[A-Za-z0-9_-]{0,24}(?:\*{3,}|\.{3,})[A-Za-z0-9_-]*"
         ),
         "[secret]",
     ),
