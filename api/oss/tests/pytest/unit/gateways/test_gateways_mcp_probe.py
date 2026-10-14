@@ -356,13 +356,14 @@ async def test_a_server_that_answers_the_handshake_carries_no_challenge():
 
 
 @pytest.mark.asyncio
-async def test_a_discoverable_challenge_stays_the_oauth_answer():
-    """The evidence is carried for the inconclusive answer, not as a second way to read
-    the conclusive one."""
+async def test_a_discoverable_challenge_stays_the_oauth_answer_and_keeps_the_challenge():
+    """A person may pick an API key over OAuth. The key screen names the scheme from the
+    challenge, so the OAuth answer keeps it."""
     result = await _probe(_protected_server()).probe(server_url=_SERVER_URL)
 
     assert result.auth.mode is MCPProbeAuthMode.OAUTH
-    assert result.auth.challenge_status is None
+    assert result.auth.challenge_status == 401
+    assert result.auth.challenge_schemes == ["Bearer"]
 
 
 @pytest.mark.asyncio

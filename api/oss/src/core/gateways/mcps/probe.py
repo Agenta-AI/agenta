@@ -134,8 +134,9 @@ class MCPProbeAuth(BaseModel):
     authorization_server: Optional[str] = None
     scopes_offered: List[str] = []
     registration: Optional[MCPProbeRegistration] = None
-    # What the server said when it refused the anonymous handshake, carried only on the
-    # `UNKNOWN` answer that a challenge produced.
+    # What the server said when it refused the anonymous handshake, carried on every answer
+    # that a challenge produced. OAuth carries it too: a person may pick an API key over
+    # OAuth, and the key screen then names the scheme from it.
     #
     # `UNKNOWN` reaches the connect journey as the API-key screen, which asks for a header
     # name. Everything the probe knew about which header that is used to be discarded here,
@@ -501,6 +502,8 @@ class MCPServerProbe:
                 authorization_server=discovery.authorization_server,
                 scopes_offered=discovery.scopes_offered,
                 registration=registration,
+                challenge_status=challenged.challenge_status,
+                challenge_schemes=challenged.challenge_schemes,
             ),
         )
 
