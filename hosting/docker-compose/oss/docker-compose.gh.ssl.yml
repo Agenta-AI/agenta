@@ -74,7 +74,7 @@ services:
         # idle connection to the worker for 90 s). If the worker closed first, a request the
         # proxy sends on that connection in the same instant would fail with 502.
         command: >
-            newrelic-admin run-program gunicorn entrypoints.routers:app
+            gunicorn entrypoints.routers:app
             --bind 0.0.0.0:8000
             --worker-class entrypoints.uvicorn_worker.DrainingUvicornWorker
             --workers 2
@@ -141,8 +141,6 @@ services:
         # === EXECUTION ============================================ #
         command:
             [
-                "newrelic-admin",
-                "run-program",
                 "python",
                 "-m",
                 "entrypoints.worker_streams",
@@ -189,8 +187,6 @@ services:
         # === EXECUTION ============================================ #
         command:
             [
-                "newrelic-admin",
-                "run-program",
                 "python",
                 "-m",
                 "entrypoints.worker_queues",
@@ -290,7 +286,7 @@ services:
         # idle connection to the worker for 90 s). If the worker closed first, a request the
         # proxy sends on that connection in the same instant would fail with 502.
         command: >
-            newrelic-admin run-program gunicorn entrypoints.main:app
+            gunicorn entrypoints.main:app
             --bind 0.0.0.0:8080
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2

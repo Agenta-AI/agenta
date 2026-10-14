@@ -1736,28 +1736,6 @@ class MountsConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# newrelic
-# ---------------------------------------------------------------------------
-
-
-class NewRelicConfig(BaseModel):
-    """New Relic monitoring configuration"""
-
-    license_key: str | None = (
-        os.getenv("NEWRELIC_LICENSE_KEY")
-        or os.getenv("NEW_RELIC_LICENSE_KEY")
-        or os.getenv("NRIA_LICENSE_KEY")
-    )
-
-    model_config = ConfigDict(extra="ignore")
-
-    @property
-    def enabled(self) -> bool:
-        """New Relic enabled if license key present"""
-        return bool(self.license_key)
-
-
-# ---------------------------------------------------------------------------
 # postgres
 # ---------------------------------------------------------------------------
 
@@ -2375,7 +2353,6 @@ class EnvironSettings(BaseModel):
     mcp_gateway: MCPGatewayConfig = MCPGatewayConfig()
     mock_gateways: MockGatewaysConfig = MockGatewaysConfig()
     mounts: MountsConfig = MountsConfig()
-    newrelic: NewRelicConfig = NewRelicConfig()
     postgres: PostgresConfig = PostgresConfig()
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()

@@ -1041,16 +1041,6 @@
         }
       }
     },
-    "newrelic": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "licenseKey": {
-          "type": "string",
-          "description": "NEWRELIC_LICENSE_KEY via Secret."
-        }
-      }
-    },
     "posthog": {
       "type": "object",
       "additionalProperties": false,

@@ -44,7 +44,6 @@ dependencies = [
     "sendgrid>=6,<7",
     "stripe>=15,<16",
     "posthog>=7,<8",
-    "newrelic>=13,<14",
     "dnspython>=2,<3",
     "opentelemetry-proto>=1,<2",
     "croniter>=6,<7",
