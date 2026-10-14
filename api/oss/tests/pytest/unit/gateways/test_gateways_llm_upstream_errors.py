@@ -190,6 +190,14 @@ def test_the_provider_text_is_cleaned_before_it_is_quoted():
         ('password="correct horse battery staple" rejected', "battery"),
         ('{"api_key": "hunter2222"}', "hunter2222"),
         ("{'password': 'hunter2222'}", "hunter2222"),
+        (
+            "Incorrect API key provided: sk-qa-re*************************0000.",
+            "0000",
+        ),
+        ("Incorrect API key provided: sk-proj-********************abcd.", "abcd"),
+        ("Budget exceeded for key (sk-...3kKQ)", "3kKQ"),
+        ("Budget exceeded for key (sk-....abcd)", "abcd"),
+        ("Bad key sk-ab****" + "c" * 40, "cccc"),
     ],
 )
 def test_common_credential_shapes_are_redacted(said, leaked):
@@ -327,6 +335,7 @@ def test_ordinary_words_before_a_colon_are_kept():
 def test_redaction_stays_fast_on_a_long_hyphenated_text():
     started = time.monotonic()
     upstream_error_message(code=UPSTREAM_ERROR, provider_message="a-" * 500_000)
+    upstream_error_message(code=UPSTREAM_ERROR, provider_message="sk-a-" * 200_000)
 
     assert time.monotonic() - started < 1
 
