@@ -39,9 +39,7 @@ describe("credentialBindingPreview", () => {
     })
 
     it("shows a query binding as the parameter it adds", () => {
-        expect(credentialBindingPreview({kind: "query", name: "exaApiKey"})).toBe(
-            "?exaApiKey=••••",
-        )
+        expect(credentialBindingPreview({kind: "query", name: "exaApiKey"})).toBe("?exaApiKey=••••")
     })
 
     it("shows nothing while there is no name, because nothing is sent", () => {
@@ -51,9 +49,9 @@ describe("credentialBindingPreview", () => {
 
 describe("normalizeCredentialBinding", () => {
     it("trims the name and turns a blank prefix into none", () => {
-        expect(normalizeCredentialBinding({kind: "header", name: " x-api-key ", prefix: ""})).toEqual(
-            {kind: "header", name: "x-api-key", prefix: null},
-        )
+        expect(
+            normalizeCredentialBinding({kind: "header", name: " x-api-key ", prefix: ""}),
+        ).toEqual({kind: "header", name: "x-api-key", prefix: null})
         expect(
             normalizeCredentialBinding({kind: "header", name: "Authorization", prefix: " Token "}),
         ).toEqual({kind: "header", name: "Authorization", prefix: "Token"})
@@ -62,9 +60,9 @@ describe("normalizeCredentialBinding", () => {
 
 describe("normalizeCredentialBinding on a query binding", () => {
     it("drops a prefix, which a query value does not take", () => {
-        expect(normalizeCredentialBinding({kind: "query", name: "token", prefix: "Bearer"})).toEqual(
-            {kind: "query", name: "token", prefix: null},
-        )
+        expect(
+            normalizeCredentialBinding({kind: "query", name: "token", prefix: "Bearer"}),
+        ).toEqual({kind: "query", name: "token", prefix: null})
         expect(credentialBindingPreview({kind: "query", name: "token", prefix: "Bearer"})).toBe(
             "?token=••••",
         )
@@ -76,11 +74,14 @@ describe("withoutCredentialParameter", () => {
 
     it("drops the parameter the binding fills, and keeps the rest", () => {
         expect(
-            withoutCredentialParameter("https://mcp.exa.test/mcp?exaApiKey=test-key-one&debug=on", binding),
+            withoutCredentialParameter(
+                "https://mcp.exa.test/mcp?exaApiKey=test-key-one&debug=on",
+                binding,
+            ),
         ).toBe("https://mcp.exa.test/mcp?debug=on")
-        expect(withoutCredentialParameter("https://mcp.exa.test/mcp?exaApiKey=test-key-one", binding)).toBe(
-            "https://mcp.exa.test/mcp",
-        )
+        expect(
+            withoutCredentialParameter("https://mcp.exa.test/mcp?exaApiKey=test-key-one", binding),
+        ).toBe("https://mcp.exa.test/mcp")
     })
 
     it("leaves the URL as typed when there is nothing to drop", () => {
@@ -125,9 +126,7 @@ describe("mcpDefaultCredentialBinding", () => {
 describe("basicCredentialValue", () => {
     it("encodes username:password in base64 once", () => {
         expect(basicCredentialValue("user", "pass")).toBe("dXNlcjpwYXNz")
-        expect(atob(basicCredentialValue("login@example.com", "a:b"))).toBe(
-            "login@example.com:a:b",
-        )
+        expect(atob(basicCredentialValue("login@example.com", "a:b"))).toBe("login@example.com:a:b")
     })
 
     it("encodes UTF-8 first, so a character outside Latin-1 does not throw", () => {
