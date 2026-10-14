@@ -138,3 +138,31 @@ def test_sqlalchemy_statements_are_traced(on):
     query, request = spans[SpanKind.CLIENT], spans[SpanKind.SERVER]
     assert query.attributes["db.statement"] == "SELECT 1"
     assert query.parent.span_id == request.context.span_id
+
+
+@pytest.mark.asyncio
+async def test_two_deliveries_of_one_task_keep_their_own_span(on):
+    # Redis can redeliver a long-running message, so one task_id can run twice at once.
+    import asyncio
+
+    (middleware,) = server_tracing.taskiq_middlewares()
+    ok = TaskiqResult(is_err=False, return_value=None, execution_time=0.1)
+    first_started, second_done = asyncio.Event(), asyncio.Event()
+
+    async def run(wait_for, then_set):
+        message = middleware.pre_execute(_message())
+        then_set.set() if then_set is first_started else None
+        if wait_for is not None:
+            await wait_for.wait()
+        middleware.post_execute(message, ok)
+        if then_set is second_done:
+            then_set.set()
+
+    first = asyncio.create_task(run(second_done, first_started))
+    await first_started.wait()
+    second = asyncio.create_task(run(None, second_done))
+    await asyncio.gather(first, second)
+
+    runs = [span for span in on.get_finished_spans() if span.name.startswith("run ")]
+    assert len(runs) == 2
+    assert runs[0].context.span_id != runs[1].context.span_id

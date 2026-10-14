@@ -64,6 +64,9 @@ DEFAULT_SAMPLE_RATIO = 0.1
 MAX_ATTRIBUTE_LENGTH = 4096
 
 _SERVER_SPAN = create_key("agenta-server-span")
+# The product span that was current when a server span started, kept on the span object
+# because some instrumentations (aiohttp) make their span current with a plain attach.
+_PRODUCT_PARENT_ATTR = "_agenta_product_span"
 _PRODUCT_SPAN = create_key("agenta-product-span")
 
 _provider: Optional["_ServerTracerProvider"] = None
@@ -88,9 +91,12 @@ def product_context(context: Optional[Context] = None) -> Context:
     span = trace.get_current_span(context)
     if not is_server_span(span):
         return context
-    return trace.set_span_in_context(
-        get_value(_PRODUCT_SPAN, context) or INVALID_SPAN, context
+    product = (
+        getattr(span, _PRODUCT_PARENT_ATTR, None)
+        or get_value(_PRODUCT_SPAN, context)
+        or INVALID_SPAN
     )
+    return trace.set_span_in_context(product, context)
 
 
 def current_product_span(context: Optional[Context] = None) -> trace.Span:
@@ -194,7 +200,14 @@ class _ServerTracer(trace.Tracer):
         self._tracer = tracer
 
     def start_span(self, name, context=None, *args, **kwargs) -> trace.Span:
-        return self._tracer.start_span(name, _server_context(context), *args, **kwargs)
+        span = self._tracer.start_span(name, _server_context(context), *args, **kwargs)
+        product = current_product_span(context)
+        if product.get_span_context().is_valid:
+            try:
+                setattr(span, _PRODUCT_PARENT_ATTR, product)
+            except AttributeError:  # a span type with __slots__
+                pass
+        return span
 
     @contextmanager
     def start_as_current_span(
@@ -257,6 +270,7 @@ _TELEGRAM_TOKEN = re.compile(r"bot\d+:[A-Za-z0-9_-]+")
 _URL = re.compile(r"https?://[^\s'\"<>]+")
 _URL_KEYS = ("http.url", "url.full", "http.target", "url.path")
 _QUERY_KEYS = ("url.query",)
+_HEADER_PREFIXES = ("http.request.header.", "http.response.header.")
 
 
 def _secret_segment(segment: str) -> bool:
@@ -300,6 +314,8 @@ def _redact_value(key: str, value: str) -> str:
 def _redact_attributes(attributes: Any) -> dict:
     redacted = {}
     for key, value in (attributes or {}).items():
+        if key.startswith(_HEADER_PREFIXES):
+            continue  # captured headers (opt-in through OTEL_INSTRUMENTATION_HTTP_CAPTURE_*)
         if key in _QUERY_KEYS:
             value = REDACTED
         elif isinstance(value, str):
@@ -313,27 +329,18 @@ def _redact_attributes(attributes: Any) -> dict:
     return redacted
 
 
-# A traceback line that names a frame. The lines after it are the source of that frame.
-_FRAME = re.compile(r'^\s*File "')
+# A traceback line that names a frame: file, line number and function, nothing else.
+_FRAME = re.compile(r'^  File "[^"\n]+", line \d+, in [\w<>.]+$')
 
 
 def redact_stacktrace(stacktrace: str) -> str:
-    """Keep the frames of a traceback and drop its exception messages.
+    """Keep only the frame lines of a traceback (file, line, function).
 
     An exception message can carry data, e.g. SQLAlchemy puts the statement parameters in
-    it. The frames and their source lines carry code only.
+    it, and a message can itself look like a traceback. So source lines and every line that
+    is not exactly a frame line are dropped.
     """
-    kept = []
-    in_frame = False
-    for line in stacktrace.splitlines():
-        if line.startswith("Traceback") or _FRAME.match(line):
-            kept.append(line)
-            in_frame = _FRAME.match(line) is not None
-        elif in_frame and line.startswith("    "):
-            kept.append(line)
-        else:
-            in_frame = False
-    return "\n".join(kept)
+    return "\n".join(line for line in stacktrace.splitlines() if _FRAME.match(line))
 
 
 def _redact_event(event: Event) -> Event:

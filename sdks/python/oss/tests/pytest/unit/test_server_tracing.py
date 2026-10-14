@@ -228,6 +228,42 @@ def test_product_context_restores_the_displaced_product_span(product):
         detach(token)
 
 
+def test_product_parent_survives_a_plain_attach(product, no_global_propagation):
+    # aiohttp starts its span with start_span and makes it current with a plain attach,
+    # not through attach_server_span, so the product span is found on the span itself.
+    srv = _Server()
+    with ag.tracer.start_as_current_span("workflow") as workflow:
+        client = srv.tracer.start_span("GET", kind=SpanKind.CLIENT)
+        token = attach(trace.set_span_in_context(client))
+        try:
+            assert server.current_product_span() is workflow
+            ids = f"{workflow.get_span_context().trace_id:032x}"
+            assert inject({})["traceparent"].startswith(f"00-{ids}-")
+        finally:
+            detach(token)
+            client.end()
+
+
+def test_server_spans_do_not_replace_the_last_ended_product_span(product):
+    from agenta.sdk.engines.tracing.processors import (
+        EndedSpanRecorder,
+        _get_last_ended,
+    )
+
+    recorder = EndedSpanRecorder()
+    srv = _Server()
+    srv.provider.provider.add_span_processor(recorder)
+    product_provider = ag.tracing.tracer_provider
+    product_provider.add_span_processor(recorder)
+
+    with ag.tracer.start_as_current_span("workflow") as workflow:
+        pass
+    with srv.tracer.start_as_current_span("POST /invoke", kind=SpanKind.SERVER):
+        pass
+
+    assert _get_last_ended() == workflow.get_span_context()
+
+
 # --------------------------------------------------------------------------- #
 # Sampling
 # --------------------------------------------------------------------------- #
@@ -391,7 +427,7 @@ def test_exceptions_keep_the_type_and_frames_only():
     assert "exception.message" not in event.attributes
     stacktrace = event.attributes["exception.stacktrace"]
     assert "in query" in stacktrace
-    assert "raise ValueError(" in stacktrace
+    assert "raise ValueError(" not in stacktrace  # source lines are dropped too
     for secret in (email, "'pw'", "DETAIL:", "[parameters:", "RuntimeError: "):
         assert secret not in stacktrace
 
@@ -494,3 +530,39 @@ def test_long_attributes_are_capped():
     (span,) = memory.get_finished_spans()
     assert len(span.attributes["db.statement"]) == server.MAX_ATTRIBUTE_LENGTH
     srv.shutdown()
+
+
+def test_a_traceback_shaped_message_does_not_pass_the_filter():
+    forged = (
+        "Traceback (most recent call last):\n"
+        '  File "/app/x.py", line 1, in run\n'
+        "    query()\n"
+        "ValueError: boom\n"
+        '  File "/app/x.py", line 2, in run\n'
+        "    secret-token-1234\n"
+        "  [parameters: ('a@b.c',)]\n"
+    )
+    kept = server.redact_stacktrace(forged)
+    assert kept.splitlines() == [
+        '  File "/app/x.py", line 1, in run',
+        '  File "/app/x.py", line 2, in run',
+    ]
+
+
+def test_captured_headers_are_dropped():
+    memory = InMemorySpanExporter()
+    inner = TracerProvider(sampler=server.ServerSampler(1.0))
+    inner.add_span_processor(SimpleSpanProcessor(server.RedactingSpanExporter(memory)))
+    tracer = server._ServerTracerProvider(inner).get_tracer("test")
+    with tracer.start_as_current_span(
+        "GET",
+        kind=SpanKind.SERVER,
+        attributes={
+            "http.request.header.authorization": ("ApiKey secret",),
+            "http.response.header.set_cookie": ("session=secret",),
+            "http.method": "GET",
+        },
+    ):
+        pass
+    (span,) = memory.get_finished_spans()
+    assert dict(span.attributes) == {"http.method": "GET"}

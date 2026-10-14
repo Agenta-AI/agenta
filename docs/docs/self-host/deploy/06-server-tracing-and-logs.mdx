@@ -62,8 +62,9 @@ What is recorded:
   bot token) are replaced with `REDACTED`. Request and response bodies and headers are not
   recorded. Redis spans carry the command name, not its arguments. Database spans carry the
   statement, not its parameter values.
-- An error keeps the exception type and the stack frames, but not the exception message, because a
-  message can contain request data.
+- An error keeps the exception type and the file, line and function of each stack frame. The
+  exception message and the source lines are dropped, because they can contain request data.
+  Headers are dropped even when the standard OpenTelemetry header capture settings are set.
 - Each process traces on its own. The servers do not send `traceparent` headers to each other or to
   the services they call, and they ignore an incoming `traceparent` for these spans.
 
