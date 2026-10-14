@@ -1483,7 +1483,7 @@
             "value": {
               "type": "integer",
               "maximum": -1,
-              "description": "Default -10. Keep it at -10 or above. On GKE a pod below -10 does not make the autoscaler add a node, so an evicted placeholder would not come back."
+              "description": "Default -10. Keep it at -10 or above. On GKE a pod below -10 does not make the autoscaler add a node, so an evicted placeholder would not come back. Kubernetes does not let a PriorityClass value change, so change the name together with the value."
             }
           }
         },

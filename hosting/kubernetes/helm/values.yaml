@@ -528,6 +528,8 @@ redisDurable:
 #     priorityClass:
 #       name: ""      # default <namespace>-<release fullname>-spare-capacity
 #       value: -10    # keep at -10 or above, or GKE does not add a node for it
+#                     # Kubernetes does not let a PriorityClass value change, so to
+#                     # change it, also change the name
 #     image: registry.k8s.io/pause:3.10
 #     nodeSelector: {}
 #     tolerations: []
