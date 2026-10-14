@@ -6,7 +6,7 @@
  * screen is built here from the same rule, so what the screen says is sent is what is sent.
  */
 import {mcpDefaultKeyHeader} from "./probeResponse"
-import type {MCPCredentialBinding, MCPServerProbe} from "./types"
+import type {MCPAuthMode, MCPCredentialBinding, MCPServerProbe} from "./types"
 
 /** What a connection with no binding sends, which is also the commonest server's shape. */
 export const MCP_DEFAULT_CREDENTIAL_BINDING: MCPCredentialBinding = {
@@ -41,6 +41,29 @@ export function urlMatchesCredentialBinding(url: string, binding: MCPCredentialB
     const count = url.split(MCP_URL_SECRET_PLACEHOLDER).length - 1
     if (binding.kind !== "url") return count === 0
     return count === 1 && typedPath(url).includes(MCP_URL_SECRET_PLACEHOLDER)
+}
+
+/**
+ * Why this address cannot connect in this mode with this binding, or null.
+ *
+ * The API's own sentences, so the sheet says before Connect what the API would say after it.
+ * A placeholder under a header or query binding is not here: the URL field's hint already
+ * asks for In the URL.
+ */
+export function urlSecretProblem(
+    url: string,
+    authMode: MCPAuthMode,
+    binding: MCPCredentialBinding,
+): string | null {
+    if (authMode !== "api_key") {
+        return hasUrlSecretPlaceholder(url)
+            ? `Only an API key can replace ${MCP_URL_SECRET_PLACEHOLDER} in the URL. Choose API key, or remove ${MCP_URL_SECRET_PLACEHOLDER} from the URL.`
+            : null
+    }
+    if (binding.kind === "url" && !urlMatchesCredentialBinding(url, binding)) {
+        return `The URL needs exactly one ${MCP_URL_SECRET_PLACEHOLDER} in its path for the secret to replace.`
+    }
+    return null
 }
 
 /** Whether the binding says where the value goes: a name, or the URL's placeholder. */

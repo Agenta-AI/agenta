@@ -14,6 +14,7 @@ import {
     mcpDefaultCredentialBinding,
     normalizeCredentialBinding,
     urlMatchesCredentialBinding,
+    urlSecretProblem,
     withoutCredentialParameter,
 } from "../../src/mcpEndpoint/core/credentialBinding"
 import type {MCPServerProbe} from "../../src/mcpEndpoint/core/types"
@@ -175,5 +176,21 @@ describe("a url binding", () => {
 
     it("leaves the address as typed, placeholder and all", () => {
         expect(withoutCredentialParameter(firecrawl, {kind: "url"})).toBe(firecrawl)
+    })
+
+    it("says why a mode other than API key cannot fill the placeholder", () => {
+        for (const mode of ["none", "oauth"] as const) {
+            expect(urlSecretProblem(firecrawl, mode, {kind: "url"})).toBe(
+                "Only an API key can replace {secret} in the URL. Choose API key, or remove {secret} from the URL.",
+            )
+        }
+        expect(urlSecretProblem("https://mcp.example.test/mcp", "none", {kind: "url"})).toBeNull()
+    })
+
+    it("says why a url binding needs exactly one placeholder in the path", () => {
+        expect(urlSecretProblem(`${firecrawl}/{secret}`, "api_key", {kind: "url"})).toBe(
+            "The URL needs exactly one {secret} in its path for the secret to replace.",
+        )
+        expect(urlSecretProblem(firecrawl, "api_key", {kind: "url"})).toBeNull()
     })
 })

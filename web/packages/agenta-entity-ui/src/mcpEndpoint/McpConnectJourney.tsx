@@ -43,6 +43,7 @@ import {
     mcpChallengeScheme,
     mcpDefaultCredentialBinding,
     urlMatchesCredentialBinding,
+    urlSecretProblem,
     readMcpProbeResponse,
     toolPrefixFromName,
     useMcpConnectJourney,
@@ -706,6 +707,9 @@ export function McpConnectSheet({
     // The status of the request that carried the key, not the one that carried nothing.
     const refusedStatus = state.failureStatus
 
+    // Why Connect is held for a `{secret}` address, said rather than only greyed out.
+    const urlProblem = urlSecretProblem(state.url, path, binding)
+
     /** The one error that belongs to a field rather than to the screen. */
     const nameError = state.status === "naming" ? (nameProblem ?? state.error) : null
 
@@ -840,6 +844,10 @@ export function McpConnectSheet({
                         </HintedField>
                     ) : null}
 
+                    {(screen === "oauth" || screen === "no_auth") && urlProblem ? (
+                        <InlineError headline={null}>{urlProblem}</InlineError>
+                    ) : null}
+
                     {screen === "oauth" ? (
                         <NoticeBox>
                             Connect opens {state.name || "the server"}&apos;s authorization page in
@@ -865,7 +873,11 @@ export function McpConnectSheet({
                                     }
                                 />
                                 {binding.kind === "url" || hasUrlSecretPlaceholder(state.url) ? (
-                                    <HintedField label="Server URL" hint={urlSecretHint(binding)}>
+                                    <HintedField
+                                        label="Server URL"
+                                        hint={urlSecretHint(binding)}
+                                        error={urlProblem ?? undefined}
+                                    >
                                         <Input
                                             className="font-mono text-[13px]"
                                             value={state.url}

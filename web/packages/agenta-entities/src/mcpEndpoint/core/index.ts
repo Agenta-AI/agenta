@@ -41,6 +41,7 @@ export {
     mcpDefaultCredentialBinding,
     normalizeCredentialBinding,
     urlMatchesCredentialBinding,
+    urlSecretProblem,
     withoutCredentialParameter,
 } from "./credentialBinding"
 export type {

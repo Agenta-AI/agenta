@@ -315,6 +315,32 @@ describe("a key in the URL", () => {
         expect(document.querySelector('[data-testid="mcp-probe-result"]')).toBeNull()
     })
 
+    it("says why None cannot connect a placeholder address", async () => {
+        await open({...firecrawl, authMode: "none"})
+
+        expect(text()).toContain(
+            "Only an API key can replace {secret} in the URL. Choose API key, or remove {secret} from the URL.",
+        )
+        expect(button("Connect")?.disabled).toBe(true)
+    })
+
+    it("says why OAuth cannot connect a placeholder address", async () => {
+        await open({...firecrawl, authMode: "oauth", oauthOffered: true})
+
+        expect(text()).toContain(
+            "Only an API key can replace {secret} in the URL. Choose API key, or remove {secret} from the URL.",
+        )
+    })
+
+    it("says why an address with two placeholders cannot connect", async () => {
+        await open({...firecrawl, url: "https://mcp.firecrawl.dev/{secret}/{secret}/mcp"})
+
+        expect(text()).toContain(
+            "The URL needs exactly one {secret} in its path for the secret to replace.",
+        )
+        expect(button("Connect")?.disabled).toBe(true)
+    })
+
     it("asks for In the URL when another binding meets the placeholder", async () => {
         await open(firecrawl)
         await press("Bearer token")
