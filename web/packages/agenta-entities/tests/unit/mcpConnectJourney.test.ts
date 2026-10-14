@@ -10,7 +10,9 @@ import {describe, expect, it} from "vitest"
 
 import {
     adoptableEndpoint,
+    canSelectOauth,
     cancelDeletesEndpoint,
+    detectedAuthMode,
     isBusy,
     isConnected,
     journeyReducer,
@@ -715,5 +717,106 @@ describe("Abandoning one authorization attempt", () => {
         })
 
         expect(journeyReducer(reconnecting, {type: "consent_abandoned"})).toBe(reconnecting)
+    })
+})
+
+describe("the authentication the person selects", () => {
+    // The probe only suggests a mode. A server with OAuth metadata may also take a personal
+    // token, and one that answered without a key may give more with one.
+    const probed = (mode: "oauth" | "none" | "unknown") => beforeCreate(mode).slice(0, 3)
+
+    it.each([
+        ["oauth", "oauth"],
+        ["none", "none"],
+        ["unknown", "api_key"],
+    ] as const)("starts from what the probe found (%s)", (found, expected) => {
+        expect(detectedAuthMode(probe(found))).toBe(expected)
+        expect(run(...probed(found)).authMode).toBe(expected)
+    })
+
+    it.each([
+        ["oauth", "api_key", "manual_auth"],
+        ["oauth", "none", "verifying"],
+        ["none", "api_key", "manual_auth"],
+        ["unknown", "none", "verifying"],
+        ["unknown", "api_key", "manual_auth"],
+        ["oauth", "oauth", "discovering_scopes"],
+    ] as const)("detected %s, selected %s: the created row goes to %s", (found, mode, status) => {
+        const state = run(
+            ...probed(found),
+            {type: "auth_mode_selected", mode},
+            {type: "submit_name"},
+            {type: "endpoint_created", endpointId: "mcp-1", slug: "acme-tools"},
+        )
+        expect(state.authMode).toBe(mode)
+        expect(state.status).toBe(status)
+    })
+
+    it("offers OAuth only where the probe found it", () => {
+        expect(canSelectOauth(run(...probed("oauth")))).toBe(true)
+        expect(canSelectOauth(run(...probed("none")))).toBe(false)
+        expect(canSelectOauth(run(...probed("unknown")))).toBe(false)
+    })
+
+    it("offers OAuth on a reconnect only of a connection saved with it", () => {
+        const oauth = startReconnect({id: "e", slug: "s", name: "n", url: URL, authMode: "oauth"})
+        const key = startReconnect({id: "e", slug: "s", name: "n", url: URL, authMode: "api_key"})
+        expect(canSelectOauth(oauth, "oauth")).toBe(true)
+        expect(canSelectOauth(key, "api_key")).toBe(false)
+    })
+
+    it("forgets a pending row made in the old mode, so the next press makes one in the new", () => {
+        const state = run(...upToCreated("oauth"), {type: "consent_cancelled", error: "closed"})
+        expect(cancelDeletesEndpoint(state)).toBe(true)
+
+        const switched = journeyReducer(state, {type: "auth_mode_selected", mode: "api_key"})
+        expect(switched.status).toBe("naming")
+        expect(switched.endpointId).toBeNull()
+        expect(switched.createdHere).toBe(false)
+    })
+
+    it("keeps the choice across a re-check of the same address", () => {
+        const state = run(
+            ...probed("oauth"),
+            {type: "auth_mode_selected", mode: "api_key"},
+            {type: "url_changed", url: URL},
+            {type: "submit_url"},
+            {type: "probe_succeeded", probe: probe("oauth"), suggestedName: "Acme Tools"},
+        )
+        expect(state.authMode).toBe("api_key")
+    })
+
+    it("drops the choice for a different address", () => {
+        const state = run(
+            ...probed("oauth"),
+            {type: "auth_mode_selected", mode: "api_key"},
+            {type: "url_changed", url: "https://other.test/mcp"},
+            {type: "submit_url"},
+            {type: "probe_succeeded", probe: probe("oauth"), suggestedName: "Other"},
+        )
+        expect(state.authMode).toBe("oauth")
+    })
+
+    it("drops an OAuth choice that a re-check no longer backs", () => {
+        const state = run(
+            ...probed("oauth"),
+            {type: "auth_mode_selected", mode: "none"},
+            {type: "auth_mode_selected", mode: "oauth"},
+            {type: "url_changed", url: URL},
+            {type: "submit_url"},
+            {type: "probe_succeeded", probe: probe("none"), suggestedName: "Acme Tools"},
+        )
+        expect(state.authMode).toBe("none")
+    })
+
+    it("moves a reconnect to the screen of the new mode and keeps its row", () => {
+        const oauth = startReconnect({id: "e", slug: "s", name: "n", url: URL, authMode: "oauth"})
+        const key = journeyReducer(oauth, {type: "auth_mode_selected", mode: "api_key"})
+        expect(key.status).toBe("manual_auth")
+        expect(key.endpointId).toBe("e")
+
+        const back = journeyReducer(key, {type: "auth_mode_selected", mode: "oauth"})
+        expect(back.status).toBe("discovering_scopes")
+        expect(back.endpointId).toBe("e")
     })
 })

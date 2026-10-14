@@ -19,17 +19,18 @@ Start from `Settings` in the sidebar, then `MCPs`, and click `Connect MCP`. You 
 
 1. Enter the address under `Server URL` and click `Continue`. Agenta contacts the server to check that it is reachable and to detect whether it needs OAuth, an API key, or nothing.
 2. Agenta reports what it found and asks for a name. Check the suggested `Name` and edit it if you want. The name labels this connection everywhere you pick it, it must be unique in the project, and it sets the tool prefix the model sees.
-3. What you do next depends on what the server reported.
+3. Under the result, `Authentication` offers `None`, `API key` and `OAuth`, and starts on what Agenta detected, which it marks `Detected`. Keep it, or pick another when you know better: GitHub's server detects as OAuth and also takes a personal access token, and some servers that answer without a key give higher limits with one. `OAuth` can be picked only when the server offers OAuth sign-in. The fields below follow your choice, and the connection is saved in the mode you picked.
+4. What you do next depends on the mode you picked.
 
-   **`Reachable · signs in with OAuth`.** Click `Connect`. The provider's authorization page opens in a new window. Complete it there, and the sheet carries on by itself. Agenta does not ask you to choose scopes. The server decides what it grants.
+   **`OAuth`.** Click `Connect`. The provider's authorization page opens in a new window. Complete it there, and the sheet carries on by itself. Agenta does not ask you to choose scopes. The server decides what it grants.
 
-   **`Reachable · needs an API key`.** Agenta prefills `Header` with `Authorization`. Edit it to whatever the server expects, such as `x-api-key`. Pick the `Project secret` that holds the key, and if the project has no secrets yet, click `Create secret` in that list to make one without leaving the sheet. Click `Connect`. Agenta calls the server once with that credential, so a wrong header or a wrong key fails here rather than during an agent run.
+   **`API key`.** Agenta prefills `Header` with `Authorization`. Edit it to whatever the server expects, such as `x-api-key`. Pick the `Project secret` that holds the key, and if the project has no secrets yet, click `Create secret` in that list to make one without leaving the sheet. Click `Connect`. Agenta calls the server once with that credential, so a wrong header or a wrong key fails here rather than during an agent run.
 
-   You land on this screen under the same line when the server refused to be reached without a credential and did not say which kind it wants. Agenta shows the key form because a credential is the only thing that refusal can be answered with. A server that needs nothing answers the first check plainly and shows `Reachable · no sign-in needed` instead.
+   `API key` is detected, under `Reachable · needs an API key`, when the server refused to be reached without a credential and did not say which kind it wants, because a credential is the only thing that refusal can be answered with. A server that needs nothing answers the first check plainly and shows `Reachable · no sign-in needed` instead.
 
    If the server named an authentication scheme other than Bearer, a line under `Header` says which one it asked for. The field still starts on `Authorization`, because the scheme names what goes in the header's value rather than the header itself.
 
-   **`Reachable · no sign-in needed`.** The sheet asks only for a name. Click `Connect`.
+   **`None`.** The sheet asks only for a name. Click `Connect`.
 
 The sheet closes itself as soon as the connection exists. Started from an agent, the permission drawer opens on the new connection with its tools listed, so you can decide what the agent may run. Started from `Settings`, the new row is in the table.
 
@@ -100,7 +101,7 @@ Connect the same URL a second time, from `Connect MCP` in `Settings` or `Connect
 
 ## Rename, disconnect, or remove a connection
 
-Open `Settings > MCPs`. The table lists each connection with its `Server URL`, its `Auth`, which reads `OAuth`, `API key` with the secret it uses, or `None`, and its `Status`. A narrow window drops the detail columns, so on a phone a row shows its name and its status alone. Click a row to open the connection, where you can rename it and read its tool list. Each row also has a menu at the end of it.
+Open `Settings > MCPs`. The table lists each connection with its `Server URL`, its `Auth`, which reads `OAuth`, `API key` with the secret it uses, or `None`, and its `Status`. A narrow window drops the detail columns, so on a phone a row shows its name and its status alone. Click a row to open the connection, where you can rename it, read its tool list, and change its authentication. `Change` next to `Authentication` opens the reconnect sheet, where you pick another mode and supply what it needs. The connection keeps its name, its reference and its tool settings, and a project secret it used stays in the project. Each row also has a menu at the end of it.
 
 - **Reconnect.** Repairs whichever way the connection authenticates. On an OAuth connection it takes you back through the provider's authorization page. On a key-authenticated one it reopens the sheet with the URL and the name locked, so you can supply the header and the secret again.
 - **View tools.** Opens the same drawer an agent uses, with the tools grouped and described but nothing to set. What an agent may call is set in that agent's configuration.

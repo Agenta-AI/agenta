@@ -349,3 +349,28 @@ describe("McpConnectionDetail: renaming", () => {
         expect(editMcpEndpoint).toHaveBeenCalledTimes(1)
     })
 })
+
+describe("McpConnectionDetail: the authentication", () => {
+    it("says how the connection signs in and opens the sheet that changes it", async () => {
+        listMcpTools.mockResolvedValue([])
+        const onReconnect = vi.fn()
+        const endpoint = connected({auth_mode: "api_key"})
+        await act(async () => {
+            root.render(
+                createElement(McpConnectionDetail, {
+                    endpoint,
+                    onClose: () => undefined,
+                    onReconnect,
+                    onDisconnect: () => undefined,
+                }),
+            )
+        })
+        await settle()
+
+        expect(text()).toMatch(/Authentication\s*API key/)
+        await act(async () => {
+            button("Change")?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+        })
+        expect(onReconnect).toHaveBeenCalledWith(endpoint)
+    })
+})

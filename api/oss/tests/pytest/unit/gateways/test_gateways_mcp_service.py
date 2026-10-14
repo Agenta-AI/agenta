@@ -2411,3 +2411,48 @@ async def test_an_unconstrained_connection_leaves_a_framed_body_byte_identical()
     result = await _framed_relay(dao, adapter)
 
     assert result.body == sent.body
+
+
+@pytest.mark.asyncio
+async def test_a_key_connection_to_a_server_that_publishes_oauth_relays_with_the_key():
+    """The mode the person chose is the truth, and the probe only suggested one.
+
+    GitHub's MCP server publishes OAuth metadata and also accepts a personal access token.
+    A connection created in `api_key` mode for it stays in that mode, is not re-derived
+    from the server's metadata, and relays with the project secret it names rather than
+    asking for consent.
+    """
+    adapter = MockUpstreamAdapter()
+    service = _relay_service(
+        resolver=MockResolver(secret=_resolved_secret()),
+        adapters={"http": adapter},
+    )
+    secret_id = uuid4()
+
+    created = await service.create_endpoint(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint=MCPEndpointCreate(
+            name="GitHub",
+            auth_mode=MCPAuthScheme.API_KEY,
+            secret_id=secret_id,
+            data=MCPEndpointData(
+                route=MCPEndpointRoute(base_url="https://api.githubcopilot.com/mcp/")
+            ),
+        ),
+    )
+
+    assert created.auth_mode == MCPAuthScheme.API_KEY
+    assert created.secret_id == secret_id
+
+    await service.relay(
+        scope=_scope(),
+        namespace="custom",
+        name=created.slug,
+        context=MCPCallContext(method="tools/list"),
+        body=b"{}",
+        headers={},
+    )
+
+    assert adapter.relay_calls == 1
+    assert adapter.last_auth.secret is not None

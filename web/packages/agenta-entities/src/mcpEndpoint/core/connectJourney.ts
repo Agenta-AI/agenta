@@ -22,7 +22,30 @@
  *   the caller's list, not this dialog, is what says so (decision 26).
  */
 import {normalizeConnectionName} from "./connectionName"
-import type {MCPServerProbe} from "./types"
+import type {MCPAuthMode, MCPServerProbe} from "./types"
+
+/**
+ * The authentication a probe suggests, which is where the selector starts.
+ *
+ * Only a suggestion. A server that publishes OAuth metadata may also take a key, and one that
+ * answered without a key may give more with one, so the person's choice is what the row is
+ * created in. An inconclusive probe is, in practice, a server holding its tools behind a key
+ * it would not describe.
+ */
+export const detectedAuthMode = (probe: MCPServerProbe): MCPAuthMode => {
+    if (probe.auth.mode === "oauth") return "oauth"
+    if (probe.auth.mode === "none") return "none"
+    return "api_key"
+}
+
+/**
+ * Whether OAuth can be chosen at all. Consent needs authorization metadata, so OAuth is
+ * offered where the probe found it, or on a reconnect of a connection saved with OAuth.
+ */
+export const canSelectOauth = (
+    state: McpJourneyState,
+    savedAuthMode?: MCPAuthMode | null,
+): boolean => (state.probe ? state.probe.auth.mode === "oauth" : savedAuthMode === "oauth")
 
 /**
  * The address two rows are compared by: no trailing slash, no case, no surrounding space.
@@ -140,6 +163,13 @@ export interface McpJourneyState {
     nameTouched: boolean
     /** Protocol context: what the probe established about the server. */
     probe: MCPServerProbe | null
+    /**
+     * Policy: how the connection authenticates. The probe sets the first value; the person's
+     * choice replaces it, and every transition and the row itself read this, never the probe.
+     */
+    authMode: MCPAuthMode
+    /** Once true, a later probe of the same address may no longer change the choice. */
+    authModeTouched: boolean
     /** Protocol context: the permissions the authorization server offers. */
     scopesOffered: string[]
     /** Which of them this attempt asks for. A reconnect uses it to step up. */
@@ -180,6 +210,7 @@ export type McpJourneyEvent =
           probe?: MCPServerProbe | null
       }
     | {type: "name_changed"; name: string}
+    | {type: "auth_mode_selected"; mode: MCPAuthMode}
     | {type: "submit_name"}
     | {
           type: "endpoint_created"
@@ -234,6 +265,8 @@ export function startJourney(): McpJourneyState {
         name: "",
         nameTouched: false,
         probe: null,
+        authMode: "none",
+        authModeTouched: false,
         scopesOffered: [],
         scopesSelected: [],
         endpointId: null,
@@ -258,15 +291,17 @@ export function startReconnect(endpoint: {
     name: string
     url: string
     /** How the connection authorizes. A reconnect repairs whichever it is. */
-    authMode?: "oauth" | "api_key" | "none"
+    authMode?: MCPAuthMode
 }): McpJourneyState {
+    const authMode = endpoint.authMode ?? "api_key"
     return {
         ...startJourney(),
         // Only an OAuth connection has scopes to re-read. A key-authenticated one is repaired
         // by supplying the credential again, and sending it to scope discovery instead just
         // earns the route's refusal that it is not an OAuth target.
-        status: endpoint.authMode === "oauth" ? "discovering_scopes" : "manual_auth",
+        status: authMode === "oauth" ? "discovering_scopes" : "manual_auth",
         url: endpoint.url,
+        authMode,
         name: endpoint.name,
         nameTouched: true,
         endpointId: endpoint.id,
@@ -340,6 +375,8 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                 url: event.url,
                 probe: null,
                 error: null,
+                // A choice made for one server says nothing about the next one.
+                authModeTouched: sameAddress ? state.authModeTouched : false,
                 endpointId: sameAddress ? state.endpointId : null,
                 slug: sameAddress ? state.slug : null,
                 createdHere: sameAddress ? state.createdHere : false,
@@ -350,15 +387,23 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
             if (!state.url.trim()) return state
             return {...state, status: "checking_url", error: null}
 
-        case "probe_succeeded":
+        case "probe_succeeded": {
+            // The person's choice survives a re-check, except an OAuth choice the server no
+            // longer backs with metadata.
+            const keepChoice =
+                state.authModeTouched &&
+                (state.authMode !== "oauth" || event.probe.auth.mode === "oauth")
             return {
                 ...state,
                 status: "naming",
                 probe: event.probe,
                 // Discovery improves only a suggestion nobody has edited.
                 name: state.nameTouched ? state.name : event.suggestedName,
+                authMode: keepChoice ? state.authMode : detectedAuthMode(event.probe),
+                authModeTouched: keepChoice,
                 error: null,
             }
+        }
 
         case "probe_failed":
             // The URL and the name survive, so a retry does not retype them.
@@ -372,6 +417,30 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
 
         case "name_changed":
             return {...state, name: event.name, nameTouched: true, error: null}
+
+        case "auth_mode_selected": {
+            if (event.mode === state.authMode) return state
+            const chosen = {
+                ...state,
+                authMode: event.mode,
+                authModeTouched: true,
+                failureStatus: null,
+                error: null,
+            }
+            // A reconnect has no probe and no naming screen. Its row is someone's working
+            // connection, so it stays, and the step that writes the credential writes the
+            // mode with it.
+            if (!state.probe) {
+                return {
+                    ...chosen,
+                    status: event.mode === "oauth" ? "discovering_scopes" : "manual_auth",
+                }
+            }
+            // A first connect goes back to the screen that creates the row, so the row is
+            // made in the mode chosen. A pending row made in the old mode is the caller's
+            // to delete, as on an address change.
+            return {...chosen, status: "naming", endpointId: null, slug: null, createdHere: false}
+        }
 
         case "submit_name":
             if (!state.name.trim()) return state
@@ -389,14 +458,8 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                 createdHere: state.createdHere || (!state.endpointId && !event.adopted),
                 error: null,
             }
-            if (state.probe?.auth.mode === "oauth") {
-                return {...next, status: "discovering_scopes"}
-            }
-            if (state.probe?.auth.mode === "none") {
-                return {...next, status: "verifying"}
-            }
-            // The probe could not establish how to authorize, so the person is asked
-            // rather than guessed at.
+            if (state.authMode === "oauth") return {...next, status: "discovering_scopes"}
+            if (state.authMode === "none") return {...next, status: "verifying"}
             return {...next, status: "manual_auth"}
         }
 

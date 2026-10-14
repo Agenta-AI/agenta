@@ -16,7 +16,11 @@
  */
 import {act, createElement} from "react"
 
-import type {McpJourneyState, McpJourneyStatus} from "@agenta/entities/mcpEndpoint"
+import {
+    detectedAuthMode,
+    type McpJourneyState,
+    type McpJourneyStatus,
+} from "@agenta/entities/mcpEndpoint"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -93,6 +97,9 @@ const state = (over: Partial<McpJourneyState> & {status: McpJourneyStatus}): Mcp
     name: "",
     nameTouched: false,
     probe: null,
+    // The probe sets the first value, as in the journey.
+    authMode: over.probe ? detectedAuthMode(over.probe) : "none",
+    authModeTouched: false,
     scopesOffered: [],
     scopesSelected: [],
     endpointId: null,
@@ -111,6 +118,7 @@ const open = async (current: McpJourneyState, props: Partial<McpConnectJourneyPr
         setUrl: vi.fn(),
         cancelConsent: vi.fn(),
         onClose: vi.fn(),
+        selectAuthMode: vi.fn(),
     }
     useMcpConnectJourney.mockReturnValue({
         state: current,
@@ -119,6 +127,7 @@ const open = async (current: McpJourneyState, props: Partial<McpConnectJourneyPr
         setUrl: asked.setUrl,
         submitUrl: vi.fn(),
         setName: vi.fn(),
+        selectAuthMode: asked.selectAuthMode,
         submitName: vi.fn(),
         toggleScope: vi.fn(),
         submitScopes: vi.fn(),
@@ -828,6 +837,7 @@ describe("C5, the server wants a key", () => {
                 status: "manual_auth",
                 url: "https://mcp.axiom.co/mcp",
                 name: "Axiom",
+                authMode: "api_key",
                 endpointId: "mcp-1",
                 slug: "axiom",
                 createdHere: false,
@@ -853,6 +863,7 @@ describe("C5, the server wants a key", () => {
                 status: "manual_auth",
                 url: "https://mcp.axiom.co/mcp",
                 name: "Axiom",
+                authMode: "api_key",
                 endpointId: "mcp-1",
                 slug: "axiom",
                 createdHere: false,
@@ -996,6 +1007,7 @@ describe("C6, the key was refused", () => {
                 status: "manual_auth",
                 url: "https://mcp.axiom.co/mcp",
                 name: "Axiom",
+                authMode: "api_key",
                 endpointId: "mcp-9",
                 slug: "axiom",
                 createdHere: false,
@@ -1041,5 +1053,94 @@ describe("success, which draws nothing", () => {
         expect(text()).not.toContain("Linear is connected.")
         expect(text()).not.toContain("tools available")
         expect(button("Done")).toBeUndefined()
+    })
+})
+
+describe("the Authentication selector", () => {
+    const radio = (label: string) =>
+        [...document.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((candidate) =>
+            candidate.textContent?.startsWith(label),
+        )
+    const GITHUB = {
+        status: "naming" as const,
+        url: "https://api.githubcopilot.com/mcp/",
+        name: "GitHub",
+        probe: OAUTH_PROBE,
+    }
+
+    it("marks what the probe found and starts there", async () => {
+        await open(state(GITHUB))
+
+        expect(radio("OAuth")?.getAttribute("aria-checked")).toBe("true")
+        expect(radio("OAuth")?.textContent).toBe("OAuthDetected")
+        expect(radio("API key")?.textContent).toBe("API key")
+        expect(text()).toContain("authorization page")
+        expect(control("Header")).toBeNull()
+    })
+
+    it("hands the press to the journey", async () => {
+        await open(state(GITHUB))
+        await act(async () => {
+            radio("API key")?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+        })
+
+        expect(asked.selectAuthMode).toHaveBeenCalledWith("api_key")
+    })
+
+    it("switches the fields to the key's when API key is selected", async () => {
+        // GitHub publishes OAuth metadata and also takes a personal access token.
+        await open(state({...GITHUB, authMode: "api_key"}))
+
+        expect(radio("API key")?.getAttribute("aria-checked")).toBe("true")
+        // The card still reports what the probe found; the selection is the person's.
+        expect(text()).toContain("Reachable · signs in with OAuth")
+        expect(text()).toContain(
+            "The probe found OAuth. Pick API key if this server also accepts a key you already have.",
+        )
+        expect(control("Header")).toBeTruthy()
+        expect(control("Project secret")).toBeTruthy()
+        expect(text()).not.toContain("authorization page")
+    })
+
+    it("shows only the name when None is selected", async () => {
+        await open(state({...GITHUB, authMode: "none"}))
+
+        expect(control("Header")).toBeNull()
+        expect(text()).not.toContain("authorization page")
+        expect(button("Connect")?.disabled).toBe(false)
+    })
+
+    it("lets a server that answered without a key take one, and says why OAuth is off", async () => {
+        const context7 = {
+            status: "naming" as const,
+            url: "https://mcp.context7.com/mcp",
+            name: "Context7",
+            probe: {reachable: true, server_name: "Context7", auth: {mode: "none" as const}},
+        }
+        await open(state(context7))
+
+        expect(radio("None")?.textContent).toBe("NoneDetected")
+        expect(radio("OAuth")?.disabled).toBe(true)
+        expect(text()).toContain("OAuth is available when the server offers OAuth sign-in.")
+
+        await open(state({...context7, authMode: "api_key"}))
+        expect(text()).toContain("Reachable · no sign-in needed")
+        expect(text()).toContain(
+            "The server answered without a key. Add one if your plan gives you a key for higher limits.",
+        )
+        expect(control("Header")).toBeTruthy()
+    })
+
+    it("keeps the SSE warning on the screen it changes to", async () => {
+        await open(
+            state({
+                ...GITHUB,
+                authMode: "api_key",
+                probe: {...OAUTH_PROBE, legacy_transport_suspected: true},
+            }),
+        )
+
+        expect(text()).toContain("This address may use the older SSE transport")
+        expect(radio("API key")?.getAttribute("aria-checked")).toBe("true")
     })
 })

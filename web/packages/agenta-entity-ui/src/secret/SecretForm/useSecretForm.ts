@@ -13,7 +13,7 @@ import {
     type CustomSecretFormat as CustomSecretFormatType,
     type NamedSecretRow,
 } from "@agenta/entities/secret"
-import {slugifyBase} from "@agenta/shared/utils"
+import {extractApiErrorMessage, slugifyBase} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 
 import {buildSecretContent, parseFlatJson} from "./content"
@@ -278,10 +278,13 @@ export function useSecretForm({
                 defaultEnvVar: savedDefaultEnvVar,
             })
         } catch (error) {
-            console.error("Secret save failed", {
-                status: (error as {statusCode?: number})?.statusCode,
-            })
-            message.error("Failed to save the secret")
+            const status = (error as {statusCode?: number})?.statusCode
+            console.error("Secret save failed", {status})
+            // A taken slug is the one refusal the person can fix in this form, so the API's
+            // reason is shown rather than a bare failure (#6928).
+            message.error(
+                status === 409 ? extractApiErrorMessage(error) : "Failed to save the secret",
+            )
         } finally {
             setSaving(false)
         }
