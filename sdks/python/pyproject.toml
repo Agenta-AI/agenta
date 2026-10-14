@@ -38,6 +38,16 @@ dependencies = [
     "RestrictedPython>=8,<9",
 ]
 
+[project.optional-dependencies]
+# What agenta.sdk.engines.tracing.server instruments (the Agenta api and services).
+server-tracing = [
+    "opentelemetry-instrumentation-fastapi>=0.64b0,<0.65",
+    "opentelemetry-instrumentation-httpx>=0.64b0,<0.65",
+    "opentelemetry-instrumentation-aiohttp-client>=0.64b0,<0.65",
+    "opentelemetry-instrumentation-redis>=0.64b0,<0.65",
+    "opentelemetry-instrumentation-sqlalchemy>=0.64b0,<0.65",
+]
+
 [project.urls]
 Homepage = "https://agenta.ai"
 Repository = "https://github.com/agenta-ai/agenta"

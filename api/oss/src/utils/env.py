@@ -426,6 +426,21 @@ class OTLPConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# agenta.server_tracing — spans about the Agenta servers themselves, sent to an
+# OTLP collector. Separate from product tracing, which goes to Agenta.
+# ---------------------------------------------------------------------------
+
+
+class ServerTracingConfig(BaseModel):
+    # OTLP/HTTP base URL, e.g. http://collector:4318. Unset turns server tracing off.
+    endpoint: str | None = os.getenv("AGENTA_SERVER_TRACING_ENDPOINT") or None
+    # A ratio from 0 to 1, parsed and checked when tracing starts (default 0.1).
+    sample_ratio: str | None = os.getenv("AGENTA_SERVER_TRACING_SAMPLE_RATIO") or None
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # agenta.services — code, hook, middleware sub-models.
 # ---------------------------------------------------------------------------
 
@@ -831,6 +846,7 @@ class AgentaConfig(BaseModel):
     logging: LoggingConfig = LoggingConfig()
     otlp: OTLPConfig = OTLPConfig()
     redaction: RedactionConfig = RedactionConfig()
+    server_tracing: ServerTracingConfig = ServerTracingConfig()
     services: ServicesConfig = ServicesConfig()
     sessions: SessionsConfig = SessionsConfig()
     webhooks: WebhooksConfig = WebhooksConfig()

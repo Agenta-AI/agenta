@@ -1,0 +1,97 @@
+---
+title: Trace and Log the Agenta Servers
+slug: /self-host/guides/server-tracing-and-logs
+sidebar_label: Server tracing and logs
+description: 'Send request traces from the Agenta api, services and workers to your own OpenTelemetry collector, and write the server logs as JSON for a log collector such as Google Cloud Logging.'
+---
+
+This page covers the telemetry of the Agenta servers themselves: how long a request took, which
+database and HTTP calls it made, and what the processes logged. It is separate from the traces of
+your applications and agents, which Agenta stores and shows in the observability view.
+
+Both features are off by default. A deployment that sets none of the variables below behaves as
+before.
+
+## Server request tracing
+
+With server tracing on, the api, services, worker-queues and worker-streams processes send
+OpenTelemetry spans for incoming requests, task runs, stream batches, database statements, Redis
+commands and outgoing HTTP calls. They send them over OTLP/HTTP to a collector you run. Any backend
+that accepts OTLP works: an OpenTelemetry Collector, Jaeger, Grafana Tempo, Honeycomb, Google Cloud
+Trace, and others.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `AGENTA_SERVER_TRACING_ENDPOINT` | unset (off) | Base URL of an OTLP/HTTP collector, for example `http://otel-collector:4318`. Spans go to `<endpoint>/v1/traces`. |
+| `AGENTA_SERVER_TRACING_SAMPLE_RATIO` | `0.1` | Share of requests to trace, from `0` to `1`. A process with a value outside that range does not start. |
+| `OTEL_SERVICE_NAME` | per process | Optional. Replaces the service name, which is `agenta-api`, `agenta-services`, `agenta-worker-queues` or `agenta-worker-streams`. |
+
+Set the variables on each process you want to trace.
+
+With Docker Compose, add them to your env file:
+
+```bash
+AGENTA_SERVER_TRACING_ENDPOINT=http://otel-collector:4318
+AGENTA_SERVER_TRACING_SAMPLE_RATIO=0.2
+```
+
+With Helm, add them to the `env` map of each component:
+
+```yaml
+api:
+  env:
+    AGENTA_SERVER_TRACING_ENDPOINT: http://otel-collector.observability:4318
+    AGENTA_SERVER_TRACING_SAMPLE_RATIO: "0.2"
+services:
+  env:
+    AGENTA_SERVER_TRACING_ENDPOINT: http://otel-collector.observability:4318
+workerQueues:
+  env:
+    AGENTA_SERVER_TRACING_ENDPOINT: http://otel-collector.observability:4318
+workerStreams:
+  env:
+    AGENTA_SERVER_TRACING_ENDPOINT: http://otel-collector.observability:4318
+```
+
+What is recorded:
+
+- Only an incoming request, a task run or a stream batch starts a trace. The ratio applies to
+  those, and every span inside a traced request is kept with it. Calls made outside one, such as a
+  worker polling Redis, are not recorded. `/health` is never traced.
+- URLs lose their query string and credentials, and long tokens in a URL path (such as a Telegram
+  bot token) are replaced with `REDACTED`. Request and response bodies and headers are not
+  recorded. Redis spans carry the command name, not its arguments.
+- Each process traces on its own. The servers do not send `traceparent` headers to each other or to
+  the services they call, and they ignore an incoming `traceparent` for these spans.
+
+:::info Server traces and application traces stay apart
+Turning on server tracing does not change the traces of your applications and agents in Agenta.
+They keep their own trace ids and parents, and server spans never appear in them.
+:::
+
+## JSON logs
+
+By default the servers write colored text to stdout. To get one JSON object per line instead, set
+`AGENTA_LOG_FORMAT`:
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `AGENTA_LOG_FORMAT` | `text` | `text` for colored text, `json` for one JSON object per line. |
+| `GOOGLE_CLOUD_PROJECT` | unset | Optional. The Google Cloud project that receives the traces, used to link log lines to them in Google Cloud Logging. |
+
+Each JSON line has `severity`, `message`, `time`, `logger` and the fields of the log call:
+
+```json
+{"severity": "INFO", "message": "Workflow invoked", "time": "2026-10-14T13:01:26.502193Z", "logger": "oss.src.core.workflows.service", "project_id": "019d952f-0000-0000-0000-000000000000"}
+```
+
+When server tracing is on and the line was written inside a traced request, it also carries the
+trace:
+
+- With `GOOGLE_CLOUD_PROJECT` set, it gets `logging.googleapis.com/trace`,
+  `logging.googleapis.com/spanId` and `logging.googleapis.com/trace_sampled`. Google Cloud Logging
+  reads these fields and links the line to its trace in Cloud Trace.
+- Without it, the ids go out as `otelTraceID` and `otelSpanID`.
+
+Lines written while an application or agent runs inside the server process do not carry the
+server trace, because the active span then belongs to the application trace.

@@ -8,7 +8,7 @@ authors = [
     { name = "Juan Vega", email = "jp@agenta.ai" },
 ]
 dependencies = [
-    "agenta",
+    "agenta[server-tracing]",
     "fastapi>=0.139,<0.140",
     "pydantic[email]>=2,<3",
     # MCP OAuth uses the SDK's TokenStorage protocol and OAuth wire contracts directly.

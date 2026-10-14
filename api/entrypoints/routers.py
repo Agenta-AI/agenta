@@ -16,6 +16,7 @@ from supertokens_python.framework.fastapi import (
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.server_tracing import instrument_fastapi, setup_server_tracing
 from oss.src.utils.helpers import (
     validate_platform_runtime_key,
     validate_required_env_vars,
@@ -321,6 +322,9 @@ ag.init(
     api_url=env.agenta.api_url,
 )
 print(f"[STARTUP] ag.init() completed (+{time.perf_counter() - _t_ag_init:.3f}s)")
+
+# Before the engines, brokers and HTTP sessions below exist, so they get traced too.
+setup_server_tracing("agenta-api")
 
 ee = None
 _t_before_ee = time.perf_counter()
@@ -661,6 +665,8 @@ app.add_middleware(ApiPrefixStripMiddleware, routes=lambda: _ROUTED_APP.routes)
 
 if ee and is_ee():
     app = ee.extend_main(app)
+
+instrument_fastapi(app)
 
 # DAOS -------------------------------------------------------------------------
 
