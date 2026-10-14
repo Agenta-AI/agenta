@@ -8,4 +8,5 @@
  */
 export interface McpEndpointProbeRequest {
     url: string;
+    secret_id?: string | null;
 }
