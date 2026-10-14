@@ -107,7 +107,7 @@ def test_trace_fields_without_a_project_are_bare_ids(no_product_tracing):
 
     assert line["otelTraceID"] == format(ids.trace_id, "032x")
     assert line["otelSpanID"] == format(ids.span_id, "016x")
-    assert not any(key.startswith("logging.googleapis.com/") for key in line)
+    assert not any(key.split("/")[0] == "logging.googleapis.com" for key in line)
 
 
 def test_no_trace_fields_without_a_span(no_product_tracing):
