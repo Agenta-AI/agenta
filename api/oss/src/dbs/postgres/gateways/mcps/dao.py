@@ -1,8 +1,9 @@
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -13,7 +14,6 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointEdit,
     MCPEndpointQuery,
     is_oauth_connection_at,
-    is_oauth_connection_for,
 )
 from oss.src.core.gateways.mcps.interfaces import (
     MCPEndpointsDAOInterface,
@@ -200,6 +200,20 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
 
             return map_mcp_endpoint_dbe_to_dto(dbe=dbe)
 
+    @asynccontextmanager
+    async def oauth_lock(self, *, project_id: UUID, endpoint_id: UUID):
+        # A transaction-scoped advisory lock on its own connection, rather than the
+        # endpoint row's own lock. The block writes the row, the grant and the attempt
+        # through DAOs with their own sessions, and a row lock held on this connection
+        # would make every one of those writes wait for it forever, the grant delete
+        # included, because its foreign key updates the row.
+        async with self.engine.transaction() as connection:
+            await connection.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+                {"key": f"mcps_endpoint_oauth:{project_id}:{endpoint_id}"},
+            )
+            yield
+
     # Excluded for the same reason `edit_endpoint` excludes it: this write refuses a
     # credential the project does not own, and a swallowed refusal returns `None`, which
     # the connect route reported as `count=1` with no endpoint. A success that did
@@ -216,8 +230,6 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
         #
         endpoint_id: UUID,
         secret_id: Optional[UUID],
-        oauth_server_url: Optional[str] = None,
-        oauth_client_id: Optional[str] = None,
     ) -> Optional[MCPEndpoint]:
         async with self.engine.session() as session:
             dbe = await self._locked(
@@ -225,16 +237,6 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
             )
             if dbe is None:
                 return None
-            if oauth_server_url is not None:
-                # Checked under the row lock, so an edit that moved the connection off
-                # this OAuth address or client cannot land between the check and the
-                # write.
-                if not is_oauth_connection_for(
-                    map_mcp_endpoint_dbe_to_dto(dbe=dbe),
-                    oauth_server_url,
-                    oauth_client_id,
-                ):
-                    return None
 
             await check_secret_is_owned_by_project(
                 session,

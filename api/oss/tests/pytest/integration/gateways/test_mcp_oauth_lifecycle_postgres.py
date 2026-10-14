@@ -20,11 +20,12 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointData,
     MCPEndpointEdit,
     MCPEndpointRoute,
+    MCPOAuthConfig,
 )
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.dtos import MCPOAuthAttemptStatus
 from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
-from oss.src.core.gateways.mcps.oauth.storage import grant_slug
+from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage, grant_slug
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthAttemptCancelledError
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.service import MCPGatewayService
@@ -121,6 +122,15 @@ async def _grant_ids(project, endpoint_id: UUID):
         return [row[0] for row in rows]
 
 
+async def _grant(connect, project, endpoint, server_url):
+    return await SecretsTokenStorage(
+        vault_service=connect.vault_service,
+        project_id=project["project_id"],
+        server_url=server_url,
+        endpoint_id=endpoint.id,
+    ).get_grant()
+
+
 async def _edit(gateway, project, endpoint, **changes):
     current = await gateway.fetch_endpoint(
         project_id=project["project_id"], endpoint_id=endpoint.id
@@ -137,7 +147,10 @@ async def _edit(gateway, project, endpoint, **changes):
                 update={
                     "route": MCPEndpointRoute(
                         base_url=changes.get("base_url", current.data.route.base_url)
-                    )
+                    ),
+                    "oauth_config": changes.get(
+                        "oauth_config", current.data.oauth_config
+                    ),
                 }
             ),
         ),
@@ -185,19 +198,19 @@ async def test_a_successful_completion_persists_connected(
 
 
 @pytest.mark.asyncio
-async def test_a_cancel_cannot_commit_inside_a_finalization_with_nested_reads(
+async def test_a_cancel_during_a_completion_waits_for_it(
     services, project, local_mcp_oauth_provider
 ):
-    """The nested endpoint read commits its own session. The attempt lock must survive
-    it, so a cancel arriving then waits, and finds a finished attempt."""
+    """The completion holds the connection's lock from its check to its last write. A
+    cancel arriving then waits, and finds a finished attempt."""
     connect, _gateway, endpoints = services
     endpoint = await _connection(
-        endpoints, project, local_mcp_oauth_provider, "pg-nested"
+        endpoints, project, local_mcp_oauth_provider, "pg-cancel-mid"
     )
     start, attempt, code = await _claimed(
         connect, project, local_mcp_oauth_provider, endpoint
     )
-    reached, release = _pause_after(connect.endpoints_dao, "fetch_endpoint")
+    reached, release = _pause_after(connect.attempts_dao, "fetch_attempt_by_id")
 
     completing = asyncio.create_task(connect.complete(attempt=attempt, code=code))
     await reached.wait()
@@ -242,12 +255,9 @@ async def test_a_cancel_before_finalization_wins(
 
 
 @pytest.mark.asyncio
-async def test_an_edit_during_finalization_leaves_a_cancelled_attempt_and_no_grant(
+async def test_an_edit_during_a_completion_waits_then_retires_what_it_bound(
     services, project, local_mcp_oauth_provider
 ):
-    """Finalization holds the attempt lock and has read the old address. An edit then
-    commits a new address. Finalization resumes: its bind is refused, the tokens it
-    wrote go, and the edit's state stands."""
     connect, gateway, endpoints = services
     endpoint = await _connection(
         endpoints, project, local_mcp_oauth_provider, "pg-edit-mid"
@@ -255,30 +265,154 @@ async def test_an_edit_during_finalization_leaves_a_cancelled_attempt_and_no_gra
     start, attempt, code = await _claimed(
         connect, project, local_mcp_oauth_provider, endpoint
     )
-    reached, release = _pause_after(connect.endpoints_dao, "fetch_endpoint")
+    reached, release = _pause_after(connect.attempts_dao, "fetch_attempt_by_id")
 
     completing = asyncio.create_task(connect.complete(attempt=attempt, code=code))
     await reached.wait()
     editing = asyncio.create_task(_edit(gateway, project, endpoint, base_url=_NEW_URL))
-    for _ in range(50):
-        moved = await endpoints.fetch_endpoint(
-            project_id=project["project_id"], endpoint_id=endpoint.id
+    await asyncio.sleep(0.3)
+    assert not editing.done()
+    release.set()
+
+    await completing
+    edited = await editing
+
+    assert await _status(connect, project, endpoint, start) == (
+        MCPOAuthAttemptStatus.CONNECTED
+    )
+    assert (edited.data.route.base_url, edited.secret_id) == (_NEW_URL, None)
+    assert await _grant_ids(project, endpoint.id) == []
+
+
+@pytest.mark.asyncio
+async def test_an_old_callback_cannot_overwrite_the_grant_of_a_newer_attempt(
+    services, project, local_mcp_oauth_provider
+):
+    """Attempt A finishes its exchange for the old address and stalls. The address
+    changes, attempt B consents at the new one and binds its grant. A then resumes: it
+    is cancelled, and the connection keeps B's grant for the new address."""
+    connect, gateway, endpoints = services
+    endpoint = await _connection(
+        endpoints, project, local_mcp_oauth_provider, "pg-two-attempts"
+    )
+    new_url = f"{local_mcp_oauth_provider.server_url}v2"
+    start_a, attempt_a, code_a = await _claimed(
+        connect, project, local_mcp_oauth_provider, endpoint
+    )
+    reached, release = _pause_after(connect.client, "exchange_token")
+    completing_a = asyncio.create_task(connect.complete(attempt=attempt_a, code=code_a))
+    await reached.wait()
+
+    moved = await _edit(gateway, project, endpoint, base_url=new_url)
+    start_b = await connect.begin(
+        project_id=project["project_id"],
+        user_id=project["user_id"],
+        endpoint_id=endpoint.id,
+        server_url=new_url,
+        scopes=["tools:call"],
+    )
+    attempt_b = await connect.claim(
+        state=start_b.state, caller_user_id=project["user_id"]
+    )
+    completion_b = await connect.complete(
+        attempt=attempt_b,
+        code=local_mcp_oauth_provider.callback_params(state=start_b.state)["code"],
+    )
+    release.set()
+    with pytest.raises(MCPOAuthAttemptCancelledError):
+        await completing_a
+
+    bound = await endpoints.fetch_endpoint(
+        project_id=project["project_id"], endpoint_id=endpoint.id
+    )
+    assert bound.data.route.base_url == moved.data.route.base_url == new_url
+    assert bound.secret_id == completion_b.secret_id
+    assert (await _grant(connect, project, endpoint, new_url)).server == new_url
+    assert await _status(connect, project, endpoint, start_a) == (
+        MCPOAuthAttemptStatus.CANCELLED
+    )
+
+
+@pytest.mark.asyncio
+async def test_cleanup_cannot_delete_a_grant_a_newer_attempt_binds(
+    services, project, local_mcp_oauth_provider
+):
+    """An address edit pauses in its cleanup. A consent for the new address completes
+    meanwhile. It waits for the edit, then binds a grant that stays."""
+    connect, gateway, endpoints = services
+    endpoint = await _connection(
+        endpoints, project, local_mcp_oauth_provider, "pg-cleanup-race"
+    )
+    new_url = f"{local_mcp_oauth_provider.server_url}v2"
+    _start, attempt, code = await _claimed(
+        connect, project, local_mcp_oauth_provider, endpoint
+    )
+    await connect.complete(attempt=attempt, code=code)
+
+    reached, release = _pause_after(connect, "cancel_attempts")
+    editing = asyncio.create_task(_edit(gateway, project, endpoint, base_url=new_url))
+    await reached.wait()
+    start_b = await connect.begin(
+        project_id=project["project_id"],
+        user_id=project["user_id"],
+        endpoint_id=endpoint.id,
+        server_url=new_url,
+        scopes=["tools:call"],
+    )
+    attempt_b = await connect.claim(
+        state=start_b.state, caller_user_id=project["user_id"]
+    )
+    completing_b = asyncio.create_task(
+        connect.complete(
+            attempt=attempt_b,
+            code=local_mcp_oauth_provider.callback_params(state=start_b.state)["code"],
         )
-        if moved.data.route.base_url == _NEW_URL:
-            break
-        await asyncio.sleep(0.05)
+    )
+    await asyncio.sleep(0.3)
+    assert not completing_b.done()
+    release.set()
+    await editing
+    completion_b = await completing_b
+
+    bound = await endpoints.fetch_endpoint(
+        project_id=project["project_id"], endpoint_id=endpoint.id
+    )
+    assert bound.secret_id == completion_b.secret_id
+    assert await _grant_ids(project, endpoint.id) == [completion_b.secret_id]
+    assert (await _grant(connect, project, endpoint, new_url)).server == new_url
+
+
+@pytest.mark.asyncio
+async def test_a_client_change_during_the_exchange_binds_nothing(
+    services, project, local_mcp_oauth_provider
+):
+    """A consent begun as the client Agenta chose must not finish once the person has
+    entered their own client for the connection."""
+    connect, gateway, endpoints = services
+    endpoint = await _connection(
+        endpoints, project, local_mcp_oauth_provider, "pg-client-change"
+    )
+    start, attempt, code = await _claimed(
+        connect, project, local_mcp_oauth_provider, endpoint
+    )
+    reached, release = _pause_after(connect.client, "exchange_token")
+    completing = asyncio.create_task(connect.complete(attempt=attempt, code=code))
+    await reached.wait()
+
+    await _edit(
+        gateway,
+        project,
+        endpoint,
+        oauth_config=MCPOAuthConfig(client_id="app-from-github"),
+    )
     release.set()
 
     with pytest.raises(MCPOAuthAttemptCancelledError):
         await completing
-    edited = await editing
-
+    assert await _grant_ids(project, endpoint.id) == []
     assert await _status(connect, project, endpoint, start) == (
         MCPOAuthAttemptStatus.CANCELLED
     )
-    assert await _grant_ids(project, endpoint.id) == []
-    assert edited.data.route.base_url == _NEW_URL
-    assert edited.secret_id is None
 
 
 @pytest.mark.asyncio
@@ -330,9 +464,9 @@ async def test_a_reader_during_an_address_edit_never_sees_the_new_address_with_t
 async def test_a_switch_to_an_api_key_during_an_address_edits_cleanup_keeps_its_key(
     services, project, local_mcp_oauth_provider
 ):
-    """Edit A moves the address and pauses before it retires the old grant. Edit B
-    switches the connection to an API key with the person's own secret. A then
-    finishes, and B's secret is still the one bound."""
+    """Edit A moves the address and pauses in its cleanup. Edit B, switching the
+    connection to an API key with the person's own secret, waits for A, and its secret
+    is the one bound at the end."""
     connect, gateway, endpoints = services
     endpoint = await _connection(
         endpoints, project, local_mcp_oauth_provider, "pg-edit-race"
@@ -358,30 +492,25 @@ async def test_a_switch_to_an_api_key_during_an_address_edits_cleanup_keeps_its_
         )
     ).id
 
-    reached, release = asyncio.Event(), asyncio.Event()
-    original_release = connect.release_grant
-
-    async def paused_release(**kwargs):
-        reached.set()
-        await release.wait()
-        await original_release(**kwargs)
-
-    connect.release_grant = paused_release
-
+    reached, release = _pause_after(connect, "cancel_attempts")
     editing_a = asyncio.create_task(
         _edit(gateway, project, endpoint, base_url=_NEW_URL)
     )
     await reached.wait()
-    connect.release_grant = original_release
-    await _edit(
-        gateway,
-        project,
-        endpoint,
-        auth_mode=MCPAuthScheme.API_KEY,
-        secret_id=key,
+    editing_b = asyncio.create_task(
+        _edit(
+            gateway,
+            project,
+            endpoint,
+            auth_mode=MCPAuthScheme.API_KEY,
+            secret_id=key,
+        )
     )
+    await asyncio.sleep(0.3)
+    assert not editing_b.done()
     release.set()
     await editing_a
+    await editing_b
 
     final = await endpoints.fetch_endpoint(
         project_id=project["project_id"], endpoint_id=endpoint.id

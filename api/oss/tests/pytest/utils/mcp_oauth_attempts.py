@@ -6,7 +6,6 @@ outcome — so a test that passes here and
 fails against Postgres is a real disagreement, not a fixture artifact.
 """
 
-from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Dict, Optional
 from uuid import uuid4
@@ -70,28 +69,6 @@ class InMemoryMCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
                 self.attempts[state] = record.model_copy(
                     update={"status": status, "error": error}
                 )
-
-    @asynccontextmanager
-    async def finalize_attempt(self, *, attempt_id):
-        found = [
-            (state, record)
-            for state, record in self.attempts.items()
-            if record.id == attempt_id
-            and record.status == MCPOAuthAttemptStatus.CLAIMED
-            and record.expires_at > datetime.now(timezone.utc)
-        ]
-        if not found:
-            yield None
-            return
-        state = found[0][0]
-        outcome = {}
-
-        async def settle(status) -> None:
-            outcome["status"] = status
-
-        yield settle
-        if outcome:
-            self.attempts[state] = self.attempts[state].model_copy(update=outcome)
 
     async def cancel_attempts(
         self,

@@ -35,6 +35,7 @@ from oss.src.core.gateways.mcps.oauth.service import (
 )
 from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage
 from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthAttemptCancelledError,
     MCPOAuthDiscoveryError,
     MCPOAuthTokenExchangeError,
     MCPOAuthRegistrationUnavailableError,
@@ -458,6 +459,29 @@ async def test_a_grant_from_the_metadata_document_is_renewed_as_the_document():
     form = parse_qs(server.token_requests[0].content.decode())
     assert form["client_id"] == [_DOCUMENT_CLIENT_ID]
     assert "client_secret" not in form
+
+
+@pytest.mark.asyncio
+async def test_a_consent_does_not_finish_once_the_connection_selects_another_client():
+    """Checked under the connection's lock, next to the mode and the address, so it
+    holds however the client was changed."""
+    server = _AuthorizationServer(
+        metadata=_metadata(registration_endpoint=f"{_AS_BASE}/register")
+    )
+    service, _dao, endpoints = _service(server)
+    project_id, endpoint_id = uuid4(), uuid4()
+    start = await _begin(service, endpoint_id=endpoint_id, project_id=project_id)
+    attempt = await service.claim(
+        state=start.state,
+        caller_user_id=(await service.lookup(state=start.state)).user_id,
+    )
+    _put_endpoint(endpoints, endpoint_id, MCPOAuthConfig(client_id="app-from-github"))
+
+    with pytest.raises(MCPOAuthAttemptCancelledError):
+        await service.complete(attempt=attempt, code="code-one")
+
+    assert endpoints.endpoints[endpoint_id].secret_id is None
+    assert (await service.lookup(state=start.state)).status == "cancelled"
 
 
 def test_a_client_secret_or_method_needs_a_client_id():

@@ -11,6 +11,8 @@ The mock authorization server, the fake secrets DAO and the service wiring come 
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
@@ -50,21 +52,13 @@ class _EndpointStore:
     async def query_endpoints(self, *, project_id, endpoint=None, windowing=None):
         return [self.endpoint]
 
+    @asynccontextmanager
+    async def oauth_lock(self, *, project_id, endpoint_id):
+        yield
+
     async def bind_endpoint_secret(
-        self,
-        *,
-        project_id,
-        user_id,
-        endpoint_id,
-        secret_id,
-        oauth_server_url=None,
-        oauth_client_id=None,
+        self, *, project_id, user_id, endpoint_id, secret_id
     ):
-        if oauth_server_url is not None and (
-            self.endpoint.auth_mode != GatewayAuthScheme.OAUTH
-            or self.endpoint.data.route.base_url != oauth_server_url
-        ):
-            return None
         self.endpoint = self.endpoint.model_copy(update={"secret_id": secret_id})
         return self.endpoint
 

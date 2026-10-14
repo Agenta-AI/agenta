@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import AsyncContextManager, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.gateways.mcps.dtos import (
@@ -64,6 +64,20 @@ class MCPEndpointsDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def oauth_lock(
+        self, *, project_id: UUID, endpoint_id: UUID
+    ) -> AsyncContextManager[None]:
+        """Hold one connection's OAuth lock for the rest of the block.
+
+        Everything that changes a connection's OAuth state takes it first and holds it
+        to the end: a completing consent (after its token exchange), a cancel, a
+        disconnect, an edit and a delete. Two of them on one connection therefore never
+        interleave, so a check of the connection and the writes that follow it are one
+        step. Other connections are not affected.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     async def bind_endpoint_secret(
         self,
         *,
@@ -72,18 +86,11 @@ class MCPEndpointsDAOInterface(ABC):
         #
         endpoint_id: UUID,
         secret_id: Optional[UUID],
-        oauth_server_url: Optional[str] = None,
-        oauth_client_id: Optional[str] = None,
     ) -> Optional[MCPEndpoint]:
         """Point a connection at its stored authorization, or at none, and mark it valid.
 
         `secret_id=None` is the disconnect: the handle goes and the connection stays
         valid, because nothing died — it simply holds no authorization now.
-
-        With `oauth_server_url`, binds only while the connection is still OAuth at that
-        address and selects the client `oauth_client_id` names (`None` for a client Agenta
-        chose), and returns `None` otherwise: an OAuth grant for one address or one client
-        must never land on a connection that moved to another, or to an API key.
 
         Separate from `edit_endpoint` because a credential transition is not an edit of
         the connection. `edit_endpoint` is a full PUT built from a snapshot the caller

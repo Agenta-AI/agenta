@@ -233,9 +233,11 @@ class MockMCPOAuthConnectService:
             raise MCPOAuthCallerMismatchError()
         return self.claim_return
 
-    async def disconnect(self, *, project_id, endpoint_id, server_url):
+    async def disconnect(self, *, project_id, user_id, endpoint_id, server_url):
         self.calls.append(("disconnect", server_url))
         self.disconnected.append(endpoint_id)
+        if self.disconnect_return is True:
+            return _oauth_endpoint(endpoint_id, secret_id=None)
         return self.disconnect_return
 
     async def complete(self, *, attempt, code):
@@ -1132,8 +1134,8 @@ def test_delete_endpoint_reaches_the_service(client, service, allow):
     response = client.delete(f"/endpoints/{endpoint_id}")
 
     assert response.status_code == 204
-    # The row is read first, because the row is what says which grant to take with it.
-    assert service.calls == ["fetch_endpoint", "delete_endpoint"]
+    # The service takes the connection's grant with it, under the connection's lock.
+    assert service.calls == ["delete_endpoint"]
 
 
 # ---------------------------------------------------------------------------
@@ -1229,9 +1231,7 @@ def test_disconnect_drops_this_connections_grant_and_clears_its_handle(
     client, service, oauth_service, allow
 ):
     endpoint_id = uuid4()
-    connected = _oauth_endpoint(endpoint_id, secret_id=uuid4())
-    service.fetch_return = connected
-    service.edit_return = _oauth_endpoint(endpoint_id, secret_id=None)
+    service.fetch_return = _oauth_endpoint(endpoint_id, secret_id=uuid4())
 
     response = client.delete(f"/endpoints/{endpoint_id}/connect")
 
@@ -1239,9 +1239,6 @@ def test_disconnect_drops_this_connections_grant_and_clears_its_handle(
     # The grant that went is this connection's, named by id rather than by the server
     # URL that its neighbours share.
     assert oauth_service.disconnected == [endpoint_id]
-    # The handle is cleared by the two-column write, not by replacing the row (D3).
-    assert "bind_endpoint_secret" in service.calls
-    assert service.bound_secret_id is None
     assert "secret_id" not in response.json()["endpoint"]
 
 
@@ -1252,7 +1249,6 @@ def test_disconnect_leaves_the_connection_itself_in_place(
     configured, and one Connect reconnects it."""
     endpoint_id = uuid4()
     service.fetch_return = _oauth_endpoint(endpoint_id, secret_id=uuid4())
-    service.edit_return = _oauth_endpoint(endpoint_id, secret_id=None)
 
     response = client.delete(f"/endpoints/{endpoint_id}/connect")
 
@@ -1261,25 +1257,6 @@ def test_disconnect_leaves_the_connection_itself_in_place(
     body = response.json()["endpoint"]
     assert body["id"] == str(endpoint_id)
     assert body["slug"] == "acme-notion"
-
-
-def test_disconnect_clears_the_handle_even_when_no_grant_was_stored(
-    client, service, oauth_service, allow
-):
-    """A `secret_id` pointing at nothing is the state that made an endpoint report
-    itself ready and then fail every call."""
-    endpoint_id = uuid4()
-    service.fetch_return = _oauth_endpoint(endpoint_id, secret_id=uuid4())
-    service.edit_return = _oauth_endpoint(endpoint_id, secret_id=None)
-    oauth_service.disconnect_return = False
-
-    response = client.delete(f"/endpoints/{endpoint_id}/connect")
-
-    assert response.status_code == 200, response.text
-    # The handle is cleared by the two-column write, not by replacing the row (D3).
-    assert "bind_endpoint_secret" in service.calls
-    assert service.bound_secret_id is None
-    assert "secret_id" not in response.json()["endpoint"]
 
 
 def test_disconnect_missing_endpoint_404s(client, service, oauth_service, allow):
@@ -1309,34 +1286,6 @@ def test_disconnect_denied_check_short_circuits_before_anything_is_dropped(
     assert response.status_code == 403, response.text
     assert service.calls == []
     assert oauth_service.disconnected == []
-
-
-def test_deleting_an_endpoint_takes_its_grant_with_it(
-    client, service, oauth_service, allow
-):
-    """Deleting the row alone left the grant in the vault with nothing naming it:
-    unreachable, unlistable as a connection, and still holding a live token."""
-    endpoint_id = uuid4()
-    service.fetch_return = _oauth_endpoint(endpoint_id, secret_id=uuid4())
-
-    response = client.delete(f"/endpoints/{endpoint_id}")
-
-    assert response.status_code == 204, response.text
-    assert oauth_service.disconnected == [endpoint_id]
-    assert "delete_endpoint" in service.calls
-
-
-def test_deleting_an_endpoint_with_no_oauth_grant_drops_nothing(
-    client, service, oauth_service, allow
-):
-    endpoint_id = uuid4()
-    service.fetch_return = _endpoint(endpoint_id)
-
-    response = client.delete(f"/endpoints/{endpoint_id}")
-
-    assert response.status_code == 204, response.text
-    assert oauth_service.disconnected == []
-    assert "delete_endpoint" in service.calls
 
 
 def test_create_that_produced_no_record_is_not_reported_as_a_success(
@@ -1691,7 +1640,7 @@ def test_disconnect_that_wrote_no_row_is_not_reported_as_a_disconnect(
     while the connection still names it."""
     endpoint_id = uuid4()
     service.fetch_return = _oauth_endpoint(endpoint_id, secret_id=uuid4())
-    service.edit_return = None
+    oauth_service.disconnect_return = None
 
     response = client.delete(f"/endpoints/{endpoint_id}/connect")
 

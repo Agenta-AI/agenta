@@ -201,6 +201,7 @@ async def _disconnect(*, project, connect_service, connection):
     """
     await connect_service.disconnect(
         project_id=project["project_id"],
+        user_id=project["user_id"],
         endpoint_id=connection.id,
         server_url=connection.data.route.base_url,
     )

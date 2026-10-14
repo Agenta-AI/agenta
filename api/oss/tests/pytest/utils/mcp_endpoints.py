@@ -5,6 +5,8 @@ started on, so a test about the exchange does not have to build an endpoint row 
 test about a connection that changed under an attempt stores that connection with `put`.
 """
 
+import asyncio
+from contextlib import asynccontextmanager
 from typing import Dict, Optional
 from uuid import UUID
 
@@ -13,7 +15,6 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
     MCPEndpointData,
     MCPEndpointRoute,
-    is_oauth_connection_for,
 )
 from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
 
@@ -22,6 +23,12 @@ class InMemoryMCPEndpoints:
     def __init__(self, *, attempts: InMemoryMCPOAuthAttemptsDAO) -> None:
         self.attempts = attempts
         self.endpoints: Dict[UUID, MCPEndpoint] = {}
+        self._locks: Dict[UUID, asyncio.Lock] = {}
+
+    @asynccontextmanager
+    async def oauth_lock(self, *, project_id, endpoint_id):
+        async with self._locks.setdefault(endpoint_id, asyncio.Lock()):
+            yield
 
     def put(self, endpoint: MCPEndpoint) -> None:
         self.endpoints[endpoint.id] = endpoint
@@ -55,16 +62,10 @@ class InMemoryMCPEndpoints:
         user_id,
         endpoint_id,
         secret_id,
-        oauth_server_url=None,
-        oauth_client_id=None,
     ) -> Optional[MCPEndpoint]:
         # Read directly, as the real bind reads the row it locks.
         current = self._current(endpoint_id)
         if current is None:
-            return None
-        if oauth_server_url is not None and not is_oauth_connection_for(
-            current, oauth_server_url, oauth_client_id
-        ):
             return None
         bound = current.model_copy(update={"secret_id": secret_id})
         self.endpoints[endpoint_id] = bound

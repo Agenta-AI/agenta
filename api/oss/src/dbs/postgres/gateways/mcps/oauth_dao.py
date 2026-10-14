@@ -8,9 +8,8 @@ with `ON DELETE CASCADE`, so deleting a project takes its in-flight attempts wit
 which nothing in Redis would do for us.
 """
 
-from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import AsyncIterator, Optional
+from typing import Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import delete, select, update
@@ -21,7 +20,6 @@ from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttemptStatus,
 )
 from oss.src.core.gateways.mcps.oauth.interfaces import (
-    MCPOAuthAttemptSettler,
     MCPOAuthAttemptsDAOInterface,
 )
 from oss.src.dbs.postgres.gateways.mcps.dbes import MCPOAuthAttemptDBE
@@ -189,36 +187,6 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
                 .execution_options(synchronize_session=False)
             )
             await session.commit()
-
-    @asynccontextmanager
-    async def finalize_attempt(
-        self,
-        *,
-        attempt_id: UUID,
-    ) -> AsyncIterator[Optional[MCPOAuthAttemptSettler]]:
-        # Its own connection, not the task-scoped session: the block runs DAO calls that
-        # open that session and commit it on exit, which would release this lock.
-        table = self.MCPOAuthAttemptDBE.__table__
-        async with self.engine.transaction() as connection:
-            locked = await connection.execute(
-                select(table.c.id)
-                .where(table.c.id == attempt_id)
-                .where(table.c.status == MCPOAuthAttemptStatus.CLAIMED.value)
-                .where(table.c.expires_at > datetime.now(timezone.utc))
-                .with_for_update()
-            )
-            if locked.first() is None:
-                yield None
-                return
-
-            async def settle(status: MCPOAuthAttemptStatus) -> None:
-                await connection.execute(
-                    update(table)
-                    .where(table.c.id == attempt_id)
-                    .values(status=status.value)
-                )
-
-            yield settle
 
     async def cancel_attempts(
         self,

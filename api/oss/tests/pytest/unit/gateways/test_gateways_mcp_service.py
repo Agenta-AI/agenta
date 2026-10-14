@@ -7,6 +7,8 @@ HTTP, or real upstream. Covers CRUD delegation, endpoint listing, connection sta
 and relay orchestration.
 """
 
+from contextlib import asynccontextmanager
+
 import json
 from types import SimpleNamespace
 from typing import Dict, List, Optional
@@ -137,6 +139,10 @@ class MockMCPEndpointsDAO(MCPEndpointsDAOInterface):
         )
         self._by_id[endpoint_id] = updated
         return updated
+
+    @asynccontextmanager
+    async def oauth_lock(self, *, project_id, endpoint_id):
+        yield
 
     async def bind_endpoint_secret(
         self, *, project_id, user_id, endpoint_id, secret_id
@@ -340,7 +346,7 @@ async def test_delete_endpoint_delegates_to_dao():
 
     deleted = await service.delete_endpoint(project_id=uuid4(), endpoint_id=created.id)
 
-    assert dao.calls == ["delete_endpoint"]
+    assert dao.calls == ["fetch_endpoint", "delete_endpoint"]
     assert deleted is True
 
 
@@ -2500,7 +2506,7 @@ class _ReleasingRefresher:
     async def release_grant(self, *, project_id, endpoint_id, server_url) -> None:
         self.released.append(endpoint_id)
 
-    async def cancel(self, *, project_id, endpoint_id, attempt_id=None) -> int:
+    async def cancel_attempts(self, *, project_id, endpoint_id, attempt_id=None) -> int:
         self.cancelled.append(endpoint_id)
         return 1
 
@@ -2556,6 +2562,26 @@ async def test_an_edit_that_keeps_mode_and_address_retires_nothing():
 
     assert refresher.released == []
     assert refresher.cancelled == []
+
+
+@pytest.mark.parametrize(
+    "auth_mode, released", [(MCPAuthScheme.OAUTH, True), (MCPAuthScheme.NONE, False)]
+)
+@pytest.mark.asyncio
+async def test_deleting_a_connection_takes_its_oauth_grant_with_it(auth_mode, released):
+    """Deleting the row alone left the grant in the vault with nothing naming it:
+    unreachable, unlistable as a connection, and still holding a live token."""
+    dao = MockMCPEndpointsDAO()
+    refresher = _ReleasingRefresher()
+    service = _relay_service(
+        mcp_endpoints_dao=dao, adapters={}, oauth_refresher=refresher
+    )
+    endpoint = await _oauth_endpoint(dao)
+    dao._by_id[endpoint.id] = endpoint.model_copy(update={"auth_mode": auth_mode})
+
+    assert await service.delete_endpoint(project_id=uuid4(), endpoint_id=endpoint.id)
+
+    assert refresher.released == ([endpoint.id] if released else [])
 
 
 @pytest.mark.asyncio

@@ -32,7 +32,6 @@ from oss.src.core.gateways.dtos import GatewayAuthScheme, GatewayEndpointNamespa
 from oss.src.core.gateways.egress import validate_egress_url_format
 from oss.src.core.gateways.mcps.dtos import (
     MCPCredentialBinding,
-    MCPEndpoint,
     MCPOAuthData,
     check_url_secret_placeholder,
 )
@@ -416,18 +415,6 @@ class MCPGatewayRouter:
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
 
-        # Take the connection's grant with it. Deleting the row alone left the grant in
-        # the vault with nothing naming it: unreachable, unlistable as a connection, and
-        # still holding a live token. Ordered before the row goes, because the row is
-        # what says which grant this was.
-        endpoint = await self.service.fetch_endpoint(
-            project_id=scope.project_id,
-            #
-            endpoint_id=endpoint_id,
-        )
-        if endpoint is not None:
-            await self._drop_grant(scope=scope, endpoint=endpoint)
-
         deleted = await self.service.delete_endpoint(
             project_id=scope.project_id,
             #
@@ -438,19 +425,6 @@ class MCPGatewayRouter:
                 namespace=GatewayEndpointNamespace.CUSTOM,
                 name=str(endpoint_id),
             )
-
-    async def _drop_grant(self, *, scope: AuthScope, endpoint: MCPEndpoint) -> bool:
-        """Delete the connection's stored grant, if it is the kind that has one."""
-        if endpoint.auth_mode != GatewayAuthScheme.OAUTH:
-            return False
-        server_url = endpoint.data.route.base_url
-        if not server_url:
-            return False
-        return await self.oauth_connect_service.disconnect(
-            project_id=scope.project_id,
-            endpoint_id=endpoint.id,
-            server_url=server_url,
-        )
 
     # URL inspection, before any row exists
 
@@ -619,17 +593,14 @@ class MCPGatewayRouter:
                 detail="endpoint is not a custom OAuth target",
             )
 
-        await self._drop_grant(scope=scope, endpoint=endpoint)
-
         # The handle goes whether or not a row was there to delete: a `secret_id`
         # pointing at nothing is the state that made an endpoint report itself ready
         # and then fail every call.
-        disconnected = await self.service.bind_endpoint_secret(
+        disconnected = await self.oauth_connect_service.disconnect(
             project_id=scope.project_id,
             user_id=scope.user_id,
-            #
             endpoint_id=endpoint.id,
-            secret_id=None,
+            server_url=endpoint.data.route.base_url or "",
         )
         if disconnected is None:
             # A write that produced no row is not a disconnect. Reporting one would say

@@ -720,7 +720,10 @@ async def test_disconnect_cancels_a_consent_still_in_flight():
     )
 
     await service.disconnect(
-        project_id=project_id, endpoint_id=endpoint_id, server_url=_SERVER_URL
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
     )
 
     with pytest.raises(MCPOAuthAttemptCancelledError):
@@ -1443,14 +1446,17 @@ async def test_a_disconnect_during_the_exchange_wins_and_nothing_is_written():
 
     async def disconnect():
         await service.disconnect(
-            project_id=project_id, endpoint_id=endpoint_id, server_url=_SERVER_URL
+            project_id=project_id,
+            user_id=user_id,
+            endpoint_id=endpoint_id,
+            server_url=_SERVER_URL,
         )
 
     (outcome,) = await _complete_around(service, start, user_id, disconnect)
 
     assert isinstance(outcome, MCPOAuthAttemptCancelledError)
     assert _grant_rows(dao) == []
-    assert service.endpoints_dao.endpoints == {}
+    assert service.endpoints_dao.endpoints[endpoint_id].secret_id is None
 
 
 @pytest.mark.parametrize(
@@ -1483,38 +1489,6 @@ async def test_an_edit_during_the_exchange_wins_and_nothing_is_written(moved):
     assert _grant_rows(dao) == []
     assert endpoints.endpoints[endpoint_id].secret_id is None
     assert attempts.attempts[start.state].status == MCPOAuthAttemptStatus.CANCELLED
-
-
-@pytest.mark.asyncio
-async def test_an_edit_just_before_the_bind_leaves_no_grant_and_no_binding():
-    """The bind re-checks the connection under its own row lock, so an edit that lands
-    after the attempt's check still keeps the grant off the moved connection."""
-    service, _dao, attempts = _service()
-    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
-    start = await _begin(
-        service, project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
-    )
-    endpoints = service.endpoints_dao
-    original = await endpoints.fetch_endpoint(
-        project_id=project_id, endpoint_id=endpoint_id
-    )
-    moved = original.model_copy(update={"auth_mode": GatewayAuthScheme.API_KEY})
-
-    async def fetch_then_edit(**_kwargs):
-        endpoints.put(moved)
-        return original
-
-    endpoints.fetch_endpoint = fetch_then_edit
-
-    with pytest.raises(MCPOAuthAttemptCancelledError):
-        await _callback(
-            service, code="auth-code-1", state=start.state, caller_user_id=user_id
-        )
-
-    assert endpoints.endpoints[endpoint_id].secret_id is None
-    assert attempts.attempts[start.state].status == MCPOAuthAttemptStatus.CANCELLED
-    # The tokens it wrote were for the old address, so they went with it.
-    assert _grant_rows(_dao) == []
 
 
 @pytest.mark.asyncio
