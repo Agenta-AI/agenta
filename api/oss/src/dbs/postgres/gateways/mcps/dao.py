@@ -33,6 +33,7 @@ from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
     get_transactions_engine,
 )
+from oss.src.dbs.postgres.shared.exceptions import is_lock_timeout
 from oss.src.dbs.postgres.shared.utils import apply_windowing
 from oss.src.utils.exceptions import suppress_exceptions
 from oss.src.utils.logging import get_module_logger
@@ -42,8 +43,6 @@ log = get_module_logger(__name__)
 # How long a change waits for a connection's OAuth lock. Each waiter holds a pooled
 # connection while it waits, so an unbounded wait behind a stuck holder can drain the pool.
 _OAUTH_LOCK_TIMEOUT = "30s"
-# Postgres reports an expired `lock_timeout` as `lock_not_available`.
-_LOCK_NOT_AVAILABLE = "55P03"
 
 
 class MCPEndpointsDAO(MCPEndpointsDAOInterface):
@@ -225,7 +224,7 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
                     {"key": f"mcps_endpoint_oauth:{project_id}:{endpoint_id}"},
                 )
             except DBAPIError as e:
-                if getattr(e.orig, "sqlstate", None) == _LOCK_NOT_AVAILABLE:
+                if is_lock_timeout(e):
                     raise MCPConnectionBusyError() from e
                 raise
             yield
