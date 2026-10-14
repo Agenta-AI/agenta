@@ -15,6 +15,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {
+    mcpReconnectTarget,
     connectionNameProblem,
     deleteMcpEndpointAtom,
     editMcpEndpoint,
@@ -458,19 +459,7 @@ export default function McpServersSection({
                 open={connecting}
                 onClose={closeConnect}
                 existingNames={names}
-                reconnect={
-                    reconnecting?.id && reconnecting.slug
-                        ? {
-                              id: reconnecting.id,
-                              slug: reconnecting.slug,
-                              name: reconnecting.name || reconnecting.slug,
-                              url: reconnecting.data.route.base_url || "",
-                              secretId: reconnecting.secret_id,
-                              authMode: reconnecting.auth_mode,
-                              credentialBinding: reconnecting.data.route.credential_binding,
-                          }
-                        : null
-                }
+                reconnect={mcpReconnectTarget(reconnecting)}
                 onConnected={() => void refresh()}
             />
 

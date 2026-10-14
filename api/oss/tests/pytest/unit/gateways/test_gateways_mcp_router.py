@@ -142,8 +142,8 @@ class MockMCPGatewayService:
         self.calls.append("delete_endpoint")
         return self.delete_return
 
-    async def url_secret_value(self, *, scope, secret_id):
-        self.calls.append("url_secret_value")
+    async def probe_secret_value(self, *, scope, secret_id):
+        self.calls.append("probe_secret_value")
         return self.url_secret_return
 
 

@@ -416,7 +416,7 @@ class MCPGatewayService:
             windowing=windowing,
         )
 
-    async def url_secret_value(
+    async def probe_secret_value(
         self, *, scope: AuthScope, secret_id: UUID
     ) -> Optional[str]:
         """The value of a project secret, for a probe that sends it as an API key.

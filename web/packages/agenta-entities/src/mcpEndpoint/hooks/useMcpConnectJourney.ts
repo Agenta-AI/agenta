@@ -36,6 +36,7 @@ import {
     queryMcpEndpoints,
 } from "../api/api"
 import {suggestConnectionName} from "../core/connectionName"
+import type {McpReconnectTarget} from "../core/connectionState"
 import {
     adoptableEndpoint,
     cancelDeletesEndpoint,
@@ -67,22 +68,7 @@ export interface McpConnectJourneyOptions {
     /** Existing connections, for the name suggestion and the uniqueness check. */
     existingNames?: (string | null | undefined)[]
     /** Set when reconnecting an endpoint that already exists. */
-    reconnect?: {
-        id: string
-        slug: string
-        name: string
-        url: string
-        authMode?: MCPAuthMode
-        /**
-         * Where this connection's credential is already sent.
-         *
-         * A key reconnect repairs a credential and changes nothing else (decisions 10 and
-         * 34), so the fields it asks about start where the connection left them. Prefilling the
-         * probe's default instead offered `Authorization` over a saved `X-Api-Key`, and a
-         * person who accepted what was on screen broke a working connection.
-         */
-        credentialBinding?: MCPCredentialBinding | null
-    } | null
+    reconnect?: McpReconnectTarget | null
     /** Called once the connection is real, with the slug agents reference it by. */
     onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
 }
@@ -879,8 +865,9 @@ export function useMcpConnectJourney({
      */
     const checkWithoutKey = useCallback(
         async (url: string, attempt: number): Promise<boolean> => {
+            let error: string
             try {
-                const {probe} = await probeMcpUrl(url, projectId)
+                const {probe} = await probeWithin(url, projectId)
                 if (!isCurrent(attempt)) return false
                 if (probe?.auth.mode === "none" && !probe.problem) return true
                 if (probe?.reachable && probe.auth.mode !== "none") {
@@ -891,23 +878,18 @@ export function useMcpConnectJourney({
                     })
                     return false
                 }
-                // Not the fresh probe: a reconnect has none, and the screens read one as a
-                // first connect.
-                dispatch({
-                    type: "probe_failed",
-                    probe: state.probe,
-                    error: probe?.problem?.message || "The server could not be checked.",
-                })
-                return false
-            } catch (error) {
+                error = probe?.problem?.message || "The server could not be checked."
+            } catch (caught) {
                 if (!isCurrent(attempt)) return false
-                dispatch({
-                    type: "probe_failed",
-                    probe: state.probe,
-                    error: gatewayRefusalMessage(error) || "The server could not be checked.",
-                })
-                return false
+                error =
+                    caught instanceof ProbeTimedOut
+                        ? PROBE_TIMED_OUT_MESSAGE
+                        : gatewayRefusalMessage(caught) || "The server could not be checked."
             }
+            // Not the fresh probe: a reconnect has none, and the screens read one as a first
+            // connect.
+            dispatch({type: "probe_failed", probe: state.probe, error})
+            return false
         },
         [isCurrent, projectId, state.probe],
     )

@@ -467,7 +467,7 @@ class MCPGatewayRouter:
             ) from e
         secret = None
         if body.secret_id:
-            secret = await self.service.url_secret_value(
+            secret = await self.service.probe_secret_value(
                 scope=scope, secret_id=body.secret_id
             )
             if not secret:

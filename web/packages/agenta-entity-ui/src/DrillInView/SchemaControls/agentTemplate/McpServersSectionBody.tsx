@@ -13,6 +13,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {
+    mcpReconnectTarget,
     findCustomMcpEndpoint,
     getMcpConnectionStatus,
     hostnameLabel,
@@ -299,15 +300,7 @@ export function McpServersSectionBody({
                     open
                     container={journeyContainer}
                     onClose={() => setConnectingEndpoint(null)}
-                    reconnect={{
-                        id: connectingEndpoint.id,
-                        slug: connectingEndpoint.slug,
-                        name: connectingEndpoint.name || connectingEndpoint.slug,
-                        url: connectingEndpoint.data.route.base_url || "",
-                        secretId: connectingEndpoint.secret_id,
-                        authMode: connectingEndpoint.auth_mode,
-                        credentialBinding: connectingEndpoint.data.route.credential_binding,
-                    }}
+                    reconnect={mcpReconnectTarget(connectingEndpoint)}
                     onConnected={() => void refreshEndpoints()}
                 />
             ) : null}

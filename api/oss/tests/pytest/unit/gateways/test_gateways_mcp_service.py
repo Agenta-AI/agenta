@@ -2474,7 +2474,7 @@ async def test_the_url_secret_is_the_project_secret_the_relay_would_send():
     )
     scope = _scope()
 
-    value = await _service(resolver=resolver).url_secret_value(
+    value = await _service(resolver=resolver).probe_secret_value(
         scope=scope, secret_id=secret_id
     )
 

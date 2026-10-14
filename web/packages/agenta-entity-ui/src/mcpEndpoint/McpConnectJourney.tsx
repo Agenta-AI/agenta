@@ -51,6 +51,7 @@ import {
     type MCPCredentialBinding,
     type McpConnectJourney as McpConnectJourneyApi,
     type McpJourneyState,
+    type McpReconnectTarget,
 } from "@agenta/entities/mcpEndpoint"
 import {customNamedSecretsAtom} from "@agenta/entities/secret"
 import {EnhancedModal, ModalContent} from "@agenta/ui"
@@ -92,18 +93,7 @@ export interface McpConnectJourneyProps {
     /** Existing display names in the project, for the suggestion and the collision check. */
     existingNames?: (string | null | undefined)[]
     /** Reconnect an endpoint that already exists instead of adding one. */
-    reconnect?: {
-        id: string
-        slug: string
-        name: string
-        url: string
-        /** The secret it is saved with, which the secret select starts on. */
-        secretId?: string | null
-        /** How the connection authorizes, so a reconnect repairs the right thing. */
-        authMode?: "oauth" | "api_key" | "none"
-        /** Where its credential is already sent, which a repair keeps. */
-        credentialBinding?: MCPCredentialBinding | null
-    } | null
+    reconnect?: McpReconnectTarget | null
     /** The connection, once it is real. Agents reference it by `slug`. */
     onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
     /** A drawer panel to open inside, masking only that drawer. Absent = the page. */

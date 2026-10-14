@@ -1139,9 +1139,12 @@ describe("the authentication the person selects", () => {
             await journey.skipAuthentication()
         })
 
+        // No secret and no binding: the check asks for a handshake without a key.
         expect(probeMcpUrl).toHaveBeenLastCalledWith(
             "https://api.githubcopilot.test/mcp",
             "project-1",
+            undefined,
+            undefined,
         )
         expect(editMcpEndpoint).toHaveBeenCalledWith(
             {...stored, auth_mode: "none", secret_id: null},

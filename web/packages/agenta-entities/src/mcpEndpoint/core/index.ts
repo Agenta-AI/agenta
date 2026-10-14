@@ -11,8 +11,9 @@ export {
     findCustomMcpEndpoint,
     getMcpConnectionState,
     getMcpConnectionStateLabel,
+    mcpReconnectTarget,
 } from "./connectionState"
-export type {McpConnectionState} from "./connectionState"
+export type {McpConnectionState, McpReconnectTarget} from "./connectionState"
 export {
     getMcpConnectionStatus,
     getMcpConnectionStatusLabel,
