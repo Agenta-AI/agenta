@@ -242,6 +242,34 @@ async def test_the_built_in_endpoint_never_quotes_its_upstream():
 
 
 @pytest.mark.asyncio
+async def test_an_oversized_error_body_is_read_only_up_to_the_bound():
+    pulled = []
+
+    async def upstream():
+        for _ in range(100):
+            pulled.append(1)
+            yield b"x" * 65536
+
+    chunks = [
+        chunk
+        async for chunk in relay_upstream_errors(
+            upstream(),
+            status_code=502,
+            stream=False,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+            label="my-endpoint",
+            scanner=CredentialEchoScanner([]),
+            echo_refusal=RuntimeError(),
+        )
+    ]
+
+    assert len(pulled) < 100
+    assert json.loads(b"".join(chunks))["error"]["message"].startswith(
+        'The model endpoint "my-endpoint" reported an error: "xxx'
+    )
+
+
+@pytest.mark.asyncio
 async def test_the_incident_an_error_frame_after_partial_output():
     frame = b'data: {"error":{"message":"Upstream request failed","code":null}}\n\n'
     _, chunks = await _relay(_stream([*_CHUNKS, frame]))

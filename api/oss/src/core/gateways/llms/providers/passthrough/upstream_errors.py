@@ -83,7 +83,15 @@ async def relay_upstream_errors(
         return payload
 
     if status_code >= 400:
-        content = b"".join([chunk async for chunk in body])
+        # Bounded like a stream event: only 300 characters of it are ever quoted.
+        parts, size = [], 0
+        async for chunk in body:
+            parts.append(chunk)
+            size += len(chunk)
+            if size > _MAX_EVENT_BYTES:
+                await body.aclose()
+                break
+        content = b"".join(parts)[:_MAX_EVENT_BYTES]
         try:
             payload = json.loads(content)
         except ValueError:
