@@ -1069,23 +1069,54 @@ def test_a_mode_change_off_oauth_cancels_attempts_and_removes_the_grant(
     assert oauth_service.disconnected == [endpoint_id]
 
 
-def test_an_address_change_cancels_attempts_and_keeps_the_grant(
+def test_an_address_change_removes_the_grant_issued_for_the_old_address(
     client, service, oauth_service, allow
 ):
-    endpoint_id = uuid4()
-    service.fetch_return = _oauth_endpoint(endpoint_id)
-    service.edit_return = MCPEndpoint(
+    """The grant was issued by the old server. Kept, the relay would send that server's
+    token to the new address."""
+    endpoint_id, grant_id = uuid4(), uuid4()
+    service.fetch_return = _oauth_endpoint(endpoint_id, secret_id=grant_id)
+    moved = MCPEndpoint(
         id=endpoint_id,
         slug="acme-notion",
         auth_mode=MCPAuthScheme.OAUTH,
+        secret_id=grant_id,
         data=MCPEndpointData(
             route=MCPEndpointRoute(base_url="https://mcp.other.example/")
         ),
     )
+    service.edit_return = moved
+
+    async def _bind(*, project_id, user_id, endpoint_id, secret_id):
+        service.calls.append("bind_endpoint_secret")
+        service.bound_secret_id = secret_id
+        return moved.model_copy(update={"secret_id": secret_id})
+
+    service.bind_endpoint_secret = _bind
 
     response = _edit(
         client, endpoint_id, auth_mode="oauth", base_url="https://mcp.other.example/"
     )
+
+    assert response.status_code == 200
+    assert oauth_service.disconnected == [endpoint_id]
+    # The row no longer names the grant, so it reads as needing a new sign-in, and it
+    # keeps its id and slug.
+    assert service.bound_secret_id is None
+    body = response.json()["endpoint"]
+    assert "secret_id" not in body
+    assert body["id"] == str(endpoint_id)
+    assert body["slug"] == "acme-notion"
+
+
+def test_a_switch_to_oauth_cancels_attempts_and_removes_nothing(
+    client, service, oauth_service, allow
+):
+    endpoint_id = uuid4()
+    service.fetch_return = _endpoint(endpoint_id)
+    service.edit_return = _oauth_endpoint(endpoint_id)
+
+    response = _edit(client, endpoint_id, auth_mode="oauth")
 
     assert response.status_code == 200
     assert oauth_service.cancelled == [(endpoint_id, None)]

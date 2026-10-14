@@ -412,16 +412,33 @@ class MCPGatewayRouter:
             )
 
         # After the edit, so a refused edit changes nothing. A consent started against
-        # the old mode or address must not land on the new one, and a grant the
-        # connection no longer uses is Agenta's own row, so it goes the way a delete
-        # takes it. The secret the person chose for the new mode is theirs and stays.
+        # the old mode or address must not land on the new one. An OAuth grant was
+        # issued for the old mode and address, so it is Agenta's own row with no use
+        # left, and it goes the way a delete takes it. The secret the person chose for
+        # the new mode is theirs and stays.
         if current is not None and (
             current.auth_mode != endpoint.auth_mode
             or current.data.route.base_url != endpoint.data.route.base_url
         ):
-            if endpoint.auth_mode != GatewayAuthScheme.OAUTH:
+            if current.auth_mode == GatewayAuthScheme.OAUTH:
                 # Cancels the pending attempts too.
                 await self._drop_grant(scope=scope, endpoint=current)
+                if (
+                    endpoint.auth_mode == GatewayAuthScheme.OAUTH
+                    and endpoint.secret_id is not None
+                ):
+                    # Still OAuth at a new address: the row must not keep naming the
+                    # grant that was just removed, or it reads as connected.
+                    endpoint = (
+                        await self.service.bind_endpoint_secret(
+                            project_id=scope.project_id,
+                            user_id=scope.user_id,
+                            #
+                            endpoint_id=endpoint_id,
+                            secret_id=None,
+                        )
+                        or endpoint
+                    )
             else:
                 await self.oauth_connect_service.cancel(
                     project_id=scope.project_id, endpoint_id=endpoint_id
