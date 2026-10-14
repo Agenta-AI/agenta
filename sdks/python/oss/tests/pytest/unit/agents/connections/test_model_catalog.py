@@ -533,11 +533,12 @@ def test_sonnet_5_5_is_a_prompt_model_a_default_and_a_pi_generated_model():
 
 
 def test_gemini_4_argon_is_published_with_its_display_name():
-    # `builtin/agenta` serves google/gemini-4-argon; the picker finds its name through the bare id.
+    # `builtin/agenta` serves google/gemini-4-argon. The picker matches the id as the gateway
+    # names it, so the entry carries that exact id.
     entries = model_catalog_entries("pi_core")
     entry = next(
-        (item for item in entries if item["id"] == "gemini/gemini-4-argon"), None
+        (item for item in entries if item["id"] == "google/gemini-4-argon"), None
     )
-    assert entry is not None, "gemini/gemini-4-argon missing from the pi catalog"
+    assert entry is not None, "google/gemini-4-argon missing from the pi catalog"
     assert entry["name"] == "Gemini 4 Argon"
     assert entry["provider"] == "gemini"

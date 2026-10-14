@@ -92,7 +92,7 @@
   },
   "additions": [
     {
-      "id": "gemini/gemini-4-argon",
+      "id": "google/gemini-4-argon",
       "provider": "gemini",
       "source": "curated",
       "name": "Gemini 4 Argon"
