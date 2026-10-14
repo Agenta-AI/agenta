@@ -519,6 +519,55 @@ class _RequestSpanMiddleware:
             detach(token)
 
 
+class RouteSpanNameMiddleware:
+    """Names the server request span "METHOD /route" for mounted sub-apps.
+
+    The FastAPI instrumentation names the span from the top-level app's routes. A request
+    that a mounted sub-app answers matches a `Mount`, which has no useful path, so the span
+    keeps its bare method name. Starlette updates one scope dict on the way down, so after
+    the sub-app returns the scope holds the matched route template and the mount prefix.
+    The template never holds the raw path, so ids do not reach the span name.
+    """
+
+    def __init__(self, app: Any):
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        span = trace.get_current_span() if scope["type"] == "http" else None
+        if span is None or not is_server_span(span):
+            await self.app(scope, receive, send)
+            return
+
+        async def named_send(message) -> None:
+            # the route is known once the response starts; the span ends with the body
+            if message["type"] == "http.response.start":
+                self._name(span, scope)
+            await send(message)
+
+        await self.app(scope, receive, named_send)
+
+    @staticmethod
+    def _name(span: Any, scope: dict) -> None:
+        try:
+            method = scope.get("method") or ""
+            route = scope.get("route")
+            # a Mount that no child route answered (a 404) has no endpoint
+            if not hasattr(route, "endpoint"):
+                return
+            # what follows the method is the mount template the instrumentation matched,
+            # never the concrete root_path, so mount parameters stay out of the name
+            mount = (
+                span.name[len(method) :].strip()
+                if span.name.startswith(method)
+                else None
+            )
+            if mount is None or bool(mount) == (not scope.get("root_path")):
+                return
+            span.update_name(f"{method} {mount}{route.path}")
+        except Exception:  # pylint: disable=broad-except
+            pass
+
+
 def instrument_fastapi(app: Any) -> None:
     if _provider is None:
         return

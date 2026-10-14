@@ -308,20 +308,29 @@ from oss.src.core.evaluations.runtime.broker import (
 import oss.src.core.evaluations.tasks.run  # noqa: F401
 import oss.src.core.evaluations.tasks.processor  # noqa: F401
 
-print("[STARTUP] About to import agenta SDK")
+
+def _startup(message: str) -> None:
+    # one structured line in the json format; the plain print is unchanged
+    if env.agenta.logging.format == "json":
+        get_module_logger(__name__).info(message)
+    else:
+        print(message)
+
+
+_startup("[STARTUP] About to import agenta SDK")
 _t_ag_import = time.perf_counter()
 # ag already imported at top
-print(f"[STARTUP] agenta SDK imported (+{time.perf_counter() - _t_ag_import:.3f}s)")
+_startup(f"[STARTUP] agenta SDK imported (+{time.perf_counter() - _t_ag_import:.3f}s)")
 
 _startup_t0 = time.perf_counter()
-print("[STARTUP] imports completed, beginning initialization")
+_startup("[STARTUP] imports completed, beginning initialization")
 
-print("[STARTUP] ag.init() starting")
+_startup("[STARTUP] ag.init() starting")
 _t_ag_init = time.perf_counter()
 ag.init(
     api_url=env.agenta.api_url,
 )
-print(f"[STARTUP] ag.init() completed (+{time.perf_counter() - _t_ag_init:.3f}s)")
+_startup(f"[STARTUP] ag.init() completed (+{time.perf_counter() - _t_ag_init:.3f}s)")
 
 # Before the engines, brokers and HTTP sessions below exist, so they get traced too.
 setup_server_tracing("agenta-api")
@@ -329,18 +338,18 @@ setup_server_tracing("agenta-api")
 ee = None
 _t_before_ee = time.perf_counter()
 if is_ee():
-    print("[STARTUP] EE module import starting (Stripe init happens here)")
+    _startup("[STARTUP] EE module import starting (Stripe init happens here)")
     import ee.src.main as ee  # type: ignore
 
     _ee_elapsed = time.perf_counter() - _t_before_ee
-    print(f"[STARTUP] EE module import completed (+{_ee_elapsed:.3f}s)")
+    _startup(f"[STARTUP] EE module import completed (+{_ee_elapsed:.3f}s)")
 
 
 log = get_module_logger(__name__)
 
 init_supertokens()
 _st_elapsed = time.perf_counter() - _startup_t0
-print(f"[STARTUP] init_supertokens completed (+{_st_elapsed:.3f}s)")
+_startup(f"[STARTUP] init_supertokens completed (+{_st_elapsed:.3f}s)")
 
 
 @asynccontextmanager
@@ -671,7 +680,7 @@ instrument_fastapi(app)
 # DAOS -------------------------------------------------------------------------
 
 _t_daos = time.perf_counter()
-print("[STARTUP] DAO initialization starting")
+_startup("[STARTUP] DAO initialization starting")
 
 # Instantiate engines at startup (lazy — they don't connect until first use)
 _transactions_engine = get_transactions_engine()
@@ -739,7 +748,7 @@ llm_endpoints_dao = LLMEndpointsDAO(engine=_transactions_engine)
 # SERVICES ---------------------------------------------------------------------
 
 _t_daos_done = time.perf_counter() - _t_daos
-print(f"[STARTUP] DAO initialization completed (+{_t_daos_done:.3f}s)")
+_startup(f"[STARTUP] DAO initialization completed (+{_t_daos_done:.3f}s)")
 _t_services = time.perf_counter()
 
 vault_service = VaultService(
@@ -1081,7 +1090,7 @@ session_attachments_service = SessionAttachmentsService(
 )
 
 _t_services_done = time.perf_counter() - _t_services
-print(f"[STARTUP] Service initialization completed (+{_t_services_done:.3f}s)")
+_startup(f"[STARTUP] Service initialization completed (+{_t_services_done:.3f}s)")
 _t_routers = time.perf_counter()
 
 # ROUTERS ----------------------------------------------------------------------
@@ -2250,13 +2259,13 @@ app.include_router(
 
 # ------------------------------------------------------------------------------
 _t_routers_done = time.perf_counter() - _t_routers
-print(f"[STARTUP] Router initialization completed (+{_t_routers_done:.3f}s)")
+_startup(f"[STARTUP] Router initialization completed (+{_t_routers_done:.3f}s)")
 
 _t_mount_routers_done = time.perf_counter() - _t_mount_routers
-print(f"[STARTUP] Router mounting completed (+{_t_mount_routers_done:.3f}s)")
+_startup(f"[STARTUP] Router mounting completed (+{_t_mount_routers_done:.3f}s)")
 
 if ee and is_ee():
     app = ee.extend_app_schema(app)
 
 _total_startup = time.perf_counter() - _startup_t0
-print(f"[STARTUP] module initialization completed in {_total_startup:.3f}s")
+_startup(f"[STARTUP] module initialization completed in {_total_startup:.3f}s")

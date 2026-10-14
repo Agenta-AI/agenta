@@ -206,6 +206,11 @@ if AGENTA_LOG_CONSOLE_ENABLED and not _LOGGING_CONFIGURED:
         server_logger.addHandler(uh)
         server_logger.propagate = False
 
+    if AGENTA_LOG_FORMAT == "json":
+        from agenta.sdk.utils.logging import capture_warnings_as_json
+
+        capture_warnings_as_json(GOOGLE_CLOUD_PROJECT)
+
     # structlog lines are already rendered; plain stdlib SDK records still need a format
     sdk_handler = console_handler
     if AGENTA_LOG_FORMAT == "json":

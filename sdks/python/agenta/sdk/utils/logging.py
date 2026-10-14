@@ -289,6 +289,49 @@ class JsonFormatter(logging.Formatter):
         return dumps_log_record(entry)
 
 
+def gunicorn_logconfig(
+    log_format: Optional[str] = None, project: Optional[str] = None
+) -> dict:
+    """Gunicorn `logconfig_dict` that logs the master and worker lines as JSON.
+
+    Returns {} for the text format, so gunicorn keeps its own defaults.
+    """
+    if (log_format or AGENTA_LOG_FORMAT) != "json":
+        return {}
+
+    handler = {
+        "class": "logging.StreamHandler",
+        "formatter": "agenta_json",
+        "stream": "ext://sys.stdout",
+    }
+    return {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "agenta_json": {
+                "()": "agenta.sdk.utils.logging.JsonFormatter",
+                "project": project,
+            }
+        },
+        "handlers": {"console": handler, "error_console": handler},
+        "loggers": {
+            "gunicorn.error": {"handlers": ["error_console"], "propagate": False},
+            "gunicorn.access": {"handlers": ["console"], "propagate": False},
+        },
+    }
+
+
+def capture_warnings_as_json(project: Optional[str] = None) -> None:
+    """Send Python warnings to stdout as JSON lines instead of unstructured stderr."""
+    logging.captureWarnings(True)
+    warnings_logger = logging.getLogger("py.warnings")
+    warnings_logger.handlers.clear()
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(JsonFormatter(project))
+    warnings_logger.addHandler(handler)
+    warnings_logger.propagate = False
+
+
 def console_renderer(
     log_format: Optional[str] = None, project: Optional[str] = None
 ) -> Processor:

@@ -57,7 +57,8 @@ COPY --chown=agenta:agenta ./api/ee /app/ee/
 COPY --chown=agenta:agenta ./api/oss /app/oss/
 COPY --chown=agenta:agenta ./api/entrypoints /app/entrypoints/
 
-ENV PYTHONPATH=/sdks/python:/clients/python
+ENV PYTHONPATH=/sdks/python:/clients/python \
+    GUNICORN_CMD_ARGS="--config python:entrypoints.gunicorn_conf"
 
 COPY ./api/oss/src/crons/queries.sh /queries.sh
 COPY ./api/oss/src/crons/queries.txt /etc/cron.d/queries-cron

@@ -11,6 +11,7 @@ from agenta.sdk.utils.logging import (
     AGENTA_LOG_FORMAT,
     GOOGLE_CLOUD_PROJECT,
     JsonFormatter,
+    capture_warnings_as_json,
     get_module_logger,
 )
 from agenta.sdk.decorators.routing import (
@@ -72,6 +73,7 @@ if AGENTA_LOG_FORMAT == "json":
     ):
         for handler in logging.getLogger(name).handlers:
             handler.setFormatter(JsonFormatter(GOOGLE_CLOUD_PROJECT))
+    capture_warnings_as_json(GOOGLE_CLOUD_PROJECT)
 
 
 # ---------------------------------------------------------------------------
