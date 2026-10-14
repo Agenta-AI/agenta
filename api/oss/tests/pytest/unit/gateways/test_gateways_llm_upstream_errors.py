@@ -190,6 +190,12 @@ def test_the_provider_text_is_cleaned_before_it_is_quoted():
         ('password="correct horse battery staple" rejected', "battery"),
         ('{"api_key": "hunter2222"}', "hunter2222"),
         ("{'password': 'hunter2222'}", "hunter2222"),
+        (
+            "Incorrect API key provided: sk-qa-re*************************0000.",
+            "0000",
+        ),
+        ("Incorrect API key provided: sk-proj-********************abcd.", "abcd"),
+        ("Budget exceeded for key (sk-...3kKQ)", "3kKQ"),
     ],
 )
 def test_common_credential_shapes_are_redacted(said, leaked):

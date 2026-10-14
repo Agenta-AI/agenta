@@ -339,6 +339,13 @@ describe("sanitizeErrorText", () => {
         )
     })
 
+    it("redacts a provider's masked copy of a key", () => {
+        expect(
+            sanitizeErrorText("Incorrect API key provided: sk-qa-re*********************0000."),
+        ).toBe("Incorrect API key provided: [secret].")
+        expect(sanitizeErrorText("over budget (sk-...3kKQ)")).toBe("over budget ([secret])")
+    })
+
     it("redacts anything shaped like a key", () => {
         expect(sanitizeErrorText("bad key sk-abcdefgh1234 rejected")).toBe(
             "bad key [secret] rejected",

@@ -66,6 +66,12 @@ def _redact_named_value(match: "re.Match[str]") -> str:
 
 _REDACTIONS = (
     (re.compile(r"\b(Bearer|Basic)\s+\S{6,}", re.IGNORECASE), r"\1 [secret]"),
+    # A provider's own masked copy of the key ("sk-proj-****...abcd", "sk-...3kKQ") still shows
+    # its first and last characters.
+    (
+        re.compile(r"\b(?:sk|pk|rk)-[A-Za-z0-9_-]*(?:\*{3,}|\.{3})[A-Za-z0-9_-]*"),
+        "[secret]",
+    ),
     (re.compile(r"\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}"), "[secret]"),
     (re.compile(r"\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9._-]+"), "[secret]"),
     # Google API keys, AWS access key ids and Google OAuth access tokens.

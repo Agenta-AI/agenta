@@ -654,6 +654,11 @@ describe("the public error contract (Codex R4 P1, decision 10)", () => {
     ).toBe(
       "provider failed: org-private123 sandbox sbx-123 at /home/sandbox/agenta/session",
     );
+    expect(
+      sanitizeErrorText(
+        "Incorrect API key provided: sk-proj-********************abcd. See the docs.",
+      ),
+    ).toBe("Incorrect API key provided: [secret]. See the docs.");
     expect(sanitizeErrorText("test-reached-sandbox-start")).toBe(
       "test-reached-sandbox-start",
     );
