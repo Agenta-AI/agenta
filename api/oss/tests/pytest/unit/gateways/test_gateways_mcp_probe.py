@@ -100,6 +100,7 @@ def _open_server(requests: list[httpx.Request] | None = None):
 def _protected_server(
     *,
     registration_endpoint: str | None = None,
+    metadata_documents: bool = False,
     metadata_status: int = 200,
     requests: list[httpx.Request] | None = None,
 ):
@@ -107,6 +108,8 @@ def _protected_server(
     metadata = dict(_AS_METADATA)
     if registration_endpoint:
         metadata["registration_endpoint"] = registration_endpoint
+    if metadata_documents:
+        metadata["client_id_metadata_document_supported"] = True
 
     def handler(request: httpx.Request) -> httpx.Response:
         if requests is not None:
@@ -467,9 +470,46 @@ async def test_a_publicly_resolvable_deployment_reports_the_metadata_document(
         _resolves_publicly(True),
     )
 
-    result = await _probe(_protected_server()).probe(server_url=_SERVER_URL)
+    result = await _probe(_protected_server(metadata_documents=True)).probe(
+        server_url=_SERVER_URL
+    )
 
     assert result.auth.registration is MCPProbeRegistration.METADATA
+
+
+@pytest.mark.asyncio
+async def test_a_metadata_document_is_preferred_over_registration_where_both_are_offered(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "oss.src.core.gateways.mcps.probe.is_publicly_resolvable_async",
+        _resolves_publicly(True),
+    )
+
+    result = await _probe(
+        _protected_server(
+            registration_endpoint="https://auth.acme.io/register",
+            metadata_documents=True,
+        )
+    ).probe(server_url=_SERVER_URL)
+
+    assert result.auth.registration is MCPProbeRegistration.METADATA
+
+
+@pytest.mark.asyncio
+async def test_a_server_that_takes_neither_reports_unavailable_from_a_public_deployment(
+    monkeypatch,
+):
+    """GitHub, HubSpot, Asana: no registration and no metadata documents, so the person
+    has to bring an OAuth app, wherever this deployment is reachable from."""
+    monkeypatch.setattr(
+        "oss.src.core.gateways.mcps.probe.is_publicly_resolvable_async",
+        _resolves_publicly(True),
+    )
+
+    result = await _probe(_protected_server()).probe(server_url=_SERVER_URL)
+
+    assert result.auth.registration is MCPProbeRegistration.UNAVAILABLE
 
 
 # ---------------------------------------------------------------------------
@@ -1190,7 +1230,9 @@ async def test_a_slow_registration_check_keeps_the_oauth_answer(monkeypatch):
     monkeypatch.setattr(probe_module, "is_publicly_resolvable_async", slow_check)
 
     started = time.monotonic()
-    result = await _probe(_protected_server()).probe(server_url=_SERVER_URL)
+    result = await _probe(_protected_server(metadata_documents=True)).probe(
+        server_url=_SERVER_URL
+    )
     elapsed = time.monotonic() - started
 
     assert result.auth.mode is MCPProbeAuthMode.OAUTH

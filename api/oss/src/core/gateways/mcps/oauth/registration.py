@@ -40,6 +40,7 @@ def client_metadata_document(*, api_url: str, redirect_uri: str) -> OAuthClientM
         response_types=["code"],
         token_endpoint_auth_method="none",
         client_name="Agenta",
+        application_type="web",
     )
 
 

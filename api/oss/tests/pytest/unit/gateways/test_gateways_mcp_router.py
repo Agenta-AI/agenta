@@ -21,6 +21,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
     MCPEndpointData,
     MCPEndpointRoute,
+    MCPOAuthConfig,
 )
 from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttempt,
@@ -91,13 +92,15 @@ def _endpoint(endpoint_id) -> MCPEndpoint:
     )
 
 
-def _oauth_endpoint(endpoint_id, *, secret_id=None) -> MCPEndpoint:
+def _oauth_endpoint(endpoint_id, *, secret_id=None, oauth_config=None) -> MCPEndpoint:
     return MCPEndpoint(
         id=endpoint_id,
         slug="acme-notion",
         auth_mode=MCPAuthScheme.OAUTH,
         secret_id=secret_id,
-        data=MCPEndpointData(route=MCPEndpointRoute(base_url=_SERVER_URL)),
+        data=MCPEndpointData(
+            route=MCPEndpointRoute(base_url=_SERVER_URL), oauth_config=oauth_config
+        ),
     )
 
 
@@ -180,6 +183,7 @@ class MockMCPOAuthConnectService:
         self.complete_return = None
         self.complete_raises = None
         self.begun_endpoint_ids = []
+        self.begun_oauth_configs = []
         self.disconnect_return = True
         # Which connection each disconnect named. A disconnect that dropped the
         # neighbour's grant would be invisible without this.
@@ -195,8 +199,11 @@ class MockMCPOAuthConnectService:
             raise self.discover_raises
         return self.discover_return
 
-    async def begin(self, *, project_id, user_id, endpoint_id, server_url, scopes):
+    async def begin(
+        self, *, project_id, user_id, endpoint_id, server_url, scopes, oauth_config=None
+    ):
         self.calls.append(("begin", server_url, tuple(scopes)))
+        self.begun_oauth_configs.append(oauth_config)
         self.begun_endpoint_ids.append(endpoint_id)
         return self.begin_return
 
@@ -551,6 +558,21 @@ def test_connect_begin_step_returns_the_redirect_url(
     assert oauth_service.calls == [("begin", _SERVER_URL, ("read",))]
     # No discovery-caching edit_endpoint call on the begin step.
     assert service.calls == ["fetch_endpoint"]
+
+
+def test_connect_begins_as_the_client_saved_on_the_connection(
+    client, service, oauth_service, allow
+):
+    endpoint_id = uuid4()
+    config = MCPOAuthConfig(client_id="app-from-github")
+    service.fetch_return = _oauth_endpoint(endpoint_id, oauth_config=config)
+
+    response = client.post(
+        f"/endpoints/{endpoint_id}/connect", json={"scopes": ["read"]}
+    )
+
+    assert response.status_code == 200
+    assert oauth_service.begun_oauth_configs == [config]
 
 
 @pytest.mark.parametrize("scopes", [["read", "read"], ["read", " "]])
@@ -1000,6 +1022,23 @@ def test_a_switch_to_oauth_cancels_attempts_and_removes_nothing(
     endpoint_id = uuid4()
     service.fetch_return = _endpoint(endpoint_id)
     service.edit_return = _oauth_endpoint(endpoint_id)
+
+    response = _edit(client, endpoint_id, auth_mode="oauth")
+
+    assert response.status_code == 200
+    assert oauth_service.cancelled == [(endpoint_id, None)]
+    assert oauth_service.disconnected == []
+
+
+def test_a_changed_oauth_client_cancels_attempts_and_keeps_the_grant(
+    client, service, oauth_service, allow
+):
+    """A consent begun as one client must not finish as another."""
+    endpoint_id = uuid4()
+    service.fetch_return = _oauth_endpoint(endpoint_id)
+    service.edit_return = _oauth_endpoint(
+        endpoint_id, oauth_config=MCPOAuthConfig(client_id="app-from-github")
+    )
 
     response = _edit(client, endpoint_id, auth_mode="oauth")
 

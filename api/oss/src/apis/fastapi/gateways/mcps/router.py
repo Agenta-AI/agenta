@@ -419,6 +419,15 @@ class MCPGatewayRouter:
                 await self.oauth_connect_service.cancel(
                     project_id=scope.project_id, endpoint_id=endpoint_id
                 )
+        elif (
+            current is not None
+            and current.data.oauth_config != endpoint.data.oauth_config
+        ):
+            # A consent begun as one client must not finish as another. The grant stays:
+            # it renews only as the client it was issued to, and says so when it cannot.
+            await self.oauth_connect_service.cancel(
+                project_id=scope.project_id, endpoint_id=endpoint_id
+            )
 
         return MCPEndpointResponse(count=1, endpoint=endpoint)
 
@@ -584,6 +593,7 @@ class MCPGatewayRouter:
             endpoint_id=endpoint_id,
             server_url=server_url,
             scopes=body.scopes,
+            oauth_config=endpoint.data.oauth_config,
         )
 
         return MCPConnectResponse(

@@ -9,7 +9,11 @@ from uuid import UUID
 
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
-from oss.src.core.gateways.mcps.dtos import is_oauth_connection_at
+from oss.src.core.gateways.mcps.dtos import (
+    MCPOAuthConfig,
+    api_key_value,
+    is_oauth_connection_at,
+)
 from oss.src.core.gateways.mcps.interfaces import MCPEndpointsDAOInterface
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient, same_issuer
 from oss.src.core.gateways.mcps.oauth.dtos import (
@@ -42,11 +46,13 @@ from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthClientNotRegisteredError,
     MCPOAuthIssuerChangedError,
     MCPOAuthRefreshFailedError,
+    MCPOAuthRegistrationUnresolvablePinError,
     MCPOAuthStateExpiredError,
     MCPOAuthStateInvalidError,
     MCPOAuthTokenExchangeError,
     MCPOAuthRegistrationUnavailableError,
 )
+from oss.src.core.gateways.policy.types import SecretInvalidError
 from oss.src.core.gateways.types import GatewaysError
 from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO
 from oss.src.core.secrets.services import VaultService
@@ -104,53 +110,55 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         discovery: MCPOAuthDiscovery,
         redirect_uri: str,
         scopes: List[str],
+        oauth_config: Optional[MCPOAuthConfig],
     ) -> Tuple[OAuthClientInformationFull, str]:
-        """Reuse registration, use an identity document, or register a client."""
+        """Choose the client this connection signs in as, and how it was chosen.
+
+        The order is the MCP authorization specification's: a client the person
+        registered in advance, then a registration this deployment already holds, then a
+        client ID metadata document where the authorization server says it accepts one,
+        then a new dynamic registration.
+
+        The stored registration comes before the document so that a connection working
+        with a registered client keeps that client: an authorization server refuses a
+        refresh presented by any other client.
+        """
+        if oauth_config is not None and oauth_config.client_id:
+            return (
+                await self._explicit_client_info(
+                    project_id=storage.project_id,
+                    oauth_config=oauth_config,
+                    redirect_uri=redirect_uri,
+                ),
+                "explicit",
+            )
+
+        # A stored registration that does not cover the callback this deployment would
+        # send is not reusable (OR78): a registration under RFC 7591 is bound to the
+        # redirect URIs it was created with. The fresh registration below is written
+        # under a slug that includes this callback, so it accumulates BESIDE the stale
+        # one, whose grants still renew by presenting it (D66).
         stored = await storage.get_client_info()
         if stored is not None and registration_covers(
             stored, redirect_uri=redirect_uri
         ):
             return stored, "outbound"
 
-        # A stored registration that does not cover the callback this deployment would
-        # send is not reusable, and falls through to a fresh registration below (OR78).
-        #
-        # A registration under RFC 7591 is bound to the redirect URIs it was created
-        # with. A deployment's public address changes whenever a tunnel is added,
-        # rotated or dropped, and the stored registration was then found, its
-        # `client_id` sent, and the authorization server refused it: the client it knows
-        # is registered against an address the request no longer uses. Nothing
-        # re-registered, so the connection stayed unconnectable until someone deleted
-        # the record by hand, and the error the person saw was the authorization
-        # server's, which says nothing about redirect URIs.
-        #
-        # The fresh registration is written under a slug that includes this callback, so
-        # it accumulates BESIDE the stale one rather than replacing it: every grant
-        # already issued is bound to the old client, and its renewal presents that client
-        # (D66).
+        # Only where the authorization server advertises support. One that does not sees
+        # a URL client id it never issued and refuses the authorization in its own page
+        # (GitHub, #6985; Linear answered "the clientId provided does not match to this
+        # client").
+        if discovery.client_id_metadata_document_supported and (
+            await is_publicly_resolvable_async(self.api_url, **self._resolve_kwargs)
+        ):
+            return (
+                identity_document_client_info(
+                    api_url=self.api_url, redirect_uri=redirect_uri
+                ),
+                "document",
+            )
 
-        # Register when the authorization server says it accepts registrations, and fall
-        # back to the identity document only when it does not.
-        #
-        # The order used to be the other way round, and it made every real server fail.
-        # A client-id metadata document is a draft that almost nothing implements, so an
-        # authorization server handed one sees a client id it has never issued and refuses
-        # the authorization outright. Linear answers "the clientId provided does not match
-        # to this client", and it advertises a registration endpoint, which is what it
-        # actually wanted us to use. Dynamic client registration is RFC 7591 and is what
-        # servers in this ecosystem support today.
-        #
-        # The document still has a job: an authorization server that advertises no
-        # registration endpoint cannot be registered with, and then a public identity
-        # document is the only way to name ourselves.
         if not discovery.registration_endpoint:
-            if await is_publicly_resolvable_async(self.api_url, **self._resolve_kwargs):
-                return (
-                    identity_document_client_info(
-                        api_url=self.api_url, redirect_uri=redirect_uri
-                    ),
-                    "document",
-                )
             raise MCPOAuthRegistrationUnavailableError(
                 authorization_server=discovery.authorization_server
             )
@@ -164,6 +172,44 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         await storage.set_client_info(registered)
         return registered, "outbound"
 
+    async def _explicit_client_info(
+        self,
+        *,
+        project_id: UUID,
+        oauth_config: MCPOAuthConfig,
+        redirect_uri: str,
+    ) -> OAuthClientInformationFull:
+        """The client the person registered with the provider, with its secret read
+        from the vault for this one request."""
+        client_secret = None
+        if oauth_config.client_secret_id is not None:
+            secret = await self.vault_service.get_secret_by_id(
+                secret_id=oauth_config.client_secret_id, project_id=project_id
+            )
+            client_secret = api_key_value(secret.data) if secret is not None else None
+            if not client_secret:
+                raise SecretInvalidError(
+                    target="the OAuth client",
+                    detail=(
+                        "the project secret chosen as its client secret is gone or "
+                        "empty"
+                    ),
+                )
+        return OAuthClientInformationFull(
+            client_id=oauth_config.client_id,
+            client_secret=client_secret,
+            redirect_uris=[redirect_uri],
+            token_endpoint_auth_method=oauth_config.token_endpoint_auth_method,
+        )
+
+    async def _oauth_config(
+        self, *, project_id: UUID, endpoint_id: UUID
+    ) -> Optional[MCPOAuthConfig]:
+        endpoint = await self.endpoints_dao.fetch_endpoint(
+            project_id=project_id, endpoint_id=endpoint_id
+        )
+        return endpoint.data.oauth_config if endpoint is not None else None
+
     async def begin(
         self,
         *,
@@ -172,6 +218,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         endpoint_id: UUID,
         server_url: str,
         scopes: List[str],
+        oauth_config: Optional[MCPOAuthConfig] = None,
     ) -> MCPOAuthAuthorizationStart:
         discovery = await self.client.discover(server_url=server_url)
         redirect_uri = callback_redirect_uri(api_url=self.api_url)
@@ -190,6 +237,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             discovery=discovery,
             redirect_uri=redirect_uri,
             scopes=scopes,
+            oauth_config=oauth_config,
         )
 
         pkce = self.client.build_pkce()
@@ -355,7 +403,9 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         exchange's own refusal, recorded as the attempt's failure, when it fails.
         """
         try:
-            storage, tokens = await self._exchange(attempt=attempt, code=code)
+            storage, client_id, tokens = await self._exchange(
+                attempt=attempt, code=code
+            )
         except GatewaysError as e:
             await self.settle(
                 attempt=attempt, status=MCPOAuthAttemptStatus.FAILED, error=e.message
@@ -375,7 +425,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                     # pinned to the authorization server that actually issued it.
                     # `refresh_grant` requires that pin to still hold before it presents
                     # the refresh token anywhere.
-                    grant = await storage.write_tokens(tokens)
+                    grant = await storage.write_tokens(tokens, client_id=client_id)
                     # Conditional on the same facts, under the connection's own row
                     # lock, so an edit that commits after the read above is caught.
                     bound = await self.endpoints_dao.bind_endpoint_secret(
@@ -413,8 +463,10 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
 
     async def _exchange(
         self, *, attempt: MCPOAuthAttempt, code: str
-    ) -> Tuple[SecretsTokenStorage, OAuthToken]:
-        """Spend the code at the token endpoint the attempt recorded."""
+    ) -> Tuple[SecretsTokenStorage, str, OAuthToken]:
+        """Spend the code at the token endpoint the attempt recorded.
+
+        Returns the client the code was spent as, which the grant records."""
         # Issuer, token endpoint and redirect URI come from the record, not from a
         # fresh discovery round: the server cannot move its token endpoint between the
         # redirect it was handed and the code it returns.
@@ -439,6 +491,19 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             client_info = identity_document_client_info(
                 api_url=self.api_url, redirect_uri=attempt.redirect_uri
             )
+        elif attempt.strategy == "explicit":
+            # Read again rather than carried on the attempt. A change to the client
+            # cancels the attempts begun with the old one, so this is the same client.
+            oauth_config = await self._oauth_config(
+                project_id=attempt.project_id, endpoint_id=attempt.endpoint_id
+            )
+            if oauth_config is None or not oauth_config.client_id:
+                raise MCPOAuthClientNotRegisteredError(server_url=attempt.server_url)
+            client_info = await self._explicit_client_info(
+                project_id=attempt.project_id,
+                oauth_config=oauth_config,
+                redirect_uri=attempt.redirect_uri,
+            )
         else:
             client_info = await storage.get_client_info()
             if client_info is None:
@@ -452,7 +517,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             client_info=client_info,
             resource=attempt.resource,
         )
-        return storage, tokens
+        return storage, client_info.client_id, tokens
 
     async def disconnect(
         self, *, project_id: UUID, endpoint_id: UUID, server_url: str
@@ -624,12 +689,12 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             # presented by a client it never issued those tokens to, so reading "the
             # current registration for this issuer" is what made a changed public address
             # quietly stop every connection that was working (D6).
-            client_info = await storage.get_client_info_for_grant(stored)
-            if client_info is None:
-                client_info = identity_document_client_info(
-                    api_url=self.api_url,
-                    redirect_uri=callback_redirect_uri(api_url=self.api_url),
-                )
+            client_info = await self._client_info_for_grant(
+                storage=storage,
+                stored=stored,
+                project_id=project_id,
+                endpoint_id=endpoint_id,
+            )
 
             try:
                 refreshed = await self.client.refresh_token(
@@ -651,7 +716,48 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 # expiry unrecoverable.
                 refreshed.refresh_token = stored.refresh_token
 
-            await storage.write_tokens(refreshed)
+            await storage.write_tokens(refreshed, client_id=client_info.client_id)
+
+    async def _client_info_for_grant(
+        self,
+        *,
+        storage: SecretsTokenStorage,
+        stored: OAuthGrantSettingsDTO,
+        project_id: UUID,
+        endpoint_id: UUID,
+    ) -> OAuthClientInformationFull:
+        """The client a stored grant was issued to, never a different one.
+
+        A grant from a registration names its row. A grant from the person's own client or
+        from the identity document names the client id instead, and is renewed only by a
+        client with that id: a client id changed since the consent means connecting again,
+        because the authorization server refuses a refresh from any other client.
+        """
+        redirect_uri = callback_redirect_uri(api_url=self.api_url)
+        document = identity_document_client_info(
+            api_url=self.api_url, redirect_uri=redirect_uri
+        )
+        if stored.client_registration_slug or stored.client_id is None:
+            # A grant written before it recorded its client id resolves as it always did.
+            client_info = await storage.get_client_info_for_grant(stored)
+            return client_info or document
+
+        if document.client_id == stored.client_id:
+            return document
+        oauth_config = await self._oauth_config(
+            project_id=project_id, endpoint_id=endpoint_id
+        )
+        if oauth_config is not None and oauth_config.client_id == stored.client_id:
+            return await self._explicit_client_info(
+                project_id=project_id,
+                oauth_config=oauth_config,
+                redirect_uri=redirect_uri,
+            )
+        # A registration found by the issuer scan can carry no slug.
+        registered = await storage.get_client_info_for_grant(stored)
+        if registered is not None and registered.client_id == stored.client_id:
+            return registered
+        raise MCPOAuthRegistrationUnresolvablePinError(server_url=storage.server_url)
 
     @staticmethod
     async def _another_worker_refreshed(

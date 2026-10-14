@@ -28,18 +28,17 @@ class MCPOAuthRegistrationError(GatewaysError):
 class MCPOAuthRegistrationUnavailableError(MCPOAuthRegistrationError):
     """The authorization server offers no way for this deployment to name itself.
 
-    It advertises no registration endpoint, and this deployment is not publicly
-    resolvable, so it cannot serve a client-id metadata document either. Nothing is
-    wrong with the request; there is simply no path, and the operator has to make the
-    deployment reachable or register a client by hand.
+    It advertises no registration endpoint, and it does not accept a client ID metadata
+    document from this deployment. Nothing is wrong with the request; the person has to
+    register an OAuth app with the provider and enter its client ID.
     """
 
     def __init__(self, *, authorization_server: str):
         super().__init__(
             authorization_server=authorization_server,
             detail=(
-                "it advertises no registration endpoint and this deployment is not "
-                "publicly reachable, so no client identity can be established"
+                "this server needs an OAuth app you register yourself. Add its client "
+                "ID and secret under Advanced"
             ),
         )
 
@@ -87,7 +86,7 @@ class MCPOAuthRegistrationUnresolvablePinError(MCPOAuthRefreshFailedError):
     to again, which mints a fresh registration along with fresh tokens (N3).
     """
 
-    def __init__(self, *, server_url: str, registration_slug: str):
+    def __init__(self, *, server_url: str, registration_slug: Optional[str] = None):
         self.registration_slug = registration_slug
         super().__init__(
             server_url=server_url,

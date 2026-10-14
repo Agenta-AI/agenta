@@ -1166,9 +1166,12 @@ def _public_resolve(_hostname: str) -> List[str]:
     return ["93.184.216.34"]
 
 
-def _handler_without_registration():
-    """An authorization server that advertises no registration endpoint."""
+def _handler_without_registration(*, advertise_document: bool = True):
+    """An authorization server that advertises no registration endpoint, and by default
+    takes a client ID metadata document instead."""
     metadata = {k: v for k, v in _AS_METADATA.items() if k != "registration_endpoint"}
+    if advertise_document:
+        metadata["client_id_metadata_document_supported"] = True
 
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
@@ -1239,7 +1242,7 @@ async def test_no_registration_and_no_public_address_is_refused_with_a_reason():
             scopes=["read"],
         )
 
-    assert "no registration endpoint" in str(refusal.value)
+    assert "register yourself" in str(refusal.value)
 
 
 # --- a renewal touches one connection ------------------------------------------- #

@@ -7,9 +7,10 @@ from the SDK's own wire DTOs (`mcp.shared.auth`) and PKCE generator
 two-separate-HTTP-requests callback cannot satisfy.
 """
 
+import base64
 import re
-from typing import Any, Dict, List, Optional
-from urllib.parse import urlencode, urljoin, urlparse
+from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote_plus, urlencode, urljoin, urlparse
 
 import httpx
 from mcp.client.auth.oauth2 import PKCEParameters
@@ -273,6 +274,45 @@ def _check_authorization_server(
         _check_https(url, label=label, server_url=authorization_server)
 
 
+def _token_endpoint_auth_method(client_info: OAuthClientInformationFull) -> str:
+    """How the client authenticates at the token endpoint.
+
+    The method the client was registered with, when it is one this client implements. A
+    registration that names none, or one this client does not implement, sends the secret
+    in the body, which is what every registration here was sent with before the method was
+    read. A client with no secret is a public client whatever it was registered with.
+    """
+    if not client_info.client_secret:
+        return "none"
+    method = client_info.token_endpoint_auth_method
+    if method in ("client_secret_basic", "client_secret_post"):
+        return method
+    return "client_secret_post"
+
+
+def client_authentication(
+    client_info: OAuthClientInformationFull, data: Dict[str, Any]
+) -> Tuple[Dict[str, Any], Dict[str, str]]:
+    """The token request's form fields and headers for the client's auth method.
+
+    RFC 6749 s2.3.1: `client_secret_basic` sends the id and the secret, each form-encoded,
+    as HTTP Basic credentials, and nothing about the client in the body. The other two
+    name the client in the body, `client_secret_post` with its secret beside it.
+    """
+    method = _token_endpoint_auth_method(client_info)
+    client_id = client_info.client_id
+    if method == "client_secret_basic":
+        credentials = (
+            f"{quote_plus(client_id)}:{quote_plus(client_info.client_secret or '')}"
+        )
+        encoded = base64.b64encode(credentials.encode()).decode()
+        return data, {"Authorization": f"Basic {encoded}"}
+    data = {**data, "client_id": client_id}
+    if method == "client_secret_post":
+        data["client_secret"] = client_info.client_secret
+    return data, {}
+
+
 class MCPOAuthClient:
     def __init__(self, *, transport: Optional[httpx.BaseTransport] = None) -> None:
         # Injectable seam for tests, matching HttpMCPAdapter / ComposioConnectionsAdapter.
@@ -353,21 +393,40 @@ class MCPOAuthClient:
             prm = await self._discover_protected_resource(
                 client, server_url=server_url, challenge=challenge
             )
-            authorization_server = str(prm.authorization_servers[0])
+            if prm is not None:
+                authorization_server = str(prm.authorization_servers[0])
+                resource = str(prm.resource)
+                resource_scopes = prm.scopes_supported
+            else:
+                # A server with no protected-resource document is its own authorization
+                # server, at its origin, as the MCP authorization specification read
+                # before it adopted RFC 9728. Only an absent document gets here: one that
+                # was found and refused has already raised.
+                authorization_server = _authorization_base_url(server_url)
+                _check_https(
+                    authorization_server,
+                    label="authorization server",
+                    server_url=server_url,
+                )
+                resource = None
+                resource_scopes = None
             metadata = await self._discover_authorization_server(
                 client, authorization_server=authorization_server
             )
 
         return MCPOAuthDiscovery(
-            resource=str(prm.resource),
+            resource=resource,
             authorization_server=authorization_server,
-            scopes_offered=prm.scopes_supported or metadata.scopes_supported or [],
+            scopes_offered=resource_scopes or metadata.scopes_supported or [],
             authorization_endpoint=str(metadata.authorization_endpoint),
             token_endpoint=str(metadata.token_endpoint),
             registration_endpoint=(
                 str(metadata.registration_endpoint)
                 if metadata.registration_endpoint
                 else None
+            ),
+            client_id_metadata_document_supported=bool(
+                metadata.client_id_metadata_document_supported
             ),
         )
 
@@ -377,12 +436,19 @@ class MCPOAuthClient:
         *,
         server_url: str,
         challenge: Optional[httpx.Response] = None,
-    ) -> ProtectedResourceMetadata:
+    ) -> Optional[ProtectedResourceMetadata]:
+        """The server's protected-resource document, or `None` when it publishes none.
+
+        `None` only when no candidate answered 200. A candidate that answered 200 with
+        something that is not a usable document means a document exists, so the walk
+        ends in a refusal rather than in the fallback to the origin.
+        """
         if challenge is None:
             challenge = await self._get(client, server_url)
         resource_metadata_url = (
             _resource_metadata_url_from_response(challenge) if challenge else None
         )
+        answered = False
         for url in _protected_resource_urls(
             server_url, resource_metadata_url=resource_metadata_url
         ):
@@ -391,6 +457,7 @@ class MCPOAuthClient:
                 continue
             if response.status_code != 200:
                 continue
+            answered = True
             try:
                 prm = ProtectedResourceMetadata.model_validate_json(response.content)
             except ValidationError:
@@ -401,9 +468,12 @@ class MCPOAuthClient:
             # one and have the bad one taken when the good one is momentarily absent.
             _check_protected_resource(prm, server_url=server_url)
             return prm
-        raise MCPOAuthDiscoveryError(
-            server_url=server_url, detail="no protected-resource metadata found"
-        )
+        if answered:
+            raise MCPOAuthDiscoveryError(
+                server_url=server_url,
+                detail="no usable protected-resource metadata found",
+            )
+        return None
 
     async def _discover_authorization_server(
         self, client: httpx.AsyncClient, *, authorization_server: str
@@ -451,6 +521,9 @@ class MCPOAuthClient:
             response_types=["code"],
             scope=" ".join(scopes) if scopes else None,
             client_name="Agenta",
+            # The callback is a web page on Agenta's address. The SDK's default, native,
+            # is for clients that redirect to a loopback address or an app scheme.
+            application_type="web",
         )
         body = metadata.model_dump(by_alias=True, mode="json", exclude_none=True)
 
@@ -534,15 +607,14 @@ class MCPOAuthClient:
             "grant_type": "authorization_code",
             "code": code,
             "redirect_uri": redirect_uri,
-            "client_id": client_info.client_id,
             "code_verifier": code_verifier,
         }
-        if client_info.client_secret:
-            data["client_secret"] = client_info.client_secret
         if resource:
             data["resource"] = resource
 
-        return await self._post_token_request(token_endpoint=token_endpoint, data=data)
+        return await self._post_token_request(
+            token_endpoint=token_endpoint, data=data, client_info=client_info
+        )
 
     async def refresh_token(
         self,
@@ -562,24 +634,31 @@ class MCPOAuthClient:
         data: Dict[str, Any] = {
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
-            "client_id": client_info.client_id,
         }
-        if client_info.client_secret:
-            data["client_secret"] = client_info.client_secret
         if scopes:
             data["scope"] = " ".join(scopes)
         if resource:
             data["resource"] = resource
 
-        return await self._post_token_request(token_endpoint=token_endpoint, data=data)
+        return await self._post_token_request(
+            token_endpoint=token_endpoint, data=data, client_info=client_info
+        )
 
     async def _post_token_request(
-        self, *, token_endpoint: str, data: Dict[str, Any]
+        self,
+        *,
+        token_endpoint: str,
+        data: Dict[str, Any],
+        client_info: OAuthClientInformationFull,
     ) -> OAuthToken:
+        data, authorization = client_authentication(client_info, data)
         try:
             target = await open_egress(
                 token_endpoint,
-                above_caller={"Content-Type": "application/x-www-form-urlencoded"},
+                above_caller={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    **authorization,
+                },
             )
         except EgressRefusedError as e:
             raise MCPOAuthTokenExchangeError(

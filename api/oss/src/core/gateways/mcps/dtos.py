@@ -156,11 +156,53 @@ class MCPOAuthData(BaseModel):
     scopes_offered: List[str] = Field(default_factory=list)
 
 
+MCPTokenEndpointAuthMethod = Literal[
+    "client_secret_basic", "client_secret_post", "none"
+]
+
+
+class MCPOAuthConfig(BaseModel):
+    """What the person chose for an OAuth connection, apart from what discovery found.
+
+    `client_id` is an OAuth app the person registered with the provider in advance, for a
+    server that registers no clients on its own (GitHub, HubSpot, Asana). It is used before
+    any registration Agenta would make. `client_secret_id` names the project secret that
+    holds the app's secret; the value stays in the vault. `token_endpoint_auth_method` is
+    how that secret is sent, and defaults to the request body when a secret is set.
+
+    The scopes are not here: the connect request carries the person's selection.
+    """
+
+    client_id: Optional[
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    ] = None
+    client_secret_id: Optional[UUID] = None
+    token_endpoint_auth_method: Optional[MCPTokenEndpointAuthMethod] = None
+
+    @model_validator(mode="after")
+    def _client_fields_need_a_client(self) -> "MCPOAuthConfig":
+        if self.client_id is None and (
+            self.client_secret_id is not None
+            or self.token_endpoint_auth_method is not None
+        ):
+            raise ValueError("A client secret or auth method needs a client ID.")
+        method = self.token_endpoint_auth_method
+        if method is not None and (method == "none") != (self.client_secret_id is None):
+            raise ValueError(
+                "Use the auth method none without a client secret, and a "
+                "client_secret method with one."
+            )
+        return self
+
+
 class MCPEndpointData(BaseModel):
     route: MCPEndpointRoute = Field(default_factory=MCPEndpointRoute)
     tools: MCPToolFilter = Field(default_factory=MCPToolFilter)
     settings: MCPEndpointSettings = Field(default_factory=MCPEndpointSettings)
+    # What discovery found. Rewritten by every discovery, so nothing the person chose
+    # lives here.
     oauth: Optional[MCPOAuthData] = None
+    oauth_config: Optional[MCPOAuthConfig] = None
 
 
 class MCPEndpointFlags(BaseModel):

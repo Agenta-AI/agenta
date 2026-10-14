@@ -10,14 +10,22 @@ from pydantic import BaseModel, Field
 
 class MCPOAuthDiscovery(BaseModel):
     """Feeds `MCPEndpointData.oauth` (`resource`, `authorization_server`,
-    `scopes_offered`) and the connect-time scope checklist. No secret involved."""
+    `scopes_offered`) and the connect-time scope checklist. No secret involved.
 
-    resource: str
+    `resource` is absent when the server publishes no protected-resource document and its
+    authorization server was found at its origin instead: there is then no resource
+    identifier to send.
+    """
+
+    resource: Optional[str] = None
     authorization_server: str
     scopes_offered: List[str] = []
     authorization_endpoint: str
     token_endpoint: str
     registration_endpoint: Optional[str] = None
+    # The authorization server accepts a URL as a client id (a client ID metadata
+    # document). Only then is Agenta's own document offered as one.
+    client_id_metadata_document_supported: bool = False
 
 
 class MCPOAuthAuthorizationStart(BaseModel):
