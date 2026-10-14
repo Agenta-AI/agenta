@@ -285,6 +285,7 @@ def test_gunicorn_logconfig_routes_gunicorn_loggers_through_the_json_formatter(
         name: (
             list(logging.getLogger(name).handlers),
             logging.getLogger(name).propagate,
+            logging.getLogger(name).level,
         )
         for name in ("gunicorn.error", "gunicorn.access")
     }
@@ -298,9 +299,10 @@ def test_gunicorn_logconfig_routes_gunicorn_loggers_through_the_json_formatter(
         )
         logging.getLogger("gunicorn.access").info("GET /health 200")
     finally:
-        for name, (handlers, propagate) in saved.items():
+        for name, (handlers, propagate, level) in saved.items():
             logging.getLogger(name).handlers = handlers
             logging.getLogger(name).propagate = propagate
+            logging.getLogger(name).setLevel(level)
 
     lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert [(entry["severity"], entry["message"]) for entry in lines] == [

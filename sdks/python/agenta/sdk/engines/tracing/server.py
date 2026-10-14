@@ -550,13 +550,20 @@ class RouteSpanNameMiddleware:
     def _name(span: Any, scope: dict) -> None:
         try:
             method = scope.get("method") or ""
-            mount = scope.get("root_path", "")
-            route = getattr(scope.get("route"), "path", None)
-            # the instrumentation names a request that a sub-app answers by the method
-            # alone, or by the mount path alone
-            if not route or span.name not in (method, f"{method} {mount}"):
+            route = scope.get("route")
+            # a Mount that no child route answered (a 404) has no endpoint
+            if not hasattr(route, "endpoint"):
                 return
-            span.update_name(f"{method} {mount}{route}")
+            # what follows the method is the mount template the instrumentation matched,
+            # never the concrete root_path, so mount parameters stay out of the name
+            mount = (
+                span.name[len(method) :].strip()
+                if span.name.startswith(method)
+                else None
+            )
+            if mount is None or bool(mount) == (not scope.get("root_path")):
+                return
+            span.update_name(f"{method} {mount}{route.path}")
         except Exception:  # pylint: disable=broad-except
             pass
 
