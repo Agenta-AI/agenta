@@ -47,12 +47,12 @@ describe("getMcpConnectionStatus", () => {
         ).toBe("login_expired")
     })
 
-    it("calls an OAuth connection never signed in waiting, not expired", () => {
+    it("calls an OAuth connection with no grant and no check not signed in, not expired", () => {
         // A first sign-in still under way has no login to expire.
         const status = getMcpConnectionStatus(endpoint({secret_id: null}))
 
-        expect(status).toBe("waiting_for_sign_in")
-        expect(getMcpConnectionStatusLabel(status)).toBe("Waiting for sign-in")
+        expect(status).toBe("not_signed_in")
+        expect(getMcpConnectionStatusLabel(status)).toBe("Not signed in")
     })
 
     it("calls a key the server stopped accepting an expired login too", () => {

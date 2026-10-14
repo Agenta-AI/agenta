@@ -277,10 +277,10 @@ describe("the status cell", () => {
         expect(within(cell).getByRole("button", {name: "Reconnect"})).toBeTruthy()
     })
 
-    it("reads Waiting for sign-in for a connection whose first sign-in is under way", () => {
+    it("reads Not signed in for a connection whose first sign-in is under way", () => {
         show([PENDING])
         const cell = screen.getByTestId("mcp-connection-status")
-        expect(within(cell).getByText("Waiting for sign-in")).toBeTruthy()
+        expect(within(cell).getByText("Not signed in")).toBeTruthy()
         expect(statusTone(cell)).toContain("text-colorWarning")
     })
 
