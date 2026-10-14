@@ -172,6 +172,10 @@ Paste this into your agent and it will walk you through setup and testing:
 
 For more details, read the [self-hosting documentation](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme).
 
+## Short tutorials
+
+[Connect an agent to Telegram](https://agenta.ai/docs/guides/connect-telegram): connect a private chat, ask for a draft, and follow up from your phone.
+
 ## How Agenta compares
 
 ### n8n, Activepieces, and Zapier

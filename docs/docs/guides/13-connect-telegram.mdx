@@ -1,0 +1,62 @@
+---
+title: "Connect an agent to Telegram"
+sidebar_label: "Connect Telegram"
+description: "Connect an Agenta agent to a private Telegram chat, send it a task, and follow up without repeating the brief."
+---
+
+Work with your Agenta agent from Telegram. Send a task from your phone, read the result, and give it a follow-up in the same conversation.
+
+{/* Production note: insert the approved, controls-enabled narrated tutorial here after recording. No placeholder video URL. */}
+
+## Before you start
+
+You need an existing agent in Agenta and Telegram on your phone. This guide uses the shared Telegram bot on Agenta Cloud and a private chat.
+
+If you self-host, your administrator must first [set up the hosted Telegram bot](/self-host/channels/telegram-hosted-bot), or you can connect a bot of your own. The shared-bot flow does not connect a Telegram group.
+
+## 1. Open Telegram in Agenta
+
+Open your agent, click **Publish**, and choose **Telegram**. You can also start the connection from the agent's Channels card.
+
+Choose the shared-bot connection. Agenta shows a QR code and a link to open Telegram.
+
+## 2. Connect the chat
+
+Scan the QR code with your phone, or open the link. Telegram opens the bot. Tap **Start** to connect the private chat to your agent.
+
+The connect link is single-use and expires after 30 minutes. If it expires, open a fresh connection link in Agenta.
+
+## 3. Ask for a draft
+
+Try a small task that needs no additional accounts. For example:
+
+> Draft a three-sentence launch post for our weekly content planner. It keeps ideas, drafts and the publishing calendar in one place. Keep it plain.
+
+The agent works on the request and posts its answer in Telegram.
+
+This task asks for a draft, not permission to send or publish anything. If you want the agent to work with a connected app, set up that app and its permissions in Agenta first.
+
+## 4. Follow up
+
+In the same Telegram chat, send:
+
+> Make it one sentence, and keep the publishing calendar in it.
+
+The conversation keeps its earlier messages, so you do not need to repeat the product brief. Follow-up context here means the Telegram conversation; it is not a promise to continue the message history of an existing web session.
+
+## Use your own bot
+
+If you want your own bot name, choose the option to use your own bot in Agenta and enter the token you obtained from [BotFather](https://t.me/BotFather). Enter credentials only in the connection form, not in chat.
+
+Self-hosted deployments can use this route when the shared bot is not configured.
+
+## Troubleshooting
+
+- **The QR code is unavailable:** on self-hosted deployments, ask the administrator to configure the shared bot, or use your own bot.
+- **The link no longer works:** generate a new link in Agenta and press **Start** again.
+- **No answer in a group:** the shared bot supports private chats. Use the private-chat flow shown here.
+- **You want a different agent to answer:** manage the Telegram connection in Agenta. The shared bot has one connection per project; this is not a separate shared-bot connection for every agent in the same project.
+
+## Other channels
+
+You can also [connect an agent to Slack](/guides/connect-slack) or [connect a WhatsApp number](/guides/connect-whatsapp).
