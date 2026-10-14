@@ -1311,6 +1311,31 @@ export async function queryMountDir({
     return validated?.files ?? null
 }
 
+/** One raw folder level (no git pruning, no counts); a missing folder is a silent 404. */
+export async function listMountFolder({
+    mountId,
+    projectId,
+    appId,
+    abortSignal,
+    path,
+}: Omit<MountFilesParams, "lowPriority">): Promise<MountFile[] | null> {
+    if (!projectId || !mountId) return null
+
+    const data = await callFern(
+        "[listMountFolder]",
+        () =>
+            getLowPriorityMountsClient().getMountFiles(
+                {mount_id: mountId, path: path || undefined, depth: 1},
+                projectScopedRequest(projectId, appId, abortSignal, 1),
+            ),
+        isNotFound,
+    )
+    if (!data) return null
+
+    const validated = safeParseWithLogging(mountFileListResponseSchema, data, "[listMountFolder]")
+    return validated?.files ?? null
+}
+
 /** Read one mount file's text content (`?read=<path>`). Returns `null` on failure/missing scope. */
 export async function readMountFile({
     mountId,

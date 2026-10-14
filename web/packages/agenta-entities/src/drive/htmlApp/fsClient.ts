@@ -21,7 +21,7 @@
 import {getMountsClient} from "@agenta/sdk/resources"
 import {z} from "zod"
 
-import {projectScopedRequest} from "@agenta/entities/session"
+import {listedEntryAt, parentFolderOf, projectScopedRequest} from "@agenta/entities/session"
 
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 
@@ -219,11 +219,6 @@ export function toFsClientError(error: unknown): FsClientError {
     }
 }
 
-const parentOf = (path: string): string => {
-    const i = path.lastIndexOf("/")
-    return i < 0 ? "" : path.slice(0, i)
-}
-
 const toEntry = (entry: z.infer<typeof listEntrySchema>): FileEntry => {
     const isFolder = entry.is_folder === true
     return {
@@ -320,8 +315,8 @@ export function createFsClient({mountId, projectId, scopeToken}: FsClientOptions
         })
 
     const findEntry = async (path: string): Promise<FileEntry | null> => {
-        const {result} = await list(parentOf(path))
-        return result.find((entry) => entry.path === path) ?? null
+        const {result} = await list(parentFolderOf(path))
+        return listedEntryAt(result, path)
     }
 
     const exists: FsClient["exists"] = async (path) => ({result: (await findEntry(path)) !== null})
