@@ -530,3 +530,14 @@ def test_sonnet_5_5_is_a_prompt_model_a_default_and_a_pi_generated_model():
     # Claude names the tier: the pinned Claude Code build resolves `sonnet` to Sonnet 5.5.
     sonnet = next(e for e in claude_model_catalog().models if e.id == "sonnet")
     assert sonnet.name == "Claude Sonnet 5.5"
+
+
+def test_gemini_4_argon_is_published_with_its_display_name():
+    # `builtin/agenta` serves google/gemini-4-argon; the picker finds its name through the bare id.
+    entries = model_catalog_entries("pi_core")
+    entry = next(
+        (item for item in entries if item["id"] == "gemini/gemini-4-argon"), None
+    )
+    assert entry is not None, "gemini/gemini-4-argon missing from the pi catalog"
+    assert entry["name"] == "Gemini 4 Argon"
+    assert entry["provider"] == "gemini"
