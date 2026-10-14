@@ -94,7 +94,9 @@ def workloads(docs: list[dict]) -> dict[str, dict]:
     for doc in docs:
         if doc.get("kind") not in ("Deployment", "StatefulSet", "Job"):
             continue
-        component = doc.get("metadata", {}).get("labels", {}).get("app.kubernetes.io/component")
+        component = (
+            doc.get("metadata", {}).get("labels", {}).get("app.kubernetes.io/component")
+        )
         if component:
             found[component] = doc["spec"]["template"]["spec"]
     return found
@@ -117,7 +119,10 @@ def test_off_by_default() -> None:
 def test_every_workload_passes_its_class_through() -> None:
     args: list[str] = []
     for key in WORKLOADS:
-        args += ["--set", f"{key}.priorityClassName=class-{key.replace('.', '-').lower()}"]
+        args += [
+            "--set",
+            f"{key}.priorityClassName=class-{key.replace('.', '-').lower()}",
+        ]
     pods = workloads(render(args))
     for key, component in WORKLOADS.items():
         expected = f"class-{key.replace('.', '-').lower()}"
@@ -125,7 +130,9 @@ def test_every_workload_passes_its_class_through() -> None:
 
 
 def test_one_workload_does_not_leak_into_another() -> None:
-    pods = workloads(render(["--set", "redisVolatile.priorityClassName=agenta-stateful"]))
+    pods = workloads(
+        render(["--set", "redisVolatile.priorityClassName=agenta-stateful"])
+    )
     assert pods["redis-volatile"]["priorityClassName"] == "agenta-stateful"
     for component, spec in pods.items():
         if component != "redis-volatile":
@@ -138,7 +145,10 @@ def test_spare_capacity_defaults() -> None:
     assert len(classes) == 1
     priority_class = classes[0]
     # Cluster-scoped, so the default name carries the namespace and the release.
-    assert priority_class["metadata"]["name"] == "team-a-priority-test-agenta-spare-capacity"
+    assert (
+        priority_class["metadata"]["name"]
+        == "team-a-priority-test-agenta-spare-capacity"
+    )
     assert priority_class["value"] == -10
     assert priority_class["preemptionPolicy"] == "Never"
     assert priority_class["globalDefault"] is False
