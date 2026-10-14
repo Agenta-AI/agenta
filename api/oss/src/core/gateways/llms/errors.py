@@ -55,7 +55,7 @@ _REDACTIONS = (
     (
         re.compile(
             r"\b([A-Za-z0-9_-]*(?:key|token|secret|password|signature|sig|credential))\b"
-            r"\s*[=:]\s*\S+",
+            r"\s*[=:]\s*(?:\"[^\"]*\"|'[^']*'|\S+)",
             re.IGNORECASE,
         ),
         r"\1=[secret]",

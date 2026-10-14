@@ -65,9 +65,15 @@ async def relay_upstream_errors(
             payload = _error_payload(protocol, code=code, event=False)
             holder = _error_holder(payload)
         if not quote_upstream:
-            # Vertex AI puts the project and region in fields like `status` and `details`.
-            for key in [key for key in holder if key not in _KEPT_WHEN_UNQUOTED]:
-                del holder[key]
+            # Vertex AI puts the project and region in fields like `status` and `details`, so
+            # the error is rebuilt in the protocol's own shape around the fields kept.
+            kept = {k: v for k, v in (holder or {}).items() if k in _KEPT_WHEN_UNQUOTED}
+            payload = _error_payload(protocol, code=code, event=status is None)
+            holder = _error_holder(payload)
+            if holder is payload:
+                # A Responses `error` event: its `type` names the event.
+                kept.pop("type", None)
+            holder.update(kept)
         holder["message"] = upstream_error_message(
             label=label, code=code, provider_message=said if quote_upstream else None
         )

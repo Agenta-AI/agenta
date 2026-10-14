@@ -185,6 +185,7 @@ def test_the_provider_text_is_cleaned_before_it_is_quoted():
         ("The security token is invalid. AKIAIOSFODNN7EXAMPLE", "AKIAIOSFODNN7"),
         ("https://b.example/o?X-Amz-Signature=abcdef0123456789", "abcdef0123456789"),
         ("token ya29.a0AfH6SMBabcdefghijklmnop expired", "a0AfH6SMB"),
+        ('password="correct horse battery staple" rejected', "battery"),
     ],
 )
 def test_common_credential_shapes_are_redacted(said, leaked):
@@ -211,7 +212,8 @@ async def test_the_built_in_endpoint_never_quotes_its_upstream():
             "code": 403,
             "status": "PERMISSION_DENIED",
             "details": [{"metadata": {"consumer": "projects/internal-project-1"}}],
-        }
+        },
+        "project": "projects/internal-project-1",
     }
 
     async def upstream():
@@ -232,8 +234,9 @@ async def test_the_built_in_endpoint_never_quotes_its_upstream():
     ]
 
     assert b"internal-project-1" not in b"".join(chunks)
+    assert set(json.loads(b"".join(chunks))) == {"error"}
     error = json.loads(b"".join(chunks))["error"]
-    assert set(error) == {"message", "code"}
+    assert set(error) == {"message", "code", "type"}
     message = error["message"]
     assert message.startswith('The model endpoint "agenta" reported an error. Check')
 

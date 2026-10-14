@@ -105,6 +105,19 @@ describe("classifyRunError shows the three observed failures", () => {
     assert.doesNotMatch(classified.message, /5\.01/);
   });
 
+  it("another endpoint's budget refusal stays that endpoint's own error", () => {
+    const budget =
+      "Internal error: 400: " +
+      JSON.stringify({
+        message:
+          'The model endpoint "team-proxy" reported an error: "Budget has been exceeded". ' +
+          "Check the endpoint's key, account and model, or change the request. " +
+          "⟦agenta_code:upstream_rejected⟧",
+        code: "400",
+      });
+    assert.equal(classify(budget).code, "upstream_rejected");
+  });
+
   it("a tool call the provider could not read", () => {
     const classified = classify(MALFORMED);
     assert.equal(classified.code, "upstream_error");
