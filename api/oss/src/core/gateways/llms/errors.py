@@ -70,7 +70,7 @@ _REDACTIONS = (
     # its first and last characters. Bounded on both sides, so a long run of "sk-a-" stays linear.
     (
         re.compile(
-            r"\b(?:sk|pk|rk)-[A-Za-z0-9_-]{0,24}(?:\*{3,}|\.{3})[A-Za-z0-9_-]{0,24}"
+            r"\b(?:sk|pk|rk)-[A-Za-z0-9_-]{0,24}(?:\*{3,}|\.{3,})[A-Za-z0-9_-]{0,24}"
         ),
         "[secret]",
     ),

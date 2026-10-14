@@ -659,6 +659,9 @@ describe("the public error contract (Codex R4 P1, decision 10)", () => {
         "Incorrect API key provided: sk-proj-********************abcd. See the docs.",
       ),
     ).toBe("Incorrect API key provided: [secret]. See the docs.");
+    expect(sanitizeErrorText("over budget (sk-....abcd)")).toBe(
+      "over budget ([secret])",
+    );
     expect(sanitizeErrorText("test-reached-sandbox-start")).toBe(
       "test-reached-sandbox-start",
     );

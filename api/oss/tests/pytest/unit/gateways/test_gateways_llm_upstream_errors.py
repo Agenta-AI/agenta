@@ -196,6 +196,7 @@ def test_the_provider_text_is_cleaned_before_it_is_quoted():
         ),
         ("Incorrect API key provided: sk-proj-********************abcd.", "abcd"),
         ("Budget exceeded for key (sk-...3kKQ)", "3kKQ"),
+        ("Budget exceeded for key (sk-....abcd)", "abcd"),
     ],
 )
 def test_common_credential_shapes_are_redacted(said, leaked):

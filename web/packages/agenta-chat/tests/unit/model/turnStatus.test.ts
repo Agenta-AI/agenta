@@ -344,6 +344,7 @@ describe("sanitizeErrorText", () => {
             sanitizeErrorText("Incorrect API key provided: sk-qa-re*********************0000."),
         ).toBe("Incorrect API key provided: [secret].")
         expect(sanitizeErrorText("over budget (sk-...3kKQ)")).toBe("over budget ([secret])")
+        expect(sanitizeErrorText("over budget (sk-....abcd)")).toBe("over budget ([secret])")
     })
 
     it("redacts anything shaped like a key", () => {
