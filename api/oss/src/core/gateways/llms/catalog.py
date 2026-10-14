@@ -35,7 +35,11 @@ AGENTA_PROVIDER = "agenta"
 
 # The models `builtin/agenta` serves, spelled as Vertex's OpenAI-compatible endpoint names
 # them, so a request body relays to Vertex unchanged.
-AGENTA_MODELS = ("google/gemini-3.7-flash", "google/gemini-3.8-flash")
+AGENTA_MODELS = (
+    "google/gemini-3.7-flash",
+    "google/gemini-3.8-flash",
+    "google/gemini-4-argon",
+)
 
 # The connection the starter-credits bridge seeded ("Agenta", slug `starter-credits`), and
 # each model id a saved revision can name on it, with the `builtin/agenta` model that
