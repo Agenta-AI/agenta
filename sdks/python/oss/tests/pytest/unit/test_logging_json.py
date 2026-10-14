@@ -269,3 +269,58 @@ def test_text_renderer_survives_object_whose_str_raises():
     )
 
     assert "hi" in line
+
+
+def test_gunicorn_logconfig_is_empty_for_text():
+    assert sdk_logging.gunicorn_logconfig("text") == {}
+
+
+def test_gunicorn_logconfig_routes_gunicorn_loggers_through_the_json_formatter(
+    capsys,
+):
+    import logging.config
+
+    config = sdk_logging.gunicorn_logconfig("json", "my-project")
+    saved = {
+        name: (
+            list(logging.getLogger(name).handlers),
+            logging.getLogger(name).propagate,
+        )
+        for name in ("gunicorn.error", "gunicorn.access")
+    }
+    try:
+        logging.config.dictConfig(config)
+        logging.getLogger("gunicorn.access").setLevel(
+            logging.INFO
+        )  # gunicorn does this
+        logging.getLogger("gunicorn.error").warning(
+            "Listening at: %s", "http://0.0.0.0:8000"
+        )
+        logging.getLogger("gunicorn.access").info("GET /health 200")
+    finally:
+        for name, (handlers, propagate) in saved.items():
+            logging.getLogger(name).handlers = handlers
+            logging.getLogger(name).propagate = propagate
+
+    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert [(entry["severity"], entry["message"]) for entry in lines] == [
+        ("WARNING", "Listening at: http://0.0.0.0:8000"),
+        ("INFO", "GET /health 200"),
+    ]
+
+
+def test_python_warnings_become_json_lines_on_stdout(capsys):
+    import warnings
+
+    saved = logging.getLogger("py.warnings")
+    handlers, propagate = list(saved.handlers), saved.propagate
+    try:
+        sdk_logging.capture_warnings_as_json()
+        warnings.warn("old thing", DeprecationWarning, stacklevel=1)
+    finally:
+        logging.captureWarnings(False)
+        saved.handlers, saved.propagate = handlers, propagate
+
+    (line,) = [json.loads(entry) for entry in capsys.readouterr().out.splitlines()]
+    assert line["severity"] == "WARNING"
+    assert "old thing" in line["message"]

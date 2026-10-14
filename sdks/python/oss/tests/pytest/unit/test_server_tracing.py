@@ -566,3 +566,50 @@ def test_captured_headers_are_dropped():
         pass
     (span,) = memory.get_finished_spans()
     assert dict(span.attributes) == {"http.method": "GET"}
+
+
+# --------------------------------------------------------------------------- #
+# Span names for mounted sub-apps
+# --------------------------------------------------------------------------- #
+
+
+def _mounted_app(provider):
+    from fastapi import FastAPI
+
+    from agenta.sdk.engines.tracing.server import RouteSpanNameMiddleware
+
+    sub = FastAPI()
+    sub.add_middleware(RouteSpanNameMiddleware)
+
+    @sub.post("/invoke")
+    async def invoke():
+        return {}
+
+    @sub.get("/items/{item_id}")
+    async def item(item_id: str):
+        return {}
+
+    app = FastAPI()
+    app.mount("/chat/v0", sub)
+    app.mount("/", sub)
+
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+    FastAPIInstrumentor.instrument_app(
+        app, tracer_provider=provider, exclude_spans=["receive", "send"]
+    )
+    return app
+
+
+def test_mounted_sub_app_span_is_named_by_route_template(no_global_propagation):
+    from starlette.testclient import TestClient
+
+    srv = _Server()
+    client = TestClient(_mounted_app(srv.provider))
+
+    client.post("/invoke")
+    client.post("/chat/v0/invoke")
+    client.get("/items/6f1c2f1e-secret-id")
+
+    names = sorted(span.name for span in srv.spans())
+    assert names == ["GET /items/{item_id}", "POST /chat/v0/invoke", "POST /invoke"]
