@@ -960,15 +960,15 @@ def _echoing(body: str):
 @pytest.mark.parametrize(
     ("written", "echoed"),
     [
-        ("sk-live-0123456789abcdef", "sk-live-0123456789abcdef"),
+        ("fake-typed-key-0123456789", "fake-typed-key-0123456789"),
         # Shorter than any header rule would scan for. A short key is still a key.
         ("secret7", "secret7"),
         # A query `+` is a space, and an echo can carry either form.
         ("abcdefgh+ijklmnop", "abcdefgh+ijklmnop"),
         ("abcdefgh+ijklmnop", "abcdefgh ijklmnop"),
-        ("sk%2Flive%2F0123", "sk/live/0123"),
+        ("fake%2Ftyped%2Fkey", "fake/typed/key"),
         # A raw value can come back encoded.
-        ("sk/live/0123", "sk%2Flive%2F0123"),
+        ("fake/typed/key", "fake%2Ftyped%2Fkey"),
         ("abcdefgh+ijklmnop", "abcdefgh%20ijklmnop"),
     ],
 )
@@ -989,7 +989,7 @@ async def test_the_excerpt_never_carries_a_key_from_the_url(written, echoed):
 async def test_a_key_across_the_cut_leaves_no_prefix_behind():
     """The key is removed before the body is cut, so a key that straddles the cut
     cannot leave its first half in the excerpt."""
-    key = "sk-live-0123456789abcdef"
+    key = "fake-typed-key-0123456789"
     url = f"https://mcp.acme.io/mcp?api_key={key}"
 
     result = await _probe(_echoing("z" * 2040 + key)).probe(server_url=url)
