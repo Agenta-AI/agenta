@@ -262,6 +262,11 @@ def _may_retry(retry: int, delay: float, deadline: Optional[float], now: float) 
     return retry < UPSTREAM_MAX_RETRIES and (deadline is None or now + delay < deadline)
 
 
+async def _read_to_end(body: AsyncIterator[bytes]) -> None:
+    async for _ in body:
+        pass
+
+
 def _retry_delay(retry: int, retry_after: Optional[str]) -> float:
     """Seconds to wait before retry number `retry`, counted from zero."""
     asked = _retry_after_seconds(retry_after)
@@ -857,9 +862,15 @@ class LLMGatewayService:
             retryable = status_code in _RETRYABLE_STATUSES or status_code >= 500
             if not retryable or not _may_retry(retry, delay, deadline, loop.time()):
                 return result
-            # Read to its end so the adapter closes the upstream response.
-            async for _ in result.body:
-                pass
+            # Read to its end so the adapter closes the upstream response, within the
+            # deadline: a body that trickles in must not hold the call past it.
+            try:
+                await asyncio.wait_for(
+                    _read_to_end(result.body),
+                    timeout=None if deadline is None else deadline - loop.time(),
+                )
+            except asyncio.TimeoutError as e:
+                raise LLMUpstreamTimeoutError(provider_key=target.provider_key) from e
 
             retry += 1
             log.warning(

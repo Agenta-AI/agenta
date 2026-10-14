@@ -343,3 +343,27 @@ async def test_a_retry_that_would_outlast_the_routes_timeout_is_not_started(slee
 
     assert len(calls) == 2
     assert sleeps == []
+
+
+@pytest.mark.asyncio
+async def test_a_retryable_body_that_outlasts_the_routes_timeout_is_a_timeout():
+    closed: List[bool] = []
+
+    async def _trickles() -> AsyncIterator[bytes]:
+        try:
+            yield b'{"error": '
+            await asyncio.Event().wait()
+        finally:
+            closed.append(True)
+
+    adapter = _MockAdapter(
+        result=LLMRelayResult(
+            status_code=429, headers={"retry-after": "0.01"}, body=_trickles()
+        )
+    )
+
+    with pytest.raises(LLMUpstreamTimeoutError):
+        await _relay(_service(adapter, timeout_seconds=0.05))
+
+    assert len(adapter.calls) == 1
+    assert closed == [True]
