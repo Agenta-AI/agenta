@@ -1086,9 +1086,9 @@ class MockGatewaysConfig(BaseModel):
     # answers with.
     #
     # Both halves are configurable so a stack can move them, and both have defaults so the
-    # QA runbook can name one pair. The name is what an endpoint registers as its
-    # `credential_header`; an endpoint that registers none sends the same value as
-    # `Authorization: Bearer <value>`, and the surface accepts that form too.
+    # QA runbook can name one pair. The name is what an endpoint's credential binding
+    # names, as a header or a query parameter; the surface also accepts the value as
+    # `Authorization: Bearer <value>` and as the password of `Authorization: Basic`.
     mcp_key_header: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_KEY_HEADER", "X-Api-Key")
     mcp_key_value: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_KEY", "agenta-mock-mcp-key")
 

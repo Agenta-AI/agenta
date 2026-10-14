@@ -10,12 +10,21 @@ export interface MCPOAuthData {
     scopes_offered?: string[]
 }
 
+// MCPCredentialBinding: where an API-key endpoint's credential travels. Configuration, not
+// the credential: the value stays in the vault behind `secret_id`.
+export interface MCPCredentialBinding {
+    kind: "header" | "query"
+    // The header name, or the query parameter name.
+    name: string
+    // The word in front of the value, e.g. `Bearer` or `Basic`. Null sends the bare value.
+    prefix?: string | null
+}
+
 export interface MCPEndpointRoute {
     base_url?: string | null
     headers?: Record<string, string> | null
-    // Names the header an API-key endpoint's credential travels in. Configuration, not the
-    // credential: the value stays in the vault behind `secret_id`.
-    credential_header?: string | null
+    // Null sends `Authorization: Bearer <key>`.
+    credential_binding?: MCPCredentialBinding | null
 }
 
 // GatewayEndpointFilter in api/oss/src/core/gateways/dtos.py.

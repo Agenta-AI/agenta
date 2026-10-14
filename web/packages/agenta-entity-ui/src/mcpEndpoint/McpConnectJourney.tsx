@@ -30,28 +30,19 @@
  * what it offers and the authorize call still takes a list; what has gone is asking a person
  * to narrow it, because the scopes are the server's business and nobody could answer.
  */
-import {
-    cloneElement,
-    useCallback,
-    useEffect,
-    useId,
-    useMemo,
-    useRef,
-    useState,
-    type ReactElement,
-    type ReactNode,
-} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     connectionNameProblem,
     detectedAuthMode,
     isBusy,
     mcpChallengeSchemeToShow,
-    mcpDefaultKeyHeader,
+    mcpDefaultCredentialBinding,
     readMcpProbeResponse,
     toolPrefixFromName,
     useMcpConnectJourney,
     type MCPAuthMode,
+    type MCPCredentialBinding,
     type McpConnectJourney as McpConnectJourneyApi,
     type McpJourneyState,
 } from "@agenta/entities/mcpEndpoint"
@@ -78,7 +69,16 @@ import {useAtomValue} from "jotai"
 
 import {CreateSecretDrawer} from "../secret"
 
-import {AuthModeSelector, NoticeBox, ProbeResultCard, ShowResponsePanel} from "./components"
+import {
+    AuthModeSelector,
+    BasicCredentialHelper,
+    CredentialBindingFields,
+    headerSchemeHint,
+    HintedField,
+    NoticeBox,
+    ProbeResultCard,
+    ShowResponsePanel,
+} from "./components"
 
 export interface McpConnectJourneyProps {
     open: boolean
@@ -93,8 +93,8 @@ export interface McpConnectJourneyProps {
         url: string
         /** How the connection authorizes, so a reconnect repairs the right thing. */
         authMode?: "oauth" | "api_key" | "none"
-        /** The header its credential is already sent under, which a repair keeps. */
-        credentialHeader?: string | null
+        /** Where its credential is already sent, which a repair keeps. */
+        credentialBinding?: MCPCredentialBinding | null
     } | null
     /** The connection, once it is real. Agents reference it by `slug`. */
     onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
@@ -128,22 +128,12 @@ const KEY_PROBLEM_ID = "mcp-key-problem"
 const NAME_HELP =
     "What the model sees on this server's tools. Frozen when the connection was chosen, so renaming the connection does not rename tools here."
 
-const HEADER_HELP = "The HTTP header this server expects, for example x-api-key"
-
-/**
- * What this particular server asked for, under the Header field.
- *
- * A help line rather than a change of value, because a scheme is not a header name: `Bearer`
- * means `Authorization: Bearer <token>`, which is what an endpoint with no registered header
- * already sends. So the challenge cannot fill the field, and the reader is the only one who
- * can say which header this server wants the scheme's value in. Rendered only where there is
- * something to say (`mcpChallengeSchemeToShow`), so the pair of fields keeps its shape on
- * every other server.
- */
-const headerSchemeHint = (scheme: string): string => `This server asked for the ${scheme} scheme.`
-
-const SECRET_HELP =
-    "Pick a project secret or create one. The value is sent as this header when the agent runs and is never shown again."
+const SECRET_HELP_TARGET: Record<MCPCredentialBinding["kind"], string> = {
+    header: "header",
+    query: "query parameter",
+}
+const secretHelpFor = (kind: MCPCredentialBinding["kind"]): string =>
+    `Pick a project secret or create one. The value is sent as this ${SECRET_HELP_TARGET[kind]} when the agent runs and is never shown again.`
 
 /** What a failed check is told, by what the probe found rather than by what it returned. */
 const UNREACHABLE_HEADLINE = "Couldn't reach this server."
@@ -193,7 +183,7 @@ const KEY_REJECTED_ADVICE = "Check the header the server expects, or pick anothe
  *
  * What the challenge names is a scheme, not a header: `Bearer` means `Authorization: Bearer
  * <token>`. Reading it into "the header the server expects" told the reader to type `Bearer`
- * into the Header field, which is the one thing that cannot be right. The sentence the Header
+ * into the Header field, which is the one thing that cannot be right. The sentence the Prefix
  * field's own hint already uses says the same fact correctly, so it says it here too.
  */
 const keyRejectedAdviceFor = (scheme: string | null): string =>
@@ -376,29 +366,37 @@ export function McpConnectSheet({
     const namedSecrets = useAtomValue(customNamedSecretsAtom)
 
     /**
-     * What the person typed in Header, or null while they have typed nothing.
+     * Where the key goes, as the person set it, or null while they have changed nothing.
      *
-     * Null rather than a seeded string, because the probe answers after this mounts and the
+     * Null rather than a seeded binding, because the probe answers after this mounts and the
      * prefill depends on what it found. Seeding at mount would have to be corrected later,
      * which means deciding whether a correction is allowed to overwrite a typed value; not
      * seeding at all makes that question disappear.
      */
-    const [headerName, setHeaderName] = useState<string | null>(null)
+    const [bindingDraft, setBindingDraft] = useState<MCPCredentialBinding | null>(null)
     /**
-     * The header the screen shows: what was typed, or the spec's C5 prefill.
+     * The binding the screen shows: what was set, or the spec's C5 prefill.
      *
-     * The scheme the challenge named picks `Authorization`, because a scheme travels in that
-     * header; a challenge that named none picks `x-api-key`. Editable either way.
+     * The scheme the challenge named picks `Authorization` with `Bearer`, because a scheme
+     * travels in that header; a challenge that named none picks a bare `x-api-key`. Editable
+     * either way.
      *
-     * A reconnect starts from the header the connection is already saved with, because it
+     * A reconnect starts from the binding the connection is already saved with, because it
      * repairs a credential and changes nothing else (decisions 10 and 34). Offering the
      * probe's default there put `Authorization` over a saved `X-Api-Key`, so accepting what
      * was on screen broke a working connection.
      */
-    const headerValue =
-        headerName ?? reconnect?.credentialHeader?.trim() ?? mcpDefaultKeyHeader(state.probe)
+    const binding =
+        bindingDraft ?? reconnect?.credentialBinding ?? mcpDefaultCredentialBinding(state.probe)
     const [secretSlug, setSecretSlug] = useState("")
     const [creatingSecret, setCreatingSecret] = useState(false)
+    /** The Basic helper's encoded value, which the create drawer opens with. */
+    const [secretSeed, setSecretSeed] = useState<string | undefined>(undefined)
+    const openSecretDrawer = useCallback((seed?: string) => {
+        setSecretSeed(seed)
+        setSecretDrawerMounted(true)
+        setCreatingSecret(true)
+    }, [])
     // Latches on first open so the create drawer's hooks stay unmounted until needed.
     const [secretDrawerMounted, setSecretDrawerMounted] = useState(false)
 
@@ -534,8 +532,8 @@ export function McpConnectSheet({
         if (state.status !== "manual_auth" || !afterCreate) return
         const secretId = namedSecrets.find((secret) => secret.slug === secretSlug)?.id
         if (!secretId) return
-        void journey.submitManualCredential({headerName: headerValue, secretId})
-    }, [afterCreate, headerValue, journey, namedSecrets, secretSlug, state.status])
+        void journey.submitManualCredential({binding, secretId})
+    }, [afterCreate, binding, journey, namedSecrets, secretSlug, state.status])
 
     const nameProblem =
         state.status === "naming"
@@ -570,8 +568,8 @@ export function McpConnectSheet({
     const submitCredential = useCallback(() => {
         const secretId = selectedSecretId()
         if (!secretId) return
-        void journey.submitManualCredential({headerName: headerValue, secretId})
-    }, [headerValue, journey, selectedSecretId])
+        void journey.submitManualCredential({binding, secretId})
+    }, [binding, journey, selectedSecretId])
 
     const confirm = useCallback(() => {
         switch (state.status) {
@@ -801,35 +799,24 @@ export function McpConnectSheet({
                     {screen === "api_key" ? (
                         <>
                             <div className="flex flex-col gap-3">
-                                <HintedField
-                                    label="Header"
-                                    // Dropped once the server has refused a key: the glyph
-                                    // explains what a header is, and by now the question is
-                                    // which one this server wants.
-                                    tooltip={
-                                        state.status === "verify_failed" ? undefined : HEADER_HELP
-                                    }
+                                <CredentialBindingFields
+                                    value={binding}
+                                    onChange={setBindingDraft}
+                                    probe={state.probe}
+                                    disabled={busy}
                                     invalid={state.status === "verify_failed"}
-                                    hint={
-                                        challengeScheme ? headerSchemeHint(challengeScheme) : null
+                                    aria-describedby={
+                                        state.status === "verify_failed"
+                                            ? KEY_PROBLEM_ID
+                                            : undefined
                                     }
-                                >
-                                    <Input
-                                        className="font-mono text-[13px]"
-                                        placeholder="Authorization"
-                                        value={headerValue}
+                                />
+                                {binding.prefix === "Basic" ? (
+                                    <BasicCredentialHelper
                                         disabled={busy}
-                                        aria-label="Header"
-                                        aria-describedby={
-                                            state.status === "verify_failed"
-                                                ? KEY_PROBLEM_ID
-                                                : undefined
-                                        }
-                                        onChange={(event) =>
-                                            setHeaderName(event.target.value.trim())
-                                        }
+                                        onCreateSecret={openSecretDrawer}
                                     />
-                                </HintedField>
+                                ) : null}
                                 <Field
                                     label="Project secret"
                                     invalid={state.status === "verify_failed"}
@@ -845,16 +832,13 @@ export function McpConnectSheet({
                                                 ? KEY_PROBLEM_ID
                                                 : undefined
                                         }
-                                        canCreate={!!headerValue}
-                                        onCreate={() => {
-                                            setSecretDrawerMounted(true)
-                                            setCreatingSecret(true)
-                                        }}
+                                        canCreate={!!binding.name.trim()}
+                                        onCreate={() => openSecretDrawer()}
                                     />
                                 </Field>
                             </div>
                             <span className="-mt-2 block text-xs leading-normal text-colorTextTertiary">
-                                {SECRET_HELP}
+                                {secretHelpFor(binding.kind)}
                             </span>
                         </>
                     ) : null}
@@ -937,9 +921,13 @@ export function McpConnectSheet({
                     {secretDrawerMounted ? (
                         <CreateSecretDrawer
                             open={creatingSecret}
-                            onClose={() => setCreatingSecret(false)}
-                            headerName={headerValue}
+                            onClose={() => {
+                                setCreatingSecret(false)
+                                setSecretSeed(undefined)
+                            }}
+                            headerName={binding.name}
                             serverName={state.name}
+                            initialValue={secretSeed}
                             onCreated={(row) => setSecretSlug(row.slug)}
                         />
                     ) : null}
@@ -960,6 +948,7 @@ export function McpConnectSheet({
                                         state,
                                         nameProblem,
                                         secretChosen,
+                                        bindingNamed: !!binding.name.trim(),
                                         busy,
                                     })
                                 }
@@ -995,62 +984,21 @@ const canConfirm = ({
     state,
     nameProblem,
     secretChosen,
+    bindingNamed,
     busy,
 }: {
     screen: Screen
     state: McpJourneyState
     nameProblem: string | null
     secretChosen: boolean
+    bindingNamed: boolean
     busy: boolean
 }): boolean => {
     if (busy && screen !== "waiting") return false
     if (screen === "url" || screen === "url_failed") return isProbeableUrl(state.url)
     if (nameProblem) return false
-    if (screen === "api_key") return !!state.name.trim() && secretChosen
+    if (screen === "api_key") return !!state.name.trim() && secretChosen && bindingNamed
     return !!state.name.trim()
-}
-
-/**
- * A label, a control, and a line of help under the control.
- *
- * `Field` puts its description above the control and its error below it, which is right for
- * a form row and wrong for these: the help here describes what the value does once it is
- * saved, and it is read after the value, not before it. The control keeps `Field`'s
- * announcement wiring by naming the help line itself.
- */
-const HintedField = ({
-    hint,
-    children,
-    ...field
-}: {
-    label: string
-    tooltip?: string
-    error?: string
-    invalid?: boolean
-    hint?: ReactNode
-    children: ReactElement<{"aria-describedby"?: string}>
-}) => {
-    // Generated here, and named only while the line it names is on screen. The ids used to be
-    // written by hand at each call site and set on the control unconditionally, so every
-    // screen that drew no hint left the control pointing at an element that was not in the
-    // document: four of them on the name field alone (round 4, D127). A field cannot forget
-    // an id it never writes.
-    const hintId = useId()
-    const own = children.props["aria-describedby"]
-    const describedBy = [own, hint ? hintId : null].filter(Boolean).join(" ") || undefined
-
-    return (
-        <div className="flex flex-col gap-1.5">
-            <Field {...field} className="gap-1.5">
-                {cloneElement(children, {"aria-describedby": describedBy})}
-            </Field>
-            {hint ? (
-                <p id={hintId} className="m-0 text-xs leading-normal text-colorTextTertiary">
-                    {hint}
-                </p>
-            ) : null}
-        </div>
-    )
 }
 
 /**

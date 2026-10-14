@@ -931,7 +931,7 @@ describe("a credential the server refused", () => {
         expect(journey.state.endpointId).toBe("mcp-1")
 
         await act(async () => {
-            await journey.submitManualCredential({headerName: "X-Api-Key", secretId: "wrong"})
+            await journey.submitManualCredential({binding: {kind: "header", name: "X-Api-Key"}, secretId: "wrong"})
         })
         await settle()
 

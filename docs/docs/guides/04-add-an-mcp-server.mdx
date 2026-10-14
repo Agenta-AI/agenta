@@ -11,7 +11,7 @@ An MCP server gives your agent tools it can call. You connect the server once to
 Have these ready:
 
 - **The server's HTTP URL**, such as `https://mcp.example.com`. Agenta connects over HTTP. It does not start local processes over stdio.
-- **A header name and key**, only if the server authenticates with a header rather than OAuth. You can save the key as a project secret without leaving the connect sheet.
+- **A key, and where the server expects it**, only if the server authenticates with a key rather than OAuth: the header or query parameter name, and the word that goes in front of the key, such as `Bearer`. You can save the key as a project secret without leaving the connect sheet.
 
 ## Connect the server
 
@@ -24,11 +24,15 @@ Start from `Settings` in the sidebar, then `MCPs`, and click `Connect MCP`. You 
 
    **`OAuth`.** Click `Connect`. The provider's authorization page opens in a new window. Complete it there, and the sheet carries on by itself. Agenta does not ask you to choose scopes. The server decides what it grants.
 
-   **`API key`.** Agenta prefills `Header` with `Authorization`. Edit it to whatever the server expects, such as `x-api-key`. Pick the `Project secret` that holds the key, and if the project has no secrets yet, click `Create secret` in that list to make one without leaving the sheet. Click `Connect`. Agenta calls the server once with that credential, so a wrong header or a wrong key fails here rather than during an agent run.
+   **`API key`.** Say where the key goes. `Send as` is `Header` or `Query parameter`. `Name` is the header or parameter name. `Prefix` is the word sent in front of the key: `None`, `Bearer`, `Basic`, or `Custom` for any other word. When the server named an authentication scheme, the fields start on `Authorization` with `Bearer`; otherwise they start on `x-api-key` with no prefix. The presets `Bearer token`, `Custom header`, `Basic` and `Query parameter` fill these fields for the common cases. A line under `Prefix` shows what is sent, with the key masked, such as `Authorization: Bearer ••••`. Pick the `Project secret` that holds the key, and if the project has no secrets yet, click `Create secret` in that list to make one without leaving the sheet. Click `Connect`. Agenta calls the server once with that credential, so a wrong name or a wrong key fails here rather than during an agent run.
+
+   A query parameter is added to the address when Agenta calls the server. The saved address never holds the key.
+
+   For a server that takes a username and a password with Basic authentication, pick the `Basic` preset. Type the username and the password, and click `Create secret`. Agenta encodes `username:password` once, in the browser, and opens the secret form with the encoded value. Save it, and it is selected as the connection's `Project secret`. The username and the password are not kept.
 
    `API key` is detected, under `Reachable · needs an API key`, when the server refused to be reached without a credential and did not say which kind it wants, because a credential is the only thing that refusal can be answered with. A server that needs nothing answers the first check plainly and shows `Reachable · no sign-in needed` instead.
 
-   If the server named an authentication scheme other than Bearer, a line under `Header` says which one it asked for. The field still starts on `Authorization`, because the scheme names what goes in the header's value rather than the header itself.
+   If the server named an authentication scheme that `Prefix` does not send, a line under `Prefix` says which one it asked for.
 
    **`None`.** The sheet asks only for a name. Click `Connect`.
 
@@ -103,7 +107,7 @@ Connect the same URL a second time, from `Connect MCP` in `Settings` or `Connect
 
 Open `Settings > MCPs`. The table lists each connection with its `Server URL`, its `Auth`, which reads `OAuth`, `API key` with the secret it uses, or `None`, and its `Status`. A narrow window drops the detail columns, so on a phone a row shows its name and its status alone. Click a row to open the connection, where you can rename it, read its tool list, and change its authentication. `Change` next to `Authentication` opens the reconnect sheet, where you pick another mode and supply what it needs. The connection keeps its name, its reference and its tool settings, and a project secret it used stays in the project. Each row also has a menu at the end of it.
 
-- **Reconnect.** Repairs whichever way the connection authenticates. On an OAuth connection it takes you back through the provider's authorization page. On a key-authenticated one it reopens the sheet with the URL and the name locked, so you can supply the header and the secret again.
+- **Reconnect.** Repairs whichever way the connection authenticates. On an OAuth connection it takes you back through the provider's authorization page. On a key-authenticated one it reopens the sheet with the URL and the name locked, so you can supply where the key goes and the secret again.
 - **View tools.** Opens the same drawer an agent uses, with the tools grouped and described but nothing to set. What an agent may call is set in that agent's configuration.
 - **Rename.** Opens the connection, where you edit `Name` and click `Save name`. Agents keep using the connection under the prefix they were saved with, so a rename changes nothing about what they run.
 - **Disconnect.** Gives back the stored login. The connection, its name, and its URL stay, and the row reads `Login expired`. Agents using it stop working until it is authorized again, and one `Reconnect` restores it. Only an OAuth connection holding a stored login offers this. A connection that authenticates with a header key, or one that needs no authentication, shows `Reconnect` and `Remove` only.
@@ -115,13 +119,13 @@ Open `Settings > MCPs`. The table lists each connection with its `Server URL`, i
 
 You do not have to go to `Settings` to find this. When a run needs a server whose login has lapsed, the agent says so in the conversation and offers `Reconnect` there, which is the same repair without leaving what you were doing.
 
-On an OAuth connection this means consent was abandoned, or the grant was revoked or has expired, and `Reconnect` takes you back to the provider's authorization page. On a key-authenticated connection it means the server stopped accepting the key, and `Reconnect` reopens the sheet with the URL and the name locked so you can supply a new header or secret.
+On an OAuth connection this means consent was abandoned, or the grant was revoked or has expired, and `Reconnect` takes you back to the provider's authorization page. On a key-authenticated connection it means the server stopped accepting the key, and `Reconnect` reopens the sheet with the URL and the name locked so you can change where the key goes or pick a new secret.
 
 **`Couldn't reach this server.`** Nothing answered at that address. Check the address and that the server speaks HTTP transport. A server on a private network has to be reachable from Agenta.
 
 **`Reached the address, but it isn't an MCP server.`** Something answered and it was not an MCP server. This usually means the URL points at a web page or a different API on the same host.
 
-**`The server rejected this key.`** Where the server gave a status code, the sentence names it. Agenta shows the server's own refusal underneath, and where the server named an authentication scheme it adds `This server asked for the <scheme> scheme.` before asking you to check the header or pick another secret. Check `Header` against the server's documentation, check that the project secret holds the right key, and click `Try again` once you have corrected either one.
+**`The server rejected this key.`** Where the server gave a status code, the sentence names it. Agenta shows the server's own refusal underneath, and where the server named an authentication scheme it adds `This server asked for the <scheme> scheme.` before asking you to check the header or pick another secret. Check `Name` and `Prefix` against the server's documentation, check that the project secret holds the right key, and click `Try again` once you have corrected either one.
 
 **`Another connection in this project already uses this name.`** Names are compared after every character outside letters, digits, and underscores is replaced with an underscore, so `Acme Tools` and `Acme-Tools` count as the same name. Pick a name that differs by more than punctuation.
 

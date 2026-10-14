@@ -47,6 +47,7 @@ import {
 } from "../core/connectJourney"
 import {buildTrustedOrigins} from "../core/connectMessage"
 import {watchOauthConsent} from "../core/connectWatch"
+import {normalizeCredentialBinding} from "../core/credentialBinding"
 import {
     credentialRefusalStatus,
     gatewayRefusalMessage,
@@ -55,7 +56,7 @@ import {
     isNameTakenRefusal,
 } from "../core/refusal"
 import {rememberMcpReturnPath} from "../core/returnPath"
-import type {MCPAuthMode, MCPEndpoint} from "../core/types"
+import type {MCPAuthMode, MCPCredentialBinding, MCPEndpoint} from "../core/types"
 import {refreshMcpEndpointsAtom} from "../state/atoms"
 
 export interface McpConnectJourneyOptions {
@@ -69,14 +70,14 @@ export interface McpConnectJourneyOptions {
         url: string
         authMode?: MCPAuthMode
         /**
-         * The header this connection's credential is already sent under.
+         * Where this connection's credential is already sent.
          *
          * A key reconnect repairs a credential and changes nothing else (decisions 10 and
-         * 34), so the field it asks about starts where the connection left it. Prefilling the
+         * 34), so the fields it asks about start where the connection left them. Prefilling the
          * probe's default instead offered `Authorization` over a saved `X-Api-Key`, and a
          * person who accepted what was on screen broke a working connection.
          */
-        credentialHeader?: string | null
+        credentialBinding?: MCPCredentialBinding | null
     } | null
     /** Called once the connection is real, with the slug agents reference it by. */
     onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
@@ -657,9 +658,9 @@ export function useMcpConnectJourney({
         await discoverScopes(endpointId)
     }, [discoverScopes, isCurrent, reconnecting, storeAuthMode])
 
-    /** The manual fallback: attach a project secret as a header, then verify. */
+    /** The manual fallback: attach a project secret where the binding says, then verify. */
     const submitManualCredential = useCallback(
-        async ({headerName, secretId}: {headerName: string; secretId: string}) => {
+        async ({binding, secretId}: {binding: MCPCredentialBinding; secretId: string}) => {
             const endpoint = endpointRef.current
             if (!endpoint) return
             const attempt = attemptRef.current
@@ -716,7 +717,7 @@ export function useMcpConnectJourney({
                             route: {
                                 ...stored.data?.route,
                                 base_url: state.url.trim(),
-                                credential_header: headerName || undefined,
+                                credential_binding: normalizeCredentialBinding(binding),
                             },
                         },
                     },

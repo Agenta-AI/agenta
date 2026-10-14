@@ -466,7 +466,7 @@ export default function McpServersSection({
                               name: reconnecting.name || reconnecting.slug,
                               url: reconnecting.data.route.base_url || "",
                               authMode: reconnecting.auth_mode,
-                              credentialHeader: reconnecting.data.route.credential_header,
+                              credentialBinding: reconnecting.data.route.credential_binding,
                           }
                         : null
                 }

@@ -682,7 +682,7 @@ describe("every description a field points at is on screen", () => {
         it(`resolves every reference on ${name}`, async () => {
             await open(current, props)
 
-            for (const label of ["Server URL", "Name", "Header", "Project secret"]) {
+            for (const label of ["Server URL", "Name", "Header name", "Prefix", "Project secret"]) {
                 if (!control(label)) continue
                 expect({[label]: dangling(label)}).toEqual({[label]: []})
             }
@@ -753,7 +753,7 @@ describe("C5, the server wants a key", () => {
         await open({...keyScreen, probe: KEY_PROBE_BEARER})
 
         expect(text()).toContain("Reachable · needs an API key")
-        expect((control("Header") as HTMLInputElement).value).toBe("Authorization")
+        expect((control("Header name") as HTMLInputElement).value).toBe("Authorization")
         expect(control("Project secret")).toBeTruthy()
         expect(text()).toContain(
             "Pick a project secret or create one. The value is sent as this header when the agent runs and is never shown again.",
@@ -793,7 +793,7 @@ describe("C5, the server wants a key", () => {
         // Every other control on this screen is held while something is in flight: the
         // address, the name, and both buttons. These two were not, so the check could be
         // running against one header and secret while the reader edited them to another.
-        expect((control("Header") as HTMLInputElement).disabled).toBe(true)
+        expect((control("Header name") as HTMLInputElement).disabled).toBe(true)
         expect((control("Project secret") as HTMLButtonElement).disabled).toBe(true)
     })
 
@@ -803,7 +803,7 @@ describe("C5, the server wants a key", () => {
         // about a header nobody had been told.
         await open({...keyScreen, probe: KEY_PROBE_NO_SCHEME})
 
-        expect((control("Header") as HTMLInputElement).value).toBe("x-api-key")
+        expect((control("Header name") as HTMLInputElement).value).toBe("x-api-key")
     })
 
     it("keeps what was typed, whatever the probe says next", async () => {
@@ -811,9 +811,9 @@ describe("C5, the server wants a key", () => {
         // from a render, so a change making the value probe-derived passes the package while
         // silently overwriting a person's typing the moment a probe answers (round 5).
         await open({...keyScreen, probe: KEY_PROBE_NO_SCHEME})
-        expect((control("Header") as HTMLInputElement).value).toBe("x-api-key")
+        expect((control("Header name") as HTMLInputElement).value).toBe("x-api-key")
 
-        const field = control("Header") as HTMLInputElement
+        const field = control("Header name") as HTMLInputElement
         const setter = Object.getOwnPropertyDescriptor(
             Object.getPrototypeOf(field) as object,
             "value",
@@ -826,7 +826,7 @@ describe("C5, the server wants a key", () => {
         // The same sheet, re-rendered with a probe whose prefill is the other one.
         await open({...keyScreen, probe: KEY_PROBE_BEARER})
 
-        expect((control("Header") as HTMLInputElement).value).toBe("X-Acme-Token")
+        expect((control("Header name") as HTMLInputElement).value).toBe("X-Acme-Token")
     })
 
     it("reconnects with the header the connection is already saved under", async () => {
@@ -851,12 +851,12 @@ describe("C5, the server wants a key", () => {
                     name: "Axiom",
                     url: "https://mcp.axiom.co/mcp",
                     authMode: "api_key" as const,
-                    credentialHeader: "X-Api-Key",
+                    credentialBinding: {kind: "header" as const, name: "X-Api-Key"},
                 },
             },
         )
 
-        expect((control("Header") as HTMLInputElement).value).toBe("X-Api-Key")
+        expect((control("Header name") as HTMLInputElement).value).toBe("X-Api-Key")
     })
 
     it("keeps Authorization on a reconnect that saved no header of its own", async () => {
@@ -881,7 +881,7 @@ describe("C5, the server wants a key", () => {
             },
         )
 
-        expect((control("Header") as HTMLInputElement).value).toBe("Authorization")
+        expect((control("Header name") as HTMLInputElement).value).toBe("Authorization")
     })
 
     it("names the scheme the server asked for, where it asked for one", async () => {
@@ -890,9 +890,9 @@ describe("C5, the server wants a key", () => {
         // The field cannot be filled from a scheme, because a scheme is not a header name.
         // What the challenge can do is tell the reader what this server wants in it, and the
         // line saying so has to reach the field's own announcement.
-        expect((control("Header") as HTMLInputElement).value).toBe("Authorization")
+        expect((control("Header name") as HTMLInputElement).value).toBe("Authorization")
         expect(text()).toContain("This server asked for the DSN scheme.")
-        expect(describedText(control("Header"))).toContain("DSN")
+        expect(describedText(control("Prefix"))).toContain("DSN")
     })
 
     it("says nothing about a Bearer challenge, which Authorization already answers", async () => {
@@ -901,7 +901,7 @@ describe("C5, the server wants a key", () => {
         // `Authorization: Bearer <token>` is what an endpoint with no registered header
         // already sends, so naming it would tell a reader to do what is being done for them.
         expect(text()).not.toContain("scheme.")
-        expect(control("Header")?.getAttribute("aria-describedby")).toBeNull()
+        expect(control("Header name")?.getAttribute("aria-describedby")).toBeNull()
     })
 
     it("shows a server that wants nothing only the card and the name", async () => {
@@ -915,7 +915,7 @@ describe("C5, the server wants a key", () => {
         )
 
         expect(text()).toContain("Reachable · no sign-in needed")
-        expect(control("Header")).toBeNull()
+        expect(control("Header name")).toBeNull()
         expect(button("Connect")?.disabled).toBe(false)
     })
 })
@@ -937,7 +937,7 @@ describe("C6, the key was refused", () => {
     it("flags both credential fields and relabels the action", async () => {
         await open(rejected)
 
-        expect(control("Header")?.getAttribute("aria-invalid")).toBe("true")
+        expect(control("Header name")?.getAttribute("aria-invalid")).toBe("true")
         expect(control("Project secret")?.getAttribute("aria-invalid")).toBe("true")
         expect(text()).toContain(
             "The server rejected this key (403). The server rejected the credential. " +
@@ -952,7 +952,7 @@ describe("C6, the key was refused", () => {
         // `Field` announces an error it was handed, and this one is a box below the pair
         // rather than either field's own, so nothing paired them: two controls saying they
         // were invalid and neither saying why (round 4, D106).
-        for (const label of ["Header", "Project secret"]) {
+        for (const label of ["Header name", "Project secret"]) {
             const described = describedText(control(label))
             expect(described).toContain("The server rejected this key (403).")
             expect(described).toContain("Check the header the server expects")
@@ -1030,7 +1030,7 @@ describe("C6, the key was refused", () => {
         // would repoint or rename a server agents are pointing at.
         expect((control("Name") as HTMLInputElement).disabled).toBe(true)
         expect(button("Change")).toBeUndefined()
-        expect(control("Header")).toBeTruthy()
+        expect(control("Header name")).toBeTruthy()
     })
 })
 
@@ -1104,7 +1104,7 @@ describe("the Authentication selector", () => {
         expect(radio("OAuth")?.textContent).toBe("OAuthDetected")
         expect(radio("API key")?.textContent).toBe("API key")
         expect(text()).toContain("authorization page")
-        expect(control("Header")).toBeNull()
+        expect(control("Header name")).toBeNull()
     })
 
     it("hands the press to the journey", async () => {
@@ -1126,7 +1126,7 @@ describe("the Authentication selector", () => {
         expect(text()).toContain(
             "The probe found OAuth. Pick API key if this server also accepts a key you already have.",
         )
-        expect(control("Header")).toBeTruthy()
+        expect(control("Header name")).toBeTruthy()
         expect(control("Project secret")).toBeTruthy()
         expect(text()).not.toContain("authorization page")
     })
@@ -1134,7 +1134,7 @@ describe("the Authentication selector", () => {
     it("shows only the name when None is selected", async () => {
         await open(state({...GITHUB, authMode: "none"}))
 
-        expect(control("Header")).toBeNull()
+        expect(control("Header name")).toBeNull()
         expect(text()).not.toContain("authorization page")
         expect(button("Connect")?.disabled).toBe(false)
     })
@@ -1157,7 +1157,7 @@ describe("the Authentication selector", () => {
         expect(text()).toContain(
             "The server answered without a key. Add one if your plan gives you a key for higher limits.",
         )
-        expect(control("Header")).toBeTruthy()
+        expect(control("Header name")).toBeTruthy()
     })
 
     it("keeps the sheet open with the refusal when None was wrong", async () => {
