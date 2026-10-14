@@ -23,6 +23,7 @@ class WalletCreditUsage(BaseModel):
 
 
 class WalletUsageSummary(BaseModel):
+    # What admission allows now: the spendable balance above the floor, never below 0.
     spendable_musd: Optional[int] = None
     general_balance_musd: Optional[int] = None
     floor_musd: Optional[int] = None
