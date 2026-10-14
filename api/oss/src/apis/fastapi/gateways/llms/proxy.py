@@ -233,9 +233,10 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             code="endpoint_not_found",
         )
     if isinstance(exc, LLMUpstreamTimeoutError):
-        # A 5xx, so the harness reads it as transient and tells the person to try again.
+        # 408, as LiteLLM answers its own timeout: the gateway gave up waiting, which is
+        # not the same as a provider answering 504.
         return _openai_error(
-            status_code=504,
+            status_code=408,
             message="The model provider did not answer in time.",
             error_type="api_error",
             code="upstream_timeout",
