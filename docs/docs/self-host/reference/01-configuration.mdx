@@ -1493,4 +1493,6 @@ future major release.
 
 Some variables were removed without a replacement. Agenta ignores them, and the behavior they used to switch is always on. For the list removed in 0.121.0 and what each one did, see [Upgrading to 0.121.0](/self-host/upgrading#upgrading-to-01210).
 
-From 0.122.6 the images no longer include the New Relic agent. Agenta ignores `NEWRELIC_LICENSE_KEY`, `NEW_RELIC_LICENSE_KEY` and `NRIA_LICENSE_KEY`, and the Helm chart ignores `newrelic.licenseKey`.
+From 0.122.6 the images no longer include the New Relic agent. Agenta ignores `NEWRELIC_LICENSE_KEY`, `NEW_RELIC_LICENSE_KEY` and `NRIA_LICENSE_KEY`, and the Helm chart ignores `newrelic.licenseKey` and `observability.newRelic.licenseKey`. You can delete them.
+
+The `newrelic-admin` command is gone from the images too. If your own Compose file or Kubernetes manifest starts the api, services or worker containers with `newrelic-admin run-program`, remove that prefix before you upgrade, or those containers fail to start. Keep the rest of the command as it is. The Compose files and the Helm chart in this repository already start the processes without it.
