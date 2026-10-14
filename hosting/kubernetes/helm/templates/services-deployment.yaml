@@ -1,6 +1,5 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $services := default dict $values.services -}}
-{{- $newrelic := default dict $values.newrelic -}}
 {{- /* keepAlive: how long a worker holds an idle connection open. It must exceed the
        idle timeout of the load balancer in front of services, or a request the balancer
        sends on a connection the worker is closing fails with 502. Default 620, as for the
@@ -67,10 +66,6 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           command:
-            {{- if $newrelic.licenseKey }}
-            - newrelic-admin
-            - run-program
-            {{- end }}
             - gunicorn
             - entrypoints.main:app
             - --bind
