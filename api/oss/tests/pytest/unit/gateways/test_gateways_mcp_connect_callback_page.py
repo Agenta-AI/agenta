@@ -89,7 +89,7 @@ class TestTheBlockedPopupPath:
         page = _card()
 
         assert f'"{AGENTA_URL}"' in page
-        assert '"/settings?tab=mcpEndpoints"' in page
+        assert '"/m/"' in page
 
     def test_it_returns_after_a_failure_too_rather_than_stranding_the_tab(self):
         page = _card(success=False, error="The authorization was declined.")

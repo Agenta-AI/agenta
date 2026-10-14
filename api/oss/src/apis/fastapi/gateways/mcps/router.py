@@ -886,9 +886,10 @@ def _connect_card(
     if attempt_id:
         payload["attempt_id"] = attempt_id
     oauth_complete_message_js = _json_for_inline_script(payload)
-    # Where a stranded tab goes back to. The settings surface owns connections, and it is the
-    # one place that is right whichever surface started the flow.
-    agenta_return_path_js = _json_for_inline_script("/settings?tab=mcpEndpoints")
+    # Where a stranded tab goes back to when its own page left no path behind: the app, which
+    # opens the person's last project. Its MCP settings live under a workspace and a project
+    # this page does not know, and `/settings` is the older app.
+    agenta_return_path_js = _json_for_inline_script("/m/")
     # Where the tab that is about to be navigated away writes down its own scoped path. The
     # same key as `web/packages/agenta-entities/src/mcpEndpoint/core/returnPath.ts`; the two
     # halves only meet in the browser, so the string is repeated rather than shared.
