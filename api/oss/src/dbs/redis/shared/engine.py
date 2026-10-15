@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from oss.src.utils.env import env
 
@@ -82,6 +82,25 @@ class LockEngine:
             self._r = None
 
 
+# Options for every client opened against the durable (streams) Redis.
+#
+# A managed Redis that fails over can leave an open connection that stops answering
+# without closing it. With no socket timeout, the call on that connection waits
+# forever and retries never run. The timeout must stay above the longest blocking
+# read (StreamConsumer.max_block_ms, 5s by default), or XREADGROUP would trip it.
+STREAMS_SOCKET_TIMEOUT = 15.0
+# Ping idle connections so a dead one is noticed and replaced before it is used.
+STREAMS_HEALTH_CHECK_INTERVAL = 30
+
+
+def streams_client_options() -> Dict[str, Any]:
+    return {
+        "socket_timeout": STREAMS_SOCKET_TIMEOUT,
+        "health_check_interval": STREAMS_HEALTH_CHECK_INTERVAL,
+        "socket_keepalive": True,
+    }
+
+
 class StreamsEngine:
     """Redis durable — persistent streams for tracing/events."""
 
@@ -96,7 +115,11 @@ class StreamsEngine:
 
             if not env.redis.uri_durable:
                 raise RuntimeError("REDIS_URI_DURABLE is required for streams.")
-            self._redis = Redis.from_url(env.redis.uri_durable, decode_responses=False)
+            self._redis = Redis.from_url(
+                env.redis.uri_durable,
+                decode_responses=False,
+                **streams_client_options(),
+            )
         return self._redis
 
     async def close(self) -> None:
