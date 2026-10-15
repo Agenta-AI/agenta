@@ -33,7 +33,7 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
 
     const [planChooserOpen, setPlanChooserOpen] = useState(false)
     const [cancelOpen, setCancelOpen] = useState(false)
-    const portal = useBillingPortal()
+    const portal = useBillingPortal(projectId)
     const developerMode = useAtomValue(classicModeEnabledAtom)
 
     const usage = useQuery({
