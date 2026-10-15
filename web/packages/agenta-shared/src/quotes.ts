@@ -291,26 +291,32 @@ export interface QuotedExcerpt {
     text: string
 }
 
-const QUOTE_HEAD = /^> \*\*(?:`([^`]+)`|(Agent reply))\*\*/
+// The whole origin line `quotesToMarkdown` writes, so a hand-written blockquote is not taken for one.
+const QUOTE_HEAD = /^> \*\*(?:`([^`]+)`|(Agent reply))\*\*(?: \(L\d+(?:–L\d+)?\))? *$/
 
 /** A sent message's leading quotes and the user's own words; inverts `quotesToMarkdown`. */
 export const splitQuotedMessage = (markdown: string): {quotes: QuotedExcerpt[]; text: string} => {
-    if (!QUOTE_HEAD.test(markdown)) return {quotes: [], text: markdown}
+    if (!QUOTE_HEAD.test(markdown.split("\n", 1)[0])) return {quotes: [], text: markdown}
     const quotes: QuotedExcerpt[] = []
     const rest: string[] = []
     let current: string[] | null = null
+    let blockStart = true
     for (const line of markdown.split("\n")) {
-        const head = QUOTE_HEAD.exec(line)
+        // Inside an excerpt, a head-shaped line is excerpt content.
+        if (current && (line === ">" || line.startsWith("> "))) {
+            current.push(line.slice(2))
+            quotes[quotes.length - 1].text = current.join("\n")
+            continue
+        }
+        const head = blockStart ? QUOTE_HEAD.exec(line) : null
         if (head) {
             current = []
             quotes.push({origin: head[1] ?? head[2], text: ""})
-        } else if (current && (line === ">" || line.startsWith("> "))) {
-            current.push(line.slice(2))
-            quotes[quotes.length - 1].text = current.join("\n")
         } else {
             current = null
             rest.push(line)
         }
+        blockStart = line === ""
     }
     return {
         quotes,

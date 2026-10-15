@@ -14,7 +14,7 @@
  *    loads it into the input; this card only MARKS which row is under edit and offers the way out.
  *    See `useAgentChatQueue.commitEdit` for what the resulting send does.
  */
-import {memo, useEffect, useRef, useState} from "react"
+import {memo, useEffect, useMemo, useRef, useState} from "react"
 
 import {splitQuotedMessage, truncateQuoteText, type QuotedExcerpt} from "@agenta/shared/quotes"
 import {getCollapseLabel} from "@agenta/ui/components/presentational"
@@ -43,8 +43,9 @@ const CARD_SURFACE =
 const BODY_MAX_H = "max-h-40"
 
 /** Shared tile chrome, so the count block and the type icon read as the same object. */
-const TILE =
-    "inline-flex size-5 shrink-0 items-center justify-center rounded border border-solid border-colorBorderSecondary"
+const TILE_CHROME =
+    "inline-flex h-5 shrink-0 items-center justify-center rounded border border-solid border-colorBorderSecondary"
+const TILE = `${TILE_CHROME} w-5`
 
 /** One attachment tile: image thumbnail, else a type icon. Sized to sit inside a 32px row. */
 const Attachment = ({part}: {part: FileUIPart}) => {
@@ -97,8 +98,8 @@ const QuoteTile = ({quotes}: {quotes: QuotedExcerpt[]}) => {
             role="img"
             aria-label={label}
             title={quotes.map((q) => `${q.origin}: ${truncateQuoteText(q.text, 80)}`).join("\n")}
-            // TILE's chrome, but it widens to fit a count.
-            className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center gap-0.5 rounded border border-solid border-colorBorderSecondary bg-colorFillTertiary px-1 text-[10px] font-medium tabular-nums text-colorTextSecondary"
+            // Widens to fit a count.
+            className={`${TILE_CHROME} min-w-5 gap-0.5 bg-colorFillTertiary px-1 text-[10px] font-medium tabular-nums text-colorTextSecondary`}
         >
             <Quotes size={11} aria-hidden />
             {quotes.length > 1 ? quotes.length : null}
@@ -125,7 +126,7 @@ const Row = ({
     onSendNow?: (id: string) => void
     sendNowBlocked: boolean
 }) => {
-    const {quotes, text} = splitQuotedMessage(message.text.trim())
+    const {quotes, text} = useMemo(() => splitQuotedMessage(message.text.trim()), [message.text])
     // A bare quote with no reply shows its excerpt instead.
     const excerpt = !text && quotes.length ? truncateQuoteText(quotes[0].text) : ""
     // A steer or promoted row is already on its way; any other waits while one is.
@@ -145,7 +146,10 @@ const Row = ({
                     {text}
                 </span>
             ) : excerpt ? (
-                <span className="min-w-0 flex-1 truncate text-xs text-colorTextSecondary">
+                <span
+                    title={quotes[0].text}
+                    className="min-w-0 flex-1 truncate text-xs text-colorTextSecondary"
+                >
                     {excerpt}
                 </span>
             ) : (
