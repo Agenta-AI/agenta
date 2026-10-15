@@ -143,12 +143,21 @@ class MCPOAuthStateInvalidError(GatewaysError):
         super().__init__(message or "OAuth state is invalid or expired")
 
 
-class MCPOAuthStateExpiredError(MCPOAuthStateInvalidError):
-    """The attempt exists but its window has closed. Consumed all the same, so an
-    expired handle cannot be presented twice either."""
+class MCPOAuthAttemptCancelledError(MCPOAuthStateInvalidError):
+    """The attempt was cancelled, or the connection's mode or address changed under it.
+
+    Nothing is exchanged or written. A consent the person walked away from must not bind
+    a grant to a connection that has moved on.
+    """
 
     def __init__(self):
-        super().__init__("OAuth state has expired")
+        super().__init__("This sign-in was cancelled.")
+
+
+class MCPOAuthStateExpiredError(MCPOAuthAttemptCancelledError):
+    """The attempt exists but its window has closed. Consumed all the same, so an
+    expired handle cannot be presented twice either. The browser gave up at the same
+    moment, so the person reads it as the cancel it was."""
 
 
 class MCPOAuthCallerMismatchError(GatewaysError):

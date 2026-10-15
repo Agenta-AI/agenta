@@ -16,6 +16,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointEdit,
     MCPEndpointQuery,
 )
+from oss.src.core.gateways.mcps.oauth.dtos import MCPOAuthAttemptOutcome
 from oss.src.core.gateways.mcps.probe import MCPServerProbeResult
 from oss.src.core.shared.dtos import Windowing
 
@@ -69,6 +70,15 @@ class MCPConnectResponse(BaseModel):
     count: int = 0
     redirect_url: Optional[str] = None
     scopes_offered: List[str] = Field(default_factory=list)
+    # Set with `redirect_url`: the attempt the callback will answer for, and how many
+    # seconds it stays usable.
+    attempt_id: Optional[str] = None
+    expires_in: Optional[int] = None
+
+
+class MCPConnectAttemptResponse(BaseModel):
+    count: int = 0
+    attempt: Optional[MCPOAuthAttemptOutcome] = None
 
 
 class MCPEndpointProbeRequest(BaseModel):

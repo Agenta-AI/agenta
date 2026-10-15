@@ -24,6 +24,8 @@ from oss.src.core.gateways.mcps.dtos import (
 )
 from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttempt,
+    MCPOAuthAttemptOutcome,
+    MCPOAuthAttemptStatus,
     MCPOAuthAuthorizationStart,
     MCPOAuthCompletion,
     MCPOAuthDiscovery,
@@ -35,6 +37,7 @@ from oss.src.core.gateways.mcps.probe import (
     MCPServerProbeResult,
 )
 from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthAttemptCancelledError,
     MCPOAuthCallerMismatchError,
     MCPOAuthStateInvalidError,
 )
@@ -59,6 +62,14 @@ EXPECTED_ROUTES = {
     ("/endpoints/{endpoint_id}", "DELETE"): "delete_mcp_endpoint",
     ("/endpoints/{endpoint_id}/connect", "POST"): "connect_mcp_endpoint",
     ("/endpoints/{endpoint_id}/connect", "DELETE"): "disconnect_mcp_endpoint",
+    (
+        "/endpoints/{endpoint_id}/connect/attempts/{attempt_id}",
+        "GET",
+    ): "fetch_mcp_connect_attempt",
+    (
+        "/endpoints/{endpoint_id}/connect/attempts/{attempt_id}",
+        "DELETE",
+    ): "cancel_mcp_connect_attempt",
     ("/connect/callback", "GET"): "mcp_connect_callback",
 }
 
@@ -161,6 +172,8 @@ class MockMCPOAuthConnectService:
         self.begin_return = MCPOAuthAuthorizationStart(
             authorization_url="https://auth.acme.example/authorize?client_id=abc",
             state="signed-state",
+            attempt_id=uuid4(),
+            expires_in=600,
         )
         self.claim_return = None
         self.claim_raises = None
@@ -171,6 +184,10 @@ class MockMCPOAuthConnectService:
         # Which connection each disconnect named. A disconnect that dropped the
         # neighbour's grant would be invisible without this.
         self.disconnected = []
+        # How each attempt ended, as the callback recorded it for the browser.
+        self.settled = []
+        self.cancelled = []
+        self.outcome_return = None
 
     async def discover(self, *, server_url):
         self.calls.append(("discover", server_url))
@@ -182,6 +199,21 @@ class MockMCPOAuthConnectService:
         self.calls.append(("begin", server_url, tuple(scopes)))
         self.begun_endpoint_ids.append(endpoint_id)
         return self.begin_return
+
+    async def lookup(self, *, state):
+        # The record the handle names, which is the one `claim()` hands back.
+        attempt = self.claim_return
+        return attempt if attempt is not None and attempt.state == state else None
+
+    async def settle(self, *, attempt, status, error=None):
+        self.settled.append((attempt.id, status, error))
+
+    async def cancel(self, *, project_id, endpoint_id, attempt_id=None):
+        self.cancelled.append((endpoint_id, attempt_id))
+        return 1
+
+    async def outcome(self, *, project_id, endpoint_id, attempt_id):
+        return self.outcome_return
 
     async def claim(self, *, state, caller_user_id):
         self.calls.append(("claim", state))
@@ -659,8 +691,9 @@ def test_callback_completes_and_puts_the_secret_id_onto_the_bound_endpoint(
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
     assert "mcp:oauth:connected" in response.text
-    # The endpoint came from the record's bound id, not a query by server URL.
-    assert service.calls == ["fetch_endpoint", "bind_endpoint_secret"]
+    # The service checks, writes and binds under the attempt's lock; the router only
+    # authorises the caller and renders the page.
+    assert service.calls == []
     assert oauth_service.calls == [
         ("claim", "opaque-handle"),
         ("complete", "auth-code", "opaque-handle"),
@@ -730,29 +763,6 @@ def test_callback_refuses_a_caller_who_lost_permission_on_the_project(
     assert oauth_service.calls == [("claim", "opaque-handle")]
 
 
-def test_callback_with_no_matching_endpoint_renders_a_failure_card(
-    client, service, oauth_service, session_user, allow
-):
-    project_id, user_id = uuid4(), uuid4()
-    endpoint_id = uuid4()
-    service.fetch_return = None  # the bound endpoint is gone
-    oauth_service.claim_return = _attempt(
-        project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
-    )
-    oauth_service.complete_return = _completion(
-        project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
-    )
-    session_user(user_id)
-
-    response = client.get(
-        "/connect/callback", params={"code": "auth-code", "state": "opaque-handle"}
-    )
-
-    assert response.status_code == 400
-    assert "No matching MCP endpoint" in response.text
-    assert service.calls == ["fetch_endpoint"]  # no edit_endpoint call
-
-
 def test_callback_with_authorization_server_error_renders_a_failure_card_without_completing(
     client, service, oauth_service
 ):
@@ -783,6 +793,233 @@ def test_callback_with_a_replayed_state_renders_a_failure_card(
     assert response.status_code == 400
     assert "invalid or expired" in response.text.lower()
     assert service.calls == []
+
+
+def _ready_callback(service, oauth_service, session_user, *, endpoint=None):
+    """A callback whose attempt, session and endpoint all line up, so one test can
+    change the one fact it is about."""
+    endpoint_id = uuid4()
+    project_id, user_id, secret_id = uuid4(), uuid4(), uuid4()
+    service.fetch_return = endpoint or _oauth_endpoint(endpoint_id)
+    service.edit_return = _oauth_endpoint(endpoint_id, secret_id=secret_id)
+    attempt = _attempt(project_id=project_id, user_id=user_id, endpoint_id=endpoint_id)
+    oauth_service.claim_return = attempt
+    oauth_service.complete_return = _completion(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        secret_id=secret_id,
+    )
+    session_user(user_id)
+    return attempt
+
+
+def _names_the_attempt(page: str, attempt: MCPOAuthAttempt) -> bool:
+    return (
+        f'"endpoint_id": "{attempt.endpoint_id}"' in page
+        and f'"attempt_id": "{attempt.id}"' in page
+    )
+
+
+def test_a_provider_error_page_names_the_attempt_and_carries_the_providers_words(
+    client, service, oauth_service, session_user, allow
+):
+    attempt = _ready_callback(service, oauth_service, session_user)
+
+    response = client.get(
+        "/connect/callback",
+        params={
+            "state": attempt.state,
+            "error": "access_denied",
+            "error_description": "User declined",
+        },
+    )
+
+    assert response.status_code == 400
+    assert _names_the_attempt(response.text, attempt)
+    assert "User declined" in response.text
+    # Claimed first, by the browser that started it, then recorded for the sheet in
+    # case this page's message never reaches it. No code was exchanged.
+    assert oauth_service.calls == [("claim", attempt.state)]
+    assert oauth_service.settled == [
+        (attempt.id, MCPOAuthAttemptStatus.FAILED, "User declined")
+    ]
+
+
+@pytest.mark.parametrize("caller", ["nobody", "somebody else"])
+def test_an_error_callback_from_a_caller_who_cannot_claim_changes_nothing(
+    client, service, oauth_service, session_user, allow, caller
+):
+    """Anyone holding `state`, the authorization server included, could otherwise end
+    the person's attempt for them."""
+    attempt = _ready_callback(service, oauth_service, session_user)
+    session_user(None if caller == "nobody" else uuid4())
+
+    response = client.get(
+        "/connect/callback",
+        params={"state": attempt.state, "error": "access_denied"},
+    )
+
+    assert response.status_code == 400
+    assert "access_denied" in response.text
+    assert oauth_service.settled == []
+
+
+def test_a_cancelled_sign_in_shows_the_cancel_and_writes_nothing(
+    client, service, oauth_service, session_user, allow
+):
+    attempt = _ready_callback(service, oauth_service, session_user)
+    oauth_service.complete_raises = MCPOAuthAttemptCancelledError()
+
+    response = client.get(
+        "/connect/callback", params={"code": "auth-code", "state": attempt.state}
+    )
+
+    assert response.status_code == 400
+    assert "This sign-in was cancelled." in response.text
+    assert _names_the_attempt(response.text, attempt)
+    assert service.calls == []
+
+
+def test_a_page_with_no_code_names_the_attempt(
+    client, service, oauth_service, session_user, allow
+):
+    attempt = _ready_callback(service, oauth_service, session_user)
+
+    response = client.get("/connect/callback", params={"state": attempt.state})
+
+    assert response.status_code == 400
+    assert _names_the_attempt(response.text, attempt)
+    assert "Missing authorization code." in response.text
+
+
+def test_a_refused_claim_still_names_the_attempt(
+    client, service, oauth_service, session_user, allow
+):
+    """A browser with no Agenta session is told so on the sheet, not as a closed window."""
+    attempt = _ready_callback(service, oauth_service, session_user)
+    session_user(None)
+
+    response = client.get(
+        "/connect/callback", params={"code": "auth-code", "state": attempt.state}
+    )
+
+    assert response.status_code == 400
+    assert _names_the_attempt(response.text, attempt)
+    assert "different Agenta user" in response.text
+
+
+def test_a_successful_page_names_the_attempt(
+    client, service, oauth_service, session_user, allow
+):
+    attempt = _ready_callback(service, oauth_service, session_user)
+
+    response = client.get(
+        "/connect/callback", params={"code": "auth-code", "state": attempt.state}
+    )
+
+    assert response.status_code == 200
+    assert _names_the_attempt(response.text, attempt)
+
+
+def test_connect_returns_the_attempt_and_its_ttl(client, service, oauth_service, allow):
+    endpoint_id = uuid4()
+    service.fetch_return = _oauth_endpoint(endpoint_id)
+
+    response = client.post(
+        f"/endpoints/{endpoint_id}/connect", json={"scopes": ["read"]}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["attempt_id"] == str(oauth_service.begin_return.attempt_id)
+    assert body["expires_in"] == oauth_service.begin_return.expires_in
+
+
+def test_cancel_attempt_cancels_only_the_attempt_named(client, oauth_service, allow):
+    endpoint_id, attempt_id = uuid4(), uuid4()
+
+    response = client.delete(f"/endpoints/{endpoint_id}/connect/attempts/{attempt_id}")
+
+    assert response.status_code == 204
+    assert oauth_service.cancelled == [(endpoint_id, attempt_id)]
+
+
+def test_fetch_attempt_reports_how_it_ended(client, oauth_service, allow):
+    endpoint_id, attempt_id = uuid4(), uuid4()
+    oauth_service.outcome_return = MCPOAuthAttemptOutcome(
+        id=attempt_id, status=MCPOAuthAttemptStatus.FAILED, error="User declined"
+    )
+
+    response = client.get(f"/endpoints/{endpoint_id}/connect/attempts/{attempt_id}")
+
+    assert response.status_code == 200
+    assert response.json()["attempt"] == {
+        "id": str(attempt_id),
+        "status": "failed",
+        "error": "User declined",
+    }
+
+
+def test_fetch_attempt_answers_404_for_an_attempt_it_does_not_know(
+    client, oauth_service, allow
+):
+    response = client.get(f"/endpoints/{uuid4()}/connect/attempts/{uuid4()}")
+
+    assert response.status_code == 404
+
+
+@pytest.mark.parametrize("method", ["GET", "DELETE"])
+def test_the_attempt_routes_need_the_edit_permission(
+    client, oauth_service, deny, method
+):
+    response = client.request(
+        method, f"/endpoints/{uuid4()}/connect/attempts/{uuid4()}"
+    )
+
+    assert response.status_code == 403
+    assert oauth_service.cancelled == []
+
+
+def _edit(client, endpoint_id, *, auth_mode, base_url=_SERVER_URL):
+    return client.put(
+        f"/endpoints/{endpoint_id}",
+        json={
+            "endpoint": {
+                "id": str(endpoint_id),
+                "auth_mode": auth_mode,
+                "data": {"route": {"base_url": base_url}},
+            }
+        },
+    )
+
+
+def test_a_switch_to_oauth_cancels_attempts_and_removes_nothing(
+    client, service, oauth_service, allow
+):
+    endpoint_id = uuid4()
+    service.fetch_return = _endpoint(endpoint_id)
+    service.edit_return = _oauth_endpoint(endpoint_id)
+
+    response = _edit(client, endpoint_id, auth_mode="oauth")
+
+    assert response.status_code == 200
+    assert oauth_service.cancelled == [(endpoint_id, None)]
+    assert oauth_service.disconnected == []
+
+
+def test_an_edit_that_keeps_mode_and_address_leaves_attempts_alone(
+    client, service, oauth_service, allow
+):
+    endpoint_id = uuid4()
+    service.fetch_return = _oauth_endpoint(endpoint_id)
+    service.edit_return = _oauth_endpoint(endpoint_id)
+
+    response = _edit(client, endpoint_id, auth_mode="oauth")
+
+    assert response.status_code == 200
+    assert oauth_service.cancelled == []
+    assert oauth_service.disconnected == []
 
 
 def test_connect_binds_the_attempt_to_the_endpoint_it_was_started_from(
@@ -872,7 +1109,7 @@ def test_edit_endpoint_reaches_the_service(client, service, allow):
     )
 
     assert response.status_code == 200
-    assert service.calls == ["edit_endpoint"]
+    assert service.calls == ["fetch_endpoint", "edit_endpoint"]
 
 
 def test_edit_endpoint_rejects_a_path_body_id_mismatch(client, service, allow):
@@ -1465,31 +1702,3 @@ def test_disconnect_that_wrote_no_row_is_not_reported_as_a_disconnect(
     response = client.delete(f"/endpoints/{endpoint_id}/connect")
 
     assert response.status_code == 404, response.text
-
-
-def test_a_callback_whose_binding_wrote_no_row_does_not_show_a_success_card(
-    client, service, oauth_service, session_user, allow
-):
-    """The grant is written before the connection is pointed at it, so a binding that
-    produced nothing leaves a person told they are connected over a connection that
-    still reads as needing authorization."""
-    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
-    service.fetch_return = _oauth_endpoint(endpoint_id)
-    service.edit_return = None
-    oauth_service.claim_return = _attempt(
-        project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
-    )
-    oauth_service.complete_return = _completion(
-        project_id=project_id,
-        user_id=user_id,
-        endpoint_id=endpoint_id,
-        secret_id=uuid4(),
-    )
-    session_user(user_id)
-
-    response = client.get(
-        "/connect/callback", params={"code": "auth-code", "state": "opaque-handle"}
-    )
-
-    assert response.status_code == 400, response.text
-    assert '"success": false' in response.text

@@ -98,6 +98,21 @@ export interface MCPConnectResponse {
     count: number
     redirect_url?: string | null
     scopes_offered?: string[]
+    /** Set with `redirect_url`: the attempt the callback answers for, and its lifetime. */
+    attempt_id?: string | null
+    expires_in?: number | null
+}
+
+/** How one consent attempt stands. Mirror of `MCPOAuthAttemptOutcome`. */
+export interface MCPConnectAttempt {
+    id: string
+    status: "pending" | "connected" | "failed" | "cancelled"
+    error?: string | null
+}
+
+export interface MCPConnectAttemptResponse {
+    count: number
+    attempt?: MCPConnectAttempt
 }
 
 // Mirror of MCPServerProbeResult in api/oss/src/core/gateways/mcps/probe.py.

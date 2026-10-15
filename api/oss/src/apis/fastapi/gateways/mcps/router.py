@@ -14,6 +14,7 @@ from oss.src.apis.fastapi.gateways.flags import MCP_GATEWAY_ENABLED
 from oss.src.apis.fastapi.gateways.mcps.models import (
     MCPAgentaCredentialRequest,
     MCPAgentaCredentialResponse,
+    MCPConnectAttemptResponse,
     MCPConnectRequest,
     MCPConnectResponse,
     MCPEndpointCreateRequest,
@@ -34,6 +35,9 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
     MCPOAuthData,
     check_url_secret_placeholder,
+)
+from oss.src.core.gateways.mcps.oauth.dtos import (
+    MCPOAuthAttemptStatus,
 )
 from oss.src.core.gateways.mcps.providers.agenta.entitlement import (
     entitled_agenta_tools,
@@ -175,6 +179,21 @@ class MCPGatewayRouter:
             operation_id="disconnect_mcp_endpoint",
             response_model=MCPEndpointResponse,
             response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/endpoints/{endpoint_id}/connect/attempts/{attempt_id}",
+            self.fetch_connect_attempt,
+            methods=["GET"],
+            operation_id="fetch_mcp_connect_attempt",
+            response_model=MCPConnectAttemptResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/endpoints/{endpoint_id}/connect/attempts/{attempt_id}",
+            self.cancel_connect_attempt,
+            methods=["DELETE"],
+            operation_id="cancel_mcp_connect_attempt",
+            status_code=status.HTTP_204_NO_CONTENT,
         )
         self.router.add_api_route(
             "/connect/callback",
@@ -372,6 +391,12 @@ class MCPGatewayRouter:
 
         _guard_custom_endpoint_url(url=body.endpoint.data.route.base_url)
 
+        current = await self.service.fetch_endpoint(
+            project_id=scope.project_id,
+            #
+            endpoint_id=endpoint_id,
+        )
+
         endpoint = await self.service.edit_endpoint(
             project_id=scope.project_id,
             user_id=scope.user_id,
@@ -383,6 +408,17 @@ class MCPGatewayRouter:
                 namespace=GatewayEndpointNamespace.CUSTOM,
                 name=str(endpoint_id),
             )
+
+        if current is not None and (
+            current.auth_mode != endpoint.auth_mode
+            or current.data.route.base_url != endpoint.data.route.base_url
+        ):
+            if current.auth_mode == GatewayAuthScheme.OAUTH:
+                pass  # The service now retires the old binding, attempts and grant.
+            else:
+                await self.oauth_connect_service.cancel(
+                    project_id=scope.project_id, endpoint_id=endpoint_id
+                )
 
         return MCPEndpointResponse(count=1, endpoint=endpoint)
 
@@ -550,7 +586,12 @@ class MCPGatewayRouter:
             scopes=body.scopes,
         )
 
-        return MCPConnectResponse(count=1, redirect_url=start.authorization_url)
+        return MCPConnectResponse(
+            count=1,
+            redirect_url=start.authorization_url,
+            attempt_id=str(start.attempt_id),
+            expires_in=start.expires_in,
+        )
 
     @intercept_exceptions()
     @handle_gateway_exceptions()
@@ -616,6 +657,59 @@ class MCPGatewayRouter:
 
         return MCPEndpointResponse(count=1, endpoint=disconnected)
 
+    @intercept_exceptions()
+    @handle_gateway_exceptions()
+    async def fetch_connect_attempt(
+        self,
+        request: Request,
+        *,
+        endpoint_id: UUID,
+        attempt_id: UUID,
+    ) -> MCPConnectAttemptResponse:
+        """How one consent attempt stands.
+
+        The sheet asks when the popup closes or the wait runs out without a message from
+        the callback page, which is how a result posted to an opener that is gone, or to
+        an origin the app is not on, still reaches the person.
+        """
+        scope = get_auth_scope()
+        await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
+
+        outcome = await self.oauth_connect_service.outcome(
+            project_id=scope.project_id,
+            endpoint_id=endpoint_id,
+            attempt_id=attempt_id,
+        )
+        if outcome is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="attempt not found",
+            )
+
+        return MCPConnectAttemptResponse(count=1, attempt=outcome)
+
+    @intercept_exceptions()
+    @handle_gateway_exceptions()
+    async def cancel_connect_attempt(
+        self,
+        request: Request,
+        *,
+        endpoint_id: UUID,
+        attempt_id: UUID,
+    ) -> None:
+        """Cancel one pending consent attempt. Its callback then writes nothing.
+
+        Idempotent: an attempt already settled, cancelled or swept is left as it is.
+        """
+        scope = get_auth_scope()
+        await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
+
+        await self.oauth_connect_service.cancel(
+            project_id=scope.project_id,
+            endpoint_id=endpoint_id,
+            attempt_id=attempt_id,
+        )
+
     async def connect_callback(
         self,
         request: Request,
@@ -630,32 +724,27 @@ class MCPGatewayRouter:
         handler acts on comes from the server-side authorization attempt record that
         the opaque `state` names, and the handler resolves the browser's own session to
         check it against that record's user."""
-        if error:
+        # Every page names the connection and the attempt it answers for, success or
+        # failure alike, so the sheet that started this attempt can tell its own result
+        # from another's and show the provider's own words. The ids come from the
+        # record `state` names; a page with no record behind it names nothing.
+        known = await self.oauth_connect_service.lookup(state=state) if state else None
+
+        def page(status_code: int, *, error: Optional[str] = None) -> HTMLResponse:
             return HTMLResponse(
-                status_code=400,
+                status_code=status_code,
                 content=_connect_card(
-                    success=False,
-                    error=error_description or error,
+                    success=error is None,
+                    error=error,
                     agenta_url=env.agenta.web_url,
+                    endpoint_id=str(known.endpoint_id) if known else None,
+                    attempt_id=str(known.id) if known else None,
                 ),
             )
+
         if not state:
-            return HTMLResponse(
-                status_code=400,
-                content=_connect_card(
-                    success=False,
-                    error="Missing state parameter.",
-                    agenta_url=env.agenta.web_url,
-                ),
-            )
-        if not code:
-            return HTMLResponse(
-                status_code=400,
-                content=_connect_card(
-                    success=False,
-                    error="Missing authorization code.",
-                    agenta_url=env.agenta.web_url,
-                ),
+            return page(
+                400, error=error_description or error or "Missing state parameter."
             )
 
         # The principal the callback is checked against. `None` means the browser has
@@ -664,23 +753,31 @@ class MCPGatewayRouter:
         # presenting the code is the browser that started the flow.
         caller_user_id = await resolve_session_user_id(request)
 
-        # Consume the attempt first, authorise against it, and only then exchange the
-        # code. The permission check needs the project, and the project is a fact of
-        # the attempt record; running `complete()` first would have written the grant
-        # into that project's vault before anyone asked whether this caller may still
-        # write to it.
+        # Claim the attempt first, on every path, a failure included: only the browser
+        # that started it may end it, and a caller refused here changes nothing. Then
+        # authorise against it, and only then exchange the code. The permission check
+        # needs the project, and the project is a fact of the attempt record.
         try:
             attempt = await self.oauth_connect_service.claim(
                 state=state,
                 caller_user_id=caller_user_id,
             )
         except GatewaysError as e:
-            return HTMLResponse(
-                status_code=400,
-                content=_connect_card(
-                    success=False, error=e.message, agenta_url=env.agenta.web_url
-                ),
+            # Nothing is recorded for a caller who cannot claim the attempt. The
+            # provider's own words still show when it sent any.
+            return page(400, error=error_description or error or e.message)
+
+        async def fail(status_code: int, message: str) -> HTMLResponse:
+            # Recorded for the sheet, which asks when this page's message never reaches it.
+            await self.oauth_connect_service.settle(
+                attempt=attempt, status=MCPOAuthAttemptStatus.FAILED, error=message
             )
+            return page(status_code, error=message)
+
+        if error:
+            return await fail(400, error_description or error)
+        if not code:
+            return await fail(400, "Missing authorization code.")
 
         # The attempt named the user; the user must still be allowed to edit endpoints
         # in the attempt's project, which they can have lost while consenting. Nothing
@@ -692,78 +789,20 @@ class MCPGatewayRouter:
             permission=Permission.EDIT_MCP_ENDPOINTS,
         )
         if not allowed:
-            return HTMLResponse(
-                status_code=403,
-                content=_connect_card(
-                    success=False,
-                    error=(
-                        "You are no longer allowed to edit MCP endpoints in this "
-                        "project. Nothing was connected; start again from Agenta if "
-                        "this is wrong."
-                    ),
-                    agenta_url=env.agenta.web_url,
-                ),
+            return await fail(
+                403,
+                "You are no longer allowed to edit MCP endpoints in this project. "
+                "Nothing was connected; start again from Agenta if this is wrong.",
             )
 
+        # The service owns the rest: the exchange, and the check, write, bind and
+        # outcome that follow it under the attempt's lock. It records its own refusals.
         try:
-            completion = await self.oauth_connect_service.complete(
-                attempt=attempt,
-                code=code,
-            )
+            await self.oauth_connect_service.complete(attempt=attempt, code=code)
         except GatewaysError as e:
-            return HTMLResponse(
-                status_code=400,
-                content=_connect_card(
-                    success=False, error=e.message, agenta_url=env.agenta.web_url
-                ),
-            )
+            return page(400, error=e.message)
 
-        # The endpoint comes from the attempt's bound id, not from a lookup by server
-        # URL: two endpoints in one project can name the same server, and the grant
-        # belongs to the one the user pressed connect on.
-        target = await self.service.fetch_endpoint(
-            project_id=completion.project_id,
-            #
-            endpoint_id=completion.endpoint_id,
-        )
-        if target is None or target.auth_mode != GatewayAuthScheme.OAUTH:
-            return HTMLResponse(
-                status_code=400,
-                content=_connect_card(
-                    success=False,
-                    error="No matching MCP endpoint found for this server.",
-                    agenta_url=env.agenta.web_url,
-                ),
-            )
-
-        bound = await self.service.bind_endpoint_secret(
-            project_id=completion.project_id,
-            user_id=completion.user_id,
-            #
-            endpoint_id=target.id,
-            secret_id=completion.secret_id,
-        )
-        if bound is None:
-            # The grant was written and the connection does not name it, so the person
-            # would be told they were connected by a card over a connection that still
-            # reads as needing authorization (D20).
-            return HTMLResponse(
-                status_code=400,
-                content=_connect_card(
-                    success=False,
-                    error="The authorization could not be saved to this connection.",
-                    agenta_url=env.agenta.web_url,
-                ),
-            )
-
-        return HTMLResponse(
-            status_code=200,
-            content=_connect_card(
-                success=True,
-                agenta_url=env.agenta.web_url,
-                endpoint_id=str(target.id),
-            ),
-        )
+        return page(200)
 
     # OAuth attempt expiry
 
@@ -828,6 +867,7 @@ def _connect_card(
     error: Optional[str] = None,
     agenta_url: Optional[str] = None,
     endpoint_id: Optional[str] = None,
+    attempt_id: Optional[str] = None,
 ) -> str:
     """A small self-contained HTML page for the browser landing on the callback
     directly. Posts `mcp:oauth:connected` to
@@ -843,10 +883,13 @@ def _connect_card(
         payload["error"] = error
     if endpoint_id:
         payload["endpoint_id"] = endpoint_id
+    if attempt_id:
+        payload["attempt_id"] = attempt_id
     oauth_complete_message_js = _json_for_inline_script(payload)
-    # Where a stranded tab goes back to. The settings surface owns connections, and it is the
-    # one place that is right whichever surface started the flow.
-    agenta_return_path_js = _json_for_inline_script("/settings?tab=mcpEndpoints")
+    # Where a stranded tab goes back to when its own page left no path behind: the app, which
+    # opens the person's last project. Its MCP settings live under a workspace and a project
+    # this page does not know, and `/settings` is the older app.
+    agenta_return_path_js = _json_for_inline_script("/m/")
     # Where the tab that is about to be navigated away writes down its own scoped path. The
     # same key as `web/packages/agenta-entities/src/mcpEndpoint/core/returnPath.ts`; the two
     # halves only meet in the browser, so the string is repeated rather than shared.

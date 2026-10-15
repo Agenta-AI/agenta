@@ -17,13 +17,19 @@ import httpx
 import pytest
 from mcp.shared.auth import OAuthToken
 
+from oss.src.core.gateways.dtos import GatewayAuthScheme
+from oss.src.core.gateways.mcps.dtos import MCPEndpointData, MCPEndpointRoute
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
+from oss.src.core.gateways.mcps.oauth.dtos import MCPOAuthAttemptStatus
 from oss.src.core.gateways.mcps.oauth.service import (
     MCPOAuthConnectService,
     callback_redirect_uri,
 )
 from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage
+from oss.src.core.gateways.mcps.oauth.state import STATE_TTL_SECONDS
 from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthAttemptCancelledError,
+    MCPOAuthTokenExchangeError,
     MCPOAuthRegistrationUnavailableError,
     MCPOAuthCallerMismatchError,
     MCPOAuthClientNotRegisteredError,
@@ -35,6 +41,7 @@ from oss.src.core.gateways.mcps.oauth.types import (
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.secrets.services import VaultService
+from oss.tests.pytest.utils.mcp_endpoints import InMemoryMCPEndpoints
 from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
 
 _API_URL = "https://api.agenta.ai"
@@ -111,7 +118,9 @@ class _FakeSecretsDAO:
         self.records[idx] = (project_id, record)
         return record
 
-    async def delete(self, secret_id, project_id=None, organization_id=None):
+    async def delete(
+        self, secret_id, project_id=None, organization_id=None, authorize_delete=None
+    ):
         self.records = [
             (p, r)
             for p, r in self.records
@@ -173,6 +182,7 @@ def _service(
         client=client,
         api_url=_API_URL,
         attempts_dao=attempts,
+        endpoints_dao=InMemoryMCPEndpoints(attempts=attempts),
         resolve=resolve,
     )
     return service, dao, attempts
@@ -187,6 +197,12 @@ async def _callback(service, *, code: str, state: str, caller_user_id):
     """
     attempt = await service.claim(state=state, caller_user_id=caller_user_id)
     return await service.complete(attempt=attempt, code=code)
+
+
+def _spent(attempts: InMemoryMCPOAuthAttemptsDAO, state: str) -> bool:
+    """The handle can never be claimed again, and its verifier is gone."""
+    record = attempts.attempts[state]
+    return record.status != MCPOAuthAttemptStatus.PENDING and not record.code_verifier
 
 
 def test_callback_redirect_uri_is_fixed_and_carries_no_query():
@@ -357,7 +373,7 @@ async def test_a_replayed_state_is_refused_on_the_second_use():
             service, code="auth-code-2", state=start.state, caller_user_id=user_id
         )
 
-    assert start.state not in attempts.attempts
+    assert _spent(attempts, start.state)
     assert [r for _, r in dao.records if r.kind.value == "oauth_grant"] == (
         grants_after_first
     )
@@ -385,7 +401,7 @@ async def test_an_expired_attempt_is_refused_and_consumed():
             service, code="auth-code-1", state=start.state, caller_user_id=user_id
         )
 
-    assert start.state not in attempts.attempts
+    assert _spent(attempts, start.state)
     assert not [r for _, r in dao.records if r.kind.value == "oauth_grant"]
 
 
@@ -412,7 +428,7 @@ async def test_a_callback_from_another_user_is_refused_and_writes_nothing():
 
     assert not [r for _, r in dao.records if r.kind.value == "oauth_grant"]
     # Refused without consuming: the rightful browser can still finish.
-    assert start.state in attempts.attempts
+    assert attempts.attempts[start.state].status == MCPOAuthAttemptStatus.PENDING
     completion = await _callback(
         service, code="auth-code-1", state=start.state, caller_user_id=user_id
     )
@@ -438,7 +454,7 @@ async def test_a_callback_with_no_session_is_refused_and_writes_nothing():
         )
 
     assert not [r for _, r in dao.records if r.kind.value == "oauth_grant"]
-    assert start.state in attempts.attempts
+    assert attempts.attempts[start.state].status == MCPOAuthAttemptStatus.PENDING
 
 
 @pytest.mark.asyncio
@@ -496,7 +512,7 @@ async def test_complete_without_a_prior_registration_raises_client_not_registere
             service, code="auth-code-1", state=start.state, caller_user_id=user_id
         )
 
-    assert start.state not in attempts.attempts
+    assert _spent(attempts, start.state)
 
 
 @pytest.mark.asyncio
@@ -531,8 +547,6 @@ async def test_complete_with_token_endpoint_error_raises_typed_exception():
         server_url=_SERVER_URL,
         scopes=["read"],
     )
-
-    from oss.src.core.gateways.mcps.oauth.types import MCPOAuthTokenExchangeError
 
     with pytest.raises(MCPOAuthTokenExchangeError):
         await _callback(
@@ -605,6 +619,184 @@ async def test_the_sweep_drops_only_attempts_past_their_expiry():
     assert swept == 1
     assert stale.state not in attempts.attempts
     assert live.state in attempts.attempts
+
+
+# --- The attempt lifecycle the sheet sees ------------------------------------- #
+
+
+async def _begin(service, *, project_id, user_id, endpoint_id):
+    return await service.begin(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
+    )
+
+
+@pytest.mark.asyncio
+async def test_begin_names_the_attempt_and_the_one_ttl_the_browser_waits_for():
+    service, _dao, attempts = _service()
+
+    start = await _begin(
+        service, project_id=uuid4(), user_id=uuid4(), endpoint_id=uuid4()
+    )
+
+    assert start.attempt_id == attempts.attempts[start.state].id
+    assert start.expires_in == STATE_TTL_SECONDS
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_attempt_writes_nothing_when_its_callback_arrives():
+    service, dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+    start = await _begin(
+        service, project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+
+    cancelled = await service.cancel(
+        project_id=project_id, endpoint_id=endpoint_id, attempt_id=start.attempt_id
+    )
+
+    assert cancelled == 1
+    with pytest.raises(MCPOAuthAttemptCancelledError, match="sign-in was cancelled"):
+        await _callback(
+            service, code="auth-code-1", state=start.state, caller_user_id=user_id
+        )
+    assert not [r for _, r in dao.records if r.kind.value == "oauth_grant"]
+    assert not attempts.attempts[start.state].code_verifier
+
+
+@pytest.mark.asyncio
+async def test_an_expired_attempt_reads_as_cancelled():
+    service, _dao, attempts = _service()
+    user_id = uuid4()
+    start = await _begin(
+        service, project_id=uuid4(), user_id=user_id, endpoint_id=uuid4()
+    )
+    attempts.attempts[start.state] = attempts.attempts[start.state].model_copy(
+        update={"expires_at": datetime.now(timezone.utc) - timedelta(seconds=1)}
+    )
+
+    with pytest.raises(MCPOAuthAttemptCancelledError, match="sign-in was cancelled"):
+        await _callback(
+            service, code="auth-code-1", state=start.state, caller_user_id=user_id
+        )
+    assert attempts.attempts[start.state].status == MCPOAuthAttemptStatus.CANCELLED
+
+
+@pytest.mark.asyncio
+async def test_cancelling_a_connection_leaves_its_neighbour_and_settled_attempts():
+    service, _dao, attempts = _service()
+    project_id, user_id = uuid4(), uuid4()
+    endpoint_id, neighbour_id = uuid4(), uuid4()
+    settled = await _begin(
+        service, project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+    await _callback(
+        service, code="auth-code-1", state=settled.state, caller_user_id=user_id
+    )
+    pending = await _begin(
+        service, project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+    neighbour = await _begin(
+        service, project_id=project_id, user_id=user_id, endpoint_id=neighbour_id
+    )
+
+    cancelled = await service.cancel(project_id=project_id, endpoint_id=endpoint_id)
+
+    assert cancelled == 1
+    assert attempts.attempts[pending.state].status == MCPOAuthAttemptStatus.CANCELLED
+    assert attempts.attempts[settled.state].status == MCPOAuthAttemptStatus.CONNECTED
+    assert attempts.attempts[neighbour.state].status == MCPOAuthAttemptStatus.PENDING
+
+
+@pytest.mark.asyncio
+async def test_disconnect_cancels_a_consent_still_in_flight():
+    service, dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+    start = await _begin(
+        service, project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+
+    await service.disconnect(
+        project_id=project_id, endpoint_id=endpoint_id, server_url=_SERVER_URL
+    )
+
+    with pytest.raises(MCPOAuthAttemptCancelledError):
+        await _callback(
+            service, code="auth-code-1", state=start.state, caller_user_id=user_id
+        )
+    assert not [r for _, r in dao.records if r.kind.value == "oauth_grant"]
+
+
+@pytest.mark.asyncio
+async def test_the_outcome_tells_the_browser_whether_to_keep_waiting_and_how_it_ended():
+    service, _dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+    start = await _begin(
+        service, project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+
+    async def outcome():
+        return await service.outcome(
+            project_id=project_id,
+            endpoint_id=endpoint_id,
+            attempt_id=start.attempt_id,
+        )
+
+    assert (await outcome()).status == MCPOAuthAttemptStatus.PENDING
+
+    attempt = await service.claim(state=start.state, caller_user_id=user_id)
+    # Claimed is the exchange in progress, which the browser waits through.
+    assert (await outcome()).status == MCPOAuthAttemptStatus.PENDING
+
+    await service.settle(
+        attempt=attempt, status=MCPOAuthAttemptStatus.FAILED, error="User declined"
+    )
+    failed = await outcome()
+    assert failed.status == MCPOAuthAttemptStatus.FAILED
+    assert failed.error == "User declined"
+
+
+@pytest.mark.asyncio
+async def test_the_outcome_of_a_pending_attempt_past_its_expiry_is_cancelled():
+    service, _dao, attempts = _service()
+    project_id, endpoint_id = uuid4(), uuid4()
+    start = await _begin(
+        service, project_id=project_id, user_id=uuid4(), endpoint_id=endpoint_id
+    )
+    attempts.attempts[start.state] = attempts.attempts[start.state].model_copy(
+        update={"expires_at": datetime.now(timezone.utc) - timedelta(seconds=1)}
+    )
+
+    outcome = await service.outcome(
+        project_id=project_id, endpoint_id=endpoint_id, attempt_id=start.attempt_id
+    )
+
+    assert outcome.status == MCPOAuthAttemptStatus.CANCELLED
+
+
+@pytest.mark.asyncio
+async def test_the_outcome_is_only_given_for_the_connection_that_started_it():
+    service, _dao, _attempts = _service()
+    project_id = uuid4()
+    start = await _begin(
+        service, project_id=project_id, user_id=uuid4(), endpoint_id=uuid4()
+    )
+
+    assert (
+        await service.outcome(
+            project_id=project_id, endpoint_id=uuid4(), attempt_id=start.attempt_id
+        )
+        is None
+    )
+    assert (
+        await service.outcome(
+            project_id=uuid4(), endpoint_id=uuid4(), attempt_id=start.attempt_id
+        )
+        is None
+    )
 
 
 # --- OR55: renewing a stored grant ---------------------------------------------- #
@@ -1179,3 +1371,189 @@ async def test_a_completed_grant_records_the_connection_that_consented():
         endpoint_a,
         endpoint_b,
     }
+
+
+# --- What lands during the token exchange --------------------------------------- #
+
+
+def _paused_exchange(service):
+    """Hold the token exchange open until the test lets it go.
+
+    Returns the event that releases it and the event that says it has started, so a
+    test can cancel, disconnect or edit while the code is being spent.
+    """
+    started, release = asyncio.Event(), asyncio.Event()
+
+    async def _exchange_token(**_kwargs):
+        started.set()
+        await release.wait()
+        return OAuthToken(access_token="tok-paused", token_type="Bearer")
+
+    service.client.exchange_token = _exchange_token
+    return started, release
+
+
+async def _complete_around(service, start, user_id, during):
+    """Claim, start the exchange, run `during` while it is held, then let it finish."""
+    started, release = _paused_exchange(service)
+    attempt = await service.claim(state=start.state, caller_user_id=user_id)
+    completing = asyncio.create_task(service.complete(attempt=attempt, code="code-1"))
+    await started.wait()
+    await during()
+    release.set()
+    return await asyncio.gather(completing, return_exceptions=True)
+
+
+def _grant_rows(dao):
+    return [r for _, r in dao.records if r.kind.value == "oauth_grant"]
+
+
+@pytest.mark.asyncio
+async def test_a_cancel_during_the_exchange_wins_and_nothing_is_written():
+    service, dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+    start = await _begin(
+        service, project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+
+    async def cancel():
+        await service.cancel(
+            project_id=project_id,
+            endpoint_id=endpoint_id,
+            attempt_id=start.attempt_id,
+        )
+
+    (outcome,) = await _complete_around(service, start, user_id, cancel)
+
+    assert isinstance(outcome, MCPOAuthAttemptCancelledError)
+    assert _grant_rows(dao) == []
+    assert attempts.attempts[start.state].status == MCPOAuthAttemptStatus.CANCELLED
+
+
+@pytest.mark.asyncio
+async def test_a_disconnect_during_the_exchange_wins_and_nothing_is_written():
+    service, dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+    start = await _begin(
+        service, project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+
+    async def disconnect():
+        await service.disconnect(
+            project_id=project_id, endpoint_id=endpoint_id, server_url=_SERVER_URL
+        )
+
+    (outcome,) = await _complete_around(service, start, user_id, disconnect)
+
+    assert isinstance(outcome, MCPOAuthAttemptCancelledError)
+    assert _grant_rows(dao) == []
+    assert service.endpoints_dao.endpoints == {}
+
+
+@pytest.mark.parametrize(
+    "moved",
+    [
+        {"data": MCPEndpointData(route=MCPEndpointRoute(base_url="https://mcp.new/"))},
+        {"auth_mode": GatewayAuthScheme.API_KEY},
+    ],
+    ids=["address changed", "mode changed"],
+)
+@pytest.mark.asyncio
+async def test_an_edit_during_the_exchange_wins_and_nothing_is_written(moved):
+    """No grant at all, so a stale completion cannot overwrite a newer one either."""
+    service, dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+    start = await _begin(
+        service, project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+    endpoints = service.endpoints_dao
+
+    async def edit():
+        current = await endpoints.fetch_endpoint(
+            project_id=project_id, endpoint_id=endpoint_id
+        )
+        endpoints.put(current.model_copy(update=moved))
+
+    (outcome,) = await _complete_around(service, start, user_id, edit)
+
+    assert isinstance(outcome, MCPOAuthAttemptCancelledError)
+    assert _grant_rows(dao) == []
+    assert endpoints.endpoints[endpoint_id].secret_id is None
+    assert attempts.attempts[start.state].status == MCPOAuthAttemptStatus.CANCELLED
+
+
+@pytest.mark.asyncio
+async def test_an_edit_just_before_the_bind_leaves_no_grant_and_no_binding():
+    """The bind re-checks the connection under its own row lock, so an edit that lands
+    after the attempt's check still keeps the grant off the moved connection."""
+    service, _dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+    start = await _begin(
+        service, project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+    endpoints = service.endpoints_dao
+    original = await endpoints.fetch_endpoint(
+        project_id=project_id, endpoint_id=endpoint_id
+    )
+    moved = original.model_copy(update={"auth_mode": GatewayAuthScheme.API_KEY})
+
+    async def fetch_then_edit(**_kwargs):
+        endpoints.put(moved)
+        return original
+
+    endpoints.fetch_endpoint = fetch_then_edit
+
+    with pytest.raises(MCPOAuthAttemptCancelledError):
+        await _callback(
+            service, code="auth-code-1", state=start.state, caller_user_id=user_id
+        )
+
+    assert endpoints.endpoints[endpoint_id].secret_id is None
+    assert attempts.attempts[start.state].status == MCPOAuthAttemptStatus.CANCELLED
+    # The tokens it wrote were for the old address, so they went with it.
+    assert _grant_rows(_dao) == []
+
+
+@pytest.mark.asyncio
+async def test_a_completed_attempt_binds_the_grant_and_records_connected():
+    service, dao, attempts = _service()
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+    start = await _begin(
+        service, project_id=project_id, user_id=user_id, endpoint_id=endpoint_id
+    )
+
+    completion = await _callback(
+        service, code="auth-code-1", state=start.state, caller_user_id=user_id
+    )
+
+    (grant,) = _grant_rows(dao)
+    assert completion.secret_id is not None
+    assert (
+        service.endpoints_dao.endpoints[endpoint_id].secret_id == completion.secret_id
+    )
+    assert attempts.attempts[start.state].status == MCPOAuthAttemptStatus.CONNECTED
+
+
+@pytest.mark.asyncio
+async def test_a_refused_exchange_is_recorded_as_the_attempts_failure():
+    service, _dao, attempts = _service()
+    user_id = uuid4()
+    start = await _begin(
+        service, project_id=uuid4(), user_id=user_id, endpoint_id=uuid4()
+    )
+
+    async def _refuse(**_kwargs):
+        raise MCPOAuthTokenExchangeError(
+            token_endpoint="https://auth.acme.io/token", detail="invalid_grant"
+        )
+
+    service.client.exchange_token = _refuse
+
+    with pytest.raises(MCPOAuthTokenExchangeError):
+        await _callback(
+            service, code="auth-code-1", state=start.state, caller_user_id=user_id
+        )
+
+    record = attempts.attempts[start.state]
+    assert record.status == MCPOAuthAttemptStatus.FAILED
+    assert "invalid_grant" in record.error

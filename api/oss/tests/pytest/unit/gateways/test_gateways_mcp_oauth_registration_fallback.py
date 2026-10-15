@@ -25,6 +25,7 @@ from oss.src.core.gateways.mcps.oauth.storage import (
     SecretsTokenStorage,
     registration_slug,
 )
+from oss.tests.pytest.utils.mcp_endpoints import InMemoryMCPEndpoints
 from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
 from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO, SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
@@ -182,6 +183,7 @@ def _service(
         client=client,
         api_url=api_url,
         attempts_dao=attempts,
+        endpoints_dao=InMemoryMCPEndpoints(attempts=attempts),
         resolve=resolve,
     )
     return service, dao, attempts

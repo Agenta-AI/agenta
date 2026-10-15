@@ -276,8 +276,11 @@ class SecretsTokenStorage:
         except SecretSlugConflict:
             return await self._update_by_slug(slug=slug, secret=secret)
 
-    async def delete_grant(self) -> bool:
+    async def delete_grant(self, *, unless: Optional[UUID] = None) -> bool:
         """Drop this connection's grant. Returns whether there was one to drop.
+
+        `unless` is the secret the connection is bound to now. A grant row that is that
+        secret is kept: a newer consent wrote it into the same row and bound it.
 
         One row, named by one slug, so disconnecting one account cannot take another
         account's credentials with it. This is safe only because the key moved off the
@@ -289,7 +292,7 @@ class SecretsTokenStorage:
         unsaid: revocation needs an endpoint this deployment does not discover yet.
         """
         existing = await self._find_grant()
-        if existing is None:
+        if existing is None or existing.id == unless:
             return False
         await self.vault_service.delete_secret(
             secret_id=existing.id,

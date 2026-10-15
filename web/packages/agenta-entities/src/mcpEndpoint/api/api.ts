@@ -13,6 +13,7 @@ import {
 } from "../core/mcpRpc"
 import {gatewayRefusalCode, gatewayRefusalMessage, gatewayRefusalStatus} from "../core/refusal"
 import type {
+    MCPConnectAttemptResponse,
     MCPConnectResponse,
     MCPCredentialBinding,
     MCPEndpointCreate,
@@ -127,6 +128,30 @@ export const beginMcpConnect = async (
         {params: projectId ? {project_id: projectId} : undefined},
     )
     return response.data
+}
+
+/** How one consent attempt stands, for when the callback's message never arrives. */
+export const fetchMcpConnectAttempt = async (
+    endpointId: string,
+    attemptId: string,
+    projectId?: string,
+): Promise<MCPConnectAttemptResponse> => {
+    const response = await axios.get(
+        `${getAgentaApiUrl()}${BASE}/${endpointId}/connect/attempts/${attemptId}`,
+        {params: projectId ? {project_id: projectId} : undefined},
+    )
+    return response.data
+}
+
+/** Cancel one pending consent attempt, so a late callback for it writes nothing. */
+export const cancelMcpConnectAttempt = async (
+    endpointId: string,
+    attemptId: string,
+    projectId?: string,
+): Promise<void> => {
+    await axios.delete(`${getAgentaApiUrl()}${BASE}/${endpointId}/connect/attempts/${attemptId}`, {
+        params: projectId ? {project_id: projectId} : undefined,
+    })
 }
 
 /**

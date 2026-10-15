@@ -72,11 +72,16 @@ class MCPEndpointsDAOInterface(ABC):
         #
         endpoint_id: UUID,
         secret_id: Optional[UUID],
+        oauth_server_url: Optional[str] = None,
     ) -> Optional[MCPEndpoint]:
         """Point a connection at its stored authorization, or at none, and mark it valid.
 
         `secret_id=None` is the disconnect: the handle goes and the connection stays
         valid, because nothing died — it simply holds no authorization now.
+
+        With `oauth_server_url`, binds only while the connection is still OAuth at that
+        address, and returns `None` otherwise: an OAuth grant for one address must never
+        land on a connection that moved to another, or to an API key.
 
         Separate from `edit_endpoint` because a credential transition is not an edit of
         the connection. `edit_endpoint` is a full PUT built from a snapshot the caller

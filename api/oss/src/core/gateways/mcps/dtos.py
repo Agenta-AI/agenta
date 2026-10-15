@@ -181,6 +181,18 @@ class MCPEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
     status: Optional[Status] = None
 
 
+def is_oauth_connection_at(
+    endpoint: Optional[Union[MCPEndpoint, "MCPEndpointEdit"]], server_url: str
+) -> bool:
+    """Whether a connection is still OAuth at this address, so a grant issued for that
+    address may be bound to it."""
+    return (
+        endpoint is not None
+        and endpoint.auth_mode == MCPAuthScheme.OAUTH
+        and endpoint.data.route.base_url == server_url
+    )
+
+
 def _check_url_binding_mode(auth_mode: MCPAuthScheme, data: MCPEndpointData) -> None:
     """Refuse a `url` binding on a row that sends no API key. Raises `ValueError`.
 

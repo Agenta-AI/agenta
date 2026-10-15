@@ -7,12 +7,16 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
-from mcp.shared.auth import OAuthClientInformationFull
+from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
+from oss.src.core.gateways.mcps.dtos import is_oauth_connection_at
+from oss.src.core.gateways.mcps.interfaces import MCPEndpointsDAOInterface
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient, same_issuer
 from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttempt,
     MCPOAuthAttemptCreate,
+    MCPOAuthAttemptOutcome,
+    MCPOAuthAttemptStatus,
     MCPOAuthAuthorizationStart,
     MCPOAuthCompletion,
     MCPOAuthDiscovery,
@@ -33,6 +37,7 @@ from oss.src.core.gateways.mcps.oauth.storage import (
     grant_settings_expired,
 )
 from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthAttemptCancelledError,
     MCPOAuthCallerMismatchError,
     MCPOAuthClientNotRegisteredError,
     MCPOAuthIssuerChangedError,
@@ -42,6 +47,7 @@ from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthTokenExchangeError,
     MCPOAuthRegistrationUnavailableError,
 )
+from oss.src.core.gateways.types import GatewaysError
 from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO
 from oss.src.core.secrets.services import VaultService
 
@@ -51,6 +57,10 @@ _CALLBACK_PATH = "/gateways/mcps/connect/callback"
 def callback_redirect_uri(*, api_url: str) -> str:
     """Return the fixed OAuth callback URI."""
     return f"{api_url.rstrip('/')}{_CALLBACK_PATH}"
+
+
+def _expired(attempt: MCPOAuthAttempt) -> bool:
+    return attempt.expires_at <= datetime.now(timezone.utc)
 
 
 @dataclass
@@ -69,12 +79,15 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         client: MCPOAuthClient,
         api_url: str,
         attempts_dao: MCPOAuthAttemptsDAOInterface,
+        endpoints_dao: MCPEndpointsDAOInterface,
         resolve: Optional[Resolver] = None,
     ) -> None:
         self.vault_service = vault_service
         self.client = client
         self.api_url = api_url
         self.attempts_dao = attempts_dao
+        # The connection a completed attempt binds its grant to. See `complete`.
+        self.endpoints_dao = endpoints_dao
         # Tests may inject DNS resolution.
         self._resolve_kwargs = {"resolve": resolve} if resolve is not None else {}
         # One lock per connection, for as long as a refresh is using it. See
@@ -184,7 +197,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
 
         # The record is written BEFORE the browser is sent anywhere. A handle that
         # reaches the authorization server always has a record behind it.
-        await self.attempts_dao.create_attempt(
+        attempt = await self.attempts_dao.create_attempt(
             attempt=MCPOAuthAttemptCreate(
                 state=state,
                 project_id=project_id,
@@ -214,8 +227,15 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         )
 
         return MCPOAuthAuthorizationStart(
-            authorization_url=authorization_url, state=state
+            authorization_url=authorization_url,
+            state=state,
+            attempt_id=attempt.id,
+            expires_in=STATE_TTL_SECONDS,
         )
+
+    async def lookup(self, *, state: str) -> Optional[MCPOAuthAttempt]:
+        """The attempt a handle names, read only, so every callback page can name it."""
+        return await self.attempts_dao.fetch_attempt(state=state)
 
     async def claim(
         self,
@@ -228,8 +248,8 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         This is the first half of the callback, split from `complete()` so that the
         facts the caller must be authorised against — the project above all — are in
         the caller's hands BEFORE any code is exchanged or any grant is written. The
-        record is consumed atomically (`DELETE ... RETURNING`), so there is no read
-        that leaves the handle probeable, and a caller refused after this point has
+        record is claimed atomically, pending to claimed under a row lock, so there is
+        no read that leaves the handle reusable, and a caller refused after this point has
         spent the attempt: single-use is the property that makes the handle safe, and
         the person must start the connection again.
 
@@ -240,6 +260,8 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         attempt = await self.attempts_dao.fetch_attempt(state=state)
         if attempt is None:
             raise MCPOAuthStateInvalidError()
+        if attempt.status == MCPOAuthAttemptStatus.CANCELLED:
+            raise MCPOAuthAttemptCancelledError()
 
         # Refuse before consuming: a stranger presenting someone else's handle must
         # not be able to burn it, and this path writes nothing at all.
@@ -248,13 +270,65 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
 
         consumed = await self.attempts_dao.consume_attempt(state=state)
         if consumed is None:
-            # Another callback took it between the read and the delete.
+            # Another callback took it, or a cancel landed, between the read and the
+            # claim.
             raise MCPOAuthStateInvalidError()
 
-        if consumed.expires_at <= datetime.now(timezone.utc):
+        if _expired(consumed):
+            await self.settle(attempt=consumed, status=MCPOAuthAttemptStatus.CANCELLED)
             raise MCPOAuthStateExpiredError()
 
         return consumed
+
+    async def settle(
+        self,
+        *,
+        attempt: MCPOAuthAttempt,
+        status: MCPOAuthAttemptStatus,
+        error: Optional[str] = None,
+    ) -> None:
+        """Record how a claimed attempt ended, for the browser that may ask."""
+        await self.attempts_dao.settle_attempt(
+            attempt_id=attempt.id, status=status, error=error
+        )
+
+    async def cancel(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+        attempt_id: Optional[UUID] = None,
+    ) -> int:
+        """Cancel one active attempt, or every active attempt of a connection.
+
+        Every attempt, when the connection's mode or address changes: a consent started
+        against the old one must not bind a grant to the new one.
+        """
+        return await self.attempts_dao.cancel_attempts(
+            project_id=project_id, endpoint_id=endpoint_id, attempt_id=attempt_id
+        )
+
+    async def outcome(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+        attempt_id: UUID,
+    ) -> Optional[MCPOAuthAttemptOutcome]:
+        """How one attempt stands, for a browser whose popup message never arrived."""
+        attempt = await self.attempts_dao.fetch_attempt_by_id(
+            project_id=project_id, endpoint_id=endpoint_id, attempt_id=attempt_id
+        )
+        if attempt is None:
+            return None
+
+        status = attempt.status
+        if status == MCPOAuthAttemptStatus.CLAIMED:
+            status = MCPOAuthAttemptStatus.PENDING
+        if status == MCPOAuthAttemptStatus.PENDING and _expired(attempt):
+            status = MCPOAuthAttemptStatus.CANCELLED
+
+        return MCPOAuthAttemptOutcome(id=attempt.id, status=status, error=attempt.error)
 
     async def complete(
         self,
@@ -262,11 +336,85 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         attempt: MCPOAuthAttempt,
         code: str,
     ) -> MCPOAuthCompletion:
-        """Exchange the code for a grant and write it into the attempt's project.
+        """Exchange the code, then write and bind the grant, or write nothing at all.
 
         Takes the attempt `claim()` returned rather than the `state` handle: everything
         here writes, so the caller has already authorised itself against that record.
+
+        The exchange runs first and outside any lock, because it is a call to another
+        server. Everything after it runs with the attempt locked: the attempt must still
+        be claimed and unexpired, and the connection must still be OAuth at the address
+        the attempt was started for. Only then is the grant written and bound, and the
+        attempt settled as connected. A cancel, a disconnect, or an edit of the mode or
+        address that lands during the exchange therefore wins, and the stale code
+        writes no grant and binds nothing. An edit that commits after the check and
+        before the bind is refused by the bind; the grant row written then is removed
+        by that edit, which drops the connection's grant once this lock is released.
+
+        Raises `MCPOAuthAttemptCancelledError` when the attempt no longer applies, and the
+        exchange's own refusal, recorded as the attempt's failure, when it fails.
         """
+        try:
+            storage, tokens = await self._exchange(attempt=attempt, code=code)
+        except GatewaysError as e:
+            await self.settle(
+                attempt=attempt, status=MCPOAuthAttemptStatus.FAILED, error=e.message
+            )
+            raise
+
+        bound = None
+        async with self.attempts_dao.finalize_attempt(attempt_id=attempt.id) as settle:
+            if settle is not None:
+                # Read before the write, so a connection already moved never has the
+                # stale tokens written into its grant row at all.
+                endpoint = await self.endpoints_dao.fetch_endpoint(
+                    project_id=attempt.project_id, endpoint_id=attempt.endpoint_id
+                )
+                if is_oauth_connection_at(endpoint, attempt.server_url):
+                    # `storage` carries the attempt's issuer, so the grant is written
+                    # pinned to the authorization server that actually issued it.
+                    # `refresh_grant` requires that pin to still hold before it presents
+                    # the refresh token anywhere.
+                    grant = await storage.write_tokens(tokens)
+                    # Conditional on the same facts, under the connection's own row
+                    # lock, so an edit that commits after the read above is caught.
+                    bound = await self.endpoints_dao.bind_endpoint_secret(
+                        project_id=attempt.project_id,
+                        user_id=attempt.user_id,
+                        endpoint_id=attempt.endpoint_id,
+                        secret_id=grant.id,
+                        oauth_server_url=attempt.server_url,
+                    )
+                    if bound is None:
+                        # An edit moved the connection between the read and the
+                        # bind. The tokens just written are the old address's, so
+                        # they go, unless a newer consent has bound that row since.
+                        await self._delete_unbound_grant(
+                            storage=storage,
+                            project_id=attempt.project_id,
+                            endpoint_id=attempt.endpoint_id,
+                        )
+                await settle(
+                    MCPOAuthAttemptStatus.CONNECTED
+                    if bound is not None
+                    else MCPOAuthAttemptStatus.CANCELLED
+                )
+
+        if bound is None:
+            raise MCPOAuthAttemptCancelledError()
+
+        return MCPOAuthCompletion(
+            project_id=attempt.project_id,
+            user_id=attempt.user_id,
+            endpoint_id=attempt.endpoint_id,
+            server_url=attempt.server_url,
+            secret_id=bound.secret_id,
+        )
+
+    async def _exchange(
+        self, *, attempt: MCPOAuthAttempt, code: str
+    ) -> Tuple[SecretsTokenStorage, OAuthToken]:
+        """Spend the code at the token endpoint the attempt recorded."""
         # Issuer, token endpoint and redirect URI come from the record, not from a
         # fresh discovery round: the server cannot move its token endpoint between the
         # redirect it was handed and the code it returns.
@@ -304,18 +452,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             client_info=client_info,
             resource=attempt.resource,
         )
-        # `storage` carries the attempt's issuer, so the grant is written pinned to the
-        # authorization server that actually issued it. `refresh_grant` requires that
-        # pin to still hold before it presents the refresh token anywhere.
-        grant = await storage.write_tokens(tokens)
-
-        return MCPOAuthCompletion(
-            project_id=attempt.project_id,
-            user_id=attempt.user_id,
-            endpoint_id=attempt.endpoint_id,
-            server_url=attempt.server_url,
-            secret_id=grant.id,
-        )
+        return storage, tokens
 
     async def disconnect(
         self, *, project_id: UUID, endpoint_id: UUID, server_url: str
@@ -333,12 +470,10 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         # The outstanding consents go first. A consent already in flight completes
         # against the record it was issued, so a browser tab opened before this call
         # would otherwise finish afterwards and reconnect the account, leaving the
-        # person who pressed Disconnect believing they had revoked it (D5). Dropped
+        # person who pressed Disconnect believing they had revoked it (D5). Cancelled
         # before the grant, so there is no window in which the grant is gone and a
         # callback can still write a new one.
-        await self.attempts_dao.drop_attempts_for_endpoint(
-            project_id=project_id, endpoint_id=endpoint_id
-        )
+        await self.cancel(project_id=project_id, endpoint_id=endpoint_id)
 
         storage = SecretsTokenStorage(
             vault_service=self.vault_service,
@@ -347,6 +482,40 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             endpoint_id=endpoint_id,
         )
         return await storage.delete_grant()
+
+    async def release_grant(
+        self, *, project_id: UUID, endpoint_id: UUID, server_url: str
+    ) -> None:
+        """Retire a connection's grant after an edit moved it off OAuth or to another
+        address.
+
+        The edit has already cleared the connection's binding in its own transaction.
+        The active attempts are cancelled first, which waits for a finalization in
+        progress (the attempt row before the endpoint row, as `finalize_attempt`
+        requires). The grant row then goes, unless a newer consent bound it since.
+        """
+        await self.cancel(project_id=project_id, endpoint_id=endpoint_id)
+        await self._delete_unbound_grant(
+            storage=SecretsTokenStorage(
+                vault_service=self.vault_service,
+                project_id=project_id,
+                server_url=server_url,
+                endpoint_id=endpoint_id,
+            ),
+            project_id=project_id,
+            endpoint_id=endpoint_id,
+        )
+
+    async def _delete_unbound_grant(
+        self, *, storage: SecretsTokenStorage, project_id: UUID, endpoint_id: UUID
+    ) -> None:
+        """Drop the connection's grant row unless the connection is bound to it now."""
+        endpoint = await self.endpoints_dao.fetch_endpoint(
+            project_id=project_id, endpoint_id=endpoint_id
+        )
+        await storage.delete_grant(
+            unless=endpoint.secret_id if endpoint is not None else None
+        )
 
     # Refresh
 
