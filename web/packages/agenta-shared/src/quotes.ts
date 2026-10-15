@@ -283,3 +283,40 @@ export const quotesToMarkdown = (quotes: Quote[], text = ""): string => {
     const trimmed = text.trim()
     return trimmed ? `${blocks.join("\n\n")}\n\n${trimmed}` : blocks.join("\n\n")
 }
+
+/** One quote read back out of `quotesToMarkdown` output. */
+export interface QuotedExcerpt {
+    /** The quote's origin: a drive path, or "Agent reply". */
+    origin: string
+    text: string
+}
+
+const QUOTE_HEAD = /^> \*\*(?:`([^`]+)`|(Agent reply))\*\*/
+
+/** A sent message's leading quotes and the user's own words; inverts `quotesToMarkdown`. */
+export const splitQuotedMessage = (markdown: string): {quotes: QuotedExcerpt[]; text: string} => {
+    if (!QUOTE_HEAD.test(markdown)) return {quotes: [], text: markdown}
+    const quotes: QuotedExcerpt[] = []
+    const rest: string[] = []
+    let current: string[] | null = null
+    for (const line of markdown.split("\n")) {
+        const head = QUOTE_HEAD.exec(line)
+        if (head) {
+            current = []
+            quotes.push({origin: head[1] ?? head[2], text: ""})
+        } else if (current && (line === ">" || line.startsWith("> "))) {
+            current.push(line.slice(2))
+            quotes[quotes.length - 1].text = current.join("\n")
+        } else {
+            current = null
+            rest.push(line)
+        }
+    }
+    return {
+        quotes,
+        text: rest
+            .join("\n")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim(),
+    }
+}
