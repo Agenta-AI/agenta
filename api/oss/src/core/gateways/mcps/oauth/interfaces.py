@@ -58,6 +58,12 @@ class MCPOAuthRefresherInterface(ABC):
         caller holds the connection's OAuth lock."""
         raise NotImplementedError
 
+    @abstractmethod
+    async def has_active_attempts(self, *, project_id: UUID, endpoint_id: UUID) -> bool:
+        """Whether a sign-in is still in flight on a connection. The caller holds the
+        connection's OAuth lock."""
+        raise NotImplementedError
+
 
 class MCPOAuthAttemptsDAOInterface(ABC):
     """Read, consume and expire the records that back the opaque `state` handle."""
@@ -141,6 +147,16 @@ class MCPOAuthAttemptsDAOInterface(ABC):
         mode or address finishes afterwards and binds a grant nobody wants (D5). A
         cancelled attempt's callback writes nothing.
         """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def has_active_attempts(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+    ) -> bool:
+        """Whether any attempt of a connection is pending or claimed."""
         raise NotImplementedError
 
     @abstractmethod

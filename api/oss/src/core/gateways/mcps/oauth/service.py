@@ -398,6 +398,11 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             project_id=project_id, endpoint_id=endpoint_id, attempt_id=attempt_id
         )
 
+    async def has_active_attempts(self, *, project_id: UUID, endpoint_id: UUID) -> bool:
+        return await self.attempts_dao.has_active_attempts(
+            project_id=project_id, endpoint_id=endpoint_id
+        )
+
     async def outcome(
         self,
         *,

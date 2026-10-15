@@ -272,24 +272,26 @@ export function useMcpConnectJourney({
 
     /** Cancel one server-side consent attempt. A failed cancel expires on its own. */
     const cancelServerAttempt = useCallback(
-        (endpointId: string, attemptId: string) => {
-            void cancelMcpConnectAttempt(endpointId, attemptId, projectId).catch(() => undefined)
-        },
+        (endpointId: string, attemptId: string) =>
+            cancelMcpConnectAttempt(endpointId, attemptId, projectId).catch(() => undefined),
         [projectId],
     )
 
     /** Cancel the server's pending consent attempt, if there is one. */
-    const cancelConsentAttempt = useCallback(() => {
+    const cancelConsentAttempt = useCallback(async () => {
         const pending = consentAttemptRef.current
         consentAttemptRef.current = null
-        if (pending) cancelServerAttempt(pending.endpointId, pending.attemptId)
+        if (pending) await cancelServerAttempt(pending.endpointId, pending.attemptId)
     }, [cancelServerAttempt])
 
-    /** Abandon whatever is in flight. Anything that returns after this is ignored. */
+    /**
+     * Abandon whatever is in flight. Anything that returns after this is ignored. Resolves once
+     * the server has the consent attempt's cancel.
+     */
     const abandonAttempt = useCallback(() => {
         attemptRef.current += 1
         stopWatch()
-        cancelConsentAttempt()
+        return cancelConsentAttempt()
     }, [cancelConsentAttempt, stopWatch])
 
     /**
@@ -499,7 +501,7 @@ export function useMcpConnectJourney({
         async (popup: Window | null, endpointId: string, scopes: string[]) => {
             const attempt = attemptRef.current
             // A new window replaces the last one, whose callback must not land after it.
-            cancelConsentAttempt()
+            void cancelConsentAttempt()
             const result = await beginMcpConnect(endpointId, scopes, projectId)
 
             if (!isCurrent(attempt)) {
@@ -509,7 +511,7 @@ export function useMcpConnectJourney({
                 // cannot cover because there is nothing installed yet to tear down. The
                 // attempt it minted is cancelled for the same reason.
                 popup?.close()
-                if (result.attempt_id) cancelServerAttempt(endpointId, result.attempt_id)
+                if (result.attempt_id) void cancelServerAttempt(endpointId, result.attempt_id)
                 return
             }
             const redirectUrl = result.redirect_url
@@ -1114,15 +1116,18 @@ export function useMcpConnectJourney({
      * reconnect leaves the working connection exactly as it found it.
      *
      * The API makes the last call, under the connection's lock: the row goes only while it
-     * is still in the mode this journey made it in, with no credential. Another tab can
-     * reconnect a pending row, and its key must not go with this tab's cancel.
+     * is still in the mode this journey made it in, with no credential and no sign-in in
+     * flight. Another tab can reconnect a pending row or start its own sign-in on it, and
+     * that work must not go with this tab's cancel. This tab's own sign-in is cancelled
+     * first, so it does not count as one in flight.
      */
     const cancel = useCallback(async () => {
-        abandonAttempt()
+        const cancelled = abandonAttempt()
         const endpoint = endpointRef.current
         if (cancelDeletesEndpoint(state) && endpoint) {
             endpointRef.current = null
             try {
+                await cancelled
                 await deleteMcpEndpoint(endpoint.id, projectId, state.authMode)
             } catch {
                 // A row another tab took over is kept on purpose, and an abandoned pending
@@ -1139,7 +1144,7 @@ export function useMcpConnectJourney({
      * consent that arrives after this cannot install itself on a screen that moved on.
      */
     const cancelConsent = useCallback(() => {
-        abandonAttempt()
+        void abandonAttempt()
         dispatch({type: "consent_abandoned"})
     }, [abandonAttempt])
 

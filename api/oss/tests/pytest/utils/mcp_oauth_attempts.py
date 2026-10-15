@@ -96,6 +96,15 @@ class InMemoryMCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
 
         return len(cancelled)
 
+    async def has_active_attempts(self, *, project_id, endpoint_id) -> bool:
+        return any(
+            record.project_id == project_id
+            and record.endpoint_id == endpoint_id
+            and record.status
+            in (MCPOAuthAttemptStatus.PENDING, MCPOAuthAttemptStatus.CLAIMED)
+            for record in self.attempts.values()
+        )
+
     async def sweep_expired_attempts(
         self,
         *,

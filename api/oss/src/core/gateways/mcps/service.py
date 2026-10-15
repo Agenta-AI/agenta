@@ -437,8 +437,9 @@ class MCPGatewayService:
         the row as it goes.
 
         With `pending_auth_mode`, only a connection still in that mode with no credential
-        bound is deleted: the pending row a connect sheet made and is abandoning. A row
-        that another tab moved on since raises `MCPConnectionChangedError` and stays.
+        bound and no sign-in in flight is deleted: the pending row a connect sheet made
+        and is abandoning, after it cancelled its own sign-in. A row that another tab
+        moved on since, or is signing in on, raises `MCPConnectionChangedError` and stays.
         """
         async with self.mcp_endpoints_dao.oauth_lock(
             project_id=project_id, endpoint_id=endpoint_id
@@ -446,15 +447,18 @@ class MCPGatewayService:
             current = await self.mcp_endpoints_dao.fetch_endpoint(
                 project_id=project_id, endpoint_id=endpoint_id
             )
-            if (
-                current is not None
-                and pending_auth_mode is not None
-                and (
+            if current is not None and pending_auth_mode is not None:
+                if (
                     current.auth_mode != pending_auth_mode
                     or current.secret_id is not None
-                )
-            ):
-                raise MCPConnectionChangedError()
+                    or (
+                        self.oauth_refresher is not None
+                        and await self.oauth_refresher.has_active_attempts(
+                            project_id=project_id, endpoint_id=endpoint_id
+                        )
+                    )
+                ):
+                    raise MCPConnectionChangedError()
             server_url = current.data.route.base_url if current is not None else None
             if (
                 server_url

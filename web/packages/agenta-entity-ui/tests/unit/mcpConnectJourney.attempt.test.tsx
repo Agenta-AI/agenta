@@ -681,6 +681,26 @@ describe("the server-side consent attempt", () => {
         expect(cancelMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-1", "project-1")
     })
 
+    it("cancels its own attempt before it asks to delete the pending row", async () => {
+        // The server keeps a row while any sign-in is in flight on it, so another tab's
+        // sign-in survives this cancel. This sheet's own attempt must be gone by then.
+        await reachConsent(fakePopup())
+        const order: string[] = []
+        cancelMcpConnectAttempt.mockImplementationOnce(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 10))
+            order.push("attempt cancelled")
+        })
+        deleteMcpEndpoint.mockImplementationOnce(async () => {
+            order.push("delete row")
+        })
+
+        await act(async () => {
+            await journey.cancel()
+        })
+
+        expect(order).toEqual(["attempt cancelled", "delete row"])
+    })
+
     it("cancels the last attempt when a new window replaces it", async () => {
         await reachConsent(fakePopup())
         await act(async () => journey.cancelConsent())

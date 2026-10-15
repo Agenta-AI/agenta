@@ -2559,6 +2559,72 @@ class _ReleasingRefresher:
         return 1
 
 
+class _SigningInRefresher(_ReleasingRefresher):
+    """Holds the sign-ins in flight on one connection, by attempt id."""
+
+    def __init__(self, *active: UUID) -> None:
+        super().__init__()
+        self.active = set(active)
+
+    async def cancel_attempts(self, *, project_id, endpoint_id, attempt_id=None) -> int:
+        cancelled = self.active if attempt_id is None else self.active & {attempt_id}
+        self.active -= cancelled
+        return len(cancelled)
+
+    async def has_active_attempts(self, *, project_id, endpoint_id) -> bool:
+        return bool(self.active)
+
+
+@pytest.mark.asyncio
+async def test_a_sheet_abandoning_a_row_another_tab_is_signing_in_on_keeps_it():
+    """Tab A made the pending row and tab B started its own sign-in on it. A cancels its
+    sign-in, then asks to delete the row: the row and B's sign-in both stay."""
+    dao = MockMCPEndpointsDAO()
+    sheet_attempt, other_tab_attempt = uuid4(), uuid4()
+    refresher = _SigningInRefresher(sheet_attempt, other_tab_attempt)
+    service = _relay_service(
+        mcp_endpoints_dao=dao, adapters={}, oauth_refresher=refresher
+    )
+    pending = await _oauth_endpoint(dao, connected=False)
+    await refresher.cancel_attempts(
+        project_id=uuid4(), endpoint_id=pending.id, attempt_id=sheet_attempt
+    )
+
+    with pytest.raises(MCPConnectionChangedError):
+        await service.delete_endpoint(
+            project_id=uuid4(),
+            endpoint_id=pending.id,
+            pending_auth_mode=MCPAuthScheme.OAUTH,
+        )
+
+    assert "delete_endpoint" not in dao.calls
+    assert refresher.active == {other_tab_attempt}
+    assert refresher.released == []
+
+
+@pytest.mark.asyncio
+async def test_a_sheet_abandoning_its_row_after_cancelling_its_sign_in_deletes_it():
+    dao = MockMCPEndpointsDAO()
+    sheet_attempt = uuid4()
+    refresher = _SigningInRefresher(sheet_attempt)
+    service = _relay_service(
+        mcp_endpoints_dao=dao, adapters={}, oauth_refresher=refresher
+    )
+    pending = await _oauth_endpoint(dao, connected=False)
+    await refresher.cancel_attempts(
+        project_id=uuid4(), endpoint_id=pending.id, attempt_id=sheet_attempt
+    )
+
+    deleted = await service.delete_endpoint(
+        project_id=uuid4(),
+        endpoint_id=pending.id,
+        pending_auth_mode=MCPAuthScheme.OAUTH,
+    )
+
+    assert deleted is True
+    assert refresher.released == [pending.id]
+
+
 async def _edited_from_oauth(*, auth_mode, base_url, oauth_config=None):
     dao = MockMCPEndpointsDAO()
     refresher = _ReleasingRefresher()

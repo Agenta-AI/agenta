@@ -534,7 +534,7 @@ export function McpConnectSheet({
     // Not just the watch: work already in flight has to be disowned too, or a create or a
     // begin that resolves after this unmount installs itself on an attempt nobody is waiting
     // for (D34).
-    useEffect(() => journey.abandonAttempt, [journey.abandonAttempt])
+    useEffect(() => () => void journey.abandonAttempt(), [journey.abandonAttempt])
 
     // `saving` means credentials are persisted and only the local bookkeeping is left.
     useEffect(() => {
