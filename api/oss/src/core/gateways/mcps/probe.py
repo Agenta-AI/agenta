@@ -538,7 +538,9 @@ class MCPServerProbe:
             return MCPServerProbeResult(
                 problem=MCPProbeProblem(
                     cause="address_refused",
-                    message=e.relay_detail,
+                    # `detail`, not `relay_detail`: the cause already says it was refused,
+                    # and a person reads this message in the connect sheet as is.
+                    message=e.detail,
                     # A name that did not resolve is how a deployment with no outbound
                     # network fails first, before any connection is attempted. A refusal
                     # by the address checks is a different thing entirely and names no

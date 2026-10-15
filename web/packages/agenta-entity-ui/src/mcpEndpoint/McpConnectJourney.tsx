@@ -191,6 +191,8 @@ const keyRejectedHeadlineFor = (status: number | null): string =>
     status ? `The server rejected this key (${status}).` : KEY_REJECTED_HEADLINE
 const KEY_REJECTED_ADVICE = "Check the header the server expects, or pick another secret."
 const URL_KEY_REJECTED_ADVICE = "Check where {secret} sits in the URL, or pick another secret."
+const QUERY_KEY_REJECTED_ADVICE =
+    "Check the query parameter the server expects, or pick another secret."
 /**
  * The same advice, preceded by what the server asked for where it said so.
  *
@@ -206,6 +208,9 @@ const URL_KEY_REJECTED_ADVICE = "Check where {secret} sits in the URL, or pick a
 const keyRejectedAdviceFor = (scheme: string | null, binding: MCPCredentialBinding): string => {
     // A key in the address has no header to check and no scheme to name.
     if (binding.kind === "url") return URL_KEY_REJECTED_ADVICE
+    // A key in the query has no header and no scheme either; naming the header sent the
+    // reader to a field this binding does not have.
+    if (binding.kind === "query") return QUERY_KEY_REJECTED_ADVICE
     return scheme ? `${headerSchemeHint(scheme)} ${KEY_REJECTED_ADVICE}` : KEY_REJECTED_ADVICE
 }
 

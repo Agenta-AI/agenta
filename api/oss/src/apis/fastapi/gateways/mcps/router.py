@@ -27,6 +27,7 @@ from oss.src.apis.fastapi.gateways.mcps.models import (
     MCPEndpointsResponse,
 )
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.vault.router import SecretSafeRoute
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.dtos import GatewayAuthScheme, GatewayEndpointNamespace
@@ -60,24 +61,29 @@ if TYPE_CHECKING:
     from oss.src.core.gateways.mcps.probe import MCPServerProbe
 
 
-def _guard_custom_endpoint_url(*, url: Optional[str]) -> None:
+def _guard_custom_endpoint_url(*, url: Optional[str], probe: bool = False) -> None:
     """Validate a custom MCP endpoint URL before saving it.
 
     Under the gateway's own egress policy, not the webhook one: whatever this accepts here
     is what the relay will dial later, so the two cannot be allowed to disagree (see
     `core/gateways/egress.py::validate_egress_url_format`).
+
+    The probe's body has no `endpoint.data.route.base_url`, and the connect sheet shows its
+    refusal to a person as is, so the probe names the field by the sheet's label instead.
     """
     if not url:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="endpoint.data.route.base_url is required",
+            detail="Server URL is required."
+            if probe
+            else "endpoint.data.route.base_url is required",
         )
     try:
-        validate_egress_url_format(url)
+        validate_egress_url_format(url, label="Server URL" if probe else "URL")
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"endpoint.data.route.base_url is invalid: {e}",
+            detail=str(e) if probe else f"endpoint.data.route.base_url is invalid: {e}",
         ) from e
 
 
@@ -98,7 +104,12 @@ class MCPGatewayRouter:
         # buys would leave a connection nobody can use. The probe is on the same router and
         # so behind the same switch, which is right: checking a URL is the first step of that
         # same flow.
-        self.router = APIRouter(dependencies=[MCP_GATEWAY_ENABLED])
+        # `SecretSafeRoute` drops the submitted value from validation errors. A body here
+        # can carry a key: a base_url that still holds the bound query parameter is refused,
+        # and FastAPI's default 422 would echo that URL, key included, back to the caller.
+        self.router = APIRouter(
+            dependencies=[MCP_GATEWAY_ENABLED], route_class=SecretSafeRoute
+        )
 
         self.router.add_api_route(
             "/credentials/agenta",
@@ -465,7 +476,7 @@ class MCPGatewayRouter:
 
         # The same check a create runs, so a URL the probe accepts is one that can be
         # saved and a person is refused at the first step rather than the last.
-        _guard_custom_endpoint_url(url=body.url)
+        _guard_custom_endpoint_url(url=body.url, probe=True)
         # A `{secret}` address is checked with the key it needs, and only a url binding
         # fills one: the rule a create applies to `base_url` and its binding.
         binding = None
