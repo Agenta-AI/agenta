@@ -1748,3 +1748,41 @@ def test_the_bridge_vault_service_registers_gateway_endpoints(monkeypatch):
     # run on it fails with `endpoint_not_found` (v0.122.2 staging QA).
     monkeypatch.setattr(service, "_llm_endpoints_dao", lambda: FakeEndpointsDAO())
     assert service._vault_service().llm_endpoint_registrar is not None
+
+
+@pytest.mark.asyncio
+async def test_the_gateway_repair_registers_a_seeded_row_that_has_no_endpoint():
+    # Rows seeded before the bridge carried the registrar have no endpoint. The gateway's
+    # custom provider repair must register the bridge row the same way a save would.
+    from oss.src.core.gateways.llms.registrar import (
+        CustomProviderEndpointRepair,
+        LLMEndpointRegistrar,
+    )
+
+    project_id = uuid4()
+    row = _seeded_row("vertex_ai/some-model")
+    endpoints = FakeEndpointsDAO(present=False)
+    lookups = []
+
+    class _Vault:
+        async def get_secret_by_slug(self, secret_slug, project_id=None):
+            lookups.append((secret_slug, project_id))
+            return row if secret_slug == row.slug else None
+
+    repair = CustomProviderEndpointRepair(
+        vault_service=_Vault(),
+        registrar=LLMEndpointRegistrar(llm_endpoints_dao=endpoints),
+    )
+
+    assert (
+        await repair(project_id=project_id, slug=service.STARTER_CREDITS_SLUG) is True
+    )
+    assert lookups == [(service.STARTER_CREDITS_SLUG, project_id)]
+    (created,) = endpoints.created
+    assert created.slug == service.STARTER_CREDITS_SLUG
+    assert created.secret_id == row.id
+    assert created.data.route.base_url == "https://credits-proxy.example.test"
+    assert created.data.models.allowlist == [
+        "Agenta/custom/vertex_ai/some-model",
+        "vertex_ai/some-model",
+    ]
