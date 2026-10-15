@@ -143,6 +143,7 @@ from oss.src.core.mounts.service import MountsService
 from oss.src.apis.fastapi.mounts.router import handle_mount_exceptions
 from oss.src.apis.fastapi.mounts.utils import (
     BINARY_RESPONSE,
+    SizeCappedUploadRoute,
     _content_disposition_attachment,
     download_mount_file,
     sign_mount_credentials,
@@ -1809,6 +1810,7 @@ class SessionMountsRouter:
         self.router.add_api_route(
             "/mounts/files/upload",
             self.upload_session_cwd_file,
+            route_class_override=SizeCappedUploadRoute,
             methods=["POST"],
             operation_id="upload_session_cwd_file",
             response_model=MountFileWrittenResponse,
@@ -1818,6 +1820,7 @@ class SessionMountsRouter:
         self.router.add_api_route(
             "/mounts/{mount_id}/files/upload",
             self.upload_session_mount_file,
+            route_class_override=SizeCappedUploadRoute,
             methods=["POST"],
             operation_id="upload_session_mount_file",
             response_model=MountFileWrittenResponse,

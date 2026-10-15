@@ -63,6 +63,7 @@ from oss.src.apis.fastapi.mounts.models import (
 )
 from oss.src.apis.fastapi.mounts.utils import (
     BINARY_RESPONSE,
+    SizeCappedUploadRoute,
     TEXT_READ_TOO_LARGE_RESPONSE,
     ZIP_RESPONSE,
     download_mount_file,
@@ -302,6 +303,7 @@ class MountsRouter:
         self.router.add_api_route(
             "/{mount_id}/files/upload",
             self.upload_mount_file,
+            route_class_override=SizeCappedUploadRoute,
             methods=["POST"],
             operation_id="upload_mount_file",
             response_model=MountFileWrittenResponse,
@@ -330,6 +332,7 @@ class MountsRouter:
         self.router.add_api_route(
             "/{mount_id}/files",
             self.write_mount_file,
+            route_class_override=SizeCappedUploadRoute,
             methods=["PUT"],
             operation_id="write_mount_file",
             response_model=MountFileWrittenResponse,
