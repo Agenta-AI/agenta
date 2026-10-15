@@ -386,7 +386,8 @@ const Organization: FC = () => {
                 settings: {
                     issuer_url: values.issuer_url,
                     client_id: values.client_id,
-                    client_secret: values.client_secret,
+                    // Blank on edit keeps the stored secret; the API never returns it.
+                    ...(values.client_secret ? {client_secret: values.client_secret} : {}),
                     scopes: values.scopes?.split(",").map((s: string) => s.trim()) || [
                         "openid",
                         "profile",
@@ -419,7 +420,6 @@ const Organization: FC = () => {
                 slug: provider.slug,
                 issuer_url: provider.settings.issuer_url,
                 client_id: provider.settings.client_id,
-                client_secret: provider.settings.client_secret,
                 scopes: provider.settings.scopes?.join(", "),
             })
             setProviderModalVisible(true)
@@ -740,10 +740,19 @@ const Organization: FC = () => {
                                 name="client_secret"
                                 label="Client Secret"
                                 rules={[
-                                    {required: true, message: "Please enter the client secret"},
+                                    {
+                                        required: !editingProvider,
+                                        message: "Please enter the client secret",
+                                    },
                                 ]}
                             >
-                                <Input.Password placeholder="Your OAuth 2.0 Client Secret" />
+                                <Input.Password
+                                    placeholder={
+                                        editingProvider
+                                            ? "Leave blank to keep the current secret"
+                                            : "Your OAuth 2.0 Client Secret"
+                                    }
+                                />
                             </Form.Item>
                             <Form.Item
                                 name="scopes"
