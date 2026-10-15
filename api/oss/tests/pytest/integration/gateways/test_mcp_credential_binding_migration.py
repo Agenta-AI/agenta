@@ -184,3 +184,20 @@ async def test_downgrade_drops_a_binding_the_old_field_cannot_express(
     await _run(scratch_engine, "downgrade")
 
     assert await _data_of(scratch_engine, endpoint_id) == {"route": {"base_url": _URL}}
+
+
+async def test_a_key_in_the_url_survives_a_rollback_and_a_new_upgrade(scratch_engine):
+    """Downgrade drops the `url` binding but the URL keeps `{secret}`; upgrade restores it."""
+    url = "https://mcp.example.com/{secret}/v2/mcp"
+    original = {"route": {"base_url": url, "credential_binding": {"kind": "url"}}}
+    endpoint_id = await _seed(scratch_engine, original)
+
+    await _run(scratch_engine, "downgrade")
+    assert await _data_of(scratch_engine, endpoint_id) == {"route": {"base_url": url}}
+
+    await _run(scratch_engine, "upgrade")
+
+    data = await _data_of(scratch_engine, endpoint_id)
+    assert data == original
+    # The row the migration wrote is one the API reads.
+    assert MCPEndpointData(**data).route.credential_binding.kind == "url"
