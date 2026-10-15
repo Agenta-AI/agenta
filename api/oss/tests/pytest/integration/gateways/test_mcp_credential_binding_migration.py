@@ -201,3 +201,53 @@ async def test_a_key_in_the_url_survives_a_rollback_and_a_new_upgrade(scratch_en
     assert data == original
     # The row the migration wrote is one the API reads.
     assert MCPEndpointData(**data).route.credential_binding.kind == "url"
+
+
+_SECRET_URL = "https://mcp.example.com/{secret}/v2/mcp"
+
+
+@pytest.mark.parametrize(
+    "route, after_round_trip",
+    [
+        # A header with no prefix and a key in the URL come back whole.
+        (
+            {"base_url": _URL, "credential_binding": {"kind": "header", "name": "X"}},
+            {"base_url": _URL, "credential_binding": {"kind": "header", "name": "X"}},
+        ),
+        (
+            {"base_url": _SECRET_URL, "credential_binding": {"kind": "url"}},
+            {"base_url": _SECRET_URL, "credential_binding": {"kind": "url"}},
+        ),
+        # A prefix or a query parameter is lost, and the row falls back to Bearer.
+        (
+            {
+                "base_url": _URL,
+                "credential_binding": {
+                    "kind": "header",
+                    "name": "Authorization",
+                    "prefix": "Basic",
+                },
+            },
+            {"base_url": _URL},
+        ),
+        (
+            {"base_url": _URL, "credential_binding": {"kind": "query", "name": "k"}},
+            {"base_url": _URL},
+        ),
+        ({"base_url": _URL}, {"base_url": _URL}),
+    ],
+)
+async def test_every_binding_kind_is_readable_after_a_rollback_and_a_new_upgrade(
+    scratch_engine, route, after_round_trip
+):
+    """Every row reads after downgrade then upgrade, and a second upgrade changes nothing."""
+    endpoint_id = await _seed(scratch_engine, {"route": route})
+
+    await _run(scratch_engine, "downgrade")
+    await _run(scratch_engine, "upgrade")
+    data = await _data_of(scratch_engine, endpoint_id)
+    assert data == {"route": after_round_trip}
+    MCPEndpointData(**data)
+
+    await _run(scratch_engine, "upgrade")
+    assert await _data_of(scratch_engine, endpoint_id) == data
