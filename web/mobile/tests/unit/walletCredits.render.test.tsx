@@ -18,7 +18,8 @@ const api = vi.hoisted(() => ({
     usage: vi.fn(),
 }))
 
-vi.mock("@/features/wallet/walletApi", () => ({
+vi.mock("@/features/wallet/walletApi", async (original) => ({
+    ...(await original<object>()),
     fetchWalletSummary: api.summary,
     fetchWalletUsage: api.usage,
 }))
@@ -50,8 +51,6 @@ const summary = (mode: WalletSummary["mode"]): WalletSummary => ({
 const flooredSummary = (): WalletSummary => ({
     mode: "enforce",
     spendable_musd: 0,
-    general_balance_musd: 750_000,
-    floor_musd: 1_000_000,
     active_credit_total_musd: 750_000,
     credits: [
         {
@@ -59,7 +58,6 @@ const flooredSummary = (): WalletSummary => ({
             credit_kind: "daily_free",
             amount_musd: 750_000,
             remaining_musd: 750_000,
-            priority: 10,
             start_time: null,
             end_time: "2099-01-01T00:00:00Z",
             created_at: "2026-10-14T00:00:00Z",
@@ -182,11 +180,12 @@ describe("the Credits tab", () => {
     it("shows 0 credits when the balance is under the floor", async () => {
         api.summary.mockResolvedValue(flooredSummary())
         api.usage.mockResolvedValue(usage)
-        const shown = await render(<CreditsTab projectId="proj-1" billingURL="/billing" />)
+        const shown = await render(<CreditsTab projectId="proj-1" />)
 
-        expect(shown).toContain("Credits remaining")
-        // The headline is the amount admission allows, not the credits under the floor.
-        expect(host!.querySelector(".text-2xl")?.textContent).toBe("0 credits")
+        // The balance is what admission allows, not the daily credits under the floor.
+        expect(shown).toContain("≈ $0.00")
+        expect(shown).toContain("Empty")
+        expect(shown).toContain("of 75")
     })
 
     it("lists only credits inside their active window", async () => {
