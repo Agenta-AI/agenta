@@ -163,6 +163,7 @@ import type { InProcessProvider } from "./engines/inprocess/index.ts";
 import { endActiveTurns, registerActiveTurn } from "./sessions/active-turns.ts";
 import { DAYTONA_DURABLE_MOUNT_ROOT, resolveSandboxProviderId, runnerStateDir } from "./engines/sandbox_agent/run-plan.ts";
 import { applySandboxRouting } from "./engines/sandbox_agent/sandbox-routing.ts";
+import { routeGatewayInNetwork } from "./engines/sandbox_agent/gateway-in-network.ts";
 import { startSubscriptionHomeSweeper } from "./engines/sandbox_agent/subscription-login/retention.ts";
 import {
   KILL_DEADLINE_MS,
@@ -1799,6 +1800,7 @@ export function createRequestListener(
           // Before anything reads `request.sandbox`: the session record, the keep-alive pool and
           // the run plan all see the provider that runs.
           applySandboxRouting(request, logSandboxRouting);
+          routeGatewayInNetwork(request, logSandboxRouting);
 
           const wantsStream = (req.headers["accept"] ?? "").includes(
             "application/x-ndjson",

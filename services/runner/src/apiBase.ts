@@ -42,3 +42,45 @@ export function apiBase(): string {
     configuredApiBase() ?? requestApiBase.getStore() ?? DEFAULT_API_BASE,
   );
 }
+
+/**
+ * `url` moved onto the in-network hop, when it is a route on this deployment's public api base.
+ *
+ * The platform composes the gateway routes it hands a run against the PUBLIC base, because a
+ * Daytona sandbox has no route to the in-network one. A harness that runs inside this process
+ * does have that route, and through the public base its calls leave the cluster, cross the NAT
+ * and the load balancer, and come back in. Only an exact route on the configured public base is
+ * moved: same origin, and a path at or under the base's path. Undefined when either base is
+ * unset or `url` is anything else.
+ */
+export function inNetworkApiRoute(url: string): string | undefined {
+  const internal = process.env.AGENTA_API_INTERNAL_URL?.trim();
+  const publicBase = process.env.AGENTA_API_URL?.trim();
+  if (!internal || !publicBase) return undefined;
+  let target: URL;
+  let base: URL;
+  try {
+    target = new URL(url);
+    base = new URL(publicBase);
+    new URL(internal);
+  } catch {
+    return undefined;
+  }
+  if (target.origin !== base.origin || target.username || target.password) return undefined;
+  const basePath = trimBase(base.pathname);
+  if (target.pathname !== basePath && !target.pathname.startsWith(`${basePath}/`)) {
+    return undefined;
+  }
+  return `${trimBase(internal)}${target.pathname.slice(basePath.length)}${target.search}`;
+}
+
+/** Is `url` on the operator's in-network api origin (`AGENTA_API_INTERNAL_URL`)? */
+export function isInNetworkApiEndpoint(url: string | undefined): boolean {
+  const internal = process.env.AGENTA_API_INTERNAL_URL?.trim();
+  if (!internal || !url) return false;
+  try {
+    return new URL(url).origin === new URL(internal).origin;
+  } catch {
+    return false;
+  }
+}
