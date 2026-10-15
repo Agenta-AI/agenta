@@ -42,13 +42,15 @@ const paidOf = (credit: WalletCredit) =>
 
 /** Every credit the organization received, newest first. Invoices live in the billing portal. */
 export const CreditHistoryTable = ({
+    projectId,
     credits,
     showInvoices,
 }: {
+    projectId: string
     credits: WalletCredit[]
     showInvoices: boolean
 }) => {
-    const portal = useBillingPortal()
+    const portal = useBillingPortal(projectId)
     const now = Date.now()
     // One daily grant lands every day; past ones would bury the rest of the history.
     const rows = credits

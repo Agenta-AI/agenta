@@ -59,7 +59,11 @@ export const CreditsTab = ({projectId}: {projectId: string}) => {
             ) : null}
             <CreditsHero wallet={summary.data} dailyMusd={dailyMusd} />
             <CreditsUsageSection projectId={projectId} />
-            <CreditHistoryTable credits={summary.data.credits} showInvoices={billing} />
+            <CreditHistoryTable
+                projectId={projectId}
+                credits={summary.data.credits}
+                showInvoices={billing}
+            />
         </div>
     )
 }
