@@ -22,10 +22,27 @@
 
 /* The product panel: page tone with a dot grid. */
 .auth-panel {
+    position: relative;
+    isolation: isolate;
     background-color: var(--ag-colorBgLayout);
     background-image: radial-gradient(var(--ag-colorBorder) 1px, transparent 1px);
     background-size: 20px 20px;
     box-shadow: 0 0 0 1px var(--ag-colorBorderSecondary);
+}
+/* A soft blur only along the panel's edges, where the preview runs off it; the middle stays sharp. */
+.auth-panel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    --auth-edge:
+        linear-gradient(to right, black, transparent 56px, transparent calc(100% - 56px), black),
+        linear-gradient(to bottom, black, transparent 56px, transparent calc(100% - 56px), black);
+    -webkit-mask-image: var(--auth-edge);
+    mask-image: var(--auth-edge);
 }
 
 /* Product preview: a mock of the app, drawn in the app's own theme colors. */
