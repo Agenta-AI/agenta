@@ -27,10 +27,12 @@ import {CopyTooltip as TooltipWithCopyAction} from "@agenta/ui/copy-tooltip"
 import {InfoCircleOutlined} from "@ant-design/icons"
 import {useQueryClient, useQuery, useMutation} from "@tanstack/react-query"
 import {Descriptions, Input, Modal, Skeleton, Typography, message, Form, Alert} from "antd"
+import {useAtomValue} from "jotai"
 
 import {getAgentaWebUrl} from "@/oss/lib/helpers/api"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {useOrgData} from "@/oss/state/org"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {UpgradePlanLink} from "./UpgradePrompt"
 
@@ -49,6 +51,12 @@ const Organization: FC = () => {
     const [providerModalVisible, setProviderModalVisible] = useState(false)
     const [providerForm] = Form.useForm()
     const [editingProvider, setEditingProvider] = useState<string | null>(null)
+    // Domain and SSO routes are scoped to the org that owns this project.
+    const projectId = useAtomValue(projectIdAtom)
+    const requireProjectId = useCallback(() => {
+        if (!projectId) throw new Error("No project selected")
+        return projectId
+    }, [projectId])
 
     const handleUpdateOrganization = useCallback(
         async (
@@ -96,9 +104,9 @@ const Organization: FC = () => {
         refetch: refetchDomains,
         isPending: domainsLoading,
     } = useQuery({
-        queryKey: ["organization-domains", selectedOrg?.id],
-        queryFn: fetchOrganizationDomains,
-        enabled: !!selectedOrg?.id,
+        queryKey: ["organization-domains", selectedOrg?.id, projectId],
+        queryFn: () => fetchOrganizationDomains(requireProjectId()),
+        enabled: !!selectedOrg?.id && !!projectId,
     })
     const hasVerifiedDomain = useMemo(
         () => domains.some((domain) => domain.flags?.is_verified),
@@ -112,7 +120,8 @@ const Organization: FC = () => {
     }, [slugValue, handleUpdateOrganization])
 
     const createDomainMutation = useMutation({
-        mutationFn: createOrganizationDomain,
+        mutationFn: (payload: Parameters<typeof createOrganizationDomain>[1]) =>
+            createOrganizationDomain(requireProjectId(), payload),
         onSuccess: () => {
             message.success("Domain added successfully. Token is available in the table.")
             refetchDomains()
@@ -125,7 +134,7 @@ const Organization: FC = () => {
     })
 
     const verifyDomainMutation = useMutation({
-        mutationFn: verifyOrganizationDomain,
+        mutationFn: (domainId: string) => verifyOrganizationDomain(requireProjectId(), domainId),
         onSuccess: () => {
             message.success("Domain verified successfully")
             refetchDomains()
@@ -138,7 +147,8 @@ const Organization: FC = () => {
     })
 
     const refreshDomainTokenMutation = useMutation({
-        mutationFn: refreshOrganizationDomainToken,
+        mutationFn: (domainId: string) =>
+            refreshOrganizationDomainToken(requireProjectId(), domainId),
         onSuccess: () => {
             message.success("Token refreshed successfully")
             refetchDomains()
@@ -149,7 +159,7 @@ const Organization: FC = () => {
     })
 
     const deleteDomainMutation = useMutation({
-        mutationFn: deleteOrganizationDomain,
+        mutationFn: (domainId: string) => deleteOrganizationDomain(requireProjectId(), domainId),
         onSuccess: () => {
             message.success("Domain deleted successfully")
             refetchDomains()
@@ -302,13 +312,14 @@ const Organization: FC = () => {
         refetch: refetchProviders,
         isPending: providersLoading,
     } = useQuery({
-        queryKey: ["organization-providers", selectedOrg?.id],
-        queryFn: fetchOrganizationProviders,
-        enabled: !!selectedOrg?.id,
+        queryKey: ["organization-providers", selectedOrg?.id, projectId],
+        queryFn: () => fetchOrganizationProviders(requireProjectId()),
+        enabled: !!selectedOrg?.id && !!projectId,
     })
 
     const createProviderMutation = useMutation({
-        mutationFn: createOrganizationProvider,
+        mutationFn: (payload: Parameters<typeof createOrganizationProvider>[1]) =>
+            createOrganizationProvider(requireProjectId(), payload),
         onSuccess: () => {
             message.success("SSO provider added successfully")
             refetchProviders()
@@ -324,7 +335,7 @@ const Organization: FC = () => {
 
     const updateProviderMutation = useMutation({
         mutationFn: ({providerId, payload}: {providerId: string; payload: any}) =>
-            updateOrganizationProvider(providerId, payload),
+            updateOrganizationProvider(requireProjectId(), providerId, payload),
         onSuccess: () => {
             message.success("SSO provider updated successfully")
             refetchProviders()
@@ -339,7 +350,8 @@ const Organization: FC = () => {
     })
 
     const testProviderMutation = useMutation({
-        mutationFn: testOrganizationProvider,
+        mutationFn: (providerId: string) =>
+            testOrganizationProvider(requireProjectId(), providerId),
         onSuccess: () => {
             message.success("SSO provider connection test successful")
             refetchProviders()
@@ -351,7 +363,8 @@ const Organization: FC = () => {
     })
 
     const deleteProviderMutation = useMutation({
-        mutationFn: deleteOrganizationProvider,
+        mutationFn: (providerId: string) =>
+            deleteOrganizationProvider(requireProjectId(), providerId),
         onSuccess: () => {
             message.success("SSO provider deleted successfully")
             refetchProviders()
