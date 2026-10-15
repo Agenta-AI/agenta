@@ -112,7 +112,11 @@ class LLMUpstreamError(GatewaysError):
 
 
 class LLMUpstreamTimeoutError(LLMUpstreamError):
-    """The upstream did not answer in time: a transient failure, worth retrying."""
+    """The upstream did not answer within the gateway's timeout.
+
+    Never retried by the gateway: the model that did not answer in time is the one a retry
+    would wait on again.
+    """
 
     def __init__(self, *, provider_key: Optional[str]):
         super().__init__(provider_key=provider_key, detail="upstream timed out")

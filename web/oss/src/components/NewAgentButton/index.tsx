@@ -1,34 +1,18 @@
 import {NewAgentButton as NewAgentButtonView} from "@agenta/home-ui"
 import {useRouter} from "next/router"
 
-import {useAgentTemplateCatalog} from "@/oss/components/TemplateStrip/hooks/useAgentTemplateCatalog"
 import useURL from "@/oss/hooks/useURL"
 
-/**
- * App adapter over the shared button: this app's create surface is a route (`?new=1`), so both
- * the blank path and a template pick are pushes onto it. The button itself — and the choice of
- * what it offers — is the package's.
- */
+/** App adapter over the shared button: this app's create surface is a route (`?new=1`). */
 const NewAgentButton = ({label}: {label?: string}) => {
     const router = useRouter()
     const {baseAppURL} = useURL()
-    const {templates, status, retry} = useAgentTemplateCatalog()
-
-    const goCreate = (templateKey?: string) =>
-        void router.push(
-            templateKey ? `${baseAppURL}?new=1&template=${templateKey}` : `${baseAppURL}?new=1`,
-        )
 
     return (
         <NewAgentButtonView
             label={label}
-            onCreateBlank={() => goCreate()}
-            templates={templates}
-            onPickTemplate={goCreate}
-            templatesStatus={status}
-            onRetryTemplates={retry}
+            onCreateBlank={() => void router.push(`${baseAppURL}?new=1`)}
             browseHref={`${baseAppURL}/agent-templates`}
-            totalTemplates={templates.length}
         />
     )
 }

@@ -86,6 +86,8 @@ export interface InRunnerRunFacts {
   modelEnvironment: Record<string, string>;
   /** A custom provider the run registered through models.json, and where its key is. */
   customProvider?: { providerId: string; keyEnv: string };
+  /** Whether the run reaches its model through the Agenta LLM gateway. */
+  throughGateway?: boolean;
   /** Who the command sandbox's running seconds are reported for; absent without a platform credential. */
   usage?: import("../../metering/sandbox-usage.ts").SandboxUsageContext;
 }

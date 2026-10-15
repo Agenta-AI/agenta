@@ -119,6 +119,17 @@ class MountPreconditionFailed(MountError):
         self.etag = etag
 
 
+class MountFileTooLarge(MountError):
+    """A text read refused a file larger than `max_bytes`; the download endpoint serves it."""
+
+    def __init__(self, max_bytes: int):
+        super().__init__(
+            f"File is larger than {max_bytes} bytes and cannot be read as text. "
+            "Use the download endpoint (/mounts/{mount_id}/files/download) instead."
+        )
+        self.max_bytes = max_bytes
+
+
 class MountStorageUnavailable(MountError):
     def __init__(self, message: str = "Mount storage backend is not configured."):
         super().__init__(message)

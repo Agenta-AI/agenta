@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.122.5"
+version = "0.122.6"
 description = "Agenta API"
 requires-python = ">=3.11,<3.14"
 authors = [
@@ -8,7 +8,7 @@ authors = [
     { name = "Juan Vega", email = "jp@agenta.ai" },
 ]
 dependencies = [
-    "agenta",
+    "agenta[server-tracing]",
     "fastapi>=0.139,<0.140",
     "pydantic[email]>=2,<3",
     # MCP OAuth uses the SDK's TokenStorage protocol and OAuth wire contracts directly.
@@ -44,7 +44,6 @@ dependencies = [
     "sendgrid>=6,<7",
     "stripe>=15,<16",
     "posthog>=7,<8",
-    "newrelic>=13,<14",
     "dnspython>=2,<3",
     "opentelemetry-proto>=1,<2",
     "croniter>=6,<7",

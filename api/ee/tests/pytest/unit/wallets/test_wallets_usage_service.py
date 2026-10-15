@@ -27,14 +27,29 @@ PROJECT = uuid4()
 
 
 class _Wallets:
+    def __init__(self, *, balance=900, spendable=800, floor=0, provisioned=True):
+        self.balance = balance
+        self.spendable = spendable
+        self.floor = floor
+        self.provisioned = provisioned
+
     async def get_general_balance(self, *, organization_id):
+        if not self.provisioned:
+            return None
         return WalletBalanceDTO(
-            id=uuid4(), organization_id=organization_id, balance_musd=900, floor_musd=0
+            id=uuid4(),
+            organization_id=organization_id,
+            balance_musd=self.balance,
+            floor_musd=self.floor,
         )
 
     async def get_spendable_balance(self, *, organization_id):
+        if not self.provisioned:
+            return None
         return WalletSpendableBalanceDTO(
-            organization_id=organization_id, spendable_musd=800, floor_musd=0
+            organization_id=organization_id,
+            spendable_musd=self.spendable,
+            floor_musd=self.floor,
         )
 
 
@@ -105,9 +120,9 @@ def _measurement(mid, *, session=None, agent_id=None, references=None):
     )
 
 
-def _service(debits=(), measurements=(), credits=()):
+def _service(debits=(), measurements=(), credits=(), wallets=None):
     return WalletUsageService(
-        wallets_dao=_Wallets(),
+        wallets_dao=wallets or _Wallets(),
         usage_dao=_Usage(debits, credits),
         measurements_dao=_Measurements(measurements),
     )
@@ -260,6 +275,44 @@ async def test_summary_totals_only_the_credits_active_now():
     assert (summary.spendable_musd, summary.general_balance_musd) == (800, 900)
     assert summary.active_credit_total_musd == 6_000
     assert len(summary.credits) == 3
+
+
+@pytest.mark.parametrize(
+    ("spendable", "floor", "expected"),
+    [
+        # A signup refused by the email policy: 75 daily credits under a 100-credit floor.
+        # Admission refuses every turn, so nothing is spendable.
+        (750_000, 1_000_000, 0),
+        # At the floor: admission refuses too.
+        (1_000_000, 1_000_000, 0),
+        # Above the floor: only the part above it can be spent.
+        (1_250_000, 1_000_000, 250_000),
+        # A missing floor counts as 0.
+        (800, None, 800),
+        # A negative floor (a hand-set overdraft) lets admission go below 0.
+        (800, -200, 1_000),
+    ],
+)
+async def test_summary_spendable_is_what_admission_allows_above_the_floor(
+    spendable, floor, expected
+):
+    wallets = _Wallets(balance=spendable, spendable=spendable, floor=floor)
+
+    summary = await _service(wallets=wallets).summary(organization_id=ORG)
+
+    assert summary.spendable_musd == expected
+    assert summary.general_balance_musd == spendable
+    assert summary.floor_musd == floor
+
+
+async def test_summary_of_an_unprovisioned_wallet_reports_no_amounts():
+    wallets = _Wallets(provisioned=False)
+
+    summary = await _service(wallets=wallets).summary(organization_id=ORG)
+
+    assert summary.spendable_musd is None
+    assert summary.general_balance_musd is None
+    assert summary.floor_musd is None
 
 
 async def test_a_sandbox_interval_shows_under_sandbox_with_its_seconds_and_resources():

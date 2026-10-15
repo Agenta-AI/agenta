@@ -141,6 +141,9 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      {{- with $redisDurable.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with $redisDurable.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

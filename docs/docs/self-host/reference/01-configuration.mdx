@@ -637,7 +637,7 @@ provider.
 |---|---|---|---|---|
 | `AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS` | Hard deadline for one run, measured from the first message | `2700000` (45 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS` |
 | `AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS` | Longest gap between two progress events before the run is abandoned | `1800000` (30 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS` |
-| `AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` | Longest wait for the first response after the run starts | `120000` (2 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` |
+| `AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` | Longest wait for the first response after the run starts | `480000` (8 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` |
 | `AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` | Longest a single tool call may take. Also the longest a shell command may run | `1800000` (30 minutes) | no | `agentRunner.env.AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` |
 
 Four rules govern how they interact:
@@ -1067,7 +1067,7 @@ show the MCP settings tab, so set these in the file every container loads and re
 The LLM gateway can serve models from a Google Cloud Vertex AI account that your deployment
 owns, instead of from a key in the project's vault. An agent then picks them from the
 **Built-in: agenta** group in the model picker, and the call is made with your account's
-credential. Today these are Gemini 3.7 Flash and Gemini 3.8 Flash.
+credential. Today these are Gemini 3.7 Flash, Gemini 3.8 Flash, and Gemini 4 Argon.
 
 To turn this on, set both of these on the API container:
 
@@ -1075,7 +1075,7 @@ To turn this on, set both of these on the API container:
   (`base64 -w0 key.json`). The service account needs the Vertex AI User role on the project.
 - `AGENTA_LLM_GATEWAY_VERTEX_PROJECT`: the Google Cloud project id.
 
-The models are called on the Vertex AI `global` location, where both are available. If
+The models are called on the Vertex AI `global` location, where all three are available. If
 either variable is not set, the models are not offered. The LLM gateway must also be on
 (`AGENTA_LLM_GATEWAY_ENABLED=true`).
 
@@ -1327,12 +1327,6 @@ own `AGENTA_RUNNER_DAYTONA_SNAPSHOT`; see the [runner Daytona section](#daytona)
 |---|---|---|
 | `LOOPS_API_KEY` | `loops.api_key` | `loops.apiKey` |
 
-## newrelic
-
-| Env var | env.py path | values.yaml path |
-|---|---|---|
-| `NEWRELIC_LICENSE_KEY` | `newrelic.license_key` | `newrelic.licenseKey` |
-
 ## postgres
 
 | Env var | env.py path | values.yaml path |
@@ -1489,8 +1483,6 @@ future major release.
 | `ACTIVE_DIRECTORY_OAUTH_CLIENT_ID` | `AZURE_AD_OAUTH_CLIENT_ID` |
 | `ACTIVE_DIRECTORY_OAUTH_CLIENT_SECRET` | `AZURE_AD_OAUTH_CLIENT_SECRET` |
 | `ACTIVE_DIRECTORY_DIRECTORY_ID` | `AZURE_AD_DIRECTORY_ID` |
-| `NEW_RELIC_LICENSE_KEY` | `NEWRELIC_LICENSE_KEY` |
-| `NRIA_LICENSE_KEY` | `NEWRELIC_LICENSE_KEY` |
 | `POSTHOG_HOST` | `POSTHOG_API_URL` |
 | `AGENTA_AUTHN_EMAIL_FROM` | `SMTP_FROM_EMAIL` (preferred) or `SENDGRID_FROM_EMAIL` fallback |
 | `AGENTA_SEND_EMAIL_FROM_ADDRESS` | `SMTP_FROM_EMAIL` (preferred) or `SENDGRID_FROM_EMAIL` fallback |
@@ -1500,3 +1492,7 @@ future major release.
 ## Removed environment variables
 
 Some variables were removed without a replacement. Agenta ignores them, and the behavior they used to switch is always on. For the list removed in 0.121.0 and what each one did, see [Upgrading to 0.121.0](/self-host/upgrading#upgrading-to-01210).
+
+From 0.122.6 the images no longer include the New Relic agent. Agenta ignores `NEWRELIC_LICENSE_KEY`, `NEW_RELIC_LICENSE_KEY` and `NRIA_LICENSE_KEY`, and the Helm chart ignores `newrelic.licenseKey` and `observability.newRelic.licenseKey`. You can delete them.
+
+The `newrelic-admin` command is gone from the images too. If your own Compose file or Kubernetes manifest starts the api, services or worker containers with `newrelic-admin run-program`, remove that prefix before you upgrade, or those containers fail to start. Keep the rest of the command as it is. The Compose files and the Helm chart in this repository already start the processes without it.

@@ -452,6 +452,8 @@ export {
     /** @deprecated Use EvaluatorCatalogTemplate */
     /** @deprecated Use EvaluatorCatalogTemplatesResponse */
     validateAgentTemplate,
+    scanAgentTemplateSource,
+    type AgentTemplateRepositoryScan,
     type AgentTemplateSource,
     type AgentTemplateSourcePin,
     type AgentTemplateValidationIssue,

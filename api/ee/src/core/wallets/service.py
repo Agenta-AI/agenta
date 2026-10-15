@@ -194,13 +194,16 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         *,
         organization_id: UUID,
         plan: str,
+        floor_musd: Optional[int] = None,
     ) -> None:
         """Idempotent — see `WalletsDAOInterface.provision_general_balance`. Called from
         the organization-creation flow, after the organization-creation transaction has
-        already committed."""
+        already committed. `floor_musd` overrides the plan's floor."""
         await self.wallets_dao.provision_general_balance(
             organization_id=organization_id,
-            floor_musd=floor_musd_for_plan(plan=plan),
+            floor_musd=(
+                floor_musd if floor_musd is not None else floor_musd_for_plan(plan=plan)
+            ),
         )
 
     async def award(
