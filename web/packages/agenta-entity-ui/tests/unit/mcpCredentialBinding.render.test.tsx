@@ -204,9 +204,9 @@ describe("the binding presets", () => {
 })
 
 describe("a refusal's headline, as a screen reader reads it", () => {
-    it("keeps the space before the sentence outside the headline", async () => {
-        // A screen reader trims each element's text, so a space inside the headline was
-        // lost and the description read "(401).Check".
+    it("starts the sentence after the headline with its space, in one text", async () => {
+        // A browser leaves a space-only text out of the accessible description, so a space
+        // on its own between the headline and the hint read "(401).This server".
         await open()
         const journey = useMcpConnectJourney.mock.results.at(-1)?.value
         useMcpConnectJourney.mockReturnValue({
@@ -226,7 +226,10 @@ describe("a refusal's headline, as a screen reader reads it", () => {
         const headline = [...document.querySelectorAll("span")].find(
             (node) => node.textContent === "The server rejected this key (401).",
         )
-        expect(headline?.nextSibling?.textContent).toBe(" ")
+        const sentence = headline?.nextSibling?.textContent ?? ""
+        expect(sentence.startsWith(" ")).toBe(true)
+        expect(sentence.trim()).not.toBe("")
+        expect(`${headline?.textContent}${sentence}`).toMatch(/\(401\)\. \S/)
     })
 })
 

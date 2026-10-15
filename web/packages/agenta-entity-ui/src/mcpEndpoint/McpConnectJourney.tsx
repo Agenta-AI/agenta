@@ -1020,27 +1020,38 @@ const InlineError = ({
     className?: string
     /** Set where a field points `aria-describedby` at this box. */
     id?: string
-}) => (
-    <Alert
-        id={id}
-        type="error"
-        showIcon
-        icon={<WarningCircle size={15} weight="regular" />}
-        className={`items-start border-colorErrorBorder bg-colorErrorBg px-3 py-2.5 ${className ?? ""}`}
-        message={
-            <span className="text-xs font-normal leading-normal text-colorTextSecondary">
-                {/* The space sits outside the span: inside it, an accessible name read the
-                    headline and the body as one word ("(401).Check"). */}
-                {headline ? (
-                    <>
-                        <span className="font-medium text-colorText">{headline}</span>{" "}
-                    </>
-                ) : null}
-                {children}
-            </span>
-        }
-    />
-)
+}) => {
+    // A browser leaves a text node that holds only a space out of the accessible description,
+    // which then read the headline and the body as one word ("(401).This server"). So the
+    // body's leading text is written as one string that carries the spaces around it.
+    const nodes = Array.isArray(children) ? children : [children]
+    const textEnd = nodes.findIndex((node) => typeof node !== "string")
+    const leading = nodes
+        .slice(0, textEnd === -1 ? undefined : textEnd)
+        .join("")
+        .replace(/\s+/g, " ")
+        .trim()
+    const rest = textEnd === -1 ? [] : nodes.slice(textEnd)
+    const text = `${headline ? " " : ""}${leading}${rest.length ? " " : ""}`
+    return (
+        <Alert
+            id={id}
+            type="error"
+            showIcon
+            icon={<WarningCircle size={15} weight="regular" />}
+            className={`items-start border-colorErrorBorder bg-colorErrorBg px-3 py-2.5 ${className ?? ""}`}
+            message={
+                <span className="text-xs font-normal leading-normal text-colorTextSecondary">
+                    {headline ? (
+                        <span className="font-medium text-colorText">{headline}</span>
+                    ) : null}
+                    {text}
+                    {rest}
+                </span>
+            }
+        />
+    )
+}
 
 const WaitingCard = ({
     title,
