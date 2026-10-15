@@ -353,3 +353,58 @@ async def test_an_attempt_keeps_the_client_it_signs_in_as(seeded_project):
         assert (read.strategy, read.client_id) == ("explicit", "app-one")
     finally:
         await _cleanup(seeded_project["project_id"])
+
+
+@pytest.mark.asyncio
+async def test_only_a_pending_or_claimed_attempt_counts_as_active(
+    seeded_project, other_project
+):
+    """A pending row is kept while another tab is signing in on it, so the query has to
+    see a pending or claimed attempt of that connection, and nothing settled, cancelled,
+    or owned by another connection or tenant."""
+    dao = MCPOAuthAttemptsDAO()
+    endpoint_id = uuid4()
+
+    async def active(project_id=seeded_project["project_id"]):
+        return await dao.has_active_attempts(
+            project_id=project_id, endpoint_id=endpoint_id
+        )
+
+    try:
+        assert not await active()
+
+        await dao.create_attempt(
+            attempt=_attempt(
+                project_id=other_project["project_id"],
+                user_id=other_project["user_id"],
+                endpoint_id=endpoint_id,
+            )
+        )
+        await dao.create_attempt(
+            attempt=_attempt(
+                project_id=seeded_project["project_id"],
+                user_id=seeded_project["user_id"],
+            )
+        )
+        assert not await active()
+
+        attempt = await dao.create_attempt(
+            attempt=_attempt(
+                project_id=seeded_project["project_id"],
+                user_id=seeded_project["user_id"],
+                endpoint_id=endpoint_id,
+            )
+        )
+        assert await active()
+
+        await dao.consume_attempt(state=attempt.state)
+        assert await active()
+
+        await dao.cancel_attempts(
+            project_id=seeded_project["project_id"], endpoint_id=endpoint_id
+        )
+        assert not await active()
+        assert await active(project_id=other_project["project_id"])
+    finally:
+        await _cleanup(seeded_project["project_id"])
+        await _cleanup(other_project["project_id"])
