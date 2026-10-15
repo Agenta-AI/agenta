@@ -31,6 +31,29 @@ describe("plan limit tiles", () => {
         ])
     })
 
+    it("adds the old quotas only in Developer Mode", () => {
+        const usage: BillingUsage = {
+            traces_ingested: {...metric(5, 100), period: "monthly"},
+            traces_retrieved: {...metric(6, null), period: "daily", scope: "user"},
+        }
+
+        expect(planLimits(usage)).toEqual([])
+        expect(planLimits(usage, {quotas: true})).toEqual([
+            {
+                key: "traces_ingested",
+                label: "Traces ingested",
+                value: "5 of 100",
+                note: "This month",
+            },
+            {
+                key: "traces_retrieved",
+                label: "Traces retrieved",
+                value: "6",
+                note: "Today, per user",
+            },
+        ])
+    })
+
     it("shows concurrent tasks and projects once the API sends them", () => {
         const usage: BillingUsage = {
             concurrent_tasks: metric(3, 20),

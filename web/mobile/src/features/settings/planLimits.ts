@@ -1,6 +1,14 @@
 import type {BillingUsage, BillingUsageMetric} from "@agenta/settings-ui"
 
-export type PlanLimitKey = "concurrent_tasks" | "projects" | "users"
+export type PlanLimitKey =
+    | "concurrent_tasks"
+    | "projects"
+    | "users"
+    | "traces_ingested"
+    | "traces_retrieved"
+    | "evaluations_run"
+    | "events_ingested"
+    | "records_ingested"
 
 export interface PlanLimit {
     key: PlanLimitKey
@@ -10,7 +18,9 @@ export interface PlanLimit {
 }
 
 /** A usage entry this page can read: a number used, and a limit that is a number or none. */
-const readMetric = (raw: unknown): {value: number; limit: number | null} | null => {
+const readMetric = (
+    raw: unknown,
+): {value: number; limit: number | null; period: string; scope: string} | null => {
     const metric = raw as Partial<BillingUsageMetric> | null | undefined
     if (!metric || typeof metric !== "object") return null
     const value =
@@ -20,7 +30,7 @@ const readMetric = (raw: unknown): {value: number; limit: number | null} | null 
         typeof metric.limit === "number" && Number.isFinite(metric.limit) && metric.limit >= 0
             ? metric.limit
             : null
-    return {value, limit}
+    return {value, limit, period: String(metric.period ?? ""), scope: String(metric.scope ?? "")}
 }
 
 const count = (n: number) => n.toLocaleString("en-US")
@@ -29,7 +39,7 @@ const count = (n: number) => n.toLocaleString("en-US")
 const LIMITS: {
     key: PlanLimitKey
     label: string
-    read: (m: {value: number; limit: number | null}) => Omit<PlanLimit, "key" | "label">
+    read: (m: NonNullable<ReturnType<typeof readMetric>>) => Omit<PlanLimit, "key" | "label">
 }[] = [
     {
         key: "concurrent_tasks",
@@ -70,8 +80,32 @@ const LIMITS: {
     },
 ]
 
-export const planLimits = (usage: BillingUsage | null | undefined): PlanLimit[] =>
-    LIMITS.flatMap(({key, label, read}) => {
+const quotaWindow = (period: string, scope: string) =>
+    `${period === "daily" ? "Today" : period === "monthly" ? "This month" : "In total"}${scope === "user" ? ", per user" : ""}`
+
+/** The pre-credits quotas, shown only in Developer Mode. */
+const QUOTAS: typeof LIMITS = (
+    [
+        ["traces_ingested", "Traces ingested"],
+        ["traces_retrieved", "Traces retrieved"],
+        ["evaluations_run", "Evaluations run"],
+        ["events_ingested", "Events ingested"],
+        ["records_ingested", "Records ingested"],
+    ] as const
+).map(([key, label]) => ({
+    key,
+    label,
+    read: ({value, limit, period, scope}) => ({
+        value: limit == null ? count(value) : `${count(value)} of ${count(limit)}`,
+        note: quotaWindow(period, scope),
+    }),
+}))
+
+export const planLimits = (
+    usage: BillingUsage | null | undefined,
+    {quotas = false}: {quotas?: boolean} = {},
+): PlanLimit[] =>
+    (quotas ? [...LIMITS, ...QUOTAS] : LIMITS).flatMap(({key, label, read}) => {
         const metric = readMetric(usage?.[key])
         return metric ? [{key, label, ...read(metric)}] : []
     })

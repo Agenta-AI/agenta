@@ -34,6 +34,7 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
     const [planChooserOpen, setPlanChooserOpen] = useState(false)
     const [cancelOpen, setCancelOpen] = useState(false)
     const portal = useBillingPortal()
+    const developerMode = useAtomValue(classicModeEnabledAtom)
 
     const usage = useQuery({
         queryKey: ["billing", "usage", projectId],
@@ -81,7 +82,7 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
     const currentPlan = planSlug ? catalog.plans.find((plan) => plan.plan === planSlug) : undefined
     const showPlanCard = !subscription.isError && (billingEnabled || Boolean(subscription.data))
     const daily = enforced ? dailyCredit(enforced) : null
-    const limits = planLimits(usage.data)
+    const limits = planLimits(usage.data, {quotas: developerMode})
     const viewMembers = () =>
         void router.replace({query: {...router.query, tab: "workspace"}}, undefined, {
             shallow: true,
