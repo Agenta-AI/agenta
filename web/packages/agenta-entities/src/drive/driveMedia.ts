@@ -8,13 +8,14 @@
  */
 import {useEffect, useMemo, useState} from "react"
 
-import {axios, getAgentaApiUrl, getAuthToken} from "@agenta/shared/api"
+import {getMountsClient} from "@agenta/sdk/resources"
+import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {type Mount} from "@agenta/entities/session"
+import {type Mount, projectScopedRequest} from "@agenta/entities/session"
 
 /** Subset of the File System Access API we use to stream a download straight to disk (Chromium).
  * Declared locally — the global typings aren't present in every browser even when the runtime is,
@@ -51,13 +52,11 @@ export async function fetchMountFileBlob({
 }): Promise<Blob | null> {
     if (!mountId || !projectId || !path) return null
     try {
-        // Axios (not Fern): Fern JSON-parses response bodies, mangling binary payloads.
-        const response = await axios.get(`${getAgentaApiUrl()}/mounts/${mountId}/files/download`, {
-            params: {project_id: projectId, path},
-            responseType: "blob",
-            signal,
-        })
-        return response.data as Blob
+        const response = await getMountsClient().downloadMountFile(
+            {mount_id: mountId, path},
+            projectScopedRequest(projectId, undefined, signal),
+        )
+        return await response.blob()
     } catch {
         return null
     }
@@ -358,19 +357,14 @@ export async function downloadMountArchive({
             let writable: WritableFileStreamLike | null = null
             try {
                 writable = await handle.createWritable()
-                const jwt = await getAuthToken()
-                const url = `${getAgentaApiUrl()}/mounts/files/export?project_id=${encodeURIComponent(projectId)}`
-                const response = await fetch(url, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        ...(jwt ? {Authorization: `Bearer ${jwt}`} : {}),
-                    },
-                    body: JSON.stringify(payload),
-                })
-                if (!response.ok || !response.body) throw new Error(`archive ${response.status}`)
+                const response = await getMountsClient().exportMountFiles(
+                    payload,
+                    projectScopedRequest(projectId),
+                )
+                const body = response.stream()
+                if (!body) throw new Error("archive has no body")
                 // Manual read → write per chunk (pipeTo into a FileSystemWritableFileStream no-ops).
-                const reader = response.body.getReader()
+                const reader = body.getReader()
                 for (;;) {
                     const {done, value} = await reader.read()
                     if (done) break
@@ -387,11 +381,11 @@ export async function downloadMountArchive({
 
     // ─── Buffered fallback (Safari / Firefox / no picker) ─────────────────────────────────────────
     try {
-        const response = await axios.post(`${getAgentaApiUrl()}/mounts/files/export`, payload, {
-            params: {project_id: projectId},
-            responseType: "blob",
-        })
-        const url = URL.createObjectURL(response.data as Blob)
+        const response = await getMountsClient().exportMountFiles(
+            payload,
+            projectScopedRequest(projectId),
+        )
+        const url = URL.createObjectURL(await response.blob())
         const anchor = document.createElement("a")
         anchor.href = url
         anchor.download = filename
