@@ -54,7 +54,8 @@ export async function fetchMountFileBlob({
     try {
         const response = await getMountsClient().downloadMountFile(
             {mount_id: mountId, path},
-            projectScopedRequest(projectId, undefined, signal),
+            // One attempt: a failure already maps to null, and retries hold a thumbnail slot.
+            projectScopedRequest(projectId, undefined, signal, 0),
         )
         return await response.blob()
     } catch {
@@ -307,6 +308,8 @@ export async function downloadMountFile({
     return true
 }
 
+const EXPORT_TIMEOUT_SECONDS = 600
+
 /** Download the WHOLE drive as ONE zip ("download all") — spanning every mount the drive folds in
  * (cwd at the root, the agent's durable folder under `agent-files/`). The backend STREAMS the zip
  * (never buffered whole) and reads file bodies with bounded concurrency.
@@ -336,6 +339,11 @@ export async function downloadMountArchive({
         })),
         filename,
     }
+    // The server lists every file before it sends headers, so Fern's 30s default is too short.
+    const exportOptions = {
+        ...projectScopedRequest(projectId, undefined, undefined, 0),
+        timeoutInSeconds: EXPORT_TIMEOUT_SECONDS,
+    }
 
     // ─── Streaming-to-disk (Chromium) ────────────────────────────────────────────────────────────
     const showSaveFilePicker = getShowSaveFilePicker()
@@ -357,10 +365,7 @@ export async function downloadMountArchive({
             let writable: WritableFileStreamLike | null = null
             try {
                 writable = await handle.createWritable()
-                const response = await getMountsClient().exportMountFiles(
-                    payload,
-                    projectScopedRequest(projectId),
-                )
+                const response = await getMountsClient().exportMountFiles(payload, exportOptions)
                 const body = response.stream()
                 if (!body) throw new Error("archive has no body")
                 // Manual read → write per chunk (pipeTo into a FileSystemWritableFileStream no-ops).
@@ -381,10 +386,7 @@ export async function downloadMountArchive({
 
     // ─── Buffered fallback (Safari / Firefox / no picker) ─────────────────────────────────────────
     try {
-        const response = await getMountsClient().exportMountFiles(
-            payload,
-            projectScopedRequest(projectId),
-        )
+        const response = await getMountsClient().exportMountFiles(payload, exportOptions)
         const url = URL.createObjectURL(await response.blob())
         const anchor = document.createElement("a")
         anchor.href = url
