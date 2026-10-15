@@ -44,6 +44,7 @@ from agenta.sdk.middlewares.routing.cors import CORSMiddleware
 from agenta.sdk.middlewares.routing.auth import AuthMiddleware
 from agenta.sdk.middlewares.routing.otel import OTelMiddleware
 from agenta.sdk.middlewares.running.vault import invalidate_secrets_cache
+from agenta.sdk.engines.tracing.server import RouteSpanNameMiddleware
 from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
 from agenta.sdk.decorators.running import auto_workflow, inspect_workflow, Workflow
 from agenta.sdk.engines.running.errors import ErrorStatus
@@ -88,6 +89,7 @@ def create_app(**kwargs: Any) -> FastAPI:
     app.add_middleware(CORSMiddleware)
     app.add_middleware(AuthMiddleware)
     app.add_middleware(OTelMiddleware)
+    app.add_middleware(RouteSpanNameMiddleware)
 
     @app.get("/health")
     async def health():

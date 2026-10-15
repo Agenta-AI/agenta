@@ -82,6 +82,7 @@ _AGENT_CATALOG_IDS: set = _agent_catalog_ids()
 # map bundled with the pinned litellm (the tests pin it, see conftest.py) nor by the agent
 # catalog. Remove an id once a litellm bump indexes it.
 _KNOWN_LIVE_MAP_ONLY = {
+    "gemini/gemini-4-argon",
     "gpt-5.6-cyber",
     "xai/grok-4.20-0309-non-reasoning",
 }

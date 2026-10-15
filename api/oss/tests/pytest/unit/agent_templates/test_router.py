@@ -13,6 +13,8 @@ from oss.src.core.agent_templates.catalog import AgentTemplateCatalog
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.agent_templates.dtos import (
     TemplateLoadResult,
+    TemplateRepositoryEntry,
+    TemplateRepositoryScan,
     TemplateValidationIssue,
     TemplateValidationResult,
 )
@@ -20,6 +22,7 @@ from oss.src.core.agent_templates.exceptions import (
     TemplateCreateConflict,
     TemplatePackageInvalid,
     TemplateSourceNotFound,
+    TemplateSourceUnavailable,
 )
 from oss.src.core.sessions.inputs.types import SessionInputIdempotencyConflict
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
@@ -642,3 +645,78 @@ async def test_validate_without_query_project_uses_the_credential_project(monkey
 
     assert response.status_code == 200
     assert validator.validate.await_args.kwargs["project_id"] == PROJECT_ID
+
+
+def _scan_app(monkeypatch, scanner, access=None):
+    access = access or AsyncMock(return_value=True)
+    monkeypatch.setattr(router_module, "check_action_access", access)
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def add_state(request: Request, call_next):
+        request.state.project_id = str(PROJECT_ID)
+        request.state.user_id = str(USER_ID)
+        return await call_next(request)
+
+    app.include_router(
+        AgentTemplatesRouter(
+            loader=AsyncMock(), catalog=CATALOG, scanner=scanner
+        ).router,
+        prefix="/api/agent-templates",
+    )
+    return app
+
+
+@pytest.mark.asyncio
+async def test_scan_normalizes_the_url_and_returns_the_resolved_commit(monkeypatch):
+    scanner = AsyncMock()
+    scanner.scan.return_value = TemplateRepositoryScan(
+        repo_url="https://github.com/acme/templates",
+        commit="a" * 40,
+        templates=[TemplateRepositoryEntry(path="packages/triage", name="triage")],
+    )
+
+    response = await _request(
+        _scan_app(monkeypatch, scanner),
+        "POST",
+        "/sources/scan",
+        json={"repo_url": "github.com/Acme/templates"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["commit"] == "a" * 40
+    assert response.json()["templates"][0]["path"] == "packages/triage"
+    scanner.scan.assert_awaited_once_with(repo_url="https://github.com/acme/templates")
+
+
+@pytest.mark.asyncio
+async def test_scan_rejects_a_non_github_url(monkeypatch):
+    scanner = AsyncMock()
+    body = {"repo_url": "https://gitlab.com/acme/templates"}
+
+    response = await _request(
+        _scan_app(monkeypatch, scanner), "POST", "/sources/scan", json=body
+    )
+
+    assert response.status_code == 422
+    scanner.scan.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_scan_requires_view_and_maps_unavailable_to_404(monkeypatch):
+    access = AsyncMock(return_value=False)
+    scanner = AsyncMock()
+    scanner.scan.side_effect = TemplateSourceUnavailable(
+        "template_source_github_unavailable", "Not found."
+    )
+    app = _scan_app(monkeypatch, scanner, access)
+    body = {"repo_url": "https://github.com/acme/templates"}
+
+    assert (await _request(app, "POST", "/sources/scan", json=body)).status_code == 403
+    access.return_value = True
+    response = await _request(app, "POST", "/sources/scan", json=body)
+
+    assert response.status_code == 404
+    assert response.json()["details"]["reason"] == "template_source_github_unavailable"
+    # The scan names no commit or package directory, so its next step must not either.
+    assert "commit" not in response.json()["next_step"]

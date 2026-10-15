@@ -11,6 +11,9 @@ name: agenta-ee-gh
 
 services:
     web:
+        # === ACTIVATION =========================================== #
+        profiles:
+            - with-web
         # === IMAGE ================================================ #
         image: ghcr.io/agenta-ai/${AGENTA_WEB_IMAGE_NAME:-internal-ee-agenta-web}:${AGENTA_WEB_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #

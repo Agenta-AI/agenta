@@ -63,11 +63,13 @@ import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPol
 
 import {ApprovalDock} from "./ApprovalDock"
 import {waitForBuildKit} from "./buildKitWait"
+import {createCommitFollower} from "./commitFollower"
 import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
+import {hasUnsavedConfigEdits} from "./hasUnsavedConfigEdits"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
-import {selectedRevisionAtomFamily} from "./selectedRevision"
+import {heldCommitAtomFamily, selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
 import {PendingTaskError} from "./states/PendingTaskError"
 import {cancelledStopAction} from "./stopHereState"
@@ -178,6 +180,7 @@ export const LiveConversation = ({
         onSendFailed: () => dropUnacceptedLocalSession(sessionId),
     })
     const canEditSecrets = useProjectPermission(projectId, "edit_secret")
+    const store = useStore()
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
     const {adoptRevision} = conversation
     const adoptSecretRevision = useCallback(
@@ -192,19 +195,36 @@ export const LiveConversation = ({
         [conversation.messages],
     )
 
-    // The agent committing itself: follow it — pin the workspace and retarget the next send — and
-    // drop the latest-revision caches, or the pane and the chip keep the revision it replaced. A
-    // durable send learns it from the records reader; a `useChat` stream carries a
-    // `data-committed-revision` part. One seen-set, so a commit both report acts once.
-    const committedSeenRef = useRef<Set<string>>(new Set())
-    followCommitRef.current = (revisionId: string) => {
-        if (committedSeenRef.current.has(revisionId)) return
-        committedSeenRef.current.add(revisionId)
-        // Nobody is watching a hidden tab: its version pill offers the commit on return.
-        if (document.visibilityState !== "visible") return
+    // The agent committing itself in THIS session: follow it — pin the workspace and retarget the
+    // next send — and drop the latest-revision caches, or the pane and the chip keep the revision
+    // it replaced. A durable send learns it from the records reader; a `useChat` stream carries a
+    // `data-committed-revision` part. The follower acts once per commit, and holds a commit that
+    // lands while the tab is hidden until the tab is visible again. Commits made elsewhere (another
+    // user, another session) never come through here: the version pill offers those.
+    const applyCommitRef = useRef<(revisionId: string) => void>(() => undefined)
+    applyCommitRef.current = (revisionId: string) => {
         invalidateAgentCommittedRevisionCache()
-        if (revisionId !== entityId) adoptSecretRevision(revisionId)
+        if (revisionId === entityId) return
+        // Unsaved edits in the config pane belong to the pinned revision. Switching now would drop
+        // them, so the version pill offers the commit instead.
+        if (hasUnsavedConfigEdits(store, entityId)) {
+            store.set(heldCommitAtomFamily(sessionId), revisionId)
+            return
+        }
+        adoptSecretRevision(revisionId)
     }
+    const [commitFollower] = useState(() =>
+        createCommitFollower({
+            apply: (revisionId) => applyCommitRef.current(revisionId),
+            isVisible: () => document.visibilityState === "visible",
+        }),
+    )
+    followCommitRef.current = commitFollower.report
+    useEffect(() => {
+        const onVisibility = () => commitFollower.flush()
+        document.addEventListener("visibilitychange", onVisibility)
+        return () => document.removeEventListener("visibilitychange", onVisibility)
+    }, [commitFollower])
     useEffect(() => {
         for (const revisionId of committedRevisionIds(conversation.messages))
             followCommitRef.current(revisionId)
@@ -284,7 +304,6 @@ export const LiveConversation = ({
     // Subscribed here so the build-kit overlay loads while the user types the first message.
     const buildKitReadyAtom = workflowBuildKitOverlayReadyAtomFamily(entityId)
     useAtomValue(buildKitReadyAtom)
-    const store = useStore()
     const firstTurn = conversation.messages.length === 0
     // A fresh session becomes real on the server only once this first message is admitted, which
     // can take seconds on a cold runner. Note it locally first, so the rail lists it now (#6776).

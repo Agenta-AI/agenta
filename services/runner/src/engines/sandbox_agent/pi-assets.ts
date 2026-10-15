@@ -36,6 +36,7 @@ import { PUBLIC_SPECS_FILE_ENV } from "../../tools/tool-mcp-env.ts";
 import type { MaterializedSkill } from "../skills.ts";
 import { PKG_ROOT } from "./daemon.ts";
 import { shellQuote } from "./mount.ts";
+import { sandboxFileText } from "./subscription-login/files.ts";
 import {
   describePiModelsJsonPlan,
   isPiModelConfigApplicable,
@@ -792,6 +793,69 @@ export async function uploadPiExtensionToSandbox(
   }
 }
 
+/**
+ * Pi's retry setting for a run that reaches its model through the Agenta LLM gateway. The gateway
+ * already retries the provider's 408, 409, 429 and 5xx answers, so Pi keeps one retry, for a
+ * dropped connection to the gateway, instead of its default three on top of the gateway's. A run
+ * that goes straight to a provider keeps Pi's default: there Pi is the only layer that retries.
+ */
+export const GATEWAY_PI_RETRY = { maxRetries: 1 };
+const PI_SETTINGS_FILENAME = "settings.json";
+
+/** A Pi `settings.json` with the gateway retry merged over whatever the file already holds. */
+export function withGatewayPiRetry(existing: string | undefined): string {
+  let settings: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = existing ? JSON.parse(existing) : {};
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+      settings = parsed as Record<string, unknown>;
+  } catch {
+    // An unreadable file configures nothing Pi could use; the gateway retry replaces it.
+  }
+  const retry =
+    settings.retry && typeof settings.retry === "object" ? settings.retry : {};
+  return JSON.stringify(
+    { ...settings, retry: { ...retry, ...GATEWAY_PI_RETRY } },
+    null,
+    2,
+  );
+}
+
+/**
+ * Best-effort, like the Daytona upload below: a run whose write failed keeps Pi's default retries,
+ * which is how every run behaved before, so it is not stopped for it.
+ */
+function writeGatewayPiRetryLocal(agentDir: string, log: Log): void {
+  const file = join(agentDir, PI_SETTINGS_FILENAME);
+  try {
+    const existing = existsSync(file) ? readFileSync(file, "utf-8") : undefined;
+    writeFileSync(file, withGatewayPiRetry(existing));
+  } catch (err) {
+    log(`pi settings.json write skipped: ${(err as Error).message}`);
+  }
+}
+
+/** Merge the gateway retry into the `settings.json` of a Daytona sandbox's Pi agent dir. */
+export async function uploadGatewayPiRetryToSandbox(
+  sandbox: any,
+  agentDir: string,
+  log: Log = () => {},
+): Promise<void> {
+  const path = `${agentDir}/${PI_SETTINGS_FILENAME}`;
+  let existing: string | undefined;
+  try {
+    existing = sandboxFileText(await sandbox.readFsFile({ path }));
+  } catch {
+    // No settings file yet.
+  }
+  try {
+    // The extension upload before this one created the agent dir.
+    await sandbox.writeFsFile({ path }, withGatewayPiRetry(existing));
+  } catch (err) {
+    log(`pi settings.json upload skipped: ${(err as Error).message}`);
+  }
+}
+
 export interface PreparedLocalAgentDir {
   /** The throwaway per-run agent dir the runtime user owns (under the system temp path). */
   dir: string;
@@ -837,7 +901,7 @@ export interface PrepareLocalPiAssetsInput {
   plan: Pick<RunPlan, "isPi" | "isDaytona"> & {
     credentials: Pick<
       RunPlanCredentials,
-      "credentialMode" | "subscriptionHome"
+      "credentialMode" | "subscriptionHome" | "throughGateway"
     >;
     workspace: Pick<RunPlanWorkspace, "skillDirs" | "sourcePiAgentDir">;
     prompt: Pick<
@@ -1044,6 +1108,7 @@ export function prepareLocalPiAssets({
       log,
     );
   }
+  if (plan.credentials.throughGateway) writeGatewayPiRetryLocal(runAgentDir, log);
   let modelConfigWritten = true;
   if (piModelConfig) {
     try {

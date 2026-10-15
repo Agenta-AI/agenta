@@ -1,186 +1,73 @@
-import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@agenta/ui/ui"
-import {ArrowRightIcon, PlusIcon} from "@phosphor-icons/react"
+import {CreateMenuButton, type CreateMenuOption} from "@agenta/ui/create-menu"
+import {DropdownMenuItem} from "@agenta/ui/ui"
+import {ArrowRightIcon} from "@phosphor-icons/react"
 import Link from "next/link"
 
-export interface NewAgentTemplate {
-    key: string
-    name: string
-    description?: string
-    /** Avatar tile — two letters over the template's own colour. */
-    initials: string
-    color: string
-}
-
 export interface NewAgentButtonProps {
-    /** Blank create. The only entry every surface has. */
     onCreateBlank: () => void
-    /**
-     * Template seeds. Omit (or pass none) and the templates section disappears with them — a
-     * surface that cannot seed a template must not offer one.
-     */
-    templates?: NewAgentTemplate[]
-    onPickTemplate?: (templateKey: string) => void
-    /**
-     * The catalogue's read state. The templates are fetched, so while `"pending"` the menu says so
-     * and on `"error"` it offers `onRetryTemplates` — never a menu that reads as "no templates".
-     * Omit when the list is static (treated as loaded).
-     */
-    templatesStatus?: "pending" | "error" | "success"
-    onRetryTemplates?: () => void
-    /** The full gallery. Omit and the footer link goes with it. */
-    browseHref?: string
-    /** Total template count for the footer link; defaults to what was passed. */
-    totalTemplates?: number
+    /** The picked template .zip. Absent ⇒ no Upload row. */
+    onUpload?: (file: File) => void
+    /** Opens the import-from-repo flow. Absent ⇒ no Import row. */
+    onImport?: () => void
+    /** The template gallery. */
+    browseHref: string
     label?: string
     /** A create is in flight — the trigger reports it rather than accepting a second click. */
     loading?: boolean
+    variant?: "default" | "outline"
+    size?: "sm" | "default"
     /** On the trigger — a phone toolbar sizes it down from here. */
     className?: string
 }
 
-/** Enough to recognise the shape of what's on offer; the rest is one click away. */
-const SUGGESTED = 4
-
-/**
- * The one way to create an agent: blank, or from a template.
- *
- * Both land on the same create surface, so a template pick is a seed rather than a separate
- * flow — the alternative was a plain button that hid templates behind a rail section and a
- * gallery nobody could reach.
- */
+/** The one way to create an agent: from scratch, from an uploaded package, or from a repo. */
 export const NewAgentButton = ({
     onCreateBlank,
-    templates = [],
-    onPickTemplate,
-    templatesStatus = "success",
-    onRetryTemplates,
+    onUpload,
+    onImport,
     browseHref,
-    totalTemplates,
     label = "New agent",
-    loading = false,
-    className,
+    ...button
 }: NewAgentButtonProps) => {
-    const suggested = onPickTemplate ? templates.slice(0, SUGGESTED) : []
-    const templatesLoaded = templatesStatus === "success"
-    // Only a surface that offers template picks reports the catalogue's read state.
-    const catalogueNote = onPickTemplate && !templatesLoaded
-    const templateCount = totalTemplates ?? templates.length
-
+    const options: CreateMenuOption[] = [
+        {
+            kind: "write",
+            title: "Start from scratch",
+            hint: "Start with an empty agent and shape it in chat",
+            onSelect: onCreateBlank,
+        },
+    ]
+    if (onUpload)
+        options.push({
+            kind: "upload",
+            title: "Upload",
+            hint: "An agent template .zip",
+            accept: ".zip,application/zip",
+            onFiles: (files) => onUpload(files[0]),
+        })
+    if (onImport)
+        options.push({
+            kind: "import",
+            title: "Import from a repo",
+            hint: "Scan a public GitHub repository for agent templates",
+            onSelect: onImport,
+        })
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild disabled={loading}>
-                <EnhancedButton
-                    type="primary"
-                    loading={loading}
-                    icon={<PlusIcon size={14} />}
-                    className={className}
-                >
-                    {label}
-                </EnhancedButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="max-w-[320px]">
-                <DropdownMenuItem onSelect={onCreateBlank}>
-                    {/* A tile, like the templates under it: the entries are alternatives to each
-                        other, so they read as one list rather than a button above a list. */}
-                    <span
-                        aria-hidden
-                        className="flex size-7 shrink-0 items-center justify-center rounded-md bg-colorFillSecondary text-colorTextSecondary"
+        <CreateMenuButton
+            label={label}
+            options={options}
+            footer={
+                <DropdownMenuItem asChild>
+                    <Link
+                        href={browseHref}
+                        className="inline-flex items-center gap-1 !text-colorPrimary"
                     >
-                        <PlusIcon size={15} />
-                    </span>
-                    <span className="flex min-w-0 flex-col py-0.5">
-                        <span className="truncate text-sm text-colorText">New agent</span>
-                        {/* One line, like the template rows under it: a subtitle that wraps makes
-                            the first entry taller than every entry it is offered beside. */}
-                        <span className="truncate text-xs text-colorTextTertiary">
-                            Start with an empty agent and shape it in chat
-                        </span>
-                    </span>
+                        Browse all templates
+                        <ArrowRightIcon size={12} />
+                    </Link>
                 </DropdownMenuItem>
-
-                {catalogueNote ? (
-                    <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel>Templates</DropdownMenuLabel>
-                        {templatesStatus === "pending" ? (
-                            <DropdownMenuItem disabled>
-                                <span className="text-xs text-colorTextTertiary">
-                                    Loading templates…
-                                </span>
-                            </DropdownMenuItem>
-                        ) : (
-                            <DropdownMenuItem
-                                onSelect={(event) => {
-                                    // Keep the menu open: the retry's answer lands right here.
-                                    event.preventDefault()
-                                    onRetryTemplates?.()
-                                }}
-                            >
-                                <span className="flex min-w-0 flex-col py-0.5">
-                                    <span className="truncate text-sm text-colorText">
-                                        Could not load templates
-                                    </span>
-                                    <span className="truncate text-xs text-colorPrimary">
-                                        Retry
-                                    </span>
-                                </span>
-                            </DropdownMenuItem>
-                        )}
-                    </>
-                ) : suggested.length > 0 ? (
-                    <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel>Templates</DropdownMenuLabel>
-                        {suggested.map((template) => (
-                            <DropdownMenuItem
-                                key={template.key}
-                                onSelect={() => onPickTemplate?.(template.key)}
-                            >
-                                <span
-                                    aria-hidden
-                                    className="flex size-7 shrink-0 items-center justify-center rounded-md text-xs font-semibold text-white"
-                                    style={{background: template.color}}
-                                >
-                                    {template.initials}
-                                </span>
-                                <span className="flex min-w-0 flex-col py-0.5">
-                                    <span className="truncate text-sm text-colorText">
-                                        {template.name}
-                                    </span>
-                                    <span className="truncate text-xs text-colorTextTertiary">
-                                        {template.description}
-                                    </span>
-                                </span>
-                            </DropdownMenuItem>
-                        ))}
-                    </>
-                ) : null}
-
-                {browseHref ? (
-                    <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem asChild>
-                            <Link
-                                href={browseHref}
-                                className="inline-flex items-center gap-1 !text-colorPrimary"
-                            >
-                                {templatesLoaded
-                                    ? `Browse all ${templateCount} templates`
-                                    : "Browse all templates"}
-                                <ArrowRightIcon size={12} />
-                            </Link>
-                        </DropdownMenuItem>
-                    </>
-                ) : null}
-            </DropdownMenuContent>
-        </DropdownMenu>
+            }
+            {...button}
+        />
     )
 }

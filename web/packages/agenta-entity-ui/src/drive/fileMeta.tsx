@@ -17,6 +17,8 @@ import {CaretRight} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import {AnimatePresence, motion} from "motion/react"
 
+import {PREVIEW_TEXT_CAP} from "./renderers"
+
 // Extension → MIME (best-effort; the listing carries no content-type). Mirrors the renderer's
 // kind table so previews and this block never disagree about what a file is.
 const MIME: Record<string, string> = {
@@ -158,14 +160,16 @@ export function DriveFileMetaList({
     const isImage = kind === "image"
     const isMedia = kind === "audio" || kind === "video"
     const isText = TEXT_KINDS.has(kind)
+    // Same cap as the preview body, so the meta never reads a file the preview refuses.
+    const readsText = isText && (size == null || size <= PREVIEW_TEXT_CAP)
 
     const dimensions = useImageDimensions(mount, path, isImage)
     const media = useMediaMetadata(mount, path, kind, isMedia)
     // Reuses the exact query the preview body reads (same key) — deduped, no extra fetch.
     const contentQuery = useAtomValue(
-        mountFileContentQueryFamily({mountId: isText ? (mount?.id ?? "") : "", path}),
+        mountFileContentQueryFamily({mountId: readsText ? (mount?.id ?? "") : "", path}),
     )
-    const content = isText && typeof contentQuery.data === "string" ? contentQuery.data : null
+    const content = readsText && typeof contentQuery.data === "string" ? contentQuery.data : null
 
     const dims = dimensions
         ? `${dimensions.w} × ${dimensions.h} px`

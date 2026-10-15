@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 
 
 from agenta.sdk.contexts.tracing import TracingContext
+from agenta.sdk.engines.tracing.server import is_server_span
 from agenta.sdk.utils.logging import get_module_logger
 from opentelemetry.baggage import get_all as get_baggage
 from opentelemetry.context import Context
@@ -294,4 +295,7 @@ class EndedSpanRecorder(SpanProcessor):
     """
 
     def on_end(self, span):
+        # server request spans are not product spans; keep the last product span
+        if is_server_span(span):
+            return
         _set_last_ended(span.get_span_context())

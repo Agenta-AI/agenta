@@ -33,7 +33,7 @@ from oss.src.core.mounts.service import (
     validate_file_path,
 )
 from oss.src.core.store.dtos import StoreObject, StorePutResult
-from oss.src.core.store.types import StorePreconditionFailed
+from oss.src.core.store.types import StoreObjectTooLarge, StorePreconditionFailed
 from oss.src.core.mounts.types import (
     MountFileNotFound,
     MountNotFound,
@@ -268,11 +268,13 @@ class FakeMountStorage:
         return body
 
     async def get_object_with_etag(
-        self, *, bucket: str, key: str
+        self, *, bucket: str, key: str, max_bytes: Optional[int] = None
     ) -> Tuple[bytes, Optional[str]]:
         b = self._store.get(bucket, {})
         if key not in b:
             raise MountFileNotFound()
+        if max_bytes is not None and len(b[key]) > max_bytes:
+            raise StoreObjectTooLarge(max_bytes)
         return b[key], self.etag_of(b[key])
 
     async def stat_object(self, *, bucket: str, key: str) -> StoreObject:

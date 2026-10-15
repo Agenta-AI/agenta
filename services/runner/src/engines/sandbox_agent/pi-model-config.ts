@@ -289,11 +289,20 @@ function isPiHarness(harness: string | undefined): boolean {
 }
 
 /**
+ * The Pi provider id for a gateway route the author did not name: the project default, which the
+ * SDK sends with no `connection` at all. A standard Gemini provider key is the case today. The
+ * gateway serves it on an OpenAI-compatible chat-completions surface, which Pi's built-in
+ * `openai` provider does not speak (it calls `/responses`).
+ */
+export const PI_GATEWAY_DEFAULT_PROVIDER_ID = "agenta-gateway";
+
+/**
  * Applicability (which KIND of run this is) — ALL must hold, else this builder does not apply:
  *   - the harness is Pi;
  *   - the resolved provider family is "openai";
  *   - the resolved deployment is "custom";
- *   - the connection is a named Agenta connection (`mode === "agenta"`).
+ *   - the connection is a named Agenta connection (`mode === "agenta"`), or the run has no
+ *     connection (the project default) and is routed through the gateway.
  *
  * Exported so `buildPiExtensionEnv` can skip the generic Pi provider-override env for runs this
  * models.json path already routes (two competing registrations would race for the provider).
@@ -303,8 +312,13 @@ export function isPiModelConfigApplicable(request: AgentRunRequest): boolean {
     isPiHarness(request.harness) &&
     request.modelConnection?.provider === "openai" &&
     request.modelConnection?.deployment === "custom" &&
-    request.connection?.mode === "agenta"
+    (request.connection?.mode === "agenta" || isDefaultGatewayRoute(request))
   );
+}
+
+/** A gateway-routed run whose author picked no connection (the project default). */
+function isDefaultGatewayRoute(request: AgentRunRequest): boolean {
+  return !request.connection && !!request.modelConnection?.gatewayCredentials;
 }
 
 /**
@@ -333,7 +347,9 @@ export function buildPiModelConfigPlan(
   if (!isPiModelConfigApplicable(request)) return undefined;
 
   const credentialMode = request.modelConnection?.credentialMode;
-  const slug = request.connection?.slug?.trim();
+  const slug = isDefaultGatewayRoute(request)
+    ? PI_GATEWAY_DEFAULT_PROVIDER_ID
+    : request.connection?.slug?.trim();
   const baseUrl = request.modelConnection?.endpoint?.baseUrl?.trim();
   const model = request.model?.trim();
   const hasKey = !!secrets[OPENAI_API_KEY_ENV]?.trim();

@@ -20,6 +20,7 @@ from agenta.sdk.contexts.tracing import (
     tracing_context_manager,
 )
 from agenta.sdk.engines.tracing.conventions import parse_span_kind
+from agenta.sdk.engines.tracing.server import product_context
 from agenta.sdk.engines.tracing.spans import CustomSpan
 from agenta.sdk.redaction.context import get_active_redactor
 from agenta.sdk.utils.exceptions import suppress
@@ -491,13 +492,20 @@ class instrument:  # pylint: disable=invalid-name
     def _get_traceparent(self):
         context = TracingContext.get()
 
+        # never a server span: product spans parent on product spans or start a trace
+        current = product_context()
+
+        if context.link:
+            return current
+
         traceparent = context.traceparent
+        if traceparent is None:
+            traceparent = current
 
-        if not context.link:
-            for key, value in get_all(get_current()).items():
-                traceparent = set_baggage(name=key, value=value, context=traceparent)
+        for key, value in get_all(current).items():
+            traceparent = set_baggage(name=key, value=value, context=traceparent)
 
-            return traceparent
+        return traceparent
 
     def _set_link(self, span):
         if not isinstance(span, CustomSpan):

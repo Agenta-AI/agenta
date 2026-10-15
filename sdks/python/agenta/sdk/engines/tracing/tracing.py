@@ -6,7 +6,6 @@ from pydantic import BaseModel
 
 
 from opentelemetry.trace import (
-    get_current_span,
     set_tracer_provider,
     get_tracer_provider,
     Status,
@@ -29,6 +28,7 @@ from agenta.sdk.engines.tracing.exporters import OTLPExporter
 from agenta.sdk.engines.tracing.spans import CustomSpan
 from agenta.sdk.engines.tracing.conventions import Reference, is_valid_attribute_key
 from agenta.sdk.engines.tracing.propagation import extract, inject
+from agenta.sdk.engines.tracing.server import current_product_span
 from agenta.sdk.utils.cache import TTLLRUCache
 
 import agenta as ag
@@ -125,7 +125,7 @@ class Tracing(metaclass=Singleton):
         _span = None
 
         with suppress():
-            _span = get_current_span()
+            _span = current_product_span()
 
             if _span.is_recording():
                 return CustomSpan(_span)
@@ -298,7 +298,7 @@ class Tracing(metaclass=Singleton):
         Returns:
             SpanContext or None if no active span
         """
-        span = get_current_span()
+        span = current_product_span()
         ctx = span.get_span_context()
         return ctx if ctx and ctx.is_valid else None
 

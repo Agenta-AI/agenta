@@ -305,6 +305,15 @@ CREDENTIAL_ECHO_NEXT_STEP = (
 )
 
 
+# Typed gateway refusals carry this marker in their message for harness recovery.
+CODE_MARKER_OPEN = "⟦agenta_code:"
+CODE_MARKER_CLOSE = "⟧"
+
+
+def with_code_marker(message: str, code: str) -> str:
+    return f"{message} {CODE_MARKER_OPEN}{code}{CODE_MARKER_CLOSE}"
+
+
 def credential_echo_envelope(*, target: Optional[str] = None) -> Dict[str, Any]:
     """The shared refusal envelope `{code, message, retryable, next_step, details}`.
 

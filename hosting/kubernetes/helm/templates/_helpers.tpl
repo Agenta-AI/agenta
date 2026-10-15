@@ -221,7 +221,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* ================================================================
    Canonical values reader. Helpers/templates that touch renamed
    paths (`agenta.*`, `posthog.*`, `postgres.*`, `supertokens.apiKey`,
-   `sendgrid.*`, `composio.*`, `newrelic.*`, `cloudflare.*`) bind
+   `sendgrid.*`, `composio.*`, `cloudflare.*`) bind
    a local at the top of the helper:
 
        {{- $values := include "agenta.values" . | fromYaml -}}
@@ -1154,7 +1154,6 @@ failureThreshold: 3
 {{- $sendgrid := default dict $values.sendgrid -}}
 {{- $composio := default dict $values.composio -}}
 {{- $cf := default dict (default dict $values.cloudflare).turnstile -}}
-{{- $nr := default dict $values.newrelic -}}
 {{- $loops := default dict .Values.loops -}}
 {{- $crisp := default dict .Values.crisp -}}
 {{- $daytona := default dict .Values.daytona -}}
@@ -1625,14 +1624,6 @@ failureThreshold: 3
     secretKeyRef:
       name: {{ include "agenta.secretName" . }}
       key: COMPOSIO_API_KEY
-      optional: true
-{{- end }}
-{{- if $nr.licenseKey }}
-- name: NEWRELIC_LICENSE_KEY
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "agenta.secretName" . }}
-      key: NEWRELIC_LICENSE_KEY
       optional: true
 {{- end }}
 {{- if $cf.secretKey }}

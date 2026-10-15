@@ -66,7 +66,6 @@ import {
   PI_GATEWAY_MCP_SERVERS_ENV,
   registerPiGatewayMcpTools,
 } from "./pi-mcp.ts";
-import { registerGeminiThoughtSignatures } from "./gemini-thought-signatures.ts";
 
 /** Read and delete one runner-authored turn control. Invalid bytes never poison a warm turn. */
 export function readPiTurnTraceControl(
@@ -511,8 +510,6 @@ function registerAgentaExtension(
         : {}),
     });
   }
-
-  registerGeminiThoughtSignatures(pi);
 
   if (hasTools) registerTools(pi, env);
   if (gatewayMcpServers) {

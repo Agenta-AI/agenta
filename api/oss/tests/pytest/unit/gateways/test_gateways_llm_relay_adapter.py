@@ -9,6 +9,7 @@ the authority back; the pin itself is asserted in `test_gateways_egress.py`.
 """
 
 import json
+import re
 from typing import Optional
 from unittest.mock import AsyncMock, patch
 
@@ -23,9 +24,13 @@ from oss.src.core.gateways.llms.dtos import (
     LLMResolvedRoute,
 )
 from oss.src.core.gateways.llms.providers.passthrough.adapter import (
+    _MAX_FRAME_BYTES,
     RelayLLMAdapter,
 )
-from oss.src.core.gateways.llms.types import LLMUpstreamError, LLMUpstreamTimeoutError
+from oss.src.core.gateways.llms.types import (
+    LLMUpstreamError,
+    LLMUpstreamTimeoutError,
+)
 from oss.src.core.gateways.policy.dtos import (
     SecretOwner,
     SecretOwnerKind,
@@ -61,6 +66,7 @@ def _route(
         provider_key="openai",
         deployment_kind=LLMDeploymentKind.CUSTOM,
         model="gpt-4o",
+        label="my-endpoint",
         base_url=base_url,
         headers={"x-route": "1"},
         settings=LLMEndpointSettings(timeout_seconds=timeout_seconds),
@@ -363,28 +369,30 @@ async def test_connection_failure_raises_llm_upstream_error_never_something_else
 
 
 @pytest.mark.asyncio
-async def test_non_timeout_5xx_raises_llm_upstream_error_with_status_code():
+async def test_a_5xx_without_a_json_body_is_relayed_as_a_marked_502():
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(503, text="upstream broke")
+        return httpx.Response(503, text="<html>upstream broke</html>")
 
     adapter = _adapter(handler)
+    result = await adapter.relay_chat_completion(
+        route=_route(), secret=None, context=_context(), body=_body(), headers={}
+    )
 
-    with pytest.raises(LLMUpstreamError) as excinfo:
-        await adapter.relay_chat_completion(
-            route=_route(),
-            secret=None,
-            context=_context(),
-            body=_body(),
-            headers={},
-        )
-
-    assert excinfo.value.status_code == 503
+    assert result.status_code == 502
+    assert result.headers["content-type"] == "application/json"
+    error = json.loads((await _drain(result.body))[0])["error"]
+    assert error["message"] == (
+        "The model reported an error. Try again. ⟦agenta_code:upstream_error⟧"
+    )
 
 
 @pytest.mark.asyncio
-async def test_4xx_response_passes_through_untouched():
+async def test_a_4xx_keeps_its_envelope_with_only_the_message_rewritten():
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(400, json={"error": {"message": "bad request"}})
+        return httpx.Response(
+            400,
+            json={"error": {"message": "bad request", "type": "invalid_request_error"}},
+        )
 
     adapter = _adapter(handler)
     result = await adapter.relay_chat_completion(
@@ -393,7 +401,14 @@ async def test_4xx_response_passes_through_untouched():
 
     assert result.status_code == 400
     chunks = await _drain(result.body)
-    assert json.loads(chunks[0]) == {"error": {"message": "bad request"}}
+    assert json.loads(chunks[0]) == {
+        "error": {
+            "message": 'The model reported an error: "bad request".'
+            " Check the endpoint's key, account and model, or change the request."
+            " ⟦agenta_code:upstream_rejected⟧",
+            "type": "invalid_request_error",
+        }
+    }
 
 
 @pytest.mark.asyncio
@@ -470,14 +485,16 @@ async def test_configured_timeout_overrides_default():
 
     adapter = _adapter(handler)
     await adapter.relay_chat_completion(
-        route=_route(timeout_seconds=5.0),
+        route=_route(timeout_seconds=42.0),
         secret=None,
         context=_context(),
         body=_body(),
         headers={},
     )
 
-    assert captured["request"].extensions["timeout"]["connect"] == 5.0
+    timeout = captured["request"].extensions["timeout"]
+    assert timeout["read"] == timeout["write"] == timeout["pool"] == 42.0
+    assert timeout["connect"] == 5.0
 
 
 @pytest.mark.asyncio
@@ -699,7 +716,9 @@ async def test_default_timeout_used_when_route_leaves_it_unset():
         headers={},
     )
 
-    assert captured["request"].extensions["timeout"]["connect"] == 60.0
+    timeout = captured["request"].extensions["timeout"]
+    assert timeout["read"] == timeout["write"] == timeout["pool"] == 600.0
+    assert timeout["connect"] == 5.0
 
 
 # --- OR49: usage on the streaming path ------------------------------------------ #
@@ -875,3 +894,123 @@ async def test_a_streamed_responses_call_reads_a_terminal_event_larger_than_any_
     assert relayed == payload, "a Responses stream is relayed untouched"
     assert result.usage.input_tokens == 11
     assert result.usage.output_tokens == 7
+
+
+# Captured from Vertex's OpenAI-compatible endpoint (google/gemini-3.7-flash), with the
+# thought signatures shortened. Only the first call of a parallel step is signed.
+_GEMINI_STREAM = (
+    b'data: {"choices":[{"delta":{"role":"assistant","tool_calls":[{"extra_content":'
+    b'{"google":{"thought_signature":"AY89a1/IG6kf+66T"}},"function":{"arguments":'
+    b'"{\\"city\\":\\"Paris\\"}","name":"get_weather"},"id":"call_656438","index":0,'
+    b'"type":"function"}]},"index":0,"logprobs":null}],"created":1791966471,'
+    b'"id":"Bz3PaovVM7Csz_IP-bW1uAU","model":"google/gemini-3.7-flash",'
+    b'"object":"chat.completion.chunk","system_fingerprint":""}\n\n'
+    b'data: {"choices":[{"delta":{"role":"assistant","tool_calls":[{"function":'
+    b'{"arguments":"{\\"city\\":\\"Tokyo\\"}","name":"get_weather"},"id":"call_656444",'
+    b'"index":1,"type":"function"}]},"index":0,"logprobs":null}],"created":1791966471,'
+    b'"id":"Bz3PaovVM7Csz_IP-bW1uAU","model":"google/gemini-3.7-flash",'
+    b'"object":"chat.completion.chunk","system_fingerprint":""}\n\n'
+    b'data: {"choices":[{"delta":{"content":"","role":"assistant"},"finish_reason":'
+    b'"tool_calls","index":0,"logprobs":null}],"created":1791966471,'
+    b'"id":"Bz3PaovVM7Csz_IP-bW1uAU","model":"google/gemini-3.7-flash",'
+    b'"object":"chat.completion.chunk","system_fingerprint":"","usage":'
+    b'{"completion_tokens":32,"completion_tokens_details":{"reasoning_tokens":72},'
+    b'"prompt_tokens":85,"total_tokens":189}}\n\n' + _DONE_FRAME
+)
+_GEMINI_BODY = (
+    b'{"choices":[{"finish_reason":"tool_calls","index":0,"logprobs":null,"message":'
+    b'{"role":"assistant","tool_calls":[{"extra_content":{"google":{"thought_signature":'
+    b'"AY89a193bnNh2w68"}},"function":{"arguments":"{\\"city\\":\\"Paris\\"}","name":'
+    b'"get_weather"},"id":"call_568939","type":"function"},{"function":{"arguments":'
+    b'"{\\"city\\":\\"Tokyo\\"}","name":"get_weather"},"id":"call_568940","type":'
+    b'"function"}]}}],"created":1791966459,"id":"-zzPat-nE-Piz_IPruXLwA0","model":'
+    b'"google/gemini-3.7-flash","object":"chat.completion","system_fingerprint":"",'
+    b'"usage":{"completion_tokens":32,"completion_tokens_details":{"reasoning_tokens":'
+    b'89},"prompt_tokens":85,"total_tokens":206}}'
+)
+
+
+def _gemini_route(provider_key: str = "gemini") -> LLMResolvedRoute:
+    return LLMResolvedRoute(
+        provider_key=provider_key,
+        deployment_kind=LLMDeploymentKind.DIRECT,
+        model="gemini-3.7-flash",
+        base_url="https://upstream.example/v1",
+    )
+
+
+def _chunked_handler(*chunks: bytes):
+    async def content():
+        for chunk in chunks:
+            yield chunk
+
+    return lambda request: httpx.Response(200, content=content())
+
+
+async def _relay(route: LLMResolvedRoute, stream: bool, *chunks: bytes):
+    result = await _adapter(_chunked_handler(*chunks)).relay_chat_completion(
+        route=route,
+        secret=None,
+        context=_context(stream=stream),
+        body=_body(),
+        headers={},
+    )
+    return await _drain(result.body), result.usage
+
+
+def _tool_call_ids(relayed: bytes) -> list:
+    return re.findall(rb'"id": ?"(call_[^"]*)"', relayed)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "stream, upstream, ids",
+    [
+        (
+            True,
+            _GEMINI_STREAM,
+            [b"call_656438__thought__AY89a1/IG6kf+66T", b"call_656444"],
+        ),
+        (
+            False,
+            _GEMINI_BODY,
+            [b"call_568939__thought__AY89a193bnNh2w68", b"call_568940"],
+        ),
+    ],
+)
+async def test_a_gemini_route_carries_the_thought_signature_in_the_tool_call_id(
+    stream, upstream, ids
+):
+    """Split inside the signed call, so the reader must join the frame before encoding."""
+    cut = upstream.index(b"thought_signature")
+    chunks, usage = await _relay(
+        _gemini_route(), stream, upstream[:cut], upstream[cut:]
+    )
+
+    assert _tool_call_ids(b"".join(chunks)) == ids
+    assert usage.input_tokens == 85
+
+
+@pytest.mark.asyncio
+async def test_another_route_relays_a_signed_gemini_frame_byte_for_byte():
+    cut = _GEMINI_STREAM.index(b"thought_signature")
+    chunks, _ = await _relay(
+        _gemini_route("openai"), True, _GEMINI_STREAM[:cut], _GEMINI_STREAM[cut:]
+    )
+
+    assert b"".join(chunks) == _GEMINI_STREAM
+
+
+@pytest.mark.asyncio
+async def test_a_gemini_chunk_larger_than_the_frame_limit_keeps_its_whole_lines():
+    filler = b'data: {"choices":[]}\n\n' * (_MAX_FRAME_BYTES // 20)
+    chunks, usage = await _relay(_gemini_route(), True, filler + _GEMINI_STREAM)
+
+    assert _tool_call_ids(b"".join(chunks))[0].endswith(b"__thought__AY89a1/IG6kf+66T")
+    assert usage.input_tokens == 85
+
+
+@pytest.mark.asyncio
+async def test_a_gemini_frame_larger_than_the_limit_fails_instead_of_losing_a_signature():
+    with pytest.raises(LLMUpstreamError):
+        await _relay(_gemini_route(), True, b"data: " + b"x" * _MAX_FRAME_BYTES)

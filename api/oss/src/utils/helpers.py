@@ -207,7 +207,7 @@ def validate_platform_runtime_key():
         "Without it, platform runs cannot receive the short-lived grant needed to read "
         "write-only secrets. "
         "Set AGENTA_SERVICES_INTERNAL_KEY to the same value on the API and the services "
-        "container."
+        "container, for example a value created with `openssl rand -hex 32`."
     )
 
 
