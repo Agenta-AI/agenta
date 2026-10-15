@@ -15,11 +15,11 @@
   
   ---
   
-<a href="https://youtu.be/7Wfvtv428Fs?si=bTBUoS9JJC2Crkxs">
+<a href="https://youtu.be/hk8TMNTCZvU">
   <img
     width="900"
-    alt="Watch the Agenta platform demo"
-    src="https://github.com/user-attachments/assets/b7d7ff89-2653-4883-9141-fe400d42d5ef"
+    alt="Watch the complete tutorial: Build an inbound outreach agent with no code"
+    src=".github/images/inbound-outreach-agent-tutorial.png"
   />
 </a>
 
