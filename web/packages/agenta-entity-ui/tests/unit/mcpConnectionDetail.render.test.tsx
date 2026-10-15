@@ -157,6 +157,15 @@ describe("McpConnectionDetail: whose tools are on screen", () => {
         expect(listMcpTools.mock.calls.map((call) => call[0])).toEqual(["acme", "beta"])
     })
 
+    it("names a pending OAuth connection as its row in the list does", async () => {
+        // No grant and no check: the row says Not signed in, and the panel said Needs
+        // authorization for the same state.
+        await open(connected({secret_id: null}))
+
+        expect(text()).toContain("Not signed in")
+        expect(text()).not.toContain("Needs authorization")
+    })
+
     it("says the server has to be connected before it can report tools", async () => {
         // The same drawer straight after a disconnect: the status is read from the row it is
         // showing now, so the previous connection's tools are neither listed nor re-fetched.
@@ -199,7 +208,7 @@ describe("McpConnectionDetail: whose tools are on screen", () => {
         await render(connected({flags: {is_valid: false}}))
 
         expect(text()).toContain("Sign in again to keep using this connection.")
-        expect(text()).toContain("Needs authorization")
+        expect(text()).toContain("Login expired")
     })
 
     it("shows the connection working when a valid update follows a failed sign-in", async () => {
@@ -214,7 +223,7 @@ describe("McpConnectionDetail: whose tools are on screen", () => {
 
         await open(connected({flags: {is_valid: true}}))
 
-        expect(text()).not.toContain("Needs authorization")
+        expect(text()).not.toContain("Login expired")
         expect(text()).not.toContain("Sign in again")
         expect(toolNames()).toEqual(["create_issue"])
     })
@@ -310,7 +319,7 @@ describe("McpConnectionDetail: a tool list that could not be read", () => {
 
         expect(text()).toContain("The gateway timed out.")
         // Connected, with a listing problem: nothing here suggests reauthorizing.
-        expect(text()).not.toContain("Needs authorization")
+        expect(text()).not.toContain("Login expired")
         expect(button("Retry tools")).toBeTruthy()
     })
 

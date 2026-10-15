@@ -19,8 +19,8 @@ import {
     editMcpEndpoint,
     filterMcpTools,
     gatewayRefusalCode,
-    getMcpConnectionState,
-    getMcpConnectionStateLabel,
+    getMcpConnectionStatus,
+    getMcpConnectionStatusLabel,
     listMcpTools,
     type MCPEndpoint,
     type McpToolSummary,
@@ -71,8 +71,9 @@ export default function McpConnectionDetail({
     const [tools, setTools] = useState<ToolsState>({status: "idle"})
     const [filter, setFilter] = useState("")
 
-    const connectionState = endpoint ? getMcpConnectionState(endpoint) : null
-    const isReady = connectionState === "ready"
+    // The status the connection's row in the list reads, so one state has one label.
+    const status = endpoint ? getMcpConnectionStatus(endpoint) : null
+    const isReady = status === "connected"
     const signInExpired =
         endpoint?.auth_mode === "oauth" &&
         !!endpoint.secret_id &&
@@ -196,7 +197,7 @@ export default function McpConnectionDetail({
                         <div className="flex min-w-0 items-center gap-2">
                             <StatusIndicator
                                 tone={isReady ? "success" : "warning"}
-                                label={getMcpConnectionStateLabel(connectionState ?? "needs_auth")}
+                                label={getMcpConnectionStatusLabel(status ?? "not_signed_in")}
                                 className="shrink-0 text-[13px]"
                             />
                             <span aria-hidden className="text-colorTextDescription">
