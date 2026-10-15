@@ -1750,7 +1750,8 @@ class MountsConfig(BaseModel):
 
     # Largest request body the drive upload and write routes accept, in bytes. The API holds
     # the whole file in memory while it writes it to the store, so this bounds the memory one
-    # request can take. A larger request gets 413 before its body is read.
+    # request can take. A larger request gets 413: before its body is read when it declares
+    # Content-Length, and as soon as it passes the limit when it does not.
     max_upload_bytes: int = Field(
         default_factory=lambda: (
             _parse_optional_positive_int_env("AGENTA_MOUNTS_MAX_UPLOAD_BYTES")

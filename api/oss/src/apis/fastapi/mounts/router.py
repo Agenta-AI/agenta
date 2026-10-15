@@ -66,6 +66,7 @@ from oss.src.apis.fastapi.mounts.utils import (
     SizeCappedUploadRoute,
     TEXT_READ_TOO_LARGE_RESPONSE,
     ZIP_RESPONSE,
+    check_upload_size,
     download_mount_file,
     merge_mount_query,
     sign_mount_credentials,
@@ -716,6 +717,7 @@ class MountsRouter:
 
         if_none_match_any = _if_none_match_any(if_none_match)
         content = await request.body()
+        check_upload_size(len(content))
 
         written = await self.mounts_service.write_file(
             project_id=UUID(request.state.project_id),

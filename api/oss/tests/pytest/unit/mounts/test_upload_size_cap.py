@@ -2,6 +2,7 @@
 
 - A declared Content-Length over the cap is 413 before any body byte is read.
 - A body without Content-Length is counted as it arrives and stops at the cap with 413.
+- A file one byte over the cap is 413, even though the multipart allowance lets its body in.
 - A body under the cap is written as before.
 - Every route that takes a file body uses the capped route class.
 """
@@ -167,6 +168,20 @@ class TestMountRoutes:
         response = client.put(f"{base}?path=big.txt", content=b"a" * (_MAX_BODY + 1))
 
         assert response.status_code == 413
+
+    def test_file_one_byte_over_cap_is_413(self):
+        # The body fits the multipart allowance, so only the exact file check catches it.
+        client, store, base = _client()
+        store.put_object = AsyncMock(side_effect=AssertionError("store was written"))
+
+        uploaded = client.post(
+            f"{base}/upload?path=edge.bin",
+            files={"file": ("edge.bin", b"a" * (_CAP + 1))},
+        )
+        written = client.put(f"{base}?path=edge.txt", content=b"a" * (_CAP + 1))
+
+        assert uploaded.status_code == 413
+        assert written.status_code == 413
 
     def test_put_under_cap_is_written(self):
         client, _, base = _client()

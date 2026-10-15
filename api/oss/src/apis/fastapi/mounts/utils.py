@@ -62,11 +62,21 @@ def _upload_too_large() -> HTTPException:
     )
 
 
+def check_upload_size(size: int) -> None:
+    """Refuse file bytes over `AGENTA_MOUNTS_MAX_UPLOAD_BYTES`.
+
+    The route class allows room for multipart framing, so it lets a file slightly over the
+    limit through. This check applies the exact limit to the file itself.
+    """
+    if size > env.mounts.max_upload_bytes:
+        raise _upload_too_large()
+
+
 def _size_capped_request(request: Request) -> Request:
     """Return `request` with its body capped at `AGENTA_MOUNTS_MAX_UPLOAD_BYTES`.
 
-    A declared Content-Length over the cap is refused before any byte is read. The body is also
-    counted as it arrives, so a request without Content-Length stops at the cap too.
+    A declared Content-Length over the cap is refused before any byte is read. A request without
+    Content-Length is counted as it arrives and refused once it passes the cap.
     """
     max_body_bytes = env.mounts.max_upload_bytes + _UPLOAD_MULTIPART_OVERHEAD_BYTES
 
@@ -153,6 +163,7 @@ async def upload_mount_file(
         dest = f"{dest}{file.filename}"
 
     content = await file.read()
+    check_upload_size(len(content))
     return await mounts_service.write_file(
         project_id=project_id,
         mount_id=mount_id,
