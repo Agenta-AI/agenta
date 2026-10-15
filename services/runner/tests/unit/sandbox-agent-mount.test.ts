@@ -337,6 +337,7 @@ describe("mountStorage", () => {
     assert.ok(seenArgs.includes("--endpoint"));
     assert.ok(seenArgs.includes("http://seaweedfs:8333"));
     assert.ok(seenArgs.includes("allow_other"));
+    assert.ok(seenArgs.includes("--no-expire-multipart"));
     // -f keeps geesefs foreground (tracked child). Without it the detached daemon dies under
     // write-heavy load (git clone) and the mount goes ENOTCONN.
     assert.ok(seenArgs.includes("-f"));
