@@ -119,7 +119,7 @@
         "lodash": "^4.17.23",
         "lucide-react": "^0.479.0",
         "motion": "^12.0.0",
-        "next": "15.5.24",
+        "next": "15.5.27",
         "papaparse": "^5.5.3",
         "postcss": "^8.5.23",
         "posthog-js": "^1.223.3",
