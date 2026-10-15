@@ -94,3 +94,15 @@ def test_cors_normalizes_configured_web_url_to_origin():
 
     assert "https://agenta.example.com" in origins
     assert "https://agenta.example.com/some/path" not in origins
+
+
+def test_cors_normalizes_case_and_default_port_like_a_browser():
+    origins = _cors_origins("https://AGENTA.EXAMPLE.COM:443/app")
+
+    assert "https://agenta.example.com" in origins
+    assert "https://AGENTA.EXAMPLE.COM:443" not in origins
+
+
+def test_cors_never_allows_a_wildcard_origin():
+    assert "*" not in _cors_origins("https://agenta.example.com")
+    assert "*" not in _cors_origins("")

@@ -2,9 +2,8 @@ from contextlib import asynccontextmanager
 import asyncio
 import time
 from pathlib import Path
-from uuid import UUID
-
 from urllib.parse import urlsplit
+from uuid import UUID
 
 import agenta as ag
 from fastapi import FastAPI
@@ -649,8 +648,19 @@ def _cors_origins(web_url: str) -> list[str]:
     ]
 
     parsed_web_url = urlsplit(web_url)
-    if parsed_web_url.scheme and parsed_web_url.netloc:
-        web_origin = f"{parsed_web_url.scheme}://{parsed_web_url.netloc}"
+    scheme = parsed_web_url.scheme.lower()
+    host = parsed_web_url.hostname
+    if scheme in ("http", "https") and host:
+        if ":" in host:
+            host = f"[{host}]"
+        try:
+            port = parsed_web_url.port
+        except ValueError:
+            port = None
+        default_port = 443 if scheme == "https" else 80
+        web_origin = f"{scheme}://{host}"
+        if port and port != default_port:
+            web_origin = f"{web_origin}:{port}"
         if web_origin not in origins:
             origins.append(web_origin)
 
