@@ -58,3 +58,11 @@ export {
     type ConfigureProviderDrawerProps,
 } from "./ConfigureProviderDrawer"
 export {useLLMProviderConfig, type LLMProviderConfig} from "./useLLMProviderConfig"
+
+/** Saving one API key without the drawer, for inline add-key forms. */
+export {
+    KEY_PROVIDERS,
+    keyPlaceholderFor,
+    newProviderKeyDraft,
+    useSaveProviderKey,
+} from "./useSaveProviderKey"
