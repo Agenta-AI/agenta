@@ -12,6 +12,7 @@ import {
 import {isToolsEnabled, isWalletsEnabled} from "@agenta/shared/api/env"
 import {loadAgentIconCatalog} from "@agenta/ui/agent-icon"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
+import {useRouter} from "next/router"
 
 import {capture} from "@/features/analytics/client"
 import {newId} from "@/lib/ids"
@@ -40,15 +41,19 @@ export const OnboardingFlowHost = ({
     projectId,
     entityId,
     userId,
+    homeUrl,
 }: {
     base: string
     projectId: string
     /** The local draft agent Create commits; `null` while it is still being minted. */
     entityId: string | null
     userId: string | null
+    /** Where Skip leads. */
+    homeUrl: string
 }) => {
     // Without a pending mark the page is a preview: no analytics and no tool seeding.
     const [preview] = useState(() => !userId || !isOnboardingPending(userId))
+    const router = useRouter()
     const templates = useAtomValue(agentTemplatesAtom)
     const templatesStatus = useAtomValue(agentTemplatesStatusAtom)
     const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
@@ -145,6 +150,12 @@ export const OnboardingFlowHost = ({
         return created
     }
 
+    const onSkip = () => {
+        track("onboarding_skipped", {step: stepIndex("templates") + 1, step_key: "templates"})
+        if (userId) endOnboarding(userId)
+        void router.replace(homeUrl)
+    }
+
     return (
         <OnboardingFlow
             onboardingPath={`${base}/onboarding`}
@@ -158,6 +169,7 @@ export const OnboardingFlowHost = ({
             attachments={attachments}
             onStepCompleted={onStepCompleted}
             onCreate={onCreate}
+            onSkip={onSkip}
         />
     )
 }

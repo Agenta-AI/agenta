@@ -318,6 +318,7 @@ const baseProps = (overrides: Partial<OnboardingFlowProps> = {}): OnboardingFlow
     attachments: {} as OnboardingFlowProps["attachments"],
     onStepCompleted: vi.fn(),
     onCreate: vi.fn(() => Promise.resolve(true)),
+    onSkip: vi.fn(),
     ...overrides,
 })
 
@@ -656,5 +657,18 @@ describe("first agent onboarding", () => {
         const [step, draft] = onStepCompleted.mock.lastCall!
         expect(step).toBe("goals")
         expect(personProperties(draft.answers)).toMatchObject({agent_goals_v1: ["Coding"]})
+    })
+
+    it("offers Skip only on the first-agent step", () => {
+        const onSkip = vi.fn()
+        render(baseProps({onSkip}))
+        const skip = () =>
+            [...host!.querySelectorAll("header button")].find((item) =>
+                item.textContent?.includes("Skip for now"),
+            ) as HTMLButtonElement | undefined
+        expect(skip()).toBeUndefined()
+        toGallery()
+        act(() => skip()!.click())
+        expect(onSkip).toHaveBeenCalledOnce()
     })
 })

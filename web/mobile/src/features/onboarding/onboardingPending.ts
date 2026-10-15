@@ -27,7 +27,7 @@ export const clearOnboardingPending = (userId: string) => {
     }
 }
 
-/** Create: the user is done with onboarding, so its mark and answers go. */
+/** Create or Skip: the user is done with onboarding, so its mark and answers go. */
 export const endOnboarding = (userId: string) => {
     clearOnboardingPending(userId)
     saveOnboardingDraft(onboardingDraftKey(userId), null)

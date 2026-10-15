@@ -1,6 +1,7 @@
 import {useProfile} from "@agenta/entities/profile"
 
 import {PageTitle} from "@/components/PageTitle"
+import {projectHomeUrl} from "@/lib/context"
 
 import {useEphemeralAgent} from "../agents/useEphemeralAgent"
 import {useBindProjectContext} from "../context/useBindProjectContext"
@@ -33,6 +34,7 @@ export const OnboardingFlowScreen = ({
                     projectId={projectId}
                     entityId={entityId}
                     userId={profile.user?.id ?? null}
+                    homeUrl={projectHomeUrl({workspaceId, projectId})}
                 />
             ) : (
                 <OnboardingFlowSkeleton />

@@ -62,6 +62,8 @@ export interface OnboardingFlowProps {
     onStepCompleted: (step: OnboardingStep, draft: OnboardingDraft) => void
     /** Resolves `false` when no agent was created. */
     onCreate: (input: FirstAgentInput) => Promise<boolean>
+    /** Leaves onboarding without an agent; offered on the first-agent step. */
+    onSkip: () => void
 }
 
 const QUESTION_WIDTH = "max-w-[680px]"
@@ -87,6 +89,7 @@ export const OnboardingFlow = ({
     attachments,
     onStepCompleted,
     onCreate,
+    onSkip,
 }: OnboardingFlowProps) => {
     const [draft, dispatch] = useReducer(onboardingReducer, draftKey, readOnboardingDraft)
     const flushDraft = useDraftSave(draftKey, draft)
@@ -221,7 +224,7 @@ export const OnboardingFlow = ({
             data-onboarding-scroller
             className="bg-background text-foreground flex h-dvh flex-col overflow-y-auto overflow-x-hidden"
         >
-            <OnboardingHeader />
+            <OnboardingHeader onSkip={step === "templates" && !creating ? onSkip : undefined} />
             <main className="box-border flex min-w-0 flex-1 items-center justify-center px-4 pb-6 pt-6 sm:px-6 md:pb-24">
                 <motion.section
                     key={step}
