@@ -1,12 +1,14 @@
 """The drive upload and write routes cap the request body at AGENTA_MOUNTS_MAX_UPLOAD_BYTES.
 
-- A declared Content-Length over the cap is 413 before any body byte is read.
+- A declared Content-Length over the cap is 413; the body is read and dropped first, so a browser
+  that is still sending gets the response. Over the drain limit it is 413 before any byte is read.
 - A body without Content-Length is counted as it arrives and stops at the cap with 413.
 - A file one byte over the cap is 413, even though the multipart allowance lets its body in.
 - A body under the cap is written as before.
 - Every route that takes a file body uses the capped route class.
 """
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -82,40 +84,96 @@ def _request(headers: dict, receive) -> Request:
 
 class TestCapBeforeRead:
     @pytest.mark.asyncio
-    async def test_declared_length_over_cap_is_413_without_reading(self):
-        receive = AsyncMock(side_effect=AssertionError("body was read"))
+    async def test_declared_length_over_cap_drains_body_then_413(self):
+        chunks = [
+            {"type": "http.request", "body": b"x" * 1000, "more_body": True},
+            {"type": "http.request", "body": b"x" * 1000, "more_body": True},
+            {"type": "http.request", "body": b"x" * 1000, "more_body": False},
+        ]
+        receive = AsyncMock(side_effect=chunks)
 
         with pytest.raises(HTTPException) as raised:
-            _size_capped_request(
+            await _size_capped_request(
                 _request({"content-length": str(_MAX_BODY + 1)}, receive)
             )
 
         assert raised.value.status_code == 413
         assert f"{_CAP}-byte limit" in raised.value.detail
+        # The whole body was read, so the response does not race the upload.
+        assert receive.await_count == len(chunks)
+
+    @pytest.mark.asyncio
+    async def test_declared_length_over_drain_limit_is_413_without_reading(self):
+        receive = AsyncMock(side_effect=AssertionError("body was read"))
+        too_big = mount_utils._UPLOAD_DRAIN_LIMIT_BYTES + 1
+
+        with pytest.raises(HTTPException) as raised:
+            await _size_capped_request(
+                _request({"content-length": str(too_big)}, receive)
+            )
+
+        assert raised.value.status_code == 413
         receive.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_non_integer_length_is_400(self):
         with pytest.raises(HTTPException) as raised:
-            _size_capped_request(_request({"content-length": "lots"}, AsyncMock()))
+            await _size_capped_request(
+                _request({"content-length": "lots"}, AsyncMock())
+            )
 
         assert raised.value.status_code == 400
 
     @pytest.mark.asyncio
     async def test_body_without_length_stops_at_cap(self):
         chunk = b"x" * 4096
-        receive = AsyncMock(
-            return_value={"type": "http.request", "body": chunk, "more_body": True}
-        )
-        capped = _size_capped_request(_request({}, receive))
+        total_chunks = _MAX_BODY // len(chunk) + 5
+        messages = [
+            {"type": "http.request", "body": chunk, "more_body": True}
+            for _ in range(total_chunks - 1)
+        ] + [{"type": "http.request", "body": chunk, "more_body": False}]
+        receive = AsyncMock(side_effect=messages)
+        capped = await _size_capped_request(_request({}, receive))
 
         with pytest.raises(HTTPException) as raised:
             async for _ in capped.stream():
                 pass
 
         assert raised.value.status_code == 413
-        # It stopped one chunk past the cap, not at the end of an endless stream.
-        assert receive.await_count == _MAX_BODY // len(chunk) + 1
+        # The rest of the body was read and dropped before the 413.
+        assert receive.await_count == total_chunks
+
+    @pytest.mark.asyncio
+    async def test_drain_stops_at_timeout(self, monkeypatch):
+        monkeypatch.setattr(mount_utils, "_UPLOAD_DRAIN_TIMEOUT_SECONDS", 0.05)
+
+        async def empty_forever():
+            await asyncio.sleep(0.001)
+            return {"type": "http.request", "body": b"", "more_body": True}
+
+        with pytest.raises(HTTPException) as raised:
+            await _size_capped_request(
+                _request({"content-length": str(_MAX_BODY + 1)}, empty_forever)
+            )
+
+        assert raised.value.status_code == 413
+
+    @pytest.mark.asyncio
+    async def test_body_without_length_stops_draining_at_limit(self, monkeypatch):
+        chunk = b"x" * 4096
+        monkeypatch.setattr(mount_utils, "_UPLOAD_DRAIN_LIMIT_BYTES", _MAX_BODY * 2)
+        receive = AsyncMock(
+            return_value={"type": "http.request", "body": chunk, "more_body": True}
+        )
+        capped = await _size_capped_request(_request({}, receive))
+
+        with pytest.raises(HTTPException) as raised:
+            async for _ in capped.stream():
+                pass
+
+        assert raised.value.status_code == 413
+        # An endless body is not read forever.
+        assert receive.await_count <= (_MAX_BODY * 2) // len(chunk) + 2
 
 
 @pytest.mark.usefixtures("allow_access")

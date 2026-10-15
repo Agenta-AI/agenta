@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from mimetypes import guess_type
 from posixpath import basename
@@ -72,13 +73,43 @@ def check_upload_size(size: int) -> None:
         raise _upload_too_large()
 
 
-def _size_capped_request(request: Request) -> Request:
+# A refused upload is read to its end, up to this many bytes, before the 413 goes out. A browser
+# that gets the response while it still sends a file from disk stalls the upload and never shows
+# the 413 (seen with Chrome behind the GKE load balancer). Reading the rest and throwing it away
+# costs bandwidth, not memory. A body declared larger than this is refused at once.
+_UPLOAD_DRAIN_LIMIT_BYTES = 1024 * 1024 * 1024
+# A client that stops sending, or sends empty chunks, must not hold the 413 back forever.
+_UPLOAD_DRAIN_TIMEOUT_SECONDS = 120.0
+
+
+async def _drain(receive: Callable[[], Coroutine[Any, Any, dict]], budget: int) -> None:
+    """Read and drop the rest of the request body: at most `budget` bytes, within the timeout."""
+
+    async def read_rest() -> None:
+        remaining = budget
+        while remaining > 0:
+            message = await receive()
+            if message["type"] != "http.request":
+                return
+            remaining -= len(message.get("body", b""))
+            if not message.get("more_body", False):
+                return
+
+    try:
+        await asyncio.wait_for(read_rest(), timeout=_UPLOAD_DRAIN_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        pass
+
+
+async def _size_capped_request(request: Request) -> Request:
     """Return `request` with its body capped at `AGENTA_MOUNTS_MAX_UPLOAD_BYTES`.
 
-    A declared Content-Length over the cap is refused before any byte is read. A request without
-    Content-Length is counted as it arrives and refused once it passes the cap.
+    A declared Content-Length over the cap is refused before any byte is kept: the body is read
+    and dropped first (see `_UPLOAD_DRAIN_LIMIT_BYTES`), so the client gets the 413. A request
+    without Content-Length is counted as it arrives and refused once it passes the cap.
     """
     max_body_bytes = env.mounts.max_upload_bytes + _UPLOAD_MULTIPART_OVERHEAD_BYTES
+    receive = request.receive
 
     content_length = request.headers.get("content-length")
     if content_length is not None:
@@ -90,9 +121,10 @@ def _size_capped_request(request: Request) -> Request:
                 detail="Content-Length must be an integer.",
             ) from error
         if declared > max_body_bytes:
+            if declared <= _UPLOAD_DRAIN_LIMIT_BYTES:
+                await _drain(receive, declared)
             raise _upload_too_large()
 
-    receive = request.receive
     received = 0
 
     async def capped_receive():
@@ -101,6 +133,8 @@ def _size_capped_request(request: Request) -> Request:
         if message["type"] == "http.request":
             received += len(message.get("body", b""))
             if received > max_body_bytes:
+                if message.get("more_body", False):
+                    await _drain(receive, _UPLOAD_DRAIN_LIMIT_BYTES - received)
                 raise _upload_too_large()
         return message
 
@@ -118,7 +152,7 @@ class SizeCappedUploadRoute(APIRoute):
         handler = super().get_route_handler()
 
         async def capped_handler(request: Request) -> Response:
-            return await handler(_size_capped_request(request))
+            return await handler(await _size_capped_request(request))
 
         return capped_handler
 
