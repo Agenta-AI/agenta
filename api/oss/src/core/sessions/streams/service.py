@@ -100,6 +100,20 @@ def normalize_session_name(name: Optional[str]) -> Optional[str]:
     return trimmed[:SESSION_NAME_MAX_CHARS]
 
 
+# The line the composer appends for each file it saved to the session drive instead of
+# attaching (useComposerAttachments.ts `withDriveFileNote`). It is not the user's words,
+# so it never becomes the title.
+DRIVE_FILE_NOTE_PREFIX = "Uploaded to the session drive (too large to attach):"
+
+
+def _without_drive_file_notes(text: str) -> str:
+    return "\n".join(
+        line
+        for line in text.splitlines()
+        if not line.strip().startswith(DRIVE_FILE_NOTE_PREFIX)
+    )
+
+
 def _first_user_message_text(messages: List[Any]) -> Optional[str]:
     """Text of the first user message, joining its text parts — the browser's rule."""
     for message in messages:
@@ -138,7 +152,8 @@ def derive_session_name(inputs: Optional[Dict[str, Any]]) -> Optional[str]:
     messages = inputs.get("messages")
     if not isinstance(messages, list):
         return None
-    return normalize_session_name(_first_user_message_text(messages))
+    text = _first_user_message_text(messages)
+    return normalize_session_name(_without_drive_file_notes(text) if text else None)
 
 
 def derive_command_mode(request: SessionStreamCommandRequest) -> CommandMode:
