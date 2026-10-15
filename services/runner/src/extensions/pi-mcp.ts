@@ -251,8 +251,8 @@ export function piGatewayMcpServersFromWire(
 function allowedGatewayOrigins(): string[] {
   const origins: string[] = [];
   for (const base of [
-    process.env.AGENTA_API_INTERNAL_URL,
-    process.env.AGENTA_API_URL,
+    process.env.AGENTA_API_INTERNAL_URL?.trim(),
+    process.env.AGENTA_API_URL?.trim(),
   ]) {
     if (!base) continue;
     try {

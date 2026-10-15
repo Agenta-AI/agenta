@@ -22,8 +22,19 @@ export function runWithRequestApiBase<T>(base: string, fn: () => T): T {
   return requestApiBase.run(base, fn);
 }
 
-function configuredApiBase(): string | undefined {
-  return process.env.AGENTA_API_INTERNAL_URL ?? process.env.AGENTA_API_URL;
+/**
+ * An api base env var, or undefined when it is unset, empty or whitespace only. Compose and Helm
+ * pass an unset variable through as `""`, and `??` does not treat that as unset.
+ */
+export function envApiUrl(
+  name: "AGENTA_API_INTERNAL_URL" | "AGENTA_API_URL",
+): string | undefined {
+  const value = process.env[name]?.trim();
+  return value ? value : undefined;
+}
+
+export function configuredApiBase(): string | undefined {
+  return envApiUrl("AGENTA_API_INTERNAL_URL") ?? envApiUrl("AGENTA_API_URL");
 }
 
 // Trim trailing slashes off the BASE only: callers append paths, and collection
@@ -54,8 +65,8 @@ export function apiBase(): string {
  * unset or `url` is anything else.
  */
 export function inNetworkApiRoute(url: string): string | undefined {
-  const internal = process.env.AGENTA_API_INTERNAL_URL?.trim();
-  const publicBase = process.env.AGENTA_API_URL?.trim();
+  const internal = envApiUrl("AGENTA_API_INTERNAL_URL");
+  const publicBase = envApiUrl("AGENTA_API_URL");
   if (!internal || !publicBase) return undefined;
   let target: URL;
   let base: URL;
@@ -76,7 +87,7 @@ export function inNetworkApiRoute(url: string): string | undefined {
 
 /** Is `url` on the operator's in-network api origin (`AGENTA_API_INTERNAL_URL`)? */
 export function isInNetworkApiEndpoint(url: string | undefined): boolean {
-  const internal = process.env.AGENTA_API_INTERNAL_URL?.trim();
+  const internal = envApiUrl("AGENTA_API_INTERNAL_URL");
   if (!internal || !url) return false;
   try {
     return new URL(url).origin === new URL(internal).origin;
