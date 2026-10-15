@@ -5,8 +5,10 @@ import {z} from "zod"
 import type {ConnectedApps} from "./onboardingApps"
 import {RECOMMENDED, templateGlyph, type GalleryCategory} from "./onboardingChoices"
 import {
+    answerLabels,
     knownAnswers,
     recommendsTemplates,
+    type OnboardingAnswer,
     type OnboardingAnswers,
     type OnboardingQuestionId,
 } from "./onboardingQuestions"
@@ -51,10 +53,13 @@ export const EMPTY_ONBOARDING_DRAFT: OnboardingDraft = {
 }
 
 export type OnboardingAction =
-    | {type: "answer"; question: OnboardingQuestionId; value: string}
+    | {type: "answer"; question: OnboardingQuestionId; value: OnboardingAnswer}
     | {type: "category"; category: GalleryCategory}
     | {type: "agent"; patch: Partial<OnboardingAgent>}
     | {type: "completed"; step: OnboardingStep}
+
+const sameAnswer = (a: OnboardingAnswer | undefined, b: OnboardingAnswer) =>
+    typeof a === typeof b && answerLabels(a).join("\n") === answerLabels(b).join("\n")
 
 export const onboardingReducer = (
     draft: OnboardingDraft,
@@ -62,8 +67,13 @@ export const onboardingReducer = (
 ): OnboardingDraft => {
     switch (action.type) {
         case "answer": {
-            if (draft.answers[action.question] === action.value) return draft
-            const answers = {...draft.answers, [action.question]: action.value}
+            const {[action.question]: previous, ...others} = draft.answers
+            if (sameAnswer(previous, action.value)) return draft
+            // A multi-select question with every chip cleared is unanswered again.
+            const answers =
+                answerLabels(action.value).length > 0
+                    ? {...others, [action.question]: action.value}
+                    : others
             // The gallery's Recommended slice follows the answer that orders it.
             return recommendsTemplates(action.question)
                 ? {...draft, answers, category: RECOMMENDED}
@@ -136,7 +146,7 @@ export const onboardingDraftKey = (userId: string) => `agenta:onboarding:draft:v
 const iconSchema = z.object({icon: z.string().min(1), color: z.string().min(1)})
 
 const draftSchema = z.object({
-    answers: z.record(z.string(), z.string()),
+    answers: z.record(z.string(), z.union([z.string(), z.array(z.string())])),
     category: z.string().min(1),
     agent: z.object({
         name: z.string().max(ONBOARDING_NAME_MAX),

@@ -1,5 +1,5 @@
 import type {OnboardingDraft} from "./onboardingDraft"
-import {ONBOARDING_QUESTIONS, type OnboardingQuestionId} from "./onboardingQuestions"
+import {answerLabels, ONBOARDING_QUESTIONS, type OnboardingQuestionId} from "./onboardingQuestions"
 
 /** The steps after the questions, always shown. */
 const FIXED_STEPS = ["credits", "templates"] as const
@@ -76,7 +76,7 @@ export const isStepOpen = (step: OnboardingStep, draft: Answers, steps: Onboardi
     if (at < 0) return false
     return steps
         .slice(0, at)
-        .every((earlier) => isFixedStep(earlier) || draft.answers[earlier] !== undefined)
+        .every((earlier) => isFixedStep(earlier) || answerLabels(draft.answers[earlier]).length > 0)
 }
 
 /** The latest step the answers open, for a link to a step the user has not reached. */

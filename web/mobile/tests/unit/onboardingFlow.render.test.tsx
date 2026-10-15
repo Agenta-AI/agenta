@@ -240,7 +240,12 @@ import {
 } from "@/features/onboarding/onboardingRoute"
 import type {OnboardingModel} from "@/features/onboarding/useOnboardingModel"
 
-import {registerQuestion, TEAM_QUESTION, withTestQuestions} from "./onboardingTestQuestion"
+import {
+    GOALS_QUESTION,
+    registerQuestion,
+    TEAM_QUESTION,
+    withTestQuestions,
+} from "./onboardingTestQuestion"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -628,5 +633,32 @@ describe("first agent onboarding", () => {
         render(props)
         click("Your team")
         expect(button(/^2 to 10/).getAttribute("aria-pressed")).toBe("true")
+    })
+
+    it("toggles a multi-select question's chips and moves on only on Continue", () => {
+        registerQuestion(GOALS_QUESTION)
+        const onStepCompleted = vi.fn()
+        render(baseProps({onStepCompleted}))
+        answer(/^Engineering/)
+        answer(/^GitHub/)
+        expect(heading()).toBe("What should your agents help with?")
+        expect(button(/^Continue/).disabled).toBe(true)
+        answer(/^Support/)
+        act(() => {
+            window.dispatchEvent(new KeyboardEvent("keydown", {key: "a"}))
+        })
+        act(() => vi.runOnlyPendingTimers())
+        expect(heading()).toBe("What should your agents help with?")
+        expect(button(/^Coding/).getAttribute("aria-pressed")).toBe("true")
+        expect(button(/^Support/).getAttribute("aria-pressed")).toBe("true")
+        answer(/^Support/)
+        expect(button(/^Support/).getAttribute("aria-pressed")).toBe("false")
+        act(() => {
+            window.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter"}))
+        })
+        expect(heading()).toBe("500 credits, on us")
+        const [step, draft] = onStepCompleted.mock.lastCall!
+        expect(step).toBe("goals")
+        expect(personProperties(draft.answers)).toMatchObject({agent_goals_v1: ["Coding"]})
     })
 })

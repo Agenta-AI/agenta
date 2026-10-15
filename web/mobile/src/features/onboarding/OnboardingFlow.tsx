@@ -175,7 +175,8 @@ export const OnboardingFlow = ({
                 title={asked.title}
                 subtitle={asked.subtitle}
                 choices={asked.choices}
-                value={draft.answers[id] ?? null}
+                multiple={asked.multiple}
+                value={draft.answers[id]}
                 onAnswer={(value) => dispatch({type: "answer", question: id, value})}
                 onAdvance={() => advance(id, nextStep(id, steps))}
             />

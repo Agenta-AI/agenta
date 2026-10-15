@@ -19,6 +19,21 @@ export const TEAM_QUESTION: OnboardingQuestionDef = {
     ],
 }
 
+export const GOALS_QUESTION: OnboardingQuestionDef = {
+    id: "goals",
+    title: "What should your agents help with?",
+    subtitle: "Pick all that apply.",
+    dot: "Your goals",
+    enabled: true,
+    multiple: true,
+    personProperty: "agent_goals_v1",
+    choices: [
+        {label: "Coding", icon: Users, category: "Engineering"},
+        {label: "Support", icon: Users, category: "Support"},
+        {label: "Research", icon: Users},
+    ],
+}
+
 /** Appends a question to the app's registry for one test, as adding its entry would. */
 export const registerQuestion = (question: OnboardingQuestionDef) => {
     const registry = ONBOARDING_QUESTIONS as unknown as OnboardingQuestionDef[]

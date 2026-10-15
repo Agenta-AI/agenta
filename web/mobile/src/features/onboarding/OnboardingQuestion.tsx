@@ -1,18 +1,26 @@
 import {useEffect, useRef, useState} from "react"
 
+import {Button} from "@agenta/ui/ui"
+import {ArrowRight} from "@phosphor-icons/react"
+
 import {FOCUS_RING} from "@/lib/interactive"
 import {useMotionPresets} from "@/lib/motion/presets"
 import {cn} from "@/lib/utils"
 
 import {CHOICE_KEYS, type OnboardingChoice} from "./onboardingChoices"
 import {ONBOARDING_COPY} from "./onboardingCopy"
+import {answerLabels, type OnboardingAnswer} from "./onboardingQuestions"
 
-/** A one-tap question: a chip or its letter key answers it, then the flow moves on. */
+/**
+ * A chip question. One-tap: a chip or its letter key answers it, then the flow moves on.
+ * Multiple: chips and keys toggle, and Continue (or Enter) moves on.
+ */
 export const OnboardingQuestion = ({
     headingId,
     title,
     subtitle,
     choices,
+    multiple = false,
     value,
     onAnswer,
     onAdvance,
@@ -21,8 +29,9 @@ export const OnboardingQuestion = ({
     title: string
     subtitle: string
     choices: readonly OnboardingChoice[]
-    value: string | null
-    onAnswer: (label: string) => void
+    multiple?: boolean
+    value: OnboardingAnswer | undefined
+    onAnswer: (answer: OnboardingAnswer) => void
     onAdvance: () => void
 }) => {
     const {answerHoldMs} = useMotionPresets()
@@ -31,8 +40,14 @@ export const OnboardingQuestion = ({
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     useEffect(() => () => clearTimeout(timerRef.current ?? undefined), [])
 
+    const labels = answerLabels(value)
     const pickRef = useRef<(label: string) => void>(() => undefined)
     pickRef.current = (label: string) => {
+        if (multiple) {
+            const on = (item: string) => (item === label) !== labels.includes(item)
+            onAnswer(choices.map((choice) => choice.label).filter(on))
+            return
+        }
         if (pickedRef.current) return
         pickedRef.current = true
         setPicked(label)
@@ -45,6 +60,12 @@ export const OnboardingQuestion = ({
             if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return
             const target = event.target instanceof Element ? event.target : null
             if (target?.closest("input, textarea, [contenteditable=true]")) return
+            if (event.key === "Enter") {
+                if (!multiple || target?.closest("button, a")) return
+                event.preventDefault()
+                continueRef.current()
+                return
+            }
             const index = CHOICE_KEYS.indexOf(event.key.toUpperCase())
             if (event.key.length !== 1 || index < 0 || index >= choices.length) return
             event.preventDefault()
@@ -52,9 +73,15 @@ export const OnboardingQuestion = ({
         }
         window.addEventListener("keydown", onKey)
         return () => window.removeEventListener("keydown", onKey)
-    }, [choices])
+    }, [choices, multiple])
 
-    const selected = picked ?? value
+    const continueRef = useRef<() => void>(() => undefined)
+    continueRef.current = () => {
+        if (labels.length > 0) onAdvance()
+    }
+
+    const isActive = (label: string) =>
+        multiple ? labels.includes(label) : (picked ?? labels[0]) === label
     return (
         <div className="flex flex-col gap-7">
             <div className="flex flex-col gap-1.5">
@@ -65,7 +92,7 @@ export const OnboardingQuestion = ({
             </div>
             <div role="group" aria-labelledby={headingId} className="flex flex-wrap gap-2">
                 {choices.map(({label, icon: Icon}, index) => {
-                    const active = selected === label
+                    const active = isActive(label)
                     const key = CHOICE_KEYS[index]
                     return (
                         <button
@@ -90,6 +117,18 @@ export const OnboardingQuestion = ({
                     )
                 })}
             </div>
+            {multiple ? (
+                <div className="flex justify-end">
+                    <Button
+                        onClick={() => continueRef.current()}
+                        disabled={labels.length === 0}
+                        className="max-sm:h-11 max-sm:w-full"
+                    >
+                        {ONBOARDING_COPY.continue}
+                        <ArrowRight data-icon="inline-end" />
+                    </Button>
+                </div>
+            ) : null}
         </div>
     )
 }

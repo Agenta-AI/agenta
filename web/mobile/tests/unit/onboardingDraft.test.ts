@@ -18,9 +18,15 @@ import {
     templateAgentInput,
     type OnboardingDraft,
 } from "@/features/onboarding/onboardingDraft"
-import {personProperties, recommendedCategory} from "@/features/onboarding/onboardingQuestions"
+import {
+    personProperties,
+    recommendedCategory,
+    type OnboardingQuestionId,
+} from "@/features/onboarding/onboardingQuestions"
 
-import {withTestQuestions} from "./onboardingTestQuestion"
+import {GOALS_QUESTION, registerQuestion, withTestQuestions} from "./onboardingTestQuestion"
+
+const GOALS = GOALS_QUESTION.id as OnboardingQuestionId
 
 type Template = Parameters<typeof galleryTemplates>[0][number]
 
@@ -98,6 +104,54 @@ describe("onboarding answers", () => {
         expect(
             onboardingReducer(browsing, {type: "answer", question: "source", value: "GitHub"}),
         ).toEqual({...browsing, answers: {persona: "Engineering", source: "GitHub"}})
+    })
+
+    it("stores a multi-select answer as a list and clears it when every chip is off", () => {
+        registerQuestion(GOALS_QUESTION)
+        const picked = onboardingReducer(draft(), {
+            type: "answer",
+            question: GOALS,
+            value: ["Support", "Coding"],
+        })
+        expect(picked.answers).toEqual({goals: ["Support", "Coding"]})
+        expect(
+            onboardingReducer(picked, {
+                type: "answer",
+                question: GOALS,
+                value: ["Support", "Coding"],
+            }),
+        ).toBe(picked)
+        expect(
+            onboardingReducer(picked, {type: "answer", question: GOALS, value: []}).answers,
+        ).toEqual({})
+        expect(recommendedCategory({goals: ["Research", "Support"]})).toBe("Support")
+        expect(personProperties({goals: ["Coding", "Research"]})).toEqual({
+            agent_goals_v1: ["Coding", "Research"],
+        })
+    })
+
+    it("fits a stored answer to its question's shape and choices", () => {
+        registerQuestion(GOALS_QUESTION)
+        window.sessionStorage.setItem(
+            "draft",
+            JSON.stringify({
+                ...draft(),
+                answers: {
+                    goals: ["Gone", "Coding"],
+                    persona: ["Sales", "Engineering"],
+                    source: "Gone",
+                },
+            }),
+        )
+        expect(readOnboardingDraft("draft").answers).toEqual({
+            goals: ["Coding"],
+            persona: "Sales",
+        })
+        window.sessionStorage.setItem(
+            "draft",
+            JSON.stringify({...draft(), answers: {goals: "Research"}}),
+        )
+        expect(readOnboardingDraft("draft").answers).toEqual({goals: ["Research"]})
     })
 
     it("sets only the answered questions as person properties", () => {

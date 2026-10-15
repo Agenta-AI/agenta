@@ -35,6 +35,8 @@ export interface OnboardingQuestionDef {
     /** At most twelve, one per letter key. */
     choices: readonly OnboardingChoice[]
     enabled: boolean
+    /** Several choices can be picked, then Continue moves on; the answer is a list. */
+    multiple?: boolean
     /** The PostHog person property the answer is set as. */
     personProperty?: string
 }
@@ -88,19 +90,32 @@ export const ONBOARDING_QUESTIONS = [
 
 export type OnboardingQuestionId = (typeof ONBOARDING_QUESTIONS)[number]["id"]
 
-/** Each answered question's choice label, by question id. */
-export type OnboardingAnswers = Partial<Record<string, string>>
+/** A choice label, or the labels picked on a multi-select question. */
+export type OnboardingAnswer = string | readonly string[]
+
+/** Each answered question's answer, by question id. */
+export type OnboardingAnswers = Partial<Record<string, OnboardingAnswer>>
 
 const QUESTIONS: readonly OnboardingQuestionDef[] = ONBOARDING_QUESTIONS
 
 export const onboardingQuestion = (id: string) => QUESTIONS.find((question) => question.id === id)
 
-/** The stored answers that still name a question and one of its choices. */
+/** An answer's labels in pick order; none when unanswered. */
+export const answerLabels = (answer: OnboardingAnswer | undefined): readonly string[] =>
+    answer === undefined ? [] : typeof answer === "string" ? [answer] : answer
+
+/** The stored answers fitted to the registry: unknown questions and choices go, shapes follow `multiple`. */
 export const knownAnswers = (answers: OnboardingAnswers): OnboardingAnswers =>
     Object.fromEntries(
-        Object.entries(answers).filter(([id, value]) =>
-            onboardingQuestion(id)?.choices.some((choice) => choice.label === value),
-        ),
+        Object.entries(answers).flatMap(([id, value]) => {
+            const question = onboardingQuestion(id)
+            if (!question) return []
+            const labels = answerLabels(value).filter((label) =>
+                question.choices.some((choice) => choice.label === label),
+            )
+            if (labels.length === 0) return []
+            return [[id, question.multiple ? labels : labels[0]]]
+        }),
     )
 
 /** Whether a question's choices set the gallery's Recommended category. */
@@ -109,15 +124,19 @@ export const recommendsTemplates = (id: string) =>
 
 /** The catalog category the answers put first under Recommended. */
 export const recommendedCategory = (answers: OnboardingAnswers) =>
-    QUESTIONS.map(
-        ({id, choices}) => choices.find((choice) => choice.label === answers[id])?.category,
+    QUESTIONS.flatMap(({id, choices}) =>
+        answerLabels(answers[id]).map(
+            (label) => choices.find((choice) => choice.label === label)?.category,
+        ),
     ).find((category) => category !== undefined)
 
 /** Answers become person properties only once given, so an empty one never overwrites. */
-export const personProperties = (answers: OnboardingAnswers): Record<string, string> =>
+export const personProperties = (answers: OnboardingAnswers): Record<string, OnboardingAnswer> =>
     Object.fromEntries(
-        QUESTIONS.flatMap(({id, personProperty}) => {
+        QUESTIONS.flatMap(({id, personProperty}): [string, OnboardingAnswer][] => {
             const value = answers[id]
-            return personProperty && value ? [[personProperty, value]] : []
+            return personProperty && value && answerLabels(value).length > 0
+                ? [[personProperty, value]]
+                : []
         }),
     )
