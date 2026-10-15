@@ -56,7 +56,7 @@ from oss.src.chat import chat_v0_app
 from oss.src.completion import completion_v0_app
 from oss.src.agent import agent_v0_app
 from entrypoints.legacy import register_legacy_routes
-from entrypoints.prefix import ServicesPrefixStripMiddleware
+from entrypoints.prefix import strip_prefix_outermost
 
 
 ag.init()
@@ -164,11 +164,6 @@ app.add_middleware(
 )
 
 
-# Added last => outermost: a managed ingress forwards the public `/services` prefix
-# verbatim, so normalize the path before anything else looks at it.
-app.add_middleware(ServicesPrefixStripMiddleware)
-
-
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -219,6 +214,11 @@ if setup_server_tracing(
     sample_ratio=getenv("AGENTA_SERVER_TRACING_SAMPLE_RATIO"),
 ):
     instrument_fastapi(app)
+
+# Outermost, after the instrumentation: a managed ingress forwards the public `/services`
+# prefix verbatim, so normalize the path before anything else looks at it, the request
+# span's route lookup included.
+strip_prefix_outermost(app)
 
 
 if __name__ == "__main__":
