@@ -152,6 +152,8 @@ from oss.src.core.invocations.service import InvocationsService
 
 from oss.src.core.ai_services.service import AIServicesService
 from oss.src.apis.fastapi.ai_services.router import AIServicesRouter
+from oss.src.core.links.service import LinksService
+from oss.src.apis.fastapi.links.router import LinksRouter
 
 from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.apis.fastapi.accounts.router import PlatformAdminAccountsRouter
@@ -1493,6 +1495,12 @@ ai_services = AIServicesRouter(
     ai_services_service=ai_services_service,
 )
 
+# LINKS ------------------------------------------------------------------------
+
+links = LinksRouter(
+    links_service=LinksService(),
+)
+
 # SESSIONS ---------------------------------------------------------------------
 # Session header rename (name/description) lives on the streams router
 # (PUT /sessions/streams/header) via streams_service.set_header.
@@ -1926,6 +1934,12 @@ app.include_router(
     router=ai_services.router,
     prefix="/ai/services",
     include_in_schema=False,
+)
+
+app.include_router(
+    router=links.router,
+    prefix="/links",
+    tags=["Links"],
 )
 
 app.include_router(
