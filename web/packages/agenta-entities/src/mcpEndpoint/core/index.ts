@@ -73,6 +73,7 @@ export {
 export type {McpToolPage} from "./mcpRpc"
 export {
     cancelDeletesEndpoint,
+    detectedAuthMode,
     isBusy,
     isConnected,
     journeyReducer,

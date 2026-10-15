@@ -63,9 +63,9 @@ let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 let journey: Journey
 
-const mountJourney = async () => {
+const mountJourney = async (options: Parameters<typeof useMcpConnectJourney>[0] = {}) => {
     const Probe = () => {
-        journey = useMcpConnectJourney({})
+        journey = useMcpConnectJourney(options)
         return null
     }
     await act(async () => {
@@ -941,5 +941,197 @@ describe("a credential the server refused", () => {
         // writing another credential onto the one that was refused.
         expect(journey.state.endpointId).toBeNull()
         expect(journey.state.createdHere).toBe(false)
+    })
+})
+
+describe("the authentication the person selects", () => {
+    // The probe found OAuth (the default stub). The person's choice is what the row is
+    // created in, and the probe is only where the choice started.
+    const probed = async () => {
+        await mountJourney()
+        await act(async () => journey.setUrl("https://api.githubcopilot.test/mcp"))
+        await act(async () => {
+            await journey.submitUrl("https://api.githubcopilot.test/mcp")
+        })
+        await act(async () => journey.setName("GitHub"))
+    }
+
+    it("creates the row with a key on a server whose probe found OAuth", async () => {
+        await probed()
+        expect(journey.state.authMode).toBe("oauth")
+
+        await act(async () => journey.selectAuthMode("api_key"))
+        await act(async () => {
+            await journey.submitName()
+        })
+
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({auth_mode: "api_key"}),
+            "project-1",
+        )
+        expect(journey.state.status).toBe("manual_auth")
+        expect(journey.expectsConsent).toBe(false)
+        expect(discoverMcpConnect).not.toHaveBeenCalled()
+    })
+
+    it("deletes the pending row made in the old mode", async () => {
+        await probed()
+        await act(async () => {
+            await journey.submitName()
+        })
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({auth_mode: "oauth"}),
+            "project-1",
+        )
+
+        await act(async () => journey.selectAuthMode("none"))
+        await settle()
+
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1")
+        expect(journey.state.status).toBe("naming")
+        expect(journey.state.endpointId).toBeNull()
+    })
+
+    it("switches a saved connection on its own row, keeping its tools and its secret", async () => {
+        // The detail panel reaches this through Reconnect. The row's id, slug and tool filter
+        // stay, and the vault secret is let go rather than deleted.
+        const stored = {
+            id: "mcp-9",
+            slug: "github",
+            name: "GitHub",
+            auth_mode: "oauth",
+            secret_id: "grant-1",
+            data: {
+                route: {base_url: "https://api.githubcopilot.test/mcp"},
+                tools: {allowlist: ["search"]},
+            },
+            flags: {is_valid: true},
+        }
+        queryMcpEndpoints.mockResolvedValue({count: 1, endpoints: [stored]})
+        editMcpEndpoint.mockResolvedValue({count: 1, endpoint: stored})
+
+        await mountJourney({
+            reconnect: {
+                id: "mcp-9",
+                slug: "github",
+                name: "GitHub",
+                url: "https://api.githubcopilot.test/mcp",
+                authMode: "oauth",
+            },
+        })
+        // The saved address publishes OAuth, so None is checked: asked without a key, the
+        // server answers.
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {reachable: true, server_name: "GitHub", auth: {mode: "none"}},
+        })
+        await act(async () => journey.selectAuthMode("none"))
+        expect(journey.state.status).toBe("manual_auth")
+        await act(async () => {
+            await journey.skipAuthentication()
+        })
+
+        expect(probeMcpUrl).toHaveBeenLastCalledWith(
+            "https://api.githubcopilot.test/mcp",
+            "project-1",
+        )
+        expect(editMcpEndpoint).toHaveBeenCalledWith(
+            {...stored, auth_mode: "none", secret_id: null},
+            "project-1",
+        )
+        expect(deleteMcpEndpoint).not.toHaveBeenCalled()
+        expect(journey.state.status).toBe("saving")
+    })
+
+    it("writes nothing when the sheet closes while the saved row is being read", async () => {
+        const read = deferred<unknown>()
+        queryMcpEndpoints.mockReturnValue(read.promise)
+
+        await mountJourney({
+            reconnect: {
+                id: "mcp-9",
+                slug: "github",
+                name: "GitHub",
+                url: "https://api.githubcopilot.test/mcp",
+                authMode: "api_key",
+            },
+        })
+        await act(async () => journey.selectAuthMode("none"))
+        let skipped: Promise<void> = Promise.resolve()
+        await act(async () => {
+            skipped = journey.skipAuthentication()
+        })
+        await act(async () => {
+            await journey.cancel()
+        })
+        await act(async () => {
+            read.release({
+                count: 1,
+                endpoints: [
+                    {
+                        id: "mcp-9",
+                        slug: "github",
+                        auth_mode: "api_key",
+                        secret_id: "key-1",
+                        data: {route: {base_url: "https://api.githubcopilot.test/mcp"}},
+                    },
+                ],
+            })
+            await skipped
+        })
+
+        expect(editMcpEndpoint).not.toHaveBeenCalled()
+        expect(listMcpTools).not.toHaveBeenCalled()
+    })
+})
+
+describe("None chosen over what the server suggested", () => {
+    const refused = Object.assign(new Error("Request failed with status code 401"), {
+        response: {status: 401, data: {detail: "The server requires authorization."}},
+    })
+
+    it("asks the server before success, and keeps the sheet open on its refusal", async () => {
+        // The probe found OAuth. Choosing None is a claim only the server can confirm.
+        listMcpTools.mockRejectedValue(refused)
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        await act(async () => journey.selectAuthMode("none"))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({auth_mode: "none"}),
+            "project-1",
+        )
+        expect(listMcpTools).toHaveBeenCalledWith("acme-7mx", "project-1")
+        expect(journey.state.status).toBe("verify_failed")
+        expect(journey.state.failureStatus).toBe(401)
+        // The pending row made for a connection that does not work goes with the refusal.
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1")
+    })
+
+    it("needs no second asking where the probe found no sign-in", async () => {
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {reachable: true, server_name: "Acme", auth: {mode: "none", scopes_offered: []}},
+        })
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        await act(async () => {
+            await journey.submitName()
+        })
+
+        expect(listMcpTools).not.toHaveBeenCalled()
+        expect(journey.state.status).toBe("saving")
     })
 })

@@ -43,6 +43,13 @@ vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => ({
     listMcpTools: vi.fn(async () => []),
 }))
 
+// A reconnect checks its saved address in the background, to know whether OAuth can be
+// offered. Nothing here is about that answer.
+vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("../../../agenta-entities/src/mcpEndpoint/api/api")>()),
+    probeMcpUrl: vi.fn(async () => ({count: 1, probe: null})),
+}))
+
 /**
  * The permission drawer stands in for itself.
  *

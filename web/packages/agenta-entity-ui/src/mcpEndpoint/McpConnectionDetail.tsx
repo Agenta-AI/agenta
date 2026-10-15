@@ -8,6 +8,9 @@
  *
  * Renaming changes the label and nothing else. The slug agents resolve is frozen, so a
  * rename never repoints a configured agent, and it never resets a policy.
+ *
+ * Changing the authentication goes through the reconnect sheet, which holds the selector and
+ * the credential fields, and writes the mode onto this same row.
  */
 import {useCallback, useEffect, useRef, useState} from "react"
 
@@ -25,12 +28,13 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {Button, Field, Input} from "@agenta/ui/ui"
+import {Button, cn, Field, Input, touchTargetExpansion} from "@agenta/ui/ui"
 import {ArrowClockwise, WarningCircle, Wrench} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {ToolsEmpty} from "../shared/ToolsEmpty"
 
+import {MCP_AUTH_MODE_LABEL} from "./components"
 import {ToolFilterInput} from "./ToolFilterInput"
 
 export interface McpConnectionDetailProps {
@@ -208,6 +212,21 @@ export default function McpConnectionDetail({
                                 }}
                             />
                         </Field>
+
+                        <div className="flex items-center gap-2 text-sm">
+                            <span className="font-medium text-colorText">Authentication</span>
+                            <span className="text-colorTextSecondary">
+                                {MCP_AUTH_MODE_LABEL[endpoint.auth_mode]}
+                            </span>
+                            <Button
+                                variant="link"
+                                size="xs"
+                                className={cn("ml-auto px-0 text-xs", touchTargetExpansion(24))}
+                                onClick={() => onReconnect(endpoint)}
+                            >
+                                Change
+                            </Button>
+                        </div>
 
                         <section className="flex flex-col gap-2">
                             <div className="flex flex-col gap-0.5">

@@ -44,12 +44,14 @@ import {
 
 import {
     connectionNameProblem,
+    detectedAuthMode,
     isBusy,
     mcpChallengeSchemeToShow,
     mcpDefaultKeyHeader,
     readMcpProbeResponse,
     toolPrefixFromName,
     useMcpConnectJourney,
+    type MCPAuthMode,
     type McpConnectJourney as McpConnectJourneyApi,
     type McpJourneyState,
 } from "@agenta/entities/mcpEndpoint"
@@ -77,7 +79,7 @@ import {useAtomValue} from "jotai"
 import {CreateSecretDrawer} from "../secret"
 import {consentPopupFeatures} from "../shared/consentPopupFeatures"
 
-import {NoticeBox, ProbeResultCard, ShowResponsePanel, type ProbeResultMode} from "./components"
+import {AuthModeSelector, NoticeBox, ProbeResultCard, ShowResponsePanel} from "./components"
 
 export interface McpConnectJourneyProps {
     open: boolean
@@ -198,6 +200,13 @@ const KEY_REJECTED_ADVICE = "Check the header the server expects, or pick anothe
 const keyRejectedAdviceFor = (scheme: string | null): string =>
     scheme ? `${headerSchemeHint(scheme)} ${KEY_REJECTED_ADVICE}` : KEY_REJECTED_ADVICE
 
+/** None was chosen over what the server or the saved row suggested, and the server refused. */
+const keyRefusedWithoutKeyFor = (status: number | null): string =>
+    status
+        ? `The server refused a connection without a key (${status}).`
+        : "The server refused a connection without a key."
+const NO_KEY_REFUSED_ADVICE = "Pick another authentication mode above."
+
 const WAITING_BODY =
     "Finish in the window that opened. Sign in to the provider if it asks, then approve Agenta. This closes on its own when you're done."
 
@@ -207,36 +216,17 @@ const SAVING_BODY = "Setting up the connection…"
 /** The six screens the statuses render as. */
 type Screen = "url" | "url_failed" | "oauth" | "api_key" | "no_auth" | "waiting"
 
-/**
- * How the server authorizes, from whichever of the two sources knows.
- *
- * A first connect learns it from the probe. A reconnect never probes — the address and the
- * identity are already the connection's — and carries it on the row instead.
- */
-type AuthPath = ProbeResultMode
-
-const authPathFor = (
-    state: McpJourneyState,
-    reconnect: McpConnectJourneyProps["reconnect"],
-): AuthPath => {
-    if (reconnect)
-        return reconnect.authMode === "oauth" ? "oauth" : (reconnect.authMode ?? "api_key")
-    const mode = state.probe?.auth.mode
-    if (mode === "oauth") return "oauth"
-    if (mode === "none") return "none"
-    // Discovery was inconclusive, which in practice is a server holding its tools behind a
-    // key it would not describe. The person is asked for one; the screen still offers the
-    // other answer, because "we could not tell" is not "a key is required".
-    return "api_key"
-}
-
-const SCREEN_FOR_AUTH_PATH: Record<AuthPath, Screen> = {
+const SCREEN_FOR_AUTH_PATH: Record<MCPAuthMode, Screen> = {
     oauth: "oauth",
     api_key: "api_key",
     none: "no_auth",
 }
 
-const screenFor = (state: McpJourneyState, path: AuthPath, consentRequested: boolean): Screen => {
+const screenFor = (
+    state: McpJourneyState,
+    path: MCPAuthMode,
+    consentRequested: boolean,
+): Screen => {
     switch (state.status) {
         case "url_entry":
         case "checking_url":
@@ -435,7 +425,15 @@ export function McpConnectSheet({
      */
     const [afterCreate, setAfterCreate] = useState<"credential" | null>(null)
 
-    const path = authPathFor(state, reconnect)
+    /** How the connection authenticates: the person's choice, which the probe only suggested. */
+    const path = state.authMode
+    /**
+     * What the probe found, which the card reports and the selector marks. A reconnect reads
+     * its check of the saved address, so a server that answers without a key says so; until
+     * that check answers, its card reports how the connection was saved.
+     */
+    const serverProbe = state.probe ?? state.savedUrlProbe
+    const detected = serverProbe ? detectedAuthMode(serverProbe) : null
     const screen = screenFor(state, path, consentRequested)
     /**
      * Whether something is in flight: the machine's answer, corrected for the one status that
@@ -611,18 +609,18 @@ export function McpConnectSheet({
                 return
             case "manual_auth":
             case "verify_failed":
+                // A refusal took its row with it, so trying again makes one, and the
+                // credential follows as soon as it exists — the same two steps this
+                // screen's first press takes.
+                if (!state.endpointId) {
+                    if (path === "api_key") setAfterCreate("credential")
+                    void journey.submitName()
+                    return
+                }
                 // A connection that authorizes with nothing is repaired by saying so; there
                 // is no credential on this screen to submit.
                 if (path === "none") {
-                    journey.skipAuthentication()
-                    return
-                }
-                // A refused credential took its row with it, so trying again makes one, and
-                // the credential follows as soon as it exists — the same two steps this
-                // screen's first press takes.
-                if (!state.endpointId) {
-                    setAfterCreate("credential")
-                    void journey.submitName()
+                    void journey.skipAuthentication()
                     return
                 }
                 submitCredential()
@@ -739,13 +737,22 @@ export function McpConnectSheet({
                     ) : null}
 
                     {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (
-                        <ProbeResultCard
-                            url={reconnect?.url ?? state.url}
-                            mode={path}
-                            // A reconnect is repairing one address. Offering to change it
-                            // would offer to point a saved connection somewhere else.
-                            onChange={reconnect ? undefined : () => journey.setUrl(state.url)}
-                        />
+                        <>
+                            <ProbeResultCard
+                                url={reconnect?.url ?? state.url}
+                                mode={detected ?? reconnect?.authMode ?? path}
+                                // A reconnect is repairing one address. Offering to change it
+                                // would offer to point a saved connection somewhere else.
+                                onChange={reconnect ? undefined : () => journey.setUrl(state.url)}
+                            />
+                            <AuthModeSelector
+                                value={path}
+                                detected={detected}
+                                oauthSelectable={state.oauthOffered}
+                                disabled={busy || sealed}
+                                onChange={journey.selectAuthMode}
+                            />
+                        </>
                     ) : null}
 
                     {(screen === "oauth" || screen === "api_key") &&
@@ -872,6 +879,12 @@ export function McpConnectSheet({
                                 not answer initialize", and that failure no longer reaches
                                 this screen at all (round 4, D133 reopened). */}
                             {state.error} {keyRejectedAdviceFor(challengeScheme)}
+                        </InlineError>
+                    ) : null}
+
+                    {screen === "no_auth" && state.status === "verify_failed" ? (
+                        <InlineError headline={keyRefusedWithoutKeyFor(refusedStatus)}>
+                            {state.error} {NO_KEY_REFUSED_ADVICE}
                         </InlineError>
                     ) : null}
 

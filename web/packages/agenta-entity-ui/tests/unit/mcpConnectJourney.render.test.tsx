@@ -24,14 +24,21 @@ import {act, createElement, useState} from "react"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {probeMcpUrl, createMcpEndpoint, listMcpTools, discoverMcpConnect, beginMcpConnect} =
-    vi.hoisted(() => ({
-        probeMcpUrl: vi.fn(),
-        createMcpEndpoint: vi.fn(),
-        listMcpTools: vi.fn(),
-        discoverMcpConnect: vi.fn(),
-        beginMcpConnect: vi.fn(),
-    }))
+const {
+    probeMcpUrl,
+    createMcpEndpoint,
+    listMcpTools,
+    discoverMcpConnect,
+    beginMcpConnect,
+    queryMcpEndpoints,
+} = vi.hoisted(() => ({
+    probeMcpUrl: vi.fn(),
+    createMcpEndpoint: vi.fn(),
+    listMcpTools: vi.fn(),
+    discoverMcpConnect: vi.fn(),
+    beginMcpConnect: vi.fn(),
+    queryMcpEndpoints: vi.fn(),
+}))
 
 vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOriginal) => ({
     ...(await importOriginal<typeof import("../../../agenta-entities/src/mcpEndpoint/api/api")>()),
@@ -40,6 +47,7 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
     listMcpTools,
     discoverMcpConnect,
     beginMcpConnect,
+    queryMcpEndpoints,
 }))
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test"}))
@@ -178,6 +186,11 @@ beforeEach(() => {
         endpoint: {id: "mcp-1", slug: "acme-7mx", name: "Acme", auth_mode: "none"},
     })
     listMcpTools.mockResolvedValue([{name: "echo", description: "Echo it back"}])
+    // A reconnect reads its row back before consent, to keep it in the mode chosen.
+    queryMcpEndpoints.mockResolvedValue({
+        count: 1,
+        endpoints: [{id: "mcp-9", slug: "acme-7mx", auth_mode: "oauth", data: {route: {}}}],
+    })
     discoverMcpConnect.mockResolvedValue({count: 1, scopes_offered: ["tools:list"]})
     // Held open: the provider's window is what ends this step, and nothing in a unit test
     // is going to open one.

@@ -1,3 +1,4 @@
+export {AuthModeSelector, MCP_AUTH_MODE_LABEL, type AuthModeSelectorProps} from "./AuthModeSelector"
 export {ConnectionListRow, type ConnectionListRowProps} from "./ConnectionListRow"
 export {ProbeResultCard, type ProbeResultCardProps, type ProbeResultMode} from "./ProbeResultCard"
 export {NoticeBox, type NoticeBoxProps} from "./NoticeBox"

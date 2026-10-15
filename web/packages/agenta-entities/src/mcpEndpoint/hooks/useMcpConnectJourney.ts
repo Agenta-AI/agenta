@@ -18,7 +18,7 @@
  * would wipe the grant the journey just obtained. Until authorization lands, the row carries
  * no credential and every surface reads it as needing one, which is what it is.
  */
-import {useCallback, useMemo, useReducer, useRef} from "react"
+import {useCallback, useEffect, useMemo, useReducer, useRef} from "react"
 
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -39,6 +39,7 @@ import {suggestConnectionName} from "../core/connectionName"
 import {
     adoptableEndpoint,
     cancelDeletesEndpoint,
+    detectedAuthMode,
     journeyReducer,
     startJourney,
     startReconnect,
@@ -66,7 +67,7 @@ export interface McpConnectJourneyOptions {
         slug: string
         name: string
         url: string
-        authMode?: "oauth" | "api_key" | "none"
+        authMode?: MCPAuthMode
         /**
          * The header this connection's credential is already sent under.
          *
@@ -102,14 +103,6 @@ const PROBE_TIMED_OUT_MESSAGE =
 
 /** Marks the bound above expiring, so the catch can tell it from the server's own failures. */
 class ProbeTimedOut extends Error {}
-
-const AUTH_MODE_FOR_PROBE: Record<string, MCPAuthMode> = {
-    oauth: "oauth",
-    none: "none",
-    // Discovery was inconclusive. The row is created carrying no credential rather than
-    // presuming a key, and moves to api_key only if the person supplies one.
-    unknown: "none",
-}
 
 /**
  * The row a refused create was refused by, when it is the same connection being made.
@@ -211,6 +204,21 @@ export function useMcpConnectJourney({
      */
     const createdHereRef = useRef(false)
 
+    const reconnecting = !!reconnect
+    const reconnectUrl = reconnect?.url
+
+    /**
+     * The mode the server or the saved row suggested. Choosing None over it is a claim the
+     * server has not confirmed, so it is checked before the connection is called working.
+     * A reconnect's check of its saved address is the server's answer, so it wins over the
+     * saved row.
+     */
+    const serverProbe = state.probe ?? state.savedUrlProbe
+    const suggestedAuthMode = serverProbe
+        ? detectedAuthMode(serverProbe)
+        : (reconnect?.authMode ?? "api_key")
+    const mustVerifyNone = state.authMode === "none" && suggestedAuthMode !== "none"
+
     /** Whatever was attempted is no longer what is being asked for. */
     const forgetAttemptedCreate = useCallback(() => {
         attemptedCreateRef.current = null
@@ -250,6 +258,30 @@ export function useMcpConnectJourney({
                 }
             }
             dispatch({type: "url_changed", url})
+        },
+        [forgetAttemptedCreate, projectId, state],
+    )
+    /**
+     * Choose how the connection authenticates. The probe only suggested it.
+     *
+     * A first connect drops the pending row made in the old mode, as an address change does,
+     * so the next press creates one in the new mode. A reconnect keeps its row: the step that
+     * writes the credential writes the mode.
+     */
+    const selectAuthMode = useCallback(
+        (mode: MCPAuthMode) => {
+            if (mode === state.authMode) return
+            if (mode === "oauth" && !state.oauthOffered) return
+            forgetAttemptedCreate()
+            if (state.probe) {
+                const abandoned = endpointRef.current
+                if (cancelDeletesEndpoint(state) && abandoned) {
+                    void deleteMcpEndpoint(abandoned.id, projectId).catch(() => undefined)
+                }
+                endpointRef.current = null
+                createdHereRef.current = false
+            }
+            dispatch({type: "auth_mode_selected", mode})
         },
         [forgetAttemptedCreate, projectId, state],
     )
@@ -403,11 +435,58 @@ export function useMcpConnectJourney({
         [isCurrent, projectId, stopWatch],
     )
 
-    /** Commit the name and take whichever authentication path the probe established. */
+    /**
+     * Ask the server, through the relay, whether the connection works as saved.
+     *
+     * One authenticated handshake through the gateway, which injects the credential, or none,
+     * and surfaces the upstream's refusal. Without it a wrong key, or a server that wants one,
+     * reads as connected until an agent run fails, which is a long way from here.
+     */
+    const verifyConnection = useCallback(
+        async (endpoint: {id: string; slug: string}, attempt: number) => {
+            try {
+                await listMcpTools(endpoint.slug, projectId)
+                if (!isCurrent(attempt)) return
+                dispatch({type: "verify_succeeded"})
+            } catch (error) {
+                if (!isCurrent(attempt)) return
+                if (!isCredentialRefusal(error)) {
+                    // Nothing answered about the credential, so nothing may say it was
+                    // rejected. This is the check failing, which is the screen the design
+                    // draws for a server that did not answer (round 4, D133 reopened).
+                    dispatch({
+                        type: "probe_failed",
+                        probe: state.probe,
+                        error:
+                            gatewayRefusalMessage(error) ||
+                            "The server could not be reached to check that key.",
+                    })
+                    return
+                }
+                const abandoned = endpointRef.current
+                const discardedRow = createdHereRef.current && !!abandoned
+                if (discardedRow && abandoned) {
+                    endpointRef.current = null
+                    createdHereRef.current = false
+                    await deleteMcpEndpoint(abandoned.id, projectId).catch(() => undefined)
+                }
+                dispatch({
+                    type: "verify_failed",
+                    status: credentialRefusalStatus(error),
+                    error:
+                        gatewayRefusalMessage(error) ||
+                        "The server did not accept that credential.",
+                    discardedRow,
+                })
+            }
+        },
+        [isCurrent, projectId, state.probe],
+    )
+
+    /** Commit the name and take the authentication path the person chose. */
     const submitName = useCallback(async () => {
         dispatch({type: "submit_name"})
-        const probe = state.probe
-        const mode = AUTH_MODE_FOR_PROBE[probe?.auth.mode ?? "unknown"] ?? "none"
+        const mode = state.authMode
 
         const attempt = attemptRef.current
         /** Continue from a row, however this journey came by it. */
@@ -420,10 +499,11 @@ export function useMcpConnectJourney({
             // twice per connect: two outbound round trips, and two full-row writes on a route
             // that writes back the snapshot it read (D31).
             dispatch({type: "endpoint_created", endpointId: row.id, slug: row.slug, adopted})
-            if (probe?.auth.mode === "none") {
-                dispatch({type: "verify_started"})
-                dispatch({type: "verify_succeeded"})
-            }
+            if (mode !== "none") return
+            dispatch({type: "verify_started"})
+            // A server that answered the probe without a key needs no second asking.
+            if (mustVerifyNone) void verifyConnection(row, attempt)
+            else dispatch({type: "verify_succeeded"})
         }
         try {
             const existing = endpointRef.current
@@ -492,7 +572,7 @@ export function useMcpConnectJourney({
                     : {type: "create_failed", error: refusal},
             )
         }
-    }, [projectId, state.name, state.probe, state.url])
+    }, [mustVerifyNone, projectId, state.authMode, state.name, state.url, verifyConnection])
 
     const toggleScope = useCallback((scope: string) => dispatch({type: "scope_toggled", scope}), [])
 
@@ -522,16 +602,60 @@ export function useMcpConnectJourney({
         [driveConsent, isCurrent, state.scopesSelected],
     )
 
-    /** Start (or restart) scope discovery for the endpoint being connected. */
-    const startScopeDiscovery = useCallback(async () => {
-        const endpointId = endpointRef.current?.id
-        if (endpointId) await discoverScopes(endpointId)
-    }, [discoverScopes])
-
     const storedEndpoint = useCallback(
         (id: string) => storedEndpointFrom(id, projectId),
         [projectId],
     )
+
+    /**
+     * Move a reconnected row to the mode chosen on the sheet, where it is not in it already.
+     *
+     * Through the full-replace edit, so the id, the slug and the tool filter stay. The bound
+     * secret is let go, never deleted: a key belongs to the project's vault, not to the row.
+     *
+     * Answers the reason it failed, or null. The caller checks the attempt after it.
+     */
+    const storeAuthMode = useCallback(
+        async (id: string, mode: MCPAuthMode, attempt: number): Promise<string | null> => {
+            try {
+                const stored = await storedEndpoint(id)
+                // Before the write: a sheet closed while the read was in flight must leave
+                // the working connection as it found it (round 4, D181).
+                if (!isCurrent(attempt)) return null
+                if (!stored) {
+                    return "This connection could not be read back, so nothing was changed. Try again."
+                }
+                if (stored.auth_mode !== mode) {
+                    await editMcpEndpoint(
+                        {...stored, id, auth_mode: mode, secret_id: null},
+                        projectId,
+                    )
+                }
+                return null
+            } catch (error) {
+                return gatewayRefusalMessage(error) || "The connection could not be saved."
+            }
+        },
+        [isCurrent, projectId, storedEndpoint],
+    )
+
+    /** Start (or restart) scope discovery for the endpoint being connected. */
+    const startScopeDiscovery = useCallback(async () => {
+        const endpointId = endpointRef.current?.id
+        if (!endpointId) return
+        if (reconnecting) {
+            // The consent route refuses a row that is not OAuth, so a reconnect switching to
+            // it writes the mode first.
+            const attempt = attemptRef.current
+            const failure = await storeAuthMode(endpointId, "oauth", attempt)
+            if (!isCurrent(attempt)) return
+            if (failure) {
+                dispatch({type: "scopes_failed", error: failure})
+                return
+            }
+        }
+        await discoverScopes(endpointId)
+    }, [discoverScopes, isCurrent, reconnecting, storeAuthMode])
 
     /** The manual fallback: attach a project secret as a header, then verify. */
     const submitManualCredential = useCallback(
@@ -605,52 +729,117 @@ export function useMcpConnectJourney({
             }
 
             // And now the relay, which is the only call in this submit that can carry the
-            // chosen server's answer about the credential.
-            //
-            // Saving a reference to a secret proves nothing about the secret. The step is
-            // called Verify and the person is told "Verifying…", so it has to ask the
-            // server: one authenticated handshake through the gateway, which injects the
-            // credential and surfaces the upstream's refusal if it is the wrong one.
-            // Without this a wrong header name or secret reads as connected until an
-            // agent run fails, which is a long way from here.
-            try {
-                await listMcpTools(endpoint.slug, projectId)
-                if (!isCurrent(attempt)) return
-                dispatch({type: "verify_succeeded"})
-            } catch (error) {
-                if (!isCurrent(attempt)) return
-                if (!isCredentialRefusal(error)) {
-                    // Nothing answered about the credential, so nothing may say it was
-                    // rejected. This is the check failing, which is the screen the design
-                    // draws for a server that did not answer (round 4, D133 reopened).
-                    reportCheckFailed(error, "The server could not be reached to check that key.")
-                    return
-                }
-                const abandoned = endpointRef.current
-                const discardedRow = createdHereRef.current && !!abandoned
-                if (discardedRow && abandoned) {
-                    endpointRef.current = null
-                    createdHereRef.current = false
-                    await deleteMcpEndpoint(abandoned.id, projectId).catch(() => undefined)
-                }
-                dispatch({
-                    type: "verify_failed",
-                    status: credentialRefusalStatus(error),
-                    error:
-                        gatewayRefusalMessage(error) ||
-                        "The server did not accept that credential.",
-                    discardedRow,
-                })
-            }
+            // chosen server's answer about the credential. Saving a reference to a secret
+            // proves nothing about the secret.
+            await verifyConnection(endpoint, attempt)
         },
-        [isCurrent, projectId, state.name, state.probe, state.url, storedEndpoint],
+        [
+            isCurrent,
+            projectId,
+            state.name,
+            state.probe,
+            state.url,
+            storedEndpoint,
+            verifyConnection,
+        ],
     )
 
-    /** Connect a server that turned out to need nothing. */
-    const skipAuthentication = useCallback(() => {
+    /**
+     * Ask the server for a handshake with no key. Answers whether it gave one; a refusal or
+     * a failed check is dispatched here.
+     */
+    const checkWithoutKey = useCallback(
+        async (url: string, attempt: number): Promise<boolean> => {
+            try {
+                const {probe} = await probeMcpUrl(url, projectId)
+                if (!isCurrent(attempt)) return false
+                if (probe?.auth.mode === "none" && !probe.problem) return true
+                if (probe?.reachable && probe.auth.mode !== "none") {
+                    dispatch({
+                        type: "verify_failed",
+                        status: probe.auth.challenge_status ?? null,
+                        error: "",
+                    })
+                    return false
+                }
+                // Not the fresh probe: a reconnect has none, and the screens read one as a
+                // first connect.
+                dispatch({
+                    type: "probe_failed",
+                    probe: state.probe,
+                    error: probe?.problem?.message || "The server could not be checked.",
+                })
+                return false
+            } catch (error) {
+                if (!isCurrent(attempt)) return false
+                dispatch({
+                    type: "probe_failed",
+                    probe: state.probe,
+                    error: gatewayRefusalMessage(error) || "The server could not be checked.",
+                })
+                return false
+            }
+        },
+        [isCurrent, projectId, state.probe],
+    )
+
+    /**
+     * Connect with no credential, writing the mode where a reconnect changed it, and asking
+     * the server where None overrides what it or the saved row suggested.
+     */
+    const skipAuthentication = useCallback(async () => {
         dispatch({type: "verify_started"})
+        const endpoint = endpointRef.current
+        const attempt = attemptRef.current
+        if (reconnecting && endpoint) {
+            // Asked before the write. The relay's check runs on the saved row, so after the
+            // write a refusal left the row on None with its key let go.
+            if (mustVerifyNone && reconnectUrl) {
+                if (!(await checkWithoutKey(reconnectUrl, attempt))) return
+            }
+            const failure = await storeAuthMode(endpoint.id, "none", attempt)
+            if (!isCurrent(attempt)) return
+            if (failure) {
+                dispatch({type: "probe_failed", probe: state.probe, error: failure})
+                return
+            }
+            dispatch({type: "verify_succeeded"})
+            return
+        }
+        if (mustVerifyNone && endpoint) {
+            await verifyConnection(endpoint, attempt)
+            return
+        }
         dispatch({type: "verify_succeeded"})
-    }, [])
+    }, [
+        checkWithoutKey,
+        isCurrent,
+        mustVerifyNone,
+        reconnectUrl,
+        reconnecting,
+        state.probe,
+        storeAuthMode,
+        verifyConnection,
+    ])
+
+    // A reconnect never asks for the address, but whether OAuth can be chosen depends on what
+    // the server publishes, so its saved address is checked once in the background. The row,
+    // its screen and its saved mode stay as they are.
+    useEffect(() => {
+        if (!reconnectUrl) return
+        let live = true
+        Promise.resolve()
+            .then(() => probeMcpUrl(reconnectUrl, projectId))
+            .then((response) => {
+                if (live && response?.probe) {
+                    dispatch({type: "saved_url_probed", probe: response.probe})
+                }
+            })
+            .catch(() => undefined)
+        return () => {
+            live = false
+        }
+    }, [projectId, reconnectUrl])
 
     /**
      * Credentials are persisted. Pick up what the server wrote and tell the caller.
@@ -705,7 +894,7 @@ export function useMcpConnectJourney({
     const retry = useCallback(() => dispatch({type: "retry"}), [])
 
     const popupName = popupNameRef.current
-    const expectsConsent = state.probe?.auth.mode === "oauth"
+    const expectsConsent = state.authMode === "oauth"
 
     return useMemo(
         () => ({
@@ -716,6 +905,7 @@ export function useMcpConnectJourney({
             setUrl,
             submitUrl,
             setName,
+            selectAuthMode,
             submitName,
             toggleScope,
             submitScopes,
@@ -736,6 +926,7 @@ export function useMcpConnectJourney({
             finish,
             popupName,
             retry,
+            selectAuthMode,
             setName,
             setUrl,
             skipAuthentication,
