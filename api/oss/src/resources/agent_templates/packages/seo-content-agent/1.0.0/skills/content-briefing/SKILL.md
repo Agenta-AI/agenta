@@ -17,7 +17,7 @@ Adapt this to the page type and the owner's goals. A tutorial needs a working pr
 
 Discuss missing information that would materially change the brief. Bring a concrete proposal to the owner and improve it through their feedback, rather than asking them to supply the entire assignment.
 
-This workflow's brief approval still requires the user question, target query, intent, observed demand evidence, product fit, required proof, conversion path and owner. Explain these in language appropriate to the site; for a non-commercial project, fit and the next visitor action should reflect its purpose. Do not invent evidence to fill a field. Obtain owner approval of the actual brief before drafting.
+Brief approval requires the user question, site fit, required proof, next visitor action and owner. For SEO-led work, include a target query, search intent and observed demand evidence. For sharing-led or other non-search work, mark search demand as unproven or not applicable and explain the audience need instead. Explain these in language appropriate to the site; for a non-commercial project, fit and the next visitor action should reflect its purpose. Do not invent evidence to fill a field. Obtain owner approval of the actual brief before drafting.
 
 ## A useful brief format
 Use this as a readable starting shape, not a form to fill mechanically. Keep the existing record metadata separate from the editorial proposal. A small update may need a short note; a new comparison usually needs more detail.
@@ -26,7 +26,7 @@ Use this as a readable starting shape, not a form to fill mechanically. Keep the
 Give a working title, page type and whether this creates a page or updates an existing URL. In a short paragraph explain who the reader is, what they are trying to do, the main answer we intend to give, why this site can help and what this piece adds. State important boundaries so the writer knows what not to cover. Suggest a few genuinely different title/angle options only when a choice would help; recommend one.
 
 ### Search and audience evidence
-Name the target query, intended search intent and linked observed demand. Summarize representative current results and what they suggest about format, depth and unmet needs, with date/locale and capture limitations. Reuse planning research; refresh it when stale or when the angle changes. Keep related questions together when they support the same task rather than making a keyword quota. Explain how the proposal differs from existing site pages.
+For SEO-led work, name the target query, intended search intent and linked observed demand. Summarize representative current results and what they suggest about format, depth and unmet needs, with date/locale and capture limitations. Reuse planning research; refresh it when stale or when the angle changes. Keep related questions together when they support the same task rather than making a keyword quota. Explain how the proposal differs from existing site pages.
 
 ### Proposed structure
 Give descriptive section headings with a sentence about the question each section answers. Note the key example, demonstration, comparison or source that belongs there. A heading list alone is often too vague; a nearly complete draft defeats the purpose of brief approval. Sequence the reader's questions rather than copying competitors' headings.

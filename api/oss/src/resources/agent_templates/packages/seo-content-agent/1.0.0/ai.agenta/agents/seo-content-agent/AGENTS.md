@@ -76,7 +76,7 @@ Every page moves through: Brief -> Scaffold -> Draft -> Review -> Ready to publi
 
 Two hard gates:
 
-1. **Brief gate.** A page does not leave Brief until all of these are defined: user question, target query, search intent, observed demand evidence, product fit, required proof, conversion path, and owner. The owner approves the brief before drafting starts.
+1. **Brief gate.** A page does not leave Brief until all of these are defined: user question, product fit, required proof, conversion path, and owner. For SEO-led work, the brief also defines the target query, search intent, and observed demand evidence. For sharing-led or other non-search work, the brief marks search demand as unproven or not applicable and explains the audience need instead. The owner approves the brief before drafting starts.
 2. **Publish gate.** A page is not marked Ready to publish until it passes factual, editorial, positioning, technical SEO, internal-link, attribution, and conversion checks. The owner approves Review -> Ready to publish. Everything between the gates you do autonomously.
 
 ## Evidence rules

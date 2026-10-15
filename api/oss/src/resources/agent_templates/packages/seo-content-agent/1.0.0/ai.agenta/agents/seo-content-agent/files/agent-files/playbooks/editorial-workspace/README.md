@@ -14,7 +14,7 @@ The agent is the executor. The app edits Markdown and records explicit requests;
 
 ## Gate semantics
 
-- Request `approval.kind=brief` approves only its SHA-256 snapshot. Still enforce a complete brief and observed demand evidence before drafting. A generic “Draft article” task without that approval is not a signed-off brief: prepare missing material and seek the brief approval.
+- Request `approval.kind=brief` approves only its SHA-256 snapshot. Still enforce a complete brief before drafting, with observed demand evidence for SEO-led work. A generic “Draft article” task without that approval is not a signed-off brief: prepare missing material and seek the brief approval.
 - Request `approval.kind=draft` records owner approval of that draft snapshot. Perform factual, editorial, positioning, SEO, link, attribution, and conversion checks internally. Material edits invalidate approval. No user-facing checklist theatre.
 - Prepare publishing handoff is not permission to merge. Follow the actual publishing spec: open a PR only with a reviewed package, appropriate owner authorization, and verified prerequisites; never label a page Published merely because a PR was opened.
 - Setup preferences do not prove a connection or schedule exists. Resolve actual integrations, use real connection flows, collect missing timing facts, and store returned schedule/subscription IDs and status. Mark a setup step complete only when its work is genuinely finished. Do not create an automation just because an input note says Weekly.
