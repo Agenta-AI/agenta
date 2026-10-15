@@ -1120,6 +1120,28 @@ describe("C6, the key was refused", () => {
         expect(button("Try again")).toBeDefined()
     })
 
+    it("names the query parameter when the key travels in the query", async () => {
+        // A query binding has no header to check; the advice names what it does have.
+        await open(
+            {...rejected, authMode: "api_key", createdHere: false},
+            {
+                reconnect: {
+                    id: "mcp-1",
+                    slug: "axiom",
+                    name: "Axiom",
+                    url: "https://mcp.axiom.co/mcp",
+                    authMode: "api_key" as const,
+                    credentialBinding: {kind: "query" as const, name: "api_key"},
+                },
+            },
+        )
+
+        expect(text()).toContain(
+            "Check the query parameter the server expects, or pick another secret.",
+        )
+        expect(text()).not.toContain("Check the header the server expects")
+    })
+
     it("tells both refused fields where the reason is", async () => {
         await open(rejected)
 

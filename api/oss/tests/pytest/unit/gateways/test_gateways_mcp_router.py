@@ -1584,6 +1584,10 @@ def test_probe_refuses_a_url_a_create_would_refuse(probe_client, probe, allow, u
 
     assert response.status_code == 400, response.text
     assert probe.probed == []
+    # The connect sheet shows this sentence to a person, so it names the field by the
+    # sheet's label, not by a path in a body the probe does not take.
+    assert "endpoint.data.route" not in response.json()["detail"]
+    assert response.json()["detail"].startswith("Server URL")
 
 
 _PLACEHOLDER_URL = "https://mcp.acme.example/{secret}/v2/mcp"
@@ -1719,3 +1723,28 @@ def test_recording_a_check_needs_the_edit_permission(client, service, deny):
 
     assert response.status_code == 403
     assert "record_endpoint_check" not in service.calls
+
+
+def test_a_refused_base_url_does_not_echo_the_bound_key(client):
+    """A base_url that still holds the bound query parameter is refused without echoing it."""
+    canary = "qa-canary-key-0123456789"
+
+    response = client.post(
+        "/endpoints/",
+        json={
+            "endpoint": {
+                "name": "Acme",
+                "auth_mode": "api_key",
+                "data": {
+                    "route": {
+                        "base_url": f"{_SERVER_URL}?api_key={canary}&other=1",
+                        "credential_binding": {"kind": "query", "name": "api_key"},
+                    }
+                },
+            }
+        },
+    )
+
+    assert response.status_code == 422, response.text
+    assert "api_key" in response.text
+    assert canary not in response.text
