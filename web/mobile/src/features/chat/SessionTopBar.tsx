@@ -3,6 +3,7 @@ import {useCallback, useState} from "react"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {AgentIdentity} from "@agenta/entity-ui/agent"
 import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
+import {isBrowserEnabled} from "@agenta/shared/api"
 import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
 import {useAtomValue} from "jotai"
 
@@ -10,6 +11,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 
 import {heldCommitAtomFamily} from "./selectedRevision"
 import {ShareMenu} from "./ShareMenu"
+import {WatchBrowserButton} from "./WatchBrowserButton"
 
 /**
  * The session workspace's top bar — the desktop playground's header on this surface: which agent
@@ -72,6 +74,7 @@ export const SessionTopBar = ({
             // The desktop puts this at the header's right edge too, not on the tab strip.
             actions={
                 <>
+                    {isBrowserEnabled() ? <WatchBrowserButton sessionId={sessionId} /> : null}
                     {agentId ? (
                         <ShareMenu
                             agentId={agentId}

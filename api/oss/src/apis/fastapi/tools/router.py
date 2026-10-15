@@ -75,6 +75,7 @@ from oss.src.core.gateway.connections.exceptions import (
 from oss.src.core.gateway.connections.utils import decode_oauth_state
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.mounts.service import MountsService
+from oss.src.core.browser_profiles.service import BrowserProfilesService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tools.exceptions import PlatformToolHandlerError
 from oss.src.core.tools.platform_handlers import (
@@ -237,6 +238,7 @@ class ToolsRouter:
         workflows_service: Optional[WorkflowsService] = None,
         tracing_service: Optional[TracingService] = None,
         mounts_service: Optional[MountsService] = None,
+        browser_profiles_service: Optional[BrowserProfilesService] = None,
     ):
         self.tools_service = tools_service
         # Used to execute a referenced-workflow (@ag.reference) agent tool server-side: a
@@ -246,6 +248,7 @@ class ToolsRouter:
         self.tracing_service = tracing_service
         # Drive-backed platform handlers (create_app, list_starters) write through it.
         self.mounts_service = mounts_service
+        self.browser_profiles_service = browser_profiles_service
 
         self.router = APIRouter()
 
@@ -1399,6 +1402,7 @@ class ToolsRouter:
                 workflows_service=self.workflows_service,
                 tracing_service=self.tracing_service,
                 mounts_service=self.mounts_service,
+                browser_profiles_service=self.browser_profiles_service,
             )
         except PlatformToolHandlerError as e:
             raise HTTPException(status_code=e.status_code, detail=e.message) from e
@@ -1428,9 +1432,12 @@ class ToolsRouter:
             id=uuid4(),
             data=ToolResultData(
                 tool_call_id=body.data.id,
+                # A plain string (a browser page read) goes through unquoted.
                 content=(
                     content.model_dump_json(exclude_none=True)
                     if isinstance(content, BaseModel)
+                    else content
+                    if isinstance(content, str)
                     else json.dumps(content)
                 ),
             ),

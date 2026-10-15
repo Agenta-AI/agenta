@@ -615,6 +615,8 @@ class ResolverMiddleware:
         call_next: Callable[[WorkflowInvokeRequest], Any],
     ):
         ctx = RunningContext.get()
+        # Read before hydration, which fills `data.parameters` from the stored revision.
+        ctx.inline_configuration = bool(request.data and request.data.parameters)
         revision = await resolve_revision(request=request)
 
         # Hydration intent is decided purely by what the CALLER sent. `revision` cannot

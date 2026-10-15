@@ -9,6 +9,7 @@ import {
     Coins,
     ClockCounterClockwise,
     FolderSimple,
+    Globe,
     Key,
     Link,
     Plugs,
@@ -41,6 +42,8 @@ export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
             return <Broadcast size={14} />
         case "webhooks":
             return <Link size={14} />
+        case "browser-logins":
+            return <Globe size={14} />
         case "mcpEndpoints":
             return <Plugs size={14} />
         case "workspace":

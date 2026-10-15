@@ -260,6 +260,10 @@ the run:
   `permissions` (optional) is the security boundary: `{ "network": { "mode": "on"|"off"|
   "allowlist", "allowlist": ["<CIDR>"] }, "filesystem": "on"|"readonly"|"off", "enforcement":
   "strict"|"best_effort" }`.
+- `browser` (optional) — `{ "mode": "all"|"selected"|"off", "profiles": ["<browser-profile-id>"] }`.
+  Which of the user's cloud browser logins a run may use; a run with at least one ready login
+  gets the browser tools. Omitted means `all`. `profiles` is read only by `selected`. Set it only
+  when the user asks; never invent a profile id.
 """
 
 # The commit chapter: the read-then-commit loop, the target grammar, the seven operations, and the failure modes the

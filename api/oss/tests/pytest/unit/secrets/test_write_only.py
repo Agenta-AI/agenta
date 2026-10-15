@@ -1110,8 +1110,9 @@ def test_primary_credential_fields_cover_every_secret_kind():
     }
     # A subscription keeps its credential on the data object, not in a nested container,
     # and it has no readable form at all: both fields are stripped whatever write_only says.
-    assert set(DATA_CREDENTIAL_FIELDS) == {"subscription_provider"}
+    assert set(DATA_CREDENTIAL_FIELDS) == {"subscription_provider", "browser_login"}
     assert DATA_CREDENTIAL_FIELDS["subscription_provider"] == ("login", "login_attempt")
+    assert DATA_CREDENTIAL_FIELDS["browser_login"] == ("storage_state",)
 
 
 # --- channel secret redaction + rotation (Codex review P1 fixes) ------------------------

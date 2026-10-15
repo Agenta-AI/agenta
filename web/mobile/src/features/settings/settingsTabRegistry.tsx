@@ -18,6 +18,7 @@ const LOADERS: Partial<Record<SettingsTabKey, Loader>> = {
     channels: () => import("./ChannelsTab").then((m) => m.ChannelsTab),
     apiKeys: () => import("./ApiKeysTab").then((m) => m.ApiKeysTab),
     webhooks: () => import("./WebhooksTab").then((m) => m.WebhooksTab),
+    "browser-logins": () => import("./BrowserLoginsTab").then((m) => m.BrowserLoginsTab),
     analytics: () => import("./AnalyticsTab").then((m) => m.AnalyticsTab),
     billing: () => import("./BillingTab").then((m) => m.BillingTab),
     credits: () =>

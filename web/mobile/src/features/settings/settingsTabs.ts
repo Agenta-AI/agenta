@@ -3,6 +3,7 @@ import {useMemo} from "react"
 import type {SettingsAccess, SettingsTabKey} from "@agenta/settings"
 import {
     isBillingEnabled,
+    isBrowserEnabled,
     isEE,
     isMcpGatewayEnabled,
     isToolsEnabled,
@@ -21,6 +22,7 @@ export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
     "channels",
     "apiKeys",
     "webhooks",
+    "browser-logins",
     "analytics",
     "billing",
     "workspace",
@@ -50,6 +52,7 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
     const toolsEnabled = isToolsEnabled()
     const mcpGatewayEnabled = isMcpGatewayEnabled()
     const walletsEnabled = isWalletsEnabled()
+    const browserEnabled = isBrowserEnabled()
     const router = useRouter()
     const projectId = typeof router.query.project_id === "string" ? router.query.project_id : ""
     const walletEnforced = useWalletSummary(projectId).data?.mode === "enforce"
@@ -59,6 +62,7 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
             // Names the tab "Usage & Billing" rather than "Usage" — this surface can now change
             // a subscription, not only report against one.
             billingEnabled,
+            browserEnabled,
             canShowMcpEndpoints: mcpGatewayEnabled,
             canShowTools: toolsEnabled,
             canViewApiKeys: true,
@@ -75,6 +79,7 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
         [
             enterprise,
             billingEnabled,
+            browserEnabled,
             toolsEnabled,
             mcpGatewayEnabled,
             walletsEnabled,
@@ -106,6 +111,7 @@ export const useActiveSettingsTab = (): SettingsTabKey => {
     if (!AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey))
         return DEFAULT_MOBILE_SETTINGS_TAB
     if (requested === "tools" && !access.canShowTools) return DEFAULT_MOBILE_SETTINGS_TAB
+    if (requested === "browser-logins" && !access.browserEnabled) return DEFAULT_MOBILE_SETTINGS_TAB
     if (requested === "billing" && !access.billingEnabled) return DEFAULT_MOBILE_SETTINGS_TAB
     // The wallet routes are EE-only, whatever the mirrored wallet flag says.
     if (

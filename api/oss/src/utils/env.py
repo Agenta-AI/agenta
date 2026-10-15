@@ -1621,6 +1621,14 @@ def _default_sandbox_provider_default() -> str:
     )
 
 
+class BrowserConfig(BaseModel):
+    """Cloud browser (browser profiles, browser agent tools, live view)."""
+
+    enabled: bool = _parse_bool_env("AGENTA_BROWSER_ENABLED", False)
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class RunnerConfig(BaseModel):
     """Agent runner (services/runner) sidecar configuration."""
 
@@ -2354,6 +2362,7 @@ class EnvironSettings(BaseModel):
     agenta: AgentaConfig = AgentaConfig()
     alembic: AlembicConfig = AlembicConfig()
     auth: AuthFacade = AuthFacade()
+    browser: BrowserConfig = BrowserConfig()
     channels: ChannelsConfig = ChannelsConfig()
     cloudflare: CloudflareConfig = CloudflareConfig()
     composio: ComposioConfig = ComposioConfig()

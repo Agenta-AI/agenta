@@ -1321,6 +1321,38 @@ class AgentTemplateSchema(AgSchemaMixin):
         title="Sandbox",
         description="Where the agent runs plus its security boundary.",
     )
+    browser: Optional["_BrowserSchema"] = Field(
+        default=None,
+        title="Browser",
+        description=(
+            "Which of your cloud browser logins the agent can browse the web with. Unset means "
+            "all your ready logins. The agent asks before it pays or deletes anything."
+        ),
+    )
+
+
+class _BrowserSchema(BaseModel):
+    """The cloud browser logins the agent may use (``agent.browser``)."""
+
+    model_config = ConfigDict(extra="forbid", title="Browser")
+
+    mode: Literal["all", "selected", "off"] = Field(
+        default="all",
+        title="Logins",
+        description="Which of your browser logins a run may use.",
+        json_schema_extra={
+            "oneOf": [
+                {"const": "all", "title": "All my logins"},
+                {"const": "selected", "title": "Only these logins"},
+                {"const": "off", "title": "Off"},
+            ]
+        },
+    )
+    profiles: List[str] = Field(
+        default_factory=list,
+        title="Profiles",
+        description="The browser profile ids to use when the mode is 'Only these logins'.",
+    )
 
 
 class _HarnessPermissionsSchema(BaseModel):

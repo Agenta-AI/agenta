@@ -18,12 +18,12 @@ import {
     retryHarnessCatalogAtom,
     type BuildKitUiState,
 } from "@agenta/entities/workflow"
-import {getEnabledSandboxProviders} from "@agenta/shared/api"
+import {getEnabledSandboxProviders, isBrowserEnabled} from "@agenta/shared/api"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
-import {Cube, Hammer, Toolbox, Vault} from "@phosphor-icons/react"
+import {Cube, Globe, Hammer, Toolbox, Vault} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
@@ -63,6 +63,8 @@ import {
 import {useAgentaTools} from "./AgentaToolsSection"
 import {AgentSecretsSection} from "./AgentSecretsSection"
 import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
+import {readBrowserAccess, writeBrowserAccess} from "./browserAccess"
+import {BrowserAccessControl} from "./BrowserAccessControl"
 import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
 import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
 import ModelPickerControl from "./ModelPickerControl"
@@ -455,6 +457,8 @@ export function useModelHarness({
     // per-row dot reverts ONE property; this is "undo the whole group". Null when nothing changed or
     // the surface offers no revert, so the header keeps its normal actions.
     const revertSandbox = useRevertUnder("sandbox.kind")
+    const browserChanged = useHasChangedUnder("browser")
+    const revertBrowser = useRevertUnder("browser")
 
     // Confirmed — see `RevertGroupButton`, which owns the confirm step.
     const revertAction = (onRevert: (() => void) | null) =>
@@ -477,7 +481,8 @@ export function useModelHarness({
     const modelInFocus = useHasFocusUnder("llm.model")
 
     const hasExecutionGroup = sandboxOptions.length > 1
-    const hasAdvanced = hasExecutionGroup || hasBuildKitOverlay || Boolean(revisionId)
+    const hasBrowser = Boolean(props.browser) && isBrowserEnabled()
+    const hasAdvanced = hasExecutionGroup || hasBrowser || hasBuildKitOverlay || Boolean(revisionId)
 
     // Harness list, from the inspect capabilities map. Model compatibility is shown per-card
     // (below); the model picker also needs it, to cross each connection with the harnesses that
@@ -765,6 +770,26 @@ export function useModelHarness({
                     extra: revertAction(revertSandbox),
                 },
                 body: executionBody,
+            },
+            hasBrowser && {
+                item: {
+                    value: "browser",
+                    label: "Browser",
+                    icon: <Globe size={14} />,
+                    status: browserChanged ? ("warning" as const) : undefined,
+                },
+                header: {
+                    title: "Browser",
+                    caption: "Which of your browser logins the agent may sign in with.",
+                    extra: revertAction(revertBrowser),
+                },
+                body: (
+                    <BrowserAccessControl
+                        access={readBrowserAccess(config.browser)}
+                        disabled={disabled}
+                        onChange={(access) => onChange(writeBrowserAccess(config, access))}
+                    />
+                ),
             },
             // Unlike the others this is not schema-gated: the vault is a property of the agent, not
             // of its config schema, so the panel is always offered — it is the only way to reach

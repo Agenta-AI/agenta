@@ -24,6 +24,8 @@
  */
 import type {ClientToolWidget, ClientToolWidgetProps} from "@agenta/shared/clientTools"
 
+import {BrowserLoginRequestWidget} from "./BrowserLoginRequestWidget"
+import {BrowserWaitWidget} from "./BrowserWaitWidget"
 import ConnectToolWidget from "./ConnectToolWidget"
 import ElicitationWidget from "./ElicitationWidget"
 import GatewayConnectToolWidget from "./GatewayConnectToolWidget"
@@ -58,6 +60,8 @@ export const clientToolWidgets: {
         secret: SecretRequestWidget,
         connect: ConnectRequestWidget,
         elicitation: ElicitationWidget,
+        browser: BrowserWaitWidget,
+        browser_login: BrowserLoginRequestWidget,
     },
     // Keyed by `toolName` (checked when no render hint matched). Both entries are
     // platform-reserved static tools, so the name is a safe second axis when the hint is
@@ -67,5 +71,7 @@ export const clientToolWidgets: {
         request_secret: SecretRequestWidget,
         request_connection: ConnectRequestWidget,
         request_input: ElicitationWidget,
+        browser_wait_for_user: BrowserWaitWidget,
+        browser_request_login: BrowserLoginRequestWidget,
     },
 }

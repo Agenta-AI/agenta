@@ -38,6 +38,7 @@ from agenta.sdk.utils.types import CATALOG_TYPES
 from ._schema import expand_type_refs
 
 __all__ = [
+    "BROWSER_TOOL_OPS",
     "CHANNEL_TOOL_OPS",
     "PLATFORM_OP_NAMESPACE",
     "PlatformOp",
@@ -63,6 +64,14 @@ _HANDLER_CALL_REFS = frozenset(
         f"{PLATFORM_OP_NAMESPACE}commit_revision",
         f"{PLATFORM_OP_NAMESPACE}create_app",
         f"{PLATFORM_OP_NAMESPACE}list_starters",
+        f"{PLATFORM_OP_NAMESPACE}browser_navigate",
+        f"{PLATFORM_OP_NAMESPACE}browser_read_page",
+        f"{PLATFORM_OP_NAMESPACE}browser_find",
+        f"{PLATFORM_OP_NAMESPACE}browser_click",
+        f"{PLATFORM_OP_NAMESPACE}browser_type",
+        f"{PLATFORM_OP_NAMESPACE}browser_form_input",
+        f"{PLATFORM_OP_NAMESPACE}browser_pay",
+        f"{PLATFORM_OP_NAMESPACE}browser_delete",
     }
 )
 
@@ -1832,10 +1841,181 @@ _CHANNEL_TOOL_OPS: tuple = (
 CHANNEL_TOOL_OPS: tuple = tuple(op.op for op in _CHANNEL_TOOL_OPS)
 
 
+# The SDK stamps `$ctx.browser.*` on every browser run, so draft runs resolve every binding too.
+_BROWSER_CONTEXT_BINDINGS: Dict[str, str] = {
+    "session_id": "$ctx.session.id",
+    "profile_ids": "$ctx.browser.profile_ids",
+    "all_logins": "$ctx.browser.all_logins",
+    "revision_id": "$ctx.browser.revision_id",
+    "is_draft": "$ctx.browser.is_draft",
+}
+
+_BROWSER_REF_SCHEMA: Dict[str, Any] = {
+    "type": "string",
+    "maxLength": 64,
+    "description": "Element ref, e.g. `e12`.",
+}
+
+# A ref, or a role and name with no read first. The guidance says a tool acts only on one match.
+_BROWSER_TARGET: Dict[str, Any] = {
+    "ref": _BROWSER_REF_SCHEMA,
+    "role": {
+        "type": "string",
+        "maxLength": 40,
+        "description": "Or the role, e.g. `button`, `link`, `searchbox`.",
+    },
+    "name": {
+        "type": "string",
+        "maxLength": 200,
+        "description": "With role: words of its name.",
+    },
+}
+
+
+def _browser_input_schema(
+    properties: Dict[str, Any], required: List[str]
+) -> Dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            **properties,
+            "session_id": _BOUND_FROM_RUN_SCHEMA,
+            "profile_ids": {
+                **_BOUND_FROM_RUN_SCHEMA,
+                "type": "array",
+                "items": {"type": "string"},
+            },
+            "all_logins": {**_BOUND_FROM_RUN_SCHEMA, "type": "boolean"},
+            "revision_id": {**_BOUND_FROM_RUN_SCHEMA, "type": ["string", "null"]},
+            "is_draft": {**_BOUND_FROM_RUN_SCHEMA, "type": "boolean"},
+        },
+        "required": required,
+    }
+
+
+def _browser_op(
+    op: str,
+    description: str,
+    properties: Dict[str, Any],
+    required: List[str],
+    *,
+    read_only: bool = False,
+    default_permission: Literal["allow", "ask"] = "allow",
+) -> PlatformOp:
+    return PlatformOp(
+        op=op,
+        description=description,
+        handler=f"{PLATFORM_OP_NAMESPACE}{op}",
+        input_schema=_browser_input_schema(properties, required),
+        context_bindings=dict(_BROWSER_CONTEXT_BINDINGS),
+        read_only=read_only,
+        default_permission=default_permission,
+        # The first call of a session may create and boot the browser sandbox.
+        timeout_ms=120000,
+    )
+
+
+_BROWSER_TOOL_OPS: tuple = (
+    _browser_op(
+        "browser_navigate",
+        "Open an http(s) URL, or go `back` / `forward`. Returns the page, or an outline of its "
+        "parts if it is long.",
+        {"url": {"type": "string", "maxLength": 4000}},
+        ["url"],
+    ),
+    _browser_op(
+        "browser_read_page",
+        "Read the current page, or one part of it by `ref`. A long page returns an outline of "
+        "its parts.",
+        {
+            "ref": {
+                **_BROWSER_REF_SCHEMA,
+                "description": "The part to read. Default: all.",
+            },
+            "filter": {
+                "type": "string",
+                "enum": ["interactive", "all"],
+                "description": "`interactive`: only links, buttons and fields.",
+            },
+        },
+        [],
+        read_only=True,
+    ),
+    _browser_op(
+        "browser_find",
+        "Find text on the page. Returns each matching list item or row, with refs.",
+        {"query": {"type": "string", "maxLength": 500}},
+        ["query"],
+        read_only=True,
+    ),
+    _browser_op(
+        "browser_click",
+        "Click an element. Not for paying or deleting.",
+        dict(_BROWSER_TARGET),
+        [],
+    ),
+    _browser_op(
+        "browser_type",
+        "Replace a field's text. `submit` presses Enter.",
+        {
+            **_BROWSER_TARGET,
+            "text": {"type": "string", "maxLength": 10000},
+            "submit": {"type": "boolean"},
+        },
+        ["text"],
+    ),
+    _browser_op(
+        "browser_form_input",
+        "Set a select, checkbox, radio or field.",
+        {
+            **_BROWSER_TARGET,
+            "value": {
+                "anyOf": [{"type": "string", "maxLength": 10000}, {"type": "boolean"}],
+                "description": "Option, text, or true/false.",
+            },
+        },
+        ["value"],
+    ),
+    _browser_op(
+        "browser_pay",
+        "Click to pay, order or confirm a purchase. The person approves first.",
+        {
+            **_BROWSER_TARGET,
+            "summary": {
+                "type": "string",
+                "maxLength": 500,
+                "description": "What, from whom, and the total.",
+            },
+        },
+        ["summary"],
+        default_permission="ask",
+    ),
+    _browser_op(
+        "browser_delete",
+        "Click to delete or remove something. The person approves first.",
+        {
+            **_BROWSER_TARGET,
+            "summary": {
+                "type": "string",
+                "maxLength": 500,
+                "description": "What is deleted.",
+            },
+        },
+        ["summary"],
+        default_permission="ask",
+    ),
+)
+
+# The ops the SDK adds to a run that may use at least one browser login.
+BROWSER_TOOL_OPS: tuple = tuple(op.op for op in _BROWSER_TOOL_OPS)
+
+
 PLATFORM_OPS: Dict[str, PlatformOp] = {
     op.op: op
     for op in _READ_CONFIG_OPS
     + _CHANNEL_TOOL_OPS
+    + _BROWSER_TOOL_OPS
     + (
         PlatformOp(
             op="create_app",

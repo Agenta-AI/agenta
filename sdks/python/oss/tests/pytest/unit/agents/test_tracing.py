@@ -151,3 +151,36 @@ def test_run_context_workflow_normalizes_application_references(monkeypatch):
     assert workflow.revision.id == "revision-id"
     assert workflow.revision.version == "v2"
     assert workflow.is_draft is False
+
+
+def _variant_only_references(monkeypatch):
+    monkeypatch.setattr(
+        tracing.TracingContext,
+        "get",
+        lambda: SimpleNamespace(
+            references={"application_variant": {"id": "variant-id"}}
+        ),
+    )
+
+
+def test_a_run_is_a_draft_only_with_an_inline_configuration(monkeypatch):
+    _variant_only_references(monkeypatch)
+    monkeypatch.setattr(
+        tracing.RunningContext,
+        "get",
+        lambda: SimpleNamespace(inline_configuration=True),
+    )
+
+    assert tracing._run_context_workflow().is_draft is True
+
+
+def test_a_stored_config_without_a_revision_reference_is_not_a_draft(monkeypatch):
+    # Hydrated from a variant whose retrieval named no revision: still the stored config.
+    _variant_only_references(monkeypatch)
+    monkeypatch.setattr(
+        tracing.RunningContext,
+        "get",
+        lambda: SimpleNamespace(inline_configuration=False),
+    )
+
+    assert tracing._run_context_workflow().is_draft is False

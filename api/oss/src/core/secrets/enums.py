@@ -11,6 +11,7 @@ class SecretKind(str, Enum):
     SUBSCRIPTION_PROVIDER = "subscription_provider"
     OAUTH_PROVIDER = "oauth_provider"
     OAUTH_GRANT = "oauth_grant"
+    BROWSER_LOGIN = "browser_login"
 
 
 # Kinds whose credential material may NEVER be read back through a response, whatever a
@@ -28,7 +29,7 @@ class SecretKind(str, Enum):
 # and `_SecretResponseBaseDTO` forces it on the way out so a row stored before this rule —
 # or any row whose mark went missing — is still redacted. The last one is what makes the
 # default fail CLOSED and is why no data migration is needed.
-ALWAYS_WRITE_ONLY_KINDS = frozenset({SecretKind.OAUTH_GRANT})
+ALWAYS_WRITE_ONLY_KINDS = frozenset({SecretKind.OAUTH_GRANT, SecretKind.BROWSER_LOGIN})
 
 
 def is_always_write_only(kind) -> bool:

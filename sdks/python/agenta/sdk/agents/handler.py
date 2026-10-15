@@ -11,12 +11,17 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from opentelemetry import trace as otel_trace
 
-from agenta.sdk.agents.dtos import AgentTemplate, SessionConfig, to_messages
+from agenta.sdk.agents.dtos import (
+    AgentBrowser,
+    AgentTemplate,
+    SessionConfig,
+    to_messages,
+)
 from agenta.sdk.agents.interfaces import Backend, Environment
 from agenta.sdk.agents.capabilities import (
     harness_allows_deployment,
@@ -32,7 +37,12 @@ from agenta.sdk.agents.connections import (
     UnsupportedDeploymentError,
     UnsupportedProviderError,
 )
-from agenta.sdk.agents.tools import PlatformToolConfig, ResolvedToolSet
+from agenta.sdk.agents.tools import (
+    ClientToolConfig,
+    PlatformToolConfig,
+    ResolvedToolSet,
+    ToolConfigurationError,
+)
 from agenta.sdk.agents.adapters import SandboxAgentBackend, make_harness
 from agenta.sdk.agents.errors import SandboxNotAllowedError
 from agenta.sdk.agents.sandbox_providers import sandbox_provider_enabled
@@ -45,7 +55,14 @@ from agenta.sdk.agents.platform import (
 )
 from agenta.sdk.agents.platform import resolve_mcp as _platform_resolve_mcp
 from agenta.sdk.agents.platform import resolve_tools as _platform_resolve_tools
-from agenta.sdk.agents.platform import CHANNEL_TOOL_OPS
+from agenta.sdk.agents.platform import (
+    BROWSER_TOOL_OPS,
+    CHANNEL_TOOL_OPS,
+    platform_handlers_enabled,
+)
+from agenta.sdk.agents.platform import (
+    read_browser_profiles as _platform_browser_profiles,
+)
 from agenta.sdk.agents.platform import read_channel_tools as _platform_channel_tools
 from agenta.sdk.agents.platform import (
     read_session_context as _platform_read_session_context,
@@ -60,7 +77,12 @@ from agenta.sdk.agents.tracing import (
     run_context as ambient_run_context,
     trace_context as ambient_trace_context,
 )
-from agenta.sdk.agents.dtos import RunContext, RunContextRun, SessionContext
+from agenta.sdk.agents.dtos import (
+    RunContext,
+    RunContextBrowser,
+    RunContextRun,
+    SessionContext,
+)
 
 from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error
 from agenta.sdk.engines.tracing.server import current_product_span
@@ -84,6 +106,7 @@ ResolveConnectionFn = Callable[..., Awaitable[ResolvedConnection]]
 ResolveSandboxCredentialsFn = Callable[..., Awaitable[List[Any]]]
 ResolveSessionContextFn = Callable[..., Awaitable[Optional[SessionContext]]]
 ResolveChannelToolsFn = Callable[..., Awaitable[List[str]]]
+ResolveBrowserProfilesFn = Callable[..., Awaitable[Optional[List[str]]]]
 ResolveSessionConnectionFn = Callable[
     [ModelRef, RuntimeAuthContext], Awaitable[ResolvedConnection]
 ]
@@ -198,6 +221,143 @@ async def _with_channel_tools(
         if op in ops and op not in authored
     ]
     return [*tools, *added]
+
+
+BROWSER_WAIT_FOR_USER_TOOL = ClientToolConfig(
+    name="browser_wait_for_user",
+    description=(
+        "Hand the browser to the person and wait until they are done. Say what to do in `message`."
+    ),
+    input_schema={
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "reason": {
+                "type": "string",
+                "enum": ["login", "two_factor", "captcha", "other"],
+            },
+            "message": {"type": "string", "maxLength": 500},
+        },
+        "required": ["reason", "message"],
+    },
+    render={"kind": "browser"},
+)
+
+BROWSER_REQUEST_LOGIN_TOOL = ClientToolConfig(
+    name="browser_request_login",
+    description=(
+        "Ask the person to add a browser login for a site and sign in. "
+        "Use when no login allows the site you need."
+    ),
+    input_schema={
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "site": {
+                "type": "string",
+                "maxLength": 253,
+                "description": "Host, e.g. x.com.",
+            },
+            "message": {"type": "string", "maxLength": 500},
+        },
+        "required": ["site", "message"],
+    },
+    render={"kind": "browser_login"},
+)
+
+# Money and deletion always ask, unless the agent refuses every tool anyway.
+_BROWSER_CONFIRM_OPS = frozenset({"browser_pay", "browser_delete"})
+
+
+def _browser_binding(rc: Optional[RunContext]) -> Tuple[Optional[str], bool]:
+    """The ``(revision_id, is_draft)`` the browser check and the browser tools bind to."""
+    workflow = rc.workflow if rc else None
+    revision = workflow.revision if workflow else None
+    # Fail closed: only an explicit draft skips the revision-author check.
+    is_draft = workflow is not None and workflow.is_draft is True
+    return (revision.id if revision else None), is_draft
+
+
+async def _browser_profile_ids(
+    resolve: ResolveBrowserProfilesFn,
+    browser: AgentBrowser,
+    *,
+    revision_id: Optional[str],
+    is_draft: bool,
+) -> Optional[List[str]]:
+    """The API's ready logins narrowed by the agent's mode; None means no browser."""
+    # Without platform handlers the default (all logins) quietly goes without a browser.
+    if browser.mode == "off" or (
+        browser.mode == "all" and not platform_handlers_enabled()
+    ):
+        return None
+    ids = await run_optional(
+        lambda: resolve(revision_id=revision_id, is_draft=is_draft),
+        budget=session_context_timeout(),
+        label="browser profiles resolver",
+    )
+    if ids is None or browser.mode != "selected":
+        return ids
+    return [profile_id for profile_id in ids if profile_id in browser.profiles]
+
+
+def _with_browser_tools(
+    tools: list, profile_ids: Optional[List[str]], agent_template: AgentTemplate
+) -> list:
+    """The run's tools plus the browser tools, never saved to the agent's configuration."""
+    authored = {
+        name
+        for tool in tools
+        for name in (getattr(tool, "op", None), getattr(tool, "name", None))
+        if isinstance(name, str)
+    }
+    # Only "All my logins" picks up a login the person adds; a selection would not include it.
+    request_login = (
+        [BROWSER_REQUEST_LOGIN_TOOL]
+        if agent_template.browser.mode == "all"
+        and profile_ids is not None
+        and BROWSER_REQUEST_LOGIN_TOOL.name not in authored
+        else []
+    )
+    if not profile_ids:
+        # Without a login the run binds no `$ctx.browser`, so an authored browser op could only fail.
+        return [
+            *(
+                tool
+                for tool in tools
+                if not (
+                    isinstance(tool, PlatformToolConfig) and tool.op in BROWSER_TOOL_OPS
+                )
+            ),
+            *request_login,
+        ]
+    if not platform_handlers_enabled():
+        raise ToolConfigurationError(
+            "This agent may use your cloud browser logins, but "
+            "AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS is disabled, which removes the browser "
+            f"tools ({', '.join(BROWSER_TOOL_OPS)}). "
+            "Unset that variable, or set this agent's browser to Off."
+        )
+    confirm = "ask" if agent_template.permission_default != "deny" else None
+    # An authored entry keeps its other settings, but never runs pay or delete unasked.
+    tools = [
+        tool.model_copy(update={"permission": "ask"})
+        if isinstance(tool, PlatformToolConfig)
+        and tool.op in _BROWSER_CONFIRM_OPS
+        and tool.permission != "deny"
+        else tool
+        for tool in tools
+    ]
+    added: list = [
+        PlatformToolConfig(
+            op=op, permission=confirm if op in _BROWSER_CONFIRM_OPS else None
+        )
+        for op in BROWSER_TOOL_OPS
+        if op not in authored
+    ]
+    if BROWSER_WAIT_FOR_USER_TOOL.name not in authored:
+        added.append(BROWSER_WAIT_FOR_USER_TOOL)
+    return [*tools, *added, *request_login]
 
 
 def _reference_id(references, name: str) -> Optional[str]:
@@ -375,6 +535,10 @@ class AgentComposition:
     resolve_channel_tools: ResolveChannelToolsFn = field(
         default=_platform_channel_tools
     )
+    # Which cloud browser logins the run's caller has ready; the agent's browser mode narrows it.
+    resolve_browser_profiles: ResolveBrowserProfilesFn = field(
+        default=_platform_browser_profiles
+    )
     # capability gating + fail-closed resolution policy; override to replace, not just add to.
     resolve_session_connection: Optional[ResolveSessionConnectionFn] = field(
         default=None
@@ -443,12 +607,21 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         )
 
         msgs = to_messages(messages or (inputs or {}).get("messages") or [])
+        browser_revision_id, browser_is_draft = _browser_binding(comp.run_context())
+        browser_profile_ids = await _browser_profile_ids(
+            comp.resolve_browser_profiles,
+            agent_template.browser,
+            revision_id=browser_revision_id,
+            is_draft=browser_is_draft,
+        )
         # The agent-wide mode reaches the gateway permission compiler only here: an
         # ``inherit`` in a saved connection policy resolves against it, so a resolve that
         # does not carry it would compile a different policy than the run enforces.
         run_tools = await _with_channel_tools(
             comp.resolve_channel_tools,
-            agent_template.tools,
+            _with_browser_tools(
+                agent_template.tools, browser_profile_ids, agent_template
+            ),
             workflow_id=_agent_artifact_id(comp.run_context(), request.references),
         )
         resolved_tools = await comp.resolve_tools(
@@ -531,6 +704,14 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         if isinstance(run_kind, str) and run_kind:
             base = rc or RunContext()
             rc = base.model_copy(update={"run": RunContextRun(kind=run_kind)})
+        if browser_profile_ids:
+            browser = RunContextBrowser(
+                profile_ids=browser_profile_ids,
+                all_logins=agent_template.browser.mode == "all",
+                revision_id=browser_revision_id,
+                is_draft=browser_is_draft,
+            )
+            rc = (rc or RunContext()).model_copy(update={"browser": browser})
 
         # Detached session coordination rides the generic workflow request metadata. Keep these
         # values out of harness configuration: they identify this delivery/execution only. In

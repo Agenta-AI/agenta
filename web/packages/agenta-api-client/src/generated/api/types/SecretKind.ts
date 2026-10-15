@@ -10,5 +10,6 @@ export const SecretKind = {
     SubscriptionProvider: "subscription_provider",
     OauthProvider: "oauth_provider",
     OauthGrant: "oauth_grant",
+    BrowserLogin: "browser_login",
 } as const;
 export type SecretKind = (typeof SecretKind)[keyof typeof SecretKind];

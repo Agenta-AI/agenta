@@ -24,6 +24,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oss.src.core.gateways.policy.types import SecretInvalidError
+from oss.src.dbs.postgres.secrets.dao import VAULT_KINDS
 from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
 
 
@@ -48,6 +49,7 @@ async def check_secret_is_owned_by_project(
         select(SecretsDBE.id)
         .where(SecretsDBE.id == bound_secret)
         .where(SecretsDBE.project_id == project_id)
+        .where(VAULT_KINDS)
         .limit(1)
     )
 

@@ -45,7 +45,7 @@ _DISABLED_ENV_VALUES = {"0", "false", "f", "n", "no", "off", "disable", "disable
 _HANDLER_REQUIRED_OPS = frozenset({"read_config", "commit_revision"})
 
 
-def _platform_handlers_enabled() -> bool:
+def platform_handlers_enabled() -> bool:
     value = os.getenv(_ENABLE_PLATFORM_HANDLERS_ENV)
     if value is None:
         return True
@@ -81,7 +81,7 @@ class AgentaPlatformToolResolver:
         tool_specs: list[CallbackToolSpec] = []
         for tool_config in tools:
             op = get_platform_op(tool_config.op)
-            if op.handler is not None and not _platform_handlers_enabled():
+            if op.handler is not None and not platform_handlers_enabled():
                 if op.op in _HANDLER_REQUIRED_OPS:
                     # Loud, not silent. Dropping this tool would leave the model with no
                     # way to read or change its own configuration and no error to report,

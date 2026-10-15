@@ -137,3 +137,21 @@ async def test_custom_providers_still_ride_along(fetch):
 
     assert [s["slug"] for s in secrets] == ["openai", "my-gw"]
     assert [s["slug"] for s in vault_secrets] == ["openai", "my-gw"]
+
+
+async def test_a_browser_login_never_reaches_a_run(fetch):
+    payload = [
+        _provider_key("openai", "openai", "sk-first"),
+        {
+            "kind": "browser_login",
+            "id": "01a1228f-0a2f-7f82-9927-8326685ee48f",
+            "header": {"name": "GitHub"},
+            "write_only": True,
+            "data": {"allowed_hosts": ["github.com"], "storage_state": {"cookies": []}},
+        },
+    ]
+
+    secrets, vault_secrets, _ = await fetch(payload)
+
+    assert [s["slug"] for s in secrets] == ["openai"]
+    assert [s["slug"] for s in vault_secrets] == ["openai"]

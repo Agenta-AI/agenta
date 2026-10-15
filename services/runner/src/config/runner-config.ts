@@ -121,6 +121,12 @@ export interface RunnerDaytonaConfig {
   autodeleteMinutes: number;
 }
 
+/** Cloud browsers: Daytona sandboxes, or runner child processes when `local` is enabled. */
+export interface RunnerBrowserConfig {
+  /** `AGENTA_RUNNER_BROWSER_IMAGE`: the Daytona browser sandbox image; unset uses the built-in Playwright image. */
+  image: string | undefined;
+}
+
 export interface RunnerCallbackConfig {
   apiInternalUrl: string | undefined;
 }
@@ -156,6 +162,7 @@ export interface RunnerConfig {
   daytona: RunnerDaytonaConfig;
   inprocess: RunnerInProcessConfig;
   callback: RunnerCallbackConfig;
+  browser: RunnerBrowserConfig;
 }
 
 type Env = Record<string, string | undefined>;
@@ -467,6 +474,9 @@ export function parseRunnerConfig(env: Env = process.env): RunnerConfig {
     inprocess,
     callback: {
       apiInternalUrl: nonEmpty(env.AGENTA_API_INTERNAL_URL),
+    },
+    browser: {
+      image: nonEmpty(env.AGENTA_RUNNER_BROWSER_IMAGE),
     },
   };
 }

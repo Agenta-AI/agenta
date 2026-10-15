@@ -8,6 +8,7 @@ export type SettingsTabKey =
     | "tools"
     | "channels"
     | "webhooks"
+    | "browser-logins"
     | "mcpEndpoints"
     | "workspace"
     | "projects"
@@ -31,6 +32,8 @@ export interface SettingsAccess {
     canViewEvents: boolean
     isEE: boolean
     isOwner: boolean
+    /** Whether the cloud browser is on, and so whether its logins tab has anything behind it. */
+    browserEnabled?: boolean
     /** Whether the credit wallet is on. Only then does its debug view have data behind it. */
     walletsEnabled?: boolean
     /** Whether credits stop this organization's work (its wallet is enforced). */
@@ -113,6 +116,12 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         scope: "project",
         description:
             "Send workflow events to your own HTTP endpoints, with signed payloads and delivery retries.",
+    },
+    {
+        key: "browser-logins",
+        scope: "project",
+        description:
+            "Sign in to sites once so your agents can use them in a cloud browser. Only you can use your logins.",
     },
     {
         key: "analytics",
@@ -211,6 +220,7 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     tools: "Tools",
     channels: "Channels",
     webhooks: "Webhooks",
+    "browser-logins": "Browser logins",
     mcpEndpoints: "MCPs",
     workspace: "Members",
     projects: "Projects",
@@ -251,6 +261,8 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
             return access.canShowTools
         case "mcpEndpoints":
             return access.canShowMcpEndpoints
+        case "browser-logins":
+            return Boolean(access.browserEnabled)
         case "organization":
             return access.isEE && access.isOwner
         case "auditLog":

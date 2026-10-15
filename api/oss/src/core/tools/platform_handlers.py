@@ -42,6 +42,10 @@ from oss.src.core.apps.handlers import (
     handle_create_app,
     handle_list_starters,
 )
+from oss.src.core.browser_profiles.handlers import (
+    BROWSER_DEFAULT_TIMEOUT_MS,
+    BROWSER_TOOL_HANDLERS,
+)
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.tools.dtos import (
     TestRunExpectations,
@@ -978,6 +982,7 @@ class PlatformToolHandlerRegistration:
     requires_elevation: Optional[Callable[[Any], bool]] = None
     # Drive-backed handlers take the router's MountsService as `mounts_service`.
     needs_mounts: bool = False
+    needs_browser_profiles: bool = False
 
 
 PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
@@ -1025,6 +1030,17 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         needs_mounts=True,
         elevated_permission=Permission.VIEW_MOUNTS,
     ),
+    # Browser tools act with the caller's vault logins: the role gate, then the owner check inside.
+    **{
+        call_ref: PlatformToolHandlerRegistration(
+            call_ref=call_ref,
+            timeout_ms=BROWSER_DEFAULT_TIMEOUT_MS,
+            handler=handler,
+            needs_browser_profiles=True,
+            elevated_permission=Permission.EDIT_SECRET,
+        )
+        for call_ref, handler in BROWSER_TOOL_HANDLERS.items()
+    },
 }
 
 # Model-facing definitions (name, description, JSON schema, context bindings, read_only) for
@@ -1065,6 +1081,7 @@ async def dispatch_platform_tool_handler(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService],
     mounts_service: Any = None,
+    browser_profiles_service: Any = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:
@@ -1075,6 +1092,8 @@ async def dispatch_platform_tool_handler(
     extra: Dict[str, Any] = (
         {"mounts_service": mounts_service} if registration.needs_mounts else {}
     )
+    if registration.needs_browser_profiles:
+        extra["browser_profiles_service"] = browser_profiles_service
     return await registration.handler(
         arguments=arguments,
         headers=headers,

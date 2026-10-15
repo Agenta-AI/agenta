@@ -492,6 +492,7 @@ _AGENT_TEMPLATE_KEYS = frozenset(
         "harness",
         "runner",
         "sandbox",
+        "browser",
     }
 )
 
