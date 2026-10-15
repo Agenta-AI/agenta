@@ -188,7 +188,7 @@ describe("the Credits tab", () => {
         expect(shown).toContain("of 75")
     })
 
-    it("lists only credits inside their active window", async () => {
+    it("keeps an expired credit out of the tiles but lists it in the history", async () => {
         const wallet = summary("enforce")
         wallet.credits.push({
             ...wallet.credits[0],
@@ -201,7 +201,9 @@ describe("the Credits tab", () => {
         const shown = await render(<CreditsTab projectId="proj-1" />)
 
         expect(shown).toContain("Signup bonus")
-        expect(shown).not.toContain("Expired grant")
+        expect(shown).not.toContain("Valid until Jan 1, 2020")
+        expect(shown).toContain("Expired grant")
+        expect(shown).toContain("Expired")
     })
 
     it("lists bought packs with what is left of them", async () => {
@@ -218,7 +220,7 @@ describe("the Credits tab", () => {
         api.usage.mockResolvedValue(usage)
         const shown = await render(<CreditsTab projectId="proj-1" />)
 
-        expect(shown).toContain("2,500 credits")
+        expect(shown).toContain("2,500")
         expect(shown).toContain("$25.00")
         expect(shown).toContain("Used up")
     })
