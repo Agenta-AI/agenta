@@ -348,6 +348,26 @@ describe("degradation settle guard", () => {
         expect(message).not.toContain("chat")
     })
 
+    it("drops a pending retry when the dock unmounts", async () => {
+        vi.useFakeTimers()
+        try {
+            const onOutput = vi.fn().mockResolvedValue(false)
+            const {unmount} = renderHook(() =>
+                useElicitationDock({messages: turn(toolPart({input: {message: "hi"}})), onOutput}),
+            )
+            await act(async () => {
+                await Promise.resolve()
+            })
+            unmount()
+
+            await vi.advanceTimersByTimeAsync(10000)
+            expect(onOutput).toHaveBeenCalledTimes(1)
+            expect(vi.getTimerCount()).toBe(0)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
     it("sends the settle again when the write fails", async () => {
         vi.useFakeTimers()
         try {

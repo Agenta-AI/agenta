@@ -112,6 +112,15 @@ export const useElicitationDock = ({
     // An unrenderable payload never shows: the first settles an error, a repeat settles a cancel.
     const degradedRef = useRef(new Set<string>())
     const [retryTick, setRetryTick] = useState(0)
+    const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const unmountedRef = useRef(false)
+    useEffect(
+        () => () => {
+            unmountedRef.current = true
+            if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+        },
+        [],
+    )
     useEffect(() => {
         if (!front || front.settled || !onOutput) return
         if (!payloadArrived(front) || degradedRef.current.has(front.toolCallId)) return
@@ -122,7 +131,12 @@ export const useElicitationDock = ({
         // No card is left to answer, so a write that fails must go out again.
         const retry = () => {
             degradedRef.current.delete(toolCallId)
-            setTimeout(() => setRetryTick((tick) => tick + 1), DEGRADED_RETRY_MS)
+            if (unmountedRef.current) return
+            if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+            retryTimerRef.current = setTimeout(() => {
+                retryTimerRef.current = null
+                setRetryTick((tick) => tick + 1)
+            }, DEGRADED_RETRY_MS)
         }
         try {
             void Promise.resolve(
