@@ -574,3 +574,39 @@ describe("an OAuth reconnect's saved settings", () => {
         expect(button("Connect")?.disabled).toBe(false)
     })
 })
+
+describe("Enter in the Server URL field", () => {
+    const pressEnter = async (input: HTMLInputElement) => {
+        await act(async () => {
+            input.dispatchEvent(
+                new KeyboardEvent("keydown", {key: "Enter", bubbles: true, cancelable: true}),
+            )
+        })
+        await settle()
+    }
+
+    it("starts the check, as the Continue button does", async () => {
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                server_name: "Acme",
+                auth: {mode: "none", scopes_offered: []},
+            },
+        })
+
+        await openJourney()
+        await typeInto(field("Server URL")!, "https://mcp.acme.test/")
+        await pressEnter(field("Server URL")!)
+
+        expect(probeMcpUrl).toHaveBeenCalledTimes(1)
+    })
+
+    it("does nothing while the address cannot be checked", async () => {
+        await openJourney()
+        await typeInto(field("Server URL")!, "not a url")
+        await pressEnter(field("Server URL")!)
+
+        expect(probeMcpUrl).not.toHaveBeenCalled()
+    })
+})

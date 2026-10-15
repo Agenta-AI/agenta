@@ -131,14 +131,27 @@ const endpoint = (over: Partial<Endpoint> & Pick<Endpoint, "id" | "name">): Endp
 const LINEAR = endpoint({id: "linear", name: "Linear", auth_mode: "oauth", secret_id: "sec-1"})
 const AXIOM = endpoint({id: "axiom", name: "Axiom", auth_mode: "api_key", secret_id: "sec-2"})
 const MEMORY = endpoint({id: "memory", name: "Memory", auth_mode: "none", secret_id: null})
-// Signed in once, then its grant went: the check from that sign-in stays on the row.
+// Signed in once, then the provider revoked the grant: the row keeps its handle and the gateway
+// marks it invalid, and the check from that sign-in stays on the row.
 const OCTOLENS = endpoint({
     id: "octolens",
     name: "Octolens",
     auth_mode: "oauth",
-    secret_id: null,
+    secret_id: "sec-3",
+    flags: {is_valid: false},
     data: {
         route: {base_url: "https://mcp.octolens.example/mcp"},
+        check: {ok: true, checked_at: "2026-10-14T12:00:00Z"},
+    },
+})
+// Signed in once, then the person pressed Disconnect: the grant is gone and the check stayed.
+const DISCONNECTED = endpoint({
+    id: "disconnected",
+    name: "Disconnected",
+    auth_mode: "oauth",
+    secret_id: null,
+    data: {
+        route: {base_url: "https://mcp.disconnected.example/mcp"},
         check: {ok: true, checked_at: "2026-10-14T12:00:00Z"},
     },
 })
@@ -266,7 +279,14 @@ describe("the status cell", () => {
         expect(within(cell).queryByRole("button", {name: "Reconnect"})).toBeNull()
     })
 
-    it("reads Login expired with an inline Reconnect when the grant is gone", () => {
+    it("reads Not signed in for a connection the person disconnected", () => {
+        show([DISCONNECTED])
+        const cell = screen.getByTestId("mcp-connection-status")
+        expect(within(cell).getByText("Not signed in")).toBeTruthy()
+        expect(within(cell).queryByText("Login expired")).toBeNull()
+    })
+
+    it("reads Login expired with an inline Reconnect when the grant was revoked", () => {
         show([OCTOLENS])
         const cell = screen.getByTestId("mcp-connection-status")
         expect(within(cell).getByText("Login expired")).toBeTruthy()
@@ -386,8 +406,8 @@ describe("the row menu", () => {
     it("hides Disconnect once the grant is already gone", () => {
         // Two rows, and the second is the one asked about: a section that hands over whichever
         // row it finds first passes every single-row fixture ever written (D154).
-        show([LINEAR, OCTOLENS])
-        openRowMenu("Octolens")
+        show([LINEAR, DISCONNECTED])
+        openRowMenu("Disconnected")
         expect(screen.queryByRole("menuitem", {name: "Disconnect"})).toBeNull()
     })
 })

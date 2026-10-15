@@ -795,6 +795,15 @@ export function McpConnectSheet({
                                 }
                                 aria-invalid={screen === "url_failed" || undefined}
                                 onChange={(event) => journey.setUrl(event.target.value)}
+                                // Enter runs the same check as the button, and only while the
+                                // button would be enabled. A key press that composes text in an
+                                // input method is not a submit.
+                                onKeyDown={(event) => {
+                                    if (event.key !== "Enter" || event.nativeEvent.isComposing)
+                                        return
+                                    event.preventDefault()
+                                    if (!busy && isProbeableUrl(state.url)) confirm()
+                                }}
                             />
                         </HintedField>
                     ) : null}
