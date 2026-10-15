@@ -38,11 +38,25 @@ export interface MCPEndpointSettings {
     timeout_seconds?: number | null
 }
 
+export type MCPTokenEndpointAuthMethod = "client_secret_basic" | "client_secret_post" | "none"
+
+// MCPOAuthConfig: an OAuth app the person registered with the provider, for a server that
+// registers no clients on its own. The secret stays in the vault behind `client_secret_id`.
+export interface MCPOAuthConfig {
+    client_id?: string | null
+    client_secret_id?: string | null
+    token_endpoint_auth_method?: MCPTokenEndpointAuthMethod | null
+    // The scopes the person last asked for, so a reconnect starts from them.
+    scopes?: string[] | null
+}
+
 export interface MCPEndpointData {
     route: MCPEndpointRoute
     tools?: MCPToolFilter
     settings?: MCPEndpointSettings
+    // What discovery found. Nothing the person chose lives here.
     oauth?: MCPOAuthData | null
+    oauth_config?: MCPOAuthConfig | null
 }
 
 export interface MCPEndpointFlags {
@@ -159,6 +173,8 @@ export interface MCPProbeAuth {
      * challenge that named none reports none; nothing here is guessed.
      */
     challenge_schemes?: string[]
+    /** Where the authorization server sends the browser back. Set on OAuth answers. */
+    redirect_uri?: string | null
 }
 
 export interface MCPServerProbe {

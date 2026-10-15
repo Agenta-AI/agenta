@@ -51,7 +51,9 @@ from oss.src.core.gateways.mcps.echo import (
     url_value_forms,
 )
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
+from oss.src.core.gateways.mcps.oauth.dtos import MCPOAuthDiscovery
 from oss.src.core.gateways.mcps.oauth.registration import (
+    callback_redirect_uri,
     is_publicly_resolvable_async,
 )
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthDiscoveryError
@@ -173,6 +175,9 @@ class MCPProbeAuth(BaseModel):
     # named no scheme reports none rather than a guessed one.
     challenge_status: Optional[int] = None
     challenge_schemes: List[str] = []
+    # Where the authorization server sends the browser back, for a person registering
+    # an OAuth app of their own with the provider. Set on OAuth answers.
+    redirect_uri: Optional[str] = None
 
 
 class MCPServerProbeResult(BaseModel):
@@ -727,7 +732,7 @@ class MCPServerProbe:
 
         try:
             async with asyncio.timeout_at(deadline):
-                registration = await self._registration(discovery.registration_endpoint)
+                registration = await self._registration(discovery)
         except TimeoutError:
             # OAuth was found. Only the client-identity strategy is unknown, and saying
             # nothing about it is truer than a guess.
@@ -740,22 +745,24 @@ class MCPServerProbe:
                 authorization_server=discovery.authorization_server,
                 scopes_offered=discovery.scopes_offered,
                 registration=registration,
+                redirect_uri=callback_redirect_uri(api_url=self.api_url),
                 challenge_status=challenged.challenge_status,
                 challenge_schemes=challenged.challenge_schemes,
             ),
         )
 
-    async def _registration(
-        self, registration_endpoint: Optional[str]
-    ) -> MCPProbeRegistration:
-        """Which client-identity strategy this deployment would use.
+    async def _registration(self, discovery: MCPOAuthDiscovery) -> MCPProbeRegistration:
+        """Which client-identity strategy this deployment would use on its own.
 
-        Mirrors `MCPOAuthConnectService._resolve_client_info`, so a person is told before
-        consent what that method would discover at the point of no return: an issuer with
-        no dynamic registration is unusable from a deployment the issuer cannot reach.
+        Mirrors `MCPOAuthConnectService._resolve_client_info` past the client a person
+        enters, so they are told before consent what that method would find at the
+        point of no return. `unavailable` is a server that needs a client registered
+        with it by hand, and the connect screen asks for one.
         """
-        if registration_endpoint:
-            return MCPProbeRegistration.DYNAMIC
-        if await is_publicly_resolvable_async(self.api_url):
+        if discovery.client_id_metadata_document_supported and (
+            await is_publicly_resolvable_async(self.api_url)
+        ):
             return MCPProbeRegistration.METADATA
+        if discovery.registration_endpoint:
+            return MCPProbeRegistration.DYNAMIC
         return MCPProbeRegistration.UNAVAILABLE

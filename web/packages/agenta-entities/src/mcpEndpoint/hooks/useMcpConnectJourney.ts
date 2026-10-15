@@ -44,6 +44,7 @@ import {
     cancelDeletesEndpoint,
     detectedAuthMode,
     journeyReducer,
+    oauthConfigFrom,
     startJourney,
     startReconnect,
     type McpJourneyState,
@@ -63,7 +64,13 @@ import {
     isNameTakenRefusal,
 } from "../core/refusal"
 import {rememberMcpReturnPath} from "../core/returnPath"
-import type {MCPAuthMode, MCPCredentialBinding, MCPEndpoint} from "../core/types"
+import type {
+    MCPAuthMode,
+    MCPCredentialBinding,
+    MCPEndpoint,
+    MCPOAuthConfig,
+    MCPTokenEndpointAuthMethod,
+} from "../core/types"
 import {refreshMcpEndpointsAtom} from "../state/atoms"
 
 export interface McpConnectJourneyOptions {
@@ -154,6 +161,21 @@ const findAdoptableEndpoint = async ({
     }
 }
 
+/** Whether two OAuth settings would sign in the same way and ask for the same scopes. */
+const sameOauthConfig = (
+    a: MCPOAuthConfig | null | undefined,
+    b: MCPOAuthConfig | null | undefined,
+): boolean => {
+    const key = (config: MCPOAuthConfig | null | undefined) =>
+        JSON.stringify([
+            config?.client_id ?? null,
+            config?.client_secret_id ?? null,
+            config?.token_endpoint_auth_method ?? null,
+            [...(config?.scopes ?? [])].sort(),
+        ])
+    return key(a) === key(b)
+}
+
 export function useMcpConnectJourney({
     existingNames = [],
     reconnect = null,
@@ -191,6 +213,9 @@ export function useMcpConnectJourney({
     const endpointRef = useRef<{id: string; slug: string} | null>(
         reconnect ? {id: reconnect.id, slug: reconnect.slug} : null,
     )
+    // The OAuth settings the row is known to hold, so a consent that changes nothing
+    // writes nothing.
+    const savedOauthConfigRef = useRef<{endpointId: string; config: MCPOAuthConfig} | null>(null)
     /**
      * What a create in THIS journey may already have written, when it may have written
      * anything: the name and address it carried, or null.
@@ -247,24 +272,26 @@ export function useMcpConnectJourney({
 
     /** Cancel one server-side consent attempt. A failed cancel expires on its own. */
     const cancelServerAttempt = useCallback(
-        (endpointId: string, attemptId: string) => {
-            void cancelMcpConnectAttempt(endpointId, attemptId, projectId).catch(() => undefined)
-        },
+        (endpointId: string, attemptId: string) =>
+            cancelMcpConnectAttempt(endpointId, attemptId, projectId).catch(() => undefined),
         [projectId],
     )
 
     /** Cancel the server's pending consent attempt, if there is one. */
-    const cancelConsentAttempt = useCallback(() => {
+    const cancelConsentAttempt = useCallback(async () => {
         const pending = consentAttemptRef.current
         consentAttemptRef.current = null
-        if (pending) cancelServerAttempt(pending.endpointId, pending.attemptId)
+        if (pending) await cancelServerAttempt(pending.endpointId, pending.attemptId)
     }, [cancelServerAttempt])
 
-    /** Abandon whatever is in flight. Anything that returns after this is ignored. */
+    /**
+     * Abandon whatever is in flight. Anything that returns after this is ignored. Resolves once
+     * the server has the consent attempt's cancel.
+     */
     const abandonAttempt = useCallback(() => {
         attemptRef.current += 1
         stopWatch()
-        cancelConsentAttempt()
+        return cancelConsentAttempt()
     }, [cancelConsentAttempt, stopWatch])
 
     /**
@@ -286,7 +313,9 @@ export function useMcpConnectJourney({
                 const abandoned = endpointRef.current
                 if (cancelDeletesEndpoint(state) && abandoned) {
                     endpointRef.current = null
-                    void deleteMcpEndpoint(abandoned.id, projectId).catch(() => undefined)
+                    void deleteMcpEndpoint(abandoned.id, projectId, state.authMode).catch(
+                        () => undefined,
+                    )
                 }
             }
             dispatch({type: "url_changed", url})
@@ -308,7 +337,9 @@ export function useMcpConnectJourney({
             if (state.probe) {
                 const abandoned = endpointRef.current
                 if (cancelDeletesEndpoint(state) && abandoned) {
-                    void deleteMcpEndpoint(abandoned.id, projectId).catch(() => undefined)
+                    void deleteMcpEndpoint(abandoned.id, projectId, state.authMode).catch(
+                        () => undefined,
+                    )
                 }
                 endpointRef.current = null
                 createdHereRef.current = false
@@ -470,7 +501,7 @@ export function useMcpConnectJourney({
         async (popup: Window | null, endpointId: string, scopes: string[]) => {
             const attempt = attemptRef.current
             // A new window replaces the last one, whose callback must not land after it.
-            cancelConsentAttempt()
+            void cancelConsentAttempt()
             const result = await beginMcpConnect(endpointId, scopes, projectId)
 
             if (!isCurrent(attempt)) {
@@ -480,7 +511,7 @@ export function useMcpConnectJourney({
                 // cannot cover because there is nothing installed yet to tear down. The
                 // attempt it minted is cancelled for the same reason.
                 popup?.close()
-                if (result.attempt_id) cancelServerAttempt(endpointId, result.attempt_id)
+                if (result.attempt_id) void cancelServerAttempt(endpointId, result.attempt_id)
                 return
             }
             const redirectUrl = result.redirect_url
@@ -631,6 +662,7 @@ export function useMcpConnectJourney({
 
                 // No slug is sent: the API derives one from the name and hands it back,
                 // and that returned slug is what agents reference.
+                const oauthConfig = mode === "oauth" ? oauthConfigFrom(state) : null
                 const created = await createMcpEndpoint(
                     {
                         name: state.name.trim(),
@@ -642,6 +674,7 @@ export function useMcpConnectJourney({
                                 base_url: url,
                                 credential_binding: binding && normalizeCredentialBinding(binding),
                             },
+                            oauth_config: oauthConfig,
                         },
                     },
                     projectId,
@@ -649,6 +682,9 @@ export function useMcpConnectJourney({
                 const endpoint = created.endpoint
                 if (!endpoint?.id || !endpoint.slug) {
                     throw new Error("The server did not return the created connection.")
+                }
+                if (oauthConfig) {
+                    savedOauthConfigRef.current = {endpointId: endpoint.id, config: oauthConfig}
                 }
 
                 if (!isCurrent(attempt)) {
@@ -698,24 +734,52 @@ export function useMcpConnectJourney({
                 )
             }
         },
-        [
-            checkWithSecret,
-            mustVerifyNone,
-            projectId,
-            state.authMode,
-            state.name,
-            state.url,
-            verifyConnection,
-        ],
+        [checkWithSecret, mustVerifyNone, projectId, state, verifyConnection],
     )
 
     const toggleScope = useCallback((scope: string) => dispatch({type: "scope_toggled", scope}), [])
 
+    /** The OAuth app the person registered with the provider, as they type it. */
+    const setOauthClient = useCallback(
+        (client: {
+            clientId?: string
+            clientSecretId?: string | null
+            authMethod?: MCPTokenEndpointAuthMethod
+        }) => dispatch({type: "oauth_client_changed", ...client}),
+        [],
+    )
+
     /**
-     * Confirm the scopes and go to the provider.
+     * Save the OAuth settings on screen to the row before consent, where it holds others.
      *
-     * `popup` must be opened by the caller, synchronously in the tap that called this.
+     * Here rather than only at create, because the scopes are final only now and a retry
+     * after a refused consent reuses the row with whatever the person changed. The row
+     * the journey created or read is enough to tell; a write reads the row fresh, because
+     * the edit route replaces the whole row.
      */
+    const storeOauthClient = useCallback(
+        async (endpointId: string, wanted: MCPOAuthConfig) => {
+            const known = savedOauthConfigRef.current
+            if (known && known.endpointId === endpointId && sameOauthConfig(known.config, wanted)) {
+                return
+            }
+            const stored = await storedEndpointFrom(endpointId, projectId)
+            if (!stored) {
+                throw new Error(
+                    "This connection could not be read back, so nothing was changed. Try again.",
+                )
+            }
+            if (!sameOauthConfig(stored.data.oauth_config, wanted)) {
+                await editMcpEndpoint(
+                    {...stored, id: endpointId, data: {...stored.data, oauth_config: wanted}},
+                    projectId,
+                )
+            }
+            savedOauthConfigRef.current = {endpointId, config: wanted}
+        },
+        [projectId],
+    )
+
     const submitScopes = useCallback(
         async (popup: Window | null) => {
             const endpointId = endpointRef.current?.id
@@ -723,6 +787,11 @@ export function useMcpConnectJourney({
             dispatch({type: "submit_scopes"})
             const attempt = attemptRef.current
             try {
+                await storeOauthClient(endpointId, oauthConfigFrom(state))
+                if (!isCurrent(attempt)) {
+                    popup?.close()
+                    return
+                }
                 await driveConsent(popup, endpointId, state.scopesSelected)
             } catch (error) {
                 popup?.close()
@@ -734,7 +803,7 @@ export function useMcpConnectJourney({
                 })
             }
         },
-        [driveConsent, isCurrent, state.scopesSelected],
+        [driveConsent, isCurrent, state, storeOauthClient],
     )
 
     const storedEndpoint = useCallback(
@@ -989,6 +1058,39 @@ export function useMcpConnectJourney({
         }
     }, [projectId, reconnectUrl])
 
+    // An OAuth reconnect reads back the OAuth settings its row is saved with, because the
+    // hosts pass only the address and the mode. It cannot submit until they arrive, and a
+    // read that fails says so rather than passing for a row with no settings.
+    const reconnectId = reconnect?.authMode === "oauth" ? reconnect.id : null
+    const savedConfigLoading = state.savedOauthConfig === "loading"
+    useEffect(() => {
+        if (!reconnectId || !savedConfigLoading) return
+        let live = true
+        storedEndpointFrom(reconnectId, projectId)
+            .then((row) => {
+                if (!live) return
+                if (!row) {
+                    dispatch({type: "oauth_client_load_failed"})
+                    return
+                }
+                const config = row.data.oauth_config ?? null
+                if (config) savedOauthConfigRef.current = {endpointId: reconnectId, config}
+                dispatch({type: "oauth_client_loaded", config})
+            })
+            .catch(() => {
+                if (live) dispatch({type: "oauth_client_load_failed"})
+            })
+        return () => {
+            live = false
+        }
+    }, [projectId, reconnectId, savedConfigLoading])
+
+    /** Read the saved OAuth settings again, after a read that failed. */
+    const reloadSavedOauthConfig = useCallback(
+        () => dispatch({type: "oauth_client_load_started"}),
+        [],
+    )
+
     /**
      * Credentials are persisted. Pick up what the server wrote and tell the caller.
      *
@@ -1012,20 +1114,29 @@ export function useMcpConnectJourney({
     /**
      * Abandon the journey. Deletes the pending row it created, and nothing else: a
      * reconnect leaves the working connection exactly as it found it.
+     *
+     * The API makes the last call, under the connection's lock: the row goes only while it
+     * is still in the mode this journey made it in, with no credential and no sign-in in
+     * flight. Another tab can reconnect a pending row or start its own sign-in on it, and
+     * that work must not go with this tab's cancel. This tab's own sign-in is cancelled
+     * first, so it does not count as one in flight.
      */
     const cancel = useCallback(async () => {
-        abandonAttempt()
+        const cancelled = abandonAttempt()
         const endpoint = endpointRef.current
         if (cancelDeletesEndpoint(state) && endpoint) {
             endpointRef.current = null
             try {
-                await deleteMcpEndpoint(endpoint.id, projectId)
+                await cancelled
+                await deleteMcpEndpoint(endpoint.id, projectId, state.authMode)
             } catch {
-                // The row is inactive and expirable, so a failed cleanup is not worth
-                // blocking the person on.
+                // A row another tab took over is kept on purpose, and an abandoned pending
+                // row is inert, so a refused cleanup is not worth blocking the person on.
             }
+            // The list may never have fetched this row, and a 409 means it is still there.
+            await refreshEndpoints()
         }
-    }, [abandonAttempt, projectId, state])
+    }, [abandonAttempt, projectId, refreshEndpoints, state])
 
     /**
      * Give up on one authorization attempt without giving up on the connection.
@@ -1035,7 +1146,7 @@ export function useMcpConnectJourney({
      * consent that arrives after this cannot install itself on a screen that moved on.
      */
     const cancelConsent = useCallback(() => {
-        abandonAttempt()
+        void abandonAttempt()
         dispatch({type: "consent_abandoned"})
     }, [abandonAttempt])
 
@@ -1057,6 +1168,8 @@ export function useMcpConnectJourney({
             selectAuthMode,
             submitName,
             toggleScope,
+            setOauthClient,
+            reloadSavedOauthConfig,
             submitScopes,
             startScopeDiscovery,
             submitManualCredential,
@@ -1086,6 +1199,8 @@ export function useMcpConnectJourney({
             submitName,
             submitScopes,
             submitUrl,
+            setOauthClient,
+            reloadSavedOauthConfig,
             toggleScope,
         ],
     )

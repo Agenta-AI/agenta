@@ -32,7 +32,6 @@ from oss.src.core.gateways.dtos import GatewayAuthScheme, GatewayEndpointNamespa
 from oss.src.core.gateways.egress import validate_egress_url_format
 from oss.src.core.gateways.mcps.dtos import (
     MCPCredentialBinding,
-    MCPEndpoint,
     MCPOAuthData,
     check_url_secret_placeholder,
 )
@@ -391,12 +390,6 @@ class MCPGatewayRouter:
 
         _guard_custom_endpoint_url(url=body.endpoint.data.route.base_url)
 
-        current = await self.service.fetch_endpoint(
-            project_id=scope.project_id,
-            #
-            endpoint_id=endpoint_id,
-        )
-
         endpoint = await self.service.edit_endpoint(
             project_id=scope.project_id,
             user_id=scope.user_id,
@@ -409,17 +402,6 @@ class MCPGatewayRouter:
                 name=str(endpoint_id),
             )
 
-        if current is not None and (
-            current.auth_mode != endpoint.auth_mode
-            or current.data.route.base_url != endpoint.data.route.base_url
-        ):
-            if current.auth_mode == GatewayAuthScheme.OAUTH:
-                pass  # The service now retires the old binding, attempts and grant.
-            else:
-                await self.oauth_connect_service.cancel(
-                    project_id=scope.project_id, endpoint_id=endpoint_id
-                )
-
         return MCPEndpointResponse(count=1, endpoint=endpoint)
 
     @intercept_exceptions()
@@ -429,45 +411,30 @@ class MCPGatewayRouter:
         request: Request,
         *,
         endpoint_id: UUID,
+        pending_auth_mode: Optional[GatewayAuthScheme] = Query(default=None),
     ) -> None:
+        """Delete a connection.
+
+        A connect sheet abandoning the row it made sends `pending_auth_mode`, the mode it
+        made the row in, after it cancelled its own sign-in. The row is then deleted only
+        while it is still in that mode with no credential bound and no sign-in in flight,
+        decided under the connection's lock. A row that another tab took over since, or is
+        signing in on, is kept, and the answer is 409.
+        """
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
-
-        # Take the connection's grant with it. Deleting the row alone left the grant in
-        # the vault with nothing naming it: unreachable, unlistable as a connection, and
-        # still holding a live token. Ordered before the row goes, because the row is
-        # what says which grant this was.
-        endpoint = await self.service.fetch_endpoint(
-            project_id=scope.project_id,
-            #
-            endpoint_id=endpoint_id,
-        )
-        if endpoint is not None:
-            await self._drop_grant(scope=scope, endpoint=endpoint)
 
         deleted = await self.service.delete_endpoint(
             project_id=scope.project_id,
             #
             endpoint_id=endpoint_id,
+            pending_auth_mode=pending_auth_mode,
         )
         if not deleted:
             raise MCPEndpointNotFoundError(
                 namespace=GatewayEndpointNamespace.CUSTOM,
                 name=str(endpoint_id),
             )
-
-    async def _drop_grant(self, *, scope: AuthScope, endpoint: MCPEndpoint) -> bool:
-        """Delete the connection's stored grant, if it is the kind that has one."""
-        if endpoint.auth_mode != GatewayAuthScheme.OAUTH:
-            return False
-        server_url = endpoint.data.route.base_url
-        if not server_url:
-            return False
-        return await self.oauth_connect_service.disconnect(
-            project_id=scope.project_id,
-            endpoint_id=endpoint.id,
-            server_url=server_url,
-        )
 
     # URL inspection, before any row exists
 
@@ -584,6 +551,7 @@ class MCPGatewayRouter:
             endpoint_id=endpoint_id,
             server_url=server_url,
             scopes=body.scopes,
+            oauth_config=endpoint.data.oauth_config,
         )
 
         return MCPConnectResponse(
@@ -616,43 +584,27 @@ class MCPGatewayRouter:
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
 
-        endpoint = await self.service.fetch_endpoint(
+        # Decided by the service on the connection as it stands under its OAuth lock, so a
+        # connection an edit just moved to an API key keeps its key.
+        disconnected = await self.oauth_connect_service.disconnect(
             project_id=scope.project_id,
-            #
+            user_id=scope.user_id,
             endpoint_id=endpoint_id,
         )
-        if not endpoint:
+        if disconnected is None:
+            # A write that produced no row is not a disconnect. Reporting one would say
+            # the authorization is gone while the connection still names it (D20).
             raise MCPEndpointNotFoundError(
                 namespace=GatewayEndpointNamespace.CUSTOM,
                 name=str(endpoint_id),
             )
         if (
-            endpoint.namespace != GatewayEndpointNamespace.CUSTOM
-            or endpoint.auth_mode != GatewayAuthScheme.OAUTH
+            disconnected.namespace != GatewayEndpointNamespace.CUSTOM
+            or disconnected.auth_mode != GatewayAuthScheme.OAUTH
         ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="endpoint is not a custom OAuth target",
-            )
-
-        await self._drop_grant(scope=scope, endpoint=endpoint)
-
-        # The handle goes whether or not a row was there to delete: a `secret_id`
-        # pointing at nothing is the state that made an endpoint report itself ready
-        # and then fail every call.
-        disconnected = await self.service.bind_endpoint_secret(
-            project_id=scope.project_id,
-            user_id=scope.user_id,
-            #
-            endpoint_id=endpoint.id,
-            secret_id=None,
-        )
-        if disconnected is None:
-            # A write that produced no row is not a disconnect. Reporting one would say
-            # the authorization is gone while the connection still names it (D20).
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="endpoint not found",
             )
 
         return MCPEndpointResponse(count=1, endpoint=disconnected)

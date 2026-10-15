@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import AsyncContextManager, Awaitable, Callable, Optional
+from typing import Optional
 from uuid import UUID
 
 from oss.src.core.gateways.mcps.oauth.dtos import (
@@ -41,14 +41,28 @@ class MCPOAuthRefresherInterface(ABC):
     async def release_grant(
         self, *, project_id: UUID, endpoint_id: UUID, server_url: str
     ) -> None:
-        """Retire a connection's grant after an edit moved it off OAuth or to another
-        address. The edit clears the binding itself; this cancels the attempts still in
-        flight and removes the grant row unless a newer consent bound it."""
+        """Cancel a connection's consents in flight and delete its grant row, after an
+        edit moved it off OAuth or to another address, or as it is deleted. The caller
+        holds the connection's OAuth lock and clears the binding itself."""
         raise NotImplementedError
 
+    @abstractmethod
+    async def cancel_attempts(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+        attempt_id: Optional[UUID] = None,
+    ) -> int:
+        """Cancel one active attempt, or every active attempt of a connection. The
+        caller holds the connection's OAuth lock."""
+        raise NotImplementedError
 
-# Records how a locked attempt ended, inside the transaction that holds its lock.
-MCPOAuthAttemptSettler = Callable[[MCPOAuthAttemptStatus], Awaitable[None]]
+    @abstractmethod
+    async def has_active_attempts(self, *, project_id: UUID, endpoint_id: UUID) -> bool:
+        """Whether a sign-in is still in flight on a connection. The caller holds the
+        connection's OAuth lock."""
+        raise NotImplementedError
 
 
 class MCPOAuthAttemptsDAOInterface(ABC):
@@ -116,27 +130,6 @@ class MCPOAuthAttemptsDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def finalize_attempt(
-        self,
-        *,
-        attempt_id: UUID,
-    ) -> AsyncContextManager[Optional[MCPOAuthAttemptSettler]]:
-        """Lock a claimed, unexpired attempt for the rest of the block.
-
-        Yields a settler while the attempt is still active, and `None` when it was
-        cancelled or has expired. A cancel arriving while the block runs waits for it, so
-        the outcome recorded inside the block cannot be overtaken. The outcome is
-        committed when the block ends without raising.
-
-        The lock lives on its own connection, so DAO calls inside the block that commit
-        their own sessions do not release it. Lock order is required: the attempt row
-        first, then the endpoint row. Every path that takes both (this block's bind, a
-        cancel, `release_grant`) takes them in that order, or two of them can wait on
-        each other with no way for the database to see it.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
     async def cancel_attempts(
         self,
         *,
@@ -154,6 +147,16 @@ class MCPOAuthAttemptsDAOInterface(ABC):
         mode or address finishes afterwards and binds a grant nobody wants (D5). A
         cancelled attempt's callback writes nothing.
         """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def has_active_attempts(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+    ) -> bool:
+        """Whether any attempt of a connection is pending or claimed."""
         raise NotImplementedError
 
     @abstractmethod

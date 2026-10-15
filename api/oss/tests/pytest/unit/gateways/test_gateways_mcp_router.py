@@ -21,6 +21,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
     MCPEndpointData,
     MCPEndpointRoute,
+    MCPOAuthConfig,
 )
 from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttempt,
@@ -31,6 +32,7 @@ from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthDiscovery,
 )
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthDiscoveryError
+from oss.src.core.gateways.mcps.types import MCPConnectionChangedError
 from oss.src.core.gateways.mcps.probe import (
     MCPProbeAuth,
     MCPProbeAuthMode,
@@ -91,13 +93,15 @@ def _endpoint(endpoint_id) -> MCPEndpoint:
     )
 
 
-def _oauth_endpoint(endpoint_id, *, secret_id=None) -> MCPEndpoint:
+def _oauth_endpoint(endpoint_id, *, secret_id=None, oauth_config=None) -> MCPEndpoint:
     return MCPEndpoint(
         id=endpoint_id,
         slug="acme-notion",
         auth_mode=MCPAuthScheme.OAUTH,
         secret_id=secret_id,
-        data=MCPEndpointData(route=MCPEndpointRoute(base_url=_SERVER_URL)),
+        data=MCPEndpointData(
+            route=MCPEndpointRoute(base_url=_SERVER_URL), oauth_config=oauth_config
+        ),
     )
 
 
@@ -110,6 +114,7 @@ class MockMCPGatewayService:
         self.fetch_return = None
         self.edit_return = None
         self.delete_return = True
+        self.delete_raises = None
         self.url_secret_return = "test-key-one"
 
     async def create_endpoint(self, *, project_id, user_id, endpoint):
@@ -149,8 +154,11 @@ class MockMCPGatewayService:
         self.bound_secret_id = secret_id
         return self.edit_return
 
-    async def delete_endpoint(self, *, project_id, endpoint_id):
+    async def delete_endpoint(self, *, project_id, endpoint_id, pending_auth_mode=None):
         self.calls.append("delete_endpoint")
+        self.pending_auth_mode = pending_auth_mode
+        if self.delete_raises is not None:
+            raise self.delete_raises
         return self.delete_return
 
     async def probe_secret_value(self, *, scope, secret_id):
@@ -180,6 +188,7 @@ class MockMCPOAuthConnectService:
         self.complete_return = None
         self.complete_raises = None
         self.begun_endpoint_ids = []
+        self.begun_oauth_configs = []
         self.disconnect_return = True
         # Which connection each disconnect named. A disconnect that dropped the
         # neighbour's grant would be invisible without this.
@@ -195,8 +204,11 @@ class MockMCPOAuthConnectService:
             raise self.discover_raises
         return self.discover_return
 
-    async def begin(self, *, project_id, user_id, endpoint_id, server_url, scopes):
+    async def begin(
+        self, *, project_id, user_id, endpoint_id, server_url, scopes, oauth_config=None
+    ):
         self.calls.append(("begin", server_url, tuple(scopes)))
+        self.begun_oauth_configs.append(oauth_config)
         self.begun_endpoint_ids.append(endpoint_id)
         return self.begin_return
 
@@ -226,9 +238,13 @@ class MockMCPOAuthConnectService:
             raise MCPOAuthCallerMismatchError()
         return self.claim_return
 
-    async def disconnect(self, *, project_id, endpoint_id, server_url):
-        self.calls.append(("disconnect", server_url))
+    async def disconnect(self, *, project_id, user_id, endpoint_id):
+        # The service decides on the row it reads under the lock and answers with it:
+        # `None` for no row, the row unchanged when it is not an OAuth connection.
+        self.calls.append(("disconnect", endpoint_id))
         self.disconnected.append(endpoint_id)
+        if self.disconnect_return is True:
+            return _oauth_endpoint(endpoint_id, secret_id=None)
         return self.disconnect_return
 
     async def complete(self, *, attempt, code):
@@ -551,6 +567,21 @@ def test_connect_begin_step_returns_the_redirect_url(
     assert oauth_service.calls == [("begin", _SERVER_URL, ("read",))]
     # No discovery-caching edit_endpoint call on the begin step.
     assert service.calls == ["fetch_endpoint"]
+
+
+def test_connect_begins_as_the_client_saved_on_the_connection(
+    client, service, oauth_service, allow
+):
+    endpoint_id = uuid4()
+    config = MCPOAuthConfig(client_id="app-from-github")
+    service.fetch_return = _oauth_endpoint(endpoint_id, oauth_config=config)
+
+    response = client.post(
+        f"/endpoints/{endpoint_id}/connect", json={"scopes": ["read"]}
+    )
+
+    assert response.status_code == 200
+    assert oauth_service.begun_oauth_configs == [config]
 
 
 @pytest.mark.parametrize("scopes", [["read", "read"], ["read", " "]])
@@ -994,34 +1025,6 @@ def _edit(client, endpoint_id, *, auth_mode, base_url=_SERVER_URL):
     )
 
 
-def test_a_switch_to_oauth_cancels_attempts_and_removes_nothing(
-    client, service, oauth_service, allow
-):
-    endpoint_id = uuid4()
-    service.fetch_return = _endpoint(endpoint_id)
-    service.edit_return = _oauth_endpoint(endpoint_id)
-
-    response = _edit(client, endpoint_id, auth_mode="oauth")
-
-    assert response.status_code == 200
-    assert oauth_service.cancelled == [(endpoint_id, None)]
-    assert oauth_service.disconnected == []
-
-
-def test_an_edit_that_keeps_mode_and_address_leaves_attempts_alone(
-    client, service, oauth_service, allow
-):
-    endpoint_id = uuid4()
-    service.fetch_return = _oauth_endpoint(endpoint_id)
-    service.edit_return = _oauth_endpoint(endpoint_id)
-
-    response = _edit(client, endpoint_id, auth_mode="oauth")
-
-    assert response.status_code == 200
-    assert oauth_service.cancelled == []
-    assert oauth_service.disconnected == []
-
-
 def test_connect_binds_the_attempt_to_the_endpoint_it_was_started_from(
     client, service, oauth_service, allow
 ):
@@ -1109,7 +1112,7 @@ def test_edit_endpoint_reaches_the_service(client, service, allow):
     )
 
     assert response.status_code == 200
-    assert service.calls == ["fetch_endpoint", "edit_endpoint"]
+    assert service.calls == ["edit_endpoint"]
 
 
 def test_edit_endpoint_rejects_a_path_body_id_mismatch(client, service, allow):
@@ -1138,8 +1141,22 @@ def test_delete_endpoint_reaches_the_service(client, service, allow):
     response = client.delete(f"/endpoints/{endpoint_id}")
 
     assert response.status_code == 204
-    # The row is read first, because the row is what says which grant to take with it.
-    assert service.calls == ["fetch_endpoint", "delete_endpoint"]
+    # The service takes the connection's grant with it, under the connection's lock.
+    assert service.calls == ["delete_endpoint"]
+
+
+def test_a_pending_delete_of_a_row_another_tab_took_over_is_refused(
+    client, service, allow
+):
+    service.delete_raises = MCPConnectionChangedError()
+
+    response = client.delete(
+        f"/endpoints/{uuid4()}", params={"pending_auth_mode": "oauth"}
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "mcp_connection_changed"
+    assert service.pending_auth_mode == "oauth"
 
 
 # ---------------------------------------------------------------------------
@@ -1235,9 +1252,7 @@ def test_disconnect_drops_this_connections_grant_and_clears_its_handle(
     client, service, oauth_service, allow
 ):
     endpoint_id = uuid4()
-    connected = _oauth_endpoint(endpoint_id, secret_id=uuid4())
-    service.fetch_return = connected
-    service.edit_return = _oauth_endpoint(endpoint_id, secret_id=None)
+    service.fetch_return = _oauth_endpoint(endpoint_id, secret_id=uuid4())
 
     response = client.delete(f"/endpoints/{endpoint_id}/connect")
 
@@ -1245,9 +1260,6 @@ def test_disconnect_drops_this_connections_grant_and_clears_its_handle(
     # The grant that went is this connection's, named by id rather than by the server
     # URL that its neighbours share.
     assert oauth_service.disconnected == [endpoint_id]
-    # The handle is cleared by the two-column write, not by replacing the row (D3).
-    assert "bind_endpoint_secret" in service.calls
-    assert service.bound_secret_id is None
     assert "secret_id" not in response.json()["endpoint"]
 
 
@@ -1258,7 +1270,6 @@ def test_disconnect_leaves_the_connection_itself_in_place(
     configured, and one Connect reconnects it."""
     endpoint_id = uuid4()
     service.fetch_return = _oauth_endpoint(endpoint_id, secret_id=uuid4())
-    service.edit_return = _oauth_endpoint(endpoint_id, secret_id=None)
 
     response = client.delete(f"/endpoints/{endpoint_id}/connect")
 
@@ -1269,42 +1280,23 @@ def test_disconnect_leaves_the_connection_itself_in_place(
     assert body["slug"] == "acme-notion"
 
 
-def test_disconnect_clears_the_handle_even_when_no_grant_was_stored(
-    client, service, oauth_service, allow
-):
-    """A `secret_id` pointing at nothing is the state that made an endpoint report
-    itself ready and then fail every call."""
-    endpoint_id = uuid4()
-    service.fetch_return = _oauth_endpoint(endpoint_id, secret_id=uuid4())
-    service.edit_return = _oauth_endpoint(endpoint_id, secret_id=None)
-    oauth_service.disconnect_return = False
-
-    response = client.delete(f"/endpoints/{endpoint_id}/connect")
-
-    assert response.status_code == 200, response.text
-    # The handle is cleared by the two-column write, not by replacing the row (D3).
-    assert "bind_endpoint_secret" in service.calls
-    assert service.bound_secret_id is None
-    assert "secret_id" not in response.json()["endpoint"]
-
-
 def test_disconnect_missing_endpoint_404s(client, service, oauth_service, allow):
-    service.fetch_return = None
+    oauth_service.disconnect_return = None
 
     response = client.delete(f"/endpoints/{uuid4()}/connect")
 
     assert response.status_code == 404, response.text
-    assert oauth_service.disconnected == []
 
 
 def test_disconnect_rejects_a_non_oauth_endpoint(client, service, oauth_service, allow):
     endpoint_id = uuid4()
-    service.fetch_return = _endpoint(endpoint_id)
+    oauth_service.disconnect_return = _endpoint(endpoint_id)
 
     response = client.delete(f"/endpoints/{endpoint_id}/connect")
 
     assert response.status_code == 400, response.text
-    assert oauth_service.disconnected == []
+    # Nothing was changed: the service answered with the row as it found it.
+    assert service.calls == []
 
 
 def test_disconnect_denied_check_short_circuits_before_anything_is_dropped(
@@ -1315,34 +1307,6 @@ def test_disconnect_denied_check_short_circuits_before_anything_is_dropped(
     assert response.status_code == 403, response.text
     assert service.calls == []
     assert oauth_service.disconnected == []
-
-
-def test_deleting_an_endpoint_takes_its_grant_with_it(
-    client, service, oauth_service, allow
-):
-    """Deleting the row alone left the grant in the vault with nothing naming it:
-    unreachable, unlistable as a connection, and still holding a live token."""
-    endpoint_id = uuid4()
-    service.fetch_return = _oauth_endpoint(endpoint_id, secret_id=uuid4())
-
-    response = client.delete(f"/endpoints/{endpoint_id}")
-
-    assert response.status_code == 204, response.text
-    assert oauth_service.disconnected == [endpoint_id]
-    assert "delete_endpoint" in service.calls
-
-
-def test_deleting_an_endpoint_with_no_oauth_grant_drops_nothing(
-    client, service, oauth_service, allow
-):
-    endpoint_id = uuid4()
-    service.fetch_return = _endpoint(endpoint_id)
-
-    response = client.delete(f"/endpoints/{endpoint_id}")
-
-    assert response.status_code == 204, response.text
-    assert oauth_service.disconnected == []
-    assert "delete_endpoint" in service.calls
 
 
 def test_create_that_produced_no_record_is_not_reported_as_a_success(
@@ -1697,7 +1661,7 @@ def test_disconnect_that_wrote_no_row_is_not_reported_as_a_disconnect(
     while the connection still names it."""
     endpoint_id = uuid4()
     service.fetch_return = _oauth_endpoint(endpoint_id, secret_id=uuid4())
-    service.edit_return = None
+    oauth_service.disconnect_return = None
 
     response = client.delete(f"/endpoints/{endpoint_id}/connect")
 

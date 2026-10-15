@@ -1,9 +1,10 @@
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import delete, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import delete, select, text
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
 from oss.src.core.gateways.mcps.dtos import (
@@ -17,6 +18,7 @@ from oss.src.core.gateways.mcps.dtos import (
 from oss.src.core.gateways.mcps.interfaces import (
     MCPEndpointsDAOInterface,
 )
+from oss.src.core.gateways.mcps.types import MCPConnectionBusyError
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.dbs.postgres.gateways.mcps.dbes import MCPEndpointDBE
@@ -31,11 +33,16 @@ from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
     get_transactions_engine,
 )
+from oss.src.dbs.postgres.shared.exceptions import is_lock_timeout
 from oss.src.dbs.postgres.shared.utils import apply_windowing
 from oss.src.utils.exceptions import suppress_exceptions
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+# How long a change waits for a connection's OAuth lock. Each waiter holds a pooled
+# connection while it waits, so an unbounded wait behind a stuck holder can drain the pool.
+_OAUTH_LOCK_TIMEOUT = "30s"
 
 
 class MCPEndpointsDAO(MCPEndpointsDAOInterface):
@@ -199,6 +206,29 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
 
             return map_mcp_endpoint_dbe_to_dto(dbe=dbe)
 
+    @asynccontextmanager
+    async def oauth_lock(self, *, project_id: UUID, endpoint_id: UUID):
+        # A transaction-scoped advisory lock on its own connection, rather than the
+        # endpoint row's own lock. The block writes the row, the grant and the attempt
+        # through DAOs with their own sessions, and a row lock held on this connection
+        # would make every one of those writes wait for it forever, the grant delete
+        # included, because its foreign key updates the row. The price is a second
+        # pooled connection for as long as the block runs.
+        async with self.engine.transaction() as connection:
+            await connection.execute(
+                text(f"SET LOCAL lock_timeout = '{_OAUTH_LOCK_TIMEOUT}'")
+            )
+            try:
+                await connection.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+                    {"key": f"mcps_endpoint_oauth:{project_id}:{endpoint_id}"},
+                )
+            except DBAPIError as e:
+                if is_lock_timeout(e):
+                    raise MCPConnectionBusyError() from e
+                raise
+            yield
+
     # Excluded for the same reason `edit_endpoint` excludes it: this write refuses a
     # credential the project does not own, and a swallowed refusal returns `None`, which
     # the connect route reported as `count=1` with no endpoint. A success that did
@@ -215,7 +245,6 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
         #
         endpoint_id: UUID,
         secret_id: Optional[UUID],
-        oauth_server_url: Optional[str] = None,
     ) -> Optional[MCPEndpoint]:
         async with self.engine.session() as session:
             dbe = await self._locked(
@@ -223,13 +252,6 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
             )
             if dbe is None:
                 return None
-            if oauth_server_url is not None:
-                # Checked under the row lock, so an edit that moved the connection off
-                # this OAuth address cannot land between the check and the write.
-                if not is_oauth_connection_at(
-                    map_mcp_endpoint_dbe_to_dto(dbe=dbe), oauth_server_url
-                ):
-                    return None
 
             await check_secret_is_owned_by_project(
                 session,

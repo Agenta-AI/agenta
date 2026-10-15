@@ -15,6 +15,9 @@ import {
     isBusy,
     isConnected,
     journeyReducer,
+    needsOwnOauthApp,
+    oauthConfigFrom,
+    oauthConfigReady,
     startJourney,
     startReconnect,
     type McpJourneyEvent,
@@ -384,6 +387,194 @@ describe("choosing scopes", () => {
 
         expect(offered.scopesOffered).toContain("tools:write")
         expect(offered.scopesSelected).toContain("tools:write")
+    })
+})
+
+describe("the scope checklist on the OAuth screen", () => {
+    it("is filled from the probe, all checked, before anything is pressed", () => {
+        const state = run(...beforeCreate("oauth").slice(0, -1))
+
+        expect(state.status).toBe("naming")
+        expect(state.scopesOffered).toEqual(["tools:list"])
+        expect(state.scopesSelected).toEqual(["tools:list"])
+    })
+
+    it("keeps a scope the person unchecked when the server's list is read again", () => {
+        const narrowed = run(
+            {type: "url_changed", url: URL},
+            {
+                type: "probe_succeeded",
+                probe: {
+                    ...probe("oauth"),
+                    auth: {mode: "oauth", scopes_offered: ["read", "write"]},
+                },
+                suggestedName: "Acme",
+            },
+            {type: "scope_toggled", scope: "write"},
+            {type: "submit_name"},
+            {type: "endpoint_created", endpointId: "mcp-1", slug: "acme"},
+            {type: "scopes_discovered", scopes: ["read", "write", "admin"]},
+        )
+
+        // `write` stays unchecked; `admin` is new, so it starts checked like every scope.
+        expect(narrowed.scopesSelected).toEqual(["read", "admin"])
+    })
+
+    it("is filled from a reconnect's check of its saved address", () => {
+        const checked = journeyReducer(
+            startReconnect({id: "e", slug: "s", name: "n", url: URL, authMode: "oauth"}),
+            {type: "saved_url_probed", probe: probe("oauth")},
+        )
+
+        expect(checked.scopesSelected).toEqual(["tools:list"])
+    })
+
+    it("is forgotten with the address it was offered for", () => {
+        const moved = run(...beforeCreate("oauth"), {
+            type: "url_changed",
+            url: "https://mcp.other.test/",
+        })
+
+        expect(moved.scopesOffered).toEqual([])
+        expect(moved.scopesSelected).toEqual([])
+    })
+})
+
+describe("an OAuth app the person registered", () => {
+    it("is saved with the scopes as one setting, and only what applies to it", () => {
+        const blank = run(...beforeCreate("oauth").slice(0, -1))
+        expect(oauthConfigFrom(blank)).toEqual({
+            client_id: null,
+            client_secret_id: null,
+            token_endpoint_auth_method: null,
+            scopes: ["tools:list"],
+        })
+
+        const entered = journeyReducer(blank, {
+            type: "oauth_client_changed",
+            clientId: " app-from-github ",
+            clientSecretId: "secret-1",
+        })
+        expect(oauthConfigFrom(entered)).toEqual({
+            client_id: "app-from-github",
+            client_secret_id: "secret-1",
+            token_endpoint_auth_method: "client_secret_post",
+            scopes: ["tools:list"],
+        })
+
+        // No secret is sent, so none is kept.
+        const publicApp = journeyReducer(entered, {
+            type: "oauth_client_changed",
+            authMethod: "none",
+        })
+        expect(oauthConfigFrom(publicApp)).toMatchObject({
+            client_secret_id: null,
+            token_endpoint_auth_method: "none",
+        })
+    })
+
+    it("is ready only with the secret its auth method sends", () => {
+        const app = journeyReducer(run(...beforeCreate("oauth").slice(0, -1)), {
+            type: "oauth_client_changed",
+            clientId: "app-from-github",
+            authMethod: "client_secret_basic",
+        })
+        expect(oauthConfigReady(app)).toBe(false)
+        expect(
+            oauthConfigReady(
+                journeyReducer(app, {type: "oauth_client_changed", clientSecretId: "secret-1"}),
+            ),
+        ).toBe(true)
+        expect(
+            oauthConfigReady(
+                journeyReducer(app, {type: "oauth_client_changed", authMethod: "none"}),
+            ),
+        ).toBe(true)
+    })
+
+    it("restores the scopes a reconnect asked for last time", () => {
+        // Saved with `write` unchecked; the check of the saved address offers both again.
+        const loaded = journeyReducer(
+            startReconnect({id: "e", slug: "s", name: "n", url: URL, authMode: "oauth"}),
+            {type: "oauth_client_loaded", config: {scopes: ["read"]}},
+        )
+        const checked = journeyReducer(loaded, {
+            type: "saved_url_probed",
+            probe: {...probe("oauth"), auth: {mode: "oauth", scopes_offered: ["read", "write"]}},
+        })
+
+        expect(checked.scopesOffered).toEqual(["read", "write"])
+        expect(checked.scopesSelected).toEqual(["read"])
+    })
+
+    it("starts a reconnect on the app its row is saved with", () => {
+        const loaded = journeyReducer(
+            startReconnect({id: "e", slug: "s", name: "n", url: URL, authMode: "oauth"}),
+            {
+                type: "oauth_client_loaded",
+                config: {client_id: "app-from-github", client_secret_id: "secret-1"},
+            },
+        )
+
+        expect(loaded.oauthClientId).toBe("app-from-github")
+        expect(loaded.oauthClientSecretId).toBe("secret-1")
+        expect(loaded.savedOauthConfig).toBe("loaded")
+    })
+
+    it("takes its saved scopes over the all-checked default a check already applied", () => {
+        // The check of the saved address answered first and checked everything.
+        const checked = journeyReducer(
+            startReconnect({id: "e", slug: "s", name: "n", url: URL, authMode: "oauth"}),
+            {
+                type: "saved_url_probed",
+                probe: {
+                    ...probe("oauth"),
+                    auth: {mode: "oauth", scopes_offered: ["read", "write"]},
+                },
+            },
+        )
+        expect(checked.scopesSelected).toEqual(["read", "write"])
+        expect(checked.savedOauthConfig).toBe("loading")
+
+        const loaded = journeyReducer(checked, {
+            type: "oauth_client_loaded",
+            config: {scopes: ["read"]},
+        })
+        expect(loaded.scopesSelected).toEqual(["read"])
+        expect(loaded.savedOauthConfig).toBe("loaded")
+    })
+
+    it("says when the saved settings could not be read, and reads them again", () => {
+        const failed = journeyReducer(
+            startReconnect({id: "e", slug: "s", name: "n", url: URL, authMode: "oauth"}),
+            {type: "oauth_client_load_failed"},
+        )
+        expect(failed.savedOauthConfig).toBe("failed")
+        expect(journeyReducer(failed, {type: "oauth_client_load_started"}).savedOauthConfig).toBe(
+            "loading",
+        )
+    })
+
+    it("is forgotten with the address it was entered for", () => {
+        const entered = run(...beforeCreate("oauth"), {
+            type: "oauth_client_changed",
+            clientId: "app-from-github",
+        })
+        const moved = journeyReducer(entered, {type: "url_changed", url: "https://mcp.other.test/"})
+
+        expect(moved.oauthClientId).toBe("")
+    })
+
+    it("is asked for where the server registers no clients", () => {
+        const withRegistration = (registration: "dynamic" | "metadata" | "unavailable") => ({
+            ...probe("oauth"),
+            auth: {...probe("oauth").auth, registration},
+        })
+
+        expect(needsOwnOauthApp(withRegistration("unavailable"))).toBe(true)
+        expect(needsOwnOauthApp(withRegistration("dynamic"))).toBe(false)
+        expect(needsOwnOauthApp(withRegistration("metadata"))).toBe(false)
+        expect(needsOwnOauthApp(null)).toBe(false)
     })
 })
 
@@ -773,8 +964,14 @@ describe("the authentication the person selects", () => {
 
         const checked = journeyReducer(key, {type: "saved_url_probed", probe: probe("oauth")})
         // Nothing else about the reconnect changes: it keeps its row, screen and mode, and
-        // keeps what the check found for the card.
-        expect(checked).toEqual({...key, oauthOffered: true, savedUrlProbe: probe("oauth")})
+        // keeps what the check found for the card and the scope checklist.
+        expect(checked).toEqual({
+            ...key,
+            oauthOffered: true,
+            savedUrlProbe: probe("oauth"),
+            scopesOffered: ["tools:list"],
+            scopesSelected: ["tools:list"],
+        })
 
         const switched = journeyReducer(checked, {type: "auth_mode_selected", mode: "oauth"})
         expect(switched.status).toBe("discovering_scopes")

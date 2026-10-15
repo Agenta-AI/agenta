@@ -8,9 +8,8 @@ with `ON DELETE CASCADE`, so deleting a project takes its in-flight attempts wit
 which nothing in Redis would do for us.
 """
 
-from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import AsyncIterator, Optional
+from typing import Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import delete, select, update
@@ -21,7 +20,6 @@ from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttemptStatus,
 )
 from oss.src.core.gateways.mcps.oauth.interfaces import (
-    MCPOAuthAttemptSettler,
     MCPOAuthAttemptsDAOInterface,
 )
 from oss.src.dbs.postgres.gateways.mcps.dbes import MCPOAuthAttemptDBE
@@ -52,6 +50,7 @@ def _to_dto(row) -> MCPOAuthAttempt:
         code_verifier=values["code_verifier"],
         scopes=values.get("scopes") or [],
         strategy=values["strategy"],
+        client_id=values.get("client_id"),
         expires_at=values["expires_at"],
         status=values["status"],
         error=values.get("error"),
@@ -96,6 +95,7 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
             code_verifier=attempt.code_verifier,
             scopes=list(attempt.scopes),
             strategy=attempt.strategy,
+            client_id=attempt.client_id,
             expires_at=attempt.expires_at,
         )
 
@@ -188,36 +188,6 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
             )
             await session.commit()
 
-    @asynccontextmanager
-    async def finalize_attempt(
-        self,
-        *,
-        attempt_id: UUID,
-    ) -> AsyncIterator[Optional[MCPOAuthAttemptSettler]]:
-        # Its own connection, not the task-scoped session: the block runs DAO calls that
-        # open that session and commit it on exit, which would release this lock.
-        table = self.MCPOAuthAttemptDBE.__table__
-        async with self.engine.transaction() as connection:
-            locked = await connection.execute(
-                select(table.c.id)
-                .where(table.c.id == attempt_id)
-                .where(table.c.status == MCPOAuthAttemptStatus.CLAIMED.value)
-                .where(table.c.expires_at > datetime.now(timezone.utc))
-                .with_for_update()
-            )
-            if locked.first() is None:
-                yield None
-                return
-
-            async def settle(status: MCPOAuthAttemptStatus) -> None:
-                await connection.execute(
-                    update(table)
-                    .where(table.c.id == attempt_id)
-                    .values(status=status.value)
-                )
-
-            yield settle
-
     async def cancel_attempts(
         self,
         *,
@@ -250,6 +220,33 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
             await session.commit()
 
             return int(result.rowcount or 0)
+
+    async def has_active_attempts(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+    ) -> bool:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(self.MCPOAuthAttemptDBE.id)
+                .where(self.MCPOAuthAttemptDBE.project_id == project_id)
+                .where(self.MCPOAuthAttemptDBE.endpoint_id == endpoint_id)
+                .where(
+                    self.MCPOAuthAttemptDBE.status.in_(
+                        [
+                            MCPOAuthAttemptStatus.PENDING.value,
+                            MCPOAuthAttemptStatus.CLAIMED.value,
+                        ]
+                    )
+                )
+                # An expired attempt is over everywhere else (`outcome()` reports it
+                # cancelled, `complete()` refuses it), even before the sweep removes it.
+                .where(self.MCPOAuthAttemptDBE.expires_at > datetime.now(timezone.utc))
+                .limit(1)
+            )
+
+            return result.first() is not None
 
     async def sweep_expired_attempts(
         self,

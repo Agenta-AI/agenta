@@ -43,7 +43,10 @@ from oss.src.core.git.dtos import (
 )
 
 from oss.src.dbs.postgres.shared.utils import apply_windowing
-from oss.src.dbs.postgres.shared.exceptions import check_entity_creation_conflict
+from oss.src.dbs.postgres.shared.exceptions import (
+    check_entity_creation_conflict,
+    is_lock_timeout,
+)
 from oss.src.utils.exceptions import suppress_exceptions
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -61,10 +64,6 @@ log = get_module_logger(__name__)
 T = TypeVar("T")
 
 
-# Postgres reports `lock_timeout` expiry as `lock_not_available`.
-LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"
-
-
 def _raise_on_lock_timeout(
     exception: Exception,
     *,
@@ -72,17 +71,11 @@ def _raise_on_lock_timeout(
 ) -> None:
     """Translate an expired `lock_timeout` into `CommitLockTimeout`.
 
-    The SQLSTATE travels on the driver error that SQLAlchemy wraps, so walk the chain
-    rather than trusting one wrapper's shape. Left untranslated, generic suppression turns
-    the timeout into `None` and the caller reports a commit that never happened.
+    Left untranslated, generic suppression turns the timeout into `None` and the caller
+    reports a commit that never happened.
     """
-    seen = exception
-    for _ in range(4):
-        if seen is None:
-            return
-        if getattr(seen, "sqlstate", None) == LOCK_NOT_AVAILABLE_SQLSTATE:
-            raise CommitLockTimeout(variant_id=variant_id) from exception
-        seen = getattr(seen, "orig", None) or getattr(seen, "__cause__", None)
+    if is_lock_timeout(exception):
+        raise CommitLockTimeout(variant_id=variant_id) from exception
 
 
 class GitDAO(GitDAOInterface):

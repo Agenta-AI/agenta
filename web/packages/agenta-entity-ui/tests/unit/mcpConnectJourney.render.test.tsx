@@ -31,6 +31,7 @@ const {
     discoverMcpConnect,
     beginMcpConnect,
     queryMcpEndpoints,
+    editMcpEndpoint,
 } = vi.hoisted(() => ({
     probeMcpUrl: vi.fn(),
     createMcpEndpoint: vi.fn(),
@@ -38,6 +39,7 @@ const {
     discoverMcpConnect: vi.fn(),
     beginMcpConnect: vi.fn(),
     queryMcpEndpoints: vi.fn(),
+    editMcpEndpoint: vi.fn(),
 }))
 
 vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOriginal) => ({
@@ -48,13 +50,21 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
     discoverMcpConnect,
     beginMcpConnect,
     queryMcpEndpoints,
+    editMcpEndpoint,
 }))
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test"}))
 
+// The project's named secrets, which the OAuth screen's client secret picker reads.
+const NAMED_SECRETS_ATOM = vi.hoisted(() => ({}))
+vi.mock("@agenta/entities/secret", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/entities/secret")>()),
+    customNamedSecretsAtom: NAMED_SECRETS_ATOM,
+}))
+
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
-    useAtomValue: () => "project-1",
+    useAtomValue: (atom: unknown) => (atom === NAMED_SECRETS_ATOM ? [] : "project-1"),
     useSetAtom: () => async () => undefined,
 }))
 
@@ -192,6 +202,8 @@ beforeEach(() => {
         endpoints: [{id: "mcp-9", slug: "acme-7mx", auth_mode: "oauth", data: {route: {}}}],
     })
     discoverMcpConnect.mockResolvedValue({count: 1, scopes_offered: ["tools:list"]})
+    // The OAuth settings, scopes included, are saved to the row before consent.
+    editMcpEndpoint.mockResolvedValue({count: 1})
     // Held open: the provider's window is what ends this step, and nothing in a unit test
     // is going to open one.
     beginMcpConnect.mockImplementation(() => new Promise(() => undefined))
@@ -491,5 +503,74 @@ describe("connecting a server that uses OAuth", () => {
             "the consent wait",
         )
         expect(createMcpEndpoint).toHaveBeenCalled()
+    })
+})
+
+describe("an OAuth reconnect's saved settings", () => {
+    const deferred = <T,>() => {
+        let release!: (value: T) => void
+        let fail!: (reason: unknown) => void
+        const promise = new Promise<T>((resolve, reject) => {
+            release = resolve
+            fail = reject
+        })
+        return {promise, release, fail}
+    }
+    const savedRow = {
+        id: "mcp-9",
+        slug: "acme-7mx",
+        auth_mode: "oauth",
+        data: {route: {base_url: "https://mcp.acme.test/"}, oauth_config: {scopes: ["read"]}},
+    }
+    const offering = (scopes: string[]) => ({
+        count: 1,
+        probe: {
+            reachable: true,
+            server_name: "Acme",
+            auth: {mode: "oauth", scopes_offered: scopes},
+        },
+    })
+
+    it("holds Connect until they have loaded, however long the read takes", async () => {
+        const read = deferred<unknown>()
+        queryMcpEndpoints.mockReturnValue(read.promise)
+
+        await openReconnect()
+        // An early click does nothing: the empty fields would save over the saved app.
+        expect(button("Connect")?.disabled).toBe(true)
+        await press(button("Connect"))
+        expect(discoverMcpConnect).not.toHaveBeenCalled()
+
+        await act(async () => read.release({count: 1, endpoints: [savedRow]}))
+        await settle()
+        expect(button("Connect")?.disabled).toBe(false)
+    })
+
+    it("keeps the scopes asked for last time, whichever answer arrives first", async () => {
+        const probe = deferred<unknown>()
+        probeMcpUrl.mockReturnValue(probe.promise)
+        queryMcpEndpoints.mockResolvedValue({count: 1, endpoints: [savedRow]})
+
+        await openReconnect()
+        await act(async () => probe.release(offering(["read", "write"])))
+        await settle()
+        await press(button("Advanced"))
+
+        const boxes = [...document.querySelectorAll("[role='checkbox']")]
+        expect(boxes.map((box) => box.getAttribute("aria-checked"))).toEqual(["true", "false"])
+    })
+
+    it("says when they could not be read, and reads them again on Try again", async () => {
+        queryMcpEndpoints.mockRejectedValueOnce(new Error("down"))
+
+        await openReconnect()
+        expect(document.body.textContent).toContain(
+            "The saved OAuth settings could not be read. Try again.",
+        )
+
+        queryMcpEndpoints.mockResolvedValue({count: 1, endpoints: [savedRow]})
+        await press(button("Try again"))
+        expect(document.body.textContent).not.toContain("could not be read")
+        expect(button("Connect")?.disabled).toBe(false)
     })
 })

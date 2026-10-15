@@ -26,9 +26,8 @@
  * that can lead to consent — Connect on the OAuth screen, Try again on a refusal — opens it
  * first and then starts the work.
  *
- * The scope step is gone from the screens and kept in the machine. The server still tells us
- * what it offers and the authorize call still takes a list; what has gone is asking a person
- * to narrow it, because the scopes are the server's business and nobody could answer.
+ * The scopes are a checklist under Advanced on the OAuth screen, all checked, filled from what
+ * the probe found. There is no separate scope step: Connect asks for whatever is checked.
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
@@ -41,7 +40,10 @@ import {
     MCP_URL_CREDENTIAL_BINDING,
     MCP_URL_SECRET_PLACEHOLDER,
     mcpChallengeScheme,
+    DEFAULT_OAUTH_CLIENT_AUTH_METHOD,
     mcpDefaultCredentialBinding,
+    needsOwnOauthApp,
+    oauthConfigReady,
     urlMatchesCredentialBinding,
     urlSecretProblem,
     readMcpProbeResponse,
@@ -84,6 +86,7 @@ import {
     headerSchemeHint,
     HintedField,
     NoticeBox,
+    OAuthAdvancedFields,
     ProbeResultCard,
     ShowResponsePanel,
 } from "./components"
@@ -215,6 +218,9 @@ const NO_KEY_REFUSED_ADVICE = "Pick another authentication mode above."
 
 const WAITING_BODY =
     "Finish in the window that opened. Sign in to the provider if it asks, then approve Agenta. This closes on its own when you're done."
+
+/** A reconnect could not read back the OAuth settings its connection is saved with. */
+const SAVED_OAUTH_UNREADABLE = "The saved OAuth settings could not be read. Try again."
 
 /** The existing sentence for the window between a granted consent and a refreshed list. */
 const SAVING_BODY = "Setting up the connection…"
@@ -423,11 +429,30 @@ export function McpConnectSheet({
     const [creatingSecret, setCreatingSecret] = useState(false)
     /** The Basic helper's encoded value, which the create drawer opens with. */
     const [secretSeed, setSecretSeed] = useState<string | undefined>(undefined)
-    const openSecretDrawer = useCallback((seed?: string) => {
-        setSecretSeed(seed)
-        setSecretDrawerMounted(true)
-        setCreatingSecret(true)
-    }, [])
+    /** Which field a secret created in the drawer fills: the key, or the OAuth app's. */
+    const [secretFor, setSecretFor] = useState<"key" | "oauth_client">("key")
+    const openSecretDrawer = useCallback(
+        (seed?: string, target: "key" | "oauth_client" = "key") => {
+            setSecretSeed(seed)
+            setSecretFor(target)
+            setSecretDrawerMounted(true)
+            setCreatingSecret(true)
+        },
+        [],
+    )
+    /**
+     * A secret just created for the OAuth app. The drawer hands back its slug, and the row
+     * stores the id, which is known once the project's secrets have reloaded.
+     */
+    const [createdClientSecretSlug, setCreatedClientSecretSlug] = useState<string | null>(null)
+    const {setOauthClient} = journey
+    useEffect(() => {
+        if (!createdClientSecretSlug) return
+        const id = namedSecrets.find((secret) => secret.slug === createdClientSecretSlug)?.id
+        if (!id) return
+        setOauthClient({clientSecretId: id})
+        setCreatedClientSecretSlug(null)
+    }, [createdClientSecretSlug, namedSecrets, setOauthClient])
     // Latches on first open so the create drawer's hooks stay unmounted until needed.
     const [secretDrawerMounted, setSecretDrawerMounted] = useState(false)
 
@@ -516,7 +541,7 @@ export function McpConnectSheet({
     // Not just the watch: work already in flight has to be disowned too, or a create or a
     // begin that resolves after this unmount installs itself on an attempt nobody is waiting
     // for (D34).
-    useEffect(() => journey.abandonAttempt, [journey.abandonAttempt])
+    useEffect(() => () => void journey.abandonAttempt(), [journey.abandonAttempt])
 
     // `saving` means credentials are persisted and only the local bookkeeping is left.
     useEffect(() => {
@@ -611,6 +636,10 @@ export function McpConnectSheet({
     }, [binding, journey, selectedSecretId])
 
     const confirm = useCallback(() => {
+        if (screen === "oauth" && state.savedOauthConfig === "failed") {
+            journey.reloadSavedOauthConfig()
+            return
+        }
         const keyBinding = path === "api_key" ? binding : undefined
         // `submitName` checks a `{secret}` address with it before the row is made.
         const keySecretId = keyBinding ? selectedSecretId() : undefined
@@ -671,8 +700,10 @@ export function McpConnectSheet({
         path,
         requestConsent,
         retryConsent,
+        screen,
         selectedSecretId,
         state.endpointId,
+        state.savedOauthConfig,
         state.status,
         state.url,
         submitCredential,
@@ -703,6 +734,9 @@ export function McpConnectSheet({
     const challengeScheme = mcpChallengeScheme(serverProbe)
     // The status of the request that carried the key, not the one that carried nothing.
     const refusedStatus = state.failureStatus
+
+    // A server that registers no clients signs in only an app the person brings.
+    const needsOwnApp = needsOwnOauthApp(serverProbe)
 
     // Why Connect is held for a `{secret}` address, said rather than only greyed out.
     const urlProblem = urlSecretProblem(state.url, path, binding)
@@ -854,6 +888,48 @@ export function McpConnectSheet({
                         </NoticeBox>
                     ) : null}
 
+                    {screen === "oauth" ? (
+                        <OAuthAdvancedFields
+                            clientId={state.oauthClientId}
+                            onClientIdChange={(clientId) => journey.setOauthClient({clientId})}
+                            clientSecret={
+                                <SecretSelect
+                                    label="Client secret"
+                                    value={
+                                        namedSecrets.find(
+                                            (secret) => secret.id === state.oauthClientSecretId,
+                                        )?.slug ?? ""
+                                    }
+                                    onChange={(slug) =>
+                                        journey.setOauthClient({
+                                            clientSecretId:
+                                                namedSecrets.find((secret) => secret.slug === slug)
+                                                    ?.id ?? null,
+                                        })
+                                    }
+                                    secrets={namedSecrets}
+                                    disabled={busy}
+                                    canCreate
+                                    onCreate={() => openSecretDrawer(undefined, "oauth_client")}
+                                />
+                            }
+                            authMethod={
+                                state.oauthClientAuthMethod ?? DEFAULT_OAUTH_CLIENT_AUTH_METHOD
+                            }
+                            onAuthMethodChange={(authMethod) =>
+                                journey.setOauthClient({authMethod})
+                            }
+                            redirectUri={serverProbe?.auth.redirect_uri ?? null}
+                            scopesOffered={state.scopesOffered}
+                            scopesSelected={state.scopesSelected}
+                            onToggleScope={journey.toggleScope}
+                            needsOwnApp={needsOwnApp}
+                            // Until the saved settings arrive, what is typed would be
+                            // replaced by them.
+                            disabled={busy || state.savedOauthConfig === "loading"}
+                        />
+                    ) : null}
+
                     {screen === "api_key" ? (
                         <>
                             <div className="flex flex-col gap-3">
@@ -983,6 +1059,10 @@ export function McpConnectSheet({
                         </WaitingCard>
                     ) : null}
 
+                    {screen === "oauth" && state.savedOauthConfig === "failed" ? (
+                        <InlineError headline={null}>{SAVED_OAUTH_UNREADABLE}</InlineError>
+                    ) : null}
+
                     {screen === "oauth" && isConsentRefusal(state.status) ? (
                         <InlineError headline={null}>
                             {state.status === "consent_cancelled"
@@ -1002,10 +1082,19 @@ export function McpConnectSheet({
                                 setCreatingSecret(false)
                                 setSecretSeed(undefined)
                             }}
-                            headerName={binding.name ?? undefined}
+                            headerName={
+                                secretFor === "key" ? (binding.name ?? undefined) : undefined
+                            }
                             serverName={state.name}
+                            nameSuffix={
+                                secretFor === "oauth_client" ? "OAUTH_CLIENT_SECRET" : "API_KEY"
+                            }
                             initialValue={secretSeed}
-                            onCreated={(row) => setSecretSlug(row.slug)}
+                            onCreated={(row) =>
+                                secretFor === "oauth_client"
+                                    ? setCreatedClientSecretSlug(row.slug)
+                                    : setSecretSlug(row.slug)
+                            }
                         />
                     ) : null}
                 </div>
@@ -1025,6 +1114,11 @@ export function McpConnectSheet({
                                         state,
                                         nameProblem,
                                         secretChosen,
+                                        oauthClientReady:
+                                            screen !== "oauth" ||
+                                            state.savedOauthConfig === "failed" ||
+                                            (state.savedOauthConfig !== "loading" &&
+                                                oauthConfigReady(state)),
                                         bindingReady:
                                             credentialBindingComplete(binding) &&
                                             urlMatchesCredentialBinding(state.url, binding),
@@ -1052,6 +1146,7 @@ const isConsentRefusal = (status: McpJourneyState["status"]) =>
 /** What the trailing button says, by screen and by whether it is a second attempt. */
 const confirmLabel = (screen: Screen, state: McpJourneyState): string => {
     if (screen === "url") return "Continue"
+    if (screen === "oauth" && state.savedOauthConfig === "failed") return "Try again"
     if (screen === "url_failed") return "Try again"
     if (isConsentRefusal(state.status)) return "Try again"
     if (state.status === "verify_failed" || state.status === "create_failed") return "Try again"
@@ -1063,6 +1158,7 @@ const canConfirm = ({
     state,
     nameProblem,
     secretChosen,
+    oauthClientReady,
     bindingReady,
     busy,
 }: {
@@ -1070,6 +1166,8 @@ const canConfirm = ({
     state: McpJourneyState
     nameProblem: string | null
     secretChosen: boolean
+    /** The OAuth settings on screen can be saved. See `oauthConfigReady`. */
+    oauthClientReady: boolean
     /** Says where the key goes, and agrees with the address about `{secret}`. */
     bindingReady: boolean
     busy: boolean
@@ -1078,6 +1176,7 @@ const canConfirm = ({
     if (screen === "url" || screen === "url_failed") return isProbeableUrl(state.url)
     if (nameProblem) return false
     if (screen === "api_key") return !!state.name.trim() && secretChosen && bindingReady
+    if (!oauthClientReady) return false
     // Only a key sent in the URL can fill `{secret}`, so no other mode can connect it.
     if (hasUrlSecretPlaceholder(state.url)) return false
     return !!state.name.trim()
@@ -1162,6 +1261,7 @@ const WaitingCard = ({
  * finish this screen.
  */
 const SecretSelect = ({
+    label = "Project secret",
     value,
     onChange,
     secrets,
@@ -1172,6 +1272,8 @@ const SecretSelect = ({
     id,
     "aria-describedby": describedBy,
 }: {
+    /** The accessible name, which is the field's. */
+    label?: string
     value: string
     onChange: (slug: string) => void
     secrets: {id?: string | null; slug?: string | null; name?: string | null}[]
@@ -1203,7 +1305,7 @@ const SecretSelect = ({
                 id={id}
                 className="w-full"
                 disabled={disabled}
-                aria-label="Project secret"
+                aria-label={label}
                 aria-describedby={describedBy}
                 aria-invalid={invalid || undefined}
             >

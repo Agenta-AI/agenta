@@ -104,6 +104,11 @@ const state = (over: Partial<McpJourneyState> & {status: McpJourneyStatus}): Mcp
     oauthOffered: over.probe?.auth.mode === "oauth",
     scopesOffered: [],
     scopesSelected: [],
+    oauthClientId: "",
+    oauthClientSecretId: null,
+    oauthClientAuthMethod: null,
+    savedOauthConfig: null,
+    scopesSaved: null,
     endpointId: null,
     slug: null,
     createdHere: true,
@@ -121,6 +126,8 @@ const open = async (current: McpJourneyState, props: Partial<McpConnectJourneyPr
         cancelConsent: vi.fn(),
         onClose: vi.fn(),
         selectAuthMode: vi.fn(),
+        setOauthClient: vi.fn(),
+        toggleScope: vi.fn(),
     }
     useMcpConnectJourney.mockReturnValue({
         state: current,
@@ -131,7 +138,8 @@ const open = async (current: McpJourneyState, props: Partial<McpConnectJourneyPr
         setName: vi.fn(),
         selectAuthMode: asked.selectAuthMode,
         submitName: vi.fn(),
-        toggleScope: vi.fn(),
+        toggleScope: asked.toggleScope,
+        setOauthClient: asked.setOauthClient,
         submitScopes: vi.fn(),
         startScopeDiscovery: vi.fn(),
         submitManualCredential: vi.fn(),
@@ -487,12 +495,9 @@ describe("C3, the server signs in with OAuth", () => {
         expect(opened).toHaveBeenCalledOnce()
     })
 
-    it("asks nobody to choose scopes", async () => {
-        // They are the server's business, and the checklist this replaces asked a question
-        // whose answer nobody outside the provider's documentation could know. The status
-        // outlived the checklist, so the guarantee is that it renders the wait, and the
-        // scopes the server offered reach the provider without reaching the person. Opened
-        // on `naming` against the retired headline, this asserted nothing either way.
+    it("renders the wait, not a second scope step, once Connect is pressed", async () => {
+        // The checklist is under Advanced on the screen before the press. The status that
+        // carries the selection to the provider draws the wait.
         await open(
             state({
                 status: "choosing_scopes",
@@ -506,6 +511,175 @@ describe("C3, the server signs in with OAuth", () => {
 
         expect(text()).toContain("Waiting for Linear…")
         expect(document.querySelectorAll("input[type='checkbox']")).toHaveLength(0)
+    })
+})
+
+describe("the OAuth screen's Advanced section", () => {
+    const naming = (over: Partial<McpJourneyState> = {}) =>
+        state({
+            status: "naming",
+            url: "https://mcp.dataforseo.com/v3/mcp",
+            name: "mcp.dataforseo.com",
+            probe: OAUTH_PROBE,
+            scopesOffered: ["read", "write", "offline_access"],
+            scopesSelected: ["read", "write", "offline_access"],
+            ...over,
+        })
+    const checkboxes = () => [...document.querySelectorAll("[role='checkbox']")]
+
+    it("is collapsed, so the usual screen stays as it was", async () => {
+        await open(naming())
+
+        expect(button("Advanced")?.getAttribute("aria-expanded")).toBe("false")
+        expect(control("Client ID")).toBeNull()
+        expect(checkboxes()).toHaveLength(0)
+        expect(button("Connect")?.disabled).toBe(false)
+    })
+
+    it("opens on the client fields and the offered scopes, all checked", async () => {
+        await open(naming())
+        await press(button("Advanced"))
+
+        expect(control("Client ID")?.getAttribute("placeholder")).toBe("Optional")
+        expect(control("Client secret")).not.toBeNull()
+        expect(text()).toContain(
+            "Only for servers that do not register clients on their own. Most do, and these stay blank.",
+        )
+        expect(text()).toContain("read offered by the server")
+        expect(checkboxes().map((box) => box.getAttribute("aria-checked"))).toEqual([
+            "true",
+            "true",
+            "true",
+        ])
+        expect(text()).toContain(
+            "All scopes the server offers are checked. Uncheck one to ask for less. Servers that offer no scopes show nothing here.",
+        )
+    })
+
+    it("asks for less when a scope is unchecked", async () => {
+        await open(naming({scopesSelected: ["read", "offline_access"]}))
+        await press(button("Advanced"))
+
+        expect(checkboxes()[1]?.getAttribute("aria-checked")).toBe("false")
+        await press(checkboxes()[1])
+        expect(asked.toggleScope).toHaveBeenCalledWith("write")
+    })
+
+    it("shows no scope list for a server that offers none", async () => {
+        await open(naming({scopesOffered: [], scopesSelected: []}))
+        await press(button("Advanced"))
+
+        expect(control("Client ID")).not.toBeNull()
+        expect(text()).not.toContain("Scopes")
+    })
+
+    it("opens by itself and says why when the server registers no clients", async () => {
+        const probe = {
+            ...OAUTH_PROBE,
+            auth: {...OAUTH_PROBE.auth, registration: "unavailable" as const},
+        }
+        await open(naming({probe}))
+
+        expect(button("Advanced")?.getAttribute("aria-expanded")).toBe("true")
+        expect(text()).toContain(
+            "This server needs an OAuth app you register yourself. Paste its client ID and secret.",
+        )
+        // Nothing to sign in as until the app is entered.
+        expect(button("Connect")?.disabled).toBe(true)
+    })
+
+    it("lets Connect go once that server has an app with its secret", async () => {
+        const probe = {
+            ...OAUTH_PROBE,
+            auth: {...OAUTH_PROBE.auth, registration: "unavailable" as const},
+        }
+        await open(naming({probe, oauthClientId: "app-from-github"}))
+
+        expect((control("Client ID") as HTMLInputElement | null)?.value).toBe("app-from-github")
+        // The secret is sent in the request body by default, so it is needed first.
+        expect(control("Client authentication")?.textContent).toBe(
+            "Send the secret in the request body",
+        )
+        expect(button("Connect")?.disabled).toBe(true)
+
+        await open(
+            naming({
+                probe,
+                oauthClientId: "app-from-github",
+                oauthClientSecretId: "sec-1",
+            }),
+        )
+        expect(button("Connect")?.disabled).toBe(false)
+    })
+
+    it("asks for no secret for an app that sends none", async () => {
+        await open(
+            naming({
+                oauthClientId: "app-from-github",
+                oauthClientAuthMethod: "none",
+            }),
+        )
+        await press(button("Advanced"))
+
+        expect(control("Client authentication")?.textContent).toBe("No secret")
+        expect(control("Client secret")).toBeNull()
+        expect(button("Connect")?.disabled).toBe(false)
+    })
+
+    it("shows the method only once an app is entered", async () => {
+        await open(naming())
+        await press(button("Advanced"))
+
+        expect(control("Client authentication")).toBeNull()
+    })
+
+    it("shows the callback to register the app with, and copies it", async () => {
+        const writeText = vi.fn(async () => undefined)
+        vi.stubGlobal("navigator", {...navigator, clipboard: {writeText}})
+        const redirect = "https://api.example.test/gateways/mcps/connect/callback"
+        await open(
+            naming({
+                probe: {...OAUTH_PROBE, auth: {...OAUTH_PROBE.auth, redirect_uri: redirect}},
+            }),
+        )
+        await press(button("Advanced"))
+
+        expect(text()).toContain(redirect)
+        expect(text()).toContain("Register this callback URL in your OAuth app.")
+        await press(button("Copy"))
+        expect(writeText).toHaveBeenCalledWith(redirect)
+    })
+
+    it("selects the callback for a copy by hand where there is no clipboard", async () => {
+        // A deployment served over plain HTTP has no clipboard API at all.
+        vi.stubGlobal("navigator", {...navigator, clipboard: undefined})
+        const redirect = "http://api.example.test/gateways/mcps/connect/callback"
+        await open(
+            naming({
+                probe: {...OAUTH_PROBE, auth: {...OAUTH_PROBE.auth, redirect_uri: redirect}},
+            }),
+        )
+        await press(button("Advanced"))
+        await press(button("Copy"))
+
+        expect(text()).toContain("Select the URL and copy it.")
+        expect(window.getSelection()?.toString()).toBe(redirect)
+    })
+
+    it("hands the typed client ID to the journey", async () => {
+        await open(naming())
+        await press(button("Advanced"))
+        const input = control("Client ID") as HTMLInputElement
+        await act(async () => {
+            const setValue = Object.getOwnPropertyDescriptor(
+                HTMLInputElement.prototype,
+                "value",
+            )?.set
+            setValue?.call(input, "app-from-github")
+            input.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+
+        expect(asked.setOauthClient).toHaveBeenCalledWith({clientId: "app-from-github"})
     })
 })
 

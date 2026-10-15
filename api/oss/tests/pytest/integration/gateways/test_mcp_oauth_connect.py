@@ -7,6 +7,7 @@ the browser callback, updates the endpoint handle, and reconnects for a scope st
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
@@ -69,16 +70,15 @@ class _EndpointStore:
         )
         return self.endpoint
 
+    @asynccontextmanager
+    async def oauth_lock(self, *, project_id, endpoint_id):
+        yield
+
     async def bind_endpoint_secret(
-        self, *, project_id, user_id, endpoint_id, secret_id, oauth_server_url=None
+        self, *, project_id, user_id, endpoint_id, secret_id
     ):
         # Two columns, the way the real DAO writes a credential transition (D3).
         if endpoint_id != self.endpoint.id:
-            return None
-        if oauth_server_url is not None and (
-            self.endpoint.auth_mode != GatewayAuthScheme.OAUTH
-            or self.endpoint.data.route.base_url != oauth_server_url
-        ):
             return None
         self.endpoint = self.endpoint.model_copy(
             update={

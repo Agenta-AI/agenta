@@ -7,6 +7,8 @@ HTTP, or real upstream. Covers CRUD delegation, endpoint listing, connection sta
 and relay orchestration.
 """
 
+from contextlib import asynccontextmanager
+
 import json
 from types import SimpleNamespace
 from typing import Dict, List, Optional
@@ -27,6 +29,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointFlags,
     MCPEndpointQuery,
     MCPEndpointRoute,
+    MCPOAuthConfig,
     MCPToolFilter,
 )
 from oss.src.core.gateways.mcps.interfaces import (
@@ -39,6 +42,7 @@ from oss.src.core.gateways.mcps.service import MCPGatewayService
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthRefreshFailedError
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
+    MCPConnectionChangedError,
     MCPConnectionNameTakenError,
     MCPEndpointNotFoundError,
     MCPScopeInsufficientError,
@@ -136,6 +140,10 @@ class MockMCPEndpointsDAO(MCPEndpointsDAOInterface):
         )
         self._by_id[endpoint_id] = updated
         return updated
+
+    @asynccontextmanager
+    async def oauth_lock(self, *, project_id, endpoint_id):
+        yield
 
     async def bind_endpoint_secret(
         self, *, project_id, user_id, endpoint_id, secret_id
@@ -339,8 +347,55 @@ async def test_delete_endpoint_delegates_to_dao():
 
     deleted = await service.delete_endpoint(project_id=uuid4(), endpoint_id=created.id)
 
-    assert dao.calls == ["delete_endpoint"]
+    assert dao.calls == ["fetch_endpoint", "delete_endpoint"]
     assert deleted is True
+
+
+@pytest.mark.asyncio
+async def test_a_sheet_abandoning_its_pending_row_deletes_it():
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+    pending = await _oauth_endpoint(dao, connected=False)
+
+    deleted = await service.delete_endpoint(
+        project_id=uuid4(),
+        endpoint_id=pending.id,
+        pending_auth_mode=MCPAuthScheme.OAUTH,
+    )
+
+    assert deleted is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "auth_mode", [MCPAuthScheme.API_KEY, MCPAuthScheme.OAUTH], ids=["key", "grant"]
+)
+async def test_a_sheet_abandoning_a_row_another_tab_took_over_keeps_it(auth_mode):
+    """Another tab saved a key on the row, or finished its sign-in. The sheet that made
+    the row only gives up its own attempt."""
+    dao = MockMCPEndpointsDAO()
+    service = _service(mcp_endpoints_dao=dao)
+    taken = await dao.create_endpoint(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint=MCPEndpointCreate(
+            slug="acme-notion",
+            auth_mode=auth_mode,
+            secret_id=uuid4(),
+            data=MCPEndpointData(
+                route=MCPEndpointRoute(base_url="https://example.com/mcp")
+            ),
+        ),
+    )
+
+    with pytest.raises(MCPConnectionChangedError):
+        await service.delete_endpoint(
+            project_id=uuid4(),
+            endpoint_id=taken.id,
+            pending_auth_mode=MCPAuthScheme.OAUTH,
+        )
+
+    assert "delete_endpoint" not in dao.calls
 
 
 @pytest.mark.asyncio
@@ -2491,6 +2546,7 @@ class _ReleasingRefresher:
 
     def __init__(self) -> None:
         self.released: List[UUID] = []
+        self.cancelled: List[UUID] = []
 
     async def refresh_grant(self, *, project_id, endpoint_id, server_url) -> None:
         raise AssertionError("an edit does not refresh")
@@ -2498,8 +2554,78 @@ class _ReleasingRefresher:
     async def release_grant(self, *, project_id, endpoint_id, server_url) -> None:
         self.released.append(endpoint_id)
 
+    async def cancel_attempts(self, *, project_id, endpoint_id, attempt_id=None) -> int:
+        self.cancelled.append(endpoint_id)
+        return 1
 
-async def _edited_from_oauth(*, auth_mode, base_url):
+
+class _SigningInRefresher(_ReleasingRefresher):
+    """Holds the sign-ins in flight on one connection, by attempt id."""
+
+    def __init__(self, *active: UUID) -> None:
+        super().__init__()
+        self.active = set(active)
+
+    async def cancel_attempts(self, *, project_id, endpoint_id, attempt_id=None) -> int:
+        cancelled = self.active if attempt_id is None else self.active & {attempt_id}
+        self.active -= cancelled
+        return len(cancelled)
+
+    async def has_active_attempts(self, *, project_id, endpoint_id) -> bool:
+        return bool(self.active)
+
+
+@pytest.mark.asyncio
+async def test_a_sheet_abandoning_a_row_another_tab_is_signing_in_on_keeps_it():
+    """Tab A made the pending row and tab B started its own sign-in on it. A cancels its
+    sign-in, then asks to delete the row: the row and B's sign-in both stay."""
+    dao = MockMCPEndpointsDAO()
+    sheet_attempt, other_tab_attempt = uuid4(), uuid4()
+    refresher = _SigningInRefresher(sheet_attempt, other_tab_attempt)
+    service = _relay_service(
+        mcp_endpoints_dao=dao, adapters={}, oauth_refresher=refresher
+    )
+    pending = await _oauth_endpoint(dao, connected=False)
+    await refresher.cancel_attempts(
+        project_id=uuid4(), endpoint_id=pending.id, attempt_id=sheet_attempt
+    )
+
+    with pytest.raises(MCPConnectionChangedError):
+        await service.delete_endpoint(
+            project_id=uuid4(),
+            endpoint_id=pending.id,
+            pending_auth_mode=MCPAuthScheme.OAUTH,
+        )
+
+    assert "delete_endpoint" not in dao.calls
+    assert refresher.active == {other_tab_attempt}
+    assert refresher.released == []
+
+
+@pytest.mark.asyncio
+async def test_a_sheet_abandoning_its_row_after_cancelling_its_sign_in_deletes_it():
+    dao = MockMCPEndpointsDAO()
+    sheet_attempt = uuid4()
+    refresher = _SigningInRefresher(sheet_attempt)
+    service = _relay_service(
+        mcp_endpoints_dao=dao, adapters={}, oauth_refresher=refresher
+    )
+    pending = await _oauth_endpoint(dao, connected=False)
+    await refresher.cancel_attempts(
+        project_id=uuid4(), endpoint_id=pending.id, attempt_id=sheet_attempt
+    )
+
+    deleted = await service.delete_endpoint(
+        project_id=uuid4(),
+        endpoint_id=pending.id,
+        pending_auth_mode=MCPAuthScheme.OAUTH,
+    )
+
+    assert deleted is True
+    assert refresher.released == [pending.id]
+
+
+async def _edited_from_oauth(*, auth_mode, base_url, oauth_config=None):
     dao = MockMCPEndpointsDAO()
     refresher = _ReleasingRefresher()
     service = _relay_service(
@@ -2514,7 +2640,10 @@ async def _edited_from_oauth(*, auth_mode, base_url):
             name=endpoint.name,
             auth_mode=auth_mode,
             data=endpoint.data.model_copy(
-                update={"route": MCPEndpointRoute(base_url=base_url)}
+                update={
+                    "route": MCPEndpointRoute(base_url=base_url),
+                    "oauth_config": oauth_config,
+                }
             ),
         ),
     )
@@ -2545,4 +2674,66 @@ async def test_an_edit_that_keeps_mode_and_address_retires_nothing():
         auth_mode=MCPAuthScheme.OAUTH, base_url="https://example.com/mcp"
     )
 
+    assert refresher.released == []
+    assert refresher.cancelled == []
+
+
+@pytest.mark.parametrize(
+    "auth_mode, released", [(MCPAuthScheme.OAUTH, True), (MCPAuthScheme.NONE, False)]
+)
+@pytest.mark.asyncio
+async def test_deleting_a_connection_takes_its_oauth_grant_with_it(auth_mode, released):
+    """Deleting the row alone left the grant in the vault with nothing naming it:
+    unreachable, unlistable as a connection, and still holding a live token."""
+    dao = MockMCPEndpointsDAO()
+    refresher = _ReleasingRefresher()
+    service = _relay_service(
+        mcp_endpoints_dao=dao, adapters={}, oauth_refresher=refresher
+    )
+    endpoint = await _oauth_endpoint(dao)
+    dao._by_id[endpoint.id] = endpoint.model_copy(update={"auth_mode": auth_mode})
+
+    assert await service.delete_endpoint(project_id=uuid4(), endpoint_id=endpoint.id)
+
+    assert refresher.released == ([endpoint.id] if released else [])
+
+
+@pytest.mark.asyncio
+async def test_a_changed_oauth_client_cancels_the_consents_and_keeps_the_grant():
+    """A consent begun as one client must not finish as another. The grant stays: it
+    renews only as the client it was issued to."""
+    endpoint, refresher = await _edited_from_oauth(
+        auth_mode=MCPAuthScheme.OAUTH,
+        base_url="https://example.com/mcp",
+        oauth_config=MCPOAuthConfig(client_id="app-from-github"),
+    )
+
+    assert refresher.cancelled == [endpoint.id]
+    assert refresher.released == []
+
+
+@pytest.mark.asyncio
+async def test_a_switch_to_oauth_cancels_the_consents_and_retires_nothing():
+    dao = MockMCPEndpointsDAO()
+    refresher = _ReleasingRefresher()
+    service = _relay_service(
+        mcp_endpoints_dao=dao, adapters={}, oauth_refresher=refresher
+    )
+    endpoint = await _oauth_endpoint(dao)
+    dao._by_id[endpoint.id] = endpoint.model_copy(
+        update={"auth_mode": MCPAuthScheme.API_KEY}
+    )
+
+    await service.edit_endpoint(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint=MCPEndpointEdit(
+            id=endpoint.id,
+            name=endpoint.name,
+            auth_mode=MCPAuthScheme.OAUTH,
+            data=endpoint.data,
+        ),
+    )
+
+    assert refresher.cancelled == [endpoint.id]
     assert refresher.released == []

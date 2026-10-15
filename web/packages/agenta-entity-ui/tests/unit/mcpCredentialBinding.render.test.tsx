@@ -63,6 +63,11 @@ const keyScreen: McpJourneyState = {
     oauthOffered: detectedAuthMode(DATAFORSEO_PROBE) === "oauth",
     scopesOffered: [],
     scopesSelected: [],
+    oauthClientId: "",
+    oauthClientSecretId: null,
+    oauthClientAuthMethod: null,
+    savedOauthConfig: null,
+    scopesSaved: null,
     endpointId: null,
     slug: null,
     createdHere: true,
@@ -245,6 +250,7 @@ describe("the Basic helper", () => {
         await press("Create secret")
 
         expect(drawerProps.current?.open).toBe(true)
+        expect(drawerProps.current?.nameSuffix).toBe("API_KEY")
         expect(drawerProps.current?.initialValue).toBe(btoa("login@example.com:test-password-one"))
         // Neither half is kept once the value is handed over.
         expect(labelled("Username")?.value).toBe("")

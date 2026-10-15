@@ -11,7 +11,11 @@ from uuid import UUID, uuid4
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateway.connections.dtos import Connection
 from oss.src.core.gateway.connections.service import ConnectionsService
-from oss.src.core.gateways.mcps.dtos import MCPAuthScheme, is_oauth_connection_at
+from oss.src.core.gateways.mcps.dtos import (
+    MCPAuthScheme,
+    configured_oauth_client,
+    is_oauth_connection_at,
+)
 from oss.src.core.gateways.dtos import (
     GatewayConnectAffordance,
     GatewayConnectionRequirement,
@@ -52,6 +56,7 @@ from oss.src.core.managed_tools.dtos import ManagedActionContext
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
+    MCPConnectionChangedError,
     MCPConnectionNameTakenError,
     MCPEndpointNotFoundError,
     MCPScopeInsufficientError,
@@ -367,40 +372,55 @@ class MCPGatewayService:
         #
         endpoint: MCPEndpointEdit,
     ) -> Optional[MCPEndpoint]:
-        # Only when the rendered prefix actually moves, and excluding itself, so
-        # re-saving a connection is never a collision with the name it already has. An edit that changes a URL, a
-        # tool filter or a description asked this question on every save and read every
-        # connection in the project to answer it, and the answer could not have changed
-        # (D12). One indexed read replaces that scan.
-        current = await self.mcp_endpoints_dao.fetch_endpoint(
+        # The connection's OAuth lock, which a completing consent also takes, so the
+        # change, the cleared binding, the cancelled consents and the deleted grant land
+        # as one step that no callback can interleave with.
+        async with self.mcp_endpoints_dao.oauth_lock(
             project_id=project_id, endpoint_id=endpoint.id
-        )
-        if current is None or tool_prefix(current.name) != tool_prefix(endpoint.name):
-            await self._check_name_is_free(
-                project_id=project_id, name=endpoint.name, excluding=endpoint.id
-            )
-        edited = await self.mcp_endpoints_dao.edit_endpoint(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            endpoint=endpoint,
-        )
-        # The edit cleared the old binding in its own transaction. What is left is the
-        # consent still in flight and the grant row, both issued for the old address.
-        if (
-            edited is not None
-            and current is not None
-            and current.data.route.base_url
-            and is_oauth_connection_at(current, current.data.route.base_url)
-            and not is_oauth_connection_at(edited, current.data.route.base_url)
-            and self.oauth_refresher is not None
         ):
-            await self.oauth_refresher.release_grant(
-                project_id=project_id,
-                endpoint_id=endpoint.id,
-                server_url=current.data.route.base_url,
+            current = await self.mcp_endpoints_dao.fetch_endpoint(
+                project_id=project_id, endpoint_id=endpoint.id
             )
-        return edited
+            # Only when the rendered prefix actually moves, and excluding itself, so
+            # re-saving a connection is never a collision with the name it already has
+            # (D12).
+            if current is None or tool_prefix(current.name) != tool_prefix(
+                endpoint.name
+            ):
+                await self._check_name_is_free(
+                    project_id=project_id, name=endpoint.name, excluding=endpoint.id
+                )
+            # Clears the binding itself when the connection leaves OAuth at its address.
+            edited = await self.mcp_endpoints_dao.edit_endpoint(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                endpoint=endpoint,
+            )
+            if edited is None or current is None or self.oauth_refresher is None:
+                return edited
+            old_url = current.data.route.base_url
+            if (
+                old_url
+                and is_oauth_connection_at(current, old_url)
+                and not is_oauth_connection_at(edited, old_url)
+            ):
+                # The grant was issued for the old address; it goes with the consents.
+                await self.oauth_refresher.release_grant(
+                    project_id=project_id, endpoint_id=endpoint.id, server_url=old_url
+                )
+            elif (
+                current.auth_mode != edited.auth_mode
+                or old_url != edited.data.route.base_url
+                or configured_oauth_client(current) != configured_oauth_client(edited)
+            ):
+                # A consent begun for another mode, address or client must not finish
+                # on this one. The grant stays: it renews only as the client it was
+                # issued to.
+                await self.oauth_refresher.cancel_attempts(
+                    project_id=project_id, endpoint_id=endpoint.id
+                )
+            return edited
 
     async def delete_endpoint(
         self,
@@ -408,12 +428,53 @@ class MCPGatewayService:
         project_id: UUID,
         #
         endpoint_id: UUID,
+        pending_auth_mode: Optional[MCPAuthScheme] = None,
     ) -> bool:
-        return await self.mcp_endpoints_dao.delete_endpoint(
-            project_id=project_id,
-            #
-            endpoint_id=endpoint_id,
-        )
+        """Delete a connection, and its OAuth grant and consents with it.
+
+        A grant left behind would sit in the vault with nothing naming it, still holding
+        a live token. Under the connection's OAuth lock, so no consent binds a grant to
+        the row as it goes.
+
+        With `pending_auth_mode`, only a connection still in that mode with no credential
+        bound and no sign-in in flight is deleted: the pending row a connect sheet made
+        and is abandoning, after it cancelled its own sign-in. A row that another tab
+        moved on since, or is signing in on, raises `MCPConnectionChangedError` and stays.
+        """
+        async with self.mcp_endpoints_dao.oauth_lock(
+            project_id=project_id, endpoint_id=endpoint_id
+        ):
+            current = await self.mcp_endpoints_dao.fetch_endpoint(
+                project_id=project_id, endpoint_id=endpoint_id
+            )
+            if current is not None and pending_auth_mode is not None:
+                if (
+                    current.auth_mode != pending_auth_mode
+                    or current.secret_id is not None
+                    or (
+                        self.oauth_refresher is not None
+                        and await self.oauth_refresher.has_active_attempts(
+                            project_id=project_id, endpoint_id=endpoint_id
+                        )
+                    )
+                ):
+                    raise MCPConnectionChangedError()
+            server_url = current.data.route.base_url if current is not None else None
+            if (
+                server_url
+                and is_oauth_connection_at(current, server_url)
+                and self.oauth_refresher is not None
+            ):
+                await self.oauth_refresher.release_grant(
+                    project_id=project_id,
+                    endpoint_id=endpoint_id,
+                    server_url=server_url,
+                )
+            return await self.mcp_endpoints_dao.delete_endpoint(
+                project_id=project_id,
+                #
+                endpoint_id=endpoint_id,
+            )
 
     async def query_endpoints(
         self,

@@ -426,6 +426,8 @@ def test_mcp_relay_result_and_ports():
             "cache_endpoint_discovery",
             "delete_endpoint",
             "query_endpoints",
+            # Serializes every change to one connection's OAuth state.
+            "oauth_lock",
         }
     )
     assert MCPUpstreamInterface.__abstractmethods__ == frozenset({"relay"})

@@ -11,6 +11,8 @@ The mock authorization server, the fake secrets DAO and the service wiring come 
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
@@ -20,6 +22,7 @@ from fastapi.testclient import TestClient
 
 from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
 from oss.src.core.gateways.dtos import GatewayAuthScheme
+from oss.src.core.gateways.mcps.types import MCPConnectionBusyError
 from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
     MCPEndpointData,
@@ -50,14 +53,13 @@ class _EndpointStore:
     async def query_endpoints(self, *, project_id, endpoint=None, windowing=None):
         return [self.endpoint]
 
+    @asynccontextmanager
+    async def oauth_lock(self, *, project_id, endpoint_id):
+        yield
+
     async def bind_endpoint_secret(
-        self, *, project_id, user_id, endpoint_id, secret_id, oauth_server_url=None
+        self, *, project_id, user_id, endpoint_id, secret_id
     ):
-        if oauth_server_url is not None and (
-            self.endpoint.auth_mode != GatewayAuthScheme.OAUTH
-            or self.endpoint.data.route.base_url != oauth_server_url
-        ):
-            return None
         self.endpoint = self.endpoint.model_copy(update={"secret_id": secret_id})
         return self.endpoint
 
@@ -295,3 +297,27 @@ def test_of_a_success_and_an_error_for_one_attempt_exactly_one_wins(monkeypatch,
     else:
         assert outcome == "connected"
         assert len(_grants(dao, project_id=project_id)) == 1
+
+
+def test_a_callback_that_cannot_take_the_connection_lock_reports_failed(monkeypatch):
+    """A lock timeout after the exchange must not leave the attempt claimed, or the
+    sheet waits out the expiry and a pending delete sees a sign-in in flight."""
+    client, handle, store, dao, project_id, start, _permitted = _start_consent(
+        monkeypatch
+    )
+
+    @asynccontextmanager
+    async def _busy(*, project_id, endpoint_id):
+        raise MCPConnectionBusyError()
+        yield  # pragma: no cover
+
+    store.oauth_lock = _busy
+
+    response = client.get(
+        "/connect/callback", params={"code": "auth-code-1", "state": handle}
+    )
+
+    assert response.status_code == 400
+    assert _outcome(client, store, start)["status"] == "failed"
+    assert _grants(dao, project_id=project_id) == []
+    assert store.endpoint.secret_id is None

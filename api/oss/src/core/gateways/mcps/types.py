@@ -106,6 +106,22 @@ class MCPAgentaToolNotEntitledError(GatewaysError):
         )
 
 
+class MCPConnectionBusyError(GatewaysError):
+    """Another change to this connection held its lock for longer than a change waits."""
+
+    def __init__(self):
+        super().__init__("Another change to this connection is in progress.")
+
+
+class MCPConnectionChangedError(GatewaysError):
+    """A delete meant for an untouched pending connection found one that changed."""
+
+    def __init__(self):
+        super().__init__(
+            "This connection changed after it was created here, so it was kept."
+        )
+
+
 class MCPConnectionNameTakenError(GatewaysError):
     """Another connection in this project already answers to this display name.
 

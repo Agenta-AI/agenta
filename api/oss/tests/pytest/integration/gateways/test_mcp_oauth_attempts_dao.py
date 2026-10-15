@@ -313,42 +313,7 @@ async def test_a_settled_attempt_is_read_back_by_id_with_its_outcome(seeded_proj
 
 
 @pytest.mark.asyncio
-async def test_a_cancel_waits_for_a_finalization_in_progress_and_then_changes_nothing(
-    seeded_project,
-):
-    """The grant is written and bound inside the block. A cancel that arrives then must
-    not report the attempt cancelled over a connection that is bound."""
-    dao = MCPOAuthAttemptsDAO()
-    created = await dao.create_attempt(
-        attempt=_attempt(
-            project_id=seeded_project["project_id"],
-            user_id=seeded_project["user_id"],
-        )
-    )
-    await dao.consume_attempt(state=created.state)
-
-    try:
-        async with dao.finalize_attempt(attempt_id=created.id) as settle:
-            assert settle is not None
-            cancelling = asyncio.create_task(
-                dao.cancel_attempts(
-                    project_id=seeded_project["project_id"],
-                    endpoint_id=created.endpoint_id,
-                )
-            )
-            await asyncio.sleep(0.2)
-            assert not cancelling.done()
-            await settle(MCPOAuthAttemptStatus.CONNECTED)
-
-        assert await cancelling == 0
-        read = await dao.fetch_attempt(state=created.state)
-        assert read.status == MCPOAuthAttemptStatus.CONNECTED
-    finally:
-        await _cleanup(seeded_project["project_id"])
-
-
-@pytest.mark.asyncio
-async def test_a_cancelled_attempt_cannot_be_finalized_or_settled(seeded_project):
+async def test_a_cancelled_attempt_cannot_be_settled(seeded_project):
     dao = MCPOAuthAttemptsDAO()
     created = await dao.create_attempt(
         attempt=_attempt(
@@ -362,8 +327,6 @@ async def test_a_cancelled_attempt_cannot_be_finalized_or_settled(seeded_project
     )
 
     try:
-        async with dao.finalize_attempt(attempt_id=created.id) as settle:
-            assert settle is None
         await dao.settle_attempt(
             attempt_id=created.id, status=MCPOAuthAttemptStatus.FAILED, error="late"
         )
@@ -371,5 +334,113 @@ async def test_a_cancelled_attempt_cannot_be_finalized_or_settled(seeded_project
         read = await dao.fetch_attempt(state=created.state)
         assert read.status == MCPOAuthAttemptStatus.CANCELLED
         assert read.error is None
+    finally:
+        await _cleanup(seeded_project["project_id"])
+
+
+@pytest.mark.asyncio
+async def test_an_attempt_keeps_the_client_it_signs_in_as(seeded_project):
+    dao = MCPOAuthAttemptsDAO()
+    created = await dao.create_attempt(
+        attempt=_attempt(
+            project_id=seeded_project["project_id"],
+            user_id=seeded_project["user_id"],
+        ).model_copy(update={"strategy": "explicit", "client_id": "app-one"})
+    )
+
+    try:
+        read = await dao.fetch_attempt(state=created.state)
+        assert (read.strategy, read.client_id) == ("explicit", "app-one")
+    finally:
+        await _cleanup(seeded_project["project_id"])
+
+
+@pytest.mark.asyncio
+async def test_only_a_pending_or_claimed_attempt_counts_as_active(
+    seeded_project, other_project
+):
+    """A pending row is kept while another tab is signing in on it, so the query has to
+    see a pending or claimed attempt of that connection, and nothing settled, cancelled,
+    or owned by another connection or tenant."""
+    dao = MCPOAuthAttemptsDAO()
+    endpoint_id = uuid4()
+
+    async def active(project_id=seeded_project["project_id"]):
+        return await dao.has_active_attempts(
+            project_id=project_id, endpoint_id=endpoint_id
+        )
+
+    try:
+        assert not await active()
+
+        await dao.create_attempt(
+            attempt=_attempt(
+                project_id=other_project["project_id"],
+                user_id=other_project["user_id"],
+                endpoint_id=endpoint_id,
+            )
+        )
+        await dao.create_attempt(
+            attempt=_attempt(
+                project_id=seeded_project["project_id"],
+                user_id=seeded_project["user_id"],
+            )
+        )
+        assert not await active()
+
+        attempt = await dao.create_attempt(
+            attempt=_attempt(
+                project_id=seeded_project["project_id"],
+                user_id=seeded_project["user_id"],
+                endpoint_id=endpoint_id,
+            )
+        )
+        assert await active()
+
+        await dao.consume_attempt(state=attempt.state)
+        assert await active()
+
+        await dao.cancel_attempts(
+            project_id=seeded_project["project_id"], endpoint_id=endpoint_id
+        )
+        assert not await active()
+        assert await active(project_id=other_project["project_id"])
+    finally:
+        await _cleanup(seeded_project["project_id"])
+        await _cleanup(other_project["project_id"])
+
+
+@pytest.mark.asyncio
+async def test_an_expired_attempt_does_not_count_as_active(seeded_project):
+    """An abandoned sign-in stays pending past its expiry until the sweep runs. It must
+    not keep a cancelled connect's pending row alive in the meantime."""
+    dao = MCPOAuthAttemptsDAO()
+    endpoint_id = uuid4()
+
+    try:
+        pending = await dao.create_attempt(
+            attempt=_attempt(
+                project_id=seeded_project["project_id"],
+                user_id=seeded_project["user_id"],
+                endpoint_id=endpoint_id,
+                expires_in_seconds=-1,
+            )
+        )
+        claimed = await dao.create_attempt(
+            attempt=_attempt(
+                project_id=seeded_project["project_id"],
+                user_id=seeded_project["user_id"],
+                endpoint_id=endpoint_id,
+                expires_in_seconds=-1,
+            )
+        )
+        await dao.consume_attempt(state=claimed.state)
+
+        assert (await dao.fetch_attempt(state=pending.state)).status == (
+            MCPOAuthAttemptStatus.PENDING
+        )
+        assert not await dao.has_active_attempts(
+            project_id=seeded_project["project_id"], endpoint_id=endpoint_id
+        )
     finally:
         await _cleanup(seeded_project["project_id"])

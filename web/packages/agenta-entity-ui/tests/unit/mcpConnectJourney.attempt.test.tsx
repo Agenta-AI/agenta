@@ -57,10 +57,13 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test/api"}))
 
+// The hook's only setter is the endpoint list refresh.
+const refreshEndpoints = vi.hoisted(() => vi.fn(async () => undefined))
+
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
     useAtomValue: () => "project-1",
-    useSetAtom: () => async () => undefined,
+    useSetAtom: () => refreshEndpoints,
 }))
 
 type Journey = ReturnType<typeof useMcpConnectJourney>
@@ -535,7 +538,7 @@ describe("leaving one address for another", () => {
         await act(async () => journey.setUrl("https://mcp.elsewhere.test/"))
         await settle()
 
-        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1")
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1", "oauth")
         expect(journey.state.endpointId).toBeNull()
 
         createMcpEndpoint.mockResolvedValue({
@@ -664,6 +667,53 @@ describe("the server-side consent attempt", () => {
         })
 
         expect(cancelMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-1", "project-1")
+    })
+
+    it("lets the server keep a pending row that another tab took over", async () => {
+        // Another tab reconnected the row with a key while this sheet waited. Which row goes
+        // is decided under the connection's lock, so the delete names the mode this sheet
+        // made the row in, and the server's refusal ends the cancel quietly.
+        await reachConsent(fakePopup())
+        deleteMcpEndpoint.mockRejectedValueOnce({response: {status: 409}})
+
+        await act(async () => {
+            await journey.cancel()
+        })
+
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1", "oauth")
+        expect(cancelMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-1", "project-1")
+    })
+
+    it("refreshes the list after a refused delete, so the kept row shows without a reload", async () => {
+        await reachConsent(fakePopup())
+        refreshEndpoints.mockClear()
+        deleteMcpEndpoint.mockRejectedValueOnce({response: {status: 409}})
+
+        await act(async () => {
+            await journey.cancel()
+        })
+
+        expect(refreshEndpoints).toHaveBeenCalledTimes(1)
+    })
+
+    it("cancels its own attempt before it asks to delete the pending row", async () => {
+        // The server keeps a row while any sign-in is in flight on it, so another tab's
+        // sign-in survives this cancel. This sheet's own attempt must be gone by then.
+        await reachConsent(fakePopup())
+        const order: string[] = []
+        cancelMcpConnectAttempt.mockImplementationOnce(async () => {
+            await new Promise((resolve) => setTimeout(resolve, 10))
+            order.push("attempt cancelled")
+        })
+        deleteMcpEndpoint.mockImplementationOnce(async () => {
+            order.push("delete row")
+        })
+
+        await act(async () => {
+            await journey.cancel()
+        })
+
+        expect(order).toEqual(["attempt cancelled", "delete row"])
     })
 
     it("cancels the last attempt when a new window replaces it", async () => {
@@ -1214,7 +1264,7 @@ describe("the authentication the person selects", () => {
         await act(async () => journey.selectAuthMode("none"))
         await settle()
 
-        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1")
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1", "oauth")
         expect(journey.state.status).toBe("naming")
         expect(journey.state.endpointId).toBeNull()
     })
@@ -1363,5 +1413,129 @@ describe("None chosen over what the server suggested", () => {
 
         expect(listMcpTools).not.toHaveBeenCalled()
         expect(journey.state.status).toBe("saving")
+    })
+})
+
+describe("the OAuth app the person entered", () => {
+    const connectWith = async (client?: {
+        clientId?: string
+        clientSecretId?: string | null
+        authMethod?: "client_secret_basic" | "client_secret_post" | "none"
+    }) => {
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Acme"))
+        if (client) await act(async () => journey.setOauthClient(client))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+        await act(async () => {
+            await journey.submitScopes(fakePopup())
+        })
+    }
+
+    it("goes with the row's first write, before the provider is asked", async () => {
+        await connectWith({clientId: "app-from-github", clientSecretId: "secret-1"})
+
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    oauth_config: {
+                        client_id: "app-from-github",
+                        client_secret_id: "secret-1",
+                        token_endpoint_auth_method: "client_secret_post",
+                        scopes: [],
+                    },
+                }),
+            }),
+            "project-1",
+        )
+        expect(beginMcpConnect).toHaveBeenCalledOnce()
+    })
+
+    it("writes nothing when the row already holds what is on screen", async () => {
+        // The probe and the discovery offer the same scopes, so the settings the create
+        // sent are the settings consent uses.
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                server_name: "Acme",
+                auth: {mode: "oauth", scopes_offered: ["tools:list"]},
+            },
+        })
+
+        await connectWith()
+
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    oauth_config: {
+                        client_id: null,
+                        client_secret_id: null,
+                        token_endpoint_auth_method: null,
+                        scopes: ["tools:list"],
+                    },
+                }),
+            }),
+            "project-1",
+        )
+        expect(queryMcpEndpoints).not.toHaveBeenCalled()
+        expect(editMcpEndpoint).not.toHaveBeenCalled()
+        expect(beginMcpConnect).toHaveBeenCalledOnce()
+    })
+
+    it("saves a Basic-authenticated app with its secret, and a changed secret again", async () => {
+        const row = {
+            id: "mcp-1",
+            slug: "acme-7mx",
+            name: "Acme",
+            auth_mode: "oauth",
+            data: {route: {base_url: "https://mcp.acme.test/"}},
+        }
+        queryMcpEndpoints.mockResolvedValue({count: 1, endpoints: [row]})
+        editMcpEndpoint.mockResolvedValue({count: 1, endpoint: row})
+
+        await connectWith({
+            clientId: "app-from-github",
+            clientSecretId: "secret-1",
+            authMethod: "client_secret_basic",
+        })
+        const saved = (config: Record<string, unknown>) =>
+            expect(editMcpEndpoint).toHaveBeenLastCalledWith(
+                expect.objectContaining({
+                    data: expect.objectContaining({oauth_config: config}),
+                }),
+                "project-1",
+            )
+        expect(createMcpEndpoint).toHaveBeenCalledWith(
+            expect.objectContaining({
+                data: expect.objectContaining({
+                    oauth_config: {
+                        client_id: "app-from-github",
+                        client_secret_id: "secret-1",
+                        token_endpoint_auth_method: "client_secret_basic",
+                        scopes: [],
+                    },
+                }),
+            }),
+            "project-1",
+        )
+        expect(editMcpEndpoint).not.toHaveBeenCalled()
+
+        await act(async () => journey.setOauthClient({clientSecretId: "secret-2"}))
+        await act(async () => {
+            await journey.submitScopes(fakePopup())
+        })
+        saved({
+            client_id: "app-from-github",
+            client_secret_id: "secret-2",
+            token_endpoint_auth_method: "client_secret_basic",
+            scopes: [],
+        })
     })
 })

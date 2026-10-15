@@ -7,4 +7,5 @@ export interface McpEndpointData {
     tools?: AgentaApi.GatewayEndpointFilter | undefined;
     settings?: AgentaApi.McpEndpointSettings | undefined;
     oauth?: (AgentaApi.McpoAuthData | null) | undefined;
+    oauth_config?: (AgentaApi.McpoAuthConfig | null) | undefined;
 }
