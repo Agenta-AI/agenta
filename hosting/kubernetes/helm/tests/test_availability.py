@@ -119,7 +119,9 @@ def every_workload_gets_a_budget_that_permits_an_eviction() -> None:
         if d["kind"] in ("Deployment", "StatefulSet")
         # The alembic migration is a Job, not a workload, and gets no budget.
     }
-    assert set(found) == deployed, f"budgets {sorted(found)} vs workloads {sorted(deployed)}"
+    assert set(found) == deployed, (
+        f"budgets {sorted(found)} vs workloads {sorted(deployed)}"
+    )
     for component, spec in found.items():
         assert spec == {"maxUnavailable": 1, "selector": selector(component)}, component
     for d in docs:
