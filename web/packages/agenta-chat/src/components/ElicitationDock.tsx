@@ -7,9 +7,10 @@
  *  - **The card never moves the composer.** Every state renders into the same `CARD_MIN_H` box, and
  *    every slot holds its space whether or not it has content: the nav renders disabled on the first
  *    and last question, the counter is tabular, and the error line is permanently mounted and merely
- *    empty. A `return null` on any branch, or a slot that only appears when filled, reintroduces the
- *    shift. The stepper cluster is decided by the FORM, not by the state, so a one-question form
- *    drops it outright without ever moving mid-answer.
+ *    empty. A `return null` on any live branch, or a slot that only appears when filled, reintroduces
+ *    the shift. An unrenderable payload never reaches the card (see `useElicitationDock`). The
+ *    stepper cluster is decided by the FORM, not by the state, so a one-question form drops it
+ *    outright without ever moving mid-answer.
  *  - **It docks like its siblings.** It sits between `ApprovalDock` and `ConnectionDock`, in that
  *    order, because that is also the keyboard precedence (approval > elicitation > connect).
  *
@@ -149,7 +150,7 @@ const ElicitationCard = ({
         [onOutput, meta.toolName, meta.toolCallId],
     )
 
-    // The dock never fronts an unrenderable payload; this only guards the type.
+    // Unreachable: the dock never fronts an unrenderable payload. Guards the type only.
     if (!parsed.ok) return null
 
     return (

@@ -8,12 +8,13 @@
  * What IS kept from that hook is the closing latch, which is load-bearing: without it the card's
  * content vanishes the instant the call settles, and the host animates a collapse around an empty box.
  */
-import {useCallback, useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     buildCancelResult,
     buildDegradationErrorText,
     parseElicitationPayload,
+    parseSecretRefusal,
 } from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 
@@ -81,6 +82,16 @@ const payloadArrived = (meta: ClientToolMeta): boolean => {
     return meta.input !== undefined
 }
 
+const DEGRADED_RETRY_MS = 3000
+
+/** The cancel for a repeat bad form. The reader sees it too, so it speaks to both. */
+const repeatCancel = (reason: string): Record<string, unknown> =>
+    buildCancelResult(
+        parseSecretRefusal(reason)
+            ? "Forms never carry secrets, so this one was not shown. Request the credential with request_secret."
+            : "This form couldn't be shown, so the question continues in chat.",
+    ) as unknown as Record<string, unknown>
+
 export const useElicitationDock = ({
     messages,
     enabled = true,
@@ -98,31 +109,41 @@ export const useElicitationDock = ({
 
     const front = pending[0] ?? null
 
-    // An unrenderable payload never reaches the screen. The first settles `errorText` so the agent
-    // can fix the schema; a repeat settles a cancel that tells it to ask in plain text instead.
+    // An unrenderable payload never shows: the first settles an error, a repeat settles a cancel.
     const degradedRef = useRef(new Set<string>())
+    const [retryTick, setRetryTick] = useState(0)
     useEffect(() => {
-        if (!front || front.settled) return
+        if (!front || front.settled || !onOutput) return
         if (!payloadArrived(front) || degradedRef.current.has(front.toolCallId)) return
         const parsed = parseElicitationPayload(front.input)
         if (parsed.ok) return
-        degradedRef.current.add(front.toolCallId)
-        onOutput?.(
-            degradedEarlierInTurn
-                ? {
-                      toolName: front.toolName,
-                      toolCallId: front.toolCallId,
-                      output: buildCancelResult(
-                          `The form couldn't be shown (${parsed.reason}). Ask in plain text instead.`,
-                      ) as unknown as Record<string, unknown>,
-                  }
-                : {
-                      toolName: front.toolName,
-                      toolCallId: front.toolCallId,
-                      errorText: buildDegradationErrorText(parsed.reason),
-                  },
-        )
-    }, [front, degradedEarlierInTurn, onOutput])
+        const {toolName, toolCallId} = front
+        degradedRef.current.add(toolCallId)
+        // No card is left to answer, so a write that fails must go out again.
+        const retry = () => {
+            degradedRef.current.delete(toolCallId)
+            setTimeout(() => setRetryTick((tick) => tick + 1), DEGRADED_RETRY_MS)
+        }
+        try {
+            void Promise.resolve(
+                onOutput(
+                    degradedEarlierInTurn
+                        ? {toolName, toolCallId, output: repeatCancel(parsed.reason)}
+                        : {
+                              toolName,
+                              toolCallId,
+                              errorText: buildDegradationErrorText(parsed.reason),
+                          },
+                ),
+            )
+                .then((landed) => {
+                    if (landed === false) retry()
+                })
+                .catch(retry)
+        } catch {
+            retry()
+        }
+    }, [front, degradedEarlierInTurn, onOutput, retryTick])
 
     // `pending` through a ref: the host calls `dismiss` from a send handler with a stale closure.
     const pendingRef = useRef(pending)

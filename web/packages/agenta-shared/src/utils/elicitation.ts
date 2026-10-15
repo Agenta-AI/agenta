@@ -338,8 +338,7 @@ export function deriveElicitationPartState(part: {
 
 /**
  * Degradation retry cap: true when an earlier part in the turn already auto-settled as an
- * elicitation degradation. The widget then PARKS the part (visible notice, no auto-settle)
- * instead of feeding the settle→resume→re-emit token loop.
+ * elicitation degradation. A repeat then settles as a cancel that moves the question to chat.
  */
 export function hasPriorElicitationDegradation(
     parts: readonly {state?: string; errorText?: string}[] | undefined,
