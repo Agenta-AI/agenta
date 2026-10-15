@@ -2296,7 +2296,14 @@ GREP_TOOL_NAMES = {"grep"}
 DAYTONA_PLACEHOLDER_PREFIX = "dtn_secret_"
 # Prefixes real provider keys start with. Seeing one of these is positive proof that hiding did
 # not happen, as opposed to merely failing to see the placeholder.
-REAL_KEY_PREFIXES = ("sk-", "sk_")
+REAL_KEY_PREFIXES = ("sk-", "sk_", "AIza")
+# The fixed value the runner puts in the provider variable when the model call goes through the
+# LLM gateway (`GATEWAY_PLACEHOLDER_API_KEY` in services/runner/src/extensions/
+# model-provider-override.ts). It selects the gateway route; the gateway adds the real key.
+GATEWAY_PLACEHOLDER_KEY = "agenta-gateway"
+# An environment line whose value starts like a real provider key (OpenAI, Anthropic,
+# OpenRouter and other `sk-` keys, Google `AIza` keys). Used by `grep -c -E` in the sandbox.
+REAL_KEY_ENV_PATTERN = "=(sk-|sk_|AIza)"
 
 
 def _provider_key_var(cell: dict) -> str:
@@ -2434,7 +2441,13 @@ def j_rule_case(cell: dict) -> dict:
 
 
 def j_secret_opaque(cell: dict) -> dict:
-    """The provider key reaches a Daytona sandbox as a placeholder, never in the clear.
+    """No real provider key reaches a Daytona sandbox.
+
+    Three designs are safe, and the sandbox reports which one it sees: a Daytona Secret
+    placeholder in the provider variable, the gateway selector `agenta-gateway` there (the LLM
+    gateway adds the real key), or, for Pi, no variable at all (Pi chosen on Daytona runs in the
+    runner, and only its tool calls run in the sandbox). The sandbox also counts environment
+    values of any name that start like a real key; that count must be zero.
 
     Daytona only. On the local sandbox the harness runs inside the runner container, so its keys
     never leave the deployment and there is nothing to hide them from; the journey SKIPs there
@@ -2481,16 +2494,22 @@ def j_secret_opaque(cell: dict) -> dict:
 
     var = _provider_key_var(cell)
     nonce = uuid.uuid4().hex[:10].upper()
-    hidden_word, plain_word, empty_word = (
+    hidden_word, gateway_word, plain_word, empty_word = (
         f"HIDDEN-{nonce}",
+        f"GATEWAY-{nonce}",
         f"PLAIN-{nonce}",
         f"EMPTY-{nonce}",
     )
+    leaks_word = f"LEAKS-{nonce}-"
     # POSIX `case`, so it behaves the same under every harness's shell. The classification
-    # happens INSIDE the sandbox; only the verdict word crosses back.
+    # happens INSIDE the sandbox; only the verdict words and a count cross back. The second
+    # command counts environment values of ANY name that start like a real provider key, so a
+    # key that reached the sandbox under another variable still fails the journey.
     probe = (
         f'case "${var}" in {DAYTONA_PLACEHOLDER_PREFIX}*) echo {hidden_word} ;; '
-        f'"") echo {empty_word} ;; *) echo {plain_word} ;; esac'
+        f"{GATEWAY_PLACEHOLDER_KEY}) echo {gateway_word} ;; "
+        f'"") echo {empty_word} ;; *) echo {plain_word} ;; esac; '
+        f"echo {leaks_word}$(env | grep -c -E '{REAL_KEY_ENV_PATTERN}')"
     )
 
     s = str(uuid.uuid4())
@@ -2512,15 +2531,41 @@ def j_secret_opaque(cell: dict) -> dict:
     )
 
     reply = t.reply or ""
-    saw_hidden = hidden_word in reply
-    saw_plain = plain_word in reply
-    saw_empty = empty_word in reply
+    bash_call, outcome = _bash_call_outcome(t)
+    # Every verdict word is in the prompt, so the reply alone does not prove the command ran.
+    # Read the verdict from the shell call's own output whenever the wire shows that call. Codex
+    # runs shell through native exec frames this driver cannot see, so the reply stays the
+    # source there.
+    if bash_call is not None:
+        payload = t.tool_payloads.get(bash_call["toolCallId"], {})
+        evidence = str(payload.get("output") or "") if outcome == "available" else ""
+    elif cell["harness"] == "codex":
+        evidence = reply
+    else:
+        evidence = ""
+    saw_hidden = hidden_word in evidence
+    saw_gateway = gateway_word in evidence
+    saw_plain = plain_word in evidence
+    saw_empty = empty_word in evidence
+    leak_count_match = re.search(re.escape(leaks_word) + r"(\d+)", evidence)
+    leak_count = int(leak_count_match.group(1)) if leak_count_match else None
     # Belt and braces: the probe cannot emit key material, but a model that ignored it and ran
-    # something else might. Treat any real-key prefix in the reply as a loud failure.
-    leaked = next((p for p in REAL_KEY_PREFIXES if p in reply), None)
-    _, outcome = _bash_call_outcome(t)
+    # something else might. Treat any real-key prefix in the reply or the output as a loud
+    # failure.
+    leaked = next((p for p in REAL_KEY_PREFIXES if p in reply or p in evidence), None)
+    # Pi chosen on Daytona runs in the runner (`inprocess`), and only its tool calls run in the
+    # sandbox, so the sandbox holds no provider key at all. Claude Code runs inside the sandbox
+    # and needs its variable, so an empty one there is a delivery failure.
+    harness_outside = cell["harness"].startswith("pi")
+    safe_verdict = saw_hidden or saw_gateway or (saw_empty and harness_outside)
 
-    ok = saw_hidden and not saw_plain and leaked is None and not t.errors
+    ok = (
+        safe_verdict
+        and not saw_plain
+        and leak_count == 0
+        and leaked is None
+        and not t.errors
+    )
     if leaked:
         why = (
             f"the reply carries what looks like a real key (prefix '{leaked}'). Whatever ran, "
@@ -2528,26 +2573,50 @@ def j_secret_opaque(cell: dict) -> dict:
         )
     elif saw_plain:
         why = (
-            f"{var} reached the sandbox in the CLEAR: the sandbox classified it as not starting "
-            f"'{DAYTONA_PLACEHOLDER_PREFIX}'. Credential hiding is not in effect on this "
+            f"{var} reached the sandbox in the CLEAR: the sandbox classified it as neither a "
+            f"'{DAYTONA_PLACEHOLDER_PREFIX}' placeholder nor the gateway selector "
+            f"'{GATEWAY_PLACEHOLDER_KEY}'. Credential hiding is not in effect on this "
             "deployment. Check that the runner's Daytona API key may manage Secrets and that "
             "AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS is not set to an off value."
         )
-    elif saw_empty:
+    elif leak_count is None:
         why = (
-            f"{var} is not set inside the sandbox at all. The agent cannot be reaching the "
-            "provider with it, so this is a delivery failure rather than proof of hiding."
+            f"the sandbox never reported a verdict in the shell call's own output (bash "
+            f"outcome={outcome}). The journey proves nothing unless the command actually ran, so "
+            "this is a FAIL rather than a pass on absence."
         )
-    elif not saw_hidden:
+    elif leak_count:
+        why = (
+            f"{leak_count} environment value(s) in the sandbox start like a real provider key. "
+            "A key reached the sandbox under some variable."
+        )
+    elif saw_empty and not harness_outside:
+        why = (
+            f"{var} is not set inside the sandbox at all, and harness={cell['harness']} runs "
+            "there. The agent cannot be reaching the provider with it, so this is a delivery "
+            "failure rather than proof of hiding."
+        )
+    elif not safe_verdict:
         why = (
             f"the sandbox never reported a verdict for {var} (bash outcome={outcome}). The "
             "journey proves nothing unless the command actually ran, so this is a FAIL rather "
             "than a pass on absence."
         )
-    else:
+    elif saw_hidden:
         why = (
             f"{var} in the sandbox begins '{DAYTONA_PLACEHOLDER_PREFIX}', so the agent holds a "
-            "Daytona Secret placeholder and not the real key"
+            "Daytona Secret placeholder and not the real key; no other value looks like a key"
+        )
+    elif saw_gateway:
+        why = (
+            f"{var} in the sandbox is the gateway selector '{GATEWAY_PLACEHOLDER_KEY}': the "
+            "model call goes through the LLM gateway, which adds the real key; no value in the "
+            "sandbox looks like a key"
+        )
+    else:
+        why = (
+            f"{var} is not set in the sandbox: harness={cell['harness']} runs in the runner "
+            "and only its tool calls run in the sandbox; no value in the sandbox looks like a key"
         )
 
     return {
@@ -2555,9 +2624,12 @@ def j_secret_opaque(cell: dict) -> dict:
         "why": why,
         "variable": var,
         "bash_outcome": outcome,
+        "leak_count": leak_count,
         "verdict": (
             "hidden"
             if saw_hidden
+            else "gateway"
+            if saw_gateway
             else "plaintext"
             if saw_plain
             else "unset"

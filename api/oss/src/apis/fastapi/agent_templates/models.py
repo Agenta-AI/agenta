@@ -1,12 +1,19 @@
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from oss.src.core.agent_templates.dtos import (
     TemplateLoadCommand,
     TemplateSource,
     TemplateSourcePin,
+    normalize_github_repo_url,
 )
 from oss.src.core.agent_templates.models import AgentTemplateEntry
 from oss.src.core.workflows.dtos import WorkflowRevisionData
@@ -90,6 +97,18 @@ class TemplateLoadRequest(_StrictRequestModel):
                 **self.model_dump(mode="json"),
                 "request_key": request_key,
             }
+        )
+
+
+class TemplateSourceScanRequest(_StrictRequestModel):
+    repo_url: str = Field(max_length=256)
+
+    @field_validator("repo_url")
+    @classmethod
+    def normalize_repo_url(cls, value: str) -> str:
+        value = value.strip()
+        return normalize_github_repo_url(
+            value if "://" in value else f"https://{value}"
         )
 
 

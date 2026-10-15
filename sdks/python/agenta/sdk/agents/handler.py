@@ -63,6 +63,7 @@ from agenta.sdk.agents.tracing import (
 from agenta.sdk.agents.dtos import RunContext, RunContextRun, SessionContext
 
 from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error
+from agenta.sdk.engines.tracing.server import current_product_span
 from agenta.sdk.redaction.context import get_active_redactor, redaction_context
 from agenta.sdk.redaction.redactor import Redactor
 from agenta.sdk.redaction.seed import (
@@ -425,7 +426,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         stream = flags.stream
         session_id = request.session_id
 
-        workflow_span = otel_trace.get_current_span()
+        workflow_span = current_product_span()
         record_usage = _bind_workflow_span(comp.record_usage, workflow_span)
         record_sandbox = _bind_workflow_span(ambient_record_sandbox, workflow_span)
 

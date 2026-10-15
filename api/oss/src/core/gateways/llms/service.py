@@ -2,6 +2,9 @@
 
 import asyncio
 import json
+import random
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 from uuid import UUID
@@ -36,6 +39,7 @@ from oss.src.core.gateways.llms.dtos import (
 from oss.src.core.gateways.llms.interfaces import (
     LLMEndpointsDAOInterface,
     LLMRelayResult,
+    LLMUpstreamInterface,
     MissingEndpointRepair,
 )
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry, select_upstream
@@ -211,6 +215,7 @@ class _ResolvedLlmTarget:
             provider_key=self.provider_key,
             deployment_kind=self.deployment_kind,
             model=context.model,
+            label=self.name,
             base_url=self.route_data.base_url,
             api_version=self.route_data.api_version,
             region=self.route_data.region,
@@ -223,6 +228,52 @@ class _ResolvedLlmTarget:
 # How long the gateway keeps reading a platform-funded stream after its caller disconnected,
 # to reach the usage on its last frame.
 STREAM_DRAIN_AFTER_DISCONNECT_SECONDS = 120.0
+
+# LiteLLM's router retry: 408, 409, 429 and any 5xx, at most twice, 0.5 s doubled up to 8 s
+# plus jitter, or the provider's `Retry-After` when it asks for 60 s or less. A timeout is not
+# retried (LiteLLM's `TimeoutErrorRetries=0`).
+UPSTREAM_MAX_RETRIES = 2
+_RETRYABLE_STATUSES = frozenset({408, 409, 429})
+_RETRY_BASE_DELAY_SECONDS = 0.5
+_RETRY_MAX_DELAY_SECONDS = 8.0
+_RETRY_JITTER_SECONDS = 0.75
+_RETRY_AFTER_MAX_SECONDS = 60.0
+
+
+def _retry_after_seconds(value: Optional[str]) -> Optional[float]:
+    """A `Retry-After` header in seconds, from either of its two forms."""
+    if not value:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return (when - datetime.now(timezone.utc)).total_seconds()
+
+
+def _may_retry(retry: int, delay: float, deadline: Optional[float], now: float) -> bool:
+    """Whether retry number `retry` may start after `delay` and still meet `deadline`."""
+    return retry < UPSTREAM_MAX_RETRIES and (deadline is None or now + delay < deadline)
+
+
+async def _read_to_end(body: AsyncIterator[bytes]) -> None:
+    async for _ in body:
+        pass
+
+
+def _retry_delay(retry: int, retry_after: Optional[str]) -> float:
+    """Seconds to wait before retry number `retry`, counted from zero."""
+    asked = _retry_after_seconds(retry_after)
+    if asked is not None and 0 < asked <= _RETRY_AFTER_MAX_SECONDS:
+        return asked
+    backoff = min(_RETRY_BASE_DELAY_SECONDS * 2**retry, _RETRY_MAX_DELAY_SECONDS)
+    return backoff + random.uniform(0, _RETRY_JITTER_SECONDS)
 
 
 _END = object()
@@ -714,24 +765,14 @@ class LLMGatewayService:
         adapter = self.upstream_registry.get(
             select_upstream(target.provider_key, target.deployment_kind)
         )
-        # Enforced here, not per adapter: `timeout_seconds` is a property of the
-        # endpoint, and an adapter that forgets it would otherwise have no ceiling at
-        # all. Streaming bounds time-to-first-byte — the proxy drains the body after
-        # this returns, and a long legitimate stream is not a timeout.
-        try:
-            result = await asyncio.wait_for(
-                adapter.relay_chat_completion(
-                    route=target.route(context),
-                    secret=secret,
-                    #
-                    context=context,
-                    body=body,
-                    headers=headers,
-                ),
-                timeout=target.settings.timeout_seconds,
-            )
-        except asyncio.TimeoutError as e:
-            raise LLMUpstreamTimeoutError(provider_key=target.provider_key) from e
+        result = await self._relay_with_retries(
+            adapter=adapter,
+            target=target,
+            secret=secret,
+            context=context,
+            body=body,
+            headers=headers,
+        )
 
         # Both paths record after the drain, never before: every adapter fills
         # `result.usage` while its body generator runs, so reading usage here would record
@@ -772,6 +813,78 @@ class LLMGatewayService:
         return result
 
     # --- internals ------------------------------------------------------------ #
+
+    @staticmethod
+    async def _relay_with_retries(
+        *,
+        adapter: LLMUpstreamInterface,
+        target: _ResolvedLlmTarget,
+        secret: Optional[ResolvedSecret],
+        context: LLMCallContext,
+        body: bytes,
+        headers: Dict[str, str],
+    ) -> LLMRelayResult:
+        """Call the upstream, retrying its transient answers before any byte is relayed.
+
+        The caller admitted the call once and records only the answer returned here, so a
+        retried attempt is neither admitted again nor charged.
+        """
+        route = target.route(context)
+        loop = asyncio.get_running_loop()
+        # A route's `timeout_seconds` bounds the whole sequence, retries and their waits
+        # included, so the caller's own deadline can be set above it.
+        timeout = target.settings.timeout_seconds
+        deadline = loop.time() + timeout if timeout is not None else None
+        retry = 0
+        while True:
+            # Enforced here, not per adapter: `timeout_seconds` is a property of the
+            # endpoint, and an adapter that forgets it would otherwise have no ceiling at
+            # all. Streaming bounds time-to-first-byte — the proxy drains the body after
+            # this returns, and a long legitimate stream is not a timeout.
+            try:
+                result = await asyncio.wait_for(
+                    adapter.relay_chat_completion(
+                        route=route,
+                        secret=secret,
+                        #
+                        context=context,
+                        body=body,
+                        headers=headers,
+                    ),
+                    timeout=None if deadline is None else deadline - loop.time(),
+                )
+            except asyncio.TimeoutError as e:
+                raise LLMUpstreamTimeoutError(provider_key=target.provider_key) from e
+            status_code = result.status_code
+            retry_after = result.headers.get("retry-after")
+            delay = _retry_delay(retry, retry_after)
+            # The relay adapter answers every upstream 5xx as a 502 result.
+            retryable = status_code in _RETRYABLE_STATUSES or status_code >= 500
+            if not retryable or not _may_retry(retry, delay, deadline, loop.time()):
+                return result
+            # Read to its end so the adapter closes the upstream response, within the
+            # deadline: a body that trickles in must not hold the call past it.
+            try:
+                await asyncio.wait_for(
+                    _read_to_end(result.body),
+                    timeout=None if deadline is None else deadline - loop.time(),
+                )
+            except asyncio.TimeoutError as e:
+                raise LLMUpstreamTimeoutError(provider_key=target.provider_key) from e
+            # The read took time too: a wait that would now pass the deadline is not started.
+            if deadline is not None and loop.time() + delay >= deadline:
+                raise LLMUpstreamTimeoutError(provider_key=target.provider_key)
+
+            retry += 1
+            log.warning(
+                "[gateways] retrying an LLM call",
+                target=target.target_path(),
+                model=context.model,
+                status_code=status_code,
+                retry=retry,
+                delay_seconds=round(delay, 2),
+            )
+            await asyncio.sleep(delay)
 
     async def _namespace_of_slug(
         self, *, scope: AuthScope, slug: str

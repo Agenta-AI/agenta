@@ -146,7 +146,6 @@ Ensure it contains the following keys:
     - SENDGRID_API_KEY              # email
     - COMPOSIO_API_KEY              # composio
     - CLOUDFLARE_TURNSTILE_SECRET_KEY
-    - NEWRELIC_LICENSE_KEY
     - LOOPS_API_KEY
     - DAYTONA_API_KEY
     - DAYTONA_API_KEY

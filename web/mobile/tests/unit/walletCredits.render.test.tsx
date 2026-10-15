@@ -48,6 +48,28 @@ const summary = (mode: WalletSummary["mode"]): WalletSummary => ({
     ],
 })
 
+// An organization refused at signup: 75 daily credits under a 100-credit floor. Admission
+// refuses every turn, so the API reports nothing spendable.
+const flooredSummary = (): WalletSummary => ({
+    mode: "enforce",
+    spendable_musd: 0,
+    general_balance_musd: 750_000,
+    floor_musd: 1_000_000,
+    active_credit_total_musd: 750_000,
+    credits: [
+        {
+            id: "c-daily",
+            credit_kind: "daily_free",
+            amount_musd: 750_000,
+            remaining_musd: 750_000,
+            priority: 10,
+            start_time: null,
+            end_time: "2099-01-01T00:00:00Z",
+            created_at: "2026-10-14T00:00:00Z",
+        },
+    ],
+})
+
 const usage: WalletUsage = {
     start: "2026-09-02T00:00:00Z",
     end: "2026-10-02T00:00:00Z",
@@ -102,6 +124,16 @@ describe("the sidebar credits meter", () => {
         expect(host!.querySelector("a")?.getAttribute("href")).toBe("/settings?tab=credits")
     })
 
+    it("shows 0 left when the balance is under the floor", async () => {
+        api.summary.mockResolvedValue(flooredSummary())
+        const shown = await render(
+            <CreditsRemainingWidget projectId="proj-1" settingsURL="/settings" collapsed={false} />,
+        )
+
+        expect(shown).toContain("0 of 75")
+        expect(host!.querySelector(".bg-primary")?.getAttribute("style")).toContain("width: 0%")
+    })
+
     it.each(["shadow", "off"] as const)("is hidden in %s mode", async (mode) => {
         api.summary.mockResolvedValue(summary(mode))
         const shown = await render(
@@ -133,6 +165,16 @@ describe("the Credits tab", () => {
         expect(shown).toContain("Oct 1, 2026")
         expect(shown).toContain("AI models")
         expect(shown).toContain("125")
+    })
+
+    it("shows 0 credits when the balance is under the floor", async () => {
+        api.summary.mockResolvedValue(flooredSummary())
+        api.usage.mockResolvedValue(usage)
+        const shown = await render(<CreditsTab projectId="proj-1" billingURL="/billing" />)
+
+        expect(shown).toContain("Credits remaining")
+        // The headline is the amount admission allows, not the credits under the floor.
+        expect(host!.querySelector(".text-2xl")?.textContent).toBe("0 credits")
     })
 
     it("lists only credits inside their active window", async () => {

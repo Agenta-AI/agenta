@@ -31,7 +31,7 @@ from oss.src.core.mounts.dtos import (
 from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.store.dtos import StoreObject
 from oss.src.core.store.storage import ObjectStore
-from oss.src.core.store.types import StorePreconditionFailed
+from oss.src.core.store.types import StoreObjectTooLarge, StorePreconditionFailed
 from oss.src.core.mounts.types import (
     ATTACHMENTS_MOUNT_NAME,
     ATTACHMENTS_MOUNT_PURPOSE,
@@ -40,6 +40,7 @@ from oss.src.core.mounts.types import (
     MountArtifactIdInvalid,
     MountArtifactNotFound,
     MountFileNotFound,
+    MountFileTooLarge,
     MountImmutableField,
     MountNameInvalid,
     MountNotFound,
@@ -236,6 +237,10 @@ _MAX_GITIGNORE_FILES = 100
 # How many directory levels to list concurrently while descending a mount (see `_list_pruned_files`).
 # Bounds fan-out against the object store; the tree is walked level by level, siblings in parallel.
 _LIST_CONCURRENCY = 24
+
+# Largest file `read_file` returns as text. Matches the HTML app bridge READ_CAP
+# (web/packages/agenta-entities/src/drive/htmlApp/protocol.ts); bigger files use the download route.
+_TEXT_READ_MAX_BYTES = 4 * 1024 * 1024
 
 # How many file bodies to read AHEAD while streaming a "download all" archive (see
 # `iter_archive_members`). Kept modest so a big drive isn't strictly sequential without loading the
@@ -1712,9 +1717,12 @@ class MountsService:
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
 
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
-        body, etag = await self.mounts_store.get_object_with_etag(
-            bucket=self._bucket(), key=key
-        )
+        try:
+            body, etag = await self.mounts_store.get_object_with_etag(
+                bucket=self._bucket(), key=key, max_bytes=_TEXT_READ_MAX_BYTES
+            )
+        except StoreObjectTooLarge as e:
+            raise MountFileTooLarge(max_bytes=e.max_bytes) from e
         return MountFileContent(
             path=path,
             content=body.decode("utf-8", "replace"),

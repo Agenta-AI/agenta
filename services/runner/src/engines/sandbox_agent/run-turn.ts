@@ -149,6 +149,7 @@ import {
   carriesGatewayRefusalMarker,
   personFacingGatewayRefusal,
   errorEventWithDetail,
+  isUpstreamFailure,
   parseGatewayErrorDetail,
 } from "../../gateway-error.ts";
 import { mcpHandshakeFailureMessage } from "./mcp-handshake.ts";
@@ -335,7 +336,7 @@ export async function runTurn(
    * transcript is exactly the completed turns before it, so it records the same pointer and
    * completes the same ledger row a finished turn does, and the next turn loads it natively.
    */
-  const settleFailedTurnContinuity = async (): Promise<void> => {
+  const settleFailedTurnContinuity = async (): Promise<boolean> => {
     let rolledBack = false;
     // Only a harness in this runner can roll its own transcript back.
     const session = env.session as Partial<InRunnerSessionHandle> | undefined;
@@ -362,7 +363,7 @@ export async function runTurn(
           turnLedgerForFailure.sessionId,
           turnLedgerForFailure.turnIndex,
         );
-      return;
+      return false;
     }
     continuityStore.record(
       sessionId,
@@ -379,6 +380,7 @@ export async function runTurn(
         { authorization: credential(), log: logger },
       ).catch(() => {});
     }
+    return true;
   };
   /**
    * Ask the subscription recovery what to do about a failure, or undefined when this run carries
@@ -774,7 +776,7 @@ export async function runTurn(
         !!opts.resume || !!opts.settleApprovalsThenPrompt || approvalReplyOnly;
       // Row existence proves only that a turn started. Native continuation is trustworthy only
       // after `end_time` is set.
-      await sessionTurnClient(
+      const appended = await sessionTurnClient(
         turnLedgerContext.sessionId,
         plan.harness,
         turnLedgerContext.turnIndex,
@@ -802,6 +804,18 @@ export async function runTurn(
         );
       });
       turnLedgerForFailure = turnLedgerContext;
+      // Only once this turn's row is written: until then a closed stalled row would be the latest.
+      const completeTurn = sessionTurnClient.complete;
+      for (const stalled of appended
+        ? continuityStore.takeStalledTurns(turnLedgerContext.sessionId)
+        : []) {
+        void completeTurn?.(
+          turnLedgerContext.sessionId,
+          stalled.turnIndex,
+          { endTime: stalled.endTime },
+          { authorization: credential(), log: logger },
+        ).catch(() => {});
+      }
     }
 
     // A cold pause sends the harness a cancel (`destroySession`). Claude and Codex answer the open
@@ -1907,6 +1921,7 @@ export async function runTurn(
         ? parseGatewayErrorDetail(visibleOutput)
         : undefined;
     let swallowedError: string | undefined;
+    let swallowedDetail = swallowedGatewayRefusal;
     if (swallowedGatewayRefusal) {
       const personFacing = personFacingGatewayRefusal(visibleOutput);
       swallowedError = personFacing?.message ?? swallowedGatewayRefusal.message;
@@ -1914,7 +1929,11 @@ export async function runTurn(
       run.emitEvent({
         type: "error",
         message: swallowedError,
-        code: (personFacing?.code as RunErrorCode | undefined) ?? "runner_error",
+        code:
+          (personFacing?.code as RunErrorCode | undefined) ??
+          (isUpstreamFailure(swallowedGatewayRefusal)
+            ? (swallowedGatewayRefusal.code as RunErrorCode)
+            : "runner_error"),
         detail: swallowedGatewayRefusal,
       });
     } else if (swallowedPiError) {
@@ -1944,8 +1963,11 @@ export async function runTurn(
           },
         );
       swallowedError = classified.message;
+      swallowedDetail = classified.detail;
       run.recordError(swallowedError, request.modelConnection?.provider);
-      run.emitEvent(errorEventWithDetail(classified.message, classified.code));
+      run.emitEvent(
+        errorEventWithDetail(classified.message, classified.code, classified.detail),
+      );
     }
     // A shutdown cancels like a Stop, but nobody stopped this turn. It ends with an error the
     // client offers to retry; the cancel's park and continuity stay those of a Stop.
@@ -1974,15 +1996,12 @@ export async function runTurn(
       // A failed turn may have left a partial turn in the native transcript: roll it back, or
       // drop the resume point.
       await settleFailedTurnContinuity();
-      // The envelope is attached HERE for the folded-refusal path, because its message has had
-      // the marker stripped out: `withGatewayErrorDetail` scans the text and would find nothing
-      // left to recover. The Pi path keeps its text intact and is recovered there as before.
+      // The envelope is attached HERE, because the message has had the marker stripped out:
+      // `withGatewayErrorDetail` scans the text and would find nothing left to recover.
       return {
         ok: false,
         error: swallowedError,
-        ...(swallowedGatewayRefusal
-          ? { errorDetail: swallowedGatewayRefusal }
-          : {}),
+        ...(swallowedDetail ? { errorDetail: swallowedDetail } : {}),
       };
     }
 
@@ -2106,10 +2125,10 @@ export async function runTurn(
     } else if (nativeTraceBatches === 0) {
       await harnessTrace.emitMissingBatchFallback(otel, error);
     }
-    otel?.emitEvent(errorEventWithDetail(error, outputLimitReason ? "output_limit_exceeded" : classified.code));
+    otel?.emitEvent(errorEventWithDetail(error, outputLimitReason ? "output_limit_exceeded" : classified.code, classified.detail));
     // An aborted turn may have left a partial turn in the native transcript: roll it back, or
     // drop the resume point.
-    await settleFailedTurnContinuity();
+    const turnRowCompleted = await settleFailedTurnContinuity();
     // Same ordering as the happy path: settle the durable rows before the terminal record goes out.
     await settleInBandInteractions?.();
     // finish() must not throw uncaught — tracing must not mask the run error.
@@ -2132,9 +2151,16 @@ export async function runTurn(
       !opts.settleApprovalsThenPrompt &&
       !approvalReplyOnly &&
       !signal?.aborted;
+    // A stalled attempt did nothing, so its row is finished; the next turn closes it.
+    if (stalledBeforeFirstResponse && turnLedgerForFailure && !turnRowCompleted)
+      continuityStore.noteStalledTurn(turnLedgerForFailure.sessionId, {
+        turnIndex: turnLedgerForFailure.turnIndex,
+        endTime: new Date().toISOString(),
+      });
     return {
       ok: false,
       error,
+      ...(classified.detail ? { errorDetail: classified.detail } : {}),
       ...(stalledBeforeFirstResponse
         ? { stalledBeforeFirstResponse: true }
         : {}),

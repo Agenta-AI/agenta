@@ -12,8 +12,8 @@ _LLM_PLANE_ROOT = Path(__file__).parents[4] / "src/core/gateways/llms"
 _ALLOWED = {
     # Policy parsing extracts model, streaming, and ceiling fields read-only.
     "service.py",
-    # Reads the RESPONSE body to lift `usage` for the audit record; the bytes yielded to
-    # the caller are the bytes received, never reconstructed from this parse.
+    # Reads the RESPONSE body to lift `usage` for the audit record. The bytes yielded are
+    # the bytes received, except a Gemini frame or body that carries a thought signature.
     "providers/passthrough/adapter.py",
     # The mock is a test double, not a relay — it never forwards bytes anywhere, so
     # parsing its own input to fabricate a reply is not request conversion.
@@ -29,6 +29,9 @@ _ALLOWED = {
     # Decodes the platform's own Vertex service-account document from configuration, for
     # the `builtin/agenta` endpoint. Not a request or a response.
     "catalog.py",
+    # Reads an upstream ERROR (status body or stream event) to rewrite its message for the
+    # person. Every other response byte is relayed as received.
+    "providers/passthrough/upstream_errors.py",
 }
 
 _JSON_LOADS = re.compile(r"\bjson\.loads\(")

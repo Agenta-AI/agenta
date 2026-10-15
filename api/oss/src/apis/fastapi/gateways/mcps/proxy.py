@@ -12,11 +12,12 @@ from oss.src.apis.fastapi.gateways.mcps.utils import (
     parse_mcp_call_context,
     split_builtin_path,
 )
-from oss.src.apis.fastapi.gateways.utils import response_headers, with_code_marker
+from oss.src.apis.fastapi.gateways.utils import response_headers
 from oss.src.core.gateways.dtos import (
     GatewayConnectAffordance,
     GatewayEndpointNamespace,
     forwardable_request_headers,
+    with_code_marker,
 )
 from oss.src.core.gateways.types import (
     GatewayEndpointInactiveError,

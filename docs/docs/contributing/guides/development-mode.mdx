@@ -25,7 +25,13 @@ Copy the example env file:
 cp hosting/docker-compose/oss/env.oss.dev.example hosting/docker-compose/oss/.env.oss.dev
 ```
 
-The dev stack reads this file. If you are running locally, the defaults are fine. If you are running on a remote server, open `.env.oss.dev` and replace `localhost` with your server's address in the three URL variables (`AGENTA_WEB_URL`, `AGENTA_API_URL`, and `AGENTA_SERVICES_URL`).
+The dev stack reads this file. Set `AGENTA_SERVICES_INTERNAL_KEY` in it first. The example file sets it to `replace-me`, and the API refuses to start with that value. Create a value and replace `replace-me` with it:
+
+```bash
+openssl rand -hex 32
+```
+
+If you are running locally, the other defaults are fine. If you are running on a remote server, open `.env.oss.dev` and replace `localhost` with your server's address in the three URL variables (`AGENTA_WEB_URL`, `AGENTA_API_URL`, and `AGENTA_SERVICES_URL`).
 
 ### 3. Launch The Stack
 

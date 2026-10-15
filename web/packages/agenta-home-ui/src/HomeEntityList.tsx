@@ -2,7 +2,7 @@ import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
 import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {AgentChip} from "@agenta/entity-ui/agent"
-import {ArrowRightIcon, CheckIcon, ListBulletsIcon, PlusIcon} from "@phosphor-icons/react"
+import {ArrowRightIcon, CheckIcon, ListBulletsIcon} from "@phosphor-icons/react"
 import Link from "next/link"
 
 import {TemplateProviderMarks} from "./TemplateProviderMarks"
@@ -31,8 +31,8 @@ export interface HomeEntityListProps {
     onPickTemplate: (template: AgentStarterTemplate) => void
     /** The full gallery, from the row that closes the templates tab. */
     templatesHref: string
-    /** Flip the composer into create mode. */
-    onNew: () => void
+    /** The host's create menu, at the end of the tab row. */
+    newAction?: ReactNode
     /** The agents tab's states — the host's, so they carry its own designed versions. */
     loading?: boolean
     loadingSlot?: ReactNode
@@ -116,7 +116,7 @@ export const HomeEntityList = ({
     selectedTemplateKey,
     onPickTemplate,
     templatesHref,
-    onNew,
+    newAction,
     loading,
     loadingSlot,
     emptySlot,
@@ -200,16 +200,7 @@ export const HomeEntityList = ({
                     Templates
                 </button>
                 <span className="flex-1" />
-                <span className="pb-[7px]">
-                    <button
-                        type="button"
-                        onClick={onNew}
-                        className={`box-border flex h-7 cursor-pointer appearance-none items-center gap-1.5 rounded-control-sm border border-solid border-border bg-transparent px-2.5 font-[inherit] text-[13px] leading-none text-foreground outline-none transition-colors hover:bg-accent ${FOCUS_RING}`}
-                    >
-                        <PlusIcon aria-hidden size={12} />
-                        New agent
-                    </button>
-                </span>
+                {newAction ? <span className="pb-[7px]">{newAction}</span> : null}
             </div>
 
             <div

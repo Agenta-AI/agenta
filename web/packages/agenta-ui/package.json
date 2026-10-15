@@ -32,6 +32,7 @@
         "./components/presentational": "./src/components/presentational/index.ts",
         "./components/selection": "./src/components/selection/index.ts",
         "./copy-tooltip": "./src/CopyTooltip/index.ts",
+        "./create-menu": "./src/create-menu/index.ts",
         "./custom-resize-handle.css": "./src/styles/custom-resize-handle.css",
         "./diff": "./src/Editor/utils/diffUtils.ts",
         "./drawer": "./src/drawer/index.ts",

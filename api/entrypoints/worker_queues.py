@@ -130,6 +130,7 @@ from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.helpers import validate_required_env_vars, warn_deprecated_env_vars
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.server_tracing import setup_server_tracing
 
 # Guard EE imports so an OSS build needn't import the ee.* package.
 if is_ee():
@@ -140,6 +141,8 @@ import agenta as ag
 log = get_module_logger(__name__)
 
 ag.init(api_url=env.agenta.api_url)
+
+setup_server_tracing("agenta-worker-queues")
 
 ALL_QUEUES = (
     "webhooks",

@@ -2324,6 +2324,13 @@ export function createSandboxAgentOtel(
     const kind = update?.sessionUpdate;
     if (!kind || finished || (!admitted && !admitUpdate(update))) return;
 
+    // Pi retrying a failed model call (the runner's pi-acp patch): progress for the run limits,
+    // so a slow provider is not taken for a stuck harness, and nothing the person reads.
+    if (kind === "session_info_update") {
+      if (typeof update._meta?.piAcp?.retrying === "boolean") onProgress();
+      return;
+    }
+
     if (kind === "agent_message_chunk") {
       const t = acpBlockText(update.content);
       if (!t) return;

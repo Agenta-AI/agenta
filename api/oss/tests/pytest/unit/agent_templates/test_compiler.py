@@ -143,6 +143,29 @@ def test_compiler_deduplicates_an_existing_skill_reference_by_slug():
     assert len(compiled.revision_data.parameters["agent"]["skills"]) == 1
 
 
+def test_compiler_accepts_a_builtin_model_connection_namespace():
+    # The /m model picker stores the built-in Agenta model with its gateway namespace.
+    base = _base_revision()
+    base.parameters["agent"]["llm"] = {
+        "provider": "openai",
+        "model": "google/gemini-3.7-flash",
+        "connection": {"mode": "agenta", "slug": "agenta", "namespace": "builtin"},
+    }
+
+    compiled = TemplateCompiler().compile(
+        package=_package(),
+        base_revision=base,
+        bindings=TemplateBindingPlan(),
+        installed_skills=[],
+        first_message="Configure the agent.",
+    )
+
+    assert (
+        compiled.revision_data.parameters["agent"]["llm"]
+        == base.parameters["agent"]["llm"]
+    )
+
+
 def test_compiler_rejects_invalid_native_agent_configuration():
     base = _base_revision()
     base.parameters["agent"]["harness"] = "pi_core"
