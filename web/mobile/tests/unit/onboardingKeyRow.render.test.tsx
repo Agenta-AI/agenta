@@ -55,11 +55,7 @@ afterEach(() => {
 const keys = (): OnboardingModel["keys"] => ({
     connections: [],
     inUse: false,
-    drawerOpen: false,
-    openDrawer: vi.fn(),
-    closeDrawer: vi.fn(),
     onSaved: vi.fn(),
-    all: [],
 })
 
 const render = (slice = keys()) => {
@@ -110,7 +106,7 @@ describe("onboarding API key row", () => {
         click("Add key")
         click("Provider")
         type(document.querySelector<HTMLInputElement>("[cmdk-input]")!, "anth")
-        expect(options()).toEqual(["Anthropic", "More providers…"])
+        expect(options()).toEqual(["Anthropic"])
         act(() => (document.querySelector("[cmdk-item]") as HTMLElement).click())
         expect(keyInput()!.placeholder).toBe("sk-ant-…")
         await act(() => new Promise((resolve) => setTimeout(resolve, 0)))

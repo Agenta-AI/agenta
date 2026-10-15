@@ -48,7 +48,6 @@ export const ONBOARDING_COPY = {
         keyProviders: (count: number) => `${count} providers`,
         keySearch: "Search providers",
         keyNoMatch: "No providers match",
-        keyMore: "More providers…",
         keyInvalid: "That doesn’t look like a valid key.",
         keySaveFailed: "Couldn’t save this key. Try again.",
         save: "Save",

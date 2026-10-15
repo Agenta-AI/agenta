@@ -84,10 +84,6 @@ export const OnboardingKeyRow = ({keys, delay}: {keys: OnboardingModel["keys"]; 
                                 })
                                 keys.onSaved(saved.connectionId ?? undefined)
                             }}
-                            onMoreProviders={() => {
-                                setRow({mode: "closed"})
-                                keys.openDrawer()
-                            }}
                         />
                     </motion.div>
                 ) : null}

@@ -1,4 +1,4 @@
-import {ProviderDrawer, SubscriptionConnectionCard} from "@agenta/entity-ui/secretProvider"
+import {SubscriptionConnectionCard} from "@agenta/entity-ui/secretProvider"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {
     Button,
@@ -183,13 +183,6 @@ export const OnboardingCreditsStep = ({
                     ) : null}
                 </DialogContent>
             </Dialog>
-            <ProviderDrawer
-                open={keys.drawerOpen}
-                onClose={keys.closeDrawer}
-                context="playground"
-                connections={keys.all}
-                onSaved={keys.onSaved}
-            />
         </div>
     )
 }

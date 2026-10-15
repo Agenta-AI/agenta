@@ -14,7 +14,6 @@ import {
     CommandInput,
     CommandItem,
     CommandList,
-    CommandSeparator,
     Input,
     LoadingButton,
     Popover,
@@ -51,14 +50,7 @@ const providerMark = (kind: string) => (
 )
 
 /** The API-key row's open state: pick a provider, paste its key, save it to the vault. */
-export const OnboardingKeyForm = ({
-    onSaved,
-    onMoreProviders,
-}: {
-    onSaved: (saved: SavedKey) => void
-    /** Opens the full providers drawer, for the kinds that need more than a key. */
-    onMoreProviders: () => void
-}) => {
+export const OnboardingKeyForm = ({onSaved}: {onSaved: (saved: SavedKey) => void}) => {
     const save = useSaveProviderKey()
     const [kind, setKind] = useState(KEY_PROVIDERS[0]?.kind ?? "")
     const [key, setKey] = useState("")
@@ -144,20 +136,6 @@ export const OnboardingKeyForm = ({
                                         {entry.title}
                                     </CommandItem>
                                 ))}
-                            </CommandGroup>
-                            <CommandSeparator />
-                            <CommandGroup forceMount>
-                                <CommandItem
-                                    forceMount
-                                    value={copy.keyMore}
-                                    onSelect={() => {
-                                        setPickerOpen(false)
-                                        onMoreProviders()
-                                    }}
-                                    className="text-muted-foreground"
-                                >
-                                    {copy.keyMore}
-                                </CommandItem>
                             </CommandGroup>
                         </CommandList>
                     </Command>

@@ -285,11 +285,7 @@ const model = (ready = true): OnboardingModel => ({
     keys: {
         connections: [],
         inUse: false,
-        drawerOpen: false,
-        openDrawer: vi.fn(),
-        closeDrawer: vi.fn(),
         onSaved: vi.fn(),
-        all: [],
     },
     retry: vi.fn(),
 })

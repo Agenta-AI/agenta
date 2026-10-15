@@ -55,13 +55,8 @@ export interface OnboardingModel {
     keys: {
         connections: ProviderConnection[]
         inUse: boolean
-        drawerOpen: boolean
-        openDrawer: () => void
-        closeDrawer: () => void
         /** A key was saved: switch to its first model once the vault refetch lists it. */
         onSaved: (connectionId?: string) => void
-        /** Every vault connection, for the drawer's connected list. */
-        all: ProviderConnection[]
     }
     retry: () => void
 }
@@ -159,7 +154,6 @@ export const useOnboardingModel = (entityId: string | null, projectId: string): 
         }
     }, [candidates.status, chatgptReady, arm])
 
-    const [drawerOpen, setDrawerOpen] = useState(false)
     // A save lands before the vault refetch does, so it arms a switch the new list fires.
     const onSaved = useCallback(
         (connectionId?: string) => {
@@ -200,11 +194,7 @@ export const useOnboardingModel = (entityId: string | null, projectId: string): 
             inUse: keyConnections.some(
                 (item) => item.id === selected?.connectionKey && item.id !== creditsConnection?.id,
             ),
-            drawerOpen,
-            openDrawer: () => setDrawerOpen(true),
-            closeDrawer: () => setDrawerOpen(false),
             onSaved,
-            all: allConnections,
         },
         retry: () => void refreshVault(),
     }
