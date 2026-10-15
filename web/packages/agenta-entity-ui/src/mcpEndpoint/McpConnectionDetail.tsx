@@ -70,23 +70,13 @@ export default function McpConnectionDetail({
     const [saving, setSaving] = useState(false)
     const [tools, setTools] = useState<ToolsState>({status: "idle"})
     const [filter, setFilter] = useState("")
-    // The tool list just learned that the sign-in could not be renewed. The relay marked the
-    // connection, and the list the endpoint comes from catches up after `onChanged`.
-    const [signInLost, setSignInLost] = useState(false)
 
-    const connectionState = signInLost
-        ? "needs_auth"
-        : endpoint
-          ? getMcpConnectionState(endpoint)
-          : null
+    const connectionState = endpoint ? getMcpConnectionState(endpoint) : null
     const isReady = connectionState === "ready"
     const signInExpired =
-        signInLost ||
-        (endpoint?.auth_mode === "oauth" &&
-            !!endpoint.secret_id &&
-            endpoint.flags?.is_valid === false)
-
-    useEffect(() => setSignInLost(false), [endpoint?.id])
+        endpoint?.auth_mode === "oauth" &&
+        !!endpoint.secret_id &&
+        endpoint.flags?.is_valid === false
 
     useEffect(() => {
         setName(endpoint?.name || endpoint?.slug || "")
@@ -112,14 +102,15 @@ export default function McpConnectionDetail({
             setTools({status: "ready", tools})
         } catch (error) {
             if (shownFor.current !== slug) return
-            if (gatewayRefusalCode(error) === "auth_required") {
-                setSignInLost(true)
-                onChanged?.()
-                return
-            }
+            // The relay marked the connection, and the refreshed endpoint says so. Until it
+            // arrives, the gateway's words are not the person's sentence.
+            const signInLost = gatewayRefusalCode(error) === "auth_required"
+            if (signInLost) onChanged?.()
             setTools({
                 status: "failed",
-                error: (error as Error)?.message || "The tool list could not be read.",
+                error: signInLost
+                    ? SIGN_IN_AGAIN
+                    : (error as Error)?.message || "The tool list could not be read.",
             })
         }
     }, [endpoint?.slug, isReady, onChanged, projectId])
@@ -306,7 +297,8 @@ const ToolList = ({
         )
     }
     if (state.status === "failed") {
-        // Connected, with a tool problem. Nothing here suggests reauthorizing.
+        // Connected as far as the endpoint knows, with a tool problem. A lost sign-in shows
+        // here only until the refreshed endpoint says so.
         return (
             <ToolsEmpty
                 icon={<WarningCircle size={18} />}

@@ -14,11 +14,7 @@ import {timeAgo} from "@agenta/shared/utils"
 import {getMcpConnectionState} from "./connectionState"
 import type {MCPEndpoint} from "./types"
 
-export type McpConnectionStatus =
-    | "connected"
-    | "login_expired"
-    | "not_signed_in"
-    | "unreachable"
+export type McpConnectionStatus = "connected" | "login_expired" | "not_signed_in" | "unreachable"
 
 /**
  * The last explicit check of a connection, or null when nobody has checked it.

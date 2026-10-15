@@ -175,23 +175,48 @@ describe("McpConnectionDetail: whose tools are on screen", () => {
             new McpProtocolError("Authorization required for custom/acme", "auth_required", 409),
         )
         const onChanged = vi.fn()
-        await act(async () => {
-            root.render(
-                createElement(McpConnectionDetail, {
-                    endpoint: connected(),
-                    onClose: () => undefined,
-                    onReconnect: () => undefined,
-                    onDisconnect: () => undefined,
-                    onChanged,
-                }),
-            )
-        })
-        await settle()
+        const render = async (endpoint: MCPEndpoint) => {
+            await act(async () => {
+                root.render(
+                    createElement(McpConnectionDetail, {
+                        endpoint,
+                        onClose: () => undefined,
+                        onReconnect: () => undefined,
+                        onDisconnect: () => undefined,
+                        onChanged,
+                    }),
+                )
+            })
+            await settle()
+        }
+        await render(connected())
+
+        expect(text()).toContain("Sign in again to keep using this connection.")
+        expect(text()).not.toContain("Authorization required")
+        expect(onChanged).toHaveBeenCalled()
+
+        // The refreshed endpoint is the authority on the connection's state.
+        await render(connected({flags: {is_valid: false}}))
 
         expect(text()).toContain("Sign in again to keep using this connection.")
         expect(text()).toContain("Needs authorization")
-        expect(text()).not.toContain("Authorization required")
-        expect(onChanged).toHaveBeenCalled()
+    })
+
+    it("shows the connection working when a valid update follows a failed sign-in", async () => {
+        // Another tab signed in again. The same connection arrives valid, and nothing left
+        // over from the failure overrides it.
+        listMcpTools.mockRejectedValueOnce(
+            new McpProtocolError("Authorization required for custom/acme", "auth_required", 409),
+        )
+        listMcpTools.mockResolvedValue([{name: "create_issue", description: "File an issue"}])
+        await open(connected())
+        expect(text()).toContain("Sign in again to keep using this connection.")
+
+        await open(connected({flags: {is_valid: true}}))
+
+        expect(text()).not.toContain("Needs authorization")
+        expect(text()).not.toContain("Sign in again")
+        expect(toolNames()).toEqual(["create_issue"])
     })
 })
 
