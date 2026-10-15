@@ -24,6 +24,7 @@ from oss.src.core.gateways.llms.dtos import (
 from oss.src.core.gateways.llms.providers.passthrough.auth import build_auth_headers
 from oss.src.core.gateways.llms.providers.passthrough.routing import build_url
 from oss.src.core.gateways.llms.registrar import (
+    CustomProviderEndpointRepair,
     LLMEndpointRegistrar,
     custom_provider_deployment_kind,
     custom_provider_protocol,
@@ -34,7 +35,9 @@ from oss.src.core.gateways.llms.registrar import (
 # The service's own resolved-target type: a private name, imported on purpose so the cloud
 # cases below convert a stored endpoint into a route the way a real call does, instead of
 # hand-building the route and re-asserting the mapping they are meant to test.
-from oss.src.core.gateways.llms.service import _ResolvedLlmTarget
+from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
+from oss.src.core.gateways.llms.service import LLMGatewayService, _ResolvedLlmTarget
+from oss.src.core.gateways.llms.types import LLMEndpointNotFoundError
 from oss.src.core.gateways.policy.dtos import (
     ResolvedSecret,
     SecretOrigin,
@@ -47,6 +50,7 @@ from oss.src.core.secrets.enums import (
     LLMEndpointProtocol,
     SecretKind,
 )
+from oss.src.utils.context import AuthScope
 
 
 PROJECT_ID = uuid4()
@@ -796,3 +800,122 @@ def test_the_registered_row_for_an_anthropic_connection_is_anthropic_end_to_end(
     assert endpoint.slug == "qa-openrouter-anthropic"
     assert endpoint.provider_key == "anthropic"
     assert endpoint.deployment_kind == LLMDeploymentKind.CUSTOM
+
+
+# --- a custom provider saved before the registrar existed -------------------- #
+
+
+class _FakeVault:
+    """The one vault read the repair makes: a secret by its slug, within a project."""
+
+    def __init__(self, *secrets: SecretResponseDTO):
+        self.secrets = {secret.slug: secret for secret in secrets}
+        self.calls: list[tuple] = []
+
+    async def get_secret_by_slug(self, secret_slug, project_id=None):
+        self.calls.append((secret_slug, project_id))
+        return self.secrets.get(secret_slug)
+
+
+class _NoProviderConnections:
+    """A project whose vault holds no provider_key connection under any slug."""
+
+    async def provider_connection_by_slug(self, *, scope, slug):
+        return None
+
+    async def has_connection(self, *, scope, slug):
+        return False
+
+
+def _repair(dao, *secrets) -> CustomProviderEndpointRepair:
+    return CustomProviderEndpointRepair(
+        vault_service=_FakeVault(*secrets),
+        registrar=LLMEndpointRegistrar(llm_endpoints_dao=dao),
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_repair_registers_a_custom_provider_that_has_no_endpoint():
+    dao = _FakeEndpointsDAO()
+    secret = _custom_provider_secret(kind="openai", slug="zai-0001")
+
+    repaired = await _repair(dao, secret)(project_id=PROJECT_ID, slug="zai-0001")
+
+    assert repaired is True
+    row = dao.rows[(PROJECT_ID, "zai-0001")]
+    assert row.secret_id == secret.id
+    assert row.data.route.base_url == BASE_URL
+
+
+@pytest.mark.asyncio
+async def test_the_repair_registers_nothing_for_a_slug_with_no_secret():
+    dao = _FakeEndpointsDAO()
+
+    repaired = await _repair(dao)(project_id=PROJECT_ID, slug="openrouter-0001")
+
+    assert repaired is False
+    assert dao.rows == {}
+
+
+@pytest.mark.asyncio
+async def test_the_repair_registers_nothing_for_a_provider_key_secret():
+    dao = _FakeEndpointsDAO()
+    secret = _provider_key_secret()
+
+    repaired = await _repair(dao, secret)(project_id=PROJECT_ID, slug=secret.slug)
+
+    assert repaired is False
+    assert dao.rows == {}
+
+
+def _gateway(dao, repair) -> LLMGatewayService:
+    return LLMGatewayService(
+        llm_endpoints_dao=dao,
+        policy=None,
+        resolver=_NoProviderConnections(),
+        upstream_registry=LLMUpstreamRegistry(adapters={}),
+        missing_endpoint_repair=repair,
+    )
+
+
+def _scope() -> AuthScope:
+    return AuthScope(
+        organization_id=uuid4(),
+        workspace_id=uuid4(),
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+    )
+
+
+@pytest.mark.asyncio
+async def test_an_agent_on_a_custom_provider_saved_before_the_registrar_resolves():
+    """The production case: a custom provider saved before the registrar existed has no
+    endpoint row, and every agent run on it failed with `custom/<slug>` not found."""
+    dao = _FakeEndpointsDAO()
+    secret = _custom_provider_secret(kind="openai", slug="zai-0001", models=("glm",))
+
+    resolved = await _gateway(dao, _repair(dao, secret)).resolve_agent_connection(
+        scope=_scope(),
+        model="glm",
+        provider_key=None,
+        connection_slug="zai-0001",
+    )
+
+    assert (resolved.namespace, resolved.name) == (
+        GatewayEndpointNamespace.CUSTOM,
+        "zai-0001",
+    )
+    assert resolved.model == "glm"
+
+
+@pytest.mark.asyncio
+async def test_an_agent_on_a_deleted_connection_still_fails_as_not_found():
+    dao = _FakeEndpointsDAO()
+
+    with pytest.raises(LLMEndpointNotFoundError):
+        await _gateway(dao, _repair(dao)).resolve_agent_connection(
+            scope=_scope(),
+            model="openai/gpt-5",
+            provider_key=None,
+            connection_slug="openrouter-0001",
+        )

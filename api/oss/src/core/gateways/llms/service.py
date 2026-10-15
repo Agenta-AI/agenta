@@ -1006,9 +1006,9 @@ class LLMGatewayService:
     async def _repair_missing_endpoint(self, *, project_id: UUID, slug: str) -> bool:
         """Ask the injected repair to register a missing endpoint. Never raises.
 
-        The repair decides which vault rows it may register (EE: the starter-credits
-        connection, which older seeding left without an endpoint). True means it tried, so
-        the caller reads the row again; the normal not-found error stands if it is still
+        The repair decides which vault rows it may register: a custom provider saved
+        before the registrar existed has no endpoint row. True means it tried, so the
+        caller reads the row again; the normal not-found error stands if it is still
         missing.
         """
         if self.missing_endpoint_repair is None:

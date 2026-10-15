@@ -184,7 +184,10 @@ from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
 from oss.src.dbs.postgres.gateways.mcps.oauth_dao import MCPOAuthAttemptsDAO
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
-from oss.src.core.gateways.llms.registrar import LLMEndpointRegistrar
+from oss.src.core.gateways.llms.registrar import (
+    CustomProviderEndpointRepair,
+    LLMEndpointRegistrar,
+)
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
 from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
@@ -751,11 +754,13 @@ _t_daos_done = time.perf_counter() - _t_daos
 _startup(f"[STARTUP] DAO initialization completed (+{_t_daos_done:.3f}s)")
 _t_services = time.perf_counter()
 
+llm_endpoint_registrar = LLMEndpointRegistrar(
+    llm_endpoints_dao=llm_endpoints_dao,
+)
+
 vault_service = VaultService(
     secrets_dao=secrets_dao,
-    llm_endpoint_registrar=LLMEndpointRegistrar(
-        llm_endpoints_dao=llm_endpoints_dao,
-    ),
+    llm_endpoint_registrar=llm_endpoint_registrar,
 )
 
 subscription_login_service = SubscriptionLoginService(
@@ -1385,13 +1390,12 @@ gateway_policy_service = GatewayPolicyService(
     usage_sink=gateway_usage_sink,
 )
 
-# EE: the starter-credits connection seeded before the bridge registered gateway
-# endpoints gets its endpoint on its first gateway call.
-llm_missing_endpoint_repair = None
-if ee and is_ee():
-    from ee.src.core.starter_credits_bridge.service import (
-        repair_starter_credits_endpoint as llm_missing_endpoint_repair,
-    )
+# A custom provider saved before the registrar existed, the seeded starter-credits row
+# included, gets its endpoint on its first gateway call.
+llm_missing_endpoint_repair = CustomProviderEndpointRepair(
+    vault_service=vault_service,
+    registrar=llm_endpoint_registrar,
+)
 
 llm_gateway_service = LLMGatewayService(
     llm_endpoints_dao=llm_endpoints_dao,

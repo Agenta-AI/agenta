@@ -5,7 +5,7 @@ routable endpoint under the same slug the SDK sends as `connection_slug`. It wor
 `LLMEndpointsDAOInterface` alone, which depends on nothing in secrets.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Protocol
 from uuid import UUID
 
 from oss.src.core.gateways.llms.dtos import (
@@ -355,3 +355,40 @@ class LLMEndpointRegistrar(LLMEndpointRegistrarInterface):
                 slug=secret.slug,
                 exception=repr(exception),
             )
+
+
+class _SecretsBySlug(Protocol):
+    async def get_secret_by_slug(
+        self, secret_slug: str, project_id: Optional[UUID] = None
+    ) -> Optional[SecretResponseDTO]: ...
+
+
+class CustomProviderEndpointRepair:
+    """Registers the endpoint of a custom provider secret that has none.
+
+    The registrar runs on vault writes only. A custom provider saved before the registrar
+    existed has no endpoint row, so once agents reached their model through the gateway,
+    every run on such a connection failed with `endpoint_not_found`. The gateway calls this
+    on that miss: it registers the row from the secret, as a save would have, and the
+    gateway reads the endpoint again. Any other slug, and a slug with no secret, is a miss.
+    """
+
+    def __init__(
+        self,
+        *,
+        vault_service: _SecretsBySlug,
+        registrar: LLMEndpointRegistrar,
+    ) -> None:
+        self.vault_service = vault_service
+        self.registrar = registrar
+
+    async def __call__(self, *, project_id: UUID, slug: str) -> bool:
+        secret = await self.vault_service.get_secret_by_slug(
+            slug,
+            project_id=project_id,
+        )
+        if secret is None or secret.kind != SecretKind.CUSTOM_PROVIDER:
+            return False
+
+        await self.registrar.register(project_id=project_id, secret=secret)
+        return True
