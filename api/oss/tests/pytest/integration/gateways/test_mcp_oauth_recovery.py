@@ -502,8 +502,8 @@ async def test_a_revoked_connection_recovers_by_consenting_again(
 async def test_a_revoked_credential_does_not_touch_another_account_at_the_same_url(
     project, relay_service, connect_service, local_mcp_oauth_provider
 ):
-    """Revocation at the provider is per account. One connection failing must not mark
-    the other invalid, and must not cost it its grant."""
+    """Revocation at the provider is per account. One connection recovering from it must
+    not renew, mark or replace the other's grant."""
     revoked = await _connected(
         project=project,
         connect_service=connect_service,
@@ -531,8 +531,13 @@ async def test_a_revoked_credential_does_not_touch_another_account_at_the_same_u
     assert revoked_grant is not None
     local_mcp_oauth_provider.revoke_access_token(revoked_grant.access_token)
 
-    with pytest.raises(MCPAuthRequiredError):
-        await _call(relay_service, project, revoked)
+    # Its refresh token still works, so the refused call renews it and goes through.
+    assert (await _call(relay_service, project, revoked)).status_code == 200
+    renewed = await _storage(
+        project=project, provider=local_mcp_oauth_provider, endpoint_id=revoked.id
+    ).get_grant()
+    assert renewed is not None
+    assert renewed.access_token != revoked_grant.access_token
 
     assert (await _reload(project, survivor)).flags.is_valid is True
     after = await _storage(
@@ -1224,8 +1229,11 @@ async def test_the_relay_itself_does_not_condemn_a_reconnect_that_landed_mid_cal
         connect_service=connect_service,
     )
 
-    with pytest.raises(MCPAuthRequiredError):
+    # The refused token is no longer the one the row holds, so nothing is refreshed and
+    # the call is made once more with the reconnected token.
+    assert (
         await _call(relay, project, await _reload(project, connection))
+    ).status_code == 200
 
     assert reconnected, "the reconnect never ran, so this proves nothing"
     repaired = await storage.get_grant()

@@ -698,7 +698,9 @@ class MCPOAuthClient:
                 # (OR86).
                 failure = classify_transport_error(e)
                 raise MCPOAuthTokenExchangeError(
-                    token_endpoint=token_endpoint, detail=failure.detail
+                    token_endpoint=token_endpoint,
+                    detail=failure.detail,
+                    temporary=True,
                 ) from e
 
         # Status and origin only; see `register` above for why the body stays here.
@@ -706,6 +708,7 @@ class MCPOAuthClient:
             raise MCPOAuthTokenExchangeError(
                 token_endpoint=token_endpoint,
                 detail=f"{response.status_code} from {_origin(token_endpoint)}",
+                temporary=response.status_code == 429 or response.status_code >= 500,
             )
         try:
             return OAuthToken.model_validate_json(response.content)

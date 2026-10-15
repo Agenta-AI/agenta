@@ -644,6 +644,88 @@ export class GatewayMcpClient {
     }
 
     /**
+     * Record the result of a check the connect sheet ran, so the connection's row can
+     * say when it was last checked and how that went. The check itself is the sheet's
+     * handshake through the relay; agent calls never write this.
+     *
+     * @param {AgentaApi.McpEndpointCheckRequest} request
+     * @param {GatewayMcpClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.gatewayMcp.recordMcpEndpointCheck({
+     *         endpoint_id: "endpoint_id",
+     *         ok: true
+     *     })
+     */
+    public recordMcpEndpointCheck(
+        request: AgentaApi.McpEndpointCheckRequest,
+        requestOptions?: GatewayMcpClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.McpEndpointResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__recordMcpEndpointCheck(request, requestOptions));
+    }
+
+    private async __recordMcpEndpointCheck(
+        request: AgentaApi.McpEndpointCheckRequest,
+        requestOptions?: GatewayMcpClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.McpEndpointResponse>> {
+        const { endpoint_id: endpointId, ..._body } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `gateways/mcps/endpoints/${core.url.encodePathParam(endpointId)}/check`,
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.McpEndpointResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/gateways/mcps/endpoints/{endpoint_id}/check",
+        );
+    }
+
+    /**
      * One route, two steps. `body.scopes is None` -> discover and cache the
      * checklist onto the row; a list (possibly empty) -> begin and return the
      * authorization redirect.

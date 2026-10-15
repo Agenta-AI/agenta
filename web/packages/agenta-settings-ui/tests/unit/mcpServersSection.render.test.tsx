@@ -114,7 +114,10 @@ interface Endpoint {
     auth_mode: "oauth" | "api_key" | "none"
     secret_id?: string | null
     flags?: {is_valid?: boolean}
-    data: {route: {base_url: string}}
+    data: {
+        route: {base_url: string}
+        check?: {ok: boolean; reason?: string | null; checked_at: string}
+    }
 }
 
 const endpoint = (over: Partial<Endpoint> & Pick<Endpoint, "id" | "name">): Endpoint => ({
@@ -128,12 +131,19 @@ const endpoint = (over: Partial<Endpoint> & Pick<Endpoint, "id" | "name">): Endp
 const LINEAR = endpoint({id: "linear", name: "Linear", auth_mode: "oauth", secret_id: "sec-1"})
 const AXIOM = endpoint({id: "axiom", name: "Axiom", auth_mode: "api_key", secret_id: "sec-2"})
 const MEMORY = endpoint({id: "memory", name: "Memory", auth_mode: "none", secret_id: null})
+// Signed in once, then its grant went: the check from that sign-in stays on the row.
 const OCTOLENS = endpoint({
     id: "octolens",
     name: "Octolens",
     auth_mode: "oauth",
     secret_id: null,
+    data: {
+        route: {base_url: "https://mcp.octolens.example/mcp"},
+        check: {ok: true, checked_at: "2026-10-14T12:00:00Z"},
+    },
 })
+// Made by a connect sheet whose sign-in has not finished.
+const PENDING = endpoint({id: "pending", name: "Pending", auth_mode: "oauth", secret_id: null})
 
 const state: {
     query: {data: Endpoint[] | undefined; isPending: boolean}
@@ -184,8 +194,9 @@ const openRowMenu = (name: string) => {
 const menuItems = () => screen.getAllByRole("menuitem").map((item) => item.textContent?.trim())
 
 /** The colour the dot and its label carry, which `StatusIndicator` puts on its wrapper. */
+// The indicator sits above the last-check line, in the cell's first column.
 const statusTone = (cell: HTMLElement) =>
-    (cell.firstElementChild as HTMLElement | null)?.className ?? ""
+    (cell.firstElementChild?.firstElementChild as HTMLElement | null)?.className ?? ""
 
 beforeEach(() => {
     opened.length = 0
@@ -266,6 +277,13 @@ describe("the status cell", () => {
         expect(within(cell).getByRole("button", {name: "Reconnect"})).toBeTruthy()
     })
 
+    it("reads Not signed in for a connection whose first sign-in is under way", () => {
+        show([PENDING])
+        const cell = screen.getByTestId("mcp-connection-status")
+        expect(within(cell).getByText("Not signed in")).toBeTruthy()
+        expect(statusTone(cell)).toContain("text-colorWarning")
+    })
+
     it("reads Login expired for a key the server stopped accepting", () => {
         show([{...AXIOM, flags: {is_valid: false}}])
         expect(
@@ -279,6 +297,39 @@ describe("the status cell", () => {
         // The two the page can actually tell apart, and the old wording for neither.
         expect(screen.queryByText("Needs authorization")).toBeNull()
         expect(screen.queryByText("Needs input")).toBeNull()
+    })
+
+    it("says when a connection was last checked, and why a failed check failed", () => {
+        const minutesAgo = (minutes: number) =>
+            new Date(Date.now() - minutes * 60 * 1000).toISOString()
+        show([
+            {
+                ...LINEAR,
+                data: {...LINEAR.data, check: {ok: true, checked_at: minutesAgo(5)}},
+            },
+            {
+                ...AXIOM,
+                data: {
+                    ...AXIOM.data,
+                    check: {
+                        ok: false,
+                        reason: "The server did not accept that credential.",
+                        checked_at: minutesAgo(120),
+                    },
+                },
+            },
+        ])
+        expect(
+            screen.getAllByTestId("mcp-connection-check").map((line) => line.textContent),
+        ).toEqual([
+            "Checked 5m ago",
+            "Check failed 2h ago: The server did not accept that credential.",
+        ])
+    })
+
+    it("shows no check line for a connection nobody has checked", () => {
+        show([LINEAR])
+        expect(screen.queryByTestId("mcp-connection-check")).toBeNull()
     })
 
     it("opens the reconnect journey without also opening the connection", () => {

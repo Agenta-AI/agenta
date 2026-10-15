@@ -1,5 +1,6 @@
 """MCP gateway DTOs."""
 
+from datetime import datetime
 from urllib.parse import parse_qs, quote, urlsplit
 
 from typing import Annotated, Dict, List, Literal, Optional, Union
@@ -197,6 +198,17 @@ class MCPOAuthConfig(BaseModel):
         return self
 
 
+class MCPEndpointCheck(BaseModel):
+    """The result of the last explicit check of a connection, from the connect sheet or a
+    reconnect. Agent calls never write it, so it says when someone last looked, not how
+    the connection is doing now."""
+
+    ok: bool
+    # The short reason a failed check gave, in the words the sheet showed.
+    reason: Optional[Annotated[str, StringConstraints(max_length=300)]] = None
+    checked_at: datetime
+
+
 class MCPEndpointData(BaseModel):
     route: MCPEndpointRoute = Field(default_factory=MCPEndpointRoute)
     tools: MCPToolFilter = Field(default_factory=MCPToolFilter)
@@ -205,6 +217,7 @@ class MCPEndpointData(BaseModel):
     # lives here.
     oauth: Optional[MCPOAuthData] = None
     oauth_config: Optional[MCPOAuthConfig] = None
+    check: Optional[MCPEndpointCheck] = None
 
 
 class MCPEndpointFlags(BaseModel):

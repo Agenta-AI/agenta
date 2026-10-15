@@ -17,6 +17,7 @@ from oss.src.apis.fastapi.gateways.mcps.models import (
     MCPConnectAttemptResponse,
     MCPConnectRequest,
     MCPConnectResponse,
+    MCPEndpointCheckRequest,
     MCPEndpointCreateRequest,
     MCPEndpointEditRequest,
     MCPEndpointProbeRequest,
@@ -162,6 +163,14 @@ class MCPGatewayRouter:
             methods=["DELETE"],
             operation_id="delete_mcp_endpoint",
             status_code=status.HTTP_204_NO_CONTENT,
+        )
+        self.router.add_api_route(
+            "/endpoints/{endpoint_id}/check",
+            self.record_endpoint_check,
+            methods=["POST"],
+            operation_id="record_mcp_endpoint_check",
+            response_model=MCPEndpointResponse,
+            response_model_exclude_none=True,
         )
         self.router.add_api_route(
             "/endpoints/{endpoint_id}/connect",
@@ -639,6 +648,37 @@ class MCPGatewayRouter:
             )
 
         return MCPConnectAttemptResponse(count=1, attempt=outcome)
+
+    @intercept_exceptions()
+    @handle_gateway_exceptions()
+    async def record_endpoint_check(
+        self,
+        request: Request,
+        *,
+        endpoint_id: UUID,
+        body: MCPEndpointCheckRequest,
+    ) -> MCPEndpointResponse:
+        """Record the result of a check the connect sheet ran, so the connection's row can
+        say when it was last checked and how that went. The check itself is the sheet's
+        handshake through the relay; agent calls never write this."""
+        scope = get_auth_scope()
+        await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
+
+        endpoint = await self.service.record_endpoint_check(
+            project_id=scope.project_id,
+            user_id=scope.user_id,
+            #
+            endpoint_id=endpoint_id,
+            ok=body.ok,
+            reason=body.reason,
+        )
+        if endpoint is None:
+            raise MCPEndpointNotFoundError(
+                namespace=GatewayEndpointNamespace.CUSTOM,
+                name=str(endpoint_id),
+            )
+
+        return MCPEndpointResponse(count=1, endpoint=endpoint)
 
     @intercept_exceptions()
     @handle_gateway_exceptions()

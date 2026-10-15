@@ -31,26 +31,28 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 
-# A grant this close to its expiry counts as expired. Long enough that a token cannot die
-# between the check and the upstream call it authorizes, short enough that a healthy
-# hour-long token is not renewed on every request. One definition, because the data plane
-# decides whether to ask for a refresh and the OAuth service decides whether to perform
-# one: were they to disagree, a call would bounce between them.
+# A renewable grant this close to its expiry is renewed before it is used. Long enough that
+# a token cannot die between the check and the upstream call it authorizes, short enough
+# that a healthy hour-long token is not renewed on every request.
 REFRESH_SKEW_SECONDS = 60
 
 
-def grant_settings_expired(
-    grant: Optional[OAuthGrantSettingsDTO], *, skew: int = REFRESH_SKEW_SECONDS
-) -> bool:
-    """Whether a stored grant needs renewing before it is used.
+def grant_refresh_due(grant: Optional[OAuthGrantSettingsDTO]) -> bool:
+    """Whether a stored grant must go through `refresh_grant` before it is used.
 
-    A grant whose authorization server stated no lifetime is never treated as expired:
-    nothing here knows when it dies, and guessing would renew a working token on every
-    call. Such a grant still dies as a 401 from the upstream, which is the behaviour for
-    every token whose end nobody can predict.
+    One definition, because the data plane decides whether to ask for a refresh and the
+    OAuth service decides whether to perform one: were they to disagree, a call would
+    bounce between them.
+
+    A grant with a refresh token is due inside the skew. A grant without one cannot be
+    renewed early, so it is used until it really expires and is due only then, when the
+    refresh reports it dead (some servers, DataforSEO among them, register no refresh
+    grant). A grant whose authorization server stated no lifetime is never due: nothing
+    here knows when it dies, and it dies as a 401 from the upstream instead.
     """
     if grant is None or grant.expires_at is None:
         return False
+    skew = REFRESH_SKEW_SECONDS if grant.refresh_token else 0
     return grant.expires_at - skew <= time.time()
 
 

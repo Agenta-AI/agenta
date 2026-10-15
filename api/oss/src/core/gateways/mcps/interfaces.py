@@ -8,6 +8,7 @@ from uuid import UUID
 from oss.src.core.gateways.mcps.dtos import (
     MCPOAuthData,
     MCPCallContext,
+    MCPEndpointCheck,
     MCPEndpoint,
     MCPEndpointCreate,
     MCPEndpointEdit,
@@ -142,6 +143,20 @@ class MCPEndpointsDAOInterface(ABC):
         outbound call, carrying that snapshot's `secret_id` and flags back over whatever
         had happened meanwhile (D31).
         """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def record_endpoint_check(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        endpoint_id: UUID,
+        check: MCPEndpointCheck,
+    ) -> Optional[MCPEndpoint]:
+        """Record the result of an explicit check, as one key of the stored data, for the
+        same reason discovery has its own write."""
         raise NotImplementedError
 
     @abstractmethod

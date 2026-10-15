@@ -28,6 +28,7 @@ const {
     fetchMcpConnectAttempt,
     listMcpTools,
     queryMcpEndpoints,
+    recordMcpEndpointCheck,
 } = vi.hoisted(() => ({
     probeMcpUrl: vi.fn(),
     createMcpEndpoint: vi.fn(),
@@ -39,6 +40,7 @@ const {
     fetchMcpConnectAttempt: vi.fn(),
     listMcpTools: vi.fn(),
     queryMcpEndpoints: vi.fn(),
+    recordMcpEndpointCheck: vi.fn(),
 }))
 
 vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOriginal) => ({
@@ -53,6 +55,7 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
     fetchMcpConnectAttempt,
     listMcpTools,
     queryMcpEndpoints,
+    recordMcpEndpointCheck,
 }))
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test/api"}))
@@ -752,6 +755,29 @@ describe("the server-side consent attempt", () => {
         await act(async () => journey.abandonAttempt())
 
         expect(cancelMcpConnectAttempt).not.toHaveBeenCalled()
+        listeners.mockRestore()
+    })
+
+    it("checks a signed-in connection before it says connected, so its row says Checked", async () => {
+        const listeners = vi.spyOn(window, "addEventListener")
+        listMcpTools.mockResolvedValue([{name: "echo"}])
+        await reachConsent(fakePopup())
+        const handler = listeners.mock.calls.find(([type]) => type === "message")?.[1] as (
+            event: MessageEvent,
+        ) => void
+        await act(async () => {
+            handler({
+                data: {type: "mcp:oauth:connected", success: true, attempt_id: "attempt-1"},
+                origin: "https://api.example.test",
+            } as MessageEvent)
+        })
+        await act(async () => {
+            await journey.finish()
+        })
+
+        expect(listMcpTools).toHaveBeenCalledWith("acme-7mx", "project-1")
+        expect(recordMcpEndpointCheck).toHaveBeenCalledWith("mcp-1", {ok: true}, "project-1")
+        expect(journey.state.status).toBe("connected")
         listeners.mockRestore()
     })
 

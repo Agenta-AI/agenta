@@ -62,6 +62,7 @@ EXPECTED_ROUTES = {
     ("/endpoints/{endpoint_id}", "GET"): "fetch_mcp_endpoint",
     ("/endpoints/{endpoint_id}", "PUT"): "edit_mcp_endpoint",
     ("/endpoints/{endpoint_id}", "DELETE"): "delete_mcp_endpoint",
+    ("/endpoints/{endpoint_id}/check", "POST"): "record_mcp_endpoint_check",
     ("/endpoints/{endpoint_id}/connect", "POST"): "connect_mcp_endpoint",
     ("/endpoints/{endpoint_id}/connect", "DELETE"): "disconnect_mcp_endpoint",
     (
@@ -143,6 +144,13 @@ class MockMCPGatewayService:
         # Discovery metadata only: the route no longer replays the row it read (D31).
         self.calls.append("cache_endpoint_discovery")
         self.cached_oauth = oauth
+        return self.edit_return
+
+    async def record_endpoint_check(
+        self, *, project_id, user_id, endpoint_id, ok, reason=None
+    ):
+        self.calls.append("record_endpoint_check")
+        self.recorded_check = (ok, reason)
         return self.edit_return
 
     async def bind_endpoint_secret(
@@ -1666,3 +1674,48 @@ def test_disconnect_that_wrote_no_row_is_not_reported_as_a_disconnect(
     response = client.delete(f"/endpoints/{endpoint_id}/connect")
 
     assert response.status_code == 404, response.text
+
+
+def test_a_check_is_recorded_and_the_endpoint_returned(client, service, allow):
+    endpoint_id = uuid4()
+    service.edit_return = _endpoint(endpoint_id)
+
+    response = client.post(
+        f"/endpoints/{endpoint_id}/check",
+        json={"ok": False, "reason": "The server did not accept that credential."},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["endpoint"]["id"] == str(endpoint_id)
+    assert service.recorded_check == (
+        False,
+        "The server did not accept that credential.",
+    )
+
+
+def test_a_long_check_reason_is_cut_rather_than_refused(client, service, allow):
+    endpoint_id = uuid4()
+    service.edit_return = _endpoint(endpoint_id)
+
+    response = client.post(
+        f"/endpoints/{endpoint_id}/check",
+        json={"ok": False, "reason": "x" * 1000},
+    )
+
+    assert response.status_code == 200
+    assert service.recorded_check == (False, "x" * 300)
+
+
+def test_a_check_on_a_missing_endpoint_is_not_found(client, service, allow):
+    service.edit_return = None
+
+    response = client.post(f"/endpoints/{uuid4()}/check", json={"ok": True})
+
+    assert response.status_code == 404
+
+
+def test_recording_a_check_needs_the_edit_permission(client, service, deny):
+    response = client.post(f"/endpoints/{uuid4()}/check", json={"ok": True})
+
+    assert response.status_code == 403
+    assert "record_endpoint_check" not in service.calls

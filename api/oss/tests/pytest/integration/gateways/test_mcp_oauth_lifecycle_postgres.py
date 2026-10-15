@@ -10,7 +10,9 @@ from __future__ import annotations
 import asyncio
 from uuid import UUID, uuid4
 
+import httpx
 import pytest
+from mcp.shared.auth import OAuthToken
 from sqlalchemy import text
 
 from oss.src.core.gateway.connections.service import ConnectionsService
@@ -685,3 +687,71 @@ async def test_a_switch_to_an_api_key_during_an_address_edits_cleanup_keeps_its_
     assert final.auth_mode == MCPAuthScheme.API_KEY
     assert final.secret_id == key
     assert await _grant_ids(project, endpoint.id) == []
+
+
+@pytest.mark.asyncio
+async def test_two_workers_renewing_one_grant_spend_its_refresh_token_once(
+    services, project, local_mcp_oauth_provider
+):
+    """Two API workers share the database and nothing else, so only the connection's
+    Postgres lock can stop the second from presenting a refresh token the first has
+    already rotated, which a rotating server refuses."""
+    connect, _gateway, endpoints = services
+    endpoint = await _connection(
+        endpoints, project, local_mcp_oauth_provider, "pg-two-workers"
+    )
+    _start, attempt, code = await _claimed(
+        connect, project, local_mcp_oauth_provider, endpoint
+    )
+    await connect.complete(attempt=attempt, code=code)
+    issued = await _grant(
+        connect, project, endpoint, local_mcp_oauth_provider.server_url
+    )
+    await SecretsTokenStorage(
+        vault_service=connect.vault_service,
+        project_id=project["project_id"],
+        server_url=local_mcp_oauth_provider.server_url,
+        endpoint_id=endpoint.id,
+        authorization_server=issued.issuer,
+    ).write_tokens(
+        OAuthToken(
+            access_token=issued.access_token,
+            token_type="Bearer",
+            expires_in=-3600,
+            refresh_token=issued.refresh_token,
+        )
+    )
+
+    async def slow(request: httpx.Request) -> httpx.Response:
+        # The exchange takes time, as a real one does, so the other worker runs while it
+        # is in flight.
+        await asyncio.sleep(0.05)
+        return local_mcp_oauth_provider._handle(request)  # noqa: SLF001 - the fixture
+
+    def worker() -> MCPOAuthConnectService:
+        return MCPOAuthConnectService(
+            vault_service=VaultService(secrets_dao=SecretsDAO()),
+            client=MCPOAuthClient(transport=httpx.MockTransport(slow)),
+            api_url="https://api.oauth.local",
+            attempts_dao=MCPOAuthAttemptsDAO(),
+            endpoints_dao=MCPEndpointsDAO(engine=get_transactions_engine()),
+            resolve=lambda _hostname: ["10.0.0.1"],
+        )
+
+    requests_before = local_mcp_oauth_provider.token_requests
+    await asyncio.gather(
+        *(
+            worker().refresh_grant(
+                project_id=project["project_id"],
+                endpoint_id=endpoint.id,
+                server_url=local_mcp_oauth_provider.server_url,
+            )
+            for _ in range(2)
+        )
+    )
+
+    assert local_mcp_oauth_provider.token_requests == requests_before + 1
+    renewed = await _grant(
+        connect, project, endpoint, local_mcp_oauth_provider.server_url
+    )
+    assert renewed.access_token != issued.access_token

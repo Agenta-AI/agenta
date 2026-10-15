@@ -15,7 +15,7 @@
  */
 import {act, createElement} from "react"
 
-import type {MCPEndpoint} from "@agenta/entities/mcpEndpoint"
+import {McpProtocolError, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -157,6 +157,15 @@ describe("McpConnectionDetail: whose tools are on screen", () => {
         expect(listMcpTools.mock.calls.map((call) => call[0])).toEqual(["acme", "beta"])
     })
 
+    it("names a pending OAuth connection as its row in the list does", async () => {
+        // No grant and no check: the row says Not signed in, and the panel said Needs
+        // authorization for the same state.
+        await open(connected({secret_id: null}))
+
+        expect(text()).toContain("Not signed in")
+        expect(text()).not.toContain("Needs authorization")
+    })
+
     it("says the server has to be connected before it can report tools", async () => {
         // The same drawer straight after a disconnect: the status is read from the row it is
         // showing now, so the previous connection's tools are neither listed nor re-fetched.
@@ -165,6 +174,58 @@ describe("McpConnectionDetail: whose tools are on screen", () => {
         expect(text()).toContain("Connect this server to see the tools it exposes.")
         expect(toolNames()).toEqual([])
         expect(listMcpTools).not.toHaveBeenCalled()
+    })
+
+    it("asks for a new sign-in when the relay could not renew the old one", async () => {
+        // The relay marked the connection, and the list behind the drawer is refreshed to
+        // learn it. The gateway's "Authorization required for custom/..." is not the
+        // person's sentence.
+        listMcpTools.mockRejectedValue(
+            new McpProtocolError("Authorization required for custom/acme", "auth_required", 409),
+        )
+        const onChanged = vi.fn()
+        const render = async (endpoint: MCPEndpoint) => {
+            await act(async () => {
+                root.render(
+                    createElement(McpConnectionDetail, {
+                        endpoint,
+                        onClose: () => undefined,
+                        onReconnect: () => undefined,
+                        onDisconnect: () => undefined,
+                        onChanged,
+                    }),
+                )
+            })
+            await settle()
+        }
+        await render(connected())
+
+        expect(text()).toContain("Sign in again to keep using this connection.")
+        expect(text()).not.toContain("Authorization required")
+        expect(onChanged).toHaveBeenCalled()
+
+        // The refreshed endpoint is the authority on the connection's state.
+        await render(connected({flags: {is_valid: false}}))
+
+        expect(text()).toContain("Sign in again to keep using this connection.")
+        expect(text()).toContain("Login expired")
+    })
+
+    it("shows the connection working when a valid update follows a failed sign-in", async () => {
+        // Another tab signed in again. The same connection arrives valid, and nothing left
+        // over from the failure overrides it.
+        listMcpTools.mockRejectedValueOnce(
+            new McpProtocolError("Authorization required for custom/acme", "auth_required", 409),
+        )
+        listMcpTools.mockResolvedValue([{name: "create_issue", description: "File an issue"}])
+        await open(connected())
+        expect(text()).toContain("Sign in again to keep using this connection.")
+
+        await open(connected({flags: {is_valid: true}}))
+
+        expect(text()).not.toContain("Login expired")
+        expect(text()).not.toContain("Sign in again")
+        expect(toolNames()).toEqual(["create_issue"])
     })
 })
 
@@ -258,7 +319,7 @@ describe("McpConnectionDetail: a tool list that could not be read", () => {
 
         expect(text()).toContain("The gateway timed out.")
         // Connected, with a listing problem: nothing here suggests reauthorizing.
-        expect(text()).not.toContain("Needs authorization")
+        expect(text()).not.toContain("Login expired")
         expect(button("Retry tools")).toBeTruthy()
     })
 

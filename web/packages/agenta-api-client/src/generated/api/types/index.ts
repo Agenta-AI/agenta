@@ -444,6 +444,7 @@ export * from "./McpConnectionChoiceRequest.js";
 export * from "./McpConnectResponse.js";
 export * from "./McpCredentialBinding.js";
 export * from "./McpEndpoint.js";
+export * from "./McpEndpointCheck.js";
 export * from "./McpEndpointCreate.js";
 export * from "./McpEndpointData.js";
 export * from "./McpEndpointEdit.js";

@@ -36,6 +36,7 @@ import {
     listMcpTools,
     probeMcpUrl,
     queryMcpEndpoints,
+    recordMcpEndpointCheck,
 } from "../api/api"
 import {suggestConnectionName} from "../core/connectionName"
 import type {McpReconnectTarget} from "../core/connectionState"
@@ -577,41 +578,49 @@ export function useMcpConnectJourney({
      * One authenticated handshake through the gateway, which injects the credential, or none,
      * and surfaces the upstream's refusal. Without it a wrong key, or a server that wants one,
      * reads as connected until an agent run fails, which is a long way from here.
+     *
+     * The result is recorded on the connection, so its row can say when it was last checked.
      */
     const verifyConnection = useCallback(
         async (endpoint: {id: string; slug: string}, attempt: number) => {
             try {
                 await listMcpTools(endpoint.slug, projectId)
+                // A cancelled attempt records nothing, so it cannot overwrite a newer check.
+                if (!isCurrent(attempt)) return
+                await recordMcpEndpointCheck(endpoint.id, {ok: true}, projectId)
                 if (!isCurrent(attempt)) return
                 dispatch({type: "verify_succeeded"})
             } catch (error) {
-                if (!isCurrent(attempt)) return
-                if (!isCredentialRefusal(error)) {
+                const refused = isCredentialRefusal(error)
+                const reason =
+                    gatewayRefusalMessage(error) ||
+                    (refused
+                        ? "The server did not accept that credential."
+                        : "The server could not be reached to check that key.")
+                if (!refused) {
                     // Nothing answered about the credential, so nothing may say it was
                     // rejected. This is the check failing, which is the screen the design
                     // draws for a server that did not answer (round 4, D133 reopened).
-                    dispatch({
-                        type: "probe_failed",
-                        probe: state.probe,
-                        error:
-                            gatewayRefusalMessage(error) ||
-                            "The server could not be reached to check that key.",
-                    })
+                    if (!isCurrent(attempt)) return
+                    await recordMcpEndpointCheck(endpoint.id, {ok: false, reason}, projectId)
+                    if (!isCurrent(attempt)) return
+                    dispatch({type: "probe_failed", probe: state.probe, error: reason})
                     return
                 }
+                if (!isCurrent(attempt)) return
                 const abandoned = endpointRef.current
                 const discardedRow = createdHereRef.current && !!abandoned
                 if (discardedRow && abandoned) {
                     endpointRef.current = null
                     createdHereRef.current = false
                     await deleteMcpEndpoint(abandoned.id, projectId).catch(() => undefined)
+                } else {
+                    await recordMcpEndpointCheck(endpoint.id, {ok: false, reason}, projectId)
                 }
                 dispatch({
                     type: "verify_failed",
                     status: credentialRefusalStatus(error),
-                    error:
-                        gatewayRefusalMessage(error) ||
-                        "The server did not accept that credential.",
+                    error: reason,
                     discardedRow,
                 })
             }
@@ -1102,6 +1111,22 @@ export function useMcpConnectJourney({
         if (!endpoint) return
         const attempt = attemptRef.current
         stopWatch()
+        if (state.authMode === "oauth") {
+            // The handshake every other mode runs before it says connected, so the row can say
+            // when it was last checked. The grant the person just approved stays either way:
+            // a failed check is reported on the row, not by taking the grant back.
+            const check = await listMcpTools(endpoint.slug, projectId).then(
+                () => ({ok: true}),
+                (error: unknown) => ({
+                    ok: false,
+                    reason:
+                        gatewayRefusalMessage(error) ||
+                        "The server could not be reached to check this connection.",
+                }),
+            )
+            if (!isCurrent(attempt)) return
+            await recordMcpEndpointCheck(endpoint.id, check, projectId)
+        }
         await refreshEndpoints()
         // The grant is stored either way, so nothing is lost by saying nothing: the connection
         // is in settings. Telling a form that was abandoned mid-refresh to select it would be
@@ -1109,7 +1134,7 @@ export function useMcpConnectJourney({
         if (!isCurrent(attempt)) return
         dispatch({type: "saved"})
         onConnected?.({id: endpoint.id, slug: endpoint.slug, name: state.name.trim()})
-    }, [isCurrent, onConnected, refreshEndpoints, state.name, stopWatch])
+    }, [isCurrent, onConnected, projectId, refreshEndpoints, state.authMode, state.name, stopWatch])
 
     /**
      * Abandon the journey. Deletes the pending row it created, and nothing else: a

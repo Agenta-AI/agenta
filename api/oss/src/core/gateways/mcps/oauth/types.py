@@ -44,12 +44,40 @@ class MCPOAuthRegistrationUnavailableError(MCPOAuthRegistrationError):
 
 
 class MCPOAuthTokenExchangeError(GatewaysError):
-    """The token endpoint refused the authorization-code exchange."""
+    """The token endpoint refused the authorization-code exchange.
 
-    def __init__(self, *, token_endpoint: str, detail: Optional[str] = None):
+    `temporary` when it did not answer, or answered 429 or 5xx: that says nothing about
+    the grant, and the same request can succeed later.
+    """
+
+    def __init__(
+        self,
+        *,
+        token_endpoint: str,
+        detail: Optional[str] = None,
+        temporary: bool = False,
+    ):
         self.token_endpoint = token_endpoint
         self.detail = detail
+        self.temporary = temporary
         super().__init__(f"Token exchange failed at {token_endpoint}: {detail}")
+
+
+class MCPOAuthRefreshUnavailableError(GatewaysError):
+    """The token endpoint could not be reached to renew a grant, or failed on its side.
+
+    Not a `MCPOAuthRefreshFailedError`: the grant may be fine, so the connection is not
+    marked invalid and nobody is asked to consent again. The call fails, and the next one
+    tries the refresh again.
+    """
+
+    def __init__(self, *, server_url: str, detail: Optional[str] = None):
+        self.server_url = server_url
+        self.detail = detail
+        super().__init__(
+            f"The authorization server for {server_url} did not renew the "
+            f"authorization: {detail}"
+        )
 
 
 class MCPOAuthRefreshFailedError(GatewaysError):
@@ -59,7 +87,12 @@ class MCPOAuthRefreshFailedError(GatewaysError):
     refused the one there is. Either way the grant is dead and only the person who
     granted it can replace it, so the data plane turns this into a reconnect refusal
     rather than relaying a call that would come back 401 forever.
+
+    `reconnect_message` is what that refusal tells the person, where a failure has
+    something to say they can act on. Most do not, and their detail stays internal.
     """
+
+    reconnect_message: Optional[str] = None
 
     def __init__(self, *, server_url: str, detail: Optional[str] = None):
         self.server_url = server_url
@@ -69,6 +102,19 @@ class MCPOAuthRefreshFailedError(GatewaysError):
             f"renewed: {detail}"
             if detail
             else f"The stored authorization for {server_url} expired and could not be renewed"
+        )
+
+
+class MCPOAuthNoRefreshTokenError(MCPOAuthRefreshFailedError):
+    """The grant expired, or its token was refused, and it carries no refresh token."""
+
+    reconnect_message = (
+        "No refresh token was issued for this connection. Reconnect to continue."
+    )
+
+    def __init__(self, *, server_url: str):
+        super().__init__(
+            server_url=server_url, detail="the stored grant carries no refresh token"
         )
 
 

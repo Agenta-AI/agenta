@@ -39,9 +39,14 @@ from oss.src.core.gateways.mcps.interfaces import (
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.providers.composio import ComposioMCPAdapter
 from oss.src.core.gateways.mcps.service import MCPGatewayService
-from oss.src.core.gateways.mcps.oauth.types import MCPOAuthRefreshFailedError
+from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthNoRefreshTokenError,
+    MCPOAuthRefreshFailedError,
+    MCPOAuthRefreshUnavailableError,
+)
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
+    MCPConnectionBusyError,
     MCPConnectionChangedError,
     MCPConnectionNameTakenError,
     MCPEndpointNotFoundError,
@@ -137,6 +142,19 @@ class MockMCPEndpointsDAO(MCPEndpointsDAOInterface):
         # One key of the stored data, like the real DAO (D31).
         updated = existing.model_copy(
             update={"data": existing.data.model_copy(update={"oauth": oauth})}
+        )
+        self._by_id[endpoint_id] = updated
+        return updated
+
+    async def record_endpoint_check(
+        self, *, project_id, user_id, endpoint_id, check
+    ) -> Optional[MCPEndpoint]:
+        self.calls.append("record_endpoint_check")
+        existing = self._by_id.get(endpoint_id)
+        if existing is None:
+            return None
+        updated = existing.model_copy(
+            update={"data": existing.data.model_copy(update={"check": check})}
         )
         self._by_id[endpoint_id] = updated
         return updated
@@ -1720,11 +1738,16 @@ class _StubRefresher:
         # Which connection each refresh was asked for. A relay must renew the grant of
         # the endpoint it resolved, not of whatever else shares that server URL.
         self.endpoint_ids: List[UUID] = []
+        # The refused token each forced refresh named, `None` for a refresh by expiry.
+        self.failed_access_tokens: List[Optional[str]] = []
         self._failure = failure
 
-    async def refresh_grant(self, *, project_id, endpoint_id, server_url) -> None:
+    async def refresh_grant(
+        self, *, project_id, endpoint_id, server_url, failed_access_token=None
+    ) -> None:
         self.calls.append(server_url)
         self.endpoint_ids.append(endpoint_id)
+        self.failed_access_tokens.append(failed_access_token)
         if self._failure is not None:
             raise self._failure
 
@@ -1885,6 +1908,342 @@ async def test_an_expired_grant_with_no_refresher_wired_refuses_rather_than_rela
         )
 
     assert adapter.relay_calls == 0
+
+
+class _SequenceAdapter(MockUpstreamAdapter):
+    """Answers each relay with the next result in turn, so a retry sees a new answer."""
+
+    def __init__(self, *, results: List[MCPRelayResult]) -> None:
+        super().__init__()
+        self._results = list(results)
+        self.sent_tokens: List[str] = []
+
+    async def relay(self, *, route, auth, context, body, headers):
+        await super().relay(
+            route=route, auth=auth, context=context, body=body, headers=headers
+        )
+        self.sent_tokens.append(auth.secret.secret.data.grant.access_token)
+        return self._results[min(self.relay_calls, len(self._results)) - 1]
+
+
+def _live_grant_service(*, adapter, refresher, secrets=None, policy=None):
+    import time
+
+    resolver = _SequenceResolver(
+        secrets=secrets
+        or [
+            _grant_secret(access_token="revoked", expires_at=int(time.time()) + 3600),
+            _grant_secret(access_token="renewed", expires_at=int(time.time()) + 3600),
+        ]
+    )
+    dao = MockMCPEndpointsDAO()
+    return dao, _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=resolver,
+        policy=policy,
+        adapters={"http": adapter},
+        oauth_refresher=refresher,
+    )
+
+
+async def _relay_write_page(service):
+    return await service.relay(
+        scope=_scope(),
+        namespace="custom",
+        name="acme-notion",
+        context=MCPCallContext(method="tools/call", target="write_page"),
+        body=b"{}",
+        headers={},
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_401_refreshes_the_refused_token_and_retries_the_call_once():
+    """A provider can retire a token before the expiry it stated. A grant with a refresh
+    token recovers from that without the person."""
+    adapter = _SequenceAdapter(
+        results=[
+            _refused_credential_result(),
+            MCPRelayResult(status_code=200, headers={}, body=b"{}"),
+        ]
+    )
+    refresher = _StubRefresher()
+    policy = MockPolicyService()
+    dao, service = _live_grant_service(
+        adapter=adapter, refresher=refresher, policy=policy
+    )
+    endpoint = await _oauth_endpoint(dao)
+
+    result = await _relay_write_page(service)
+
+    assert result.status_code == 200
+    assert refresher.failed_access_tokens == ["revoked"]
+    assert refresher.endpoint_ids == [endpoint.id]
+    assert adapter.sent_tokens == ["revoked", "renewed"]
+    # One call, one record: the retry is part of it.
+    assert [r["outcome"].status_code for r in policy.record_calls] == [200]
+
+
+@pytest.mark.asyncio
+async def test_a_second_401_after_the_refresh_is_a_reconnect_and_not_another_retry():
+    adapter = _SequenceAdapter(
+        results=[_refused_credential_result(), _refused_credential_result()]
+    )
+    refresher = _StubRefresher()
+    dao, service = _live_grant_service(adapter=adapter, refresher=refresher)
+    await _oauth_endpoint(dao)
+
+    with pytest.raises(MCPAuthRequiredError):
+        await _relay_write_page(service)
+
+    assert adapter.relay_calls == 2
+    assert refresher.failed_access_tokens == ["revoked"]
+
+
+@pytest.mark.asyncio
+async def test_a_401_whose_refresh_is_refused_marks_the_connection_for_a_reconnect():
+    """The grant is dead, so the row has to stop reading as connected, not only this call."""
+    import time
+
+    refresher = _StubRefresher(
+        failure=MCPOAuthRefreshFailedError(server_url="https://example.com/mcp")
+    )
+    dao, service = _live_grant_service(
+        adapter=_SequenceAdapter(results=[_refused_credential_result()]),
+        refresher=refresher,
+        secrets=[
+            _grant_secret(access_token="revoked", expires_at=int(time.time()) + 3600)
+        ],
+    )
+    endpoint = await _oauth_endpoint(dao)
+
+    with pytest.raises(MCPAuthRequiredError):
+        await _relay_write_page(service)
+
+    stored = await dao.fetch_endpoint(project_id=uuid4(), endpoint_id=endpoint.id)
+    assert stored.flags.is_valid is False
+
+
+@pytest.mark.asyncio
+async def test_a_refresh_that_waited_too_long_for_the_lock_keeps_the_connection():
+    import time
+
+    refresher = _StubRefresher(failure=MCPConnectionBusyError())
+    dao, service = _live_grant_service(
+        adapter=_SequenceAdapter(results=[_refused_credential_result()]),
+        refresher=refresher,
+        secrets=[
+            _grant_secret(access_token="revoked", expires_at=int(time.time()) + 3600)
+        ],
+    )
+    endpoint = await _oauth_endpoint(dao)
+
+    with pytest.raises(MCPUpstreamError) as refusal:
+        await _relay_write_page(service)
+
+    assert refusal.value.status_code == 503
+    stored = await dao.fetch_endpoint(project_id=uuid4(), endpoint_id=endpoint.id)
+    assert stored.flags.is_valid is True
+
+
+@pytest.mark.asyncio
+async def test_a_timeout_is_not_retried_and_refreshes_nothing():
+    adapter = MockUpstreamAdapter(
+        raise_exc=MCPUpstreamError(target="x", detail="the server did not answer")
+    )
+    refresher = _StubRefresher()
+    dao, service = _live_grant_service(adapter=adapter, refresher=refresher)
+    await _oauth_endpoint(dao)
+
+    with pytest.raises(MCPUpstreamError):
+        await _relay_write_page(service)
+
+    assert adapter.relay_calls == 1
+    assert refresher.calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_tool_error_is_not_retried_and_refreshes_nothing():
+    tool_error = MCPRelayResult(
+        status_code=200,
+        headers={},
+        body=b'{"jsonrpc":"2.0","id":1,"result":{"isError":true,"content":[]}}',
+    )
+    adapter = _SequenceAdapter(results=[tool_error])
+    refresher = _StubRefresher()
+    dao, service = _live_grant_service(adapter=adapter, refresher=refresher)
+    await _oauth_endpoint(dao)
+
+    result = await _relay_write_page(service)
+
+    assert result is tool_error
+    assert adapter.relay_calls == 1
+    assert refresher.calls == []
+
+
+@pytest.mark.parametrize(
+    "www_authenticate",
+    ['Bearer error="insufficient_scope", scope="notion:write"', ""],
+)
+@pytest.mark.asyncio
+async def test_a_403_refreshes_nothing_and_leaves_the_connection_valid(
+    www_authenticate,
+):
+    """A 403 refuses the request, not the token: a missing scope or the server's own
+    policy. Refreshing would not change the answer, and the connection is not dead."""
+    adapter = _SequenceAdapter(
+        results=[_challenge_result(www_authenticate=www_authenticate)]
+    )
+    refresher = _StubRefresher()
+    dao, service = _live_grant_service(adapter=adapter, refresher=refresher)
+    endpoint = await _oauth_endpoint(dao)
+
+    try:
+        result = await _relay_write_page(service)
+        assert result.status_code == 403
+    except MCPScopeInsufficientError:
+        assert www_authenticate
+
+    assert adapter.relay_calls == 1
+    assert refresher.calls == []
+    stored = await dao.fetch_endpoint(project_id=uuid4(), endpoint_id=endpoint.id)
+    assert stored.flags.is_valid is not False
+
+
+@pytest.mark.asyncio
+async def test_a_scope_refusal_carries_the_servers_own_words():
+    adapter = MockUpstreamAdapter(
+        result=_challenge_result(
+            www_authenticate=(
+                'Bearer error="insufficient_scope", scope="notion:write", '
+                'error_description="Writing pages needs the write scope"'
+            )
+        )
+    )
+    dao = MockMCPEndpointsDAO()
+    await _oauth_endpoint(dao)
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=MockResolver(secret=_resolved_secret()),
+        adapters={"http": adapter},
+    )
+
+    with pytest.raises(MCPScopeInsufficientError) as refusal:
+        await _relay_write_page(service)
+
+    assert "Writing pages needs the write scope" in refusal.value.message
+
+
+@pytest.mark.asyncio
+async def test_a_grant_without_a_refresh_token_asks_for_a_reconnect_in_plain_words():
+    adapter = _SequenceAdapter(results=[_refused_credential_result()])
+    refresher = _StubRefresher(
+        failure=MCPOAuthNoRefreshTokenError(server_url="https://example.com/mcp")
+    )
+    # The row still holds the refused token, so the connection is marked dead.
+    dao, service = _live_grant_service(
+        adapter=adapter,
+        refresher=refresher,
+        secrets=[_grant_secret(access_token="revoked", expires_at=None)],
+    )
+    endpoint = await _oauth_endpoint(dao)
+
+    with pytest.raises(MCPAuthRequiredError) as refusal:
+        await _relay_write_page(service)
+
+    assert refusal.value.message == (
+        "No refresh token was issued for this connection. Reconnect to continue."
+    )
+    assert adapter.relay_calls == 1
+    stored = await dao.fetch_endpoint(project_id=uuid4(), endpoint_id=endpoint.id)
+    assert stored.flags.is_valid is False
+
+
+class _UnavailableOnceRefresher(_StubRefresher):
+    """A token endpoint that fails on its side once, then answers."""
+
+    async def refresh_grant(
+        self, *, project_id, endpoint_id, server_url, failed_access_token=None
+    ) -> None:
+        await super().refresh_grant(
+            project_id=project_id,
+            endpoint_id=endpoint_id,
+            server_url=server_url,
+            failed_access_token=failed_access_token,
+        )
+        if len(self.calls) == 1:
+            raise MCPOAuthRefreshUnavailableError(
+                server_url=server_url, detail="503 from https://auth.example.com"
+            )
+
+
+@pytest.mark.asyncio
+async def test_a_token_endpoint_outage_fails_the_call_and_keeps_the_connection():
+    """A 503 from the token endpoint says nothing about the grant. The call fails, the
+    connection stays valid, and the next call refreshes and goes through."""
+    import time
+
+    adapter = _SequenceAdapter(
+        results=[
+            _refused_credential_result(),
+            _refused_credential_result(),
+            MCPRelayResult(status_code=200, headers={}, body=b"{}"),
+        ]
+    )
+    refresher = _UnavailableOnceRefresher()
+    policy = MockPolicyService()
+    dao, service = _live_grant_service(
+        adapter=adapter,
+        refresher=refresher,
+        policy=policy,
+        secrets=[
+            _grant_secret(access_token="revoked", expires_at=int(time.time()) + 3600),
+            _grant_secret(access_token="revoked", expires_at=int(time.time()) + 3600),
+            _grant_secret(access_token="renewed", expires_at=int(time.time()) + 3600),
+        ],
+    )
+    endpoint = await _oauth_endpoint(dao)
+
+    with pytest.raises(MCPUpstreamError) as failure:
+        await _relay_write_page(service)
+
+    assert failure.value.status_code == 503
+    assert policy.record_calls[-1]["outcome"].status_code == 401
+    stored = await dao.fetch_endpoint(project_id=uuid4(), endpoint_id=endpoint.id)
+    assert stored.flags.is_valid is True
+
+    result = await _relay_write_page(service)
+
+    assert result.status_code == 200
+    assert refresher.failed_access_tokens == ["revoked", "revoked"]
+    assert adapter.sent_tokens == ["revoked", "revoked", "renewed"]
+
+
+@pytest.mark.asyncio
+async def test_a_check_is_recorded_on_the_connection_and_stamped_now():
+    dao = MockMCPEndpointsDAO()
+    endpoint = await _oauth_endpoint(dao)
+    service = _relay_service(mcp_endpoints_dao=dao, adapters={})
+
+    passed = await service.record_endpoint_check(
+        project_id=uuid4(), user_id=uuid4(), endpoint_id=endpoint.id, ok=True
+    )
+    assert passed.data.check.ok is True
+    assert passed.data.check.reason is None
+    assert passed.data.check.checked_at is not None
+
+    failed = await service.record_endpoint_check(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint_id=endpoint.id,
+        ok=False,
+        reason="The server did not accept that credential.",
+    )
+    assert failed.data.check.ok is False
+    assert failed.data.check.reason == "The server did not accept that credential."
+    assert failed.data.check.checked_at >= passed.data.check.checked_at
+    # The rest of the stored data is untouched.
+    assert failed.data.route == endpoint.data.route
 
 
 # ---------------------------------------------------------------------------
@@ -2548,7 +2907,9 @@ class _ReleasingRefresher:
         self.released: List[UUID] = []
         self.cancelled: List[UUID] = []
 
-    async def refresh_grant(self, *, project_id, endpoint_id, server_url) -> None:
+    async def refresh_grant(
+        self, *, project_id, endpoint_id, server_url, failed_access_token=None
+    ) -> None:
         raise AssertionError("an edit does not refresh")
 
     async def release_grant(self, *, project_id, endpoint_id, server_url) -> None:

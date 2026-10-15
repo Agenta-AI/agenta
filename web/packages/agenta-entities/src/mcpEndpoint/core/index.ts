@@ -15,6 +15,7 @@ export {
 } from "./connectionState"
 export type {McpConnectionState, McpReconnectTarget} from "./connectionState"
 export {
+    getMcpConnectionCheckLabel,
     getMcpConnectionStatus,
     getMcpConnectionStatusLabel,
     readMcpConnectionHealth,
@@ -50,6 +51,7 @@ export type {
     MCPCredentialBinding,
     MCPConnectResponse,
     MCPEndpoint,
+    MCPEndpointCheck,
     MCPEndpointCreate,
     MCPEndpointData,
     MCPEndpointEdit,

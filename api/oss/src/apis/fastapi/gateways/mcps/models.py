@@ -44,6 +44,20 @@ class MCPEndpointsResponse(BaseModel):
     endpoints: List[MCPEndpoint] = Field(default_factory=list)
 
 
+class MCPEndpointCheckRequest(BaseModel):
+    """The result of a check the connect sheet just ran against the connection."""
+
+    ok: bool
+    reason: Optional[str] = None
+
+    @field_validator("reason")
+    @classmethod
+    def clip_reason(cls, reason: Optional[str]) -> Optional[str]:
+        """The reason can carry a server's own error text whole. A long one is cut, not
+        refused, so the failed check is still recorded."""
+        return reason[:300] if reason else reason
+
+
 class MCPConnectRequest(BaseModel):
     """Request MCP OAuth scope discovery or authorization.
     `scopes` present (an empty list is a legal "no scopes") is the begin step."""

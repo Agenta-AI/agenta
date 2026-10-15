@@ -57,6 +57,15 @@ export interface MCPEndpointData {
     // What discovery found. Nothing the person chose lives here.
     oauth?: MCPOAuthData | null
     oauth_config?: MCPOAuthConfig | null
+    // The last explicit check, from the connect sheet or a reconnect. Agent calls never write it.
+    check?: MCPEndpointCheck | null
+}
+
+export interface MCPEndpointCheck {
+    ok: boolean
+    /** The short reason a failed check gave. */
+    reason?: string | null
+    checked_at: string
 }
 
 export interface MCPEndpointFlags {
