@@ -15,6 +15,8 @@ Two protocol facts shape the order of the checks:
 
 * `initialize` is the MCP handshake's first call and the only one that reports
   `serverInfo`. It is not a tool call and has no side effect, so it is the safe probe.
+  `tools/list` follows it, also without side effect, because a server may accept the
+  handshake from anyone and refuse the list.
 * A server that requires authorization answers the unauthenticated handshake with a 401
   naming its protected-resource document (RFC 9728 s5.1). That challenge, not a guess, is
   what starts OAuth discovery.
@@ -187,19 +189,22 @@ class MCPServerProbeResult(BaseModel):
     legacy_transport_suspected: bool = False
 
 
-def _initialize_request() -> bytes:
-    return json.dumps(
-        {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": _PROTOCOL_VERSION,
-                "capabilities": {},
-                "clientInfo": _CLIENT_INFO,
-            },
-        }
-    ).encode()
+_INITIALIZE_REQUEST = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+        "protocolVersion": _PROTOCOL_VERSION,
+        "capabilities": {},
+        "clientInfo": _CLIENT_INFO,
+    },
+}
+_INITIALIZED_NOTIFICATION = {
+    "jsonrpc": "2.0",
+    "method": "notifications/initialized",
+    "params": {},
+}
+_TOOLS_LIST_REQUEST = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
 
 
 def _event_payload(event: str) -> str:
@@ -369,8 +374,13 @@ class MCPServerProbe:
         # Injectable seam for tests, matching MCPOAuthClient / HttpMCPAdapter.
         self._transport = transport
 
-    async def _handshake(self, target) -> httpx.Response:
-        """Send the handshake and read at most `_MAX_RESPONSE_BYTES` of the answer.
+    async def _post(
+        self,
+        target,
+        message: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+    ) -> httpx.Response:
+        """Send one JSON-RPC message and read at most `_MAX_RESPONSE_BYTES` of the answer.
 
         Streamed rather than buffered so the cap is applied while the bytes arrive
         instead of after they have all been accepted. The bytes that were read are
@@ -383,9 +393,10 @@ class MCPServerProbe:
             request = client.build_request(
                 "POST",
                 target.url,
-                content=_initialize_request(),
+                content=json.dumps(message).encode(),
                 headers={
                     **target.headers,
+                    **(headers or {}),
                     "content-type": "application/json",
                     "accept": "application/json, text/event-stream",
                 },
@@ -405,6 +416,38 @@ class MCPServerProbe:
         # `decoded_response`. The handshake's own `content-type` is kept, because it is
         # what says whether the answer is JSON or a single SSE event.
         return decoded_response(response, bytes(body))
+
+    async def _refused_tool_list(
+        self, target, handshake: httpx.Response
+    ) -> Optional[httpx.Response]:
+        """The server's refusal of `tools/list` after a handshake it accepted, or `None`.
+
+        Some servers answer `initialize` to anyone and check authorization on the first
+        real request. A connection is working when it lists its tools, so the probe asks
+        for them the way the browser's `listMcpTools` does, on the same session and with
+        the same credential, and reads only a refusal. A tool list too large to read was
+        not refused.
+        """
+        result = _initialize_result(handshake) or {}
+        version = result.get("protocolVersion")
+        headers = {
+            "mcp-protocol-version": version
+            if isinstance(version, str) and version
+            else _PROTOCOL_VERSION
+        }
+        session = handshake.headers.get("mcp-session-id")
+        if session:
+            headers["mcp-session-id"] = session
+        try:
+            # Best effort: a server that needed the notification says so on the list.
+            await self._post(target, _INITIALIZED_NOTIFICATION, headers)
+        except (httpx.HTTPError, _ResponseTooLarge):
+            pass
+        try:
+            listed = await self._post(target, _TOOLS_LIST_REQUEST, headers)
+        except _ResponseTooLarge:
+            return None
+        return listed if listed.status_code in (401, 403) else None
 
     async def probe(
         self,
@@ -480,7 +523,12 @@ class MCPServerProbe:
                     target = replace(
                         target, url=str(sent.request_url(target.url)), headers=headers
                     )
-                response = await self._handshake(target)
+                response = await self._post(target, _INITIALIZE_REQUEST)
+                if response.is_success and _initialize_result(response) is not None:
+                    # A refusal here is answered as if the handshake had been refused.
+                    response = (
+                        await self._refused_tool_list(target, response) or response
+                    )
         except EgressRefusedError as e:
             return MCPServerProbeResult(
                 problem=MCPProbeProblem(

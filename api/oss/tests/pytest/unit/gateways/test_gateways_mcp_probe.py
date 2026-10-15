@@ -136,16 +136,13 @@ def _protected_server(
 
 
 @pytest.mark.asyncio
-async def test_the_probe_handshakes_and_never_calls_a_tool():
+async def test_the_probe_handshakes_lists_tools_and_never_calls_a_tool():
     requests: list[httpx.Request] = []
 
     await _probe(_open_server(requests)).probe(server_url=_SERVER_URL)
 
-    posted = [r for r in requests if r.method == "POST"]
-    assert len(posted) == 1
-    body = json.loads(posted[0].content)
-    assert body["method"] == "initialize"
-    assert "tools/call" not in posted[0].content.decode()
+    posted = [json.loads(r.content)["method"] for r in requests if r.method == "POST"]
+    assert posted == ["initialize", "notifications/initialized", "tools/list"]
 
 
 @pytest.mark.asyncio
@@ -1026,8 +1023,9 @@ async def test_a_placeholder_address_is_handshaked_with_the_secret_in_its_path()
     )
 
     assert result.reachable and result.server_name == "Acme Tools"
-    assert [r.url.raw_path for r in requests] == [b"/test%20key%2Fone/v2/mcp"]
-    assert "authorization" not in {k.lower() for k in requests[0].headers}
+    assert {r.url.raw_path for r in requests} == {b"/test%20key%2Fone/v2/mcp"}
+    for request in requests:
+        assert "authorization" not in {k.lower() for k in request.headers}
 
 
 @pytest.mark.asyncio
@@ -1436,3 +1434,47 @@ async def test_a_refused_header_key_is_reported_without_discovery_or_the_key():
     assert result.auth.mode == MCPProbeAuthMode.UNKNOWN
     assert result.auth.challenge_status == 401
     assert "test-key-one" not in result.model_dump_json()
+
+
+def _refusing_tool_list(requests: list[httpx.Request]):
+    """A server that answers the handshake to anyone and checks the key on the list."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(404)
+        if json.loads(request.content)["method"] == "tools/list":
+            return httpx.Response(401, json={"error": "invalid_token"})
+        return httpx.Response(
+            200, json=_INITIALIZE_RESULT, headers={"mcp-session-id": "session-one"}
+        )
+
+    return handler
+
+
+@pytest.mark.asyncio
+async def test_a_key_the_server_refuses_on_the_tool_list_is_reported_refused():
+    """A key checked by `initialize` alone was saved, and the tool list then refused it."""
+    requests: list[httpx.Request] = []
+
+    result = await _probe(_refusing_tool_list(requests)).probe(
+        server_url="https://mcp.acme.io/mcp",
+        secret="test-key-one",
+        binding=MCPCredentialBinding(kind="header", name="X-Api-Key"),
+    )
+
+    assert result.auth.mode == MCPProbeAuthMode.UNKNOWN
+    assert result.auth.challenge_status == 401
+    listed = requests[-1]
+    assert listed.headers["x-api-key"] == "test-key-one"
+    assert listed.headers["mcp-session-id"] == "session-one"
+    assert listed.headers["mcp-protocol-version"] == "2025-06-18"
+
+
+@pytest.mark.asyncio
+async def test_no_key_the_server_refuses_on_the_tool_list_is_not_none():
+    """The check before a reconnect writes None reads this answer too."""
+    result = await _probe(_refusing_tool_list([])).probe(server_url=_SERVER_URL)
+
+    assert result.auth.mode is not MCPProbeAuthMode.NONE
+    assert result.auth.challenge_status == 401
