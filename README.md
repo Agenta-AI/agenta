@@ -244,7 +244,7 @@ If Agenta is useful to you, star the repository and tell us what you build.
 ## Contributors ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-88-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-91-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
@@ -367,6 +367,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://oforiwaasam.github.io/portfolio/"><img src="https://avatars.githubusercontent.com/u/41793292?v=4?s=100" width="100px;" alt="Lily Sam"/><br /><sub><b>Lily Sam</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=oforiwaasam" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://christiansidak.com"><img src="https://avatars.githubusercontent.com/u/61099993?v=4?s=100" width="100px;" alt="Christian Sidak"/><br /><sub><b>Christian Sidak</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Christian-Sidak" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/XixianWasTaken"><img src="https://avatars.githubusercontent.com/u/74043034?v=4?s=100" width="100px;" alt="XixianWasTaken"/><br /><sub><b>XixianWasTaken</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=XixianWasTaken" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Sanchar127"><img src="https://avatars.githubusercontent.com/u/143952019?v=4?s=100" width="100px;" alt="Sanchar panthi"/><br /><sub><b>Sanchar panthi</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=Sanchar127" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/insuffer"><img src="https://avatars.githubusercontent.com/u/237025162?v=4?s=100" width="100px;" alt="Cabeza"/><br /><sub><b>Cabeza</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=insuffer" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/deepanshupal"><img src="https://avatars.githubusercontent.com/u/40927968?v=4?s=100" width="100px;" alt="Deepanshu Pal"/><br /><sub><b>Deepanshu Pal</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=deepanshupal" title="Code">💻</a> <a href="https://github.com/Agenta-AI/agenta/commits?author=deepanshupal" title="Tests">⚠️</a></td>
     </tr>
   </tbody>
 </table>
