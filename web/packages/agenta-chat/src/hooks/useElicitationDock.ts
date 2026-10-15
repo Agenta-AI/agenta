@@ -98,20 +98,30 @@ export const useElicitationDock = ({
 
     const front = pending[0] ?? null
 
-    // An unrenderable payload settles `errorText` once so the run resumes; a repeat malformed
-    // emission parks instead, which is what breaks the settle -> resume -> re-emit loop.
+    // An unrenderable payload never reaches the screen. The first settles `errorText` so the agent
+    // can fix the schema; a repeat settles a cancel that tells it to ask in plain text instead.
     const degradedRef = useRef(new Set<string>())
     useEffect(() => {
-        if (!front || front.settled || degradedEarlierInTurn) return
+        if (!front || front.settled) return
         if (!payloadArrived(front) || degradedRef.current.has(front.toolCallId)) return
         const parsed = parseElicitationPayload(front.input)
         if (parsed.ok) return
         degradedRef.current.add(front.toolCallId)
-        onOutput?.({
-            toolName: front.toolName,
-            toolCallId: front.toolCallId,
-            errorText: buildDegradationErrorText(parsed.reason),
-        })
+        onOutput?.(
+            degradedEarlierInTurn
+                ? {
+                      toolName: front.toolName,
+                      toolCallId: front.toolCallId,
+                      output: buildCancelResult(
+                          `The form couldn't be shown (${parsed.reason}). Ask in plain text instead.`,
+                      ) as unknown as Record<string, unknown>,
+                  }
+                : {
+                      toolName: front.toolName,
+                      toolCallId: front.toolCallId,
+                      errorText: buildDegradationErrorText(parsed.reason),
+                  },
+        )
     }, [front, degradedEarlierInTurn, onOutput])
 
     // `pending` through a ref: the host calls `dismiss` from a send handler with a stale closure.
@@ -154,16 +164,16 @@ export const useElicitationDock = ({
     }, [onOutput, mark, forget, isSettling])
 
     // A card whose answer is out can never be the front one the actions address. Shown only once
-    // its schema is whole and renders; a bad one settles unseen unless it parked for a Skip.
+    // its schema is whole and renders; a bad one settles unseen.
     const live = useMemo(
         () =>
             pending.filter(
                 (meta) =>
                     !settlingIds.has(meta.toolCallId) &&
                     payloadArrived(meta) &&
-                    (degradedEarlierInTurn || parseElicitationPayload(meta.input).ok),
+                    parseElicitationPayload(meta.input).ok,
             ),
-        [pending, settlingIds, degradedEarlierInTurn],
+        [pending, settlingIds],
     )
     // Hold the last non-empty view so a host can animate the dock closed around content already gone.
     const open = live.length > 0

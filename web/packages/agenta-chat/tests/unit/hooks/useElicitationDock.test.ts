@@ -308,8 +308,8 @@ describe("degradation settle guard", () => {
         expect(onOutput).not.toHaveBeenCalled()
     })
 
-    it("parks instead of settling once this turn already degraded", () => {
-        const {onOutput} = setup(
+    it("cancels unseen, asking for plain text, once this turn already degraded", () => {
+        const {result, onOutput} = setup(
             turn(
                 {
                     type: "tool-__ag__request_input",
@@ -321,7 +321,18 @@ describe("degradation settle guard", () => {
             ),
         )
 
-        expect(onOutput).not.toHaveBeenCalled()
+        expect(result.current.open).toBe(false)
+        expect(onOutput).toHaveBeenCalledTimes(1)
+        expect(onOutput.mock.calls[0][0]).toMatchObject({
+            toolCallId: "call_1",
+            output: {action: "cancel", humanFriendlyMessage: expect.stringContaining("plain text")},
+        })
+        expect(onOutput.mock.calls[0][0].errorText).toBeUndefined()
+    })
+
+    it("never opens on an unrenderable payload", () => {
+        const {result} = setup(turn(toolPart({input: {message: "hi", requestedSchema: {}}})))
+        expect(result.current.open).toBe(false)
     })
 
     it("leaves a renderable payload alone", () => {
