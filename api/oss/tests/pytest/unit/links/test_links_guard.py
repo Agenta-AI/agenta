@@ -2,21 +2,13 @@
 
 import ipaddress
 import json
+import socket
 from pathlib import Path
 
 import pytest
 
-from oss.src.core.links import guard
-from oss.src.core.links.guard import (
-    check_link_url,
-    is_blocked_address,
-    resolve_link_target,
-)
-from oss.src.core.links.types import (
-    LinkHost,
-    LinkPreviewRefused,
-    LinkPreviewUnreachable,
-)
+from oss.src.core.links.guard import resolve_link_address
+from oss.src.core.links.types import LinkPreviewRefused, LinkPreviewUnreachable
 
 _VECTORS = (
     Path(__file__).resolve().parents[6]
@@ -36,116 +28,80 @@ def _vectors() -> list:
     return json.loads(_VECTORS.read_text())
 
 
+def _answers(monkeypatch, *addresses: str) -> None:
+    def fake_getaddrinfo(host, port, *args, **kwargs):
+        return [(2, 1, 6, "", (address, 443)) for address in addresses]
+
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "host,blocked",
     [(vector["host"], vector["blocked"]) for vector in _vectors()],
 )
-def test_the_link_guard_agrees_with_every_vector(host, blocked):
-    assert is_blocked_address(ipaddress.ip_address(host)) is blocked
-
-
-@pytest.mark.parametrize(
-    "host",
-    [
-        "127.0.0.1",
-        "10.0.0.5",
-        "172.16.3.4",
-        "192.168.1.1",
-        "169.254.169.254",
-        "100.64.0.1",
-        "0.0.0.0",
-        "224.0.0.1",
-        "240.0.0.1",
-        "::1",
-        "::",
-        "fe80::1",
-        "fc00::1",
-        "ff02::1",
-        "::ffff:127.0.0.1",
-        "::ffff:10.0.0.1",
-        "::ffff:169.254.169.254",
-    ],
-)
-def test_non_public_addresses_are_blocked(host):
-    assert is_blocked_address(ipaddress.ip_address(host)) is True
-
-
-@pytest.mark.parametrize("host", ["93.184.215.14", "1.1.1.1", "2606:4700:4700::1111"])
-def test_public_addresses_pass(host):
-    assert is_blocked_address(ipaddress.ip_address(host)) is False
-
-
-@pytest.mark.parametrize(
-    "url",
-    [
-        "ftp://example.com/file",
-        "file:///etc/passwd",
-        "javascript:alert(1)",
-        "//example.com/path",
-        "https://user:pass@example.com/",
-        "https://user@example.com/",
-        "https://example.com:8080/",
-        "http://example.com:22/",
-        "https://example.com:99999/",
-        "https:///nohost",
-    ],
-)
-def test_check_link_url_refuses(url):
-    with pytest.raises(LinkPreviewRefused):
-        check_link_url(url=url)
-
-
-@pytest.mark.parametrize(
-    "url,expected",
-    [
-        ("https://Example.com/a?b=c", LinkHost(hostname="example.com", port=443)),
-        ("http://example.com/", LinkHost(hostname="example.com", port=80)),
-        ("https://example.com:443/", LinkHost(hostname="example.com", port=443)),
-        ("http://example.com:80/x", LinkHost(hostname="example.com", port=80)),
-        (
-            "https://[2606:4700:4700::1111]/",
-            LinkHost(hostname="2606:4700:4700::1111", port=443),
-        ),
-    ],
-)
-def test_check_link_url_accepts(url, expected):
-    assert check_link_url(url=url) == expected
+async def test_a_literal_address_agrees_with_every_vector(host, blocked):
+    literal = f"[{host}]" if ipaddress.ip_address(host).version == 6 else host
+    if blocked:
+        with pytest.raises(LinkPreviewRefused) as refused:
+            await resolve_link_address(url=f"https://{literal}/")
+        assert refused.value.reason == "non_public_address"
+    else:
+        assert await resolve_link_address(url=f"https://{literal}/") == str(
+            ipaddress.ip_address(host)
+        )
 
 
 @pytest.mark.asyncio
-async def test_a_literal_private_address_is_refused_without_resolving():
-    with pytest.raises(LinkPreviewRefused):
-        await resolve_link_target(url="http://127.0.0.1/")
+@pytest.mark.parametrize(
+    "url,reason",
+    [
+        ("ftp://example.com/file", "unsupported_scheme"),
+        ("file:///etc/passwd", "unsupported_scheme"),
+        ("javascript:alert(1)", "unsupported_scheme"),
+        ("//example.com/path", "unsupported_scheme"),
+        ("https://user:pass@example.com/", "credentials"),
+        ("https://user@example.com/", "credentials"),
+        ("https://example.com:8080/", "unsupported_port"),
+        ("http://example.com:22/", "unsupported_port"),
+        ("https://example.com:99999/", "invalid_port"),
+        ("https:///nohost", "missing_host"),
+        ("http://localhost/", "non_public_address"),
+    ],
+)
+async def test_a_link_outside_the_rules_is_refused(url, reason):
+    with pytest.raises(LinkPreviewRefused) as refused:
+        await resolve_link_address(url=url)
+    assert refused.value.reason == reason
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://Example.com/a?b=c",
+        "http://example.com/",
+        "https://example.com:443/",
+        "http://example.com:80/x",
+    ],
+)
+async def test_a_public_name_resolves_to_the_checked_address(monkeypatch, url):
+    _answers(monkeypatch, "93.184.215.14")
+    assert await resolve_link_address(url=url) == "93.184.215.14"
 
 
 @pytest.mark.asyncio
 async def test_a_name_with_any_private_answer_is_refused(monkeypatch):
-    async def fake_resolve(hostname, port):
-        return [
-            (2, 1, 6, "", ("93.184.215.14", 443)),
-            (2, 1, 6, "", ("10.0.0.7", 443)),
-        ]
-
-    monkeypatch.setattr(guard, "_resolve", fake_resolve)
+    _answers(monkeypatch, "93.184.215.14", "10.0.0.7")
     with pytest.raises(LinkPreviewRefused):
-        await resolve_link_target(url="https://rebind.example/")
-
-
-@pytest.mark.asyncio
-async def test_a_public_name_resolves_to_the_checked_address(monkeypatch):
-    async def fake_resolve(hostname, port):
-        return [(2, 1, 6, "", ("93.184.215.14", 443))]
-
-    monkeypatch.setattr(guard, "_resolve", fake_resolve)
-    target = await resolve_link_target(url="https://example.com/page")
-    assert (target.hostname, target.address) == ("example.com", "93.184.215.14")
+        await resolve_link_address(url="https://rebind.example/")
 
 
 @pytest.mark.asyncio
 async def test_an_unresolvable_name_is_unreachable_not_refused(monkeypatch):
-    async def fake_resolve(hostname, port):
-        raise OSError("no such host")
+    def fake_getaddrinfo(*args, **kwargs):
+        raise socket.gaierror("no such host")
 
-    monkeypatch.setattr(guard, "_resolve", fake_resolve)
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
     with pytest.raises(LinkPreviewUnreachable):
-        await resolve_link_target(url="https://nowhere.invalid/")
+        await resolve_link_address(url="https://nowhere.invalid/")

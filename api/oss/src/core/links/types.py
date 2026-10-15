@@ -24,29 +24,6 @@ class LinkPreview(BaseModel):
     )
 
 
-class LinkMeta(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    image: Optional[str] = None
-    site_name: Optional[str] = None
-
-
-class LinkHost(BaseModel):
-    hostname: str
-    port: int
-
-
-class LinkTarget(BaseModel):
-    url: str
-    hostname: str
-    address: str
-
-
-class LinkPage(BaseModel):
-    url: str
-    html: Optional[str] = None
-
-
 LinkRefusalReason = Literal[
     "unsupported_scheme",
     "credentials",

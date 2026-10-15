@@ -1,7 +1,7 @@
 """Preview fields come from Open Graph first, then Twitter cards, then plain HTML."""
 
-from oss.src.core.links.parser import head_section, parse_link_meta
-from oss.src.core.links.types import LinkMeta
+from oss.src.core.links.parser import parse_link_preview
+from oss.src.core.links.types import LinkPreview
 
 BASE = "https://example.com/blog/post"
 
@@ -18,7 +18,9 @@ def test_open_graph_fields_win():
       <meta property="og:site_name" content="Example">
     </head><body></body></html>
     """
-    assert parse_link_meta(html=html, base_url=BASE) == LinkMeta(
+    assert parse_link_preview(url=BASE, html=html) == LinkPreview(
+        url=BASE,
+        domain="example.com",
         title="OG title",
         description="OG description",
         image="https://example.com/img/cover.png",
@@ -35,7 +37,9 @@ def test_twitter_then_plain_html_fill_the_gaps():
       <meta name="twitter:image" content="https://cdn.example.com/t.jpg">
     </head>
     """
-    assert parse_link_meta(html=html, base_url=BASE) == LinkMeta(
+    assert parse_link_preview(url=BASE, html=html) == LinkPreview(
+        url=BASE,
+        domain="example.com",
         title="Plain title",
         description="Twitter description",
         image="https://cdn.example.com/t.jpg",
@@ -44,29 +48,28 @@ def test_twitter_then_plain_html_fill_the_gaps():
 
 def test_meta_description_is_the_last_fallback():
     html = '<head><meta name="description" content="Just a description"></head>'
-    assert parse_link_meta(html=html, base_url=BASE).description == "Just a description"
+    assert parse_link_preview(url=BASE, html=html).description == "Just a description"
 
 
 def test_an_image_that_is_not_http_is_dropped():
     html = '<head><meta property="og:image" content="javascript:alert(1)"></head>'
-    assert parse_link_meta(html=html, base_url=BASE).image is None
+    assert parse_link_preview(url=BASE, html=html).image is None
     html = (
         '<head><meta property="og:image" content="data:image/png;base64,AAAA"></head>'
     )
-    assert parse_link_meta(html=html, base_url=BASE).image is None
+    assert parse_link_preview(url=BASE, html=html).image is None
 
 
 def test_a_protocol_relative_image_takes_the_page_scheme():
     html = '<head><meta property="og:image" content="//cdn.example.com/a.png"></head>'
     assert (
-        parse_link_meta(html=html, base_url=BASE).image
-        == "https://cdn.example.com/a.png"
+        parse_link_preview(url=BASE, html=html).image == "https://cdn.example.com/a.png"
     )
 
 
 def test_entities_are_decoded_and_long_text_is_clipped():
     html = f'<head><meta property="og:title" content="A &amp; B {"x" * 400}"></head>'
-    title = parse_link_meta(html=html, base_url=BASE).title
+    title = parse_link_preview(url=BASE, html=html).title
     assert title is not None
     assert title.startswith("A & B ")
     assert len(title) == 300
@@ -75,30 +78,27 @@ def test_entities_are_decoded_and_long_text_is_clipped():
 
 def test_tags_after_the_head_are_ignored():
     html = '<head><title>Real</title></head><body><meta property="og:title" content="Late"></body>'
-    assert parse_link_meta(html=html, base_url=BASE).title == "Real"
+    assert parse_link_preview(url=BASE, html=html).title == "Real"
 
 
 def test_a_page_with_nothing_returns_empty_fields():
-    assert (
-        parse_link_meta(html="<html><body>hello</body></html>", base_url=BASE)
-        == LinkMeta()
-    )
+    assert parse_link_preview(
+        url="https://www.example.com/", html="<html><body>hello</body></html>"
+    ) == LinkPreview(url="https://www.example.com/", domain="example.com")
 
 
 def test_malformed_markup_keeps_what_was_read():
     html = '<head><meta property="og:title" content="Kept"><title>unterminated'
-    assert parse_link_meta(html=html, base_url=BASE).title == "Kept"
+    assert parse_link_preview(url=BASE, html=html).title == "Kept"
 
 
-def test_the_head_section_ends_at_the_head_close_or_the_body():
-    assert (
-        head_section("<head><title>A</title></HEAD ><p>x</p>")
-        == "<head><title>A</title>"
+def test_tags_after_an_unclosed_head_and_an_opened_body_are_ignored():
+    html = (
+        '<title>Real</title><BODY class=\'x\'><meta property="og:title" content="Late">'
     )
-    assert head_section("<title>A</title><BODY class='x'>rest") == "<title>A</title>"
-    assert head_section("<title>A</title>") == "<title>A</title>"
+    assert parse_link_preview(url=BASE, html=html).title == "Real"
 
 
 def test_an_overlong_image_url_is_dropped():
     html = f'<head><meta property="og:image" content="/{"a" * 2100}.png"></head>'
-    assert parse_link_meta(html=html, base_url=BASE).image is None
+    assert parse_link_preview(url=BASE, html=html).image is None
