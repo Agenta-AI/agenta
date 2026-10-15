@@ -33,18 +33,21 @@ describe("getMcpConnectionStatus", () => {
         expect(
             getMcpConnectionStatus(endpoint({secret_id: "grant-1", flags: {is_valid: false}})),
         ).toBe("login_expired")
-        // Disconnected: the grant went, and the check from its sign-in stayed.
-        expect(
-            getMcpConnectionStatus(
-                endpoint({
-                    secret_id: null,
-                    data: {
-                        route: {base_url: "https://mcp.example.test"},
-                        check: {ok: true, checked_at: "2026-10-14T12:00:00Z"},
-                    },
-                }),
-            ),
-        ).toBe("login_expired")
+    })
+
+    it("calls a disconnected OAuth connection not signed in, though its sign-in check stayed", () => {
+        const status = getMcpConnectionStatus(
+            endpoint({
+                secret_id: null,
+                data: {
+                    route: {base_url: "https://mcp.example.test"},
+                    check: {ok: true, checked_at: "2026-10-14T12:00:00Z"},
+                },
+            }),
+        )
+
+        expect(status).toBe("not_signed_in")
+        expect(getMcpConnectionStatusLabel(status)).toBe("Not signed in")
     })
 
     it("calls an OAuth connection with no grant and no check not signed in, not expired", () => {

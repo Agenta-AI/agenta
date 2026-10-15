@@ -54,18 +54,18 @@ export function getMcpConnectionCheckLabel(health: McpConnectionHealth): string 
  * the person and differ only in which reconnect path the row offers, which the caller takes from
  * `auth_mode` rather than from here. "Unreachable" is never derived yet; see
  * `readMcpConnectionHealth`. The one exception is an OAuth connection with no grant and no
- * recorded check, which reads as not signed in.
+ * recorded refusal, which reads as not signed in.
  */
 export function getMcpConnectionStatus(endpoint: MCPEndpoint): McpConnectionStatus {
     if (getMcpConnectionState(endpoint) === "ready") return "connected"
-    // A finished sign-in records a check, so an OAuth row with no grant, no refusal and no check
-    // has no login to expire: its first sign-in is under way or unfinished, or it was
-    // disconnected before checks were recorded. "Not signed in" is true for all of them.
+    // An OAuth row with no grant and no refusal has no login to expire: its first sign-in is
+    // under way or unfinished, or the person disconnected it. A disconnect keeps the check the
+    // sign-in recorded, so the check does not tell these apart. A revoked grant is different: it
+    // keeps its handle and the gateway marks it invalid, which reads as an expired login below.
     if (
         endpoint.auth_mode === "oauth" &&
         !endpoint.secret_id &&
-        endpoint.flags?.is_valid !== false &&
-        !endpoint.data?.check
+        endpoint.flags?.is_valid !== false
     ) {
         return "not_signed_in"
     }
