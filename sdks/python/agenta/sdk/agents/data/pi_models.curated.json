@@ -92,8 +92,8 @@
   },
   "additions": [
     {
-      "id": "google/gemini-4-argon",
-      "provider": "gemini",
+      "id": "openrouter/google/gemini-4-argon",
+      "provider": "openrouter",
       "source": "curated",
       "name": "Gemini 4 Argon"
     }
