@@ -1,18 +1,14 @@
 import {useEffect, useState} from "react"
 
 import {ANALYTICS_COLOR_CSS} from "@agenta/observability-ui/analytics"
-import {
-    fetchBillingUsage,
-    useBillingCatalog,
-    useBillingSubscription,
-    useTopUpOffer,
-} from "@agenta/settings-ui"
+import {fetchBillingUsage, useBillingCatalog, useBillingSubscription} from "@agenta/settings-ui"
 import {isBillingEnabled} from "@agenta/shared/api"
+import {classicModeEnabledAtom} from "@agenta/shared/state"
 import {Button} from "@agenta/ui/ui"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import {CreditTopUps} from "../wallet/CreditTopUps"
 import {useWalletSummary} from "../wallet/useWalletSummary"
 import {dailyCredit, monthlyCredit} from "../wallet/walletCredits"
 import {formatCredits} from "../wallet/walletFormat"
@@ -51,7 +47,6 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
         enabled: billingEnabled,
     })
     const wallet = useWalletSummary(projectId, {poll: false})
-    const topUps = useTopUpOffer({projectId, enabled: billingEnabled})
 
     // "See plans" elsewhere lands here with the chooser open.
     useEffect(() => {
@@ -164,15 +159,6 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
                     </div>
                 ) : null}
             </div>
-
-            {/* Only where the plan can buy packs; the section itself asks the API. */}
-            {billingEnabled && topUps.data?.status === "available" ? (
-                <CreditTopUps
-                    projectId={projectId}
-                    onUpgrade={() => setPlanChooserOpen(true)}
-                    framed
-                />
-            ) : null}
 
             {billingEnabled ? (
                 <BillingPaymentsSection

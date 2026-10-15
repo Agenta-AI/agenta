@@ -49,27 +49,23 @@ export const PlanSummaryCard = ({
           ? creditsLine(plan)
           : null
 
-    // Scoped to `.dark` so the card reads as the design's dark spotlight in both themes.
+    // Scoped to `.dark` so the card reads as the design's dark card in both themes.
     return (
-        <section className="dark bg-card text-foreground ring-border relative box-border flex min-h-[176px] min-w-0 flex-col gap-3 overflow-hidden rounded-2xl px-5 py-[18px] ring-1 ring-inset">
-            <span
-                aria-hidden
-                className="pointer-events-none absolute -right-[120px] -top-[160px] size-[380px] rounded-full bg-[radial-gradient(closest-side,color-mix(in_srgb,var(--color-hero-action)_16%,transparent),transparent)]"
-            />
-            <div className="relative flex items-center justify-between gap-3">
+        <section className="dark bg-card text-foreground ring-border box-border flex min-h-[176px] min-w-0 flex-col gap-3 rounded-2xl px-5 py-[18px] ring-1 ring-inset">
+            <div className="flex items-center justify-between gap-3">
                 <span className="text-muted-foreground text-[13px]">Current plan</span>
                 {renews ? (
                     <span className="text-muted-foreground truncate text-xs">{renews}</span>
                 ) : null}
             </div>
-            <div className="relative flex min-w-0 flex-wrap items-baseline gap-x-2.5">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5">
                 <span className="truncate text-[30px] font-semibold capitalize leading-9 tracking-[-0.02em]">
                     {name}
                 </span>
                 {price ? <span className="text-muted-foreground">{price}</span> : null}
             </div>
             {credits ? (
-                <span className="bg-hero-action/15 text-hero-action relative inline-flex h-[26px] items-center gap-1.5 self-start whitespace-nowrap rounded-full px-2.5 text-[13px]">
+                <span className="bg-hero-action/15 text-hero-action inline-flex h-[26px] items-center gap-1.5 self-start whitespace-nowrap rounded-full px-2.5 text-[13px]">
                     <Coins size={14} />
                     {credits}
                 </span>
@@ -79,12 +75,12 @@ export const PlanSummaryCard = ({
                     href={CONTACT_URL}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-muted-foreground hover:text-foreground relative mt-auto text-[13px]"
+                    className="text-muted-foreground hover:text-foreground mt-auto text-[13px]"
                 >
                     Contact us about your plan
                 </a>
             ) : onChangePlan ? (
-                <div className="relative mt-auto flex flex-wrap items-center gap-3.5">
+                <div className="mt-auto flex flex-wrap items-center gap-3.5">
                     <Button
                         size="sm"
                         className="bg-foreground text-background hover:bg-foreground/90"

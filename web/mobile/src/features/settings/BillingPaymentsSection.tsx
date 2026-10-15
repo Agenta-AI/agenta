@@ -13,7 +13,7 @@ export const BillingPaymentsSection = ({
 }) => (
     <section className="flex flex-col gap-3">
         <h3 className="m-0 text-sm font-medium">Payment history</h3>
-        <div className="border-border/50 flex flex-wrap items-center gap-3 border-0 border-y border-solid py-3">
+        <div className="border-border/50 flex flex-wrap items-center gap-3 border-0 border-t border-solid py-3">
             <span className="bg-accent flex size-7 shrink-0 items-center justify-center rounded-md">
                 <Receipt size={14} />
             </span>
