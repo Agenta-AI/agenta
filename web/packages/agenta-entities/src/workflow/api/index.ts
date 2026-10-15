@@ -68,13 +68,17 @@ export {
 } from "./api"
 
 export {
+    agentTemplateLoadRecovery,
     loadAgentTemplate,
+    parseAgentTemplateError,
     queryAgentTemplates,
     scanAgentTemplateSource,
     validateAgentTemplate,
     type AgentTemplateEntry,
     type AgentTemplateLoadRequest,
+    type AgentTemplateLoadRecovery,
     type AgentTemplateLoadResult,
+    type AgentTemplateRequestError,
     type AgentTemplateRepositoryScan,
     type AgentTemplateSource,
     type AgentTemplateSourcePin,

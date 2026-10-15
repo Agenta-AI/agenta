@@ -31,6 +31,7 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import {openImportTemplateAtom} from "../agents/importTemplateRequest"
 import {AppShell} from "../nav/AppShell"
 
 import {CollapsedConfigRail} from "./CollapsedConfigRail"
@@ -127,6 +128,12 @@ export const SessionWorkspace = ({
     // It lives HERE and not in `ConfigPane` because a commit can land while the config pane is
     // off screen — the pane is swapped out on a phone whenever the conversation has the width.
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
+    const openImportTemplate = useSetAtom(openImportTemplateAtom)
+    const createAgentFromTemplate = useCallback(
+        (file: {sessionId: string; path: string}) =>
+            openImportTemplate({kind: "session_file", ...file}),
+        [openImportTemplate],
+    )
     useEffect(
         () =>
             registerAgentAutoCommitHandler(
@@ -338,7 +345,11 @@ export const SessionWorkspace = ({
             {/* Drive surfaces need the AGENT here, not just the session: without it the per-agent
                 mount query stays disabled and `agent-files/…` falls back to the cwd mount, 404s,
                 and the row opens nothing (#6270). Desktop mounts this; /m did not. */}
-            <DriveSessionProvider sessionId={sessionId} artifactId={agentId ?? null}>
+            <DriveSessionProvider
+                sessionId={sessionId}
+                artifactId={agentId ?? null}
+                onCreateAgentFromTemplate={createAgentFromTemplate}
+            >
                 {/* The workspace column: the shared playground top bar, then the panes under it. The
                     column owns the top safe-area inset (the bar is the topmost chrome). */}
                 <div className="ag-app-ground flex h-[calc(var(--ag-viewport-height,100dvh)-var(--ag-top-bars-h,0px))] min-w-0 flex-col pt-[var(--ag-screen-safe-top,env(safe-area-inset-top))]">

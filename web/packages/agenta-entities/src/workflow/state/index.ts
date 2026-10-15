@@ -240,6 +240,7 @@ export {
 export {
     loadAgentTemplateFromEphemeralAtom,
     abandonAgentTemplateLoad,
+    agentTemplateSourceKey,
     templateConnectionChoices,
     type LoadAgentTemplateFromEphemeralParams,
 } from "./loadTemplate"

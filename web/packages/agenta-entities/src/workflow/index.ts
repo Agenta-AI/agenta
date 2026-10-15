@@ -339,6 +339,7 @@ export {
     type WorkflowCreateFromEphemeralParams,
     loadAgentTemplateFromEphemeralAtom,
     abandonAgentTemplateLoad,
+    agentTemplateSourceKey,
     templateConnectionChoices,
     type LoadAgentTemplateFromEphemeralParams,
     agentTemplatesQueryAtom,
@@ -453,6 +454,10 @@ export {
     /** @deprecated Use EvaluatorCatalogTemplatesResponse */
     validateAgentTemplate,
     scanAgentTemplateSource,
+    parseAgentTemplateError,
+    agentTemplateLoadRecovery,
+    type AgentTemplateLoadRecovery,
+    type AgentTemplateRequestError,
     type AgentTemplateRepositoryScan,
     type AgentTemplateSource,
     type AgentTemplateSourcePin,
@@ -502,6 +507,7 @@ export {workflowSnapshotAdapter} from "./snapshotAdapter"
 export {
     ALL_TEMPLATES_CATEGORY,
     PROVIDERS,
+    IMPORTED_TEMPLATE_MESSAGE,
     SAVE_AS_TEMPLATE_MESSAGE,
     SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE,
     TEMPLATE_CATEGORY_ORDER,

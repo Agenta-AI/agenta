@@ -96,8 +96,13 @@ const saveIntent = (scope: string, intent: LoadIntent | null) => {
     }
 }
 
-export const abandonAgentTemplateLoad = (projectId: string, templateKey: string) => {
-    saveIntent(`agent-template-intent:${projectId}:${templateKey}`, null)
+/** One saved load request (and Idempotency-Key) per source; a catalog key is its own source key. */
+export const agentTemplateSourceKey = (source: AgentTemplateSource): string =>
+    source.kind === "internal" ? source.key : JSON.stringify(source)
+
+/** Forget a source's saved request, so the next create sends a new Idempotency-Key. */
+export const abandonAgentTemplateLoad = (projectId: string, sourceKey: string) => {
+    saveIntent(`agent-template-intent:${projectId}:${sourceKey}`, null)
 }
 
 const inflightLoads = new Map<string, Promise<AgentTemplateLoadResult>>()
@@ -120,7 +125,7 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("No project ID available")
         if (!source) throw new Error("No template source to load")
-        const sourceKey = source.kind === "internal" ? source.key : JSON.stringify(source)
+        const sourceKey = agentTemplateSourceKey(source)
 
         const inflightKey = `${projectId}:${revisionId}:${sourceKey}`
         const existing = inflightLoads.get(inflightKey)

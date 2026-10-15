@@ -17,12 +17,16 @@ import {
     HoverCardTrigger,
     SimpleTooltip as Tooltip,
 } from "@agenta/ui/ui"
-import {DownloadSimple} from "@phosphor-icons/react"
+import {DownloadSimple, FileZip} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {DriveFileHoverCard} from "./DriveFileHoverCard"
 import {driveFileIcon} from "./driveIcons"
-import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
+import {
+    useCreateAgentFromTemplate,
+    useDriveArtifactId,
+    useDriveSessionId,
+} from "./driveSessionContext"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
@@ -92,6 +96,7 @@ export function DriveFileCard({path, op}: {path: string; op?: FileActivityOp}) {
     const resolved = drive.files.find((f) => mountPathMatchesToolPath(f.path, path)) ?? null
     const name = path.split("/").pop() ?? path
     const deleted = op === "delete"
+    const createAgent = useCreateAgentFromTemplate(resolved?.path ?? "")
     // No op (a prose mention rather than a detected write) → no status tag; just the file card.
     const meta = op ? OP_META[op] : null
 
@@ -146,6 +151,16 @@ export function DriveFileCard({path, op}: {path: string; op?: FileActivityOp}) {
                     </Text>
                 </span>
             </button>
+            {!deleted && createAgent ? (
+                <Tooltip title="Create agent from template">
+                    <Button
+                        type="text"
+                        icon={<FileZip size={14} />}
+                        onClick={createAgent}
+                        aria-label={`Create agent from ${name}`}
+                    />
+                </Tooltip>
+            ) : null}
             {!deleted && resolved ? (
                 <Tooltip title="Download">
                     <Button

@@ -24,15 +24,18 @@ vi.mock("../../src/workflow/api/agentTemplates", () => ({
 }))
 
 import {templateBuilderMessage} from "../../src/workflow/agentTemplates"
-import {FIXTURE_TEMPLATES as AGENT_TEMPLATES} from "./agentTemplateFixtures"
 import type {AgentTemplateLoadResult} from "../../src/workflow/api/agentTemplates"
-import {buildCreatePayloadFromEphemeral} from "../../src/workflow/state/createPayload"
 import {createWorkflowFromEphemeralAtom} from "../../src/workflow/state/commit"
+import {buildCreatePayloadFromEphemeral} from "../../src/workflow/state/createPayload"
 import {
+    abandonAgentTemplateLoad,
+    agentTemplateSourceKey,
     loadAgentTemplateFromEphemeralAtom,
     templateConnectionChoices,
 } from "../../src/workflow/state/loadTemplate"
 import {workflowLocalServerDataAtomFamily} from "../../src/workflow/state/store"
+
+import {FIXTURE_TEMPLATES as AGENT_TEMPLATES} from "./agentTemplateFixtures"
 
 const REVISION_ID = "local-template-loading"
 const WORKFLOW_DATA = {
@@ -266,4 +269,19 @@ it("recovers the saved creation intent after a page reload", async () => {
     } finally {
         vi.unstubAllGlobals()
     }
+})
+
+it("keeps an uploaded package's key across retries until the load is abandoned", async () => {
+    const source = {kind: "upload" as const, staging_session_id: "stage", attachment_id: "zip-1"}
+    const params = {revisionId: REVISION_ID, source, initialMessage: "Set up this agent."}
+    loadAgentTemplateMock.mockRejectedValueOnce(new Error("response lost"))
+    await expect(store.set(loadAgentTemplateFromEphemeralAtom, params)).rejects.toThrow()
+    loadAgentTemplateMock.mockRejectedValueOnce(new Error("response lost"))
+    await expect(store.set(loadAgentTemplateFromEphemeralAtom, params)).rejects.toThrow()
+    const [first, retry] = loadAgentTemplateMock.mock.calls
+    expect(retry[1]).toBe(first[1])
+
+    abandonAgentTemplateLoad("project-1", agentTemplateSourceKey(source))
+    await store.set(loadAgentTemplateFromEphemeralAtom, params)
+    expect(loadAgentTemplateMock.mock.calls[2][1]).not.toBe(first[1])
 })

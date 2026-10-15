@@ -242,6 +242,10 @@ export const agentTemplateSeed = (
     seedMessage: templateBuilderMessage(template),
 })
 
+/** The default first message for an agent loaded from an uploaded or GitHub package. */
+export const IMPORTED_TEMPLATE_MESSAGE =
+    "Set up this agent from its template. Walk me through anything it still needs before it runs."
+
 /**
  * The one chat message Save as template sends; the create-template skill handles it. Shared so
  * the desktop playground and mobile send the same request; only its delivery is per-app.

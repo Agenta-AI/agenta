@@ -46,7 +46,8 @@ export interface CreateAgentParams {
 
 export interface UseCreateAgentOptions {
     /** Surface the failure however the host does (antd message, a toast, an inline error). */
-    onError?: (message: string) => void
+    /** `error` is the raw failure, for hosts that read its status or code. */
+    onError?: (message: string, error?: unknown) => void
 }
 
 /**
@@ -147,7 +148,7 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
                     createdById: result.workflow?.created_by_id ?? null,
                 }
             } catch (error) {
-                onError?.(extractApiErrorMessage(error))
+                onError?.(extractApiErrorMessage(error), error)
                 return null
             } finally {
                 creating = false

@@ -1,8 +1,10 @@
 import {useState} from "react"
 
 import {NewAgentButton, type NewAgentButtonProps} from "@agenta/home-ui"
+import {useSetAtom} from "jotai"
 
 import {AgentTemplateImportDrawer} from "./AgentTemplateImportDrawer"
+import {openImportTemplateAtom} from "./importTemplateRequest"
 import type {useNewAgentAction} from "./useNewAgentAction"
 
 /**
@@ -22,6 +24,7 @@ export const NewAgentAction = ({
     align?: "end" | "stretch"
 } & Pick<NewAgentButtonProps, "variant" | "size" | "className">) => {
     const [importOpen, setImportOpen] = useState(false)
+    const openImportTemplate = useSetAtom(openImportTemplateAtom)
     return (
         <span
             className={`flex flex-col gap-1 ${align === "end" ? "shrink-0 items-end" : "items-stretch"}`}
@@ -30,7 +33,7 @@ export const NewAgentAction = ({
                 {...button}
                 loading={newAgent.creating}
                 onCreateBlank={newAgent.create}
-                onUpload={(file) => void newAgent.createFromUpload(file)}
+                onUpload={(file) => openImportTemplate({kind: "upload", file})}
                 onImport={() => setImportOpen(true)}
                 browseHref={`${base}/templates`}
             />

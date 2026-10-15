@@ -62,7 +62,7 @@ Proposed focused modules: `core/agent_templates/archive.py` for bounded extracti
 - [ ] Keep connections as recipient requirements and schedules inactive. Stay within the parser's supported single-agent package shape.
 - [ ] Test basic, integration/skills and company-specific agents, including general versus team-specific exports. Load each accepted zip and compare intended transferable configuration.
 - [ ] Write UI tests that the action submits exactly one visible chat message, preserves an unsent draft, and prevents double-click duplication. Settle exact placement with Mahmoud; do not add a direct exporter behind the button.
-- [ ] Implement through existing chat submission. Add upload/session-file selection to the existing creation flow without a mandatory preview. Test selection, invalid-source errors and recovery.
+- [x] Implement through existing chat submission. Add upload/session-file selection to the existing creation flow without a mandatory preview. Test selection, invalid-source errors and recovery.
 - [ ] Run one smaller tool-capable model and one reference model on the fixtures. Record repair attempts, final validity and setup usefulness. Fix failures, add regression fixtures and rerun; basic/integration cases must pass the smaller-model gate.
 
 ## Task 5: Commit-pinned GitHub import

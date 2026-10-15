@@ -41,7 +41,7 @@ export const NewAgentButton = ({
         options.push({
             kind: "upload",
             title: "Upload",
-            hint: "An agent template .zip",
+            hint: "Start from a template someone shared",
             accept: ".zip,application/zip",
             onFiles: (files) => onUpload(files[0]),
         })

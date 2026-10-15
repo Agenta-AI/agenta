@@ -26,12 +26,14 @@ import {
     ArrowSquareOut,
     Copy,
     DownloadSimple,
+    FileZip,
     FolderOpen,
     PencilSimple,
     Trash,
 } from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
+import {useCreateAgentFromTemplate} from "./driveSessionContext"
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
 /** An item's write verbs; rename is file-only (no backend move endpoint). */
@@ -128,6 +130,7 @@ export const DriveItemContextMenu = ({
 }) => {
     // The tiles/rows are themselves click targets — keep a menu click from also selecting them.
     const stop = (event: {stopPropagation: () => void}) => event.stopPropagation()
+    const createAgent = useCreateAgentFromTemplate(path, isFolder)
 
     return (
         <ContextMenu>
@@ -147,6 +150,12 @@ export const DriveItemContextMenu = ({
                     <ContextMenuItem onSelect={() => onDownload(path, isFolder)}>
                         <DownloadSimple size={14} />
                         {isFolder ? "Download as zip" : "Download"}
+                    </ContextMenuItem>
+                ) : null}
+                {createAgent ? (
+                    <ContextMenuItem onSelect={createAgent}>
+                        <FileZip size={14} />
+                        Create agent from template
                     </ContextMenuItem>
                 ) : null}
                 {writes ? (

@@ -134,3 +134,96 @@ export async function validateAgentTemplate(
         "[validateAgentTemplate]",
     )
 }
+
+/** A failed validate or load call, read from the template error envelope or FastAPI's 422. */
+export interface AgentTemplateRequestError {
+    /** Null when no response arrived, so the outcome is unknown. */
+    status: number | null
+    code: string
+    message: string
+    nextStep: string | null
+    retryable: boolean
+    /** `details.reason`, e.g. `template_source_digest_mismatch`. */
+    reason: string | null
+    /** The source field a request validation failure names, e.g. `commit`. */
+    field: string | null
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value)
+
+const text = (value: unknown): string | null =>
+    typeof value === "string" && value.trim() ? value.trim() : null
+
+const responseOf = (error: unknown): {status: number | null; body: unknown} => {
+    if (!isRecord(error)) return {status: null, body: undefined}
+    // Fern errors carry statusCode/body; axios errors carry response.status/data.
+    if (typeof error.statusCode === "number") return {status: error.statusCode, body: error.body}
+    const response = error.response
+    if (isRecord(response) && typeof response.status === "number")
+        return {status: response.status, body: response.data}
+    return {status: null, body: undefined}
+}
+
+export const parseAgentTemplateError = (error: unknown): AgentTemplateRequestError => {
+    const {status, body} = responseOf(error)
+    if (status === null) {
+        return {
+            status: null,
+            code: "network_error",
+            message: "Couldn't reach Agenta. Check your connection, then try again.",
+            nextStep: null,
+            retryable: true,
+            reason: null,
+            field: null,
+        }
+    }
+    const envelope = isRecord(body) && isRecord(body.detail) ? body.detail : body
+    if (isRecord(envelope) && typeof envelope.code === "string") {
+        const details = isRecord(envelope.details) ? envelope.details : {}
+        return {
+            status,
+            code: envelope.code,
+            message: text(envelope.message) ?? "The request failed.",
+            nextStep: text(envelope.next_step),
+            retryable: envelope.retryable === true,
+            reason: text(details.reason),
+            field: text(details.field),
+        }
+    }
+    const first = isRecord(body) && Array.isArray(body.detail) ? body.detail[0] : undefined
+    if (isRecord(first)) {
+        const loc = Array.isArray(first.loc) ? first.loc : []
+        const last = loc[loc.length - 1]
+        return {
+            status,
+            code: "invalid_request",
+            message: (text(first.msg) ?? "The request is invalid.").replace(/^Value error, /, ""),
+            nextStep: null,
+            retryable: false,
+            reason: null,
+            field: typeof last === "string" ? last : null,
+        }
+    }
+    return {
+        status,
+        code: "request_failed",
+        message: status >= 500 ? "Agenta couldn't finish the request." : "The request failed.",
+        nextStep: null,
+        retryable: status >= 500,
+        reason: null,
+        field: null,
+    }
+}
+
+/** What a failed load lets the user do next; only `retry` keeps the Idempotency-Key. */
+export type AgentTemplateLoadRecovery = "retry" | "start_over" | "check_again" | "edit_source"
+
+export const agentTemplateLoadRecovery = (
+    error: AgentTemplateRequestError,
+): AgentTemplateLoadRecovery => {
+    if (error.reason === "template_source_digest_mismatch") return "check_again"
+    if (error.status === 409) return "start_over"
+    if (error.retryable || error.status === null || error.status >= 500) return "retry"
+    return "edit_source"
+}

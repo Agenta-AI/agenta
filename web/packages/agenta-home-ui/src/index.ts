@@ -36,3 +36,6 @@ export {
     type HomeComposerTemplate,
     type HomeTaskComposerProps,
 } from "./HomeTaskComposer"
+export {ImportTemplateDialog, type ImportTemplateDialogProps} from "./ImportTemplateDialog"
+export {pickTemplateZip} from "./pickTemplateZip"
+export {type TemplateImportStart} from "./useTemplateImport"

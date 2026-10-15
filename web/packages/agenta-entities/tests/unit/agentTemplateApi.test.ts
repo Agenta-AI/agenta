@@ -13,7 +13,9 @@ vi.mock("@agenta/shared/api", () => ({
 }))
 
 import {
+    agentTemplateLoadRecovery,
     loadAgentTemplate,
+    parseAgentTemplateError,
     validateAgentTemplate,
     type AgentTemplateSource,
 } from "../../src/workflow/api/agentTemplates"
@@ -133,5 +135,89 @@ describe("validateAgentTemplate", () => {
     it("sends nothing without a project", async () => {
         expect(await validateAgentTemplate(source, "")).toBeNull()
         expect(axiosPostMock).not.toHaveBeenCalled()
+    })
+})
+
+describe("parseAgentTemplateError", () => {
+    it("reads the template envelope from a Fern error", () => {
+        const error = parseAgentTemplateError({
+            statusCode: 503,
+            body: {
+                code: "template_load_incomplete",
+                message: "The template workspace could not be stored.",
+                retryable: true,
+                details: {},
+                next_step: "Retry with the same Idempotency-Key; do not submit a new request.",
+            },
+        })
+        expect(error).toEqual({
+            status: 503,
+            code: "template_load_incomplete",
+            message: "The template workspace could not be stored.",
+            nextStep: "Retry with the same Idempotency-Key; do not submit a new request.",
+            retryable: true,
+            reason: null,
+            field: null,
+        })
+        expect(agentTemplateLoadRecovery(error)).toBe("retry")
+    })
+
+    it("reads the reason of a stale session file from an axios error", () => {
+        const error = parseAgentTemplateError({
+            response: {
+                status: 422,
+                data: {
+                    code: "template_package_invalid",
+                    message: "The template source changed.",
+                    retryable: false,
+                    details: {reason: "template_source_digest_mismatch"},
+                },
+            },
+        })
+        expect(error.reason).toBe("template_source_digest_mismatch")
+        expect(agentTemplateLoadRecovery(error)).toBe("check_again")
+    })
+
+    it("names the field of a FastAPI request validation failure", () => {
+        const error = parseAgentTemplateError({
+            statusCode: 422,
+            body: {
+                detail: [
+                    {
+                        loc: ["body", "source", "github", "commit"],
+                        msg: "Value error, commit 'main' is not a commit SHA.",
+                        type: "value_error",
+                    },
+                ],
+            },
+        })
+        expect(error).toMatchObject({
+            code: "invalid_request",
+            field: "commit",
+            message: "commit 'main' is not a commit SHA.",
+        })
+        expect(agentTemplateLoadRecovery(error)).toBe("edit_source")
+    })
+
+    it("treats a lost response as unknown and retryable", () => {
+        const error = parseAgentTemplateError(new TypeError("Failed to fetch"))
+        expect(error.status).toBeNull()
+        expect(agentTemplateLoadRecovery(error)).toBe("retry")
+    })
+
+    it("asks for a new key when the old one belongs to another request", () => {
+        const error = parseAgentTemplateError({
+            statusCode: 409,
+            body: {code: "template_load_conflict", message: "Conflict.", retryable: false},
+        })
+        expect(agentTemplateLoadRecovery(error)).toBe("start_over")
+    })
+
+    it("sends a missing source back to the source fields", () => {
+        const error = parseAgentTemplateError({
+            statusCode: 404,
+            body: {code: "template_source_unavailable", message: "Not found.", retryable: false},
+        })
+        expect(agentTemplateLoadRecovery(error)).toBe("edit_source")
     })
 })
