@@ -18,8 +18,8 @@
 <a href="https://youtu.be/7Wfvtv428Fs?si=bTBUoS9JJC2Crkxs">
   <img
     width="900"
-    alt="Watch the Agenta platform demo"
-    src="https://github.com/user-attachments/assets/b7d7ff89-2653-4883-9141-fe400d42d5ef"
+    alt="Watch the 2-minute Agenta product tour"
+    src="./.github/images/readme/agenta-product-tour.png"
   />
 </a>
 
@@ -98,6 +98,32 @@ You build agents by chatting with them. You describe the work, connect the apps 
 You can work with your agents in the web app, or talk to them where you already are: **Slack**, **Telegram** or **WhatsApp Business**.
 
 For recurring work, you can create automations. Your agents run on a schedule or when an event occurs in a connected app, and you can see what every run did.
+
+## Tutorials
+
+Step-by-step videos. Each one builds a real agent from scratch, by chatting.
+
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <a href="https://youtu.be/TFsEXgdNowY"><img src="./.github/images/readme/tutorial-first-ai-coworker.png" alt="Tutorial: build your first AI coworker" width="100%"></a>
+      <br><b><a href="https://youtu.be/TFsEXgdNowY">Build your first AI coworker</a></b> · 10 min
+      <br>Connect your tools, give the agent a role, save a skill, and automate sales-call prep.
+    </td>
+    <td width="33%" valign="top">
+      <a href="https://youtu.be/c3iVw0MBZTE"><img src="./.github/images/readme/tutorial-competitor-tracker.png" alt="Tutorial: build an agent that tracks your competitors" width="100%"></a>
+      <br><b><a href="https://youtu.be/c3iVw0MBZTE">Track your competitors while you sleep</a></b> · 7 min
+      <br>Give an agent web search, schedule it for every Monday, and get the digest in Gmail.
+    </td>
+    <td width="33%" valign="top">
+      <a href="https://youtu.be/hk8TMNTCZvU"><img src="./.github/images/readme/tutorial-inbound-outreach.png" alt="Tutorial: build an inbound outreach agent without code" width="100%"></a>
+      <br><b><a href="https://youtu.be/hk8TMNTCZvU">Build an inbound outreach agent with no code</a></b> · 17 min
+      <br>Research every new lead, qualify it, and send a personalized reply.
+    </td>
+  </tr>
+</table>
+
+More tutorials on our [YouTube channel](https://www.youtube.com/@agentaAI).
 
 ## Why use Agenta?
 
