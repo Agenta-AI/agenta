@@ -2,12 +2,13 @@ from datetime import datetime, timezone
 from mimetypes import guess_type
 from posixpath import basename
 from stat import S_IFREG
-from typing import List, Optional
+from typing import Any, Callable, Coroutine, List, Optional
 from urllib.parse import quote
 from uuid import UUID
 
-from fastapi import Response, UploadFile
+from fastapi import HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
+from fastapi.routing import APIRoute
 from stream_zip import ZIP_AUTO, async_stream_zip
 
 from oss.src.core.mounts.dtos import (
@@ -17,6 +18,7 @@ from oss.src.core.mounts.dtos import (
     MountQuery,
 )
 from oss.src.core.mounts.service import MountsService
+from oss.src.utils.env import env
 
 # Regular-file mode for archive members (owner rw, group/other r).
 _ARCHIVE_FILE_MODE = S_IFREG | 0o644
@@ -47,6 +49,78 @@ BINARY_RESPONSE = {
         }
     }
 }
+
+
+# Room for the multipart boundaries and part headers around the file itself.
+_UPLOAD_MULTIPART_OVERHEAD_BYTES = 64 * 1024
+
+
+def _upload_too_large() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+        detail=f"The upload exceeds the {env.mounts.max_upload_bytes}-byte limit.",
+    )
+
+
+def check_upload_size(size: int) -> None:
+    """Refuse file bytes over `AGENTA_MOUNTS_MAX_UPLOAD_BYTES`.
+
+    The route class allows room for multipart framing, so it lets a file slightly over the
+    limit through. This check applies the exact limit to the file itself.
+    """
+    if size > env.mounts.max_upload_bytes:
+        raise _upload_too_large()
+
+
+def _size_capped_request(request: Request) -> Request:
+    """Return `request` with its body capped at `AGENTA_MOUNTS_MAX_UPLOAD_BYTES`.
+
+    A declared Content-Length over the cap is refused before any byte is read. A request without
+    Content-Length is counted as it arrives and refused once it passes the cap.
+    """
+    max_body_bytes = env.mounts.max_upload_bytes + _UPLOAD_MULTIPART_OVERHEAD_BYTES
+
+    content_length = request.headers.get("content-length")
+    if content_length is not None:
+        try:
+            declared = int(content_length)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Content-Length must be an integer.",
+            ) from error
+        if declared > max_body_bytes:
+            raise _upload_too_large()
+
+    receive = request.receive
+    received = 0
+
+    async def capped_receive():
+        nonlocal received
+        message = await receive()
+        if message["type"] == "http.request":
+            received += len(message.get("body", b""))
+            if received > max_body_bytes:
+                raise _upload_too_large()
+        return message
+
+    return Request(request.scope, capped_receive)
+
+
+class SizeCappedUploadRoute(APIRoute):
+    """A route whose request body is capped before FastAPI reads it.
+
+    FastAPI parses a `File(...)` parameter before the handler runs, so a check inside the
+    handler comes after the whole body is read. Use this for every route that takes a file body.
+    """
+
+    def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
+        handler = super().get_route_handler()
+
+        async def capped_handler(request: Request) -> Response:
+            return await handler(_size_capped_request(request))
+
+        return capped_handler
 
 
 def _content_disposition_attachment(filename: str) -> str:
@@ -89,6 +163,7 @@ async def upload_mount_file(
         dest = f"{dest}{file.filename}"
 
     content = await file.read()
+    check_upload_size(len(content))
     return await mounts_service.write_file(
         project_id=project_id,
         mount_id=mount_id,
