@@ -57,10 +57,13 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test/api"}))
 
+// The hook's only setter is the endpoint list refresh.
+const refreshEndpoints = vi.hoisted(() => vi.fn(async () => undefined))
+
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
     useAtomValue: () => "project-1",
-    useSetAtom: () => async () => undefined,
+    useSetAtom: () => refreshEndpoints,
 }))
 
 type Journey = ReturnType<typeof useMcpConnectJourney>
@@ -679,6 +682,18 @@ describe("the server-side consent attempt", () => {
 
         expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1", "oauth")
         expect(cancelMcpConnectAttempt).toHaveBeenCalledWith("mcp-1", "attempt-1", "project-1")
+    })
+
+    it("refreshes the list after a refused delete, so the kept row shows without a reload", async () => {
+        await reachConsent(fakePopup())
+        refreshEndpoints.mockClear()
+        deleteMcpEndpoint.mockRejectedValueOnce({response: {status: 409}})
+
+        await act(async () => {
+            await journey.cancel()
+        })
+
+        expect(refreshEndpoints).toHaveBeenCalledTimes(1)
     })
 
     it("cancels its own attempt before it asks to delete the pending row", async () => {
