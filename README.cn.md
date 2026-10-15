@@ -15,8 +15,8 @@
 <a href="https://youtu.be/7Wfvtv428Fs?si=bTBUoS9JJC2Crkxs">
   <img
     width="900"
-    alt="观看 Agenta 平台演示"
-    src="https://github.com/user-attachments/assets/b7d7ff89-2653-4883-9141-fe400d42d5ef"
+    alt="观看 2 分钟 Agenta 产品导览"
+    src="./.github/images/readme/agenta-product-tour.png"
   />
 </a>
 
@@ -168,6 +168,27 @@ Agenta 从第一天起就为专业工作场景而设计。这意味着：
 ```
 
 更多细节请阅读[自托管文档](https://agenta.ai/docs/self-host/quick-start?utm_source=github&utm_medium=referral&utm_campaign=readme)。
+
+## 教程
+
+分步视频教程。每个视频都通过对话，从零开始构建一个真实的智能体。
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="https://youtu.be/TFsEXgdNowY"><img src="./.github/images/readme/tutorial-first-ai-coworker.png" alt="教程：构建你的第一个 AI 同事" width="100%"></a>
+      <br><b><a href="https://youtu.be/TFsEXgdNowY">构建你的第一个 AI 同事</a></b> · 10 分钟
+      <br>连接工具，为智能体设定角色，保存技能，并自动完成销售电话准备。
+    </td>
+    <td width="50%" valign="top">
+      <a href="https://youtu.be/c3iVw0MBZTE"><img src="./.github/images/readme/tutorial-competitor-tracker.png" alt="教程：构建一个追踪竞争对手的智能体" width="100%"></a>
+      <br><b><a href="https://youtu.be/c3iVw0MBZTE">在你睡觉时追踪竞争对手</a></b> · 7 分钟
+      <br>为智能体添加网页搜索，设置每周一运行，并通过 Gmail 收到摘要。
+    </td>
+  </tr>
+</table>
+
+更多教程请访问我们的 [YouTube 频道](https://www.youtube.com/@agentaAI)。
 
 ## Agenta 有何不同
 
