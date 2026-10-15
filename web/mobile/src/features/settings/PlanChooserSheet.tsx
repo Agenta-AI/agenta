@@ -58,6 +58,7 @@ export const PlanChooserSheet = ({
                 const checkoutUrl = await checkoutBillingSubscription({
                     plan: plan.plan,
                     successUrl: `${window.location.origin}${window.location.pathname}?tab=billing`,
+                    projectId,
                 })
                 if (checkoutUrl) window.open(checkoutUrl, "_blank")
             } else {
