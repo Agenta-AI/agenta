@@ -102,6 +102,7 @@ class InMemoryMCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
             and record.endpoint_id == endpoint_id
             and record.status
             in (MCPOAuthAttemptStatus.PENDING, MCPOAuthAttemptStatus.CLAIMED)
+            and record.expires_at > datetime.now(timezone.utc)
             for record in self.attempts.values()
         )
 

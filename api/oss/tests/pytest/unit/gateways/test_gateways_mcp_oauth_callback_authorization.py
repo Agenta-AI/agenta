@@ -22,6 +22,7 @@ from fastapi.testclient import TestClient
 
 from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
 from oss.src.core.gateways.dtos import GatewayAuthScheme
+from oss.src.core.gateways.mcps.types import MCPConnectionBusyError
 from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
     MCPEndpointData,
@@ -296,3 +297,27 @@ def test_of_a_success_and_an_error_for_one_attempt_exactly_one_wins(monkeypatch,
     else:
         assert outcome == "connected"
         assert len(_grants(dao, project_id=project_id)) == 1
+
+
+def test_a_callback_that_cannot_take_the_connection_lock_reports_failed(monkeypatch):
+    """A lock timeout after the exchange must not leave the attempt claimed, or the
+    sheet waits out the expiry and a pending delete sees a sign-in in flight."""
+    client, handle, store, dao, project_id, start, _permitted = _start_consent(
+        monkeypatch
+    )
+
+    @asynccontextmanager
+    async def _busy(*, project_id, endpoint_id):
+        raise MCPConnectionBusyError()
+        yield  # pragma: no cover
+
+    store.oauth_lock = _busy
+
+    response = client.get(
+        "/connect/callback", params={"code": "auth-code-1", "state": handle}
+    )
+
+    assert response.status_code == 400
+    assert _outcome(client, store, start)["status"] == "failed"
+    assert _grants(dao, project_id=project_id) == []
+    assert store.endpoint.secret_id is None

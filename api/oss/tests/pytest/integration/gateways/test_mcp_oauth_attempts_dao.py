@@ -408,3 +408,39 @@ async def test_only_a_pending_or_claimed_attempt_counts_as_active(
     finally:
         await _cleanup(seeded_project["project_id"])
         await _cleanup(other_project["project_id"])
+
+
+@pytest.mark.asyncio
+async def test_an_expired_attempt_does_not_count_as_active(seeded_project):
+    """An abandoned sign-in stays pending past its expiry until the sweep runs. It must
+    not keep a cancelled connect's pending row alive in the meantime."""
+    dao = MCPOAuthAttemptsDAO()
+    endpoint_id = uuid4()
+
+    try:
+        pending = await dao.create_attempt(
+            attempt=_attempt(
+                project_id=seeded_project["project_id"],
+                user_id=seeded_project["user_id"],
+                endpoint_id=endpoint_id,
+                expires_in_seconds=-1,
+            )
+        )
+        claimed = await dao.create_attempt(
+            attempt=_attempt(
+                project_id=seeded_project["project_id"],
+                user_id=seeded_project["user_id"],
+                endpoint_id=endpoint_id,
+                expires_in_seconds=-1,
+            )
+        )
+        await dao.consume_attempt(state=claimed.state)
+
+        assert (await dao.fetch_attempt(state=pending.state)).status == (
+            MCPOAuthAttemptStatus.PENDING
+        )
+        assert not await dao.has_active_attempts(
+            project_id=seeded_project["project_id"], endpoint_id=endpoint_id
+        )
+    finally:
+        await _cleanup(seeded_project["project_id"])

@@ -460,50 +460,62 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             )
             raise
 
-        async with self.endpoints_dao.oauth_lock(
-            project_id=attempt.project_id, endpoint_id=attempt.endpoint_id
-        ):
-            current = await self.attempts_dao.fetch_attempt_by_id(
-                project_id=attempt.project_id,
-                endpoint_id=attempt.endpoint_id,
-                attempt_id=attempt.id,
-            )
-            endpoint = await self.endpoints_dao.fetch_endpoint(
+        try:
+            async with self.endpoints_dao.oauth_lock(
                 project_id=attempt.project_id, endpoint_id=attempt.endpoint_id
-            )
-            if (
-                current is None
-                or current.status != MCPOAuthAttemptStatus.CLAIMED
-                or _expired(current)
-                or not is_oauth_connection_for(
-                    endpoint, attempt.server_url, attempt.client_id
-                )
             ):
-                await self.settle(
-                    attempt=attempt, status=MCPOAuthAttemptStatus.CANCELLED
+                current = await self.attempts_dao.fetch_attempt_by_id(
+                    project_id=attempt.project_id,
+                    endpoint_id=attempt.endpoint_id,
+                    attempt_id=attempt.id,
                 )
-                raise MCPOAuthAttemptCancelledError()
-            # `storage` carries the attempt's issuer, so the grant is written pinned to
-            # the authorization server that actually issued it. `refresh_grant` requires
-            # that pin to still hold before it presents the refresh token anywhere.
-            grant = await storage.write_tokens(tokens, client_id=client_id)
-            bound = await self.endpoints_dao.bind_endpoint_secret(
-                project_id=attempt.project_id,
-                user_id=attempt.user_id,
-                endpoint_id=attempt.endpoint_id,
-                secret_id=grant.id,
+                endpoint = await self.endpoints_dao.fetch_endpoint(
+                    project_id=attempt.project_id, endpoint_id=attempt.endpoint_id
+                )
+                if (
+                    current is None
+                    or current.status != MCPOAuthAttemptStatus.CLAIMED
+                    or _expired(current)
+                    or not is_oauth_connection_for(
+                        endpoint, attempt.server_url, attempt.client_id
+                    )
+                ):
+                    await self.settle(
+                        attempt=attempt, status=MCPOAuthAttemptStatus.CANCELLED
+                    )
+                    raise MCPOAuthAttemptCancelledError()
+                # `storage` carries the attempt's issuer, so the grant is written pinned to
+                # the authorization server that actually issued it. `refresh_grant` requires
+                # that pin to still hold before it presents the refresh token anywhere.
+                grant = await storage.write_tokens(tokens, client_id=client_id)
+                bound = await self.endpoints_dao.bind_endpoint_secret(
+                    project_id=attempt.project_id,
+                    user_id=attempt.user_id,
+                    endpoint_id=attempt.endpoint_id,
+                    secret_id=grant.id,
+                )
+                if bound is None:
+                    # A grant no connection names is a live token nothing can use or revoke.
+                    await storage.delete_grant()
+                    failure = MCPOAuthBindFailedError()
+                    await self.settle(
+                        attempt=attempt,
+                        status=MCPOAuthAttemptStatus.FAILED,
+                        error=failure.message,
+                    )
+                    raise failure
+                await self.settle(
+                    attempt=attempt, status=MCPOAuthAttemptStatus.CONNECTED
+                )
+        except GatewaysError as e:
+            # A lock timeout or a failed write leaves the attempt claimed, so the sheet
+            # would wait out the expiry and a pending delete would see a sign-in in
+            # flight. `settle` changes only a claimed attempt, so this does nothing when
+            # the block above already settled it.
+            await self.settle(
+                attempt=attempt, status=MCPOAuthAttemptStatus.FAILED, error=e.message
             )
-            if bound is None:
-                # A grant no connection names is a live token nothing can use or revoke.
-                await storage.delete_grant()
-                failure = MCPOAuthBindFailedError()
-                await self.settle(
-                    attempt=attempt,
-                    status=MCPOAuthAttemptStatus.FAILED,
-                    error=failure.message,
-                )
-                raise failure
-            await self.settle(attempt=attempt, status=MCPOAuthAttemptStatus.CONNECTED)
+            raise
 
         return MCPOAuthCompletion(
             project_id=attempt.project_id,

@@ -240,6 +240,9 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
                         ]
                     )
                 )
+                # An expired attempt is over everywhere else (`outcome()` reports it
+                # cancelled, `complete()` refuses it), even before the sweep removes it.
+                .where(self.MCPOAuthAttemptDBE.expires_at > datetime.now(timezone.utc))
                 .limit(1)
             )
 
