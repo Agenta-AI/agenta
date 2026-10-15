@@ -2,13 +2,13 @@ from contextlib import asynccontextmanager
 import asyncio
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 from uuid import UUID
 
 import agenta as ag
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-
 from supertokens_python import get_all_cors_headers as get_all_supertokens_cors_headers
 from supertokens_python.framework.fastapi import (
     get_middleware as get_supertokens_middleware,
@@ -636,16 +636,42 @@ app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 
 app.add_middleware(get_supertokens_middleware())
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+
+def _cors_origins(web_url: str) -> list[str]:
+    origins = [
         "http://localhost:3000",
         "http://localhost:3001",
         "http://0.0.0.0:3000",
         "http://0.0.0.0:3001",
         "https://docs.agenta.ai",
         "https://agenta.ai",
-    ],
+    ]
+
+    parsed_web_url = urlsplit(web_url)
+    scheme = parsed_web_url.scheme.lower()
+    host = parsed_web_url.hostname
+    if scheme in ("http", "https") and host:
+        if ":" in host:
+            host = f"[{host}]"
+        try:
+            port = parsed_web_url.port
+        except ValueError:
+            port = None
+        default_port = 443 if scheme == "https" else 80
+        web_origin = f"{scheme}://{host}"
+        if port and port != default_port:
+            web_origin = f"{web_origin}:{port}"
+        if web_origin not in origins:
+            origins.append(web_origin)
+
+    return origins
+
+
+cors_origins = _cors_origins(env.agenta.web_url)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
     allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
