@@ -111,6 +111,20 @@ export const pop: Variants = {
     animate: {scale: [0.6, 1.06, 1], opacity: 1, transition: {duration: 0.3, ease: "easeOut"}},
 }
 
+/** A digit flipping up into place out of a blur. `custom` is its stagger delay in seconds. */
+export const digitPop: Variants = {
+    initial: {y: "55%", opacity: 0, filter: "blur(4px)"},
+    animate: (delay = 0) => ({
+        y: 0,
+        opacity: 1,
+        filter: "blur(0px)",
+        transition: {duration: 0.42, ease: settleEase, delay},
+    }),
+}
+
+/** Seconds between neighbouring digits of a number popping in. */
+export const digitStaggerS = 0.035
+
 /** A card following the pointer: near-instant, so the tilt tracks the hand. */
 export const tiltFollow: Transition = {duration: 0.1, ease: "linear"}
 
@@ -172,6 +186,9 @@ export interface MotionPresets {
     fadeUp: Variants
     expand: Variants
     pop: Variants
+    digitPop: Variants
+    /** 0 when reduced: every digit lands at once. */
+    digitStaggerS: number
     stepTransition: Transition
     tiltFollow: Transition
     tiltSettle: Transition
@@ -221,6 +238,8 @@ export function useMotionPresets(): MotionPresets {
                       fadeUp: instant,
                       expand: instant,
                       pop: instant,
+                      digitPop: instant,
+                      digitStaggerS: 0,
                       stepTransition: instantTransition,
                       tiltFollow: instantTransition,
                       tiltSettle: instantTransition,
@@ -249,6 +268,8 @@ export function useMotionPresets(): MotionPresets {
                       fadeUp,
                       expand,
                       pop,
+                      digitPop,
+                      digitStaggerS,
                       stepTransition,
                       tiltFollow,
                       tiltSettle,

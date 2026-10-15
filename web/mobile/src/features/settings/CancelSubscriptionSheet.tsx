@@ -6,6 +6,7 @@ import {
     CANCEL_REASON_OTHER,
 } from "@agenta/settings-ui"
 import {
+    Alert,
     AlertDialog,
     AlertDialogAction,
     AlertDialogCancel,
@@ -61,6 +62,7 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
                         Your plan stays active until the end of the current period.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
+                {error ? <Alert type="error" showIcon message={error} /> : null}
                 <div>
                     <CancelSubscriptionReasons
                         value={reason}
@@ -68,7 +70,6 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
                         otherReason={otherReason}
                         onOtherReasonChange={setOtherReason}
                     />
-                    {error ? <p className="m-0 pt-2 text-sm text-colorError">{error}</p> : null}
                 </div>
                 <AlertDialogFooter>
                     <AlertDialogCancel asChild>

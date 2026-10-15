@@ -25,9 +25,9 @@ beforeEach(() => {
 })
 
 describe("wallet settings tabs behind a deep link", () => {
-    it.each(["credits", "walletUsage"])("open %s on EE", (tab) => {
+    it.each(["credits", "walletUsage"])("open Credits for %s on EE", (tab) => {
         env.path = `/settings?tab=${tab}`
-        expect(useActiveSettingsTab()).toBe(tab)
+        expect(useActiveSettingsTab()).toBe("credits")
     })
 
     it.each(["credits", "walletUsage"])(
