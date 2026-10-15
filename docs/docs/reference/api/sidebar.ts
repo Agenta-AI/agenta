@@ -538,6 +538,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/scan-agent-template-source",
+          label: "Scan Template Source",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/load-agent-template",
           label: "Load Template",
           className: "api-method post",
@@ -3036,13 +3042,13 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method put",
+          className: "api-method post",
         },
         {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method post",
+          className: "api-method put",
         },
         {
           type: "doc",
