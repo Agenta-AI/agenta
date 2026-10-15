@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from mimetypes import guess_type
 from posixpath import basename
@@ -77,17 +78,27 @@ def check_upload_size(size: int) -> None:
 # the 413 (seen with Chrome behind the GKE load balancer). Reading the rest and throwing it away
 # costs bandwidth, not memory. A body declared larger than this is refused at once.
 _UPLOAD_DRAIN_LIMIT_BYTES = 1024 * 1024 * 1024
+# A client that stops sending, or sends empty chunks, must not hold the 413 back forever.
+_UPLOAD_DRAIN_TIMEOUT_SECONDS = 120.0
 
 
 async def _drain(receive: Callable[[], Coroutine[Any, Any, dict]], budget: int) -> None:
-    """Read and drop the rest of the request body, at most `budget` bytes."""
-    while budget > 0:
-        message = await receive()
-        if message["type"] != "http.request":
-            return
-        budget -= len(message.get("body", b""))
-        if not message.get("more_body", False):
-            return
+    """Read and drop the rest of the request body: at most `budget` bytes, within the timeout."""
+
+    async def read_rest() -> None:
+        remaining = budget
+        while remaining > 0:
+            message = await receive()
+            if message["type"] != "http.request":
+                return
+            remaining -= len(message.get("body", b""))
+            if not message.get("more_body", False):
+                return
+
+    try:
+        await asyncio.wait_for(read_rest(), timeout=_UPLOAD_DRAIN_TIMEOUT_SECONDS)
+    except asyncio.TimeoutError:
+        pass
 
 
 async def _size_capped_request(request: Request) -> Request:

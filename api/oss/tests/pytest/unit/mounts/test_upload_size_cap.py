@@ -8,6 +8,7 @@
 - Every route that takes a file body uses the capped route class.
 """
 
+import asyncio
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
@@ -141,6 +142,21 @@ class TestCapBeforeRead:
         assert raised.value.status_code == 413
         # The rest of the body was read and dropped before the 413.
         assert receive.await_count == total_chunks
+
+    @pytest.mark.asyncio
+    async def test_drain_stops_at_timeout(self, monkeypatch):
+        monkeypatch.setattr(mount_utils, "_UPLOAD_DRAIN_TIMEOUT_SECONDS", 0.05)
+
+        async def empty_forever():
+            await asyncio.sleep(0.001)
+            return {"type": "http.request", "body": b"", "more_body": True}
+
+        with pytest.raises(HTTPException) as raised:
+            await _size_capped_request(
+                _request({"content-length": str(_MAX_BODY + 1)}, empty_forever)
+            )
+
+        assert raised.value.status_code == 413
 
     @pytest.mark.asyncio
     async def test_body_without_length_stops_draining_at_limit(self, monkeypatch):
