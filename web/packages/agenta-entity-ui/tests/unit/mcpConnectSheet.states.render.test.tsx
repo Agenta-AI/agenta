@@ -308,6 +308,75 @@ describe("C2, the address refused", () => {
         )
         expect(text()).not.toContain("Private-network servers must be reachable")
     })
+
+    it("names the SSE transport and points at the provider's docs", async () => {
+        // #6915. The address answered, so reachability advice is wrong here too, and the
+        // probe's sentence is the headline already. No address is computed: a path rewrite
+        // was right for some providers and wrong for others.
+        await open(
+            failed(
+                "unsupported_transport",
+                "This address uses the older SSE transport, which Agenta does not support.",
+            ),
+        )
+
+        expect(text()).toContain(
+            "This address uses the older SSE transport, which Agenta does not support. Many providers serve the newer transport at an address ending in /mcp. Check the provider's docs.",
+        )
+        expect(text().match(/older SSE transport/g)).toHaveLength(1)
+        expect(text()).not.toContain("Try https://")
+        expect(text()).not.toContain("Private-network servers must be reachable")
+        expect(button("Try again")).toBeDefined()
+    })
+})
+
+describe("an address that may use the legacy SSE transport", () => {
+    const WARNING =
+        "This address may use the older SSE transport, which Agenta does not support. Many providers serve the newer transport at an address ending in /mcp. Check the provider's docs."
+
+    it("warns on the OAuth screen and still offers Connect", async () => {
+        await open(
+            state({
+                status: "naming",
+                url: "https://mcp.asana.com/sse",
+                name: "Asana",
+                probe: {...OAUTH_PROBE, legacy_transport_suspected: true},
+            }),
+        )
+
+        expect(text()).toContain("Reachable · signs in with OAuth")
+        expect(text()).toContain(WARNING)
+        expect(text()).not.toContain("Try https://")
+        expect(button("Connect")).toBeDefined()
+    })
+
+    it("warns on the key screen and still asks for the key", async () => {
+        await open(
+            state({
+                status: "naming",
+                url: "https://mcp.atlassian.com/v1/sse",
+                name: "Atlassian",
+                probe: {...KEY_PROBE, legacy_transport_suspected: true},
+            }),
+        )
+
+        expect(text()).toContain("Reachable · needs an API key")
+        expect(text()).toContain(WARNING)
+        expect(control("Project secret")).toBeTruthy()
+    })
+
+    it("says nothing where the address gives no reason to", async () => {
+        await open(
+            state({
+                status: "naming",
+                url: "https://mcp.linear.app/mcp",
+                name: "Linear",
+                probe: OAUTH_PROBE,
+            }),
+        )
+
+        expect(text()).not.toContain("older SSE transport")
+    })
 })
 
 describe("the address field's description, in both states", () => {

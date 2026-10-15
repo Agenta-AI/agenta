@@ -142,6 +142,11 @@ export interface MCPServerProbe {
     protocol_version?: string | null
     auth: MCPProbeAuth
     problem?: MCPProbeProblem | null
+    /**
+     * The address follows the legacy SSE convention, but it refused before anything proved
+     * which transport it speaks. A warning for the next screen, never a refusal.
+     */
+    legacy_transport_suspected?: boolean
 }
 
 export interface MCPEndpointProbeResponse {

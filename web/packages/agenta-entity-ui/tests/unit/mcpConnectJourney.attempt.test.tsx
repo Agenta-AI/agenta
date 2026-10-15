@@ -838,6 +838,60 @@ describe("an address that answered with something other than a handshake", () =>
     })
 })
 
+describe("an address on the legacy SSE transport", () => {
+    it("stops at the address once the probe proved the transport", async () => {
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                auth: {mode: "unknown"},
+                problem: {
+                    cause: "unsupported_transport",
+                    message:
+                        "This address uses the older SSE transport, which Agenta does not support.",
+                    response: {status: 405, body: "Method Not Allowed"},
+                },
+            },
+        })
+
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/events"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/events")
+        })
+
+        expect(journey.state.status).toBe("check_failed")
+        expect(journey.state.probe?.problem?.cause).toBe("unsupported_transport")
+        expect(createMcpEndpoint).not.toHaveBeenCalled()
+    })
+
+    it("goes on to sign in where the address only suggests it", async () => {
+        // A Streamable HTTP server may live at an /sse address. A 401 there proves nothing,
+        // so the probe warns and the journey carries on to credential entry.
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                auth: {mode: "unknown", challenge_status: 401, challenge_schemes: ["Bearer"]},
+                legacy_transport_suspected: true,
+                problem: {
+                    cause: "auth_undiscoverable",
+                    message: "The server requires authorization.",
+                },
+            },
+        })
+
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/sse"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/sse")
+        })
+
+        expect(journey.state.status).not.toBe("check_failed")
+        expect(journey.state.probe?.legacy_transport_suspected).toBe(true)
+    })
+})
+
 describe("a credential the server refused", () => {
     it("takes the row away with it, so nothing reports itself connected", async () => {
         // The row carries a secret that does not work, and the registry has no health field
