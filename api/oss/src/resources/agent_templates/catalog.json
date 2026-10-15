@@ -1211,42 +1211,6 @@
       },
       "listed": false
     },
-    "seo-content-agent": {
-      "latest": "1.0.0",
-      "versions": {"1.0.0": "packages/seo-content-agent/1.0.0"},
-      "metadata": {
-        "author_id": "mmabrouk",
-        "display_name": "SEO Content Agent",
-        "summary": "Research search opportunities and turn approved briefs into useful content.",
-        "description": "An SEO coworker with eight research, planning, writing and review skills, a clean editorial workspace, and separate brief and publish-readiness approvals.",
-        "category": "Marketing",
-        "tags": ["seo", "content", "research", "editorial"],
-        "display": {
-          "initials": "SEO",
-          "color": "#315B58",
-          "model": "gpt-5",
-          "instructions_summary": "Learn the website, investigate demand, recommend a small content plan, and develop approved briefs into reviewed drafts. Keep evidence and owner decisions with the work.",
-          "trigger": "On demand",
-          "trigger_description": "Start in chat or send a saved editorial-workspace request. No schedules are active by default.",
-          "seed_message": "Help me improve SEO for my website. Start with a small investigation and recommend a direction before we write briefs.",
-          "connection_tools": {
-            "composio-search": [{"name": "Search the web", "description": "Find public evidence, competitors and audience questions."}],
-            "context-dev": [{"name": "Read webpages", "description": "Read sources for research and factual checks."}],
-            "peec-ai-mcp": [{"name": "Review AI visibility", "description": "Inspect visibility in the recipient's own project."}],
-            "fal-ai": [{"name": "Generate images", "description": "Create requested cover assets using the recipient's brand guidance."}],
-            "google-search-console": [{"name": "Inspect search evidence", "description": "Read performance and indexing data for the recipient's property."}],
-            "browserbase-mcp": [{"name": "Inspect rendered pages", "description": "Check webpages and capture research evidence in a browser."}]
-          },
-          "example": {
-            "prompt": "Investigate my website's SEO and propose a small starting content plan.",
-            "steps": ["Read existing context and research representative pages", "Capture available demand and competitor evidence", "Recommend a focused plan and explain evidence limits", "Save the report and ask for feedback before briefing"],
-            "reply": "The first investigation is ready. It separates observed evidence from assumptions and recommends a small starting plan for your review. No articles have been drafted or published.",
-            "artifacts": ["agent-files/01-research/<date>/report.md"],
-            "status": "Awaiting direction feedback"
-          }
-        }
-      }
-    },
     "job-hunt-research": {
       "latest": "1.0.0",
       "versions": {
@@ -1300,6 +1264,87 @@
           "builder_message": "Build a job-hunt research assistant that finds matching openings, verifies them, researches the companies, and saves a dated report."
         },
         "media": []
+      }
+    },
+    "seo-content-agent": {
+      "latest": "1.0.0",
+      "versions": {
+        "1.0.0": "packages/seo-content-agent/1.0.0"
+      },
+      "metadata": {
+        "author_id": "agenta",
+        "display_name": "SEO Content Agent",
+        "summary": "Research search opportunities and turn approved briefs into useful content.",
+        "description": "An SEO coworker with eight research, planning, writing and review skills, a clean editorial workspace, and separate brief and publish-readiness approvals.",
+        "category": "Marketing",
+        "tags": [
+          "seo",
+          "content",
+          "research",
+          "editorial"
+        ],
+        "display": {
+          "initials": "SEO",
+          "color": "#315B58",
+          "model": "gpt-5",
+          "instructions_summary": "Learn the website, investigate demand, recommend a small content plan, and develop approved briefs into reviewed drafts. Keep evidence and owner decisions with the work.",
+          "trigger": "On demand",
+          "trigger_description": "Start in chat or send a saved editorial-workspace request. No schedules are active by default.",
+          "seed_message": "Build an SEO content agent that researches my website, recommends a small content plan, and drafts approved briefs.",
+          "builder_message": "Build an SEO content agent that researches my website, recommends a small content plan, and drafts approved briefs.",
+          "connection_tools": {
+            "composio-search": [
+              {
+                "name": "Search the web",
+                "description": "Find public evidence, competitors and audience questions."
+              }
+            ],
+            "context-dev": [
+              {
+                "name": "Read webpages",
+                "description": "Read sources for research and factual checks."
+              }
+            ],
+            "peec-ai-mcp": [
+              {
+                "name": "Review AI visibility",
+                "description": "Inspect visibility in the recipient's own project."
+              }
+            ],
+            "fal-ai": [
+              {
+                "name": "Generate images",
+                "description": "Create requested cover assets using the recipient's brand guidance."
+              }
+            ],
+            "google-search-console": [
+              {
+                "name": "Inspect search evidence",
+                "description": "Read performance and indexing data for the recipient's property."
+              }
+            ],
+            "browserbase-mcp": [
+              {
+                "name": "Inspect rendered pages",
+                "description": "Check webpages and capture research evidence in a browser."
+              }
+            ]
+          },
+          "example": {
+            "prompt": "Investigate my website's SEO and propose a small starting content plan.",
+            "steps": [
+              "Read existing context and research representative pages",
+              "Capture available demand and competitor evidence",
+              "Recommend a focused plan and explain evidence limits",
+              "Save the report and ask for feedback before briefing"
+            ],
+            "reply": "The first investigation is ready. It separates observed evidence from assumptions and recommends a small starting plan for your review. No articles have been drafted or published.",
+            "artifacts": [
+              "agent-files/01-research/<date>/report.md"
+            ],
+            "status": "Awaiting direction feedback"
+          }
+        }
       }
     }
   }
