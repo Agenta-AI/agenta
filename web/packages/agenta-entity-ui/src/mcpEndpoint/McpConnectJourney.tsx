@@ -75,6 +75,7 @@ import {ArrowSquareOut, CircleNotch, Plus, WarningCircle} from "@phosphor-icons/
 import {useAtomValue} from "jotai"
 
 import {CreateSecretDrawer} from "../secret"
+import {consentPopupFeatures} from "../shared/consentPopupFeatures"
 
 import {NoticeBox, ProbeResultCard, ShowResponsePanel, type ProbeResultMode} from "./components"
 
@@ -186,12 +187,10 @@ const keyRejectedAdviceFor = (scheme: string | null): string =>
     scheme ? `${headerSchemeHint(scheme)} ${KEY_REJECTED_ADVICE}` : KEY_REJECTED_ADVICE
 
 const WAITING_BODY =
-    "Finish signing in in the window that opened. This closes on its own when you're done."
+    "Finish in the window that opened. Sign in to the provider if it asks, then approve Agenta. This closes on its own when you're done."
 
 /** The existing sentence for the window between a granted consent and a refreshed list. */
 const SAVING_BODY = "Setting up the connection…"
-
-const CONSENT_POPUP_FEATURES = "width=600,height=700,popup=yes"
 
 /** The six screens the statuses render as. */
 type Screen = "url" | "url_failed" | "oauth" | "api_key" | "no_auth" | "waiting"
@@ -459,10 +458,18 @@ export function McpConnectSheet({
      * way, because it is the request and not the window that the chain below waits on.
      */
     const requestConsent = useCallback(() => {
-        consentPopupRef.current = window.open("", journey.popupName, CONSENT_POPUP_FEATURES)
+        const popup = window.open("", journey.popupName, consentPopupFeatures(window))
+        try {
+            const body = popup?.document.body
+            if (body) body.textContent = `Opening ${state.name}…`
+        } catch {
+            // A window reused from an earlier attempt can already be on the provider's
+            // origin, and reading a cross-origin document throws.
+        }
+        consentPopupRef.current = popup
         consentSteps.current = {discovery: false, scopes: false}
         setConsentRequested(true)
-    }, [journey.popupName])
+    }, [journey.popupName, state.name])
 
     // The consent popup reports back through the journey's watch, which outlives this
     // component's render; unmounting with the popup still open has to release it.

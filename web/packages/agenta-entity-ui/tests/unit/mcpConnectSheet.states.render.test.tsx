@@ -447,7 +447,7 @@ describe("C4, the provider's window", () => {
         // the press that got here.
         expect(text()).toContain("Waiting for Linear…")
         expect(text()).toContain(
-            "Finish signing in in the window that opened. This closes on its own when you're done.",
+            "Finish in the window that opened. Sign in to the provider if it asks, then approve Agenta. This closes on its own when you're done.",
         )
         expect(button("Open the window again")).toBeDefined()
         expect(button("Connect")).toBeUndefined()
