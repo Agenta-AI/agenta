@@ -113,6 +113,23 @@ describe("proposeSessionName", () => {
     );
     assert.equal(proposeSessionName({} as AgentRunRequest), undefined);
   });
+
+  it("leaves out the composer's session-drive note", () => {
+    const note =
+      "Uploaded to the session drive (too large to attach): `uploads/r.pdf` (40.0 MB)";
+    assert.equal(
+      proposeSessionName(
+        requestWith([
+          { role: "user", content: `Summarize this report\n\n${note}` },
+        ]),
+      ),
+      "Summarize this report",
+    );
+    assert.equal(
+      proposeSessionName(requestWith([{ role: "user", content: note }])),
+      undefined,
+    );
+  });
 });
 
 describe("buildWorkflowReferenceList", () => {

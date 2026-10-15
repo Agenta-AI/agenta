@@ -40,7 +40,9 @@ const hasUploadResponse = (file: StagedFile): boolean =>
 /**
  * Append one line per drive-saved row to the message text, so the agent knows where the file is.
  * A line already in the text is skipped: an edited held message comes back with its note AND its
- * rows, and a resend must not repeat the note.
+ * rows, and a resend must not repeat the note. The session title leaves these lines out; the API
+ * (`derive_session_name`) and the runner (`proposeSessionName`) match on the line's prefix, so keep
+ * the three in step.
  */
 export const withDriveFileNote = (text: string, files: StagedFile[]): string => {
     const lines = files.flatMap((file) => {
