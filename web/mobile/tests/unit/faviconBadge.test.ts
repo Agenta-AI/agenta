@@ -54,14 +54,14 @@ afterEach(() => {
 })
 
 describe("showTabRunBadge", () => {
-    it("badges each icon from its own image and puts the declared href and type back", async () => {
+    it("points every icon at one badge drawn from the tab's raster icon, then restores them", async () => {
         const declared = icons()
         showTabRunBadge("running")
         decodeAll()
         await settle()
         expect(icons().map(({href, type}) => [href, type])).toEqual([
             ["data:image/png;/m/assets/favicon.ico|blue", "image/png"],
-            ["data:image/png;/m/assets/agenta-symbol.svg|blue", "image/png"],
+            ["data:image/png;/m/assets/favicon.ico|blue", "image/png"],
         ])
         showTabRunBadge(null)
         expect(icons()).toEqual(declared)
@@ -89,13 +89,13 @@ describe("showTabRunBadge", () => {
         await settle()
         expect(icons().map(({href}) => href)).toEqual([
             "data:image/png;/m/assets/favicon.ico|green",
-            "data:image/png;/m/assets/agenta-symbol.svg|green",
+            "data:image/png;/m/assets/favicon.ico|green",
         ])
     })
 
-    it("draws each icon once per badge and reuses it on the next show", async () => {
+    it("draws once per badge and reuses it on the next show", async () => {
         showTabRunBadge("running")
-        expect(decodes).toHaveLength(2)
+        expect(decodes).toHaveLength(1)
         decodeAll()
         await settle()
         showTabRunBadge(null)
@@ -104,7 +104,7 @@ describe("showTabRunBadge", () => {
         expect(decodes).toHaveLength(0)
         expect(icons().map(({href}) => href)).toEqual([
             "data:image/png;/m/assets/favicon.ico|blue",
-            "data:image/png;/m/assets/agenta-symbol.svg|blue",
+            "data:image/png;/m/assets/favicon.ico|blue",
         ])
     })
 })

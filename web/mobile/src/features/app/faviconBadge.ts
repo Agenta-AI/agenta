@@ -21,14 +21,19 @@ interface LinkOriginal {
 
 /** The icon links as the page declared them, held only while a badge replaces them. */
 const originals = new Map<HTMLLinkElement, LinkOriginal>()
-/** Badged copies keyed by badge and source href, so each link keeps its own artwork. */
-const drawn = new Map<string, Promise<string | null>>()
+const drawn = new Map<Badge, Promise<string | null>>()
 let wanted: TabRunBadge = null
 
 const iconLinks = () => Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]'))
 
 const originalOf = (link: HTMLLinkElement): LinkOriginal =>
     originals.get(link) ?? {href: link.getAttribute("href"), type: link.getAttribute("type")}
+
+/** The icon the tab shows: the raster favicon, else whatever is declared first. */
+const sourceHref = (): string | null => {
+    const links = iconLinks().map(originalOf)
+    return (links.find((link) => link.type !== "image/svg+xml") ?? links[0])?.href ?? null
+}
 
 const restoreAttribute = (link: HTMLLinkElement, name: string, value: string | null) => {
     if (value === null) link.removeAttribute(name)
@@ -64,23 +69,12 @@ const draw = async (href: string, badge: Badge): Promise<string | null> => {
     }
 }
 
-const apply = (link: HTMLLinkElement, dataUrl: string) => {
-    if (!originals.has(link)) originals.set(link, originalOf(link))
-    link.setAttribute("type", "image/png")
-    link.setAttribute("href", dataUrl)
-}
-
-const badged = (href: string, badge: Badge): Promise<string | null> => {
-    const key = `${badge} ${href}`
-    let dataUrl = drawn.get(key)
-    if (!dataUrl) {
-        dataUrl = draw(href, badge)
-        drawn.set(key, dataUrl)
-        void dataUrl.then((url) => {
-            if (!url) drawn.delete(key)
-        })
+const apply = (dataUrl: string) => {
+    for (const link of iconLinks()) {
+        if (!originals.has(link)) originals.set(link, originalOf(link))
+        link.setAttribute("type", "image/png")
+        link.setAttribute("href", dataUrl)
     }
-    return dataUrl
 }
 
 const restore = () => {
@@ -91,18 +85,22 @@ const restore = () => {
     originals.clear()
 }
 
-/** Badge every icon link from its own image, or put the declared icons back for `null`. */
+/** Point every icon link at one badged copy of the tab's icon, or put the declared icons back. */
 export const showTabRunBadge = (badge: TabRunBadge): void => {
     wanted = badge
     if (!badge) {
         restore()
         return
     }
-    for (const link of iconLinks()) {
-        const {href} = originalOf(link)
-        if (!href) continue
-        void badged(href, badge).then((url) => {
-            if (url && wanted === badge) apply(link, url)
-        })
+    let dataUrl = drawn.get(badge)
+    if (!dataUrl) {
+        const href = sourceHref()
+        if (!href) return
+        dataUrl = draw(href, badge)
+        drawn.set(badge, dataUrl)
     }
+    void dataUrl.then((url) => {
+        if (!url) drawn.delete(badge)
+        else if (wanted === badge) apply(url)
+    })
 }
