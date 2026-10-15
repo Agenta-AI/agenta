@@ -13,9 +13,10 @@ export interface MCPOAuthData {
 // MCPCredentialBinding: where an API-key endpoint's credential travels. Configuration, not
 // the credential: the value stays in the vault behind `secret_id`.
 export interface MCPCredentialBinding {
-    kind: "header" | "query"
-    // The header name, or the query parameter name.
-    name: string
+    // `url` puts the value where `base_url` holds `{secret}`.
+    kind: "header" | "query" | "url"
+    // The header name, or the query parameter name. Null for `url`.
+    name?: string | null
     // The word in front of the value, e.g. `Bearer` or `Basic`. Null sends the bare value.
     prefix?: string | null
 }

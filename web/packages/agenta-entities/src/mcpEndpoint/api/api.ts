@@ -14,6 +14,7 @@ import {
 import {gatewayRefusalCode, gatewayRefusalMessage, gatewayRefusalStatus} from "../core/refusal"
 import type {
     MCPConnectResponse,
+    MCPCredentialBinding,
     MCPEndpointCreate,
     MCPEndpointProbeResponse,
     MCPEndpointEdit,
@@ -63,16 +64,20 @@ export const deleteMcpEndpoint = async (endpointId: string, projectId?: string):
 /**
  * Ask what a URL is, before any endpoint exists.
  *
- * Read-only: it creates nothing, and it takes no credential, because there is no endpoint
- * to carry one and a credential must never be sent to an origin nobody has chosen yet.
+ * Read-only: it creates nothing, and it takes no credential value. It can name a project
+ * secret instead, and the API reads the value from the vault and sends it the way `binding`
+ * says: an address with `{secret}` does not exist without its key, and a changed key is
+ * checked before a connection saves it. With no binding the secret fills `{secret}`.
  */
 export const probeMcpUrl = async (
     url: string,
     projectId?: string,
+    secretId?: string,
+    binding?: MCPCredentialBinding,
 ): Promise<MCPEndpointProbeResponse> => {
     const response = await axios.post(
         `${getAgentaApiUrl()}${BASE}/probe`,
-        {url},
+        secretId ? {url, secret_id: secretId, credential_binding: binding} : {url},
         {params: projectId ? {project_id: projectId} : undefined},
     )
     return response.data

@@ -325,6 +325,36 @@ describe("repairing a key-authenticated connection", () => {
         expect(journey.state.status).toBe("verify_failed")
         expect(journey.state.error).toBeTruthy()
     })
+
+    it("checks a changed key first and saves nothing when the server refuses it", async () => {
+        await mountJourney(KEY_AUTHENTICATED)
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                auth: {mode: "unknown", challenge_status: 401, scopes_offered: []},
+            },
+        })
+        await act(async () => {
+            await journey.submitManualCredential({
+                binding: {kind: "header", name: "x-api-key"},
+                secretId: "wrong",
+            })
+        })
+
+        // The key went to the server the way the relay would send it.
+        expect(probeMcpUrl).toHaveBeenLastCalledWith(
+            "https://mcp.acme.test/",
+            "project-1",
+            "wrong",
+            {kind: "header", name: "x-api-key", prefix: null},
+        )
+        // And the working connection kept what it had.
+        expect(editMcpEndpoint).not.toHaveBeenCalled()
+        expect(listMcpTools).not.toHaveBeenCalled()
+        expect(journey.state.status).toBe("verify_failed")
+        expect(journey.state.failureStatus).toBe(401)
+    })
 })
 
 describe("where a credential check that got no answer lands", () => {

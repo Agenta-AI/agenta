@@ -62,7 +62,7 @@ class MCPActionProvider(ManagedActionProviderInterface):
         # The gateway adapter scans raw bytes; this scans what they decode to.
         credentials = injected_credentials(route, auth)
         self._echo = credential_echo_scanner(
-            credentials.headers, query=credentials.query
+            credentials.headers, url_values=credentials.url_values
         )
 
     async def invoke(

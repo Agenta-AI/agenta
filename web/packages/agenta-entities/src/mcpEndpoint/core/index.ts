@@ -11,8 +11,9 @@ export {
     findCustomMcpEndpoint,
     getMcpConnectionState,
     getMcpConnectionStateLabel,
+    mcpReconnectTarget,
 } from "./connectionState"
-export type {McpConnectionState} from "./connectionState"
+export type {McpConnectionState, McpReconnectTarget} from "./connectionState"
 export {
     getMcpConnectionStatus,
     getMcpConnectionStatusLabel,
@@ -32,10 +33,16 @@ export {
 export type {McpProbeResponse} from "./probeResponse"
 export {
     basicCredentialValue,
+    credentialBindingComplete,
     credentialBindingPreview,
+    hasUrlSecretPlaceholder,
     MCP_DEFAULT_CREDENTIAL_BINDING,
+    MCP_URL_CREDENTIAL_BINDING,
+    MCP_URL_SECRET_PLACEHOLDER,
     mcpDefaultCredentialBinding,
     normalizeCredentialBinding,
+    urlMatchesCredentialBinding,
+    urlSecretProblem,
     withoutCredentialParameter,
 } from "./credentialBinding"
 export type {

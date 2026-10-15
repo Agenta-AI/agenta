@@ -36,6 +36,7 @@ import {
     queryMcpEndpoints,
 } from "../api/api"
 import {suggestConnectionName} from "../core/connectionName"
+import type {McpReconnectTarget} from "../core/connectionState"
 import {
     adoptableEndpoint,
     cancelDeletesEndpoint,
@@ -47,7 +48,11 @@ import {
 } from "../core/connectJourney"
 import {buildTrustedOrigins} from "../core/connectMessage"
 import {watchOauthConsent} from "../core/connectWatch"
-import {normalizeCredentialBinding, withoutCredentialParameter} from "../core/credentialBinding"
+import {
+    hasUrlSecretPlaceholder,
+    normalizeCredentialBinding,
+    withoutCredentialParameter,
+} from "../core/credentialBinding"
 import {
     credentialRefusalStatus,
     gatewayRefusalMessage,
@@ -63,22 +68,7 @@ export interface McpConnectJourneyOptions {
     /** Existing connections, for the name suggestion and the uniqueness check. */
     existingNames?: (string | null | undefined)[]
     /** Set when reconnecting an endpoint that already exists. */
-    reconnect?: {
-        id: string
-        slug: string
-        name: string
-        url: string
-        authMode?: MCPAuthMode
-        /**
-         * Where this connection's credential is already sent.
-         *
-         * A key reconnect repairs a credential and changes nothing else (decisions 10 and
-         * 34), so the fields it asks about start where the connection left them. Prefilling the
-         * probe's default instead offered `Authorization` over a saved `X-Api-Key`, and a
-         * person who accepted what was on screen broke a working connection.
-         */
-        credentialBinding?: MCPCredentialBinding | null
-    } | null
+    reconnect?: McpReconnectTarget | null
     /** Called once the connection is real, with the slug agents reference it by. */
     onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
 }
@@ -104,6 +94,26 @@ const PROBE_TIMED_OUT_MESSAGE =
 
 /** Marks the bound above expiring, so the catch can tell it from the server's own failures. */
 class ProbeTimedOut extends Error {}
+
+/** The probe, raced against the bound above. */
+const probeWithin = async (
+    url: string,
+    projectId?: string,
+    secretId?: string,
+    binding?: MCPCredentialBinding,
+) => {
+    let bound: ReturnType<typeof setTimeout> | undefined
+    try {
+        return await Promise.race([
+            probeMcpUrl(url, projectId, secretId, binding),
+            new Promise<never>((_, reject) => {
+                bound = setTimeout(() => reject(new ProbeTimedOut()), PROBE_TIMEOUT_MS)
+            }),
+        ])
+    } finally {
+        if (bound !== undefined) clearTimeout(bound)
+    }
+}
 
 /**
  * The row a refused create was refused by, when it is the same connection being made.
@@ -286,6 +296,14 @@ export function useMcpConnectJourney({
         },
         [forgetAttemptedCreate, projectId, state],
     )
+    /** Change the address from the key screen, staying on it. */
+    const editUrl = useCallback(
+        (url: string) => {
+            forgetAttemptedCreate()
+            dispatch({type: "url_edited", url})
+        },
+        [forgetAttemptedCreate],
+    )
     const setName = useCallback(
         (name: string) => {
             forgetAttemptedCreate()
@@ -296,16 +314,19 @@ export function useMcpConnectJourney({
 
     const submitUrl = useCallback(
         async (url: string) => {
+            if (hasUrlSecretPlaceholder(url)) {
+                // The API refuses to check this address without its key, so the key screen
+                // asks for the secret first and its press checks the address with it.
+                dispatch({
+                    type: "url_secret_submitted",
+                    suggestedName: suggestConnectionName({url, existingNames}),
+                })
+                return
+            }
             const attempt = attemptRef.current
             dispatch({type: "submit_url"})
-            let bound: ReturnType<typeof setTimeout> | undefined
             try {
-                const response = await Promise.race([
-                    probeMcpUrl(url, projectId),
-                    new Promise<never>((_, reject) => {
-                        bound = setTimeout(() => reject(new ProbeTimedOut()), PROBE_TIMEOUT_MS)
-                    }),
-                ])
+                const response = await probeWithin(url, projectId)
                 if (!isCurrent(attempt)) return
                 const probe = response.probe
                 if (!probe) throw new Error("The server could not be checked.")
@@ -342,11 +363,59 @@ export function useMcpConnectJourney({
                     type: "probe_failed",
                     error: gatewayRefusalMessage(error) || "The server could not be checked.",
                 })
-            } finally {
-                if (bound !== undefined) clearTimeout(bound)
             }
         },
         [existingNames, isCurrent, projectId],
+    )
+
+    /**
+     * Check an address with the chosen secret sent where `binding` says, in the path of an
+     * address with `{secret}` when it says nothing. Answers whether the server took it; every
+     * other answer is dispatched here.
+     *
+     * The browser names the secret and the API reads its value, so the value never leaves
+     * the vault for the browser. A server that still asks for authorization refused the key,
+     * which is the key screen's refusal, not the address screen's.
+     */
+    const checkWithSecret = useCallback(
+        async (
+            url: string,
+            secretId: string,
+            attempt: number,
+            binding?: MCPCredentialBinding,
+        ): Promise<boolean> => {
+            try {
+                const {probe} = await probeWithin(url, projectId, secretId, binding)
+                if (!isCurrent(attempt)) return false
+                if (!probe) throw new Error("The server could not be checked.")
+                if (probe.problem && probe.problem.cause !== "auth_undiscoverable") {
+                    dispatch({type: "probe_failed", probe, error: probe.problem.message})
+                    return false
+                }
+                if (probe.auth.mode !== "none") {
+                    dispatch({
+                        type: "verify_failed",
+                        status: probe.auth.challenge_status ?? null,
+                        error: "",
+                    })
+                    return false
+                }
+                return true
+            } catch (error) {
+                if (!isCurrent(attempt)) return false
+                // The API's refusal of the address or the secret. The person fixes either on
+                // the key screen, so the refusal stays there.
+                dispatch({
+                    type: "create_failed",
+                    error:
+                        error instanceof ProbeTimedOut
+                            ? PROBE_TIMED_OUT_MESSAGE
+                            : gatewayRefusalMessage(error) || "The server could not be checked.",
+                })
+                return false
+            }
+        },
+        [isCurrent, projectId],
     )
 
     /**
@@ -488,15 +557,20 @@ export function useMcpConnectJourney({
      * Commit the name and take the authentication path the person chose.
      *
      * The key path passes its binding, so the first write already leaves out a query
-     * parameter the binding fills: a pasted `?apiKey=...` never reaches the stored row.
+     * parameter the binding fills: a pasted `?apiKey=...` never reaches the stored row. A url
+     * binding also passes the chosen secret, because its address is checked with the key
+     * before the row is made.
      */
     const submitName = useCallback(
-        async (binding?: MCPCredentialBinding) => {
+        async (binding?: MCPCredentialBinding, secretId?: string) => {
             dispatch({type: "submit_name"})
             const mode = state.authMode
             const url = withoutCredentialParameter(state.url.trim(), binding)
 
             const attempt = attemptRef.current
+            if (binding?.kind === "url" && secretId) {
+                if (!(await checkWithSecret(url, secretId, attempt, binding))) return
+            }
             /** Continue from a row, however this journey came by it. */
             const continueFrom = (row: {id: string; slug: string}, adopted?: boolean) => {
                 createdHereRef.current =
@@ -526,7 +600,14 @@ export function useMcpConnectJourney({
                     {
                         name: state.name.trim(),
                         auth_mode: mode,
-                        data: {route: {base_url: url}},
+                        // The API refuses a `{secret}` address without the binding that fills
+                        // it, so the binding goes with the first write.
+                        data: {
+                            route: {
+                                base_url: url,
+                                credential_binding: binding && normalizeCredentialBinding(binding),
+                            },
+                        },
                     },
                     projectId,
                 )
@@ -582,7 +663,15 @@ export function useMcpConnectJourney({
                 )
             }
         },
-        [mustVerifyNone, projectId, state.authMode, state.name, state.url, verifyConnection],
+        [
+            checkWithSecret,
+            mustVerifyNone,
+            projectId,
+            state.authMode,
+            state.name,
+            state.url,
+            verifyConnection,
+        ],
     )
 
     const toggleScope = useCallback((scope: string) => dispatch({type: "scope_toggled", scope}), [])
@@ -684,6 +773,20 @@ export function useMcpConnectJourney({
                     error: gatewayRefusalMessage(error) || fallback,
                 })
 
+            const url = withoutCredentialParameter(state.url.trim(), binding)
+            // A connection that already exists works with what it holds, so the new key is
+            // checked first and written only if the server takes it, as a switch to None
+            // is. Writing first left a refused key saved on a working connection.
+            if (!createdHereRef.current) {
+                const accepted = await checkWithSecret(
+                    url,
+                    secretId,
+                    attempt,
+                    normalizeCredentialBinding(binding),
+                )
+                if (!accepted) return
+            }
+
             // Our own API first: read the row back, then write the credential onto it. A
             // failure here is ours, whatever status it carries. A session that expired made
             // this read answer 401, and classified as the relay's it read as the server
@@ -726,7 +829,7 @@ export function useMcpConnectJourney({
                             ...stored.data,
                             route: {
                                 ...stored.data?.route,
-                                base_url: withoutCredentialParameter(state.url.trim(), binding),
+                                base_url: url,
                                 credential_binding: normalizeCredentialBinding(binding),
                             },
                         },
@@ -745,6 +848,7 @@ export function useMcpConnectJourney({
             await verifyConnection(endpoint, attempt)
         },
         [
+            checkWithSecret,
             isCurrent,
             projectId,
             state.name,
@@ -761,8 +865,9 @@ export function useMcpConnectJourney({
      */
     const checkWithoutKey = useCallback(
         async (url: string, attempt: number): Promise<boolean> => {
+            let error: string
             try {
-                const {probe} = await probeMcpUrl(url, projectId)
+                const {probe} = await probeWithin(url, projectId)
                 if (!isCurrent(attempt)) return false
                 if (probe?.auth.mode === "none" && !probe.problem) return true
                 if (probe?.reachable && probe.auth.mode !== "none") {
@@ -773,23 +878,18 @@ export function useMcpConnectJourney({
                     })
                     return false
                 }
-                // Not the fresh probe: a reconnect has none, and the screens read one as a
-                // first connect.
-                dispatch({
-                    type: "probe_failed",
-                    probe: state.probe,
-                    error: probe?.problem?.message || "The server could not be checked.",
-                })
-                return false
-            } catch (error) {
+                error = probe?.problem?.message || "The server could not be checked."
+            } catch (caught) {
                 if (!isCurrent(attempt)) return false
-                dispatch({
-                    type: "probe_failed",
-                    probe: state.probe,
-                    error: gatewayRefusalMessage(error) || "The server could not be checked.",
-                })
-                return false
+                error =
+                    caught instanceof ProbeTimedOut
+                        ? PROBE_TIMED_OUT_MESSAGE
+                        : gatewayRefusalMessage(caught) || "The server could not be checked."
             }
+            // Not the fresh probe: a reconnect has none, and the screens read one as a first
+            // connect.
+            dispatch({type: "probe_failed", probe: state.probe, error})
+            return false
         },
         [isCurrent, projectId, state.probe],
     )
@@ -836,8 +936,10 @@ export function useMcpConnectJourney({
     // A reconnect never asks for the address, but whether OAuth can be chosen depends on what
     // the server publishes, so its saved address is checked once in the background. The row,
     // its screen and its saved mode stay as they are.
+    // An address with `{secret}` cannot be checked without its key, and it has no OAuth to
+    // find either.
     useEffect(() => {
-        if (!reconnectUrl) return
+        if (!reconnectUrl || hasUrlSecretPlaceholder(reconnectUrl)) return
         let live = true
         Promise.resolve()
             .then(() => probeMcpUrl(reconnectUrl, projectId))
@@ -914,6 +1016,7 @@ export function useMcpConnectJourney({
             popupName,
             expectsConsent,
             setUrl,
+            editUrl,
             submitUrl,
             setName,
             selectAuthMode,
@@ -933,6 +1036,7 @@ export function useMcpConnectJourney({
             abandonAttempt,
             cancel,
             cancelConsent,
+            editUrl,
             expectsConsent,
             finish,
             popupName,

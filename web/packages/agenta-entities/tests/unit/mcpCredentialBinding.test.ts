@@ -9,9 +9,12 @@ import {describe, expect, it} from "vitest"
 
 import {
     basicCredentialValue,
+    credentialBindingComplete,
     credentialBindingPreview,
     mcpDefaultCredentialBinding,
     normalizeCredentialBinding,
+    urlMatchesCredentialBinding,
+    urlSecretProblem,
     withoutCredentialParameter,
 } from "../../src/mcpEndpoint/core/credentialBinding"
 import type {MCPServerProbe} from "../../src/mcpEndpoint/core/types"
@@ -133,5 +136,61 @@ describe("basicCredentialValue", () => {
         expect(basicCredentialValue("jürgen", "пароль")).toBe(
             Buffer.from("jürgen:пароль", "utf8").toString("base64"),
         )
+    })
+})
+
+describe("a url binding", () => {
+    const firecrawl = "https://mcp.firecrawl.dev/{secret}/v2/mcp"
+
+    it("is stored with nothing to name, whatever the fields held before", () => {
+        expect(
+            normalizeCredentialBinding({kind: "url", name: "Authorization", prefix: "Bearer"}),
+        ).toEqual({kind: "url"})
+        expect(credentialBindingComplete({kind: "url"})).toBe(true)
+        expect(credentialBindingComplete({kind: "header", name: " "})).toBe(false)
+    })
+
+    it("previews nothing, because the screen shows the address instead", () => {
+        expect(credentialBindingPreview({kind: "url", name: "left-over"})).toBeNull()
+    })
+
+    it("agrees with an address holding exactly one placeholder, as the API requires", () => {
+        expect(urlMatchesCredentialBinding(firecrawl, {kind: "url"})).toBe(true)
+        expect(urlMatchesCredentialBinding("https://mcp.firecrawl.dev/v2/mcp", {kind: "url"})).toBe(
+            false,
+        )
+        expect(urlMatchesCredentialBinding(`${firecrawl}/{secret}`, {kind: "url"})).toBe(false)
+        // Outside the path, as the API refuses it.
+        for (const misplaced of [
+            "https://mcp.example.test/mcp?key={secret}",
+            "https://mcp.example.test/mcp#{secret}",
+            "https://{secret}.example.test/mcp",
+        ]) {
+            expect(urlMatchesCredentialBinding(misplaced, {kind: "url"})).toBe(false)
+        }
+        // A placeholder no other binding fills would be sent as the literal text.
+        expect(urlMatchesCredentialBinding(firecrawl, {kind: "header", name: "x-api-key"})).toBe(
+            false,
+        )
+    })
+
+    it("leaves the address as typed, placeholder and all", () => {
+        expect(withoutCredentialParameter(firecrawl, {kind: "url"})).toBe(firecrawl)
+    })
+
+    it("says why a mode other than API key cannot fill the placeholder", () => {
+        for (const mode of ["none", "oauth"] as const) {
+            expect(urlSecretProblem(firecrawl, mode, {kind: "url"})).toBe(
+                "Only an API key can replace {secret} in the URL. Choose API key, or remove {secret} from the URL.",
+            )
+        }
+        expect(urlSecretProblem("https://mcp.example.test/mcp", "none", {kind: "url"})).toBeNull()
+    })
+
+    it("says why a url binding needs exactly one placeholder in the path", () => {
+        expect(urlSecretProblem(`${firecrawl}/{secret}`, "api_key", {kind: "url"})).toBe(
+            "The URL needs exactly one {secret} in its path for the secret to replace.",
+        )
+        expect(urlSecretProblem(firecrawl, "api_key", {kind: "url"})).toBeNull()
     })
 })

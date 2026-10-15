@@ -36,6 +36,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPRelayAuth,
     MCPResolvedRoute,
     MCPToolFilter,
+    api_key_value,
 )
 from oss.src.core.gateways.mcps.interfaces import (
     MCPEndpointsDAOInterface,
@@ -414,6 +415,21 @@ class MCPGatewayService:
             #
             windowing=windowing,
         )
+
+    async def probe_secret_value(
+        self, *, scope: AuthScope, secret_id: UUID
+    ) -> Optional[str]:
+        """The value of a project secret, for a probe that sends it as an API key.
+
+        Resolved the way an API-key endpoint's secret is, so the probe reads the same value
+        the relay will later put in the same place.
+        """
+        secret = await self.resolver.resolve(
+            scope=scope,
+            ref=BoundSecretRef(secret_id=secret_id),
+            mode=SecretMode.PROJECT_ONLY,
+        )
+        return api_key_value(secret.secret.data)
 
     # Endpoint listing
 

@@ -99,6 +99,7 @@ class MockMCPGatewayService:
         self.fetch_return = None
         self.edit_return = None
         self.delete_return = True
+        self.url_secret_return = "test-key-one"
 
     async def create_endpoint(self, *, project_id, user_id, endpoint):
         self.calls.append("create_endpoint")
@@ -140,6 +141,10 @@ class MockMCPGatewayService:
     async def delete_endpoint(self, *, project_id, endpoint_id):
         self.calls.append("delete_endpoint")
         return self.delete_return
+
+    async def probe_secret_value(self, *, scope, secret_id):
+        self.calls.append("probe_secret_value")
+        return self.url_secret_return
 
 
 class MockMCPOAuthConnectService:
@@ -1280,9 +1285,15 @@ class _RecordingProbe:
     def __init__(self, result: MCPServerProbeResult) -> None:
         self.result = result
         self.probed: list[str] = []
+        self.secrets: list[str | None] = []
+        self.bindings: list = []
 
-    async def probe(self, *, server_url: str) -> MCPServerProbeResult:
+    async def probe(
+        self, *, server_url: str, secret: str | None = None, binding=None
+    ) -> MCPServerProbeResult:
         self.probed.append(server_url)
+        self.secrets.append(secret)
+        self.bindings.append(binding)
         return self.result
 
 
@@ -1361,6 +1372,76 @@ def test_probe_refuses_a_url_a_create_would_refuse(probe_client, probe, allow, u
     """A URL the probe accepts must be one that can be saved, so the person is
     refused at the first step rather than the last."""
     response = probe_client.post("/endpoints/probe", json={"url": url})
+
+    assert response.status_code == 400, response.text
+    assert probe.probed == []
+
+
+_PLACEHOLDER_URL = "https://mcp.acme.example/{secret}/v2/mcp"
+
+
+def test_a_placeholder_url_is_probed_with_the_value_of_the_named_secret(
+    probe_client, probe, service, allow
+):
+    """The browser names the secret; the API reads its value and hands it to the probe,
+    which is given the stored address, placeholder and all."""
+    response = probe_client.post(
+        "/endpoints/probe",
+        json={"url": _PLACEHOLDER_URL, "secret_id": str(uuid4())},
+    )
+
+    assert response.status_code == 200, response.text
+    assert probe.probed == [_PLACEHOLDER_URL]
+    assert probe.secrets == ["test-key-one"]
+    assert probe.bindings[0].kind == "url"
+    assert "test-key-one" not in response.text
+
+
+def test_a_key_is_probed_where_its_binding_sends_it(probe_client, probe, allow):
+    """A changed key is checked before a connection saves it, sent the way the relay
+    will send it."""
+    response = probe_client.post(
+        "/endpoints/probe",
+        json={
+            "url": _SERVER_URL,
+            "secret_id": str(uuid4()),
+            "credential_binding": {"kind": "header", "name": "X-Api-Key"},
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    assert probe.secrets == ["test-key-one"]
+    assert probe.bindings[0].name == "X-Api-Key"
+
+
+@pytest.mark.parametrize(
+    ("url", "with_secret"),
+    [
+        # A placeholder address cannot be probed anonymously.
+        (_PLACEHOLDER_URL, False),
+        # And a secret with no binding is sent only to fill a placeholder.
+        (_SERVER_URL, True),
+    ],
+)
+def test_a_secret_and_a_placeholder_come_together(
+    probe_client, probe, allow, url, with_secret
+):
+    body = {"url": url, **({"secret_id": str(uuid4())} if with_secret else {})}
+
+    response = probe_client.post("/endpoints/probe", json=body)
+
+    assert response.status_code == 400, response.text
+    assert "{secret}" in response.json()["detail"]
+    assert probe.probed == []
+
+
+def test_a_secret_with_no_single_value_is_refused(probe_client, probe, service, allow):
+    service.url_secret_return = None
+
+    response = probe_client.post(
+        "/endpoints/probe",
+        json={"url": _PLACEHOLDER_URL, "secret_id": str(uuid4())},
+    )
 
     assert response.status_code == 400, response.text
     assert probe.probed == []

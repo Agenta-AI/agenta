@@ -1,6 +1,7 @@
 /**
  * Where an API key goes, on the key screen: Send as, Name, Prefix, and a line that shows
- * what is sent.
+ * what is sent. "In the URL" has no Name or Prefix: the address says where the key goes, and
+ * the key screen shows that address under these fields.
  *
  * A raw key under `Authorization` is refused by every server that names a scheme, and the
  * header field alone gave no way to say `Bearer` or `Basic`. The prefix is its own field so
@@ -39,7 +40,11 @@ const CREDENTIAL_PRESETS: {label: string; binding: MCPCredentialBinding}[] = [
     {label: "Query parameter", binding: {kind: "query", name: "", prefix: null}},
 ]
 
-const KIND_LABEL: Record<Kind, string> = {header: "Header", query: "Query parameter"}
+const KIND_LABEL: Record<Kind, string> = {
+    header: "Header",
+    query: "Query parameter",
+    url: "In the URL",
+}
 
 const PREFIX_LABEL: Record<PrefixChoice, string> = {
     none: "None",
@@ -128,27 +133,29 @@ export const CredentialBindingFields = ({
                     value={value.kind}
                     options={KIND_LABEL}
                     disabled={disabled}
-                    // A query value takes no prefix (`normalizeCredentialBinding`).
+                    // Only a header takes a prefix (`normalizeCredentialBinding`).
                     onChange={(kind) =>
-                        onChange({...value, kind, prefix: kind === "query" ? null : value.prefix})
+                        onChange({...value, kind, prefix: kind === "header" ? value.prefix : null})
                     }
                 />
             </HintedField>
-            <HintedField
-                label="Name"
-                tooltip={value.kind === "header" && !invalid ? HEADER_HELP : undefined}
-                invalid={invalid}
-            >
-                <Input
-                    className="font-mono text-[13px]"
-                    placeholder={value.kind === "header" ? "Authorization" : "api_key"}
-                    value={value.name}
-                    disabled={disabled}
-                    aria-label={value.kind === "header" ? "Header name" : "Parameter name"}
-                    aria-describedby={describedBy}
-                    onChange={(event) => onChange({...value, name: event.target.value})}
-                />
-            </HintedField>
+            {value.kind === "url" ? null : (
+                <HintedField
+                    label="Name"
+                    tooltip={value.kind === "header" && !invalid ? HEADER_HELP : undefined}
+                    invalid={invalid}
+                >
+                    <Input
+                        className="font-mono text-[13px]"
+                        placeholder={value.kind === "header" ? "Authorization" : "api_key"}
+                        value={value.name ?? ""}
+                        disabled={disabled}
+                        aria-label={value.kind === "header" ? "Header name" : "Parameter name"}
+                        aria-describedby={describedBy}
+                        onChange={(event) => onChange({...value, name: event.target.value})}
+                    />
+                </HintedField>
+            )}
             {value.kind === "header" ? (
                 <HintedField
                     label="Prefix"

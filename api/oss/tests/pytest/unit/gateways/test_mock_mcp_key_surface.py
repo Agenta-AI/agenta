@@ -108,6 +108,15 @@ def test_the_key_in_the_named_query_parameter_is_accepted(client, key):
     assert response.status_code == 200
 
 
+def test_the_key_in_the_path_is_accepted_and_another_is_challenged(client, key):
+    """What a url binding sends, with the key in place of `{secret}`."""
+    accepted = client.post(f"/key/{key}/mcp", json=_HANDSHAKE)
+    refused = client.post("/key/wrong/mcp", json=_HANDSHAKE)
+
+    assert accepted.status_code == 200
+    assert refused.status_code == 401
+
+
 def test_basic_with_the_key_as_the_password_is_accepted(client, key):
     """What the connect sheet's Basic helper stores, with any username."""
     encoded = base64.b64encode(f"any-user:{key}".encode()).decode()

@@ -2,14 +2,21 @@
 
 The connect journey asks for a server URL first and has to say something true about it
 before asking for anything else: is it reachable, what does it call itself, and does it
-want OAuth. Nothing here creates, edits or reads a row, and nothing here accepts or sends
-a credential — there is no endpoint to carry one, and a credential must never be sent to
-an origin that has not been chosen yet.
+want OAuth. Nothing here creates, edits or reads a row, and nothing here sends a credential
+in a header — there is no endpoint to carry one, and a credential must never be sent to an
+origin that has not been chosen yet.
+
+An address whose path holds `{secret}` (Firecrawl `/{secret}/v2/mcp`) is the one case that
+carries a credential, because without its key that address does not exist. The person
+chose that origin and the secret together, the value goes only in the path of the requests
+sent to it, no OAuth discovery runs, and everything returned is redacted of it.
 
 Two protocol facts shape the order of the checks:
 
 * `initialize` is the MCP handshake's first call and the only one that reports
   `serverInfo`. It is not a tool call and has no side effect, so it is the safe probe.
+  `tools/list` follows it, also without side effect, because a server may accept the
+  handshake from anyone and refuse the list.
 * A server that requires authorization answers the unauthenticated handshake with a 401
   naming its protected-resource document (RFC 9728 s5.1). That challenge, not a guess, is
   what starts OAuth discovery.
@@ -23,8 +30,9 @@ a credential into a form that may have no use for it.
 import asyncio
 import json
 import re
+from dataclasses import replace
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 from pydantic import BaseModel
@@ -36,12 +44,21 @@ from oss.src.core.gateways.egress import (
     egress_client,
     open_egress,
 )
-from oss.src.core.gateways.mcps.echo import redact_credentials, url_credentials
+from oss.src.core.gateways.mcps.dtos import MCPCredentialBinding
+from oss.src.core.gateways.mcps.echo import (
+    redact_credentials,
+    url_credentials,
+    url_value_forms,
+)
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.registration import (
     is_publicly_resolvable_async,
 )
 from oss.src.core.gateways.mcps.oauth.types import MCPOAuthDiscoveryError
+from oss.src.core.gateways.mcps.providers.http.adapter import (
+    InjectedCredentials,
+    bound_credentials,
+)
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -172,19 +189,22 @@ class MCPServerProbeResult(BaseModel):
     legacy_transport_suspected: bool = False
 
 
-def _initialize_request() -> bytes:
-    return json.dumps(
-        {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": _PROTOCOL_VERSION,
-                "capabilities": {},
-                "clientInfo": _CLIENT_INFO,
-            },
-        }
-    ).encode()
+_INITIALIZE_REQUEST = {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+        "protocolVersion": _PROTOCOL_VERSION,
+        "capabilities": {},
+        "clientInfo": _CLIENT_INFO,
+    },
+}
+_INITIALIZED_NOTIFICATION = {
+    "jsonrpc": "2.0",
+    "method": "notifications/initialized",
+    "params": {},
+}
+_TOOLS_LIST_REQUEST = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
 
 
 def _event_payload(event: str) -> str:
@@ -255,8 +275,10 @@ def _initialize_result(response: httpx.Response) -> Optional[Dict[str, Any]]:
     return result if isinstance(result, dict) else None
 
 
-def _excerpt(response: httpx.Response, *, server_url: str) -> MCPProbeResponse:
-    body = redact_credentials(response.content, url_credentials(server_url))
+def _excerpt(
+    response: httpx.Response, *, credentials: Tuple[bytes, ...]
+) -> MCPProbeResponse:
+    body = redact_credentials(response.content, credentials)
     return MCPProbeResponse(
         status=response.status_code,
         body=body[:_EXCERPT_BYTES].decode("utf-8", "replace"),
@@ -289,15 +311,53 @@ def _challenge_schemes(response: httpx.Response) -> List[str]:
 
 
 def _unsupported_transport(
-    response: httpx.Response, *, server_url: str
+    response: httpx.Response, *, credentials: Tuple[bytes, ...]
 ) -> MCPServerProbeResult:
     return MCPServerProbeResult(
         reachable=True,
         problem=MCPProbeProblem(
             cause="unsupported_transport",
             message=_UNSUPPORTED_TRANSPORT_MESSAGE,
-            response=_excerpt(response, server_url=server_url),
+            response=_excerpt(response, credentials=credentials),
         ),
+    )
+
+
+def _redacted(
+    result: MCPServerProbeResult, credentials: Tuple[bytes, ...]
+) -> MCPServerProbeResult:
+    """`result` with every credential removed from each field the server could write."""
+
+    def clean(text: Optional[str]) -> Optional[str]:
+        if not text:
+            return text
+        return redact_credentials(text.encode(), credentials).decode()
+
+    auth = result.auth.model_copy(
+        update={
+            "authorization_server": clean(result.auth.authorization_server),
+            "scopes_offered": [clean(s) for s in result.auth.scopes_offered],
+            "challenge_schemes": [clean(s) for s in result.auth.challenge_schemes],
+        }
+    )
+    problem = result.problem
+    if problem is not None:
+        response = problem.response
+        problem = problem.model_copy(
+            update={
+                "message": clean(problem.message),
+                "response": response.model_copy(update={"body": clean(response.body)})
+                if response is not None
+                else None,
+            }
+        )
+    return result.model_copy(
+        update={
+            "server_name": clean(result.server_name),
+            "protocol_version": clean(result.protocol_version),
+            "auth": auth,
+            "problem": problem,
+        }
     )
 
 
@@ -314,8 +374,13 @@ class MCPServerProbe:
         # Injectable seam for tests, matching MCPOAuthClient / HttpMCPAdapter.
         self._transport = transport
 
-    async def _handshake(self, target) -> httpx.Response:
-        """Send the handshake and read at most `_MAX_RESPONSE_BYTES` of the answer.
+    async def _post(
+        self,
+        target,
+        message: Dict[str, Any],
+        headers: Optional[Dict[str, str]] = None,
+    ) -> httpx.Response:
+        """Send one JSON-RPC message and read at most `_MAX_RESPONSE_BYTES` of the answer.
 
         Streamed rather than buffered so the cap is applied while the bytes arrive
         instead of after they have all been accepted. The bytes that were read are
@@ -328,9 +393,10 @@ class MCPServerProbe:
             request = client.build_request(
                 "POST",
                 target.url,
-                content=_initialize_request(),
+                content=json.dumps(message).encode(),
                 headers={
                     **target.headers,
+                    **(headers or {}),
                     "content-type": "application/json",
                     "accept": "application/json, text/event-stream",
                 },
@@ -351,8 +417,49 @@ class MCPServerProbe:
         # what says whether the answer is JSON or a single SSE event.
         return decoded_response(response, bytes(body))
 
-    async def probe(self, *, server_url: str) -> MCPServerProbeResult:
+    async def _refused_tool_list(
+        self, target, handshake: httpx.Response
+    ) -> Optional[httpx.Response]:
+        """The server's refusal of `tools/list` after a handshake it accepted, or `None`.
+
+        Some servers answer `initialize` to anyone and check authorization on the first
+        real request. A connection is working when it lists its tools, so the probe asks
+        for them the way the browser's `listMcpTools` does, on the same session and with
+        the same credential, and reads only a refusal. A tool list too large to read was
+        not refused.
+        """
+        result = _initialize_result(handshake) or {}
+        version = result.get("protocolVersion")
+        headers = {
+            "mcp-protocol-version": version
+            if isinstance(version, str) and version
+            else _PROTOCOL_VERSION
+        }
+        session = handshake.headers.get("mcp-session-id")
+        if session:
+            headers["mcp-session-id"] = session
+        try:
+            # Best effort: a server that needed the notification says so on the list.
+            await self._post(target, _INITIALIZED_NOTIFICATION, headers)
+        except (httpx.HTTPError, _ResponseTooLarge):
+            pass
+        try:
+            listed = await self._post(target, _TOOLS_LIST_REQUEST, headers)
+        except _ResponseTooLarge:
+            return None
+        return listed if listed.status_code in (401, 403) else None
+
+    async def probe(
+        self,
+        *,
+        server_url: str,
+        secret: Optional[str] = None,
+        binding: Optional[MCPCredentialBinding] = None,
+    ) -> MCPServerProbeResult:
         """Inspect `server_url`. Never raises for a server that behaves badly.
+
+        `secret` is an API key, sent where `binding` says, the way the relay would send
+        it. It fills a `{secret}` address, and checks a key before a connection saves it.
 
         The promise in that sentence is the reason for the outer guard: this is the first
         thing a person's typed address touches, and the connect dialog has a place to show
@@ -360,8 +467,16 @@ class MCPServerProbe:
         them as a 500 with no cause, which is how a body the gateway could not decode
         presented itself before that was fixed at the source.
         """
+        sent = bound_credentials(binding, secret) if secret else None
+        # What the answer is cleaned of: the URL's own query values, and the key in every
+        # form it was sent.
+        credentials = url_credentials(server_url) + url_value_forms(
+            [secret, *sent.headers.values(), *sent.url_values] if sent else []
+        )
         try:
-            return await self._probe(server_url=server_url)
+            result = await self._probe(
+                server_url=server_url, sent=sent, credentials=credentials
+            )
         except httpx.HTTPError as e:
             # Every transport and protocol failure httpx raises, including the decoding
             # ones that are not raised until a body is touched.
@@ -385,13 +500,35 @@ class MCPServerProbe:
                     transport=failure.cause if failure is not None else None,
                 )
             )
+        # A server that was sent a key can write it into any field it answers with, not
+        # only into a body that becomes an excerpt.
+        return _redacted(result, credentials) if sent else result
 
-    async def _probe(self, *, server_url: str) -> MCPServerProbeResult:
+    async def _probe(
+        self,
+        *,
+        server_url: str,
+        sent: Optional[InjectedCredentials],
+        credentials: Tuple[bytes, ...],
+    ) -> MCPServerProbeResult:
         deadline = asyncio.get_running_loop().time() + _DEADLINE_SECONDS
         try:
             async with asyncio.timeout_at(deadline):
+                # Checked with the placeholder, which sits in the path and so cannot move
+                # the host, and without the key, which is added only to what is sent.
                 target = await open_egress(server_url)
-                response = await self._handshake(target)
+                if sent:
+                    headers = httpx.Headers(target.headers)
+                    headers.update(sent.headers)
+                    target = replace(
+                        target, url=str(sent.request_url(target.url)), headers=headers
+                    )
+                response = await self._post(target, _INITIALIZE_REQUEST)
+                if response.is_success and _initialize_result(response) is not None:
+                    # A refusal here is answered as if the handshake had been refused.
+                    response = (
+                        await self._refused_tool_list(target, response) or response
+                    )
         except EgressRefusedError as e:
             return MCPServerProbeResult(
                 problem=MCPProbeProblem(
@@ -419,7 +556,7 @@ class MCPServerProbe:
                         "The address answered with more data than an MCP handshake "
                         "should return, so it was not read."
                     ),
-                    response=_excerpt(e.response, server_url=server_url),
+                    response=_excerpt(e.response, credentials=credentials),
                 ),
             )
         except TimeoutError:
@@ -446,13 +583,28 @@ class MCPServerProbe:
             )
 
         # The server answered something, so it exists. What it answered decides the rest.
+        if response.status_code in (401, 403) and sent:
+            # The server refused the key it was sent. Discovery is not run: it follows
+            # addresses the server names, and those can carry the key to another origin.
+            return MCPServerProbeResult(
+                reachable=True,
+                auth=MCPProbeAuth(
+                    mode=MCPProbeAuthMode.UNKNOWN,
+                    challenge_status=response.status_code,
+                    challenge_schemes=_challenge_schemes(response),
+                ),
+            )
+
         if response.status_code in (401, 403):
             # An SSE endpoint and a Streamable HTTP endpoint behind the same sign-in refuse
             # an anonymous request identically (Atlassian's `/v1/sse` and `/v1/mcp` send the
             # same 401), so nothing here proves the transport. The address is only grounds
             # for a warning, and the sign-in goes ahead as for any other server.
             challenged = await self._challenged(
-                server_url=server_url, response=response, deadline=deadline
+                server_url=server_url,
+                response=response,
+                deadline=deadline,
+                credentials=credentials,
             )
             challenged.legacy_transport_suspected = _names_legacy_event_stream(
                 server_url
@@ -464,7 +616,7 @@ class MCPServerProbe:
         if response.status_code in (404, 405) and await self._opens_event_stream(
             target, deadline=deadline
         ):
-            return _unsupported_transport(response, server_url=server_url)
+            return _unsupported_transport(response, credentials=credentials)
 
         # A result-shaped body under an error status is not a handshake. A redirect, a 404
         # and a login page all answer, and none of them is a server to connect.
@@ -478,7 +630,7 @@ class MCPServerProbe:
                         "The address answered, but not with an MCP handshake "
                         f"(HTTP {response.status_code})."
                     ),
-                    response=_excerpt(response, server_url=server_url),
+                    response=_excerpt(response, credentials=credentials),
                 ),
             )
 
@@ -522,7 +674,12 @@ class MCPServerProbe:
         )
 
     async def _challenged(
-        self, *, server_url: str, response: httpx.Response, deadline: float
+        self,
+        *,
+        server_url: str,
+        response: httpx.Response,
+        deadline: float,
+        credentials: Tuple[bytes, ...],
     ) -> MCPServerProbeResult:
         """A server that refused the anonymous handshake. Ask it how to authorize."""
         challenged = MCPProbeAuth(
@@ -548,7 +705,7 @@ class MCPServerProbe:
                         "The server requires authorization but did not finish "
                         "publishing its OAuth configuration in time."
                     ),
-                    response=_excerpt(response, server_url=server_url),
+                    response=_excerpt(response, credentials=credentials),
                 ),
             )
         except MCPOAuthDiscoveryError as e:
@@ -564,7 +721,7 @@ class MCPServerProbe:
                         "The server requires authorization but did not publish an OAuth "
                         f"configuration we could read: {e.detail or 'no metadata found'}."
                     ),
-                    response=_excerpt(response, server_url=server_url),
+                    response=_excerpt(response, credentials=credentials),
                 ),
             )
 

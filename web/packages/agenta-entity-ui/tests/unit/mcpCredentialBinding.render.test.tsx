@@ -73,12 +73,13 @@ const keyScreen: McpJourneyState = {
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 
-const open = async () => {
+const open = async (state: McpJourneyState = keyScreen) => {
     useMcpConnectJourney.mockReturnValue({
-        state: keyScreen,
+        state,
         popupName: "mcp_consent",
         expectsConsent: false,
         setUrl: vi.fn(),
+        editUrl: vi.fn(),
         submitUrl: vi.fn(),
         setName: vi.fn(),
         selectAuthMode: vi.fn(),
@@ -277,5 +278,76 @@ describe("the Basic helper", () => {
         await open()
 
         expect(text()).not.toContain("Basic (username and password)")
+    })
+})
+
+describe("a key in the URL", () => {
+    // Firecrawl takes the key as a path segment. The address was submitted with `{secret}`,
+    // so nothing has been checked yet and the key screen is where it is checked.
+    const firecrawl: McpJourneyState = {
+        ...keyScreen,
+        url: "https://mcp.firecrawl.dev/{secret}/v2/mcp",
+        name: "mcp.firecrawl.dev",
+        probe: null,
+        oauthOffered: false,
+    }
+
+    it("starts on In the URL, with no name to fill and the address under it", async () => {
+        await open(firecrawl)
+
+        expect(control("Send as")?.textContent).toBe("In the URL")
+        expect(control("Header name")).toBeNull()
+        expect(control("Parameter name")).toBeNull()
+        expect(control("Prefix")).toBeNull()
+        expect(control("Server URL")?.value).toBe(firecrawl.url)
+        expect(text()).toContain(
+            "The secret replaces {secret} when Agenta calls the server. It is never stored in the URL.",
+        )
+        expect(text()).toContain(
+            "The value is put into the address when the agent runs and is never shown again.",
+        )
+        expect(text()).not.toContain("Sent as")
+    })
+
+    it("claims nothing about an address it has not checked", async () => {
+        await open(firecrawl)
+
+        expect(document.querySelector('[data-testid="mcp-probe-result"]')).toBeNull()
+    })
+
+    it("says why None cannot connect a placeholder address", async () => {
+        await open({...firecrawl, authMode: "none"})
+
+        expect(text()).toContain(
+            "Only an API key can replace {secret} in the URL. Choose API key, or remove {secret} from the URL.",
+        )
+        expect(button("Connect")?.disabled).toBe(true)
+    })
+
+    it("says why OAuth cannot connect a placeholder address", async () => {
+        await open({...firecrawl, authMode: "oauth", oauthOffered: true})
+
+        expect(text()).toContain(
+            "Only an API key can replace {secret} in the URL. Choose API key, or remove {secret} from the URL.",
+        )
+    })
+
+    it("says why an address with two placeholders cannot connect", async () => {
+        await open({...firecrawl, url: "https://mcp.firecrawl.dev/{secret}/{secret}/mcp"})
+
+        expect(text()).toContain(
+            "The URL needs exactly one {secret} in its path for the secret to replace.",
+        )
+        expect(button("Connect")?.disabled).toBe(true)
+    })
+
+    it("asks for In the URL when another binding meets the placeholder", async () => {
+        await open(firecrawl)
+        await press("Bearer token")
+
+        expect(text()).toContain(
+            "This URL contains {secret}. Set Send as to In the URL so the secret replaces it.",
+        )
+        expect(button("Connect")?.disabled).toBe(true)
     })
 })

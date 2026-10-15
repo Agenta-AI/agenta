@@ -1,6 +1,6 @@
 """MCP gateway DTOs."""
 
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 from typing import Annotated, Dict, List, Literal, Optional, Union
 from uuid import UUID
@@ -37,6 +37,20 @@ MOCK_PROVIDER = "mock"
 MANAGED_PROVIDER = "managed"
 
 
+# Stands in for the secret in a stored `base_url` whose server takes its key in the path
+# (Firecrawl `/{secret}/v2/mcp`). The relay puts the vault value there at request time.
+URL_SECRET_PLACEHOLDER = "{secret}"
+
+
+def with_url_secret(url: str, value: str) -> str:
+    """`url` with the placeholder replaced by `value`, encoded as one path segment.
+
+    Encoded with nothing kept safe, so a `/` or a `?` in a key stays inside the segment it
+    replaces and cannot change where the request goes.
+    """
+    return url.replace(URL_SECRET_PLACEHOLDER, quote(value, safe=""), 1)
+
+
 class MCPCredentialBinding(BaseModel):
     """Where an API-key endpoint's credential goes when the relay sends it.
 
@@ -44,24 +58,59 @@ class MCPCredentialBinding(BaseModel):
     this is as readable as `base_url` is. `kind` and `name` match the SDK's
     `HeaderCredentialBinding`. A `header` binding sends `<name>: <prefix> <value>`, or
     `<name>: <value>` with no prefix; a `query` binding adds `<name>=<value>` to the
-    upstream URL at request time, so the stored URL never holds the value. The prefix is
-    the scheme word (`Bearer`, `Basic`) a server expects in front of the value, because a
-    raw key under `Authorization` is refused by every server that names a scheme.
+    upstream URL at request time; a `url` binding puts the value where `base_url` holds
+    `{secret}`. The stored URL never holds the value. The prefix is the scheme word
+    (`Bearer`, `Basic`) a server expects in front of the value, because a raw key under
+    `Authorization` is refused by every server that names a scheme.
     """
 
-    kind: Literal["header", "query"] = "header"
-    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    kind: Literal["header", "query", "url"] = "header"
+    name: Optional[
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    ] = None
     prefix: Optional[
         Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     ] = None
 
     @model_validator(mode="after")
-    def _no_query_prefix(self) -> "MCPCredentialBinding":
+    def _fits_its_kind(self) -> "MCPCredentialBinding":
+        if self.kind == "url":
+            # The placeholder says where the value goes, so there is nothing to name.
+            if self.name is not None or self.prefix is not None:
+                raise ValueError("a url credential binding takes no name and no prefix")
+            return self
+        if self.name is None:
+            raise ValueError(f"a {self.kind} credential binding needs a name")
         # A scheme word belongs in a header. In a query value it would be sent as part of
         # the key, and the echo scanner would look for the prefixed form only.
         if self.kind == "query" and self.prefix is not None:
             raise ValueError("a query credential binding takes no prefix")
         return self
+
+
+def check_url_secret_placeholder(
+    base_url: Optional[str], binding: Optional[MCPCredentialBinding]
+) -> None:
+    """Refuse a `base_url` and a binding that disagree about `{secret}`. Raises `ValueError`.
+
+    A `url` binding with no placeholder would send nothing, and a placeholder with no `url`
+    binding would be sent to the server as the literal text. The placeholder must sit in the
+    path, where the encoded value cannot change the host the egress check approved.
+    """
+    url = base_url or ""
+    count = url.count(URL_SECRET_PLACEHOLDER)
+    if binding is not None and binding.kind == "url":
+        if count != 1 or URL_SECRET_PLACEHOLDER not in urlsplit(url).path:
+            raise ValueError(
+                f"The URL needs exactly one {URL_SECRET_PLACEHOLDER} in its path for the "
+                "secret to replace."
+            )
+    elif count:
+        raise ValueError(
+            f"The URL contains {URL_SECRET_PLACEHOLDER}, which only a secret sent in the "
+            "URL can replace. Send the secret in the URL, or remove "
+            f"{URL_SECRET_PLACEHOLDER} from the URL."
+        )
 
 
 class MCPEndpointRoute(GatewayEndpointRoute):
@@ -76,9 +125,10 @@ class MCPEndpointRoute(GatewayEndpointRoute):
 
     @model_validator(mode="after")
     def _no_credential_in_base_url(self) -> "MCPEndpointRoute":
+        binding = self.credential_binding
+        check_url_secret_placeholder(self.base_url, binding)
         # The relay adds the bound parameter at request time. A stored URL that already
         # carries it would keep the key in plain text on the row.
-        binding = self.credential_binding
         if binding is None or binding.kind != "query" or not self.base_url:
             return self
         query = parse_qs(urlsplit(self.base_url).query, keep_blank_values=True)
@@ -131,12 +181,35 @@ class MCPEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
     status: Optional[Status] = None
 
 
+def _check_url_binding_mode(auth_mode: MCPAuthScheme, data: MCPEndpointData) -> None:
+    """Refuse a `url` binding on a row that sends no API key. Raises `ValueError`.
+
+    Only an API key fills `{secret}`, so any other mode would send the placeholder to the
+    server as the literal text.
+    """
+    binding = data.route.credential_binding
+    if (
+        binding is not None
+        and binding.kind == "url"
+        and auth_mode != MCPAuthScheme.API_KEY
+    ):
+        raise ValueError(
+            f"Only an API key can replace {URL_SECRET_PLACEHOLDER} in the URL. Choose API "
+            f"key, or remove {URL_SECRET_PLACEHOLDER} from the URL."
+        )
+
+
 class MCPEndpointCreate(Slug, Header, Metadata):
     auth_mode: MCPAuthScheme
     secret_id: Optional[UUID] = None
     #
     data: MCPEndpointData
     flags: MCPEndpointFlags = Field(default_factory=MCPEndpointFlags)
+
+    @model_validator(mode="after")
+    def _url_binding_needs_a_key(self) -> "MCPEndpointCreate":
+        _check_url_binding_mode(self.auth_mode, self.data)
+        return self
 
 
 class MCPEndpointEdit(Identifier, Header, Metadata):
@@ -145,6 +218,11 @@ class MCPEndpointEdit(Identifier, Header, Metadata):
     #
     data: MCPEndpointData
     flags: MCPEndpointFlags = Field(default_factory=MCPEndpointFlags)
+
+    @model_validator(mode="after")
+    def _url_binding_needs_a_key(self) -> "MCPEndpointEdit":
+        _check_url_binding_mode(self.auth_mode, self.data)
+        return self
 
 
 class MCPEndpointQuery(BaseModel):
@@ -168,6 +246,25 @@ class MCPResolvedRoute(BaseModel):
     credential_binding: Optional[MCPCredentialBinding] = None
     # Standard Composio sessions bind external accounts to this project scope.
     project_id: Optional[UUID] = None
+
+
+def api_key_value(data: object) -> Optional[str]:
+    """The key inside an API-key secret, whichever vault shape holds it.
+
+    Two shapes reach an MCP endpoint. A project-named secret (`custom_secret`), which is
+    what the agent config's `header_secret_refs` picks and therefore what registration
+    binds, keeps its value in `secret.content`; a provider-key record keeps it in
+    `provider.key`. A JSON-format named secret is a map with no single credential in it,
+    so it yields nothing rather than a guess at which entry is the key.
+    """
+    provider = getattr(data, "provider", None)
+    key = getattr(provider, "key", None) if provider is not None else None
+    if isinstance(key, str) and key:
+        return key
+
+    stored = getattr(data, "secret", None)
+    content = getattr(stored, "content", None) if stored is not None else None
+    return content if isinstance(content, str) and content else None
 
 
 class MCPDirectAuth(BaseModel):

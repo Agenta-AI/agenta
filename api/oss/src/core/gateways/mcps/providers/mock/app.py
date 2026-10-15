@@ -25,7 +25,8 @@ can be trusted against the other.
 
 While `AGENTA_GATEWAYS_MOCKS_ENABLED` is on, this process also serves a mock OAuth
 authorization server and a second, OAuth-protected MCP surface at `/oauth/mcp`
-(`issuer.py`), and a third, header-authenticated surface at `/key/mcp`. `/` stays
+(`issuer.py`), and a third, key-authenticated surface at `/key/mcp`, with a variant that
+takes the key in the path at `/key/<key>/mcp`. `/` stays
 unauthenticated, because every other mock suite speaks to it.
 """
 
@@ -160,6 +161,9 @@ async def _serve(request: Request) -> Response:
 # challenge: that absence is the whole signal. A 401 that names one is the OAuth path, and
 # this surface exists to be the other one.
 KEY_MCP_PATH = "/key/mcp"
+# The same surface for a server that takes its key in the path (Firecrawl
+# `/<key>/v2/mcp`), which a connection reaches with a url binding and `{secret}`.
+KEY_IN_PATH_MCP_PATH = "/key/{key}/mcp"
 
 KEY_REALM = "agenta-mock-mcp-key"
 
@@ -228,6 +232,15 @@ def build_key_router() -> APIRouter:
             return _key_challenge()
         # The same handler `/` and `/oauth/mcp` use, so all three answer one request with
         # one set of bytes and the framing rules stay in one place.
+        return await _serve(request)
+
+    @router.post(KEY_IN_PATH_MCP_PATH)
+    async def key_in_path_relay(key: str, request: Request) -> Response:
+        if (
+            not env.mock_gateways.mcp_key_value
+            or key != env.mock_gateways.mcp_key_value
+        ):
+            return _key_challenge()
         return await _serve(request)
 
     return router

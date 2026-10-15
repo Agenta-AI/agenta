@@ -1061,6 +1061,35 @@ describe("a reconnect, after its saved address was checked", () => {
     })
 })
 
+describe("a key reconnect's secret", () => {
+    it("starts on the secret the connection is saved with", async () => {
+        await open(
+            state({
+                status: "manual_auth",
+                url: "https://mcp.axiom.co/mcp",
+                name: "Axiom",
+                authMode: "api_key",
+                endpointId: "mcp-9",
+                slug: "axiom",
+                createdHere: false,
+            }),
+            {
+                reconnect: {
+                    id: "mcp-9",
+                    slug: "axiom",
+                    name: "Axiom",
+                    url: "https://mcp.axiom.co/mcp",
+                    authMode: "api_key",
+                    secretId: "sec-1",
+                },
+            },
+        )
+
+        expect(control("Project secret")?.textContent).toBe("axiom_token")
+        expect(button("Connect")?.disabled).toBe(false)
+    })
+})
+
 describe("success, which draws nothing", () => {
     it("closes instead of reporting, and says none of what it used to", async () => {
         const onClose = vi.fn()

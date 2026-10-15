@@ -6,7 +6,7 @@
  * screen is built here from the same rule, so what the screen says is sent is what is sent.
  */
 import {mcpDefaultKeyHeader} from "./probeResponse"
-import type {MCPCredentialBinding, MCPServerProbe} from "./types"
+import type {MCPAuthMode, MCPCredentialBinding, MCPServerProbe} from "./types"
 
 /** What a connection with no binding sends, which is also the commonest server's shape. */
 export const MCP_DEFAULT_CREDENTIAL_BINDING: MCPCredentialBinding = {
@@ -17,6 +17,58 @@ export const MCP_DEFAULT_CREDENTIAL_BINDING: MCPCredentialBinding = {
 
 /** Stands in for the secret wherever the screen shows what is sent. */
 const MASKED_CREDENTIAL = "••••"
+
+/** Where a `url` binding's value goes in the stored address (`URL_SECRET_PLACEHOLDER`). */
+export const MCP_URL_SECRET_PLACEHOLDER = "{secret}"
+
+/** The binding for an address that holds the placeholder. */
+export const MCP_URL_CREDENTIAL_BINDING: MCPCredentialBinding = {kind: "url"}
+
+export const hasUrlSecretPlaceholder = (url: string): boolean =>
+    url.includes(MCP_URL_SECRET_PLACEHOLDER)
+
+/** The path of an address as typed: after the authority, before any query or fragment. */
+const typedPath = (url: string): string =>
+    url.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*/i, "").split(/[?#]/)[0]
+
+/**
+ * Whether the address and the binding agree about the placeholder, as the API requires:
+ * exactly one `{secret}`, in the path, for a `url` binding, and none for any other.
+ *
+ * Read from the text rather than `new URL`, which percent-encodes the braces in a path.
+ */
+export function urlMatchesCredentialBinding(url: string, binding: MCPCredentialBinding): boolean {
+    const count = url.split(MCP_URL_SECRET_PLACEHOLDER).length - 1
+    if (binding.kind !== "url") return count === 0
+    return count === 1 && typedPath(url).includes(MCP_URL_SECRET_PLACEHOLDER)
+}
+
+/**
+ * Why this address cannot connect in this mode with this binding, or null.
+ *
+ * The API's own sentences, so the sheet says before Connect what the API would say after it.
+ * A placeholder under a header or query binding is not here: the URL field's hint already
+ * asks for In the URL.
+ */
+export function urlSecretProblem(
+    url: string,
+    authMode: MCPAuthMode,
+    binding: MCPCredentialBinding,
+): string | null {
+    if (authMode !== "api_key") {
+        return hasUrlSecretPlaceholder(url)
+            ? `Only an API key can replace ${MCP_URL_SECRET_PLACEHOLDER} in the URL. Choose API key, or remove ${MCP_URL_SECRET_PLACEHOLDER} from the URL.`
+            : null
+    }
+    if (binding.kind === "url" && !urlMatchesCredentialBinding(url, binding)) {
+        return `The URL needs exactly one ${MCP_URL_SECRET_PLACEHOLDER} in its path for the secret to replace.`
+    }
+    return null
+}
+
+/** Whether the binding says where the value goes: a name, or the URL's placeholder. */
+export const credentialBindingComplete = (binding: MCPCredentialBinding): boolean =>
+    binding.kind === "url" || !!binding.name?.trim()
 
 /**
  * The binding the key screen starts with, from what the probe found.
@@ -38,8 +90,10 @@ export function mcpDefaultCredentialBinding(
  * binding takes no prefix, because a scheme word in a query value would be part of the key.
  */
 export function normalizeCredentialBinding(binding: MCPCredentialBinding): MCPCredentialBinding {
+    // The placeholder says where the value goes, so a url binding has nothing to name.
+    if (binding.kind === "url") return MCP_URL_CREDENTIAL_BINDING
     const prefix = binding.kind === "header" ? binding.prefix?.trim() : null
-    return {kind: binding.kind, name: binding.name.trim(), prefix: prefix || null}
+    return {kind: binding.kind, name: binding.name?.trim() ?? "", prefix: prefix || null}
 }
 
 /** The value as the relay renders it: the prefix, a space, the secret. */
@@ -50,10 +104,11 @@ const renderedValue = (binding: MCPCredentialBinding, secret: string): string =>
 
 /**
  * What the relay sends, with the secret masked: `Authorization: Basic ••••`, or
- * `?exaApiKey=••••`. Null while the binding has no name, because nothing is sent then.
+ * `?exaApiKey=••••`. Null while the binding has no name, because nothing is sent then, and
+ * for a url binding, whose address the screen shows instead.
  */
 export function credentialBindingPreview(binding: MCPCredentialBinding): string | null {
-    const name = binding.name.trim()
+    const name = binding.kind === "url" ? "" : (binding.name?.trim() ?? "")
     if (!name) return null
     const value = renderedValue(binding, MASKED_CREDENTIAL)
     return binding.kind === "query" ? `?${name}=${value}` : `${name}: ${value}`
@@ -70,7 +125,7 @@ export function withoutCredentialParameter(
     url: string,
     binding: MCPCredentialBinding | null | undefined,
 ): string {
-    const name = binding?.kind === "query" ? binding.name.trim() : ""
+    const name = binding?.kind === "query" ? (binding.name?.trim() ?? "") : ""
     if (!name) return url
     try {
         const parsed = new URL(url)

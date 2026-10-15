@@ -197,7 +197,19 @@ export interface McpJourneyState {
 
 export type McpJourneyEvent =
     | {type: "url_changed"; url: string}
+    /**
+     * The address, edited on the key screen to put `{secret}` where the key goes. Nothing
+     * else changes: the screen, the choice and the probe stay, and the next press checks
+     * the address with the secret.
+     */
+    | {type: "url_edited"; url: string}
     | {type: "submit_url"}
+    /**
+     * An address with `{secret}` was submitted. It does not exist without its key, so it is
+     * not checked anonymously: the journey goes to the key screen, and the press there
+     * checks it with the chosen secret.
+     */
+    | {type: "url_secret_submitted"; suggestedName: string}
     | {type: "probe_succeeded"; probe: MCPServerProbe; suggestedName: string}
     | {
           type: "probe_failed"
@@ -395,9 +407,24 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
             }
         }
 
+        case "url_edited":
+            return {...state, url: event.url, error: null}
+
         case "submit_url":
             if (!state.url.trim()) return state
             return {...state, status: "checking_url", error: null}
+
+        case "url_secret_submitted":
+            return {
+                ...state,
+                status: "naming",
+                probe: null,
+                name: state.nameTouched ? state.name : event.suggestedName,
+                authMode: "api_key",
+                authModeTouched: false,
+                oauthOffered: false,
+                error: null,
+            }
 
         case "probe_succeeded": {
             // The person's choice survives a re-check, except an OAuth choice the server no
