@@ -18,6 +18,13 @@ from oss.src.core.gateways.mcps.dtos import (
 from oss.src.core.shared.dtos import Windowing
 
 
+# Distinguishes "the caller supplied the row's updated_at, and it is NULL" (a legacy row
+# the relay read; still compared, so a reconnect that stamps it wins) from "the caller
+# supplied nothing" (no fingerprint guard at all). A bare `None` default cannot make this
+# distinction (#6879).
+UNSET_UPDATED_AT = object()
+
+
 class MCPEndpointsDAOInterface(ABC):
     """Same six verbs, same semantics, over mcps_endpoints."""
 
@@ -95,6 +102,7 @@ class MCPEndpointsDAOInterface(ABC):
         #
         endpoint_id: UUID,
         secret_id: Optional[UUID],
+        expected_updated_at: object = UNSET_UPDATED_AT,
     ) -> Optional[MCPEndpoint]:
         """Record that a connection's stored authorization is dead, touching nothing else.
 
@@ -104,6 +112,13 @@ class MCPEndpointsDAOInterface(ABC):
         reconfigured during, so writing back what it read would undo a concurrent
         change, and invalidating without looking would condemn a credential a reconnect
         has already replaced (D21).
+
+        `expected_updated_at` is the row's `updated_at` as the failing relay read it.
+        When supplied it is a precondition too: a mismatch means the row changed hands
+        while the 401 was in flight (a reconnect rebind stamps it), so the repair wins
+        and the invalidation is not this caller's to write (#6879). A supplied NULL
+        (a legacy, never-stamped row) still compares: it matches only a row that is
+        still NULL, i.e. untouched. Omit it (UNSET_UPDATED_AT) for no guard at all.
         """
         raise NotImplementedError
 

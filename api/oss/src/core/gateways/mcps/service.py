@@ -1180,6 +1180,11 @@ class MCPGatewayService:
             # reconnect landed while the call was in flight, the credential that failed
             # is not the one the connection holds now (D21).
             secret_id=endpoint.secret_id,
+            # The row as the relay read it before its round trip. The credential read
+            # above and this write are two transactions, so a reconnect can still land
+            # between them (same secret id, fresh grant, endpoint re-bound and stamped).
+            # The write is conditional on this fingerprint so the repair wins (#6879).
+            expected_updated_at=endpoint.updated_at,
         )
 
     def _route_for(

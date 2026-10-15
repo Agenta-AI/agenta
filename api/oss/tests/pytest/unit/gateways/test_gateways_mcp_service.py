@@ -8,6 +8,7 @@ and relay orchestration.
 """
 
 import json
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Dict, List, Optional
 from uuid import UUID, uuid4
@@ -32,6 +33,7 @@ from oss.src.core.gateways.mcps.dtos import (
 from oss.src.core.gateways.mcps.interfaces import (
     MCPEndpointsDAOInterface,
     MCPRelayResult,
+    UNSET_UPDATED_AT,
 )
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.providers.composio import ComposioMCPAdapter
@@ -90,7 +92,10 @@ class MockMCPEndpointsDAO(MCPEndpointsDAOInterface):
         self, *, project_id, user_id, endpoint
     ) -> Optional[MCPEndpoint]:
         self.calls.append("create_endpoint")
-        created = MCPEndpoint(id=uuid4(), **endpoint.model_dump())
+        # Creation is the row's first write, like the real DAO (#6879).
+        created = MCPEndpoint(
+            id=uuid4(), updated_at=datetime.now(timezone.utc), **endpoint.model_dump()
+        )
         self._by_id[created.id] = created
         return created
 
@@ -143,9 +148,12 @@ class MockMCPEndpointsDAO(MCPEndpointsDAOInterface):
         existing = self._by_id.get(endpoint_id)
         if existing is None:
             return None
+        # A rebind is a write: it stamps, even when the secret id is unchanged, like
+        # the real DAO (#6879).
         updated = existing.model_copy(
             update={
                 "secret_id": secret_id,
+                "updated_at": datetime.now(timezone.utc),
                 "flags": MCPEndpointFlags(
                     is_active=existing.flags.is_active, is_valid=True
                 ),
@@ -155,7 +163,13 @@ class MockMCPEndpointsDAO(MCPEndpointsDAOInterface):
         return updated
 
     async def invalidate_endpoint_secret(
-        self, *, project_id, user_id, endpoint_id, secret_id
+        self,
+        *,
+        project_id,
+        user_id,
+        endpoint_id,
+        secret_id,
+        expected_updated_at=UNSET_UPDATED_AT,
     ) -> Optional[MCPEndpoint]:
         self.calls.append("invalidate_endpoint_secret")
         existing = self._by_id.get(endpoint_id)
@@ -163,6 +177,12 @@ class MockMCPEndpointsDAO(MCPEndpointsDAOInterface):
             return None
         # Conditional on the handle the caller was using, like the real DAO (D21).
         if existing.secret_id is None or existing.secret_id != secret_id:
+            return existing
+        # And on the row as the failing relay read it, like the real DAO (#6879).
+        if (
+            expected_updated_at is not UNSET_UPDATED_AT
+            and existing.updated_at != expected_updated_at
+        ):
             return existing
         updated = existing.model_copy(
             update={

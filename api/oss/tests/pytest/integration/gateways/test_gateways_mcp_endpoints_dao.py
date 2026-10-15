@@ -465,3 +465,168 @@ async def test_caching_discovery_keeps_the_credential_the_connection_holds(
     assert stored.data.tools.allowlist == ["search"]
     assert stored.data.settings.timeout_seconds == 10.0
     assert stored.name == "Acme Notion"
+
+
+async def test_invalidate_skips_a_reconnect_that_landed_in_between(seeded_project):
+    # Issue #6879: the credential read (D33) and the invalidating write are two
+    # transactions, so a reconnect can land between them — same secret id, fresh grant,
+    # endpoint re-bound and stamped. The invalidation the old credential earned must not
+    # overwrite that repair.
+    dao = MCPEndpointsDAO(engine=get_transactions_engine())
+    project_id = seeded_project["project_id"]
+    user_id = seeded_project["user_id"]
+    secret_id = seeded_project["secret_id"]
+
+    create = _create_dto(slug="acme-raced")
+    create.secret_id = secret_id
+    created = await dao.create_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        endpoint=create,
+    )
+    assert created is not None and created.flags.is_valid is True
+
+    snapshot = await dao.fetch_endpoint(project_id=project_id, endpoint_id=created.id)
+
+    rebound = await dao.bind_endpoint_secret(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=created.id,
+        secret_id=secret_id,
+    )
+    assert rebound is not None
+    assert rebound.updated_at != snapshot.updated_at
+
+    result = await dao.invalidate_endpoint_secret(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=created.id,
+        secret_id=secret_id,
+        expected_updated_at=snapshot.updated_at,
+    )
+
+    assert result is not None
+    assert result.flags.is_valid is True
+
+
+async def test_invalidate_still_marks_when_nothing_interleaved(seeded_project):
+    # The fingerprint is a guard, not a block: when the row is exactly what the failing
+    # relay read, the invalidation still lands.
+    dao = MCPEndpointsDAO(engine=get_transactions_engine())
+    project_id = seeded_project["project_id"]
+    user_id = seeded_project["user_id"]
+    secret_id = seeded_project["secret_id"]
+
+    create = _create_dto(slug="acme-orderly")
+    create.secret_id = secret_id
+    created = await dao.create_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        endpoint=create,
+    )
+
+    snapshot = await dao.fetch_endpoint(project_id=project_id, endpoint_id=created.id)
+
+    result = await dao.invalidate_endpoint_secret(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=created.id,
+        secret_id=secret_id,
+        expected_updated_at=snapshot.updated_at,
+    )
+
+    assert result is not None
+    assert result.flags.is_valid is False
+
+
+async def test_invalidate_skips_a_reconnect_on_a_legacy_unstamped_row(seeded_project):
+    # A row created before creation stamped it carries a NULL updated_at; the relay
+    # still hands that NULL to the invalidation. A supplied NULL must COMPARE — it
+    # matches only a row that is still NULL — so a reconnect that stamped the row in
+    # between wins even for a legacy row (#6879).
+    dao = MCPEndpointsDAO(engine=get_transactions_engine())
+    project_id = seeded_project["project_id"]
+    user_id = seeded_project["user_id"]
+    secret_id = seeded_project["secret_id"]
+
+    create = _create_dto(slug="acme-legacy")
+    create.secret_id = secret_id
+    created = await dao.create_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        endpoint=create,
+    )
+
+    # Age the row into the legacy shape: no fingerprint at all.
+    async with get_transactions_engine().session() as session:
+        await session.execute(
+            text("UPDATE mcps_endpoints SET updated_at = NULL WHERE id = :id"),
+            {"id": created.id},
+        )
+        await session.commit()
+
+    snapshot = await dao.fetch_endpoint(project_id=project_id, endpoint_id=created.id)
+    assert snapshot.updated_at is None
+
+    # The reconnect lands: rebind stamps the row.
+    await dao.bind_endpoint_secret(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=created.id,
+        secret_id=secret_id,
+    )
+
+    result = await dao.invalidate_endpoint_secret(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=created.id,
+        secret_id=secret_id,
+        expected_updated_at=snapshot.updated_at,
+    )
+
+    assert result is not None
+    assert result.flags.is_valid is True
+
+
+async def test_invalidate_still_marks_a_legacy_row_that_stayed_untouched(
+    seeded_project,
+):
+    # The NULL fingerprint's other half: a legacy row nobody touched between the relay's
+    # read and the write is still NULL, so the NULL matches and the invalidation lands.
+    dao = MCPEndpointsDAO(engine=get_transactions_engine())
+    project_id = seeded_project["project_id"]
+    user_id = seeded_project["user_id"]
+    secret_id = seeded_project["secret_id"]
+
+    create = _create_dto(slug="acme-legacy-quiet")
+    create.secret_id = secret_id
+    created = await dao.create_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        endpoint=create,
+    )
+
+    async with get_transactions_engine().session() as session:
+        await session.execute(
+            text("UPDATE mcps_endpoints SET updated_at = NULL WHERE id = :id"),
+            {"id": created.id},
+        )
+        await session.commit()
+
+    snapshot = await dao.fetch_endpoint(project_id=project_id, endpoint_id=created.id)
+    assert snapshot.updated_at is None
+
+    result = await dao.invalidate_endpoint_secret(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=created.id,
+        secret_id=secret_id,
+        expected_updated_at=snapshot.updated_at,
+    )
+
+    assert result is not None
+    assert result.flags.is_valid is False
