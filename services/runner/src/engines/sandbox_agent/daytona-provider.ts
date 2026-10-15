@@ -261,10 +261,10 @@ export function daytonaWithLifecycle(
     },
     async refreshActivity(sandboxId: string): Promise<void> {
       const id = rawSandboxId(sandboxId);
+
       try {
-        // Daytona counts API interactions as activity. This is believed to reset its idle-timer
-        // clock; Slice 5 verifies that behavior against a live sandbox.
-        await client.get(id);
+        const sandbox = await client.get(id);
+        await sandbox.refreshActivity();
       } catch (error) {
         process.stderr.write(
           `[daytona] activity refresh failed sandbox=${id}: ${String(
