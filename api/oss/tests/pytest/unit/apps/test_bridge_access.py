@@ -82,25 +82,28 @@ def test_a_cross_origin_bridge_preflight_passes():
     assert response.status_code == 200, response.text
 
 
+def _added_origins(web_url: str) -> set[str]:
+    """The origins `_cors_origins` adds for `web_url`, beyond the built-in defaults."""
+    return set(_cors_origins(web_url)) - set(_cors_origins(""))
+
+
 def test_cors_includes_configured_web_origin():
     origins = _cors_origins("http://agenta.local:3000")
 
-    assert "http://agenta.local:3000" in origins
-    assert "http://localhost:3000" in origins
+    assert _added_origins("http://agenta.local:3000") == {"http://agenta.local:3000"}
+    assert set(_cors_origins("")) <= set(origins)
 
 
 def test_cors_normalizes_configured_web_url_to_origin():
-    origins = _cors_origins("https://agenta.example.com/some/path")
-
-    assert "https://agenta.example.com" in origins
-    assert "https://agenta.example.com/some/path" not in origins
+    assert _added_origins("https://agenta.example.com/some/path") == {
+        "https://agenta.example.com"
+    }
 
 
 def test_cors_normalizes_case_and_default_port_like_a_browser():
-    origins = _cors_origins("https://AGENTA.EXAMPLE.COM:443/app")
-
-    assert "https://agenta.example.com" in origins
-    assert "https://AGENTA.EXAMPLE.COM:443" not in origins
+    assert _added_origins("https://AGENTA.EXAMPLE.COM:443/app") == {
+        "https://agenta.example.com"
+    }
 
 
 def test_cors_never_allows_a_wildcard_origin():
