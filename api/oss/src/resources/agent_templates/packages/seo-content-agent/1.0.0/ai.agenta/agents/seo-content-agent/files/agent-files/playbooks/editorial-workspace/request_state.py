@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 def read_note(path):
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     m = re.match(r"^---\n(.*?)\n---\n*", text, re.S)
     if not m:
         raise ValueError("Request needs frontmatter")
@@ -69,7 +69,7 @@ def inspect(path):
             or hashlib.sha256(src.read_bytes()).hexdigest() != expected
         ):
             stale.append(rel)
-        if src.is_file() and src.read_text().startswith("---\n"):
+        if src.is_file() and src.read_text(encoding="utf-8").startswith("---\n"):
             source_meta, _ = read_note(src)
             if source_meta.get("generated"):
                 original = inside(root.parent.parent, source_meta.get("canonical_path"))
@@ -90,7 +90,7 @@ def inspect(path):
 
 
 def resolve_action(root, meta):
-    catalog = json.loads((root / "actions.json").read_text())
+    catalog = json.loads((root / "actions.json").read_text(encoding="utf-8"))
     if catalog.get("version") != 1:
         raise ValueError("Unsupported action catalog")
     routes = catalog["actions"]
@@ -124,7 +124,12 @@ def transition(path, action, summary="", outputs=None):
             "source_files": list(meta["source_hashes"]),
         }
     lock = path.with_suffix(".lock")
-    fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        raise ValueError(
+            f"Another transition holds {lock}; if no run is active, remove the stale lock"
+        ) from None
     try:
         root, meta, body, stale = inspect(path)
         if action == "start":
@@ -184,7 +189,8 @@ def transition(path, action, summary="", outputs=None):
                 f"{k}: {json.dumps(v, ensure_ascii=False)}\n" for k, v in meta.items()
             )
             + "---\n\n"
-            + body
+            + body,
+            encoding="utf-8",
         )
         return {"id": meta["id"], "status": meta["status"]}
     finally:

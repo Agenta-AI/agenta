@@ -2957,7 +2957,7 @@
       "versions": [
         "1.0.0"
       ],
-      "digest": "sha256:84eac300e411a3e6c84d374bc0f9ab222d6c9c0365a3e45833ef25addb1967bf",
+      "digest": "sha256:223214a46a3aac64ccadf5ab655576225140d757584a4fa1534b1ee949294975",
       "name": "SEO Content Agent",
       "summary": "Research search opportunities and turn approved briefs into useful content.",
       "description": "An SEO coworker with eight research, planning, writing and review skills, a clean editorial workspace, and separate brief and publish-readiness approvals.",
@@ -3005,7 +3005,7 @@
       "seed_message": "Build an SEO content agent that researches my website, recommends a small content plan, and drafts approved briefs.",
       "builder_message": "Build an SEO content agent that researches my website, recommends a small content plan, and drafts approved briefs.",
       "model": "gpt-5",
-      "tools_summary": "1 composio_search + 1 context_dev + 1 peec_ai_mcp + 1 fal_ai + 1 google_search_console + 1 browserbase_mcp tools",
+      "tools_summary": "1 Composio Search + 1 Context.dev + 1 Peec + 1 fal.ai + 1 Google Search Console + 1 Browserbase tools",
       "connections": [
         {
           "key": "composio-search",
