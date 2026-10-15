@@ -22,6 +22,8 @@ export interface CreateSecretDrawerProps {
     headerName?: string
     /** Server name; seeds the Name as `<SERVER>_API_KEY`. */
     serverName?: string
+    /** Seeds the value, for a caller that built it (the MCP Basic helper). */
+    initialValue?: string
     /** Called with the persisted secret after a successful save. */
     onCreated: (row: SavedSecret) => void
     /** Stacks above the host drawer. @default 1100 */
@@ -36,6 +38,7 @@ export function CreateSecretDrawer({
     onClose,
     headerName,
     serverName,
+    initialValue,
     onCreated,
     zIndex = 1100,
 }: CreateSecretDrawerProps) {
@@ -46,6 +49,7 @@ export function CreateSecretDrawer({
     const controller = useSecretForm({
         open,
         initialName: suggestedName,
+        initialValue,
         onSaved: (row) => {
             onCreated(row)
             onClose()

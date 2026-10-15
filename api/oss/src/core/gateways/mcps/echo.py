@@ -9,10 +9,12 @@ session credential — so it takes the same refusal, built from the same scanner
 
 One difference decides the shape of this module. The LLM plane writes the credential into
 headers it names itself, so `injected_credential_values` keys off a fixed set of names. An
-MCP endpoint's credential header name is endpoint configuration
-(`MCPEndpointRoute.credential_header`), so the name is not knowable here. What *is*
+MCP endpoint's credential binding is endpoint configuration
+(`MCPEndpointRoute.credential_binding`), so the name is not knowable here. What *is*
 knowable is that every header in the layer an adapter puts above the caller's was injected
 by the gateway, so that layer is the input and the shared helper normalizes each value.
+A binding can also put the credential in a query parameter, so the query values the
+adapter adds are input too, in every form a URL can carry them.
 
 No MCP relay streams. Every adapter reads the upstream response whole — `MCPRelayResult.body`
 is `bytes`, not an iterator — before it returns, so nothing is relayed before it has been
@@ -20,7 +22,7 @@ scanned and detection alone is sufficient. `CredentialEchoRelay`, which the LLM 
 because its SSE path yields bytes as they arrive, therefore has no caller here.
 """
 
-from typing import Dict, Mapping, Optional, Tuple
+from typing import Dict, Iterable, Mapping, Optional, Tuple
 from urllib.parse import quote, quote_plus, unquote_plus, urlsplit
 
 from oss.src.core.gateways.dtos import (
@@ -65,30 +67,35 @@ def injected_mcp_credentials(headers: Mapping[str, str]) -> Tuple[bytes, ...]:
     return tuple(values)
 
 
+def _query_value_forms(values: Iterable[str]) -> Tuple[bytes, ...]:
+    """Each query value as given and percent-encoded both ways a URL can carry it.
+
+    An echo can carry any of these forms (`a/b` can come back as `a%2Fb`; a space as `+`
+    or `%20`). No header rule applies: a query value has no scheme prefix, and a short key
+    is still a key.
+    """
+    forms = dict.fromkeys(
+        form
+        for value in values
+        if value
+        for form in (value, quote(value, safe=""), quote_plus(value, safe=""))
+    )
+    return tuple(form.encode() for form in forms)
+
+
 def url_credentials(url: str) -> Tuple[bytes, ...]:
     """The values a URL's query carries, which is where a typed key sits (`?api_key=...`).
 
     A server that echoes the request into its error page then holds the key. Each value is
-    taken as written, query-decoded, and encoded again, because an echo can carry any of
-    these forms (`a/b` typed raw can come back as `a%2Fb`; a space as `+` or `%20`). No header
-    rule applies: a query value has no scheme prefix, and a short key is still a key.
-    Userinfo is not read: the egress check refuses a URL that carries it before anything
-    is sent.
+    taken as written and query-decoded, because the URL holds the encoded form and an echo
+    can carry either. Userinfo is not read: the egress check refuses a URL that carries it
+    before anything is sent.
     """
     written = [pair.partition("=")[2] for pair in urlsplit(url).query.split("&")]
-    forms = dict.fromkeys(
-        form
-        for value in written
-        if value
-        for decoded in (unquote_plus(value),)
-        for form in (
-            value,
-            decoded,
-            quote(decoded, safe=""),
-            quote_plus(decoded, safe=""),
-        )
+    decoded = _query_value_forms(unquote_plus(value) for value in written)
+    return tuple(
+        dict.fromkeys([*(value.encode() for value in written if value), *decoded])
     )
-    return tuple(form.encode() for form in forms)
 
 
 def redact_credentials(data: bytes, credentials: Tuple[bytes, ...]) -> bytes:
@@ -102,9 +109,20 @@ def redact_credentials(data: bytes, credentials: Tuple[bytes, ...]) -> bytes:
     return data
 
 
-def credential_echo_scanner(headers: Mapping[str, str]) -> CredentialEchoScanner:
-    """A scanner over the credentials an adapter is about to inject."""
-    return CredentialEchoScanner(injected_mcp_credentials(headers))
+def credential_echo_scanner(
+    headers: Mapping[str, str],
+    *,
+    query: Optional[Mapping[str, str]] = None,
+) -> CredentialEchoScanner:
+    """A scanner over the credentials an adapter is about to inject.
+
+    `query` holds only the parameters the adapter adds, never the stored URL's own: a
+    stored `?codemode=false` is not a credential, and scanning for it would refuse every
+    response that says `false`.
+    """
+    return CredentialEchoScanner(
+        injected_mcp_credentials(headers) + _query_value_forms((query or {}).values())
+    )
 
 
 def refuse_credential_echo(

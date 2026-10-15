@@ -20,6 +20,7 @@ from oss.src.core.gateways.mcps.echo import MCPUpstreamCredentialEchoError
 from oss.src.core.gateways.mcps.dtos import (
     MCPBrokeredAuth,
     MCPCallContext,
+    MCPCredentialBinding,
     MCPDirectAuth,
     MCPEndpointSettings,
     MCPResolvedRoute,
@@ -587,7 +588,8 @@ async def test_api_key_travels_in_the_header_the_endpoint_registered():
 
     await adapter.relay(
         route=MCPResolvedRoute(
-            url=f"https://{_PUBLIC_IP}/mcp", credential_header="x-api-key"
+            url=f"https://{_PUBLIC_IP}/mcp",
+            credential_binding=MCPCredentialBinding(name="x-api-key"),
         ),
         auth=_named_secret_auth(_SYNTHETIC_API_KEY),
         context=_context(),
@@ -599,6 +601,90 @@ async def test_api_key_travels_in_the_header_the_endpoint_registered():
     # same server without a gateway (`agenta/sdk/agents/mcp/resolver.py`).
     assert captured["headers"]["x-api-key"] == _SYNTHETIC_API_KEY
     assert "authorization" not in captured["headers"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prefix", ["Bearer", "Basic"])
+async def test_api_key_travels_behind_the_prefix_the_binding_names(prefix):
+    """The header a server that names a scheme expects: the word, a space, the value."""
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["headers"] = request.headers
+        return _json_response()
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    await adapter.relay(
+        route=MCPResolvedRoute(
+            url=f"https://{_PUBLIC_IP}/mcp",
+            credential_binding=MCPCredentialBinding(
+                name="Authorization", prefix=prefix
+            ),
+        ),
+        auth=_named_secret_auth(_SYNTHETIC_API_KEY),
+        context=_context(),
+        body=b"{}",
+        headers={},
+    )
+
+    assert captured["headers"]["authorization"] == f"{prefix} {_SYNTHETIC_API_KEY}"
+
+
+@pytest.mark.asyncio
+async def test_api_key_travels_in_the_query_parameter_the_binding_names():
+    """Added to the request at send time, next to what the stored URL already carries,
+    and never to the URL that errors and logs show."""
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = request.url
+        captured["headers"] = request.headers
+        return _json_response()
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+    route = MCPResolvedRoute(
+        url=f"https://{_PUBLIC_IP}/mcp?codemode=false",
+        credential_binding=MCPCredentialBinding(kind="query", name="exaApiKey"),
+    )
+
+    await adapter.relay(
+        route=route,
+        auth=_named_secret_auth(_SYNTHETIC_API_KEY),
+        context=_context(),
+        body=b"{}",
+        headers={},
+    )
+
+    assert captured["url"].params["exaApiKey"] == _SYNTHETIC_API_KEY
+    assert captured["url"].params["codemode"] == "false"
+    assert "authorization" not in captured["headers"]
+    assert _SYNTHETIC_API_KEY not in route.url
+
+
+@pytest.mark.asyncio
+async def test_a_refused_query_credential_target_is_the_stored_url():
+    """A transport failure names the target, and the target is the URL without the key."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(MCPUpstreamError) as excinfo:
+        await adapter.relay(
+            route=MCPResolvedRoute(
+                url=f"https://{_PUBLIC_IP}/mcp",
+                credential_binding=MCPCredentialBinding(kind="query", name="apiKey"),
+            ),
+            auth=_named_secret_auth(_SYNTHETIC_API_KEY),
+            context=_context(),
+            body=b"{}",
+            headers={},
+        )
+
+    assert excinfo.value.target == f"https://{_PUBLIC_IP}/mcp"
+    assert _SYNTHETIC_API_KEY not in str(excinfo.value)
 
 
 @pytest.mark.asyncio
@@ -636,7 +722,8 @@ async def test_json_named_secret_carries_no_single_key_so_nothing_is_sent():
 
     await adapter.relay(
         route=MCPResolvedRoute(
-            url=f"https://{_PUBLIC_IP}/mcp", credential_header="x-api-key"
+            url=f"https://{_PUBLIC_IP}/mcp",
+            credential_binding=MCPCredentialBinding(name="x-api-key"),
         ),
         auth=_named_secret_auth({"token": _SYNTHETIC_API_KEY}),
         context=_context(),
@@ -749,13 +836,50 @@ async def test_upstream_echoing_an_api_key_from_a_named_header_is_refused():
     with pytest.raises(MCPUpstreamCredentialEchoError):
         await adapter.relay(
             route=MCPResolvedRoute(
-                url=f"https://{_PUBLIC_IP}/mcp", credential_header="x-exa-api-key"
+                url=f"https://{_PUBLIC_IP}/mcp",
+                credential_binding=MCPCredentialBinding(name="x-exa-api-key"),
             ),
             auth=_named_secret_auth(_SYNTHETIC_API_KEY),
             context=_context(),
             body=b"{}",
             headers={},
         )
+
+
+# A value with characters a URL encodes, so the encoded forms differ from the raw one.
+_QUERY_KEY = "test key/one"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "echoed",
+    [_QUERY_KEY, "test%20key%2Fone", "test+key%2Fone"],
+    ids=["as stored", "percent-encoded", "form-encoded"],
+)
+async def test_upstream_echoing_an_api_key_from_a_query_parameter_is_refused(echoed):
+    """A server that writes the request URL into its answer holds the key, in whichever
+    form the URL carried it."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            404, content=f"no route for /mcp?apiKey={echoed}".encode()
+        )
+
+    adapter = HttpMCPAdapter(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(MCPUpstreamCredentialEchoError) as excinfo:
+        await adapter.relay(
+            route=MCPResolvedRoute(
+                url=f"https://{_PUBLIC_IP}/mcp",
+                credential_binding=MCPCredentialBinding(kind="query", name="apiKey"),
+            ),
+            auth=_named_secret_auth(_QUERY_KEY),
+            context=_context(),
+            body=b"{}",
+            headers={},
+        )
+
+    assert _QUERY_KEY not in str(excinfo.value)
 
 
 @pytest.mark.asyncio

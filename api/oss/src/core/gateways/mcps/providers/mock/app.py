@@ -29,6 +29,8 @@ authorization server and a second, OAuth-protected MCP surface at `/oauth/mcp`
 unauthenticated, because every other mock suite speaks to it.
 """
 
+import base64
+import binascii
 import json
 
 from fastapi import APIRouter, FastAPI, Request
@@ -181,19 +183,33 @@ def _key_challenge() -> Response:
 
 
 def _key_accepted(request: Request) -> bool:
-    """Both forms the gateway sends an API key in.
+    """Every form the gateway can send an API key in.
 
-    An endpoint that registers a `credential_header` sends the stored value verbatim under
-    that name; one that registers none falls back to `Authorization: Bearer <value>`
-    (`providers/http/adapter.py::credential_headers`). A mock that took only one of them
-    would refuse a correctly configured connection for a reason that is not the product.
+    An endpoint's credential binding sends the value under the header it names, in the
+    query parameter it names, or behind a prefix; one with no binding falls back to
+    `Authorization: Bearer <value>` (`providers/http/adapter.py::injected_credentials`).
+    Basic is accepted with the key as the password, so the connect sheet's Basic helper
+    can be driven against this surface with any username. A mock that took only some of
+    these would refuse a correctly configured connection for a reason that is not the
+    product.
     """
     expected = env.mock_gateways.mcp_key_value
     if not expected:
         return False
-    if request.headers.get(env.mock_gateways.mcp_key_header) == expected:
+    name = env.mock_gateways.mcp_key_header
+    if expected in (request.headers.get(name), request.query_params.get(name)):
         return True
-    return request.headers.get("Authorization") == f"Bearer {expected}"
+    authorization = request.headers.get("Authorization") or ""
+    scheme, _, value = authorization.partition(" ")
+    if scheme.lower() == "bearer":
+        return value == expected
+    if scheme.lower() == "basic":
+        try:
+            decoded = base64.b64decode(value, validate=True).decode()
+        except (binascii.Error, UnicodeDecodeError):
+            return False
+        return decoded.partition(":")[2] == expected
+    return False
 
 
 def build_key_router() -> APIRouter:

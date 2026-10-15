@@ -30,8 +30,17 @@ export {
     readMcpProbeResponse,
 } from "./probeResponse"
 export type {McpProbeResponse} from "./probeResponse"
+export {
+    basicCredentialValue,
+    credentialBindingPreview,
+    MCP_DEFAULT_CREDENTIAL_BINDING,
+    mcpDefaultCredentialBinding,
+    normalizeCredentialBinding,
+    withoutCredentialParameter,
+} from "./credentialBinding"
 export type {
     MCPAuthMode,
+    MCPCredentialBinding,
     MCPConnectResponse,
     MCPEndpoint,
     MCPEndpointCreate,

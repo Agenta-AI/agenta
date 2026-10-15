@@ -931,7 +931,10 @@ describe("a credential the server refused", () => {
         expect(journey.state.endpointId).toBe("mcp-1")
 
         await act(async () => {
-            await journey.submitManualCredential({headerName: "X-Api-Key", secretId: "wrong"})
+            await journey.submitManualCredential({
+                binding: {kind: "header", name: "X-Api-Key"},
+                secretId: "wrong",
+            })
         })
         await settle()
 
@@ -941,6 +944,53 @@ describe("a credential the server refused", () => {
         // writing another credential onto the one that was refused.
         expect(journey.state.endpointId).toBeNull()
         expect(journey.state.createdHere).toBe(false)
+    })
+})
+
+describe("a pasted address that already carries the key", () => {
+    it("keeps the bound query parameter out of the stored row, on create and on edit", async () => {
+        // The relay adds the parameter at request time. Copying the pasted URL into the row
+        // kept the key in plain text in the endpoint's `base_url` (Codex review, PR 5).
+        const pasted = "https://mcp.exa.test/mcp?exaApiKey=test-key-one&debug=on"
+        const stored = "https://mcp.exa.test/mcp?debug=on"
+        const binding = {kind: "query" as const, name: "exaApiKey"}
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {reachable: true, server_name: "Exa", auth: {mode: "none"}},
+        })
+        editMcpEndpoint.mockResolvedValue({count: 1, endpoint: {id: "mcp-1", slug: "exa"}})
+        queryMcpEndpoints.mockResolvedValue({
+            count: 1,
+            endpoints: [
+                {
+                    id: "mcp-1",
+                    slug: "exa",
+                    name: "Exa",
+                    auth_mode: "api_key",
+                    data: {route: {base_url: stored}},
+                },
+            ],
+        })
+        listMcpTools.mockResolvedValue({tools: []})
+
+        await mountJourney()
+        await act(async () => journey.setUrl(pasted))
+        await act(async () => {
+            await journey.submitUrl(pasted)
+        })
+        await act(async () => journey.setName("Exa"))
+        await act(async () => journey.selectAuthMode("api_key"))
+        await act(async () => {
+            await journey.submitName(binding)
+        })
+        expect(createMcpEndpoint.mock.calls.at(-1)?.[0].data.route.base_url).toBe(stored)
+
+        await act(async () => {
+            await journey.submitManualCredential({binding, secretId: "sec-1"})
+        })
+        const route = editMcpEndpoint.mock.calls.at(-1)?.[0].data.route
+        expect(route.base_url).toBe(stored)
+        expect(route.credential_binding).toEqual({...binding, prefix: null})
     })
 })
 

@@ -295,7 +295,10 @@ describe("repairing a key-authenticated connection", () => {
     it("asks the server whether the credential works before saying it connected", async () => {
         await mountJourney(KEY_AUTHENTICATED)
         await act(async () => {
-            await journey.submitManualCredential({headerName: "x-api-key", secretId: "sec-1"})
+            await journey.submitManualCredential({
+                binding: {kind: "header", name: "x-api-key"},
+                secretId: "sec-1",
+            })
         })
 
         // Saving a reference to a secret proves nothing about the secret.
@@ -312,7 +315,10 @@ describe("repairing a key-authenticated connection", () => {
         })
         await mountJourney(KEY_AUTHENTICATED)
         await act(async () => {
-            await journey.submitManualCredential({headerName: "x-api-key", secretId: "wrong"})
+            await journey.submitManualCredential({
+                binding: {kind: "header", name: "x-api-key"},
+                secretId: "wrong",
+            })
         })
 
         // Before this the journey said connected and the run failed much later.
@@ -329,7 +335,10 @@ describe("where a credential check that got no answer lands", () => {
         listMcpTools.mockRejectedValue(new Error("socket hang up"))
         await mountJourney(KEY_AUTHENTICATED)
         await act(async () => {
-            await journey.submitManualCredential({headerName: "x-api-key", secretId: "sec-1"})
+            await journey.submitManualCredential({
+                binding: {kind: "header", name: "x-api-key"},
+                secretId: "sec-1",
+            })
         })
 
         expect(journey.state.status).toBe("check_failed")
@@ -342,7 +351,10 @@ describe("where a credential check that got no answer lands", () => {
         })
         await mountJourney(KEY_AUTHENTICATED)
         await act(async () => {
-            await journey.submitManualCredential({headerName: "x-api-key", secretId: "sec-1"})
+            await journey.submitManualCredential({
+                binding: {kind: "header", name: "x-api-key"},
+                secretId: "sec-1",
+            })
         })
 
         expect(journey.state.status).toBe("verify_failed")
@@ -362,7 +374,10 @@ describe("where a credential check that got no answer lands", () => {
         })
         await mountJourney(KEY_AUTHENTICATED)
         await act(async () => {
-            await journey.submitManualCredential({headerName: "x-api-key", secretId: "sec-1"})
+            await journey.submitManualCredential({
+                binding: {kind: "header", name: "x-api-key"},
+                secretId: "sec-1",
+            })
         })
 
         expect(journey.state.status).toBe("check_failed")
@@ -377,7 +392,10 @@ describe("where a credential check that got no answer lands", () => {
         })
         await mountJourney(KEY_AUTHENTICATED)
         await act(async () => {
-            await journey.submitManualCredential({headerName: "x-api-key", secretId: "sec-1"})
+            await journey.submitManualCredential({
+                binding: {kind: "header", name: "x-api-key"},
+                secretId: "sec-1",
+            })
         })
 
         expect(journey.state.status).toBe("check_failed")
@@ -407,7 +425,10 @@ describe("what a key reconnect sends back", () => {
         queryMcpEndpoints.mockResolvedValue({count: 1, endpoints: [STORED]})
         await mountJourney(KEY_AUTHENTICATED)
         await act(async () => {
-            await journey.submitManualCredential({headerName: "x-api-key", secretId: "sec-new"})
+            await journey.submitManualCredential({
+                binding: {kind: "header", name: "x-api-key"},
+                secretId: "sec-new",
+            })
         })
 
         const sent = editMcpEndpoint.mock.calls.at(-1)?.[0]
@@ -417,7 +438,11 @@ describe("what a key reconnect sends back", () => {
         expect(sent.flags).toEqual({is_valid: true})
         // And the credential is the one thing it changed.
         expect(sent.secret_id).toBe("sec-new")
-        expect(sent.data.route.credential_header).toBe("x-api-key")
+        expect(sent.data.route.credential_binding).toEqual({
+            kind: "header",
+            name: "x-api-key",
+            prefix: null,
+        })
     })
 
     it("changes nothing when the row cannot be read back", async () => {
@@ -426,7 +451,10 @@ describe("what a key reconnect sends back", () => {
         queryMcpEndpoints.mockResolvedValue({count: 0, endpoints: []})
         await mountJourney(KEY_AUTHENTICATED)
         await act(async () => {
-            await journey.submitManualCredential({headerName: "x-api-key", secretId: "sec-new"})
+            await journey.submitManualCredential({
+                binding: {kind: "header", name: "x-api-key"},
+                secretId: "sec-new",
+            })
         })
 
         expect(editMcpEndpoint).not.toHaveBeenCalled()
@@ -445,7 +473,10 @@ describe("a session that expired during the credential submit", () => {
 
         await mountJourney(KEY_AUTHENTICATED)
         await act(async () => {
-            await journey.submitManualCredential({headerName: "X-Api-Key", secretId: "sec-1"})
+            await journey.submitManualCredential({
+                binding: {kind: "header", name: "X-Api-Key"},
+                secretId: "sec-1",
+            })
         })
 
         expect(journey.state.status).toBe("check_failed")
@@ -464,7 +495,10 @@ describe("a session that expired during the credential submit", () => {
 
         await mountJourney(KEY_AUTHENTICATED)
         await act(async () => {
-            await journey.submitManualCredential({headerName: "X-Api-Key", secretId: "sec-1"})
+            await journey.submitManualCredential({
+                binding: {kind: "header", name: "X-Api-Key"},
+                secretId: "sec-1",
+            })
         })
 
         expect(journey.state.status).toBe("check_failed")
@@ -479,7 +513,10 @@ describe("a session that expired during the credential submit", () => {
 
         await mountJourney(KEY_AUTHENTICATED)
         await act(async () => {
-            await journey.submitManualCredential({headerName: "X-Api-Key", secretId: "sec-1"})
+            await journey.submitManualCredential({
+                binding: {kind: "header", name: "X-Api-Key"},
+                secretId: "sec-1",
+            })
         })
 
         expect(journey.state.status).toBe("verify_failed")
@@ -504,7 +541,7 @@ describe("a reconnect abandoned while the row is being read", () => {
         let submitted: Promise<void>
         await act(async () => {
             submitted = journey.submitManualCredential({
-                headerName: "X-Api-Key",
+                binding: {kind: "header", name: "X-Api-Key"},
                 secretId: "sec-1",
             })
         })
@@ -542,7 +579,10 @@ describe("a credential swap that worked", () => {
 
         await mountJourney(KEY_AUTHENTICATED)
         await act(async () => {
-            await journey.submitManualCredential({headerName: "X-Api-Key", secretId: "sec-new"})
+            await journey.submitManualCredential({
+                binding: {kind: "header", name: "X-Api-Key"},
+                secretId: "sec-new",
+            })
         })
 
         expect(editMcpEndpoint.mock.calls.at(-1)?.[0].flags).toEqual({is_valid: true})

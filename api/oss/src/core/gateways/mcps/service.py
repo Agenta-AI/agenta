@@ -1201,7 +1201,7 @@ class MCPGatewayService:
             url=endpoint.data.route.base_url or "",
             headers=endpoint.data.route.headers or {},
             settings=endpoint.data.settings,
-            credential_header=endpoint.data.route.credential_header,
+            credential_binding=endpoint.data.route.credential_binding,
             project_id=(
                 project_id
                 if target.namespace == GatewayEndpointNamespace.STANDARD

@@ -47,6 +47,7 @@ import {
 } from "../core/connectJourney"
 import {buildTrustedOrigins} from "../core/connectMessage"
 import {watchOauthConsent} from "../core/connectWatch"
+import {normalizeCredentialBinding, withoutCredentialParameter} from "../core/credentialBinding"
 import {
     credentialRefusalStatus,
     gatewayRefusalMessage,
@@ -55,7 +56,7 @@ import {
     isNameTakenRefusal,
 } from "../core/refusal"
 import {rememberMcpReturnPath} from "../core/returnPath"
-import type {MCPAuthMode, MCPEndpoint} from "../core/types"
+import type {MCPAuthMode, MCPCredentialBinding, MCPEndpoint} from "../core/types"
 import {refreshMcpEndpointsAtom} from "../state/atoms"
 
 export interface McpConnectJourneyOptions {
@@ -69,14 +70,14 @@ export interface McpConnectJourneyOptions {
         url: string
         authMode?: MCPAuthMode
         /**
-         * The header this connection's credential is already sent under.
+         * Where this connection's credential is already sent.
          *
          * A key reconnect repairs a credential and changes nothing else (decisions 10 and
-         * 34), so the field it asks about starts where the connection left it. Prefilling the
+         * 34), so the fields it asks about start where the connection left them. Prefilling the
          * probe's default instead offered `Authorization` over a saved `X-Api-Key`, and a
          * person who accepted what was on screen broke a working connection.
          */
-        credentialHeader?: string | null
+        credentialBinding?: MCPCredentialBinding | null
     } | null
     /** Called once the connection is real, with the slug agents reference it by. */
     onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
@@ -483,96 +484,106 @@ export function useMcpConnectJourney({
         [isCurrent, projectId, state.probe],
     )
 
-    /** Commit the name and take the authentication path the person chose. */
-    const submitName = useCallback(async () => {
-        dispatch({type: "submit_name"})
-        const mode = state.authMode
+    /**
+     * Commit the name and take the authentication path the person chose.
+     *
+     * The key path passes its binding, so the first write already leaves out a query
+     * parameter the binding fills: a pasted `?apiKey=...` never reaches the stored row.
+     */
+    const submitName = useCallback(
+        async (binding?: MCPCredentialBinding) => {
+            dispatch({type: "submit_name"})
+            const mode = state.authMode
+            const url = withoutCredentialParameter(state.url.trim(), binding)
 
-        const attempt = attemptRef.current
-        /** Continue from a row, however this journey came by it. */
-        const continueFrom = (row: {id: string; slug: string}, adopted?: boolean) => {
-            createdHereRef.current =
-                createdHereRef.current || (!endpointRef.current && !adopted && !reconnect)
-            endpointRef.current = row
-            // This transition already moves an OAuth connection to `discovering_scopes`, and
-            // the component's effect owns that state. Awaiting discovery here as well ran it
-            // twice per connect: two outbound round trips, and two full-row writes on a route
-            // that writes back the snapshot it read (D31).
-            dispatch({type: "endpoint_created", endpointId: row.id, slug: row.slug, adopted})
-            if (mode !== "none") return
-            dispatch({type: "verify_started"})
-            // A server that answered the probe without a key needs no second asking.
-            if (mustVerifyNone) void verifyConnection(row, attempt)
-            else dispatch({type: "verify_succeeded"})
-        }
-        try {
-            const existing = endpointRef.current
-            if (existing) {
-                continueFrom(existing)
-                return
+            const attempt = attemptRef.current
+            /** Continue from a row, however this journey came by it. */
+            const continueFrom = (row: {id: string; slug: string}, adopted?: boolean) => {
+                createdHereRef.current =
+                    createdHereRef.current || (!endpointRef.current && !adopted && !reconnect)
+                endpointRef.current = row
+                // This transition already moves an OAuth connection to `discovering_scopes`, and
+                // the component's effect owns that state. Awaiting discovery here as well ran it
+                // twice per connect: two outbound round trips, and two full-row writes on a route
+                // that writes back the snapshot it read (D31).
+                dispatch({type: "endpoint_created", endpointId: row.id, slug: row.slug, adopted})
+                if (mode !== "none") return
+                dispatch({type: "verify_started"})
+                // A server that answered the probe without a key needs no second asking.
+                if (mustVerifyNone) void verifyConnection(row, attempt)
+                else dispatch({type: "verify_succeeded"})
             }
-
-            // No slug is sent: the API derives one from the name and hands it back,
-            // and that returned slug is what agents reference.
-            const created = await createMcpEndpoint(
-                {
-                    name: state.name.trim(),
-                    auth_mode: mode,
-                    data: {route: {base_url: state.url.trim()}},
-                },
-                projectId,
-            )
-            const endpoint = created.endpoint
-            if (!endpoint?.id || !endpoint.slug) {
-                throw new Error("The server did not return the created connection.")
-            }
-
-            if (!isCurrent(attempt)) {
-                // Cancelled while the create was in flight. The cancel found no row to
-                // delete, so this one would be left behind; delete it here instead.
-                void deleteMcpEndpoint(endpoint.id, projectId).catch(() => undefined)
-                return
-            }
-            continueFrom({id: endpoint.id, slug: endpoint.slug})
-        } catch (error) {
-            if (!isCurrent(attempt)) return
-
-            const attempted = {name: state.name.trim(), url: state.url.trim()}
-            if (!isNameTakenRefusal(error)) {
-                // Only a failure nothing answered leaves the question open. A status is the
-                // server's answer that it did NOT write the row, so a later conflict cannot
-                // be this attempt's (round 4, D170).
-                attemptedCreateRef.current = gatewayRefusalStatus(error) === null ? attempted : null
-            } else if (
-                attemptedCreateRef.current?.name === attempted.name &&
-                attemptedCreateRef.current?.url === attempted.url
-            ) {
-                // A create whose response was lost still landed. The retry creates again, the
-                // API refuses the name, and the person is told to rename a connection they
-                // already have while the half-finished row sits behind the dialog (round 4,
-                // D3). So ask whether the row this name belongs to IS the one being made.
-                const adopted = await findAdoptableEndpoint({
-                    name: state.name.trim(),
-                    url: state.url.trim(),
-                    projectId,
-                })
-                if (!isCurrent(attempt)) return
-                if (adopted) {
-                    continueFrom(adopted, true)
+            try {
+                const existing = endpointRef.current
+                if (existing) {
+                    continueFrom(existing)
                     return
                 }
-            }
 
-            const refusal = gatewayRefusalMessage(error) || "The connection could not be saved."
-            // A taken name is the one create failure the person can fix where they are
-            // standing; everything else is a retry.
-            dispatch(
-                isNameTakenRefusal(error)
-                    ? {type: "name_taken", error: refusal}
-                    : {type: "create_failed", error: refusal},
-            )
-        }
-    }, [mustVerifyNone, projectId, state.authMode, state.name, state.url, verifyConnection])
+                // No slug is sent: the API derives one from the name and hands it back,
+                // and that returned slug is what agents reference.
+                const created = await createMcpEndpoint(
+                    {
+                        name: state.name.trim(),
+                        auth_mode: mode,
+                        data: {route: {base_url: url}},
+                    },
+                    projectId,
+                )
+                const endpoint = created.endpoint
+                if (!endpoint?.id || !endpoint.slug) {
+                    throw new Error("The server did not return the created connection.")
+                }
+
+                if (!isCurrent(attempt)) {
+                    // Cancelled while the create was in flight. The cancel found no row to
+                    // delete, so this one would be left behind; delete it here instead.
+                    void deleteMcpEndpoint(endpoint.id, projectId).catch(() => undefined)
+                    return
+                }
+                continueFrom({id: endpoint.id, slug: endpoint.slug})
+            } catch (error) {
+                if (!isCurrent(attempt)) return
+
+                const attempted = {name: state.name.trim(), url}
+                if (!isNameTakenRefusal(error)) {
+                    // Only a failure nothing answered leaves the question open. A status is the
+                    // server's answer that it did NOT write the row, so a later conflict cannot
+                    // be this attempt's (round 4, D170).
+                    attemptedCreateRef.current =
+                        gatewayRefusalStatus(error) === null ? attempted : null
+                } else if (
+                    attemptedCreateRef.current?.name === attempted.name &&
+                    attemptedCreateRef.current?.url === attempted.url
+                ) {
+                    // A create whose response was lost still landed. The retry creates again, the
+                    // API refuses the name, and the person is told to rename a connection they
+                    // already have while the half-finished row sits behind the dialog (round 4,
+                    // D3). So ask whether the row this name belongs to IS the one being made.
+                    const adopted = await findAdoptableEndpoint({
+                        name: state.name.trim(),
+                        url,
+                        projectId,
+                    })
+                    if (!isCurrent(attempt)) return
+                    if (adopted) {
+                        continueFrom(adopted, true)
+                        return
+                    }
+                }
+
+                const refusal = gatewayRefusalMessage(error) || "The connection could not be saved."
+                // A taken name is the one create failure the person can fix where they are
+                // standing; everything else is a retry.
+                dispatch(
+                    isNameTakenRefusal(error)
+                        ? {type: "name_taken", error: refusal}
+                        : {type: "create_failed", error: refusal},
+                )
+            }
+        },
+        [mustVerifyNone, projectId, state.authMode, state.name, state.url, verifyConnection],
+    )
 
     const toggleScope = useCallback((scope: string) => dispatch({type: "scope_toggled", scope}), [])
 
@@ -657,9 +668,9 @@ export function useMcpConnectJourney({
         await discoverScopes(endpointId)
     }, [discoverScopes, isCurrent, reconnecting, storeAuthMode])
 
-    /** The manual fallback: attach a project secret as a header, then verify. */
+    /** The manual fallback: attach a project secret where the binding says, then verify. */
     const submitManualCredential = useCallback(
-        async ({headerName, secretId}: {headerName: string; secretId: string}) => {
+        async ({binding, secretId}: {binding: MCPCredentialBinding; secretId: string}) => {
             const endpoint = endpointRef.current
             if (!endpoint) return
             const attempt = attemptRef.current
@@ -715,8 +726,8 @@ export function useMcpConnectJourney({
                             ...stored.data,
                             route: {
                                 ...stored.data?.route,
-                                base_url: state.url.trim(),
-                                credential_header: headerName || undefined,
+                                base_url: withoutCredentialParameter(state.url.trim(), binding),
+                                credential_binding: normalizeCredentialBinding(binding),
                             },
                         },
                     },

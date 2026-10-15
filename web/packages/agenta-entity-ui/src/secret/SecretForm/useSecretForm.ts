@@ -35,6 +35,8 @@ export interface UseSecretFormOptions {
     initialSecret?: NamedSecretRow | null
     /** Create-mode seed for the name (e.g. derived from an MCP header name). */
     initialName?: string
+    /** Create-mode seed for a text value (e.g. the MCP Basic helper's encoded credential). */
+    initialValue?: string
     initialDefaultEnvVar?: string
     /** Called after a successful save with the persisted row. */
     onSaved?: (row: SavedSecret) => void
@@ -79,6 +81,7 @@ export function useSecretForm({
     open,
     initialSecret,
     initialName,
+    initialValue,
     initialDefaultEnvVar,
     onSaved,
 }: UseSecretFormOptions): SecretFormController {
@@ -137,11 +140,11 @@ export function useSecretForm({
             setSlug(slugifyBase(seededName))
             setFormat(CustomSecretFormat.Text)
             setDefaultEnvVar(initialDefaultEnvVar ?? "")
-            setTextValue("")
+            setTextValue(initialValue ?? "")
             setKvRows([{key: "", value: ""}])
         }
         // Key on the secret id so a re-created prop does not wipe what the user typed.
-    }, [open, initialSecret?.id, initialName, initialDefaultEnvVar])
+    }, [open, initialSecret?.id, initialName, initialValue, initialDefaultEnvVar])
 
     // On create, the slug auto-follows the name until the user edits it directly.
     const onChangeName = (next: string) => {
