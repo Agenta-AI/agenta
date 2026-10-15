@@ -2167,9 +2167,9 @@ def j7_mcp(cell: dict) -> dict:
     tools actually executes — proven by a `tool-output-available` frame for an `mcp__*` tool.
 
     Two hard constraints (both verified in the runner):
-    - **Claude only.** Pi refuses any run that declares `mcps`
-      (`run-plan.ts` PI_USER_MCP_UNSUPPORTED_MESSAGE); user MCP needs a harness with mcpTools
-      (Claude). So this journey SKIPS on non-Claude cells.
+    - **Claude or Pi.** Pi reaches a user MCP server through the Agenta Pi extension
+      (`services/runner/src/extensions/pi-mcp.ts`), which takes a gateway route. The gate always
+      sends one, so this journey runs on Pi cells and SKIPS on Codex cells.
     - **Public HTTPS only.** The SDK resolver and the runner both run an SSRF guard that rejects
       http:// and private/loopback/metadata hosts, so a local MCP server is unreachable from the
       deployment. --mcp-url must be a public HTTPS Streamable-HTTP endpoint (default: DeepWiki).
@@ -2181,10 +2181,10 @@ def j7_mcp(cell: dict) -> dict:
     `/gateways/mcps/custom/<name>`. So the gateway, not the harness, dials the URL, and it must be
     reachable from the API container.
     """
-    if cell["harness"] != "claude":
+    if cell["harness"] not in ("claude", "pi_core"):
         return {
             "skip": True,
-            "why": f"MCP requires a Claude harness; Pi rejects any run with mcps (cell harness={cell['harness']}). Run with --cell C1.",
+            "why": f"MCP needs the Claude or Pi harness (cell harness={cell['harness']}). Run with --cell C1, C2, C3 or C4.",
         }
 
     slug = f"qa-gate-mcp-{uuid.uuid4().hex[:8]}"
