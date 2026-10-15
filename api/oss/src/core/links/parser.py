@@ -5,7 +5,7 @@ from html.parser import HTMLParser
 from typing import Optional
 from urllib.parse import urljoin, urlparse
 
-from oss.src.core.links.types import LinkMeta
+from oss.src.core.links.types import LinkPreview
 
 _TITLE_KEYS = ("og:title", "twitter:title")
 _DESCRIPTION_KEYS = ("og:description", "twitter:description", "description")
@@ -26,7 +26,6 @@ class _HeadParser(HTMLParser):
         self.meta: dict[str, str] = {}
         self.title = ""
         self._in_title = False
-        self.done = False
 
     def handle_starttag(self, tag, attrs):
         if tag == "meta":
@@ -38,14 +37,10 @@ class _HeadParser(HTMLParser):
                 self.meta[key] = content
         elif tag == "title":
             self._in_title = True
-        elif tag == "body":
-            self.done = True
 
     def handle_endtag(self, tag):
         if tag == "title":
             self._in_title = False
-        elif tag == "head":
-            self.done = True
 
     def handle_data(self, data):
         if self._in_title:
@@ -77,27 +72,24 @@ def _absolute_image(src: Optional[str], base_url: str) -> Optional[str]:
 _HEAD_END = re.compile(r"</head\s*>|<body[\s>]", re.IGNORECASE)
 
 
-def head_section(html: str) -> str:
-    """The markup before the head closes or the body opens."""
+def parse_link_preview(*, url: str, html: Optional[str] = None) -> LinkPreview:
+    """The preview of the page at `url`; without `html` only the URL and domain."""
+    domain = (urlparse(url).hostname or "").lower().removeprefix("www.") or None
+    if not html:
+        return LinkPreview(url=url, domain=domain)
+    # Only the head carries preview tags; parsing a large body would hold the event loop.
     end = _HEAD_END.search(html)
-    return html[: end.start()] if end else html
-
-
-def parse_link_meta(*, html: str, base_url: str) -> LinkMeta:
-    html = head_section(html)
     parser = _HeadParser()
     try:
-        # Fed in slices so a page with a huge body stops being read once `<head>` closes.
-        for start in range(0, len(html), 16_384):
-            parser.feed(html[start : start + 16_384])
-            if parser.done:
-                break
+        parser.feed(html[: end.start()] if end else html)
     except Exception:  # pylint: disable=broad-exception-caught
         pass  # malformed markup: keep whatever was read before it
     meta = parser.meta
-    return LinkMeta(
+    return LinkPreview(
+        url=url,
+        domain=domain,
         title=_clean(_first(meta, _TITLE_KEYS) or parser.title),
         description=_clean(_first(meta, _DESCRIPTION_KEYS)),
-        image=_absolute_image(_first(meta, _IMAGE_KEYS), base_url),
+        image=_absolute_image(_first(meta, _IMAGE_KEYS), url),
         site_name=_clean(meta.get("og:site_name")),
     )
