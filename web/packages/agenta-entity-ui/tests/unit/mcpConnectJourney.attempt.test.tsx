@@ -774,8 +774,7 @@ describe("the popup contract", () => {
 describe("the URL check has an end", () => {
     it("gives up on a server that never answers, and keeps the address", async () => {
         // The check is the first thing anyone does here, and a spinner with no end is
-        // indistinguishable from a broken dialog. The probe's own deadline is twice this
-        // one, so without a client bound the wait is twenty seconds of nothing.
+        // indistinguishable from a broken dialog.
         //
         // The clock is faked only across the wait itself, and only `setTimeout`: React
         // flushes its own work on the same timers, so a test that fakes them around its
@@ -804,6 +803,38 @@ describe("the URL check has an end", () => {
         // Nothing was learned, so nothing is claimed: the failure screen falls back to the
         // unreachable wording rather than reading a cause it does not have.
         expect(journey.state.probe).toBeNull()
+    })
+})
+
+describe("an address that answered with something other than a handshake", () => {
+    it("stops at the address rather than asking for a key", async () => {
+        // The address was reached, so `reachable` is true. Routing on that alone sent a
+        // 404 or a redirect to the key screen, asking for a credential no server would use.
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                auth: {mode: "unknown"},
+                problem: {
+                    cause: "not_an_mcp_server",
+                    message: "The address answered, but not with an MCP handshake (HTTP 404).",
+                    response: {status: 404, body: "<html>Not Found</html>"},
+                },
+            },
+        })
+
+        await mountJourney()
+        await act(async () => journey.setUrl("https://acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://acme.test/")
+        })
+
+        expect(journey.state.status).toBe("check_failed")
+        expect(journey.state.error).toBe(
+            "The address answered, but not with an MCP handshake (HTTP 404).",
+        )
+        expect(journey.state.probe?.problem?.cause).toBe("not_an_mcp_server")
+        expect(createMcpEndpoint).not.toHaveBeenCalled()
     })
 })
 

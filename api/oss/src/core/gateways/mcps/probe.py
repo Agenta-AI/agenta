@@ -36,6 +36,7 @@ from oss.src.core.gateways.egress import (
     egress_client,
     open_egress,
 )
+from oss.src.core.gateways.mcps.echo import redact_credentials, url_credentials
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.registration import (
     is_publicly_resolvable_async,
@@ -49,10 +50,15 @@ log = get_module_logger(__name__)
 class _ResponseTooLarge(Exception):
     """The server sent more than a handshake can be. Never reaches a caller."""
 
+    def __init__(self, response: httpx.Response) -> None:
+        super().__init__()
+        # What was read before the cap, so the refusal can still show its start.
+        self.response = response
+
 
 _TIMEOUT_SECONDS = 10.0
 
-# A total elapsed deadline for the handshake, and a cap on what is read back.
+# One elapsed deadline for the whole probe, and a cap on what is read back.
 #
 # The client's timeout is an inactivity timeout: a server that sends one byte just inside
 # it keeps a worker occupied for as long as it likes, and the body was buffered whole
@@ -62,8 +68,15 @@ _TIMEOUT_SECONDS = 10.0
 # A handshake result is a few kilobytes. The cap is generous against that, and small
 # enough that a hostile or broken server cannot spend the process's memory; the deadline
 # is twice the inactivity timeout, so an ordinary slow server still completes.
+#
+# The whole probe shares the deadline: name resolution, the handshake, the discovery a
+# challenge starts, and the registration check. The browser's own bound
+# (`PROBE_TIMEOUT_MS` in `web/packages/agenta-entities`) sits just above it.
 _DEADLINE_SECONDS = 20.0
 _MAX_RESPONSE_BYTES = 1 * 1024 * 1024
+
+# The most of an upstream body a refusal carries back to the person connecting.
+_EXCERPT_BYTES = 2 * 1024
 
 # The version this branch speaks. A server that answers a different one still answers,
 # and the reported value is what the journey shows.
@@ -88,6 +101,16 @@ class MCPProbeRegistration(str, Enum):
     UNAVAILABLE = "unavailable"
 
 
+class MCPProbeResponse(BaseModel):
+    """What the server answered, for a person to read: its status and the start of its body.
+
+    Credentials the URL carried are removed from the body before it is cut to length.
+    """
+
+    status: int
+    body: str
+
+
 class MCPProbeProblem(BaseModel):
     """Why the probe could not answer. `cause` is for branching, `message` for a person."""
 
@@ -102,6 +125,8 @@ class MCPProbeProblem(BaseModel):
     # skips on a connection that never opened and fails on an answer that could not be read,
     # and without this it could only tell them apart by matching the sentence above (D80).
     transport: Optional[str] = None
+    # The server's own answer, when something answered. Absent when nothing did.
+    response: Optional[MCPProbeResponse] = None
 
 
 class MCPProbeAuth(BaseModel):
@@ -109,8 +134,9 @@ class MCPProbeAuth(BaseModel):
     authorization_server: Optional[str] = None
     scopes_offered: List[str] = []
     registration: Optional[MCPProbeRegistration] = None
-    # What the server said when it refused the anonymous handshake, carried only on the
-    # `UNKNOWN` answer that a challenge produced.
+    # What the server said when it refused the anonymous handshake, carried on every answer
+    # that a challenge produced. OAuth carries it too: a person may pick an API key over
+    # OAuth, and the key screen then names the scheme from it.
     #
     # `UNKNOWN` reaches the connect journey as the API-key screen, which asks for a header
     # name. Everything the probe knew about which header that is used to be discarded here,
@@ -207,6 +233,14 @@ def _initialize_result(response: httpx.Response) -> Optional[Dict[str, Any]]:
     return result if isinstance(result, dict) else None
 
 
+def _excerpt(response: httpx.Response, *, server_url: str) -> MCPProbeResponse:
+    body = redact_credentials(response.content, url_credentials(server_url))
+    return MCPProbeResponse(
+        status=response.status_code,
+        body=body[:_EXCERPT_BYTES].decode("utf-8", "replace"),
+    )
+
+
 def _challenge_schemes(response: httpx.Response) -> List[str]:
     """The authentication schemes a `WWW-Authenticate` header names, in the order given.
 
@@ -216,8 +250,11 @@ def _challenge_schemes(response: httpx.Response) -> List[str]:
     while the token is the one part every challenge has.
 
     Case is preserved as sent, because this is shown to a person rather than compared.
+    Quoted parameter values are emptied first: a comma inside one (`realm="a,b"`) does not
+    separate challenges.
     """
     header = response.headers.get("WWW-Authenticate") or ""
+    header = re.sub(r'"(?:[^"\\]|\\.)*"', '""', header)
     schemes: List[str] = []
     for challenge in header.split(","):
         token = challenge.strip().split(" ", 1)[0].strip()
@@ -270,7 +307,7 @@ class MCPServerProbe:
                 async for chunk in response.aiter_bytes():
                     body.extend(chunk)
                     if len(body) > _MAX_RESPONSE_BYTES:
-                        raise _ResponseTooLarge()
+                        raise _ResponseTooLarge(decoded_response(response, bytes(body)))
             finally:
                 await response.aclose()
 
@@ -315,8 +352,11 @@ class MCPServerProbe:
             )
 
     async def _probe(self, *, server_url: str) -> MCPServerProbeResult:
+        deadline = asyncio.get_running_loop().time() + _DEADLINE_SECONDS
         try:
-            target = await open_egress(server_url)
+            async with asyncio.timeout_at(deadline):
+                target = await open_egress(server_url)
+                response = await self._handshake(target)
         except EgressRefusedError as e:
             return MCPServerProbeResult(
                 problem=MCPProbeProblem(
@@ -335,11 +375,7 @@ class MCPServerProbe:
                     ),
                 )
             )
-
-        try:
-            async with asyncio.timeout(_DEADLINE_SECONDS):
-                response = await self._handshake(target)
-        except _ResponseTooLarge:
+        except _ResponseTooLarge as e:
             return MCPServerProbeResult(
                 reachable=True,
                 problem=MCPProbeProblem(
@@ -348,6 +384,7 @@ class MCPServerProbe:
                         "The address answered with more data than an MCP handshake "
                         "should return, so it was not read."
                     ),
+                    response=_excerpt(e.response, server_url=server_url),
                 ),
             )
         except TimeoutError:
@@ -375,9 +412,13 @@ class MCPServerProbe:
 
         # The server answered something, so it exists. What it answered decides the rest.
         if response.status_code in (401, 403):
-            return await self._challenged(server_url=server_url, response=response)
+            return await self._challenged(
+                server_url=server_url, response=response, deadline=deadline
+            )
 
-        result = _initialize_result(response)
+        # A result-shaped body under an error status is not a handshake. A redirect, a 404
+        # and a login page all answer, and none of them is a server to connect.
+        result = _initialize_result(response) if response.is_success else None
         if result is None:
             return MCPServerProbeResult(
                 reachable=True,
@@ -387,6 +428,7 @@ class MCPServerProbe:
                         "The address answered, but not with an MCP handshake "
                         f"(HTTP {response.status_code})."
                     ),
+                    response=_excerpt(response, server_url=server_url),
                 ),
             )
 
@@ -402,7 +444,7 @@ class MCPServerProbe:
         )
 
     async def _challenged(
-        self, *, server_url: str, response: httpx.Response
+        self, *, server_url: str, response: httpx.Response, deadline: float
     ) -> MCPServerProbeResult:
         """A server that refused the anonymous handshake. Ask it how to authorize."""
         challenged = MCPProbeAuth(
@@ -411,11 +453,13 @@ class MCPServerProbe:
             challenge_schemes=_challenge_schemes(response),
         )
         try:
-            # The same elapsed bound the handshake has. Discovery walks several
-            # candidate URLs, each with its own inactivity timeout, so without this the
-            # 401 branch could outlast the branch that never reaches it (D46).
-            async with asyncio.timeout(_DEADLINE_SECONDS):
-                discovery = await self.oauth_client.discover(server_url=server_url)
+            # What remains of the handshake's deadline. Discovery walks several candidate
+            # URLs, each with its own inactivity timeout, so without this the 401 branch
+            # could outlast the branch that never reaches it (D46).
+            async with asyncio.timeout_at(deadline):
+                discovery = await self.oauth_client.discover(
+                    server_url=server_url, challenge=response
+                )
         except TimeoutError:
             return MCPServerProbeResult(
                 reachable=True,
@@ -426,6 +470,7 @@ class MCPServerProbe:
                         "The server requires authorization but did not finish "
                         "publishing its OAuth configuration in time."
                     ),
+                    response=_excerpt(response, server_url=server_url),
                 ),
             )
         except MCPOAuthDiscoveryError as e:
@@ -441,8 +486,17 @@ class MCPServerProbe:
                         "The server requires authorization but did not publish an OAuth "
                         f"configuration we could read: {e.detail or 'no metadata found'}."
                     ),
+                    response=_excerpt(response, server_url=server_url),
                 ),
             )
+
+        try:
+            async with asyncio.timeout_at(deadline):
+                registration = await self._registration(discovery.registration_endpoint)
+        except TimeoutError:
+            # OAuth was found. Only the client-identity strategy is unknown, and saying
+            # nothing about it is truer than a guess.
+            registration = None
 
         return MCPServerProbeResult(
             reachable=True,
@@ -450,7 +504,9 @@ class MCPServerProbe:
                 mode=MCPProbeAuthMode.OAUTH,
                 authorization_server=discovery.authorization_server,
                 scopes_offered=discovery.scopes_offered,
-                registration=await self._registration(discovery.registration_endpoint),
+                registration=registration,
+                challenge_status=challenged.challenge_status,
+                challenge_schemes=challenged.challenge_schemes,
             ),
         )
 

@@ -84,16 +84,18 @@ export interface McpConnectJourneyOptions {
 /**
  * How long the URL check may run before the dialog stops waiting on it.
  *
- * The probe's own deadline is twice this, so this is the bound a person actually meets. It
- * exists because the check is the first thing anyone does here and a spinner with no end is
- * indistinguishable from a broken dialog; the address is kept and Try again re-runs it.
+ * Just above the probe's own deadline (`_DEADLINE_SECONDS` in
+ * `api/oss/src/core/gateways/mcps/probe.py`, 20 s), so a slow server is reported by the API
+ * in its own words, and this bound only meets an API that did not answer at all. It exists
+ * because a spinner with no end is indistinguishable from a broken dialog; the address is
+ * kept and Try again re-runs it.
  */
-export const PROBE_TIMEOUT_MS = 10_000
+export const PROBE_TIMEOUT_MS = 22_000
 
 /**
  * What the probe says when its own deadline expires
- * (`api/oss/src/core/gateways/mcps/probe.py`). The bound above expires first, so it reports
- * the same condition in the same words rather than inventing a second sentence for it.
+ * (`api/oss/src/core/gateways/mcps/probe.py`). When the bound above expires instead, it
+ * reports the same condition in the same words rather than inventing a second sentence.
  */
 const PROBE_TIMED_OUT_MESSAGE =
     "The server did not finish answering in time. It may be responding too slowly to be usable."
@@ -274,7 +276,10 @@ export function useMcpConnectJourney({
                 if (!isCurrent(attempt)) return
                 const probe = response.probe
                 if (!probe) throw new Error("The server could not be checked.")
-                if (!probe.reachable) {
+                // Every problem stops at the address except a challenge with no OAuth,
+                // which is the key screen's case. A reachable address that is not an MCP
+                // server is still no server to connect.
+                if (probe.problem && probe.problem.cause !== "auth_undiscoverable") {
                     // The probe travels with the refusal: its `problem.cause` is what tells
                     // "could not reach it" from "reached it, and it is not an MCP server",
                     // which are different sentences and different advice.

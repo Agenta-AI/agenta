@@ -2,10 +2,7 @@
  * The raw answer behind a failed check: shown on request, and never more of it than a dialog
  * can hold.
  *
- * Nothing in the product reaches this yet. The probe keeps the status line and the sentence
- * and drops the payload (`api/oss/src/core/gateways/mcps/probe.py`), so the control renders
- * only where a body exists, which today is here. That is why it has a suite of its own: the
- * panel is the spec's, and without one it would ship unread until the probe grows a body.
+ * The control renders only where the probe carried the server's answer.
  */
 import {act, createElement} from "react"
 

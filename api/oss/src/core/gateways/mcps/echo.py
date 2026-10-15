@@ -21,6 +21,7 @@ because its SSE path yields bytes as they arrive, therefore has no caller here.
 """
 
 from typing import Dict, Mapping, Optional, Tuple
+from urllib.parse import quote, quote_plus, unquote_plus, urlsplit
 
 from oss.src.core.gateways.dtos import (
     CredentialEchoScanner,
@@ -62,6 +63,43 @@ def injected_mcp_credentials(headers: Mapping[str, str]) -> Tuple[bytes, ...]:
         for token in injected_credential_values({"authorization": value}):
             values[token] = None
     return tuple(values)
+
+
+def url_credentials(url: str) -> Tuple[bytes, ...]:
+    """The values a URL's query carries, which is where a typed key sits (`?api_key=...`).
+
+    A server that echoes the request into its error page then holds the key. Each value is
+    taken as written, query-decoded, and encoded again, because an echo can carry any of
+    these forms (`a/b` typed raw can come back as `a%2Fb`; a space as `+` or `%20`). No header
+    rule applies: a query value has no scheme prefix, and a short key is still a key.
+    Userinfo is not read: the egress check refuses a URL that carries it before anything
+    is sent.
+    """
+    written = [pair.partition("=")[2] for pair in urlsplit(url).query.split("&")]
+    forms = dict.fromkeys(
+        form
+        for value in written
+        if value
+        for decoded in (unquote_plus(value),)
+        for form in (
+            value,
+            decoded,
+            quote(decoded, safe=""),
+            quote_plus(decoded, safe=""),
+        )
+    )
+    return tuple(form.encode() for form in forms)
+
+
+def redact_credentials(data: bytes, credentials: Tuple[bytes, ...]) -> bytes:
+    """`data` with every credential replaced, for text a person reads rather than a relay.
+
+    Redact before any cut to length: a cut can split a value and leave a prefix that no
+    longer matches.
+    """
+    for credential in credentials:
+        data = data.replace(credential, b"[REDACTED]")
+    return data
 
 
 def credential_echo_scanner(headers: Mapping[str, str]) -> CredentialEchoScanner:

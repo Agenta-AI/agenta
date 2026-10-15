@@ -337,9 +337,22 @@ class MCPOAuthClient:
         # `DecodingError` at the first `.content`.
         return decoded_response(response, bytes(body))
 
-    async def discover(self, *, server_url: str) -> MCPOAuthDiscovery:
+    async def discover(
+        self,
+        *,
+        server_url: str,
+        challenge: Optional[httpx.Response] = None,
+    ) -> MCPOAuthDiscovery:
+        """Discover how `server_url` is authorized.
+
+        `challenge` is the refusal the caller already received from `server_url`. When it
+        is given, its `WWW-Authenticate` names the protected-resource document, and no
+        second anonymous request is sent to recover it.
+        """
         async with self._client() as client:
-            prm = await self._discover_protected_resource(client, server_url=server_url)
+            prm = await self._discover_protected_resource(
+                client, server_url=server_url, challenge=challenge
+            )
             authorization_server = str(prm.authorization_servers[0])
             metadata = await self._discover_authorization_server(
                 client, authorization_server=authorization_server
@@ -359,10 +372,16 @@ class MCPOAuthClient:
         )
 
     async def _discover_protected_resource(
-        self, client: httpx.AsyncClient, *, server_url: str
+        self,
+        client: httpx.AsyncClient,
+        *,
+        server_url: str,
+        challenge: Optional[httpx.Response] = None,
     ) -> ProtectedResourceMetadata:
-        resource_metadata_url = await self._probe_resource_metadata_url(
-            client, server_url=server_url
+        if challenge is None:
+            challenge = await self._get(client, server_url)
+        resource_metadata_url = (
+            _resource_metadata_url_from_response(challenge) if challenge else None
         )
         for url in _protected_resource_urls(
             server_url, resource_metadata_url=resource_metadata_url
@@ -385,14 +404,6 @@ class MCPOAuthClient:
         raise MCPOAuthDiscoveryError(
             server_url=server_url, detail="no protected-resource metadata found"
         )
-
-    async def _probe_resource_metadata_url(
-        self, client: httpx.AsyncClient, *, server_url: str
-    ) -> Optional[str]:
-        response = await self._get(client, server_url)
-        if response is None:
-            return None
-        return _resource_metadata_url_from_response(response)
 
     async def _discover_authorization_server(
         self, client: httpx.AsyncClient, *, authorization_server: str
