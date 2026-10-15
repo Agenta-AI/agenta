@@ -117,7 +117,7 @@ def litellm_handler():
                 )
             )
 
-            span = self.span[litellm_call_id]
+            span = self.span.get(litellm_call_id)
 
             if not span:
                 log.warning("Agenta SDK - litellm tracing failed")
@@ -132,16 +132,32 @@ def litellm_handler():
                 namespace="type",
             )
 
+            prompt_input = next(
+                (
+                    value
+                    for value in (
+                        kwargs.get("messages"),
+                        messages,
+                        kwargs.get("prompt"),
+                        kwargs.get("input"),
+                    )
+                    if value is not None
+                ),
+                None,
+            )
+
             span.set_attributes(
-                attributes={"inputs": {"prompt": kwargs["messages"]}},
+                attributes={"inputs": {"prompt": prompt_input}},
                 namespace="data",
             )
+
+            optional_params = kwargs.get("optional_params") or {}
 
             span.set_attributes(
                 attributes={
                     "configuration": {
                         "model": kwargs.get("model"),
-                        **kwargs.get("optional_params"),
+                        **optional_params,
                     }
                 },
                 namespace="meta",
@@ -160,7 +176,7 @@ def litellm_handler():
                 log.warning("Agenta SDK - litellm tracing failed")
                 return
 
-            span = self.span[litellm_call_id]
+            span = self.span.get(litellm_call_id)
 
             if not span:
                 log.warning("Agenta SDK - litellm tracing failed")
@@ -185,7 +201,7 @@ def litellm_handler():
                 log.warning("Agenta SDK - litellm tracing failed")
                 return
 
-            span = self.span[litellm_call_id]
+            span = self.span.get(litellm_call_id)
 
             if not span:
                 log.warning("Agenta SDK - litellm tracing failed")
@@ -230,7 +246,7 @@ def litellm_handler():
             span.end()
 
             # Clean up span from dictionary to prevent memory leak
-            del self.span[litellm_call_id]
+            self.span.pop(litellm_call_id, None)
 
         def log_failure_event(
             self,
@@ -245,7 +261,7 @@ def litellm_handler():
                 log.warning("Agenta SDK - litellm tracing failed")
                 return
 
-            span = self.span[litellm_call_id]
+            span = self.span.get(litellm_call_id)
 
             if not span:
                 log.warning("Agenta SDK - litellm tracing failed")
@@ -254,14 +270,15 @@ def litellm_handler():
             if not span.is_recording():
                 return
 
-            span.record_exception(kwargs["exception"])
+            if "exception" in kwargs and kwargs["exception"] is not None:
+                span.record_exception(kwargs["exception"])
 
             span.set_status(status="ERROR")
 
             span.end()
 
             # Clean up span from dictionary to prevent memory leak
-            del self.span[litellm_call_id]
+            self.span.pop(litellm_call_id, None)
 
         async def async_log_stream_event(
             self,
@@ -279,7 +296,7 @@ def litellm_handler():
                 log.warning("Agenta SDK - litellm tracing failed")
                 return
 
-            span = self.span[litellm_call_id]
+            span = self.span.get(litellm_call_id)
 
             if not span:
                 log.warning("Agenta SDK - litellm tracing failed")
@@ -301,7 +318,7 @@ def litellm_handler():
                 log.warning("Agenta SDK - litellm tracing failed")
                 return
 
-            span = self.span[litellm_call_id]
+            span = self.span.get(litellm_call_id)
 
             if not span:
                 log.warning("Agenta SDK - litellm tracing failed")
@@ -346,7 +363,7 @@ def litellm_handler():
             span.end()
 
             # Clean up span from dictionary to prevent memory leak
-            del self.span[litellm_call_id]
+            self.span.pop(litellm_call_id, None)
 
         async def async_log_failure_event(
             self,
@@ -361,7 +378,7 @@ def litellm_handler():
                 log.warning("Agenta SDK - litellm tracing failed")
                 return
 
-            span = self.span[litellm_call_id]
+            span = self.span.get(litellm_call_id)
 
             if not span:
                 log.warning("Agenta SDK - litellm tracing failed")
@@ -370,13 +387,14 @@ def litellm_handler():
             if not span.is_recording():
                 return
 
-            span.record_exception(kwargs["exception"])
+            if "exception" in kwargs and kwargs["exception"] is not None:
+                span.record_exception(kwargs["exception"])
 
             span.set_status(status="ERROR")
 
             span.end()
 
             # Clean up span from dictionary to prevent memory leak
-            del self.span[litellm_call_id]
+            self.span.pop(litellm_call_id, None)
 
     return LitellmHandler()
