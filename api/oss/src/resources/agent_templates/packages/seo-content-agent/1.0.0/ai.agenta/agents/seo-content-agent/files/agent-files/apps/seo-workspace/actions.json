@@ -10,7 +10,7 @@
     {"id":"article.draft","label":"Draft article","skills":["content-production"],"approval":"brief"},
     {"id":"article.revise","label":"Revise article","skills":["content-production"]},
     {"id":"brief.explore","label":"Explore related briefs","skills":["content-planning","content-briefing"]},
-    {"id":"article.review","label":"Review for publication","skills":["editorial-seo-review"]},
+    {"id":"article.review","label":"Review for publication","skills":["editorial-seo-review"],"approval":"draft"},
     {"id":"publication.handoff","label":"Prepare publishing handoff","skills":["editorial-seo-review"],"playbooks":["agent-files/00-context/publishing-spec.md"],"requires_reviewed_package":true},
     {"id":"article.refresh","label":"Refresh article","skills":["content-refresh"],"companions":["content-briefing","content-production","editorial-seo-review"]},
     {"id":"setup.research","label":"Configure research","skills":[],"procedure":"shared-first-use-setup"},
