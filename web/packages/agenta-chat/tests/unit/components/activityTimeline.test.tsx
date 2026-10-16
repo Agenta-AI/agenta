@@ -18,7 +18,10 @@ vi.mock("@agenta/entities/gatewayTool", () => ({
 }))
 
 /** Trace root-span starts by trace id, for the turns that read one. */
-const {traceStarts} = vi.hoisted(() => ({traceStarts: new Map<string, string>()}))
+const {traceStarts, traceDurations} = vi.hoisted(() => ({
+    traceStarts: new Map<string, string>(),
+    traceDurations: new Map<string, number>(),
+}))
 
 vi.mock("@agenta/entities/loadable", async () => {
     const {atom} = await import("jotai")
@@ -30,7 +33,9 @@ vi.mock("@agenta/entities/loadable", async () => {
                     key,
                     atom(() => ({
                         rootSpan: traceStarts.has(key) ? {start_time: traceStarts.get(key)} : null,
-                        metrics: {},
+                        metrics: traceDurations.has(key)
+                            ? {durationMs: traceDurations.get(key)}
+                            : {},
                         isPending: false,
                         error: null,
                     })),
@@ -82,6 +87,7 @@ afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
     traceStarts.clear()
+    traceDurations.clear()
     cleanup()
 })
 
@@ -349,6 +355,83 @@ describe("ActivityTimeline", () => {
         cleanup()
         mount({steps: [toolStep("approval-requested")], streaming: true})
         expect(screen.getAllByRole("button")[0].getAttribute("aria-expanded")).toBe("false")
+    })
+
+    // #7445: After a turn resumes from an approval, the header showed "Worked for 85m 9s"
+    // because the trace duration spanned from the parked turn's start to the end of the resume.
+    it("does not count time waiting for an approval into worked time", () => {
+        traceDurations.set("t1", (85 * 60 + 9) * 1000)
+        const view = mount({steps: [toolStep("input-available")], streaming: true})
+        act(() => {
+            vi.advanceTimersByTime(3000)
+        })
+        // Parks on approval gate
+        view.rerender(
+            <Provider>
+                <ActivityTimeline
+                    messageId="m1"
+                    steps={[toolStep("approval-requested")]}
+                    streaming={false}
+                    answerStarted={false}
+                />
+            </Provider>,
+        )
+        // Parked for 85 minutes
+        act(() => {
+            vi.advanceTimersByTime(85 * 60 * 1000)
+        })
+        // User approves and turn resumes
+        view.rerender(
+            <Provider>
+                <ActivityTimeline
+                    messageId="m1"
+                    steps={[toolStep("approval-requested")]}
+                    streaming={true}
+                    resuming={true}
+                    answerStarted={false}
+                />
+            </Provider>,
+        )
+        // Resume executes for 6 seconds
+        act(() => {
+            vi.advanceTimersByTime(6000)
+        })
+        // Turn settles
+        view.rerender(
+            <Provider>
+                <ActivityTimeline
+                    messageId="m1"
+                    steps={[toolStep("output-available")]}
+                    streaming={false}
+                    answerStarted={true}
+                    traceId="t1"
+                />
+            </Provider>,
+        )
+        const line = screen.getAllByRole("button")[0]
+        expect(line.textContent).toContain("Worked for 9s")
+        expect(line.textContent).not.toContain("85m")
+    })
+
+    it("settles to Worked without duration when an unclocked turn had an approval", () => {
+        traceDurations.set("t2", (85 * 60 + 9) * 1000)
+        const stepWithApproval: ActivityStep = {
+            ...toolStep("output-available", "c2"),
+            part: {
+                ...toolStep("output-available", "c2").part,
+                approval: {id: "appr_1", approved: true},
+            } as ToolUIPart,
+        }
+        mount({
+            messageId: "m2",
+            steps: [stepWithApproval],
+            streaming: false,
+            answerStarted: true,
+            traceId: "t2",
+        })
+        const line = screen.getAllByRole("button")[0]
+        expect(line.textContent).toBe("Worked")
+        expect(line.textContent).not.toContain("85m")
     })
 })
 
