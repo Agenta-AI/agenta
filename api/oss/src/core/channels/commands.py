@@ -196,10 +196,9 @@ async def resolve_use_target(
     candidate list is exactly `!sessions`'s own scoping, so an id
     outside it is refused rather than silently ignored.
 
-    Returns the validated target row. Switching the thread to point at it has
-    no counterpart on `ChannelsService`, which exposes only `query_threads` and
-    `close_thread` for threads — no method creates a thread row pointing at
-    another session's `session_id`. That half of `!use` is unimplemented.
+    Returns the validated target row and changes nothing. The inbox
+    dispatcher's acknowledgment does the switch: a new current row that reuses
+    the target's `session_id`, then it closes the old row.
     """
 
     candidates = await dispatch_sessions(
