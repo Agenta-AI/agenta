@@ -8,7 +8,8 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.models.api.user_models import UserUpdate
 from oss.src.services import db_manager
-from oss.src.utils import emailing
+from oss.src.core.emails.branded import send_branded_email
+from oss.src.core.emails.templates import render_password_reset_email
 
 log = get_module_logger(__name__)
 
@@ -158,11 +159,11 @@ async def generate_user_password_reset_link(user_id: str, admin_user_id: str):
     if not (env.smtp.enabled or env.sendgrid.enabled):
         return password_reset_link
 
-    await emailing.send_email(
+    await send_branded_email(
         to_email=user.email,
-        subject=f"{admin_user.username} requested a password reset for you in their workspace",
-        username=admin_user.username,
-        action="requested a password reset for you in their workspace",
-        workspace="",
-        call_to_action=f"""<p>Click the link below to reset your password:</p><br><a href="{password_reset_link}">Reset Password</a>""",
+        email=render_password_reset_email(
+            admin_name=admin_user.username,
+            email=user.email,
+            url=password_reset_link,
+        ),
     )
