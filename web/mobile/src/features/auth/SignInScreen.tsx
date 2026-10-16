@@ -1,6 +1,5 @@
 import {useState, type ReactNode} from "react"
 
-import {sendsCodeAtOnce} from "@agenta/auth"
 import {
     AuthDivider,
     AuthShell,
@@ -159,7 +158,6 @@ export const SignInScreen = () => {
                         onAuthError={flow.reportError}
                         lockEmail
                         security={security}
-                        autoSend={sendsCodeAtOnce(methods)}
                     />
                 ) : null}
                 {(methods.password || methods.otp) && methods.sso.length ? <AuthDivider /> : null}

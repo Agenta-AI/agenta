@@ -70,10 +70,6 @@ export function deriveMethods(
     }
 }
 
-/** A code is the only way in for this address, so it is sent without asking first. */
-export const sendsCodeAtOnce = (methods: MethodPresentation): boolean =>
-    methods.otp && !methods.password && methods.sso.length === 0
-
 /**
  * The single SSO connection to redirect into without asking.
  *
