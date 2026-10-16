@@ -2,17 +2,35 @@ import asyncio
 import hmac
 import json
 import re
+from datetime import datetime, timezone
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException, Request, status
-from fastapi.responses import JSONResponse, PlainTextResponse
+from uuid import UUID
+
+from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi.responses import (
+    JSONResponse,
+    PlainTextResponse,
+    Response,
+    StreamingResponse,
+)
 
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.throttling import FailureMode, check_throttle
 
-from oss.src.apis.fastapi.channels.models import EmbedConfigResponse
+from oss.src.apis.fastapi.channels.models import (
+    EmbedConfigResponse,
+    EmbedConversation,
+    EmbedConversationResponse,
+    EmbedConversationsResponse,
+)
+from oss.src.apis.fastapi.mounts.utils import _content_disposition_attachment
+from oss.src.apis.fastapi.sessions.live_events import live_event_stream
+from oss.src.dbs.redis.sessions.contract import live_events_channel
+from oss.src.dbs.redis.shared.engine import get_streams_engine
+from oss.src.core.sessions.attachments.types import AttachmentNotFound
 
 from oss.src.core.channels.dtos import (
     ChannelConnection,
@@ -22,6 +40,9 @@ from oss.src.core.channels.dtos import (
     ChannelEventOrigin,
     ChannelKeyGrain,
     ChannelRequestContext,
+    ChannelSpaceQuery,
+    ChannelThread,
+    ChannelThreadQuery,
 )
 from oss.src.core.channels.types import (
     ChannelLocatorIncomplete,
@@ -34,6 +55,7 @@ from oss.src.core.channels.adapters.embed.adapter import (
     parse_body,
     visitor_key,
     visitor_key_hash,
+    visitor_locator,
 )
 from oss.src.core.channels.adapters.telegram.signature import verify_telegram_secret
 from oss.src.core.channels.adapters.whatsapp.mapping import (
@@ -51,6 +73,8 @@ if TYPE_CHECKING:
     # Imported only for typing so this module never hard-depends on them.
     from oss.src.core.channels.service import ChannelsService
     from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
+    from oss.src.core.sessions.attachments.service import SessionAttachmentsService
+    from oss.src.core.sessions.records.service import RecordsService
     from oss.src.core.channels.telegram_binding import TelegramBindingService
 
 log = get_module_logger(__name__)
@@ -64,6 +88,7 @@ _EMBED_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
 _EMBED_BODY_OVERHEAD_BYTES = 64 * 1024
 # Each file becomes one attachment write in the worker; bound the count too.
 _EMBED_MAX_FILES = 10
+_EPOCH = datetime.min.replace(tzinfo=timezone.utc)
 
 
 def handle_channel_adapter_exceptions():
@@ -103,6 +128,8 @@ class ChannelsIngressRouter:
         adapter_registry: "ChannelAdapterRegistry",
         dispatch_task: Optional[Any] = None,
         telegram_binding_service: Optional["TelegramBindingService"] = None,
+        records_service: Optional["RecordsService"] = None,
+        attachments_service: Optional["SessionAttachmentsService"] = None,
     ):
         self.channels_service = channels_service
         self.adapter_registry = adapter_registry
@@ -111,6 +138,9 @@ class ChannelsIngressRouter:
         # for this deployment. Absent means every telegram update takes the
         # custom-bot path.
         self.telegram_binding_service = telegram_binding_service
+        # Used only by the embed read routes.
+        self.records_service = records_service
+        self.attachments_service = attachments_service
 
         self.router = APIRouter()
 
@@ -192,6 +222,36 @@ class ChannelsIngressRouter:
             methods=["GET"],
             operation_id="fetch_embed_config",
             response_model=EmbedConfigResponse,
+        )
+        # The visitor's own conversations. Same credential as the ingress; a
+        # thread outside the caller's space answers 404 like an unknown one.
+        self.router.add_api_route(
+            "/embed/{embed_id}/conversations",
+            self.list_embed_conversations,
+            methods=["GET"],
+            operation_id="list_embed_conversations",
+            response_model=EmbedConversationsResponse,
+        )
+        self.router.add_api_route(
+            "/embed/{embed_id}/conversations/{thread_id}",
+            self.read_embed_conversation,
+            methods=["GET"],
+            operation_id="read_embed_conversation",
+            response_model=EmbedConversationResponse,
+        )
+        self.router.add_api_route(
+            "/embed/{embed_id}/conversations/{thread_id}/live",
+            self.stream_embed_conversation,
+            methods=["GET"],
+            operation_id="stream_embed_conversation",
+            response_class=StreamingResponse,
+        )
+        self.router.add_api_route(
+            "/embed/{embed_id}/conversations/{thread_id}/files/{file_id}",
+            self.download_embed_file,
+            methods=["GET"],
+            operation_id="download_embed_file",
+            response_class=Response,
         )
 
     @intercept_exceptions()
@@ -282,6 +342,169 @@ class ChannelsIngressRouter:
         if candidate is None or not candidate[2].flags.is_active:
             return None
         return candidate
+
+    async def _embed_visitor(self, request: Request, embed_id: str):
+        """The embed's project and connection and the caller's space, which is
+        None before the visitor's first message. A missing embed or a weak key
+        refuses like the ingress does."""
+
+        resolved = await self.resolve_embed(embed_id)
+        key = visitor_key(dict(request.headers))
+        if resolved is None or key is None:
+            raise ChannelSignatureInvalid(channel="embed")
+        project_id, connection_id, _ = resolved
+        space_key = compose_external_key(
+            await self.adapter_registry.get("embed").fetch_capabilities(
+                connection=None
+            ),
+            ChannelKeyGrain.SPACE,
+            visitor_locator(key),
+        )
+        spaces = await self.channels_service.query_spaces(
+            project_id=project_id,
+            space=ChannelSpaceQuery(
+                connection_id=connection_id, external_key=space_key
+            ),
+        )
+        return project_id, connection_id, (spaces[0] if spaces else None)
+
+    async def _embed_threads(self, project_id, space) -> list[ChannelThread]:
+        if space is None:
+            return []
+        return await self.channels_service.query_threads(
+            project_id=project_id,
+            thread=ChannelThreadQuery(space_id=space.id),
+        )
+
+    async def _embed_thread(self, request: Request, embed_id: str, thread_id: UUID):
+        """The caller's thread, looked up only among its own space's threads,
+        so another visitor's thread is never fetched: it is simply absent."""
+
+        project_id, connection_id, space = await self._embed_visitor(request, embed_id)
+        for thread in await self._embed_threads(project_id, space):
+            if thread.id == thread_id:
+                return project_id, connection_id, thread
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
+    @intercept_exceptions()
+    @handle_channel_adapter_exceptions()
+    async def list_embed_conversations(self, request: Request, embed_id: str) -> Any:
+        project_id, _, space = await self._embed_visitor(request, embed_id)
+        threads = await self._embed_threads(project_id, space)
+        threads.sort(key=lambda thread: thread.created_at or _EPOCH, reverse=True)
+        # Newest row per session: a reopened conversation adds a row that
+        # reuses its session.
+        seen = set()
+        conversations = []
+        for thread in threads:
+            if thread.session_id in seen:
+                continue
+            seen.add(thread.session_id)
+            conversations.append(
+                EmbedConversation(
+                    thread_id=thread.id,
+                    session_id=thread.session_id,
+                    created_at=thread.created_at,
+                    is_active=thread.flags.is_active,
+                )
+            )
+        return EmbedConversationsResponse(
+            count=len(conversations), conversations=conversations
+        )
+
+    @intercept_exceptions()
+    @handle_channel_adapter_exceptions()
+    async def read_embed_conversation(
+        self, request: Request, embed_id: str, thread_id: UUID
+    ) -> Any:
+        project_id, _, thread = await self._embed_thread(request, embed_id, thread_id)
+        records = await self.records_service.get_records(
+            project_id=project_id, session_id=thread.session_id
+        )
+        return EmbedConversationResponse(
+            count=len(records),
+            records=records,
+            pending_choice=thread.data.pending_choice,
+        )
+
+    @intercept_exceptions()
+    @handle_channel_adapter_exceptions()
+    async def stream_embed_conversation(
+        self,
+        request: Request,
+        embed_id: str,
+        thread_id: UUID,
+        after: int = Query(default=0, ge=0),
+    ) -> Any:
+        if not env.sessions.shared_reader:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+        project_id, connection_id, thread = await self._embed_thread(
+            request, embed_id, thread_id
+        )
+        session_id = thread.session_id
+
+        async def authorized() -> bool:
+            # A thread never changes space, so the embed still resolving to the
+            # same active connection is the whole re-check.
+            resolved = await self.resolve_embed(embed_id)
+            return resolved is not None and resolved[1] == connection_id
+
+        async def replay(cursor: int):
+            return await self.records_service.get_events_after(
+                project_id=project_id, session_id=session_id, after=cursor
+            )
+
+        stream = live_event_stream(
+            channel=live_events_channel(str(project_id), session_id),
+            pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
+            authorization_check=authorized,
+            authorization_recheck_seconds=env.sessions.live_auth_recheck_seconds,
+            heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
+            retry_milliseconds=env.sessions.watch_retry_milliseconds,
+            buffer_limit=env.sessions.live_reader_buffer_limit,
+            after=after,
+            replay_query=replay,
+        )
+        return StreamingResponse(
+            stream,
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-store",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
+    @intercept_exceptions()
+    @handle_channel_adapter_exceptions()
+    async def download_embed_file(
+        self, request: Request, embed_id: str, thread_id: UUID, file_id: UUID
+    ) -> Any:
+        """A session attachment of the caller's thread. The lookup is scoped by
+        the thread's session, so another session's file is not found."""
+
+        project_id, _, thread = await self._embed_thread(request, embed_id, thread_id)
+        try:
+            content = await self.attachments_service.fetch_attachment_content(
+                project_id=project_id,
+                session_id=thread.session_id,
+                attachment_id=file_id,
+            )
+        except AttachmentNotFound as e:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Not found"
+            ) from e
+        return Response(
+            content=content.data,
+            media_type=content.attachment.media_type,
+            headers={
+                "Content-Disposition": _content_disposition_attachment(
+                    content.attachment.filename
+                ),
+                "Cache-Control": "private, no-store",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
 
     @intercept_exceptions()
     @handle_channel_adapter_exceptions()

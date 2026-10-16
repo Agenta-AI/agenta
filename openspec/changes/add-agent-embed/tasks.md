@@ -25,12 +25,12 @@
 
 ## 4. Visitor-scoped read routes
 
-- [ ] 4.1 `GET /channels/embed/{embed_id}/conversations`
-- [ ] 4.2 `GET /channels/embed/{embed_id}/conversations/{thread_id}`
-- [ ] 4.3 `GET /channels/embed/{embed_id}/conversations/{thread_id}/live`
-- [ ] 4.4 `GET /channels/embed/{embed_id}/conversations/{thread_id}/files/{file_id}`
-- [ ] 4.5 Each route: the ingress checks, then thread-in-caller's-space; another space answers not found
-- [ ] 4.6 Tests for each route, including a thread from another space
+- [x] 4.1 `GET /channels/embed/{embed_id}/conversations`
+- [x] 4.2 `GET /channels/embed/{embed_id}/conversations/{thread_id}`
+- [x] 4.3 `GET /channels/embed/{embed_id}/conversations/{thread_id}/live`
+- [x] 4.4 `GET /channels/embed/{embed_id}/conversations/{thread_id}/files/{file_id}`
+- [x] 4.5 Each route: the ingress checks, then thread-in-caller's-space; another space answers not found
+- [x] 4.6 Tests for each route, including a thread from another space
 
 ## 5. Widget
 

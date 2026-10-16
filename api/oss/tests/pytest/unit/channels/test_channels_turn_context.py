@@ -488,12 +488,30 @@ class TestHostContextAndDisplay:
         _, turn_input = await self._compose(channels, event)
 
         assert [part["text"] for part in turn_input.content] == [
-            "From Ana (fake id U1):",
+            "From Ana (fake id U1):\n\n",
             "Context from the host page (provided by the host, not verified):\n"
-            '{"page": "/invoices"}',
+            '{"page": "/invoices"}\n\n',
             "where is my invoice?",
         ]
         assert turn_input.display_content == "where is my invoice?"
+
+    async def test_parts_joined_with_no_separator_stay_apart(self):
+        # The runner flattens text parts with "".join (protocol.ts messageText).
+        channels = InMemoryChannels()
+        event = channels.store(
+            "hi",
+            addressed=True,
+            sender={"id": "U1", "name": "Ana"},
+            context={"page": "/a"},
+        )
+
+        _, turn_input = await self._compose(channels, event)
+
+        assert "".join(part["text"] for part in turn_input.content) == (
+            "From Ana (fake id U1):\n\n"
+            "Context from the host page (provided by the host, not verified):\n"
+            '{"page": "/a"}\n\nhi'
+        )
 
     async def test_without_context_the_model_input_is_unchanged(self):
         channels = InMemoryChannels()
@@ -502,7 +520,7 @@ class TestHostContextAndDisplay:
         _, turn_input = await self._compose(channels, event)
 
         assert turn_input.content == [
-            {"type": "text", "text": "From user U1 (fake id U1):"},
+            {"type": "text", "text": "From user U1 (fake id U1):\n\n"},
             {"type": "text", "text": "hello"},
         ]
         # the attribution part is hidden from the chat, the words are not
@@ -533,9 +551,9 @@ class TestHostContextAndDisplay:
         )
 
         assert [part["text"] for part in turn_input.content] == [
-            "From user U9 (Slack id U9):",
+            "From user U9 (Slack id U9):\n\n",
             "Context from the host page (provided by the host, not verified):\n"
-            '{"ticket": 7}',
+            '{"ticket": 7}\n\n',
             "hi",
         ]
 
