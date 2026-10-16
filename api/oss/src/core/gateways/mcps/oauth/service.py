@@ -7,12 +7,23 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
-from mcp.shared.auth import OAuthClientInformationFull
+from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
+from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.core.gateways.mcps.dtos import (
+    MCPEndpoint,
+    MCPAuthScheme,
+    MCPOAuthConfig,
+    api_key_value,
+    is_oauth_connection_for,
+)
+from oss.src.core.gateways.mcps.interfaces import MCPEndpointsDAOInterface
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient, same_issuer
 from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttempt,
     MCPOAuthAttemptCreate,
+    MCPOAuthAttemptOutcome,
+    MCPOAuthAttemptStatus,
     MCPOAuthAuthorizationStart,
     MCPOAuthCompletion,
     MCPOAuthDiscovery,
@@ -23,6 +34,7 @@ from oss.src.core.gateways.mcps.oauth.interfaces import (
 )
 from oss.src.core.gateways.mcps.oauth.registration import (
     Resolver,
+    callback_redirect_uri,
     identity_document_client_info,
     is_publicly_resolvable_async,
     registration_covers,
@@ -30,27 +42,31 @@ from oss.src.core.gateways.mcps.oauth.registration import (
 from oss.src.core.gateways.mcps.oauth.state import STATE_TTL_SECONDS, new_state
 from oss.src.core.gateways.mcps.oauth.storage import (
     SecretsTokenStorage,
-    grant_settings_expired,
+    grant_refresh_due,
 )
 from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthAttemptCancelledError,
+    MCPOAuthBindFailedError,
     MCPOAuthCallerMismatchError,
     MCPOAuthClientNotRegisteredError,
     MCPOAuthIssuerChangedError,
+    MCPOAuthNoRefreshTokenError,
     MCPOAuthRefreshFailedError,
+    MCPOAuthRefreshUnavailableError,
+    MCPOAuthRegistrationUnresolvablePinError,
     MCPOAuthStateExpiredError,
     MCPOAuthStateInvalidError,
     MCPOAuthTokenExchangeError,
     MCPOAuthRegistrationUnavailableError,
 )
+from oss.src.core.gateways.policy.types import SecretInvalidError
+from oss.src.core.gateways.types import GatewaysError
 from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO
 from oss.src.core.secrets.services import VaultService
 
-_CALLBACK_PATH = "/gateways/mcps/connect/callback"
 
-
-def callback_redirect_uri(*, api_url: str) -> str:
-    """Return the fixed OAuth callback URI."""
-    return f"{api_url.rstrip('/')}{_CALLBACK_PATH}"
+def _expired(attempt: MCPOAuthAttempt) -> bool:
+    return attempt.expires_at <= datetime.now(timezone.utc)
 
 
 @dataclass
@@ -69,12 +85,15 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         client: MCPOAuthClient,
         api_url: str,
         attempts_dao: MCPOAuthAttemptsDAOInterface,
+        endpoints_dao: MCPEndpointsDAOInterface,
         resolve: Optional[Resolver] = None,
     ) -> None:
         self.vault_service = vault_service
         self.client = client
         self.api_url = api_url
         self.attempts_dao = attempts_dao
+        # The connection a completed attempt binds its grant to. See `complete`.
+        self.endpoints_dao = endpoints_dao
         # Tests may inject DNS resolution.
         self._resolve_kwargs = {"resolve": resolve} if resolve is not None else {}
         # One lock per connection, for as long as a refresh is using it. See
@@ -91,53 +110,55 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         discovery: MCPOAuthDiscovery,
         redirect_uri: str,
         scopes: List[str],
+        oauth_config: Optional[MCPOAuthConfig],
     ) -> Tuple[OAuthClientInformationFull, str]:
-        """Reuse registration, use an identity document, or register a client."""
+        """Choose the client this connection signs in as, and how it was chosen.
+
+        The order is the MCP authorization specification's: a client the person
+        registered in advance, then a registration this deployment already holds, then a
+        client ID metadata document where the authorization server says it accepts one,
+        then a new dynamic registration.
+
+        The stored registration comes before the document so that a connection working
+        with a registered client keeps that client: an authorization server refuses a
+        refresh presented by any other client.
+        """
+        if oauth_config is not None and oauth_config.client_id:
+            return (
+                await self._explicit_client_info(
+                    project_id=storage.project_id,
+                    oauth_config=oauth_config,
+                    redirect_uri=redirect_uri,
+                ),
+                "explicit",
+            )
+
+        # A stored registration that does not cover the callback this deployment would
+        # send is not reusable (OR78): a registration under RFC 7591 is bound to the
+        # redirect URIs it was created with. The fresh registration below is written
+        # under a slug that includes this callback, so it accumulates BESIDE the stale
+        # one, whose grants still renew by presenting it (D66).
         stored = await storage.get_client_info()
         if stored is not None and registration_covers(
             stored, redirect_uri=redirect_uri
         ):
             return stored, "outbound"
 
-        # A stored registration that does not cover the callback this deployment would
-        # send is not reusable, and falls through to a fresh registration below (OR78).
-        #
-        # A registration under RFC 7591 is bound to the redirect URIs it was created
-        # with. A deployment's public address changes whenever a tunnel is added,
-        # rotated or dropped, and the stored registration was then found, its
-        # `client_id` sent, and the authorization server refused it: the client it knows
-        # is registered against an address the request no longer uses. Nothing
-        # re-registered, so the connection stayed unconnectable until someone deleted
-        # the record by hand, and the error the person saw was the authorization
-        # server's, which says nothing about redirect URIs.
-        #
-        # The fresh registration is written under a slug that includes this callback, so
-        # it accumulates BESIDE the stale one rather than replacing it: every grant
-        # already issued is bound to the old client, and its renewal presents that client
-        # (D66).
+        # Only where the authorization server advertises support. One that does not sees
+        # a URL client id it never issued and refuses the authorization in its own page
+        # (GitHub, #6985; Linear answered "the clientId provided does not match to this
+        # client").
+        if discovery.client_id_metadata_document_supported and (
+            await is_publicly_resolvable_async(self.api_url, **self._resolve_kwargs)
+        ):
+            return (
+                identity_document_client_info(
+                    api_url=self.api_url, redirect_uri=redirect_uri
+                ),
+                "document",
+            )
 
-        # Register when the authorization server says it accepts registrations, and fall
-        # back to the identity document only when it does not.
-        #
-        # The order used to be the other way round, and it made every real server fail.
-        # A client-id metadata document is a draft that almost nothing implements, so an
-        # authorization server handed one sees a client id it has never issued and refuses
-        # the authorization outright. Linear answers "the clientId provided does not match
-        # to this client", and it advertises a registration endpoint, which is what it
-        # actually wanted us to use. Dynamic client registration is RFC 7591 and is what
-        # servers in this ecosystem support today.
-        #
-        # The document still has a job: an authorization server that advertises no
-        # registration endpoint cannot be registered with, and then a public identity
-        # document is the only way to name ourselves.
         if not discovery.registration_endpoint:
-            if await is_publicly_resolvable_async(self.api_url, **self._resolve_kwargs):
-                return (
-                    identity_document_client_info(
-                        api_url=self.api_url, redirect_uri=redirect_uri
-                    ),
-                    "document",
-                )
             raise MCPOAuthRegistrationUnavailableError(
                 authorization_server=discovery.authorization_server
             )
@@ -151,6 +172,44 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         await storage.set_client_info(registered)
         return registered, "outbound"
 
+    async def _explicit_client_info(
+        self,
+        *,
+        project_id: UUID,
+        oauth_config: MCPOAuthConfig,
+        redirect_uri: str,
+    ) -> OAuthClientInformationFull:
+        """The client the person registered with the provider, with its secret read
+        from the vault for this one request."""
+        client_secret = None
+        if oauth_config.client_secret_id is not None:
+            secret = await self.vault_service.get_secret_by_id(
+                secret_id=oauth_config.client_secret_id, project_id=project_id
+            )
+            client_secret = api_key_value(secret.data) if secret is not None else None
+            if not client_secret:
+                raise SecretInvalidError(
+                    target="the OAuth client",
+                    detail=(
+                        "the project secret chosen as its client secret is gone or "
+                        "empty"
+                    ),
+                )
+        return OAuthClientInformationFull(
+            client_id=oauth_config.client_id,
+            client_secret=client_secret,
+            redirect_uris=[redirect_uri],
+            token_endpoint_auth_method=oauth_config.token_endpoint_auth_method,
+        )
+
+    async def _oauth_config(
+        self, *, project_id: UUID, endpoint_id: UUID
+    ) -> Optional[MCPOAuthConfig]:
+        endpoint = await self.endpoints_dao.fetch_endpoint(
+            project_id=project_id, endpoint_id=endpoint_id
+        )
+        return endpoint.data.oauth_config if endpoint is not None else None
+
     async def begin(
         self,
         *,
@@ -159,6 +218,37 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         endpoint_id: UUID,
         server_url: str,
         scopes: List[str],
+        oauth_config: Optional[MCPOAuthConfig] = None,
+    ) -> MCPOAuthAuthorizationStart:
+        """Start a consent: discover, choose the client, and record the attempt.
+
+        All of it under the connection's OAuth lock, discovery included, so a disconnect,
+        edit or delete that arrives meanwhile waits for the attempt to exist and then
+        cancels it. Recording the attempt first and filling it in after discovery would
+        hold the lock for less time, but needs a half-written attempt row; the lock costs
+        the connection's other OAuth changes a wait of one discovery at most.
+        """
+        async with self.endpoints_dao.oauth_lock(
+            project_id=project_id, endpoint_id=endpoint_id
+        ):
+            return await self._begin(
+                project_id=project_id,
+                user_id=user_id,
+                endpoint_id=endpoint_id,
+                server_url=server_url,
+                scopes=scopes,
+                oauth_config=oauth_config,
+            )
+
+    async def _begin(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        endpoint_id: UUID,
+        server_url: str,
+        scopes: List[str],
+        oauth_config: Optional[MCPOAuthConfig],
     ) -> MCPOAuthAuthorizationStart:
         discovery = await self.client.discover(server_url=server_url)
         redirect_uri = callback_redirect_uri(api_url=self.api_url)
@@ -177,6 +267,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             discovery=discovery,
             redirect_uri=redirect_uri,
             scopes=scopes,
+            oauth_config=oauth_config,
         )
 
         pkce = self.client.build_pkce()
@@ -184,7 +275,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
 
         # The record is written BEFORE the browser is sent anywhere. A handle that
         # reaches the authorization server always has a record behind it.
-        await self.attempts_dao.create_attempt(
+        attempt = await self.attempts_dao.create_attempt(
             attempt=MCPOAuthAttemptCreate(
                 state=state,
                 project_id=project_id,
@@ -198,6 +289,9 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 code_verifier=pkce.code_verifier,
                 scopes=list(scopes),
                 strategy=strategy,
+                # Only a client the person entered: the connection must still name it
+                # when the attempt completes.
+                client_id=client_info.client_id if strategy == "explicit" else None,
                 expires_at=datetime.now(timezone.utc)
                 + timedelta(seconds=STATE_TTL_SECONDS),
             )
@@ -214,8 +308,15 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         )
 
         return MCPOAuthAuthorizationStart(
-            authorization_url=authorization_url, state=state
+            authorization_url=authorization_url,
+            state=state,
+            attempt_id=attempt.id,
+            expires_in=STATE_TTL_SECONDS,
         )
+
+    async def lookup(self, *, state: str) -> Optional[MCPOAuthAttempt]:
+        """The attempt a handle names, read only, so every callback page can name it."""
+        return await self.attempts_dao.fetch_attempt(state=state)
 
     async def claim(
         self,
@@ -228,8 +329,8 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         This is the first half of the callback, split from `complete()` so that the
         facts the caller must be authorised against — the project above all — are in
         the caller's hands BEFORE any code is exchanged or any grant is written. The
-        record is consumed atomically (`DELETE ... RETURNING`), so there is no read
-        that leaves the handle probeable, and a caller refused after this point has
+        record is claimed atomically, pending to claimed under a row lock, so there is
+        no read that leaves the handle reusable, and a caller refused after this point has
         spent the attempt: single-use is the property that makes the handle safe, and
         the person must start the connection again.
 
@@ -240,6 +341,8 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         attempt = await self.attempts_dao.fetch_attempt(state=state)
         if attempt is None:
             raise MCPOAuthStateInvalidError()
+        if attempt.status == MCPOAuthAttemptStatus.CANCELLED:
+            raise MCPOAuthAttemptCancelledError()
 
         # Refuse before consuming: a stranger presenting someone else's handle must
         # not be able to burn it, and this path writes nothing at all.
@@ -248,13 +351,81 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
 
         consumed = await self.attempts_dao.consume_attempt(state=state)
         if consumed is None:
-            # Another callback took it between the read and the delete.
+            # Another callback took it, or a cancel landed, between the read and the
+            # claim.
             raise MCPOAuthStateInvalidError()
 
-        if consumed.expires_at <= datetime.now(timezone.utc):
+        if _expired(consumed):
+            await self.settle(attempt=consumed, status=MCPOAuthAttemptStatus.CANCELLED)
             raise MCPOAuthStateExpiredError()
 
         return consumed
+
+    async def settle(
+        self,
+        *,
+        attempt: MCPOAuthAttempt,
+        status: MCPOAuthAttemptStatus,
+        error: Optional[str] = None,
+    ) -> None:
+        """Record how a claimed attempt ended, for the browser that may ask."""
+        await self.attempts_dao.settle_attempt(
+            attempt_id=attempt.id, status=status, error=error
+        )
+
+    async def cancel(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+        attempt_id: Optional[UUID] = None,
+    ) -> int:
+        """Cancel one active attempt, or every active attempt of a connection, under the
+        connection's OAuth lock, so a completion in progress finishes first."""
+        async with self.endpoints_dao.oauth_lock(
+            project_id=project_id, endpoint_id=endpoint_id
+        ):
+            return await self.cancel_attempts(
+                project_id=project_id, endpoint_id=endpoint_id, attempt_id=attempt_id
+            )
+
+    async def cancel_attempts(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+        attempt_id: Optional[UUID] = None,
+    ) -> int:
+        return await self.attempts_dao.cancel_attempts(
+            project_id=project_id, endpoint_id=endpoint_id, attempt_id=attempt_id
+        )
+
+    async def has_active_attempts(self, *, project_id: UUID, endpoint_id: UUID) -> bool:
+        return await self.attempts_dao.has_active_attempts(
+            project_id=project_id, endpoint_id=endpoint_id
+        )
+
+    async def outcome(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+        attempt_id: UUID,
+    ) -> Optional[MCPOAuthAttemptOutcome]:
+        """How one attempt stands, for a browser whose popup message never arrived."""
+        attempt = await self.attempts_dao.fetch_attempt_by_id(
+            project_id=project_id, endpoint_id=endpoint_id, attempt_id=attempt_id
+        )
+        if attempt is None:
+            return None
+
+        status = attempt.status
+        if status == MCPOAuthAttemptStatus.CLAIMED:
+            status = MCPOAuthAttemptStatus.PENDING
+        if status == MCPOAuthAttemptStatus.PENDING and _expired(attempt):
+            status = MCPOAuthAttemptStatus.CANCELLED
+
+        return MCPOAuthAttemptOutcome(id=attempt.id, status=status, error=attempt.error)
 
     async def complete(
         self,
@@ -262,11 +433,106 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         attempt: MCPOAuthAttempt,
         code: str,
     ) -> MCPOAuthCompletion:
-        """Exchange the code for a grant and write it into the attempt's project.
+        """Exchange the code, then write and bind the grant, or write nothing at all.
 
         Takes the attempt `claim()` returned rather than the `state` handle: everything
         here writes, so the caller has already authorised itself against that record.
+
+        The exchange runs first and outside any lock, because it is a call to another
+        server. Everything after it runs under the connection's OAuth lock, which every
+        cancel, disconnect and edit of the connection also takes: the attempt must still
+        be claimed and unexpired, and the connection must still be OAuth at the address
+        and with the client the attempt was started for. Only then is the grant written
+        and bound, and the attempt settled as connected. Nothing that changes the
+        connection can land between that check and the write.
+
+        Raises `MCPOAuthAttemptCancelledError` when the attempt no longer applies, and the
+        exchange's own refusal, recorded as the attempt's failure, when it fails.
         """
+        try:
+            storage, client_id, tokens = await self._exchange(
+                attempt=attempt, code=code
+            )
+        except MCPOAuthAttemptCancelledError:
+            await self.settle(attempt=attempt, status=MCPOAuthAttemptStatus.CANCELLED)
+            raise
+        except GatewaysError as e:
+            await self.settle(
+                attempt=attempt, status=MCPOAuthAttemptStatus.FAILED, error=e.message
+            )
+            raise
+
+        try:
+            async with self.endpoints_dao.oauth_lock(
+                project_id=attempt.project_id, endpoint_id=attempt.endpoint_id
+            ):
+                current = await self.attempts_dao.fetch_attempt_by_id(
+                    project_id=attempt.project_id,
+                    endpoint_id=attempt.endpoint_id,
+                    attempt_id=attempt.id,
+                )
+                endpoint = await self.endpoints_dao.fetch_endpoint(
+                    project_id=attempt.project_id, endpoint_id=attempt.endpoint_id
+                )
+                if (
+                    current is None
+                    or current.status != MCPOAuthAttemptStatus.CLAIMED
+                    or _expired(current)
+                    or not is_oauth_connection_for(
+                        endpoint, attempt.server_url, attempt.client_id
+                    )
+                ):
+                    await self.settle(
+                        attempt=attempt, status=MCPOAuthAttemptStatus.CANCELLED
+                    )
+                    raise MCPOAuthAttemptCancelledError()
+                # `storage` carries the attempt's issuer, so the grant is written pinned to
+                # the authorization server that actually issued it. `refresh_grant` requires
+                # that pin to still hold before it presents the refresh token anywhere.
+                grant = await storage.write_tokens(tokens, client_id=client_id)
+                bound = await self.endpoints_dao.bind_endpoint_secret(
+                    project_id=attempt.project_id,
+                    user_id=attempt.user_id,
+                    endpoint_id=attempt.endpoint_id,
+                    secret_id=grant.id,
+                )
+                if bound is None:
+                    # A grant no connection names is a live token nothing can use or revoke.
+                    await storage.delete_grant()
+                    failure = MCPOAuthBindFailedError()
+                    await self.settle(
+                        attempt=attempt,
+                        status=MCPOAuthAttemptStatus.FAILED,
+                        error=failure.message,
+                    )
+                    raise failure
+                await self.settle(
+                    attempt=attempt, status=MCPOAuthAttemptStatus.CONNECTED
+                )
+        except GatewaysError as e:
+            # A lock timeout or a failed write leaves the attempt claimed, so the sheet
+            # would wait out the expiry and a pending delete would see a sign-in in
+            # flight. `settle` changes only a claimed attempt, so this does nothing when
+            # the block above already settled it.
+            await self.settle(
+                attempt=attempt, status=MCPOAuthAttemptStatus.FAILED, error=e.message
+            )
+            raise
+
+        return MCPOAuthCompletion(
+            project_id=attempt.project_id,
+            user_id=attempt.user_id,
+            endpoint_id=attempt.endpoint_id,
+            server_url=attempt.server_url,
+            secret_id=grant.id,
+        )
+
+    async def _exchange(
+        self, *, attempt: MCPOAuthAttempt, code: str
+    ) -> Tuple[SecretsTokenStorage, str, OAuthToken]:
+        """Spend the code at the token endpoint the attempt recorded.
+
+        Returns the client the code was spent as, which the grant records."""
         # Issuer, token endpoint and redirect URI come from the record, not from a
         # fresh discovery round: the server cannot move its token endpoint between the
         # redirect it was handed and the code it returns.
@@ -291,6 +557,21 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             client_info = identity_document_client_info(
                 api_url=self.api_url, redirect_uri=attempt.redirect_uri
             )
+        elif attempt.strategy == "explicit":
+            # The secret is read now, from the client the attempt started with. A
+            # connection that has moved to another client since is cancelled here, and
+            # again under the connection lock, so a change during the exchange binds
+            # nothing.
+            oauth_config = await self._oauth_config(
+                project_id=attempt.project_id, endpoint_id=attempt.endpoint_id
+            )
+            if oauth_config is None or oauth_config.client_id != attempt.client_id:
+                raise MCPOAuthAttemptCancelledError()
+            client_info = await self._explicit_client_info(
+                project_id=attempt.project_id,
+                oauth_config=oauth_config,
+                redirect_uri=attempt.redirect_uri,
+            )
         else:
             client_info = await storage.get_client_info()
             if client_info is None:
@@ -304,49 +585,57 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             client_info=client_info,
             resource=attempt.resource,
         )
-        # `storage` carries the attempt's issuer, so the grant is written pinned to the
-        # authorization server that actually issued it. `refresh_grant` requires that
-        # pin to still hold before it presents the refresh token anywhere.
-        grant = await storage.write_tokens(tokens)
-
-        return MCPOAuthCompletion(
-            project_id=attempt.project_id,
-            user_id=attempt.user_id,
-            endpoint_id=attempt.endpoint_id,
-            server_url=attempt.server_url,
-            secret_id=grant.id,
-        )
+        return storage, client_info.client_id, tokens
 
     async def disconnect(
-        self, *, project_id: UUID, endpoint_id: UUID, server_url: str
-    ) -> bool:
-        """Drop one connection's stored grant. Returns whether there was one.
+        self, *, project_id: UUID, user_id: UUID, endpoint_id: UUID
+    ) -> Optional[MCPEndpoint]:
+        """Drop one connection's authorization and keep the connection.
 
-        The inverse of `complete()`, and keyed the same way, so disconnecting one
-        account at a server leaves every other connection to that server working.
-
-        The client registration is not touched. It names this deployment to the
-        authorization server rather than an account, and other connections there are
-        still using it; re-registering on every disconnect would also mint a fresh
-        client each time anyone reconnects.
+        Under the connection's OAuth lock, and decided on the connection as it stands
+        there: a custom OAuth connection has its consents in flight cancelled, its
+        binding cleared and its grant row deleted, so no callback can bind a grant
+        afterwards. Any other connection, such as one an edit just moved to an API key,
+        is returned unchanged. `None` when there is no connection. Keyed by connection,
+        so another account at the same server keeps its own. The client registration is
+        not touched: it names this deployment to the authorization server.
         """
-        # The outstanding consents go first. A consent already in flight completes
-        # against the record it was issued, so a browser tab opened before this call
-        # would otherwise finish afterwards and reconnect the account, leaving the
-        # person who pressed Disconnect believing they had revoked it (D5). Dropped
-        # before the grant, so there is no window in which the grant is gone and a
-        # callback can still write a new one.
-        await self.attempts_dao.drop_attempts_for_endpoint(
+        async with self.endpoints_dao.oauth_lock(
             project_id=project_id, endpoint_id=endpoint_id
-        )
+        ):
+            endpoint = await self.endpoints_dao.fetch_endpoint(
+                project_id=project_id, endpoint_id=endpoint_id
+            )
+            if (
+                endpoint is None
+                or endpoint.namespace != GatewayEndpointNamespace.CUSTOM
+                or endpoint.auth_mode != MCPAuthScheme.OAUTH
+            ):
+                return endpoint
+            await self.release_grant(
+                project_id=project_id,
+                endpoint_id=endpoint_id,
+                server_url=endpoint.data.route.base_url or "",
+            )
+            return await self.endpoints_dao.bind_endpoint_secret(
+                project_id=project_id,
+                user_id=user_id,
+                endpoint_id=endpoint_id,
+                secret_id=None,
+            )
 
-        storage = SecretsTokenStorage(
+    async def release_grant(
+        self, *, project_id: UUID, endpoint_id: UUID, server_url: str
+    ) -> None:
+        """Cancel a connection's consents in flight and delete its grant row. The caller
+        holds the connection's OAuth lock."""
+        await self.cancel_attempts(project_id=project_id, endpoint_id=endpoint_id)
+        await SecretsTokenStorage(
             vault_service=self.vault_service,
             project_id=project_id,
             server_url=server_url,
             endpoint_id=endpoint_id,
-        )
-        return await storage.delete_grant()
+        ).delete_grant()
 
     # Refresh
 
@@ -379,31 +668,42 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 del self._refresh_locks[key]
 
     async def refresh_grant(
-        self, *, project_id: UUID, endpoint_id: UUID, server_url: str
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+        server_url: str,
+        failed_access_token: Optional[str] = None,
     ) -> None:
         """Renew one connection's stored grant, in place.
 
-        **Concurrency.** Several relays can find one grant expired at the same moment,
-        and a rotating authorization server invalidates a refresh token the instant it
-        is spent, so two exchanges would leave one caller holding a token the server has
-        already retired. Two mechanisms, in order:
+        Without `failed_access_token` this renews a grant that is due (see
+        `grant_refresh_due`). With it, the upstream refused that token, and the grant is
+        renewed whatever its expiry says, but only while the row still holds that token:
+        a row holding another one was already renewed or reconnected, and that token is
+        the one to use.
 
-        * Inside a worker, one `asyncio.Lock` per connection serializes the refresh, and
-          the grant is re-read after the lock is taken. The second caller therefore
-          finds a fresh token and performs no exchange at all. Per connection rather
-          than per server: two accounts at one server hold two grants, and one waiting
-          on the other's exchange would serialize calls that never touch the same row.
-        * Across workers, nothing can serialize them without a distributed lock this
-          module has no business introducing, so the losing exchange is expected to be
-          refused. It is treated as a race, not a death: the grant is re-read, and if the
-          winner has already written a live token it is used. Only when the re-read still
-          shows an expired grant does this raise.
+        **Concurrency.** A rotating authorization server retires a refresh token the
+        instant it is spent, so two exchanges for one grant would leave one caller with a
+        token the server has already retired. The exchange and the write run under the
+        connection's OAuth lock, the per-connection Postgres lock that every consent,
+        cancel, disconnect, edit and delete of the connection also takes. It serializes
+        every API worker, and the grant is re-read once it is held, so the second caller
+        finds the first one's token and performs no exchange. Inside one worker a
+        per-connection `asyncio.Lock` is taken first, so callers that would only wait do
+        so without holding a pooled database connection each. Both locks are per
+        connection rather than per server: two accounts at one server hold two grants.
 
         The refreshed tokens are written back to the same vault row the endpoint's
         `secret_id` names, so the caller re-reads its own reference rather than being
         handed one.
         """
-        async with self._refresh_lock(project_id=project_id, endpoint_id=endpoint_id):
+        async with (
+            self._refresh_lock(project_id=project_id, endpoint_id=endpoint_id),
+            self.endpoints_dao.oauth_lock(
+                project_id=project_id, endpoint_id=endpoint_id
+            ),
+        ):
             storage = SecretsTokenStorage(
                 vault_service=self.vault_service,
                 project_id=project_id,
@@ -416,14 +716,14 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 raise MCPOAuthRefreshFailedError(
                     server_url=server_url, detail="no stored grant"
                 )
-            if not grant_settings_expired(stored):
-                # Another coroutine in this worker refreshed while we waited.
+            if failed_access_token is not None:
+                if stored.access_token != failed_access_token:
+                    return
+            elif not grant_refresh_due(stored):
+                # Another caller refreshed while we waited.
                 return
             if not stored.refresh_token:
-                raise MCPOAuthRefreshFailedError(
-                    server_url=server_url,
-                    detail="the stored grant carries no refresh token",
-                )
+                raise MCPOAuthNoRefreshTokenError(server_url=server_url)
             if not stored.issuer:
                 # Nothing to check the resource's answer against, so there is no safe
                 # way to present this refresh token. Reconnecting writes the pin.
@@ -455,12 +755,12 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             # presented by a client it never issued those tokens to, so reading "the
             # current registration for this issuer" is what made a changed public address
             # quietly stop every connection that was working (D6).
-            client_info = await storage.get_client_info_for_grant(stored)
-            if client_info is None:
-                client_info = identity_document_client_info(
-                    api_url=self.api_url,
-                    redirect_uri=callback_redirect_uri(api_url=self.api_url),
-                )
+            client_info = await self._client_info_for_grant(
+                storage=storage,
+                stored=stored,
+                project_id=project_id,
+                endpoint_id=endpoint_id,
+            )
 
             try:
                 refreshed = await self.client.refresh_token(
@@ -470,8 +770,10 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                     resource=discovery.resource,
                 )
             except MCPOAuthTokenExchangeError as e:
-                if await self._another_worker_refreshed(storage=storage, stored=stored):
-                    return
+                if e.temporary:
+                    raise MCPOAuthRefreshUnavailableError(
+                        server_url=server_url, detail=e.detail
+                    ) from e
                 raise MCPOAuthRefreshFailedError(
                     server_url=server_url, detail=e.detail
                 ) from e
@@ -482,19 +784,48 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 # expiry unrecoverable.
                 refreshed.refresh_token = stored.refresh_token
 
-            await storage.write_tokens(refreshed)
+            await storage.write_tokens(refreshed, client_id=client_info.client_id)
 
-    @staticmethod
-    async def _another_worker_refreshed(
-        *, storage: SecretsTokenStorage, stored: OAuthGrantSettingsDTO
-    ) -> bool:
-        """Whether the row now holds a live grant someone else wrote."""
-        current = await storage.get_grant()
-        if current is None:
-            return False
-        if current.access_token == stored.access_token:
-            return False
-        return not grant_settings_expired(current)
+    async def _client_info_for_grant(
+        self,
+        *,
+        storage: SecretsTokenStorage,
+        stored: OAuthGrantSettingsDTO,
+        project_id: UUID,
+        endpoint_id: UUID,
+    ) -> OAuthClientInformationFull:
+        """The client a stored grant was issued to, never a different one.
+
+        A grant from a registration names its row. A grant from the person's own client or
+        from the identity document names the client id instead, and is renewed only by a
+        client with that id: a client id changed since the consent means connecting again,
+        because the authorization server refuses a refresh from any other client.
+        """
+        redirect_uri = callback_redirect_uri(api_url=self.api_url)
+        document = identity_document_client_info(
+            api_url=self.api_url, redirect_uri=redirect_uri
+        )
+        if stored.client_registration_slug or stored.client_id is None:
+            # A grant written before it recorded its client id resolves as it always did.
+            client_info = await storage.get_client_info_for_grant(stored)
+            return client_info or document
+
+        if document.client_id == stored.client_id:
+            return document
+        oauth_config = await self._oauth_config(
+            project_id=project_id, endpoint_id=endpoint_id
+        )
+        if oauth_config is not None and oauth_config.client_id == stored.client_id:
+            return await self._explicit_client_info(
+                project_id=project_id,
+                oauth_config=oauth_config,
+                redirect_uri=redirect_uri,
+            )
+        # A registration found by the issuer scan can carry no slug.
+        registered = await storage.get_client_info_for_grant(stored)
+        if registered is not None and registered.client_id == stored.client_id:
+            return registered
+        raise MCPOAuthRegistrationUnresolvablePinError(server_url=storage.server_url)
 
     async def sweep_expired_attempts(self) -> int:
         """Drop attempts nobody came back for. Driven by the cron service."""

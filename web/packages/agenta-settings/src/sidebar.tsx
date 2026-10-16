@@ -4,7 +4,6 @@ import type {SidebarConfig, SidebarSection, SidebarSlotContext} from "@agenta/na
 import {
     Broadcast,
     Buildings,
-    Bug,
     ChartLineUp,
     Coins,
     ClockCounterClockwise,
@@ -55,8 +54,6 @@ export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
             return <Receipt size={14} />
         case "credits":
             return <Coins size={14} />
-        case "walletUsage":
-            return <Bug size={14} />
         case "account":
             return <User size={14} />
         case "preferences":

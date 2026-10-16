@@ -70,6 +70,8 @@ export interface OrganizationProviderSettings {
     issuer_url?: string
     client_id?: string
     client_secret?: string
+    /** The API never returns the secret; this says whether one is stored. */
+    has_client_secret?: boolean
     authorization_endpoint?: string
     token_endpoint?: string
     userinfo_endpoint?: string

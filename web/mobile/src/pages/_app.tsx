@@ -7,6 +7,7 @@ import Head from "next/head"
 
 import {AppProviders} from "@/features/app/AppProviders"
 import {GlobalDrawers} from "@/features/app/GlobalDrawers"
+import {TabRunFavicon} from "@/features/app/TabRunFavicon"
 import {DriveMarkdownRenderer} from "@/features/chat/DriveMarkdownRenderer"
 import {MaintenanceNoticeBar} from "@/features/maintenance/MaintenanceNoticeBar"
 
@@ -54,6 +55,7 @@ export default function App({Component, pageProps}: AppProps) {
                     reimplementation of that API, not antd's App context. */}
                 <AppMessageContext />
                 <GlobalDrawers />
+                <TabRunFavicon />
             </AppProviders>
         </>
     )

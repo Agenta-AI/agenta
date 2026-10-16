@@ -2,11 +2,20 @@ import {useState} from "react"
 
 import {
     checkoutBillingSubscription,
-    PricingPlans,
     switchBillingPlan,
     type BillingPlanOption,
 } from "@agenta/settings-ui"
-import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from "@agenta/ui/ui"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    SkeletonBlock,
+} from "@agenta/ui/ui"
+
+import {sharedFeatures} from "./planCatalog"
+import {PlanOptionCard} from "./PlanOptionCard"
 
 interface Props {
     open: boolean
@@ -22,10 +31,7 @@ interface Props {
     onChanged: () => void
 }
 
-/**
- * The plan chooser as a modal. Picking a paid plan from the free tier hands off to
- * Stripe Checkout in a new tab; paid → paid switches server-side and closes.
- */
+/** The plan chooser: free → paid opens Stripe Checkout in a new tab; paid → paid switches in place. */
 export const PlanChooserSheet = ({
     open,
     onOpenChange,
@@ -73,26 +79,52 @@ export const PlanChooserSheet = ({
         }
     }
 
+    const included = sharedFeatures(plans)
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            {/* As wide as the desktop pricing modal, so the plan cards sit side by side. */}
-            <DialogContent className="max-w-[1200px]">
-                <DialogHeader>
+            {/* On a desktop the cards keep their buttons in view and scroll their lists instead. */}
+            <DialogContent className="max-w-[1040px] lg:overflow-hidden">
+                <DialogHeader className="pr-6">
                     <DialogTitle>Plans</DialogTitle>
-                    <DialogDescription>Choose the plan for this organization.</DialogDescription>
+                    <DialogDescription>
+                        Every plan runs on credits. Pick how many you get each month.
+                    </DialogDescription>
                 </DialogHeader>
-                <div>
-                    {error ? <p className="m-0 pb-2 text-sm text-colorError">{error}</p> : null}
-                    <PricingPlans
-                        plans={plans}
-                        loading={loading}
-                        currentPlan={currentPlan}
-                        freePlanSlug={freePlanSlug}
-                        isCurrentPlanCustom={isCurrentPlanCustom}
-                        pendingPlan={pendingPlan}
-                        onSelectPlan={(plan) => void selectPlan(plan)}
-                    />
+                {error ? <p className="text-destructive m-0 text-sm">{error}</p> : null}
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:min-h-0 lg:flex-1 lg:grid-cols-[repeat(auto-fit,minmax(200px,1fr))] lg:grid-rows-[minmax(0,1fr)]">
+                    {loading
+                        ? Array.from({length: 3}, (_, index) => (
+                              <SkeletonBlock key={index} className="h-[360px] rounded-[14px]" />
+                          ))
+                        : plans.map((plan) => (
+                              <PlanOptionCard
+                                  key={plan.plan ?? plan.title}
+                                  plan={plan}
+                                  isCurrent={Boolean(plan.plan) && plan.plan === currentPlan}
+                                  isFree={Boolean(freePlanSlug) && plan.plan === freePlanSlug}
+                                  isCurrentPlanCustom={Boolean(isCurrentPlanCustom)}
+                                  pending={pendingPlan === plan.plan}
+                                  busy={Boolean(pendingPlan) && pendingPlan !== plan.plan}
+                                  onSelect={() => void selectPlan(plan)}
+                              />
+                          ))}
                 </div>
+                {included.length ? (
+                    <div className="bg-muted flex shrink-0 flex-col gap-2 rounded-xl px-4 py-3.5">
+                        <span className="text-[13px] font-medium">Included on every plan</span>
+                        <ul className="m-0 flex list-none flex-wrap gap-1.5 p-0">
+                            {included.map((feature) => (
+                                <li
+                                    key={feature}
+                                    className="bg-background border-border rounded-full border border-solid px-2.5 text-xs leading-[22px]"
+                                >
+                                    {feature}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                ) : null}
             </DialogContent>
         </Dialog>
     )

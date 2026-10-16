@@ -43,6 +43,8 @@ import {
     type SettleClientTool,
 } from "@agenta/shared/clientTools"
 
+import {consentPopupFeatures} from "../shared/consentPopupFeatures"
+
 import {prettyIntegration} from "./useIntegrationIdentity"
 
 /**
@@ -53,8 +55,6 @@ import {prettyIntegration} from "./useIntegrationIdentity"
 const CONNECT_TIMEOUT_MS = 180_000
 /** Popup-closed poll cadence, matching the existing ConnectModal. */
 const POPUP_POLL_MS = 1000
-/** Same window geometry as the settings connect surfaces. */
-const POPUP_FEATURES = "width=600,height=700,popup=yes"
 const DEFAULT_PROVIDER = "composio"
 /** Ceiling on how long Connect/Retry stays disabled waiting for the toolkit's real auth mode —
  * see `modeResolving` below. Generous for a normal catalog fetch, short enough that a genuinely
@@ -319,7 +319,7 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
             setErrorText(null)
             setPhase("connecting")
             // Opened inside the tap: WebKit blocks `window.open` after an await, so /m never got a popup.
-            const popup = window.open("", oauthWindowName, POPUP_FEATURES)
+            const popup = window.open("", oauthWindowName, consentPopupFeatures(window))
             const closePopup = () => {
                 try {
                     popup?.close()

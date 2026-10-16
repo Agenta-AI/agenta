@@ -122,7 +122,9 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-async function raceSettled(work: Promise<unknown>): Promise<"settled" | "hung"> {
+async function raceSettled(
+  work: Promise<unknown>,
+): Promise<"settled" | "hung"> {
   const outcome = await Promise.race([
     work.then(
       () => "settled" as const,
@@ -227,7 +229,8 @@ describe("Pi gateway MCP extension", () => {
       requests.every((request) =>
         request.method === MCP_DISCOVERY_METHOD
           ? request.headers.get("mcp-protocol-version") === null
-          : request.headers.get("mcp-protocol-version") === BUILTIN_NEGOTIATED_VERSION,
+          : request.headers.get("mcp-protocol-version") ===
+            BUILTIN_NEGOTIATED_VERSION,
       ),
     );
   });
@@ -704,10 +707,13 @@ describe("the Pi MCP client bounds its own requests (CR10)", () => {
           : payload.method === "tools/call"
             ? { content: [{ type: "text", text: "ok" }] }
             : { protocolVersion: "2026-07-28", capabilities: { tools: {} } };
-      return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
     }) as unknown as typeof fetch;
 
     const pi = fakePi();
@@ -736,10 +742,13 @@ describe("the Pi MCP client bounds its own requests (CR10)", () => {
         payload.method === "tools/list"
           ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
           : { protocolVersion: "2026-07-28", capabilities: { tools: {} } };
-      return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
     }) as unknown as typeof fetch;
 
     const pi = fakePi();
@@ -823,17 +832,24 @@ describe("the Pi MCP client bounds its own requests (CR10)", () => {
         payload.method === "tools/list"
           ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
           : { protocolVersion: "2026-07-28", capabilities: { tools: {} } };
-      return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
     }) as unknown as typeof fetch;
 
     const pi = fakePi();
     await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
 
     const controller = new AbortController();
-    const call = pi.tools[0].execute("call-1", { marker: "X" }, controller.signal);
+    const call = pi.tools[0].execute(
+      "call-1",
+      { marker: "X" },
+      controller.signal,
+    );
     // Swallowed here; the assertion below is on how the call ends, not on the rejection reaching
     // an unhandled-rejection handler first.
     const settled = call.then(
@@ -841,7 +857,11 @@ describe("the Pi MCP client bounds its own requests (CR10)", () => {
       () => "rejected",
     );
     const upstream = await inFlight.promise;
-    assert.equal(upstream.aborted, false, "still running when the turn is cancelled");
+    assert.equal(
+      upstream.aborted,
+      false,
+      "still running when the turn is cancelled",
+    );
 
     controller.abort();
 
@@ -869,10 +889,13 @@ describe("a configured header cannot replace a protocol header (M19)", () => {
         payload.method === "tools/list"
           ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
           : { protocolVersion: "2026-07-28", capabilities: { tools: {} } };
-      return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
     }) as unknown as typeof fetch;
 
     const raw = serializePiGatewayMcpConfig([
@@ -935,7 +958,12 @@ describe("the Pi MCP client's own SSRF posture (CR9)", () => {
     }) as unknown as typeof fetch;
 
     const logs: string[] = [];
-    await registerPiGatewayMcpTools(fakePi(), oneServerConfig(), (m) => logs.push(m), allowAll);
+    await registerPiGatewayMcpTools(
+      fakePi(),
+      oneServerConfig(),
+      (m) => logs.push(m),
+      allowAll,
+    );
 
     assert.ok(inits.length > 0);
     assert.ok(inits.every((init) => init.redirect === "manual"));
@@ -1066,7 +1094,9 @@ describe("the protocol version is negotiated, not asserted", () => {
     await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
     await pi.tools[0].execute("call-1", { marker: "X" });
 
-    const initialize = seen.find((entry) => entry.method === MCP_DISCOVERY_METHOD);
+    const initialize = seen.find(
+      (entry) => entry.method === MCP_DISCOVERY_METHOD,
+    );
     assert.ok(initialize, "the client opened with initialize");
     assert.equal(
       initialize.version,
@@ -1087,7 +1117,10 @@ describe("the protocol version is negotiated, not asserted", () => {
 
   it("falls back to the client's own version when the server names none", async () => {
     const seen: Array<{ method?: string; version?: string }> = [];
-    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       const payload = JSON.parse(String(init?.body));
       const headers = init?.headers as Record<string, string>;
       const version = Object.entries(headers ?? {}).find(
@@ -1224,7 +1257,6 @@ describe("a real upstream's answers, as they actually arrive", () => {
   });
 });
 
-
 // D63. The transport lets a server send notifications before the response to a request, and both
 // independent reviewers found this by executing it: joining every `data:` line produced two JSON
 // documents separated by a newline, which parses as nothing, so `discover()` threw and the whole
@@ -1239,7 +1271,8 @@ describe("the shared SSE reader takes the frame that answers the request (D63)",
     `event: message\ndata: ${JSON.stringify({ jsonrpc: "2.0", id, result })}\n\n`;
 
   it("skips a notification sent before the result", () => {
-    const body = notification("notifications/message") + answer(4, { tools: [] });
+    const body =
+      notification("notifications/message") + answer(4, { tools: [] });
 
     const parsed = JSON.parse(readMcpResponseJson(body, 4));
 
@@ -1251,7 +1284,9 @@ describe("the shared SSE reader takes the frame that answers the request (D63)",
     // The mock sends its notification first. A reader that simply took the last frame would pass
     // every cell here and still fail against a server that sends one afterwards, which the
     // transport equally permits.
-    const body = answer(5, { tools: [{ name: "echo" }] }) + notification("notifications/progress");
+    const body =
+      answer(5, { tools: [{ name: "echo" }] }) +
+      notification("notifications/progress");
 
     const parsed = JSON.parse(readMcpResponseJson(body, 5));
 
@@ -1261,12 +1296,17 @@ describe("the shared SSE reader takes the frame that answers the request (D63)",
   it("picks this request's answer when another request's shares the stream", () => {
     const body = answer(1, { first: true }) + answer(2, { second: true });
 
-    assert.deepEqual(JSON.parse(readMcpResponseJson(body, 1)).result, { first: true });
-    assert.deepEqual(JSON.parse(readMcpResponseJson(body, 2)).result, { second: true });
+    assert.deepEqual(JSON.parse(readMcpResponseJson(body, 1)).result, {
+      first: true,
+    });
+    assert.deepEqual(JSON.parse(readMcpResponseJson(body, 2)).result, {
+      second: true,
+    });
   });
 
   it("takes the last answering frame when the caller numbered nothing, as the probe does", () => {
-    const body = notification("notifications/message") + answer(9, { tools: [] });
+    const body =
+      notification("notifications/message") + answer(9, { tools: [] });
 
     assert.equal(JSON.parse(readMcpResponseJson(body)).id, 9);
   });
@@ -1284,14 +1324,22 @@ describe("the shared SSE reader takes the frame that answers the request (D63)",
   });
 
   it("still reads a plain JSON body and a single event, unchanged", () => {
-    assert.deepEqual(JSON.parse(readMcpResponseJson('{"jsonrpc":"2.0","id":1,"result":{}}', 1)), {
-      jsonrpc: "2.0",
-      id: 1,
-      result: {},
-    });
-    assert.deepEqual(JSON.parse(readMcpResponseJson(answer(1, { ok: true }), 1)).result, {
-      ok: true,
-    });
+    assert.deepEqual(
+      JSON.parse(
+        readMcpResponseJson('{"jsonrpc":"2.0","id":1,"result":{}}', 1),
+      ),
+      {
+        jsonrpc: "2.0",
+        id: 1,
+        result: {},
+      },
+    );
+    assert.deepEqual(
+      JSON.parse(readMcpResponseJson(answer(1, { ok: true }), 1)).result,
+      {
+        ok: true,
+      },
+    );
   });
 
   it("returns the body whole when no frame answers, so the parse error names it", () => {
@@ -1303,7 +1351,10 @@ describe("the shared SSE reader takes the frame that answers the request (D63)",
 
 describe("a server that sends a notification before its tool list (D63)", () => {
   it("registers its tools instead of being dropped as a failed handshake", async () => {
-    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       const payload = JSON.parse(String(init?.body));
       if (payload.id === undefined) return new Response("", { status: 202 });
       const result =
@@ -1311,7 +1362,10 @@ describe("a server that sends a notification before its tool list (D63)", () => 
           ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
           : payload.method === "tools/call"
             ? { content: [{ type: "text", text: "ok" }] }
-            : { protocolVersion: MCP_PROTOCOL_VERSION, capabilities: { tools: {} } };
+            : {
+                protocolVersion: MCP_PROTOCOL_VERSION,
+                capabilities: { tools: {} },
+              };
       const body =
         `event: message\ndata: ${JSON.stringify({
           jsonrpc: "2.0",
@@ -1327,7 +1381,12 @@ describe("a server that sends a notification before its tool list (D63)", () => 
 
     const pi = fakePi();
     const logs: string[] = [];
-    await registerPiGatewayMcpTools(pi, oneServerConfig(), (m) => logs.push(m), allowAll);
+    await registerPiGatewayMcpTools(
+      pi,
+      oneServerConfig(),
+      (m) => logs.push(m),
+      allowAll,
+    );
 
     assert.deepEqual(
       pi.tools.map((tool: any) => tool.name),
@@ -1336,7 +1395,10 @@ describe("a server that sends a notification before its tool list (D63)", () => 
     );
 
     const out = await pi.tools[0].execute("call-1", { marker: "X" });
-    assert.ok(JSON.stringify(out).includes("ok"), `the call must return the result: ${JSON.stringify(out)}`);
+    assert.ok(
+      JSON.stringify(out).includes("ok"),
+      `the call must return the result: ${JSON.stringify(out)}`,
+    );
   });
 });
 
@@ -1357,7 +1419,10 @@ describe("the revision this client offers (D64)", () => {
   it("is what initialize offers, while later requests carry what the server answered", async () => {
     const offered: (string | undefined)[] = [];
     const headers: (string | null)[] = [];
-    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       const payload = JSON.parse(String(init?.body));
       offered.push(payload.params?.protocolVersion);
       headers.push(new Headers(init?.headers).get("mcp-protocol-version"));
@@ -1367,11 +1432,17 @@ describe("the revision this client offers (D64)", () => {
           ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
           : payload.method === "tools/call"
             ? { content: [{ type: "text", text: "ok" }] }
-            : { protocolVersion: BUILTIN_NEGOTIATED_VERSION, capabilities: { tools: {} } };
-      return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
+            : {
+                protocolVersion: BUILTIN_NEGOTIATED_VERSION,
+                capabilities: { tools: {} },
+              };
+      return new Response(
+        JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
     }) as unknown as typeof fetch;
 
     const pi = fakePi();
@@ -1388,7 +1459,6 @@ describe("the revision this client offers (D64)", () => {
     );
   });
 });
-
 
 // D65. CR10 applied one ten-second bound to every request this client makes. `tools/call`'s peer
 // is the Agenta gateway, which allows its own upstream thirty seconds, so an ordinary tool taking
@@ -1410,7 +1480,10 @@ describe("a tool call is bounded by the gateway's budget, not the handshake's (D
     // The exact case the reviewer drove: an upstream answering at twenty-five seconds, well
     // inside the gateway's thirty, which the old bound cancelled at ten.
     const answerAt = 25_000;
-    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       const payload = JSON.parse(String(init?.body));
       const signal = init?.signal as AbortSignal | undefined;
       const result =
@@ -1418,12 +1491,18 @@ describe("a tool call is bounded by the gateway's budget, not the handshake's (D
           ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
           : payload.method === "tools/call"
             ? { content: [{ type: "text", text: "slow but fine" }] }
-            : { protocolVersion: BUILTIN_NEGOTIATED_VERSION, capabilities: { tools: {} } };
+            : {
+                protocolVersion: BUILTIN_NEGOTIATED_VERSION,
+                capabilities: { tools: {} },
+              };
       const respond = () =>
-        new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
+        new Response(
+          JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        );
       if (payload.method !== "tools/call") return respond();
       return new Promise<Response>((resolve, reject) => {
         const timer = setTimeout(() => resolve(respond()), answerAt);
@@ -1451,18 +1530,27 @@ describe("a tool call is bounded by the gateway's budget, not the handshake's (D
 
   it("still abandons a call that outlasts the gateway's budget and the return trip", async () => {
     const aborts: AbortSignal[] = [];
-    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       const payload = JSON.parse(String(init?.body));
       const signal = init?.signal as AbortSignal;
       const result =
         payload.method === "tools/list"
           ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
-          : { protocolVersion: BUILTIN_NEGOTIATED_VERSION, capabilities: { tools: {} } };
+          : {
+              protocolVersion: BUILTIN_NEGOTIATED_VERSION,
+              capabilities: { tools: {} },
+            };
       if (payload.method !== "tools/call") {
-        return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        );
       }
       aborts.push(signal);
       const pending = new Promise<Response>((_resolve, reject) => {
@@ -1483,12 +1571,17 @@ describe("a tool call is bounded by the gateway's budget, not the handshake's (D
     // Settled either way: whether the client surfaces the abort as a value or a rejection is not
     // what this case is about, and leaving it unattached makes a real abort read as an unhandled
     // rejection in the runner.
-    const call = pi.tools[0]
-      .execute("call-1", { marker: "X" })
-      .then((value: unknown) => value, (error: unknown) => error);
+    const call = pi.tools[0].execute("call-1", { marker: "X" }).then(
+      (value: unknown) => value,
+      (error: unknown) => error,
+    );
     // Not yet: the client must still be waiting where the old bound had already given up.
     await vi.advanceTimersByTimeAsync(PI_MCP_REQUEST_TIMEOUT_MS + 1);
-    assert.equal(aborts[0]?.aborted, false, "the handshake bound must not end a tool call");
+    assert.equal(
+      aborts[0]?.aborted,
+      false,
+      "the handshake bound must not end a tool call",
+    );
     await vi.advanceTimersByTimeAsync(PI_MCP_CALL_TIMEOUT_MS);
     vi.useRealTimers();
 
@@ -1504,13 +1597,18 @@ describe("a tool call is bounded by the gateway's budget, not the handshake's (D
 
 describe("the bound and the cancellation cover the body, not just the headers (D67)", () => {
   /** A response whose headers arrive at once and whose body never finishes. */
-  function stallingBody(signal: AbortSignal | undefined, onAbort: () => void): Response {
+  function stallingBody(
+    signal: AbortSignal | undefined,
+    onAbort: () => void,
+  ): Response {
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue(new TextEncoder().encode('{"jsonrpc":"2.0",'));
         signal?.addEventListener("abort", () => {
           onAbort();
-          controller.error(Object.assign(new Error("aborted"), { name: "AbortError" }));
+          controller.error(
+            Object.assign(new Error("aborted"), { name: "AbortError" }),
+          );
         });
         // and then nothing, ever.
       },
@@ -1523,7 +1621,10 @@ describe("the bound and the cancellation cover the body, not just the headers (D
 
   it("abandons a handshake whose body never finishes", async () => {
     let bodyAborted = false;
-    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       return stallingBody(init?.signal as AbortSignal, () => {
         bodyAborted = true;
       });
@@ -1546,7 +1647,11 @@ describe("the bound and the cancellation cover the body, not just the headers (D
       "settled",
       "a stalled body must not outlive the client's own bound",
     );
-    assert.equal(bodyAborted, true, "and the body stream is torn down, not merely abandoned");
+    assert.equal(
+      bodyAborted,
+      true,
+      "and the body stream is torn down, not merely abandoned",
+    );
     assert.deepEqual(pi.tools, []);
     assert.ok(logs.some((line) => line.includes("failed its handshake")));
   });
@@ -1562,7 +1667,10 @@ describe("the bound and the cancellation cover the body, not just the headers (D
     const reading = new Promise<void>((resolve) => {
       bodyOpen = resolve;
     });
-    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       const payload = JSON.parse(String(init?.body));
       if (payload.method === "tools/call") {
         const response = stallingBody(init?.signal as AbortSignal, () => {
@@ -1574,11 +1682,17 @@ describe("the bound and the cancellation cover the body, not just the headers (D
       const result =
         payload.method === "tools/list"
           ? { tools: [{ name: "echo", inputSchema: { type: "object" } }] }
-          : { protocolVersion: BUILTIN_NEGOTIATED_VERSION, capabilities: { tools: {} } };
-      return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
+          : {
+              protocolVersion: BUILTIN_NEGOTIATED_VERSION,
+              capabilities: { tools: {} },
+            };
+      return new Response(
+        JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
     }) as unknown as typeof fetch;
 
     const pi = fakePi();
@@ -1587,15 +1701,21 @@ describe("the bound and the cancellation cover the body, not just the headers (D
     const controller = new AbortController();
     const call = pi.tools[0]
       .execute("call-1", { marker: "X" }, controller.signal)
-      .then((value: unknown) => value, (error: unknown) => error);
+      .then(
+        (value: unknown) => value,
+        (error: unknown) => error,
+      );
     // The turn is cancelled while the body is still open. Without D67 nothing was listening.
     await reading;
     controller.abort();
     assert.equal(await raceSettled(Promise.resolve(call)), "settled");
-    assert.equal(bodyAborted, true, "the caller's cancellation must reach the body stream");
+    assert.equal(
+      bodyAborted,
+      true,
+      "the caller's cancellation must reach the body stream",
+    );
   });
 });
-
 
 // D69. `tools/list` is paginated. This client read the first page and stopped, so every tool past
 // it was never advertised to the model — which reads as a model that will not use a tool rather
@@ -1605,7 +1725,10 @@ describe("tools/list pages are followed (D69)", () => {
   /** A server whose catalogue is `pages` pages of one tool each. */
   function pagedServer(pages: number, options: { loop?: boolean } = {}) {
     const cursors: (string | undefined)[] = [];
-    const fetchImpl = (async (_url: string | URL | Request, init?: RequestInit) => {
+    const fetchImpl = (async (
+      _url: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       const payload = JSON.parse(String(init?.body));
       if (payload.id === undefined) return new Response("", { status: 202 });
       let result: Record<string, unknown>;
@@ -1624,12 +1747,18 @@ describe("tools/list pages are followed (D69)", () => {
       } else if (payload.method === "tools/call") {
         result = { content: [{ type: "text", text: "ok" }] };
       } else {
-        result = { protocolVersion: BUILTIN_NEGOTIATED_VERSION, capabilities: { tools: {} } };
+        result = {
+          protocolVersion: BUILTIN_NEGOTIATED_VERSION,
+          capabilities: { tools: {} },
+        };
       }
-      return new Response(JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      );
     }) as unknown as typeof fetch;
     return { fetchImpl, cursors };
   }
@@ -1657,7 +1786,10 @@ describe("tools/list pages are followed (D69)", () => {
     await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
 
     assert.equal(cursors.length, 1);
-    assert.deepEqual(pi.tools.map((tool: any) => tool.name), ["mcp__mock__echo0"]);
+    assert.deepEqual(
+      pi.tools.map((tool: any) => tool.name),
+      ["mcp__mock__echo0"],
+    );
   });
 
   it("stops on a server that hands back the cursor it was just given", async () => {
@@ -1667,7 +1799,11 @@ describe("tools/list pages are followed (D69)", () => {
     const pi = fakePi();
     await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
 
-    assert.deepEqual(cursors, [undefined, "stuck"], "one repeat is enough to know it is stuck");
+    assert.deepEqual(
+      cursors,
+      [undefined, "stuck"],
+      "one repeat is enough to know it is stuck",
+    );
     assert.ok(pi.tools.length > 0, "and what it did read is still registered");
   });
 
@@ -1683,5 +1819,108 @@ describe("tools/list pages are followed (D69)", () => {
 
     assert.equal(cursors.length, MCP_MAX_TOOL_PAGES);
     assert.equal(pi.tools.length, MCP_MAX_TOOL_PAGES);
+  });
+});
+
+describe("the Pi MCP client recovers a session the server forgot", () => {
+  /**
+   * A server that binds `Mcp-Session-Id` to something that can change under it, the access token
+   * the gateway renews being the real case: after `forget()` it answers 404 to the old session,
+   * which is the transport spec's "start a new session" signal.
+   */
+  function sessionBoundFetch() {
+    const state = {
+      sessions: 0,
+      live: "",
+      forgotten: false,
+      seen: [] as string[],
+    };
+    const fetchImpl = (async (_url: string, init: any) => {
+      const payload = JSON.parse(String(init?.body));
+      const session = (init?.headers ?? {})["Mcp-Session-Id"] as
+        string | undefined;
+      const version = (init?.headers ?? {})["MCP-Protocol-Version"] as
+        string | undefined;
+      state.seen.push(`${payload.method}:${session ?? "-"}:${version ?? "-"}`);
+      if (
+        payload.method !== "initialize" &&
+        session &&
+        session !== state.live
+      ) {
+        return new Response(JSON.stringify({ error: "session not found" }), {
+          status: 404,
+        });
+      }
+      if (payload.id === undefined) return new Response("", { status: 202 });
+      const headers: Record<string, string> = {
+        "content-type": "application/json",
+      };
+      let result: unknown;
+      if (payload.method === "initialize") {
+        state.sessions += 1;
+        state.live = `s${state.sessions}`;
+        headers["mcp-session-id"] = state.live;
+        result = { protocolVersion: "2025-06-18", capabilities: { tools: {} } };
+      } else if (payload.method === "tools/list") {
+        result = { tools: [{ name: "echo", inputSchema: { type: "object" } }] };
+      } else {
+        result = { content: [{ type: "text", text: `ok on ${state.live}` }] };
+      }
+      return new Response(
+        JSON.stringify({ jsonrpc: "2.0", id: payload.id, result }),
+        {
+          status: 200,
+          headers,
+        },
+      );
+    }) as unknown as typeof fetch;
+    return {
+      state,
+      fetchImpl,
+      forget: () => {
+        state.live = "gone";
+      },
+    };
+  }
+
+  it("opens a new session once and repeats the call after a 404", async () => {
+    const server = sessionBoundFetch();
+    globalThis.fetch = server.fetchImpl;
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+    server.forget();
+
+    const result = await pi.tools[0].execute("call-1", { marker: "X" });
+
+    assert.equal(server.state.sessions, 2);
+    assert.match(JSON.stringify(result), /ok on s2/);
+    // The new `initialize` goes out with no session and no protocol version header.
+    assert.ok(server.state.seen.includes("initialize:-:-"));
+    assert.equal(
+      server.state.seen.filter((line) => line.startsWith("initialize")).length,
+      2,
+    );
+  });
+
+  it("does not loop when the new session is refused as well", async () => {
+    const server = sessionBoundFetch();
+    globalThis.fetch = server.fetchImpl;
+    const pi = fakePi();
+    await registerPiGatewayMcpTools(pi, oneServerConfig(), () => {}, allowAll);
+    server.forget();
+    const original = server.fetchImpl;
+    // Every request after the handshake is refused, so the retry answers 404 too.
+    globalThis.fetch = (async (url: string, init: any) => {
+      const payload = JSON.parse(String(init?.body));
+      if (payload.method === "tools/call") {
+        return new Response(JSON.stringify({ error: "session not found" }), {
+          status: 404,
+        });
+      }
+      return original(url, init);
+    }) as unknown as typeof fetch;
+
+    await assert.rejects(() => pi.tools[0].execute("call-1", { marker: "X" }));
+    assert.equal(server.state.sessions, 2);
   });
 });

@@ -1,6 +1,9 @@
 import type {ReactNode} from "react"
 
-import clsx from "clsx"
+import {LoadingButton, cn} from "@agenta/ui/ui"
+
+import {KEYCAP_CLASS, SURFACE_CLASS} from "./classes"
+import {LastUsedBadge} from "./LastUsedBadge"
 
 export interface SocialProvider {
     id: string
@@ -20,6 +23,8 @@ export interface SocialAuthButtonsProps {
     yellow?: boolean
     /** Tags exactly one provider with the inline "Last used" badge. */
     lastUsedProviderId?: string
+    /** The provider whose redirect is starting; it shows a spinner while `isLoading`. */
+    pendingProviderId?: string
 }
 
 export const SocialAuthButtons = ({
@@ -30,34 +35,41 @@ export const SocialAuthButtons = ({
     variant = "default",
     yellow = false,
     lastUsedProviderId,
+    pendingProviderId,
 }: SocialAuthButtonsProps) => {
     if (providers.length === 0) return null
 
     return (
         <div className="flex flex-col gap-[10px]">
-            {providers.map((provider) => (
-                <button
-                    key={provider.id}
-                    type="button"
-                    className={clsx(
-                        "relative",
-                        yellow
-                            ? "auth-btn-yellow"
-                            : clsx(
-                                  "auth-surface-btn",
-                                  variant === "promoted" && "auth-surface-btn-promoted",
-                              ),
-                    )}
-                    onClick={() => onSelect(provider.id)}
-                    disabled={disabled || isLoading}
-                >
-                    {provider.icon}
-                    <span>Continue with {provider.label}</span>
-                    {provider.id === lastUsedProviderId && (
-                        <span className="auth-last-used-tag absolute right-3">Last used</span>
-                    )}
-                </button>
-            ))}
+            {providers.map((provider) => {
+                const pending = Boolean(isLoading) && provider.id === pendingProviderId
+                return (
+                    <LoadingButton
+                        key={provider.id}
+                        type="button"
+                        variant={yellow ? "default" : "outline"}
+                        size="lg"
+                        loading={pending}
+                        className={cn(
+                            "relative",
+                            yellow ? KEYCAP_CLASS : SURFACE_CLASS,
+                            variant === "promoted" && !yellow && "h-12 border-ring",
+                        )}
+                        onClick={() => onSelect(provider.id)}
+                        disabled={disabled || (isLoading && !pending)}
+                    >
+                        <span key={pending ? "busy" : "idle"} className="auth-swap">
+                            {pending ? null : provider.icon}
+                            {pending
+                                ? `Redirecting to ${provider.label}…`
+                                : `Continue with ${provider.label}`}
+                        </span>
+                        {provider.id === lastUsedProviderId && !pending && (
+                            <LastUsedBadge className="absolute right-3" />
+                        )}
+                    </LoadingButton>
+                )
+            })}
         </div>
     )
 }

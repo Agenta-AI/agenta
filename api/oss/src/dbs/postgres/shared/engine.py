@@ -219,7 +219,7 @@ class TransactionsEngine:
             await session.rollback()
             raise e
         finally:
-            await session.close()
+            await self._session.remove()
 
     @asynccontextmanager
     async def transaction(self) -> AsyncGenerator[AsyncConnection, None]:
@@ -274,7 +274,7 @@ class AnalyticsEngine:
             await session.rollback()
             raise e
         finally:
-            await session.close()
+            await self._session.remove()
 
 
 def get_transactions_engine() -> TransactionsEngine:

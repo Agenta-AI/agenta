@@ -19,7 +19,7 @@
  * engine runner so the HTTP behavior can be tested with a fake engine (no live harness).
  */
 import { join } from "node:path";
-import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
+import { apiBase, envApiUrl, runWithRequestApiBase } from "./apiBase.ts";
 import { runWithStallRetry } from "./lifecycle/stall-retry.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
 import {
@@ -163,6 +163,7 @@ import type { InProcessProvider } from "./engines/inprocess/index.ts";
 import { endActiveTurns, registerActiveTurn } from "./sessions/active-turns.ts";
 import { DAYTONA_DURABLE_MOUNT_ROOT, resolveSandboxProviderId, runnerStateDir } from "./engines/sandbox_agent/run-plan.ts";
 import { applySandboxRouting } from "./engines/sandbox_agent/sandbox-routing.ts";
+import { routeGatewayInNetwork } from "./engines/sandbox_agent/gateway-in-network.ts";
 import { startSubscriptionHomeSweeper } from "./engines/sandbox_agent/subscription-login/retention.ts";
 import {
   KILL_DEADLINE_MS,
@@ -1799,6 +1800,7 @@ export function createRequestListener(
           // Before anything reads `request.sandbox`: the session record, the keep-alive pool and
           // the run plan all see the provider that runs.
           applySandboxRouting(request, logSandboxRouting);
+          routeGatewayInNetwork(request, logSandboxRouting);
 
           const wantsStream = (req.headers["accept"] ?? "").includes(
             "application/x-ndjson",
@@ -2003,8 +2005,9 @@ if (isEntrypoint(import.meta.url)) {
         `[sandbox-agent] http server listening on ${runnerConfig.server.host}:${runnerConfig.server.port}\n`,
       );
       if (!publicApiBaseConfigured()) {
-        const internalApiHost = process.env.AGENTA_API_INTERNAL_URL
-          ? endpointHost(process.env.AGENTA_API_INTERNAL_URL)
+        const internalApiUrl = envApiUrl("AGENTA_API_INTERNAL_URL");
+        const internalApiHost = internalApiUrl
+          ? endpointHost(internalApiUrl)
           : "unset";
         process.stderr.write(
           "[sandbox-agent] WARNING: AGENTA_API_URL is not set. Dispatched runs carry this " +
@@ -2013,7 +2016,7 @@ if (isEntrypoint(import.meta.url)) {
             "credential. Set AGENTA_API_URL to the public api base (e.g. https://<host>/api); " +
             `AGENTA_API_INTERNAL_URL host (${internalApiHost}) is the ` +
             "in-network hop and does not substitute for it." +
-            (process.env.AGENTA_API_INTERNAL_URL
+            (internalApiUrl
               ? ""
               : " With neither set, the runner sends its runner token only to the default " +
                 "http://api:8000, never to an api base it infers from a run's trace endpoint.") +

@@ -12,6 +12,7 @@
 import {useState} from "react"
 
 import {
+    mcpReconnectTarget,
     findCustomMcpEndpoint,
     mcpEndpointsQueryAtom,
     refreshMcpEndpointsAtom,
@@ -77,14 +78,7 @@ export const McpServerNoticeCard = ({notice, className}: McpServerNoticeCardProp
                 <McpConnectJourney
                     open
                     onClose={() => setConnecting(false)}
-                    reconnect={{
-                        id: endpoint.id,
-                        slug: endpoint.slug,
-                        name: endpoint.name || endpoint.slug,
-                        url: endpoint.data?.route?.base_url || "",
-                        authMode: endpoint.auth_mode,
-                        credentialHeader: endpoint.data?.route?.credential_header,
-                    }}
+                    reconnect={mcpReconnectTarget(endpoint)}
                     onConnected={() => {
                         setConnecting(false)
                         void refreshEndpoints()
