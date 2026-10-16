@@ -2,6 +2,7 @@
 `ChannelsService`, the records and attachments services and the live stream
 are faked; the router, the adapter and the key checks are real."""
 
+from hashlib import sha256
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import uuid4
@@ -33,6 +34,7 @@ from oss.src.core.channels.dtos import (
 from oss.src.core.channels.utils import compose_external_key
 from oss.src.core.sessions.attachments.types import AttachmentNotFound
 from oss.src.core.sessions.records.dtos import SessionRecord
+from oss.src.utils.throttling import ThrottleResult
 
 from .test_embed_ingress import (
     EMBED_ID,
@@ -145,7 +147,21 @@ def attachments():
 
 
 @pytest.fixture
-def client(service, records, attachments):
+def throttle_calls(monkeypatch):
+    calls = []
+
+    async def allow(key, **kwargs):
+        calls.append((key, kwargs["max_capacity"]))
+        return ThrottleResult(
+            key="k", allow=True, tokens_remaining=1.0, retry_after_ms=None
+        )
+
+    monkeypatch.setattr(ingress_module, "check_throttle", allow)
+    return calls
+
+
+@pytest.fixture
+def client(service, records, attachments, throttle_calls):
     router = ChannelsIngressRouter(
         channels_service=service,
         adapter_registry=FakeAdapterRegistry({"embed": EmbedAdapter()}),
@@ -376,3 +392,57 @@ def test_the_same_key_on_another_embed_is_another_space(client, service):
 
     assert _get(client, BASE).json() == {"count": 0, "conversations": []}
     assert _get(client, f"{BASE}/{theirs.id}").status_code == 404
+
+
+# --- read rate limits ------------------------------------------------------ #
+
+
+def test_reads_use_their_own_buckets_per_embed_then_per_key_hash(
+    client, service, throttle_calls, monkeypatch
+):
+    limits = ingress_module.env.channels.embed
+    monkeypatch.setattr(limits, "read_requests_per_minute_per_embed", 6000)
+    monkeypatch.setattr(limits, "read_requests_per_minute_per_key", 240)
+
+    assert _get(client, BASE).status_code == 200
+
+    assert throttle_calls == [
+        ({"embed_read": EMBED_ID}, 6000),
+        ({"embed_read": EMBED_ID, "visitor": sha256(KEY.encode()).hexdigest()}, 240),
+    ]
+
+
+def test_a_burst_of_list_polls_stays_under_the_per_key_default():
+    """The widget polls the list about every 300 ms after a first message
+    (D12). Ten seconds of that must fit the per-key bucket with room left for
+    reads and live reconnects."""
+
+    assert ingress_module.env.channels.embed.read_requests_per_minute_per_key >= 120
+
+
+def test_a_denied_read_bucket_answers_429_before_any_lookup(
+    client, service, records, monkeypatch
+):
+    thread = service.add_thread(KEY, session_id="s-1")
+
+    async def deny(key, **kwargs):
+        return ThrottleResult(
+            key="k", allow=False, tokens_remaining=0.0, retry_after_ms=1200
+        )
+
+    async def no_lookup(*args, **kwargs):
+        raise AssertionError("throttled reads must not reach the database")
+
+    monkeypatch.setattr(ingress_module, "check_throttle", deny)
+    monkeypatch.setattr(service, "query_spaces", no_lookup)
+
+    for url in (BASE, f"{BASE}/{thread.id}", f"{BASE}/{thread.id}/files/{uuid4()}"):
+        response = _get(client, url)
+        assert response.status_code == 429
+        assert response.headers["Retry-After"] == "2"
+    assert records.calls == []
+
+
+def test_a_weak_key_is_refused_before_it_reaches_a_bucket(client, throttle_calls):
+    assert _get(client, BASE, key="short-key").status_code == 401
+    assert throttle_calls == []
