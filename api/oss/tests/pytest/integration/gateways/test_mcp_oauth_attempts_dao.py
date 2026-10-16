@@ -23,7 +23,14 @@ from oss.src.core.gateways.mcps.oauth.state import new_state
 from oss.src.dbs.postgres.gateways.mcps.oauth_dao import MCPOAuthAttemptsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 
-pytestmark = [pytest.mark.integration]
+# `sweep_expired_attempts` deletes every expired attempt in the table, not only one project's.
+# Other tests here create attempts that are already expired and read them back, so they must
+# not run beside the sweep test on another xdist worker (`--dist=loadgroup`). One group puts
+# this file on one worker, in sequence.
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.xdist_group("mcp-oauth-attempts-dao"),
+]
 
 
 def _attempt(*, project_id, user_id, expires_in_seconds: int = 600, endpoint_id=None):
