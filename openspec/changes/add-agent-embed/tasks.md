@@ -16,12 +16,12 @@
 
 - [ ] 3.1 Add the `embed` adapter and register it; share capabilities and post methods with `agenta`
 - [ ] 3.2 `connection_locator`: read `embed_id` from the path
-- [ ] 3.3 `verify_signature`: active connection, `Origin` in `allowed_origins`, key at least 32 characters; return the project
+- [ ] 3.3 `verify_signature`: active connection and a valid key (32+ characters, `A-Z a-z 0-9 - _`, 12+ distinct characters); return the project. No `Origin` check
 - [ ] 3.4 `parse_event`: space locator from the key hash, sender from the key hash plus `displayName`, content parts, `context`; refuse a `bindings` field
 - [ ] 3.5 Setup: declare `allowed_origins` as a setup field; `build_setup_document` returns the iframe snippet and a `postMessage` example
 - [ ] 3.6 Add the ingress route `POST /channels/embed/events/{embed_id}/` and list it as a public endpoint
 - [ ] 3.7 Rate limits per embed and per key; maximum message length
-- [ ] 3.8 Unit tests: wrong origin, short key, archived connection, space from hash, `bindings` refused
+- [ ] 3.8 Unit tests: weak keys, archived connection, space from hash, `bindings` refused
 
 ## 4. Visitor-scoped read routes
 

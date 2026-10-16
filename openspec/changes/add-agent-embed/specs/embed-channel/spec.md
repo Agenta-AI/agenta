@@ -16,7 +16,7 @@ The system SHALL let a project member create an `embed` channel connection for a
 
 ### Requirement: Restrict where the widget can load and call
 
-The widget page SHALL send a `Content-Security-Policy: frame-ancestors` header that lists only the embed's allowed origins. The `embed` ingress and read routes SHALL refuse a request whose `Origin` header is not an allowed origin.
+The widget page SHALL send a `Content-Security-Policy: frame-ancestors` header that lists only the embed's allowed origins. This header is the check on where the widget runs. The `embed` ingress and read routes SHALL NOT compare the request's `Origin` header with the allowed origins, because the widget's own requests carry Agenta's origin, not the host page's origin. The routes SHALL require the `X-Agenta-Visitor-Key` header, so a browser request from another website needs a CORS preflight, which the API's CORS policy refuses.
 
 #### Scenario: Load on an allowed site
 
@@ -26,11 +26,11 @@ The widget page SHALL send a `Content-Security-Policy: frame-ancestors` header t
 #### Scenario: Load on another site
 
 - **WHEN** a page on an origin that is not allowed includes the iframe snippet
-- **THEN** the browser refuses to show the widget, and requests from that origin are refused
+- **THEN** the browser refuses to show the widget, and a browser request from that page to the ingress fails the CORS preflight
 
 ### Requirement: Visitor keys own conversations
 
-Each visitor SHALL be one channel space keyed by the SHA-256 hash of a visitor key. The system SHALL store only the hash. The ingress and read routes SHALL refuse a visitor key shorter than 32 characters, and SHALL return or change only threads in the caller's space.
+Each visitor SHALL be one channel space keyed by the SHA-256 hash of a visitor key. The system SHALL store only the hash. A visitor key SHALL be a random value of at least 128 bits from a cryptographically secure generator. A user ID, an email address or any other value that someone else can guess SHALL NOT be used as a key, and the embed guide SHALL say so. The server cannot measure randomness, so it SHALL refuse a key that is shorter than 32 characters, that uses characters outside `A-Z a-z 0-9 - _`, or that has fewer than 12 distinct characters. The ingress and read routes SHALL return or change only threads in the caller's space.
 
 #### Scenario: Anonymous visitor gets a key
 
@@ -39,12 +39,12 @@ Each visitor SHALL be one channel space keyed by the SHA-256 hash of a visitor k
 
 #### Scenario: Host provides a key
 
-- **WHEN** the host page sends `agenta:init` with a `visitorKey` of at least 32 characters
+- **WHEN** the host page sends `agenta:init` with a valid `visitorKey`
 - **THEN** the widget uses that key instead of its own
 
-#### Scenario: Short key is refused
+#### Scenario: Weak key is refused
 
-- **WHEN** a request carries a visitor key shorter than 32 characters
+- **WHEN** a request carries a visitor key shorter than 32 characters, with other characters, or with fewer than 12 distinct characters, such as `user-00000000000000000000000000042`
 - **THEN** the route refuses it, and no space or thread is created
 
 #### Scenario: Another visitor's conversation is not reachable

@@ -64,7 +64,7 @@ No new table and no new admin API.
 | `use` command | Reopen a past conversation |
 | Pending choice | An approval or choice card |
 
-The visitor key is a random secret of at least 128 bits. Only its hash is stored, as the space's external locator. The widget creates a key per browser by default. The host page may pass its own key, for example one random key stored per logged-in user, which gives the same history on every device. Keys shorter than 32 characters are refused.
+The visitor key is a random secret of at least 128 bits. Only its hash is stored, as the space's external locator. The widget creates a key per browser by default. The host page may pass its own key, for example one random key stored per logged-in user, which gives the same history on every device. The host's key must also be random, from a secure generator, never a user ID or an email. The server cannot measure randomness, so it refuses the keys it can recognize as weak: shorter than 32 characters, characters outside `A-Z a-z 0-9 - _`, or fewer than 12 distinct characters.
 
 There is no visitor table. A visitor is whoever holds the key.
 
@@ -73,10 +73,12 @@ There is no visitor table. A visitor is whoever holds the key.
 The widget sends every visitor action to `POST /channels/embed/events/{embed_id}/`: messages, commands and choice answers. The visitor key travels in the `X-Agenta-Visitor-Key` header.
 
 - `connection_locator` reads `embed_id` from the path, as the Telegram adapter reads its routing token.
-- `verify_signature` checks that the connection is active, that the `Origin` header is in `allowed_origins`, and that the key is long enough. It returns the connection's project.
+- `verify_signature` checks that the connection is active and that the key is valid (see section 3). It returns the connection's project. It does not check the `Origin` header: the widget's requests come from the iframe, so they carry Agenta's origin, not the host page's origin.
 - `parse_event` builds the inbound event: the space locator from the key hash, the sender from the key hash plus an optional display name, the content parts, and the host context.
 
 Rate limits per embed and per key apply at this route.
+
+Where the widget may run is checked in two places, both in the browser. The widget page sends `frame-ancestors` with the allowed origins, so the browser refuses to show it elsewhere. The routes require the `X-Agenta-Visitor-Key` header, so a browser request from another website needs a CORS preflight, which the API's CORS policy refuses. A script outside a browser can still call the routes. The visitor key and the rate limits cover that case.
 
 ### 5. One way out: render the session
 
@@ -154,10 +156,10 @@ None of these changes the ingress route, the read routes, the space and thread m
 - **The chat may not render a session whose turn the channel worker started.** The chat's shared mode suggests it can. Task 1 verifies it before anything else is built. If it fails, the widget keeps the channel ingress and adds a live-follow mode to the embed transport.
 - **The inbox queue adds time before a turn starts.** Task 1 measures it.
 - **A leaked visitor key exposes that visitor's conversations.** Same risk as a leaked session cookie. Only hashes are stored, and owners can disable an embed.
-- **A host can pass a guessable key** such as `user-42`. The 32-character minimum and the docs reduce this.
+- **A host can pass a guessable key** such as a user ID. The docs require a random key, and the server refuses keys it can recognize as weak. It cannot refuse every predictable key.
 - **Host context is not verified.** In v1 it only informs the model, and tools use the agent's own credentials.
 - **Browser storage can be cleared.** Anonymous history lives in the iframe's storage. Safari clears script-written storage after seven days without interaction with the site. A host-provided key avoids this.
-- **The `Origin` check stops other websites, not scripts.** Rate limits per embed and per key back it up.
+- **`frame-ancestors` and CORS stop other websites, not scripts.** The visitor key and rate limits per embed and per key back them up.
 
 ## Migration
 
