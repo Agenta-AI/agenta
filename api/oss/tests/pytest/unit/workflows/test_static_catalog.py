@@ -136,6 +136,7 @@ def test_default_static_skill_catalog_replaces_old_authoring_skills():
         _PLAYBOOK_SLUG,
         "__ag__agenta_apps",
         "__ag__create_template",
+        "__ag__browser",
     }
     assert _OLD_AUTHORING_SKILL_SLUGS.isdisjoint(catalog.list_slugs())
     for slug in _OLD_AUTHORING_SKILL_SLUGS:

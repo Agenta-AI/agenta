@@ -130,6 +130,7 @@ from oss.src.apis.fastapi.queries.router import SimpleQueriesRouter
 from oss.src.apis.fastapi.applications.router import ApplicationsRouter
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.apis.fastapi.folders.router import FoldersRouter
+from oss.src.apis.fastapi.browser.router import BrowserRouter
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
 from oss.src.apis.fastapi.agent_templates.router import AgentTemplatesRouter
 from oss.src.apis.fastapi.skills.router import SkillsRouter
@@ -1887,6 +1888,14 @@ app.include_router(
     prefix="/folders",
     tags=["Folders"],
 )
+
+# Unmounted while the session browser is off, so every route answers 404.
+if env.browser.enabled:
+    app.include_router(
+        router=BrowserRouter().router,
+        prefix="/browser",
+        tags=["Browser"],
+    )
 
 app.include_router(
     router=sessions.streams.router,

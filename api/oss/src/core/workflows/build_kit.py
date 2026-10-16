@@ -16,6 +16,8 @@ from agenta.sdk.agents.platform.workflow import (
 )
 
 from oss.src.core.apps.assembly import AGENTA_APPS_SKILL, AGENTA_APPS_SLUG
+from oss.src.core.browser.skill import BROWSER_SKILL, BROWSER_SLUG
+from oss.src.utils.env import env
 
 BUILD_KIT_WORKFLOW_SLUG = "__ag__build_kit"
 BUILD_KIT_WORKFLOW_NAME = "Playground build kit"
@@ -133,6 +135,17 @@ def build_agent_template_overlay() -> dict[str, Any]:
                 CREATE_TEMPLATE_SLUG,
                 name=CREATE_TEMPLATE_SKILL.name,
                 selector_path="parameters.skill",
+            ),
+            *(
+                [
+                    _workflow_embed(
+                        BROWSER_SLUG,
+                        name=BROWSER_SKILL.name,
+                        selector_path="parameters.skill",
+                    )
+                ]
+                if env.browser.enabled
+                else []
             ),
         ],
         "sandbox": {
