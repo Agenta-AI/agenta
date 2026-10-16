@@ -60,7 +60,7 @@ class _FakeAdapter(ChannelAdapterInterface):
     async def verify_signature(self, *, request, connection):
         raise NotImplementedError
 
-    async def parse_event(self, *, body, connection=None):
+    async def parse_event(self, *, body, connection=None, request=None):
         raise NotImplementedError
 
     async def post_message(self, *, connection, locator, content, idempotency_key):
@@ -80,7 +80,7 @@ class _FakeAdapter(ChannelAdapterInterface):
     async def verify_connection(self, *, connection, credentials):
         return {"team_id": "T1", "api_app_id": "A1"}
 
-    async def build_setup_document(self, *, request_url):
+    async def build_setup_document(self, *, request_url, locator=None):
         return None
 
 

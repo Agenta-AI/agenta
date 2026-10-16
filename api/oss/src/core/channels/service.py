@@ -1005,7 +1005,12 @@ class ChannelsService:
 
         adapter = self.adapter_registry.get(connection.channel)
         capabilities = await adapter.fetch_capabilities(connection=connection)
-        document = await adapter.build_setup_document(request_url=request_url)
+        data = connection.data if isinstance(connection.data, dict) else {}
+        locator = data.get("connection_locator")
+        document = await adapter.build_setup_document(
+            request_url=request_url,
+            locator=locator if isinstance(locator, dict) else None,
+        )
 
         return ChannelSetup(
             instructions=capabilities.setup.instructions,

@@ -85,7 +85,11 @@ class _FakeSlackAdapter:
         return self.installation_id
 
     async def parse_event(
-        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+        self,
+        *,
+        body: bytes,
+        connection: Optional[ChannelConnection] = None,
+        request=None,
     ) -> Optional[ChannelInboundEvent]:
         return ChannelInboundEvent(
             external_id=self.external_id,

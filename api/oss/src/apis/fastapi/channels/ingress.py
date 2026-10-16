@@ -1,6 +1,7 @@
 import asyncio
 import hmac
 import json
+import re
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
@@ -9,6 +10,9 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.throttling import FailureMode, check_throttle
+
+from oss.src.apis.fastapi.channels.models import EmbedConfigResponse
 
 from oss.src.core.channels.dtos import (
     ChannelConnection,
@@ -25,6 +29,12 @@ from oss.src.core.channels.types import (
     ChannelSignatureInvalid,
 )
 from oss.src.core.channels.utils import compose_external_key
+from oss.src.core.channels.adapters.embed.adapter import (
+    allowed_origins,
+    parse_body,
+    visitor_key,
+    visitor_key_hash,
+)
 from oss.src.core.channels.adapters.telegram.signature import verify_telegram_secret
 from oss.src.core.channels.adapters.whatsapp.mapping import (
     phone_number_id_from_verify_token,
@@ -46,6 +56,14 @@ if TYPE_CHECKING:
 log = get_module_logger(__name__)
 
 _ENQUEUE_TIMEOUT_SECONDS = 5.0
+
+# The embed id is minted by token_urlsafe. Anything else is refused before it
+# reaches a throttle key or the database.
+_EMBED_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+# Room for the JSON around the text, the context and the base64 files.
+_EMBED_BODY_OVERHEAD_BYTES = 64 * 1024
+# Each file becomes one attachment write in the worker; bound the count too.
+_EMBED_MAX_FILES = 10
 
 
 def handle_channel_adapter_exceptions():
@@ -157,6 +175,25 @@ class ChannelsIngressRouter:
             status_code=status.HTTP_202_ACCEPTED,
         )
 
+        # The public widget. The visitor key header is the credential, and the
+        # route limits its own rate: no organization is known before it runs.
+        self.router.add_api_route(
+            "/embed/events/{embed_id}/",
+            self.ingest_embed_event,
+            methods=["POST"],
+            operation_id="ingest_embed_event",
+            response_model=ChannelEventAck,
+            status_code=status.HTTP_202_ACCEPTED,
+        )
+        # What the widget page needs for its frame-ancestors header. No key.
+        self.router.add_api_route(
+            "/embed/{embed_id}/config",
+            self.fetch_embed_config,
+            methods=["GET"],
+            operation_id="fetch_embed_config",
+            response_model=EmbedConfigResponse,
+        )
+
     @intercept_exceptions()
     @handle_channel_adapter_exceptions()
     async def ingest_slack_event(self, request: Request) -> Any:
@@ -175,6 +212,76 @@ class ChannelsIngressRouter:
     @handle_channel_adapter_exceptions()
     async def ingest_agenta_event(self, request: Request) -> Any:
         return await self._ingest(channel="agenta", request=request)
+
+    @intercept_exceptions()
+    @handle_channel_adapter_exceptions()
+    async def ingest_embed_event(self, request: Request, embed_id: str) -> Any:
+        if not _EMBED_ID_RE.fullmatch(embed_id):
+            raise ChannelSignatureInvalid(channel="embed")
+        limits = env.channels.embed
+
+        refused = await _embed_throttled(
+            {"embed": embed_id}, limits.requests_per_minute_per_embed
+        )
+        if refused is not None:
+            return refused
+
+        key = visitor_key(dict(request.headers))
+        if key is None:
+            raise ChannelSignatureInvalid(channel="embed")
+        # Hashed first: the raw key never becomes part of a Redis key.
+        refused = await _embed_throttled(
+            {"embed": embed_id, "visitor": visitor_key_hash(key)},
+            limits.requests_per_minute_per_key,
+        )
+        if refused is not None:
+            return refused
+
+        max_body_bytes = (
+            -(-limits.max_file_bytes // 3) * 4
+            + 16 * limits.max_message_chars
+            + _EMBED_BODY_OVERHEAD_BYTES
+        )
+        body = await _read_body_capped(request, max_body_bytes)
+        if body is None:
+            return _embed_refusal(413, "The request is too large.")
+        refused = _embed_payload_refusal(parse_body(body))
+        if refused is not None:
+            return refused
+
+        return await self._ingest(channel="embed", request=request)
+
+    @intercept_exceptions()
+    async def fetch_embed_config(self, embed_id: str) -> Any:
+        resolved = await self.resolve_embed(embed_id)
+        if resolved is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Not found"
+            )
+        connection = resolved[2]
+        data = connection.data if isinstance(connection.data, dict) else {}
+        appearance = data.get("appearance")
+        return EmbedConfigResponse(
+            name=connection.name,
+            allowed_origins=allowed_origins(connection),
+            appearance=appearance if isinstance(appearance, dict) else {},
+        )
+
+    async def resolve_embed(self, embed_id: str):
+        """The active embed connection for a public embed id, or None. Archived
+        rows never resolve; an inactive one is treated as missing."""
+
+        if not _EMBED_ID_RE.fullmatch(embed_id):
+            return None
+        adapter = self.adapter_registry.get("embed")
+        candidate = await self._resolve_candidate(
+            channel="embed",
+            capabilities=await adapter.fetch_capabilities(connection=None),
+            locator={"embed": embed_id},
+        )
+        if candidate is None or not candidate[2].flags.is_active:
+            return None
+        return candidate
 
     @intercept_exceptions()
     @handle_channel_adapter_exceptions()
@@ -374,7 +481,9 @@ class ChannelsIngressRouter:
             )
             return ChannelEventAck(status="accepted")
 
-        inbound = await adapter.parse_event(body=body, connection=connection)
+        inbound = await adapter.parse_event(
+            body=body, connection=connection, request=request_context
+        )
 
         # None is platform noise (ack, bot echo) -- not an error, nothing to
         # log. A list is a batched delivery: one row per message.
@@ -560,6 +669,75 @@ class ChannelsIngressRouter:
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Failed to enqueue channel inbox event",
                 ) from e
+
+
+def _embed_refusal(status_code: int, detail: str, **headers: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code, content={"detail": detail}, headers=headers or None
+    )
+
+
+async def _embed_throttled(key: Dict[str, str], per_minute: int):
+    """A 429 with Retry-After when the bucket is empty, else None. Fails open:
+    a Redis outage must not take every widget down."""
+
+    result = await check_throttle(
+        key,
+        max_capacity=per_minute,
+        refill_rate=per_minute,
+        failure_mode=FailureMode.OPEN,
+    )
+    if result.allow:
+        return None
+    return _embed_refusal(
+        status.HTTP_429_TOO_MANY_REQUESTS,
+        "Too many requests. Try again later.",
+        **{"Retry-After": str(int(result.retry_after_seconds) + 1)},
+    )
+
+
+async def _read_body_capped(request: Request, limit: int) -> Optional[bytes]:
+    """The body, or None once it passes `limit`, read without holding more."""
+
+    declared = request.headers.get("content-length") or ""
+    if declared.isdigit() and int(declared) > limit:
+        return None
+    chunks = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > limit:
+            return None
+        chunks.append(chunk)
+    body = b"".join(chunks)
+    # Starlette's own body cache, so `_ingest` reads the same bytes again.
+    request._body = body
+    return body
+
+
+def _embed_payload_refusal(payload: Dict[str, Any]) -> Optional[JSONResponse]:
+    limits = env.channels.embed
+    if "bindings" in payload:
+        return _embed_refusal(400, "bindings is not supported.")
+    text = payload.get("text")
+    if isinstance(text, str) and len(text) > limits.max_message_chars:
+        return _embed_refusal(413, "The message is too long.")
+    context = payload.get("context")
+    if context is not None and (
+        len(json.dumps(context, ensure_ascii=False)) > limits.max_message_chars
+    ):
+        return _embed_refusal(413, "The context is too long.")
+    files = payload.get("files")
+    if isinstance(files, list) and len(files) > _EMBED_MAX_FILES:
+        return _embed_refusal(413, "Too many files.")
+    encoded = sum(
+        len(file.get("data") or "")
+        for file in (files if isinstance(files, list) else [])
+        if isinstance(file, dict) and isinstance(file.get("data"), str)
+    )
+    if encoded // 4 * 3 > limits.max_file_bytes:
+        return _embed_refusal(413, "The files are too large.")
+    return None
 
 
 def _parse_update(body: bytes) -> Dict[str, Any]:
