@@ -1336,6 +1336,8 @@ channels_ingress = ChannelsIngressRouter(
     adapter_registry=channels_adapter_registry,
     dispatch_task=_channels_inbox_worker.dispatch_inbox_event,
     telegram_binding_service=_telegram_binding_service,
+    records_service=records_service,
+    attachments_service=session_attachments_service,
 )
 
 channels = ChannelsRouter(

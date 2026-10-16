@@ -2543,7 +2543,9 @@ def _attribution_part(sender: Dict[str, Any], *, channel: str) -> Optional[dict]
     if name and username:
         details.append(f"@{username}")
     details.append(f"{platform} id {sender_id}")
-    return {"type": "text", "text": f"From {who} ({', '.join(details)}):"}
+    # The runner joins text parts with no separator; the blank line keeps
+    # this part from running into the next one.
+    return {"type": "text", "text": f"From {who} ({', '.join(details)}):\n\n"}
 
 
 def _context_part(context: Optional[Dict[str, Any]]) -> Optional[dict]:
@@ -2554,7 +2556,8 @@ def _context_part(context: Optional[Dict[str, Any]]) -> Optional[dict]:
     return {
         "type": "text",
         "text": "Context from the host page (provided by the host, not verified):\n"
-        + json.dumps(context, ensure_ascii=False, sort_keys=True),
+        + json.dumps(context, ensure_ascii=False, sort_keys=True)
+        + "\n\n",
     }
 
 
