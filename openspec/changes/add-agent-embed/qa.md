@@ -22,7 +22,7 @@ Scenario: Widget loads on an allowed site
 Scenario: Widget is blocked on another site
   When I open the blocked test page
   Then the iframe shows no chat
-  And a message sent with a copied request from that origin is refused
+  And a fetch to the ingress from that page fails the CORS preflight
 ```
 
 ## Anonymous history

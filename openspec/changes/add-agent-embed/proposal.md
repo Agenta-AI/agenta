@@ -8,7 +8,7 @@ The channels system already does most of the work a published agent needs: conne
 
 ## What Changes
 
-- **New: an `embed` channel.** A channel adapter registered beside `agenta`. It reuses the `agenta` adapter's capabilities and its in-house delivery, and differs only in how a request proves who it is: a visitor key and an allowed origin instead of an Agenta API key.
+- **New: an `embed` channel.** A channel adapter registered beside `agenta`. It reuses the `agenta` adapter's capabilities and its in-house delivery, and differs only in how a request proves who it is: a visitor key instead of an Agenta API key. The widget page may load only on allowed origins.
 - **New: embeds are channel connections.** One connection per embed. Its data holds the allowed origins and a small appearance config. The agent binding and grants are the ordinary channel rows. The setup document is the iframe snippet.
 - **New: visitor keys.** Each visitor is one channel space, keyed by the hash of a random visitor key. The widget creates the key per browser by default. The host page may pass its own key, for example one stored per logged-in user, so history follows that user across devices.
 - **New: the widget.** A chat page served by Agenta inside an iframe, built on `@agenta/chat`. It sends through the `embed` channel's ingress and renders the conversation's session, which streams.
@@ -28,5 +28,5 @@ The channels system already does most of the work a published agent needs: conne
 - **API:** a new adapter and ingress route `/channels/embed/events/{embed_id}/`; visitor-scoped read routes; a `context` field on processed inbound events; a marker on generated parts in `compose_input`.
 - **Web:** a widget route built on `@agenta/chat` with an embed transport; the embed appears in the channel publish screens.
 - **No new tables.** Embeds, visitors and conversations are existing channel rows.
-- **Security surface:** a public ingress and public read routes, limited by visitor key, allowed origin and rate limits.
+- **Security surface:** a public ingress and public read routes, limited by visitor key, `frame-ancestors`, CORS and rate limits.
 - **Out of scope for v1:** values for tool bindings, HTTP tools, header templating, verified identity, client tools on the host page, a floating launcher script, platform plugins.
