@@ -4,13 +4,7 @@ import {readAuthConfig, type AuthConfig, type EnvReader} from "../../src/config"
 import {parseDiscoveredMethods, type DiscoveredMethods} from "../../src/discovery"
 import {mapAuthError} from "../../src/authError"
 import {readInviteParams} from "../../src/invite"
-import {
-    deriveEntry,
-    deriveMethods,
-    parseSsoOrgSlug,
-    sendsCodeAtOnce,
-    soleSsoRedirect,
-} from "../../src/signInPolicy"
+import {deriveEntry, deriveMethods, parseSsoOrgSlug, soleSsoRedirect} from "../../src/signInPolicy"
 
 const env =
     (values: Record<string, string>): EnvReader =>
@@ -112,20 +106,6 @@ describe("deriveMethods", () => {
 
     it("passes the discovered SSO connections through", () => {
         expect(deriveMethods(config(), discovered({sso: [ssoProvider]})).sso).toEqual([ssoProvider])
-    })
-})
-
-describe("sendsCodeAtOnce", () => {
-    it("sends the code when a code is the only way in", () => {
-        expect(sendsCodeAtOnce({password: false, otp: true, sso: []})).toBe(true)
-    })
-
-    it("asks first when SSO is also on offer", () => {
-        expect(sendsCodeAtOnce({password: false, otp: true, sso: [ssoProvider]})).toBe(false)
-    })
-
-    it("never sends one for a password install", () => {
-        expect(sendsCodeAtOnce({password: true, otp: false, sso: []})).toBe(false)
     })
 })
 
