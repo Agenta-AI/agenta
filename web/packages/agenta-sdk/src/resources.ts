@@ -10,6 +10,7 @@
  */
 import {AccessClient} from "@agentaai/api-client/resources/access"
 import {ApplicationsClient} from "@agentaai/api-client/resources/applications"
+import {BrowserClient} from "@agentaai/api-client/resources/browser"
 import {ChannelsClient} from "@agentaai/api-client/resources/channels"
 import {EvaluationsClient} from "@agentaai/api-client/resources/evaluations"
 import {EventsClient} from "@agentaai/api-client/resources/events"
@@ -155,4 +156,9 @@ export function getLowPriorityMountsClient(): MountsClient {
 let _channels: ChannelsClient | undefined
 export function getChannelsClient(): ChannelsClient {
     return (_channels ??= new ChannelsClient(buildClientOptions()))
+}
+
+let _browser: BrowserClient | undefined
+export function getBrowserClient(): BrowserClient {
+    return (_browser ??= new BrowserClient(buildClientOptions()))
 }
