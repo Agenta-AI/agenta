@@ -641,6 +641,13 @@ describe("read-only", () => {
         expect(detail.dataset.canListTools).toBe("false")
     })
 
+    it("leaves View tools out of the row menu when the member may not read tools", () => {
+        show([LINEAR], {canListTools: false})
+        openRowMenu("Linear")
+        expect(screen.queryByRole("menuitem", {name: "View tools"})).toBeNull()
+        expect(screen.getByRole("menuitem", {name: "Rename"})).toBeTruthy()
+    })
+
     it("opens the connection writable, with its tools, when nothing is withheld", () => {
         show([AXIOM])
         act(() => {

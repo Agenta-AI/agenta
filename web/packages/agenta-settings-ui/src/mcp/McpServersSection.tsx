@@ -438,6 +438,7 @@ export default function McpServersSection({
                                             key: "view-tools",
                                             label: "View tools",
                                             icon: <Wrench size={14} />,
+                                            hidden: !canListTools,
                                             onClick: () => setToolsKey(rowKey(record)),
                                         },
                                         {
