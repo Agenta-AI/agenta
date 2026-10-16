@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-10-05-reply-to-a-selection",
+        "title": "Reply to a selection",
+        "description": "Select part of an agent's reply or lines in a file, and reply to just that part.",
+        "link": "https://agenta.ai/docs/changelog/reply-to-a-selection"
+    },
+    {
         "id": "changelog-2026-09-30-new-models-and-cost-tracking",
         "title": "Grok, Opus 5.5, Sonnet 5.5",
         "description": "New models to choose from, and cost tracking that accounts for caching.",
