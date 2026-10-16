@@ -435,3 +435,57 @@ describe("McpConnectionDetail: the authentication", () => {
         expect(onReconnect).toHaveBeenCalledWith(endpoint)
     })
 })
+
+describe("McpConnectionDetail: a member without the write permission", () => {
+    const openAs = async (
+        endpoint: MCPEndpoint,
+        props: {readOnly?: boolean; canListTools?: boolean},
+    ) => {
+        await act(async () => {
+            root.render(
+                createElement(McpConnectionDetail, {
+                    endpoint,
+                    onClose: () => undefined,
+                    onReconnect: () => undefined,
+                    onDisconnect: () => undefined,
+                    ...props,
+                }),
+            )
+        })
+        await settle()
+    }
+
+    it("offers no Reconnect, Disconnect, Change or Save, and locks the name", async () => {
+        listMcpTools.mockResolvedValue([{name: "search", description: "Find things"}])
+        await openAs(connected(), {readOnly: true})
+
+        for (const label of ["Reconnect", "Connect", "Disconnect", "Change", "Save"]) {
+            expect(button(label)).toBeUndefined()
+        }
+        expect(button("Close")).toBeTruthy()
+        const input = document.querySelector(
+            'input[aria-label="Connection name"]',
+        ) as HTMLInputElement
+        expect(input.readOnly).toBe(true)
+        // Reading the tools is a separate permission; read-only alone still lists them.
+        expect(toolNames()).toEqual(["search"])
+    })
+
+    it("does not ask for the tool list when the member may not read it", async () => {
+        listMcpTools.mockResolvedValue([{name: "search"}])
+        await openAs(connected(), {readOnly: true, canListTools: false})
+
+        expect(listMcpTools).not.toHaveBeenCalled()
+        expect(text()).not.toContain("Tools")
+        expect(text()).not.toContain("Couldn't read this server's tools")
+    })
+
+    it("keeps every action for a member who holds the permissions", async () => {
+        listMcpTools.mockResolvedValue([])
+        await openAs(connected(), {})
+
+        for (const label of ["Reconnect", "Disconnect", "Change", "Save"]) {
+            expect(button(label)).toBeTruthy()
+        }
+    })
+})
