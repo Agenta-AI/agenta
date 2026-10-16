@@ -30,7 +30,7 @@ The widget page SHALL send a `Content-Security-Policy: frame-ancestors` header t
 
 ### Requirement: Visitor keys own conversations
 
-Each visitor SHALL be one channel space keyed by the SHA-256 hash of a visitor key. The system SHALL store only the hash. A visitor key SHALL be a random value of at least 128 bits from a cryptographically secure generator. A user ID, an email address or any other value that someone else can guess SHALL NOT be used as a key, and the embed guide SHALL say so. The server cannot measure randomness, so it SHALL refuse a key that is shorter than 32 characters, that uses characters outside `A-Z a-z 0-9 - _`, or that has fewer than 12 distinct characters. The ingress and read routes SHALL return or change only threads in the caller's space.
+Each visitor SHALL be one channel space keyed by the SHA-256 hash of a visitor key. The system SHALL store only the hash. A visitor key SHALL be a random value of at least 128 bits from a cryptographically secure generator. A user ID, an email address or any other value that someone else can guess SHALL NOT be used as a key, and the embed guide SHALL say so. The server cannot measure randomness, so it SHALL refuse a key that is shorter than 32 characters, that uses characters outside `A-Z a-z 0-9 - _`, or that has fewer than 12 distinct characters. It SHALL also refuse a key longer than 256 characters, so a header stays small. The ingress and read routes SHALL return or change only threads in the caller's space.
 
 #### Scenario: Anonymous visitor gets a key
 

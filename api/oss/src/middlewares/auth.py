@@ -140,6 +140,12 @@ _PUBLIC_ENDPOINTS = (
     "/api/channels/agenta/events/",
     "/preview/channels/agenta/events/",
     "/api/preview/channels/agenta/events/",
+    # The embed widget: no Agenta login. The ingress and the read routes under
+    # this prefix check the visitor key themselves; `config` is public data.
+    "/channels/embed/",
+    "/api/channels/embed/",
+    "/preview/channels/embed/",
+    "/api/preview/channels/embed/",
     # CHANNELS — Slack redirects the browser here with no Agenta session; the
     # signed OAuth state is the whole of the authorisation on this route
     "/channels/catalog/channels/slack/callback/",

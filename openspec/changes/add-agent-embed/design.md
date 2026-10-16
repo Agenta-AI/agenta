@@ -73,7 +73,7 @@ There is no visitor table. A visitor is whoever holds the key.
 The widget sends every visitor action to `POST /channels/embed/events/{embed_id}/`: messages, commands and choice answers. The visitor key travels in the `X-Agenta-Visitor-Key` header.
 
 - `connection_locator` reads `embed_id` from the path, as the Telegram adapter reads its routing token.
-- `verify_signature` checks that the connection is active and that the key is valid (see section 3). It returns the connection's project. It does not check the `Origin` header: the widget's requests come from the iframe, so they carry Agenta's origin, not the host page's origin.
+- `verify_signature` checks that the connection is active and that the key is valid (see section 3). It returns the embed ID, which the ingress matches against the connection's recorded locator. It does not check the `Origin` header: the widget's requests come from the iframe, so they carry Agenta's origin, not the host page's origin.
 - `parse_event` builds the inbound event: the space locator from the key hash, the sender from the key hash plus an optional display name, the content parts, and the host context.
 
 Rate limits per embed and per key apply at this route.
@@ -163,7 +163,7 @@ None of these changes the ingress route, the read routes, the space and thread m
 - **A host can pass a guessable key** such as a user ID. The docs require a random key, and the server refuses keys it can recognize as weak. It cannot refuse every predictable key.
 - **Host context is not verified.** In v1 it only informs the model, and tools use the agent's own credentials.
 - **Browser storage can be cleared.** Anonymous history lives in the iframe's storage. Safari clears script-written storage after seven days without interaction with the site. A host-provided key avoids this.
-- **`frame-ancestors` and CORS stop other websites, not scripts.** The visitor key and rate limits per embed and per key back them up.
+- **`frame-ancestors` and CORS stop other websites, not scripts.** The visitor key and rate limits per embed and per key back them up. The CORS check holds only if the API's CORS policy admits no other site. Today the API also admits every `https://*.vercel.app` origin, so a page there passes the preflight. It can do no more than a script: it needs its own visitor key and meets the same rate limits. Narrowing that rule is a separate change.
 
 ## Migration
 

@@ -95,4 +95,5 @@ Base branch: `release/v0.122.8`.
 
 - Task 1 (spike): done. Results above.
 - Task 2 (channel turn context): done. `processed.context`, the context part, and `display_content` on the turn's user message (in place of the part marker, see design section 7). `_attribution_part` prefers `sender["platform"]`, which the embed adapter (task 3.4) sets to the connection name.
-- Tasks 3 to 7: not started.
+- Task 3 (`embed` adapter): done. `api/oss/src/core/channels/adapters/embed/`, the ingress route `POST /channels/embed/events/{embed_id}/` and the public `GET /channels/embed/{embed_id}/config` (name, sanitized allowed origins, appearance; 404 when missing or inactive). Settings in `env.channels.embed` (rates per embed and per key, maximum message length, maximum file size; at most 10 files). `parse_event` takes an optional `request`; `build_setup_document` takes an optional `locator` (the connection's `connection_locator`, never the hydrated connection). The read routes reuse `visitor_key`, `visitor_locator` and `ChannelsIngressRouter.resolve_embed`.
+- Tasks 4 to 7: not started.

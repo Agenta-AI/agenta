@@ -683,6 +683,9 @@ app.add_middleware(
         "Content-Type",
         "Idempotency-Key",
         "X-Agenta-App-Scope",
+        # The embed widget's credential. Only the web origin passes CORS, so a
+        # request from another site carrying it still fails the preflight.
+        "X-Agenta-Visitor-Key",
         "If-Match",
         "If-None-Match",
     ]

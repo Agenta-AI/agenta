@@ -123,6 +123,15 @@ class AgentaConversationResponse(BaseModel):
     items: List[AgentaConversationItem] = Field(default_factory=list)
 
 
+class EmbedConfigResponse(BaseModel):
+    """What the widget page needs before any visitor key exists: public by
+    design, so it carries nothing beyond the name, origins and appearance."""
+
+    name: Optional[str] = None
+    allowed_origins: List[str] = Field(default_factory=list)
+    appearance: Dict[str, Any] = Field(default_factory=dict)
+
+
 class TelegramHostedBindLinkRequest(BaseModel):
     # The workflow the connected chat's agent runs, by reference
     # (workflow/variant/revision) — the agent the user picked in the UI.
