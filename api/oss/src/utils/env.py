@@ -962,6 +962,24 @@ class ChannelsEmbedConfig(BaseModel):
             or 30
         )
     )
+    # The four visitor read routes. Larger than the ingress buckets: the
+    # widget polls the list after a first message and reconnects the stream.
+    read_requests_per_minute_per_embed: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_EMBED"
+            )
+            or 6000
+        )
+    )
+    read_requests_per_minute_per_key: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_KEY"
+            )
+            or 240
+        )
+    )
     # Applies to the message text and to the serialized host context.
     max_message_chars: int = Field(
         default_factory=lambda: (

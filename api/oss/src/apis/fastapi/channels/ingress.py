@@ -280,22 +280,16 @@ class ChannelsIngressRouter:
             raise ChannelSignatureInvalid(channel="embed")
         limits = env.channels.embed
 
-        refused = await _embed_throttled(
-            {"embed": embed_id}, limits.requests_per_minute_per_embed
-        )
-        if refused is not None:
-            return refused
+        await _embed_throttle({"embed": embed_id}, limits.requests_per_minute_per_embed)
 
         key = visitor_key(dict(request.headers))
         if key is None:
             raise ChannelSignatureInvalid(channel="embed")
         # Hashed first: the raw key never becomes part of a Redis key.
-        refused = await _embed_throttled(
+        await _embed_throttle(
             {"embed": embed_id, "visitor": visitor_key_hash(key)},
             limits.requests_per_minute_per_key,
         )
-        if refused is not None:
-            return refused
 
         max_body_bytes = (
             -(-limits.max_file_bytes // 3) * 4
@@ -348,9 +342,21 @@ class ChannelsIngressRouter:
         None before the visitor's first message. A missing embed or a weak key
         refuses like the ingress does."""
 
-        resolved = await self.resolve_embed(embed_id)
         key = visitor_key(dict(request.headers))
-        if resolved is None or key is None:
+        if key is None or not _EMBED_ID_RE.fullmatch(embed_id):
+            raise ChannelSignatureInvalid(channel="embed")
+        # Separate, larger buckets than the ingress: the widget polls the list
+        # after a first message and reconnects the live stream.
+        limits = env.channels.embed
+        await _embed_throttle(
+            {"embed_read": embed_id}, limits.read_requests_per_minute_per_embed
+        )
+        await _embed_throttle(
+            {"embed_read": embed_id, "visitor": visitor_key_hash(key)},
+            limits.read_requests_per_minute_per_key,
+        )
+        resolved = await self.resolve_embed(embed_id)
+        if resolved is None:
             raise ChannelSignatureInvalid(channel="embed")
         project_id, connection_id, _ = resolved
         space_key = compose_external_key(
@@ -894,15 +900,13 @@ class ChannelsIngressRouter:
                 ) from e
 
 
-def _embed_refusal(status_code: int, detail: str, **headers: str) -> JSONResponse:
-    return JSONResponse(
-        status_code=status_code, content={"detail": detail}, headers=headers or None
-    )
+def _embed_refusal(status_code: int, detail: str) -> JSONResponse:
+    return JSONResponse(status_code=status_code, content={"detail": detail})
 
 
-async def _embed_throttled(key: Dict[str, str], per_minute: int):
-    """A 429 with Retry-After when the bucket is empty, else None. Fails open:
-    a Redis outage must not take every widget down."""
+async def _embed_throttle(key: Dict[str, str], per_minute: int) -> None:
+    """Raise a 429 with Retry-After when the bucket is empty. Fails open: a
+    Redis outage must not take every widget down."""
 
     result = await check_throttle(
         key,
@@ -910,13 +914,12 @@ async def _embed_throttled(key: Dict[str, str], per_minute: int):
         refill_rate=per_minute,
         failure_mode=FailureMode.OPEN,
     )
-    if result.allow:
-        return None
-    return _embed_refusal(
-        status.HTTP_429_TOO_MANY_REQUESTS,
-        "Too many requests. Try again later.",
-        **{"Retry-After": str(int(result.retry_after_seconds) + 1)},
-    )
+    if not result.allow:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many requests. Try again later.",
+            headers={"Retry-After": str(int(result.retry_after_seconds) + 1)},
+        )
 
 
 async def _read_body_capped(request: Request, limit: int) -> Optional[bytes]:
