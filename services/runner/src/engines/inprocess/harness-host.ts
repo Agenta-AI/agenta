@@ -40,6 +40,7 @@ import { publishSkillSnapshot } from "./workspace/skill-snapshot.ts";
 import { withPublicCode } from "../sandbox_agent/errors.ts";
 import type { SessionLedger } from "./session-ledger.ts";
 import { GATEWAY_CREDENTIALS_VALUE_ENV } from "../sandbox_agent/run-plan.ts";
+import { GATEWAY_PI_RETRY } from "../sandbox_agent/pi-assets.ts";
 
 type Log = (message: string) => void;
 
@@ -231,6 +232,7 @@ export class InProcessHarnessHost {
           }
         : {}),
       modelEnv: this.facts.modelEnvironment,
+      ...(this.facts.throughGateway ? { retry: GATEWAY_PI_RETRY } : {}),
       credentials: this.credentialStore(),
       systemPrompt: this.facts.systemPrompt,
       appendSystemPrompt: this.facts.appendSystemPrompt,

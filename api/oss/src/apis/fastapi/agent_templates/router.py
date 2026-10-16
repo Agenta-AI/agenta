@@ -4,12 +4,14 @@ from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import JSONResponse
 
 from oss.src.apis.fastapi.agent_templates.exceptions import (
+    SCAN_UNAVAILABLE_NEXT_STEP,
     template_load_error_response,
 )
 from oss.src.apis.fastapi.agent_templates.models import (
     TemplateLoadRequest,
     TemplateResponse,
     TemplatesQueryRequest,
+    TemplateSourceScanRequest,
     TemplatesResponse,
     TemplateValidateRequest,
 )
@@ -21,11 +23,13 @@ from oss.src.core.agent_templates.dtos import (
     GitHubTemplateSource,
     SessionFileTemplateSource,
     TemplateLoadResult,
+    TemplateRepositoryScan,
     TemplateSource,
     TemplateValidationResult,
     UploadTemplateSource,
 )
 from oss.src.core.agent_templates.exceptions import TemplateSourceNotFound
+from oss.src.core.agent_templates.github import GitHubPackageFetcher
 from oss.src.core.agent_templates.loader import AgentTemplateLoader
 from oss.src.core.agent_templates.validation import AgentTemplateValidator
 from oss.src.core.shared.idempotency import request_key_hash
@@ -69,10 +73,12 @@ class AgentTemplatesRouter:
         loader: AgentTemplateLoader,
         catalog: AgentTemplateCatalog,
         validator: AgentTemplateValidator | None = None,
+        scanner: GitHubPackageFetcher | None = None,
     ) -> None:
         self._loader = loader
         self._catalog = catalog
         self._validator = validator
+        self._scanner = scanner or GitHubPackageFetcher()
         self.router = APIRouter()
         if validator is not None:
             self.router.add_api_route(
@@ -96,6 +102,20 @@ class AgentTemplatesRouter:
             status_code=status.HTTP_200_OK,
             response_model=TemplatesResponse,
             response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/sources/scan",
+            self.scan_template_source,
+            methods=["POST"],
+            operation_id="scan_agent_template_source",
+            status_code=status.HTTP_200_OK,
+            response_model=TemplateRepositoryScan,
+            responses={
+                403: {"description": "Forbidden"},
+                404: {"description": "Repository or ref not found"},
+                422: {"description": "Invalid request"},
+                503: {"description": "GitHub unavailable"},
+            },
         )
         self.router.add_api_route(
             "/load",
@@ -167,6 +187,24 @@ class AgentTemplatesRouter:
             assert response is not None
             return response
         return TemplateResponse(template=template)
+
+    @intercept_exceptions()
+    async def scan_template_source(
+        self,
+        request: Request,
+        *,
+        payload: TemplateSourceScanRequest,
+    ) -> TemplateRepositoryScan | JSONResponse:
+        await self._require_view(request)
+        try:
+            return await self._scanner.scan(repo_url=payload.repo_url)
+        except Exception as exc:
+            response = template_load_error_response(
+                exc, unavailable_next_step=SCAN_UNAVAILABLE_NEXT_STEP
+            )
+            if response is None:
+                raise
+            return response
 
     @staticmethod
     def _idempotency_error(*, code: str, message: str) -> JSONResponse:

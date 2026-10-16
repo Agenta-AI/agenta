@@ -1,9 +1,9 @@
 from typing import Any, Dict, Optional, Tuple
 
 from agenta.sdk.contexts.tracing import TracingContext
+from agenta.sdk.engines.tracing.server import product_context
 from opentelemetry.baggage import set_baggage
 from opentelemetry.baggage.propagation import W3CBaggagePropagator
-from opentelemetry.context import get_current
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 
@@ -69,7 +69,8 @@ def inject(
 ) -> Dict[str, str]:
     headers = headers or {}
 
-    _context = get_current()
+    # the product trace only: a server span must never become a product parent
+    _context = product_context()
 
     ctx = TracingContext.get()
 

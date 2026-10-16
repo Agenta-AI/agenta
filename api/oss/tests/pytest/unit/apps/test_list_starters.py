@@ -12,6 +12,7 @@ from oss.src.core.apps.handlers import (
     handle_list_starters,
 )
 from oss.src.core.apps.service import AppsError, AppsService, parse_starter_skill
+from oss.src.core.mounts.types import MountFileTooLarge
 
 PROJECT = uuid4()
 
@@ -111,6 +112,24 @@ async def test_union_with_agent_mount_starters(fake_mounts):
 
     assert [s.ref for s in starters] == ["board@1", "agent:retro@2"]
     assert starters[1].source == "agent"
+
+
+async def test_oversized_agent_starter_is_skipped(fake_mounts):
+    fake_mounts.files[".apps/starters/retro/SKILL.md"] = AGENT_STARTER
+    fake_mounts.files[".apps/starters/huge/SKILL.md"] = "too big"
+    read_file = fake_mounts.read_file
+
+    async def refuse_huge(*, project_id, mount_id, path):
+        if path == ".apps/starters/huge/SKILL.md":
+            raise MountFileTooLarge(max_bytes=4)
+        return await read_file(project_id=project_id, mount_id=mount_id, path=path)
+
+    fake_mounts.read_file = refuse_huge
+    starters = await AppsService(mounts_service=fake_mounts).list_starters(
+        project_id=PROJECT, agent_mount_id=fake_mounts.agent_mount_id
+    )
+
+    assert [s.ref for s in starters] == ["board@1", "agent:retro@2"]
 
 
 async def test_bundle_only_when_no_agent_mount(fake_mounts):

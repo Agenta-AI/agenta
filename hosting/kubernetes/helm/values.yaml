@@ -496,6 +496,61 @@ redisDurable:
 # ================================================================== #
 
 # ================================================================== #
+# Pod priority and spare capacity
+#
+# When a pod cannot fit on any node, the scheduler can make room by evicting
+# pods with a lower priority. This is called preemption. Every pod of this chart
+# runs at priority 0 unless you set a PriorityClass. System pods run at up to
+# 2000001000, and a PriorityClass you create can be at most 1000000000, so no
+# priority you set keeps a system pod from evicting your pod on a full node.
+# Two settings, both off by default, make that eviction land somewhere safe.
+#
+#   * `<workload>.priorityClassName` sets the PriorityClass of one workload.
+#     The class must already exist; create it yourself or with `extraObjects`.
+#     Give it to the workloads that run one pod and hold state, e.g. the
+#     bundled Redis instances, SuperTokens and SeaweedFS, so the scheduler
+#     evicts other pods before them. The key works on api, web, webMobile,
+#     services, agentRunner, supertokens, cron, workerStreams, workerQueues,
+#     redisVolatile, redisDurable, store.seaweedfs and alembic.
+#   * `spareCapacity` runs placeholder pods at priority -10 that only hold room.
+#     The scheduler evicts them before any real pod, so a system pod or a
+#     moved pod of this chart starts at once in their room. The evicted
+#     placeholder then waits for a new node, which the autoscaler adds. Size
+#     the requests to fit the largest pod you want to start at once. The
+#     placeholders cost what any pod with the same requests costs; on GKE
+#     Autopilot you pay for their requests.
+#
+#   spareCapacity:
+#     enabled: true
+#     replicas: 1
+#     resources:
+#       requests: {cpu: 500m, memory: 512Mi}
+#     priorityClass:
+#       name: ""      # default <namespace>-<release fullname>-spare-capacity
+#       value: -10    # keep at -10 or above, or GKE does not add a node for it
+#                     # Kubernetes does not let a PriorityClass value change, so to
+#                     # change it, also change the name
+#     image: registry.k8s.io/pause:3.10
+#     nodeSelector: {}
+#     tolerations: []
+#     affinity: {}
+#
+#   redisVolatile:
+#     priorityClassName: agenta-stateful
+#   extraObjects:
+#     - apiVersion: scheduling.k8s.io/v1
+#       kind: PriorityClass
+#       metadata:
+#         name: agenta-stateful
+#       value: 1000000
+#       globalDefault: false
+#       description: "Single-replica stateful pods of Agenta."
+#
+# The chart creates the spare capacity PriorityClass, which is a cluster-wide
+# object, so the account that runs helm needs permission to create one.
+# ================================================================== #
+
+# ================================================================== #
 # workers — topology A (workers-sprawl); see docs/designs/workers-sprawl/specs.md
 # `streams`/`queues` = selector lists; empty ⇒ all loops in that kind.
 # ================================================================== #

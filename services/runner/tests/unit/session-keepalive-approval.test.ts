@@ -5044,6 +5044,7 @@ function pausableHarnessWithTurnLog() {
     if (ledger.has(turnIndex))
       throw new SessionTurnIndexTaken(sessionId, turnIndex);
     ledger.set(turnIndex, {});
+    return true;
   };
   appendSessionTurn.complete = async (_sessionId, turnIndex, turn) => {
     const row = ledger.get(turnIndex);

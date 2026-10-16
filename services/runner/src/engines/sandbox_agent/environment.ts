@@ -882,6 +882,7 @@ async function acquireEnvironmentOnce(
         harnessEnv: env,
         extensionEnv: piExtEnv,
         modelEnvironment: plan.credentials.modelEnvironment,
+        throughGateway: plan.credentials.throughGateway,
         ...(customProvider ? { customProvider } : {}),
         ...(usage ? { usage } : {}),
       };

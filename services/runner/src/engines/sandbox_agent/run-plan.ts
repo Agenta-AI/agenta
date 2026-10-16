@@ -235,6 +235,8 @@ export interface RunPlanCredentials {
    * in-VM path the sandbox writes to. See `subscriptionHomeDir`.
    */
   subscriptionHome?: string;
+  /** Whether the run reaches its model through the Agenta LLM gateway (it carries gateway credentials). */
+  throughGateway?: boolean;
 }
 
 /**
@@ -1124,6 +1126,8 @@ export function buildRunPlan(
         subscriptionHome: subscription
           ? subscriptionHomeDir(subscription.id, isDaytona)
           : undefined,
+        throughGateway:
+          Object.keys(materializeGatewayHeaders(request)).length > 0,
       },
       workspace: {
         cwd,

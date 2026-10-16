@@ -24,6 +24,8 @@ vi.mock("@agenta/entities/workflow", () => ({
     invalidateWorkflowsListCache: vi.fn(),
 }))
 vi.mock("@agenta/home-ui", () => ({useCreateAgent: () => mocks.create}))
+vi.mock("@agenta/chat/assets", () => ({uploadAttachment: vi.fn()}))
+vi.mock("@agenta/shared/state", () => ({projectIdAtom: "project"}))
 vi.mock("@/features/analytics/client", () => ({captureIntent: mocks.captureIntent}))
 vi.mock("jotai", () => ({
     useAtomValue: (atom: string) =>

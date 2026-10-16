@@ -42,7 +42,7 @@ import {useDriveAnchorClickCapture} from "./useDriveLinkClick"
 const LazyCodeBlock = DriveCodeBlock
 
 // Inline-render caps (bytes). Over-cap is a graceful card, never a frozen tab.
-const TEXT_CAP = 1.5 * 1024 * 1024
+export const PREVIEW_TEXT_CAP = 1.5 * 1024 * 1024
 const MEDIA_CAP = 25 * 1024 * 1024
 
 /** Quote-aware-enough CSV parse for previews (RFC 4180 essentials: quotes, escaped quotes,
@@ -484,7 +484,7 @@ export function DriveFileBody({
     const kind = kindProp ?? resolveDriveFileKind(path)
 
     if (size != null) {
-        if ((TEXT_KINDS.has(kind) || kind === "csv") && size > TEXT_CAP)
+        if ((TEXT_KINDS.has(kind) || kind === "csv") && size > PREVIEW_TEXT_CAP)
             return (
                 <DownloadCard
                     mount={mount}
