@@ -1,4 +1,4 @@
-import {useState, type FormEvent} from "react"
+import {useEffect, useRef, useState, type FormEvent} from "react"
 
 import {requestEmailCode} from "@agenta/auth"
 import {Input, LoadingButton} from "@agenta/ui/ui"
@@ -19,6 +19,8 @@ export interface PasswordlessRequestFormProps {
     disabled?: boolean
     lockEmail?: boolean
     security?: AuthSecurityAdapter
+    /** Send the code on mount (once the security check passes); the button stays for a retry. */
+    autoSend?: boolean
 }
 
 /** The request step of the OTP flow: confirm the email, send the code. */
@@ -32,11 +34,11 @@ export const PasswordlessRequestForm = ({
     disabled,
     lockEmail = false,
     security,
+    autoSend = false,
 }: PasswordlessRequestFormProps) => {
     const [isLoading, setIsLoading] = useState(false)
 
-    const submit = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault()
+    const send = async () => {
         if (isLoading) return
         if (!email.trim()) {
             setMessage({message: "Please add your email.", type: "error"})
@@ -61,6 +63,22 @@ export const PasswordlessRequestForm = ({
             setIsLoading(false)
         }
     }
+
+    const submit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault()
+        void send()
+    }
+
+    // Once per mount: a StrictMode remount or a token refresh must not send a second code.
+    const autoSentRef = useRef(false)
+    const sendRef = useRef(send)
+    sendRef.current = send
+    const securityReady = !security || security.hasToken
+    useEffect(() => {
+        if (!autoSend || !securityReady || autoSentRef.current) return
+        autoSentRef.current = true
+        void sendRef.current()
+    }, [autoSend, securityReady])
 
     return (
         <form className="flex w-full flex-col gap-[10px]" onSubmit={submit} noValidate>
