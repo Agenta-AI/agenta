@@ -42,8 +42,52 @@ Task 1 checks two assumptions. Record the results here.
 
 | Check | Result | Date |
 | --- | --- | --- |
-| The Agenta chat streams a session whose turn the channel worker started | Not run | |
-| Time from ingress to first token, compared with a direct chat send | Not run | |
+| The Agenta chat streams a session whose turn the channel worker started | Yes, if the reader subscribes before the reply starts. A chat already open on the session streams the reply token by token, about 100 ms behind the live relay. A reader that subscribes after the reply's `text-start` frame shows "Working" and then the whole reply at the end. | 2026-10-16 |
+| Time from ingress to first token, compared with a direct chat send | Median of 3, first `text-delta` on the session live relay: ingress after an ingress turn 4775 ms; direct send after a direct send 1507 ms. The gap is a cold sandbox, not the ingress hop: a turn the channel worker started is not kept warm, so the next turn on that session starts cold. On a warm session the two paths are within about 0.5 s of each other. | 2026-10-16 |
+
+### Task 1 details (2026-10-16)
+
+Setup: OSS dev stack from this branch (`release/v0.122.8` code), `pi_core` harness, local
+sandbox, OpenAI `gpt-4.1-nano`, the first-party `agenta` channel with a connection-wide default
+agent. Messages went through `POST /channels/agenta/events/`.
+
+1.1, what the chat does with a turn the inbox worker started:
+
+- The chat subscribes to `GET /sessions/{id}/events` for every open session whose snapshot
+  advertises `capabilities.shared_reader` (`useSessionLivePreview`, `sender: true`). An
+  ingress-started turn publishes `text-delta` live frames to that relay like any other turn,
+  so a chat that is open before the reply starts renders it progressively.
+- A reader that subscribes after the reply's text entity began does not stream it. The relay
+  does not replay live frames on connect (`after=` only replays durable events), and
+  `reduceSessionLivePreview` in `web/packages/agenta-chat/src/model/livePreview.ts` marks a
+  delta for an unseen entity with `frame_index != 0` as incomplete and drops its deltas. The
+  text appears when the transcript is adopted after `execution.stopped`. Measured: deltas on the
+  relay from 4.5 s to 10.3 s after the 202, the page joined at 5.1 s, the reply appeared at
+  11.4 s.
+- For the embed this means the widget must open the live subscription before the reply starts.
+  On an existing conversation it can subscribe before it posts. On the first message of a new
+  conversation the session id exists only after the worker resolves the thread, so the widget
+  races the reply. The race is usually won today because a cold start takes about 3 s, but it is
+  not guaranteed. Task 1.3 (a live-follow mode) is not needed for streaming itself; the open
+  question is how the widget learns the new thread's session id early.
+
+1.2, why ingress turns are slower in steady state:
+
+- After an ingress-started turn, the runner logs `[keepalive] evict reason=no-park:end_turn`
+  and the next turn on the session rebuilds the sandbox (`decision=rebuild(miss)`, about
+  2.5 s to 3 s). After a direct chat send it logs `park ttl=60000ms` and the next turn reuses
+  the warm sandbox.
+- Cause: `services/runner/src/server.ts` sets `clientDisconnected = true` when the invoke
+  response closes mid-turn on a session-owned run, and `shouldPark` in
+  `services/runner/src/engines/sandbox_agent/engine.ts` refuses to park when `clientGone()` is
+  true. The detached start the inbox worker uses (`invoke_workflow_detached` in
+  `api/oss/src/core/workflows/service.py`) returns on the first record without draining the
+  stream, so every channel turn ends unparked. The browser's own detached
+  send keeps reading its stream to the end, so it parks.
+- All runs (first `text-delta` on the live relay, ms after the 202 or after the send):
+  ingress after ingress 5383, 4673, 4775; ingress after a direct send 2373, 2162, 1536;
+  direct after direct 2164, 1374, 1507 (invoke stream 1691, 945, 1066); direct after an
+  ingress turn 5040, 4571, 4573.
 
 ## Status
 

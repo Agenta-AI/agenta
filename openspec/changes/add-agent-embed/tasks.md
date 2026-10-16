@@ -1,7 +1,7 @@
 ## 1. Verify the two assumptions first
 
-- [ ] 1.1 With the existing `agenta` channel on a dev stack, send a message through `/channels/agenta/events/` and open the thread's session in the Agenta chat. Confirm the chat streams the turn the channel worker started. Record the result in `HANDOFF.md`
-- [ ] 1.2 Measure the time from ingress `202` to the first streamed token, and from a direct chat send to the first token. Record both
+- [x] 1.1 With the existing `agenta` channel on a dev stack, send a message through `/channels/agenta/events/` and open the thread's session in the Agenta chat. Confirm the chat streams the turn the channel worker started. Record the result in `HANDOFF.md`
+- [x] 1.2 Measure the time from ingress `202` to the first streamed token, and from a direct chat send to the first token. Record both
 - [ ] 1.3 If 1.1 fails, add a live-follow mode to the embed transport (subscribe to the session's live events after the ingress accepts) and note the change in `design.md` before continuing
 
 ## 2. Channel turn context (all channels)
