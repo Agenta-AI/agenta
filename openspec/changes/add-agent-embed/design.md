@@ -114,9 +114,13 @@ The host page may pass any JSON in two places. Only the first exists in v1.
 | Change the agent handler to render non-message run inputs | Works outside channels too, but adds a second way to inform the model next to attribution |
 | **Render context in `compose_input`, next to attribution** | **One place builds what the model sees for every channel. No SDK change** |
 
-### 7. Generated parts are marked
+### 7. The chat shows the person's own words
 
-`compose_input` adds a marker to the attribution part and the context part: `{"type": "text", "text": "...", "generated": "channel"}`. Chat views hide marked parts inside a person's own message. The widget shows the visitor only their own words. The owner's session view may show the parts in a muted style.
+`compose_input` adds the attribution part and the context part to the model's input. When it adds either one, the turn's user message also carries `display_content` with only the person's own words (the text of their parts, joined by new lines). The model sees `content`. The chat shows `display_content`. This uses the existing `Message.display_content`: the runner persists it on the user record, and `@agenta/chat` renders it in the replay and the live view. No chat change is needed. Attachments still show, because `display_content` replaces only the text. When a file cannot be read, the note that replaces it is added to `display_content`, so the person still sees it.
+
+A part-level marker such as `"generated": "channel"` was the first plan. It cannot work: the runner flattens the parts into one text before it persists the user record, and the SDK `ContentBlock` drops unknown keys.
+
+When one turn gathers messages from more than one sender (a forwardfilled group thread), `compose_input` sets no `display_content`. The "From ..." parts stay on screen there, because they tell the speakers apart. An embed conversation has one visitor, so the widget always shows only the visitor's words.
 
 ### 8. Iframe first, with a small message protocol
 
@@ -164,5 +168,6 @@ None of these changes the ingress route, the read routes, the space and thread m
 ## Migration
 
 - No new tables. One new adapter in the registry, one ingress route, read routes, and one optional field on processed events.
-- The context part and the marker are additive. Events without context render as today.
+- The context part is additive. Events without context give the model the same input as today.
+- The chat view of existing channels changes a little: a turn from one sender now shows that person's words without the "From ..." line. A turn from several senders shows the line as today. Sessions recorded before this change replay as before.
 - Self-hosted instances need a public HTTPS URL that visitors can reach. Documentation only.

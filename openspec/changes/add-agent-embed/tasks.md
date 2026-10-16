@@ -6,11 +6,11 @@
 
 ## 2. Channel turn context (all channels)
 
-- [ ] 2.1 Add optional `context` to `ChannelInboxEventProcessed`, redacted like `content` and `sender`
-- [ ] 2.2 In `compose_input`, render `context` as one labeled part after the attribution part
-- [ ] 2.3 Mark the attribution and context parts with `"generated": "channel"`
-- [ ] 2.4 Hide marked parts inside a person's own message in `@agenta/chat`
-- [ ] 2.5 Unit tests: with context, without context, another adapter filling context, marker present
+- [x] 2.1 Add optional `context` to `ChannelInboxEventProcessed`, redacted like `content` and `sender`
+- [x] 2.2 In `compose_input`, render `context` as one labeled part after the attribution part
+- [x] 2.3 When `compose_input` adds an attribution or context part, set `display_content` on the turn's user message to the person's own words (one sender only)
+- [x] 2.4 Check that `@agenta/chat` renders `display_content` in the replay and the live view (no change needed)
+- [x] 2.5 Unit tests: with context, without context, another adapter filling context, `display_content` set and carried in the request
 
 ## 3. The `embed` adapter
 

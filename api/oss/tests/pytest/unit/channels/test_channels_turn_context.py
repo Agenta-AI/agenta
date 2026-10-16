@@ -466,3 +466,133 @@ class TestAFailureBeforeTheInvoke:
         await _say(channels, dispatcher, "M2", addressed=True)
 
         assert _turns_by_mention(runner) == ["M1", "M2"]
+
+
+class TestHostContextAndDisplay:
+    """Task 2 of the agent embed: host context reaches the model as its own
+    labeled part, and the chat shows only the person's own words."""
+
+    async def _compose(self, channels, event):
+        resolution = await channels.resolve(event)
+        return resolution, await channels.compose(resolution, event)
+
+    async def test_context_follows_the_attribution_and_precedes_the_words(self):
+        channels = InMemoryChannels()
+        event = channels.store(
+            "where is my invoice?",
+            addressed=True,
+            sender={"id": "U1", "name": "Ana"},
+            context={"page": "/invoices"},
+        )
+
+        _, turn_input = await self._compose(channels, event)
+
+        assert [part["text"] for part in turn_input.content] == [
+            "From Ana (fake id U1):",
+            "Context from the host page (provided by the host, not verified):\n"
+            '{"page": "/invoices"}',
+            "where is my invoice?",
+        ]
+        assert turn_input.display_content == "where is my invoice?"
+
+    async def test_without_context_the_model_input_is_unchanged(self):
+        channels = InMemoryChannels()
+        event = channels.store("hello", addressed=True)
+
+        _, turn_input = await self._compose(channels, event)
+
+        assert turn_input.content == [
+            {"type": "text", "text": "From user U1 (fake id U1):"},
+            {"type": "text", "text": "hello"},
+        ]
+        # the attribution part is hidden from the chat, the words are not
+        assert turn_input.display_content == "hello"
+
+    async def test_an_event_with_no_sender_and_no_context_adds_nothing(self):
+        channels = InMemoryChannels()
+        event = channels.store("hello", addressed=True, sender={"id": ""})
+
+        _, turn_input = await self._compose(channels, event)
+
+        assert turn_input.content == [{"type": "text", "text": "hello"}]
+        assert turn_input.display_content is None
+
+    async def test_another_adapter_filling_context_renders_the_same_way(self):
+        channels = InMemoryChannels()
+        event = channels.store(
+            "hi", addressed=True, sender={"id": "U9"}, context={"ticket": 7}
+        )
+        resolution = await channels.resolve(event)
+        turn_input = await channels.service.compose_input(
+            project_id=channels.project_id,
+            resolution=resolution,
+            event_id=event.id,
+            capabilities=(await channels.adapter.fetch_capabilities()).model_copy(
+                update={"channel": "slack"}
+            ),
+        )
+
+        assert [part["text"] for part in turn_input.content] == [
+            "From user U9 (Slack id U9):",
+            "Context from the host page (provided by the host, not verified):\n"
+            '{"ticket": 7}',
+            "hi",
+        ]
+
+    async def test_a_turn_from_several_people_keeps_the_attribution_on_screen(self):
+        channels = InMemoryChannels()
+        await channels.post("M1", addressed=True)
+        first = channels.store("from ana", sender={"id": "U1"})
+        await channels.resolve(first)
+        second = channels.store("from bob", addressed=True, sender={"id": "U2"})
+
+        _, turn_input = await self._compose(channels, second)
+
+        assert texts(turn_input.content) == ["from ana", "from bob"]
+        assert turn_input.display_content is None
+
+    async def test_the_request_carries_display_content_only_when_set(self):
+        channels = InMemoryChannels()
+        event = channels.store("hello", addressed=True)
+        resolution, turn_input = await self._compose(channels, event)
+
+        with_display = InboxDispatcher._build_request(
+            resolution=resolution, turn_input=turn_input
+        ).model_dump(mode="json", exclude_none=True)
+        without = InboxDispatcher._build_request(
+            resolution=resolution,
+            turn_input=turn_input.model_copy(update={"display_content": None}),
+        ).model_dump(mode="json", exclude_none=True)
+
+        assert with_display["data"]["inputs"]["messages"] == [
+            {
+                "role": "user",
+                "content": turn_input.content,
+                "display_content": "hello",
+            }
+        ]
+        assert without["data"]["inputs"]["messages"] == [
+            {"role": "user", "content": turn_input.content}
+        ]
+
+    async def test_a_file_that_cannot_be_read_stays_visible_in_the_chat(self):
+        """The failure note `_attach_media` puts in place of a file is shown,
+        not hidden behind an empty `display_content`."""
+        channels = InMemoryChannels()
+        event = channels.store("", addressed=True)
+        event.data.processed.content = [
+            {"type": "media", "kind": "photo", "media_id": "m1"}
+        ]
+        seen = []
+
+        async def invoke(*, turn_input, turn_id, **extra):
+            seen.append(turn_input)
+            return turn_id
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels.service, invoke_fn=invoke
+        )
+        await _dispatch(channels, dispatcher, event)
+
+        assert texts(seen[0].content) == ["[photo] (files cannot be read here)"]
+        assert seen[0].display_content == "[photo] (files cannot be read here)"

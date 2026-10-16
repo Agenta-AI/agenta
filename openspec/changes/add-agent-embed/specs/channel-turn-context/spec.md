@@ -19,14 +19,19 @@ A processed inbound event SHALL accept an optional `context` object. When presen
 - **WHEN** an adapter other than `embed` fills `processed.context`
 - **THEN** `compose_input` renders it the same way
 
-### Requirement: Generated parts are marked
+### Requirement: The chat shows the person's own words
 
-`compose_input` SHALL mark the attribution part and the context part with `"generated": "channel"`. Chat views SHALL hide marked parts inside a person's own message.
+When `compose_input` adds an attribution part or a context part, the turn's user message SHALL carry `display_content` with only the person's own words. Chat views SHALL show `display_content` in place of the message text. When the turn's events come from more than one sender, `compose_input` SHALL NOT set `display_content`.
 
 #### Scenario: Visitor sees only their own words
 
 - **WHEN** a visitor opens a past conversation in the widget
 - **THEN** each of their messages shows only what they typed or attached
+
+#### Scenario: A turn from several people keeps the attribution
+
+- **WHEN** a forwardfilled turn holds messages from two senders
+- **THEN** the turn's user message has no `display_content`, and the chat shows the attribution parts
 
 #### Scenario: The model still sees the parts
 
