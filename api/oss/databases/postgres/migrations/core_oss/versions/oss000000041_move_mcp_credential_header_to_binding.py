@@ -15,8 +15,13 @@ Data only. `data` is a `json` column, so each row is read as `jsonb` to edit and
 back as `json`.
 
 Downgrade writes a header binding with no prefix back as `credential_header`. A binding
-the old field cannot express (a query parameter, or a prefix) is dropped, so that row
-falls back to `Authorization: Bearer <key>`.
+the old field cannot express (a query parameter, a prefix, or a key in the URL) is
+dropped, so that row falls back to `Authorization: Bearer <key>`.
+
+A row whose `base_url` holds `{secret}` loses its `url` binding on downgrade but keeps the
+placeholder, and the API refuses to read a placeholder with no `url` binding. Without a
+repair, one such row after a rollback and a new upgrade hides every MCP endpoint of its
+project from the list. So upgrade also gives such a row its `url` binding back.
 
 Revision ID: oss000000041
 Revises: oss000000040
@@ -52,6 +57,18 @@ def upgrade() -> None:
             END
         )::json
         WHERE data::jsonb #> '{route,credential_header}' IS NOT NULL
+        """
+    )
+    op.execute(
+        """
+        UPDATE mcps_endpoints
+        SET data = jsonb_set(
+            data::jsonb,
+            '{route,credential_binding}',
+            jsonb_build_object('kind', 'url')
+        )::json
+        WHERE strpos(data::jsonb #>> '{route,base_url}', '{secret}') > 0
+            AND data::jsonb #> '{route,credential_binding}' IS NULL
         """
     )
 
