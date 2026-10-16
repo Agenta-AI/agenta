@@ -91,4 +91,8 @@ agent. Messages went through `POST /channels/agenta/events/`.
 
 ## Status
 
-Specification only. No implementation yet. Base branch: `release/v0.122.8`.
+Base branch: `release/v0.122.8`.
+
+- Task 1 (spike): done. Results above.
+- Task 2 (channel turn context): done. `processed.context`, the context part, and `display_content` on the turn's user message (in place of the part marker, see design section 7). `_attribution_part` prefers `sender["platform"]`, which the embed adapter (task 3.4) sets to the connection name.
+- Tasks 3 to 7: not started.

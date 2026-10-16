@@ -14,18 +14,18 @@ The channels system already does most of the work a published agent needs: conne
 - **New: the widget.** A chat page served by Agenta inside an iframe, built on `@agenta/chat`. It sends through the `embed` channel's ingress and renders the conversation's session, which streams.
 - **New: visitor-scoped read routes.** List the visitor's conversations, read one, follow it live, and download its files. Each route checks that the conversation belongs to the caller's space.
 - **New: host context.** The host page may pass `context`, any JSON. It is stored on the inbound event and shown to the model as a labeled part before the message, next to the existing sender attribution. This works for every channel, not only the embed.
-- **Modified: generated parts are marked.** The attribution part and the context part carry a marker, so chat views can hide them from the person's own message.
+- **Modified: the chat shows the person's own words.** When the attribution part or the context part is added, the turn's user message carries `display_content` with only the person's own words, so chat views show those words and the model still sees every part.
 
 ## Capabilities
 
 ### New Capabilities
 
 - `embed-channel`: the `embed` adapter, embed connections, visitor keys, the widget, visitor-scoped read routes, and owner visibility.
-- `channel-turn-context`: host context stored on inbound events and shown to the model; marked generated parts.
+- `channel-turn-context`: host context stored on inbound events and shown to the model; `display_content` keeps the person's own words for the chat.
 
 ## Impact
 
-- **API:** a new adapter and ingress route `/channels/embed/events/{embed_id}/`; visitor-scoped read routes; a `context` field on processed inbound events; a marker on generated parts in `compose_input`.
+- **API:** a new adapter and ingress route `/channels/embed/events/{embed_id}/`; visitor-scoped read routes; a `context` field on processed inbound events; `display_content` on the channel turn's user message in `compose_input`.
 - **Web:** a widget route built on `@agenta/chat` with an embed transport; the embed appears in the channel publish screens.
 - **No new tables.** Embeds, visitors and conversations are existing channel rows.
 - **Security surface:** a public ingress and public read routes, limited by visitor key, `frame-ancestors`, CORS and rate limits.

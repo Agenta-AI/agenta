@@ -2151,6 +2151,11 @@ def test_attribution_names_the_sender_by_name_username_or_id():
         "type": "text",
         "text": "From user U1 (Slack id U1):",
     }
+    # an adapter that names the source itself wins over the channel label
+    assert _attribution_part(
+        {"id": "ab12", "name": "Ana", "platform": "Support widget"},
+        channel="embed",
+    ) == {"type": "text", "text": "From Ana (Support widget id ab12):"}
     assert _attribution_part({}, channel="slack") is None
     assert _attribution_part({"id": ""}, channel="agenta") is None
 
