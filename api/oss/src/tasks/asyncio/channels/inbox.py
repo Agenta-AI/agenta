@@ -353,6 +353,7 @@ class InboxDispatcher:
         else:
             ack = await self._command_ack(
                 project_id=project_id,
+                user_id=user_id,
                 resolution=resolution,
                 command=parsed.command,
                 result=result,
@@ -377,6 +378,7 @@ class InboxDispatcher:
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         resolution: ChannelResolution,
         command: str,
         result,
@@ -417,7 +419,46 @@ class InboxDispatcher:
             noun = "session" if count == 1 else "sessions"
             return f"This conversation has {count} {noun}."
         if command == COMMAND_USE:
-            return "Switching to an earlier session is not available yet."
+            # `result` is the validated target row. The newest row is the current
+            # thread, so a new row that reuses the target's session switches to it.
+            # Closed first: `create_thread` returns the current row while it is active.
+            current = resolution.thread
+            if result.session_id == current.session_id:
+                return "You are already in that conversation."
+            try:
+                await self.channels_service.close_thread(
+                    project_id=project_id,
+                    user_id=user_id,
+                    thread_id=current.id,
+                )
+                switched = await self.channels_service.channels_dao.create_thread(
+                    project_id=project_id,
+                    user_id=None,
+                    thread=ChannelThreadCreate(
+                        space_id=current.space_id,
+                        agent_id=current.agent_id,
+                        external_key=current.external_key,
+                        session_id=result.session_id,
+                        # An open approval travels with the session it parks.
+                        data=ChannelThreadData(
+                            external_locator=current.data.external_locator,
+                            pending_choice=result.data.pending_choice,
+                        ),
+                    ),
+                )
+                # A message that opened a row between the close and the create wins.
+                if switched.session_id != result.session_id:
+                    raise RuntimeError("another conversation opened first")
+            except Exception:
+                # The next message then opens a fresh conversation, as after !new.
+                log.error(
+                    "[INBOX DISPATCHER] could not switch thread=%s to session=%s",
+                    current.id,
+                    result.session_id,
+                    exc_info=True,
+                )
+                return "Could not switch to that conversation. Try again."
+            return "Switched to that conversation."
         return "Done."
 
     async def _run_backfill(
