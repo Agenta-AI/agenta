@@ -5,6 +5,7 @@
 export {
     getEnv,
     isBillingEnabled,
+    isBrowserEnabled,
     isEE,
     isEmailInvitationsEnabled,
     isMcpGatewayEnabled,
