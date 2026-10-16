@@ -57,9 +57,21 @@ vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
         if (open) opened.push(reconnect ?? null)
         return open ? <div data-testid="mcp-connect-journey" /> : null
     },
-    McpConnectionDetail: ({endpoint}: {endpoint: {name?: string; secret_id?: string} | null}) =>
+    McpConnectionDetail: ({
+        endpoint,
+        readOnly,
+        canListTools,
+    }: {
+        endpoint: {name?: string; secret_id?: string} | null
+        readOnly?: boolean
+        canListTools?: boolean
+    }) =>
         endpoint ? (
-            <div data-testid="mcp-connection-detail">
+            <div
+                data-testid="mcp-connection-detail"
+                data-readonly={String(Boolean(readOnly))}
+                data-can-list-tools={String(canListTools)}
+            >
                 {endpoint.name}
                 <span data-testid="detail-secret">{endpoint.secret_id ?? "none"}</span>
             </div>
@@ -168,10 +180,19 @@ const ALL_SECRETS = [
     {id: "sec-2", name: "axiom_token", slug: "axiom_token"},
 ]
 
-const show = (rows: Endpoint[], options: {isPending?: boolean; readOnly?: boolean} = {}) => {
+const show = (
+    rows: Endpoint[],
+    options: {isPending?: boolean; readOnly?: boolean; canListTools?: boolean} = {},
+) => {
     state.query = {data: rows, isPending: options.isPending ?? false}
     state.secrets = ALL_SECRETS
-    return render(<McpServersSection confirm={confirmSpy} readOnly={options.readOnly} />)
+    return render(
+        <McpServersSection
+            confirm={confirmSpy}
+            readOnly={options.readOnly}
+            canListTools={options.canListTools}
+        />,
+    )
 }
 
 let confirmSpy: ReturnType<typeof vi.fn>
@@ -608,6 +629,26 @@ describe("read-only", () => {
         show([LINEAR], {readOnly: true})
         const row = screen.getByText("Linear").closest('[role="button"]') as HTMLElement
         expect(within(row).queryAllByRole("button")).toHaveLength(0)
+    })
+
+    it("opens the connection read-only, so its detail offers no write either", () => {
+        show([AXIOM], {readOnly: true, canListTools: false})
+        act(() => {
+            fireEvent.click(screen.getByTestId("mcp-connection-name"))
+        })
+        const detail = screen.getByTestId("mcp-connection-detail")
+        expect(detail.dataset.readonly).toBe("true")
+        expect(detail.dataset.canListTools).toBe("false")
+    })
+
+    it("opens the connection writable, with its tools, when nothing is withheld", () => {
+        show([AXIOM])
+        act(() => {
+            fireEvent.click(screen.getByTestId("mcp-connection-name"))
+        })
+        const detail = screen.getByTestId("mcp-connection-detail")
+        expect(detail.dataset.readonly).toBe("false")
+        expect(detail.dataset.canListTools).toBe("true")
     })
 })
 

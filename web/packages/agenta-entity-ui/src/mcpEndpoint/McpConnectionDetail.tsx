@@ -46,6 +46,10 @@ export interface McpConnectionDetailProps {
     onReconnect: (endpoint: MCPEndpoint) => void
     onDisconnect: (endpoint: MCPEndpoint) => void
     onChanged?: () => void
+    /** Hides Connect, Reconnect, Disconnect, Change and Save, and locks the name. */
+    readOnly?: boolean
+    /** Whether the member may read the tool list; when false the tools section is left out. */
+    canListTools?: boolean
 }
 
 /** An OAuth connection whose sign-in could not be renewed, in place of the gateway's words. */
@@ -64,6 +68,8 @@ export default function McpConnectionDetail({
     onReconnect,
     onDisconnect,
     onChanged,
+    readOnly = false,
+    canListTools = true,
 }: McpConnectionDetailProps) {
     const projectId = useAtomValue(projectIdAtom) ?? undefined
     const [name, setName] = useState("")
@@ -94,7 +100,7 @@ export default function McpConnectionDetail({
 
     const loadTools = useCallback(async () => {
         const slug = endpoint?.slug
-        if (!slug || !isReady) return
+        if (!slug || !isReady || !canListTools) return
         shownFor.current = slug
         setTools({status: "loading"})
         try {
@@ -114,13 +120,13 @@ export default function McpConnectionDetail({
                     : (error as Error)?.message || "The tool list could not be read.",
             })
         }
-    }, [endpoint?.slug, isReady, onChanged, projectId])
+    }, [canListTools, endpoint?.slug, isReady, onChanged, projectId])
 
     // Only a connected server has tools to report; an unauthorized one would just 409.
     useEffect(() => {
-        if (endpoint && isReady) void loadTools()
+        if (endpoint && isReady && canListTools) void loadTools()
         else setTools({status: "idle"})
-    }, [endpoint, isReady, loadTools])
+    }, [canListTools, endpoint, isReady, loadTools])
 
     const nameProblem = endpoint
         ? connectionNameProblem({name, existingNames, currentName: endpoint.name})
@@ -128,7 +134,7 @@ export default function McpConnectionDetail({
 
     const rename = useCallback(async () => {
         // Enter while a save is in flight would send the same rename twice.
-        if (!endpoint?.id || nameProblem || saving) return
+        if (readOnly || !endpoint?.id || nameProblem || saving) return
         setSaving(true)
         try {
             // A full replace: every field the row already has is sent back with it, because
@@ -152,17 +158,19 @@ export default function McpConnectionDetail({
         } finally {
             setSaving(false)
         }
-    }, [endpoint, name, nameProblem, onChanged, projectId, saving])
+    }, [endpoint, name, nameProblem, onChanged, projectId, readOnly, saving])
 
     const unchanged = !endpoint || name.trim() === (endpoint.name ?? "")
 
     const footer = endpoint ? (
         <div className="flex w-full flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={() => onReconnect(endpoint)}>
-                {isReady ? "Reconnect" : "Connect"}
-            </Button>
+            {readOnly ? null : (
+                <Button variant="outline" onClick={() => onReconnect(endpoint)}>
+                    {isReady ? "Reconnect" : "Connect"}
+                </Button>
+            )}
             {/* Only an OAuth connection holds a grant to revoke; the route refuses anything else. */}
-            {isReady && endpoint.auth_mode === "oauth" ? (
+            {!readOnly && isReady && endpoint.auth_mode === "oauth" ? (
                 <Button
                     variant="ghost"
                     className="text-colorError"
@@ -175,9 +183,11 @@ export default function McpConnectionDetail({
                 <Button variant="outline" onClick={onClose}>
                     Close
                 </Button>
-                <Button onClick={rename} disabled={saving || !!nameProblem || unchanged}>
-                    Save
-                </Button>
+                {readOnly ? null : (
+                    <Button onClick={rename} disabled={saving || !!nameProblem || unchanged}>
+                        Save
+                    </Button>
+                )}
             </div>
         </div>
     ) : null
@@ -220,9 +230,10 @@ export default function McpConnectionDetail({
                             <Input
                                 value={name}
                                 aria-label="Connection name"
+                                readOnly={readOnly}
                                 onChange={(event) => setName(event.target.value)}
                                 onKeyDown={(event) => {
-                                    if (event.key === "Enter" && !unchanged && !saving)
+                                    if (event.key === "Enter" && !readOnly && !unchanged && !saving)
                                         void rename()
                                 }}
                             />
@@ -233,36 +244,43 @@ export default function McpConnectionDetail({
                             <span className="text-colorTextSecondary">
                                 {MCP_AUTH_MODE_LABEL[endpoint.auth_mode]}
                             </span>
-                            <Button
-                                variant="link"
-                                size="xs"
-                                className={cn("ml-auto px-0 text-xs", touchTargetExpansion(24))}
-                                onClick={() => onReconnect(endpoint)}
-                            >
-                                Change
-                            </Button>
+                            {readOnly ? null : (
+                                <Button
+                                    variant="link"
+                                    size="xs"
+                                    className={cn("ml-auto px-0 text-xs", touchTargetExpansion(24))}
+                                    onClick={() => onReconnect(endpoint)}
+                                >
+                                    Change
+                                </Button>
+                            )}
                         </div>
 
-                        <section className="flex flex-col gap-2">
-                            <div className="flex flex-col gap-0.5">
-                                <h4 className="m-0 text-sm font-medium text-colorText">Tools</h4>
-                                <p className="m-0 text-xs text-colorTextDescription">
-                                    Choose what this server may do in an agent&apos;s configuration.
-                                </p>
-                            </div>
-                            <ToolFilterInput
-                                total={tools.status === "ready" ? tools.tools.length : 0}
-                                value={filter}
-                                onChange={setFilter}
-                            />
-                            <ToolList
-                                state={tools}
-                                isReady={isReady}
-                                signInExpired={signInExpired}
-                                onRetry={loadTools}
-                                filter={filter}
-                            />
-                        </section>
+                        {canListTools ? (
+                            <section className="flex flex-col gap-2">
+                                <div className="flex flex-col gap-0.5">
+                                    <h4 className="m-0 text-sm font-medium text-colorText">
+                                        Tools
+                                    </h4>
+                                    <p className="m-0 text-xs text-colorTextDescription">
+                                        Choose what this server may do in an agent&apos;s
+                                        configuration.
+                                    </p>
+                                </div>
+                                <ToolFilterInput
+                                    total={tools.status === "ready" ? tools.tools.length : 0}
+                                    value={filter}
+                                    onChange={setFilter}
+                                />
+                                <ToolList
+                                    state={tools}
+                                    isReady={isReady}
+                                    signInExpired={signInExpired}
+                                    onRetry={loadTools}
+                                    filter={filter}
+                                />
+                            </section>
+                        ) : null}
                     </div>
                 ) : null}
             </ModalContent>

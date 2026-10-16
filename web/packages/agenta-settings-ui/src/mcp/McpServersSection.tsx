@@ -121,12 +121,18 @@ export interface McpServersSectionProps {
     confirm?: ConfirmDestructive
     /** Hides every write affordance. */
     readOnly?: boolean
+    /**
+     * Whether the member may read a server's tool list (`use_mcp_endpoints`). When false the
+     * connection detail leaves the tools section out instead of showing the relay's refusal.
+     */
+    canListTools?: boolean
     copy?: Partial<McpServersSectionCopy>
 }
 
 export default function McpServersSection({
     confirm,
     readOnly,
+    canListTools = true,
     copy: copyOverrides,
 }: McpServersSectionProps) {
     const copy = useMemo<McpServersSectionCopy>(
@@ -512,6 +518,8 @@ export default function McpServersSection({
                 onReconnect={openReconnect}
                 onDisconnect={handleDisconnect}
                 onChanged={refresh}
+                readOnly={readOnly}
+                canListTools={canListTools}
             />
         </div>
     )
