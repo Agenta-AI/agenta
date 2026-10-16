@@ -23,7 +23,7 @@ import {
 import {resolveToolDisplay} from "../../skin"
 import type {ActivityIcon} from "../../skin/types"
 import {activityFoldKey, expandedValueAtomFamily, setExpandedAtom} from "../../state"
-import {useTurnStage, useTurnStageSince} from "../../state/turnClock"
+import {turnSpanAtomFamily, useTurnStage, useTurnStageSince} from "../../state/turnClock"
 import RevealCollapse from "../RevealCollapse"
 
 import {ActivityClientStep} from "./ActivityClientStep"
@@ -199,6 +199,24 @@ const waitingKind = (steps: ActivityStep[]): WaitingKind => {
     return "approval"
 }
 
+/** A step that paused the run to wait on user input or approval. */
+const stepHadGate = (step: ActivityStep): boolean => {
+    if (step.kind === "client") return true
+    if (step.kind === "tool") {
+        const part = step.part as {approval?: unknown; state?: string}
+        if (part.approval !== undefined) return true
+        const state = part.state
+        if (
+            state === "approval-requested" ||
+            state === "approval-responded" ||
+            state === "output-denied"
+        ) {
+            return true
+        }
+    }
+    return false
+}
+
 /** The last step of the agent's own: a settled ask's verb must not hold the line. */
 const lastAgentStep = (steps: ActivityStep[]): ActivityStep | null => {
     for (let i = steps.length - 1; i >= 0; i--) if (steps[i].kind !== "client") return steps[i]
@@ -302,15 +320,23 @@ export const ActivityTimeline = ({
         traceDataSummaryAtomFamily((!live || metMidFlight) && traceId ? traceId : ""),
     )
     const startedAt = metMidFlight ? parseTraceTime(trace.rootSpan?.start_time) : undefined
+    const span = useAtomValue(turnSpanAtomFamily(clockId))
     // The clock counts the agent's work: from the first step, paused while parked on the reader.
     const counted = useTurnClock(clockId, live && !awaiting && steps.length > 0, startedAt)
-    // A run resumed after a gate traces only its last leg; the longer of the two is the work.
-    const traced = live ? null : (trace.metrics.durationMs ?? null)
+    const hadGate = Boolean(
+        (span && span.pausedMs > 0) || resuming || waitingOnUser || steps.some(stepHadGate),
+    )
+    // A gate's trace covers the whole run, including the time parked on the user (#7445).
+    // When a turn had a gate, only the local clock saw the actual work time; an unclocked
+    // turn that had a gate falls back to "Worked" rather than reporting the parked time.
+    const traced = live || hadGate ? null : (trace.metrics.durationMs ?? null)
     const elapsed = live
         ? counted
-        : traced === null && counted === null
-          ? null
-          : Math.max(traced ?? 0, counted ?? 0)
+        : hadGate
+          ? counted
+          : traced === null && counted === null
+            ? null
+            : Math.max(traced ?? 0, counted ?? 0)
     const files = useMemo(() => activityFiles(steps), [steps])
     // A settled step's verb holds for a beat, then the line reads "Working".
     const idle = useHeldFor(live && !awaiting && !current && steps.length > 0, VERB_HOLD_MS)
