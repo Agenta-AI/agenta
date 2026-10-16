@@ -18,6 +18,20 @@ describe("describeBuildKitPlatformTool", () => {
             expect(describeBuildKitPlatformTool(op).description).toBeTruthy()
     })
 
+    it("words the agent tools so another agent never reads as this one", () => {
+        expect(describeBuildKitPlatformTool("list_agents").name).toBe("List agents")
+        expect(describeBuildKitPlatformTool("read_agent_config").name).toBe(
+            "Read another agent's setup",
+        )
+        expect(describeBuildKitPlatformTool("create_agent").name).toBe("Create an agent")
+        expect(describeBuildKitPlatformTool("edit_agent_config").name).toBe(
+            "Save changes to another agent",
+        )
+        expect(describeBuildKitPlatformTool("edit_agent_config").description).toContain(
+            "not deployed",
+        )
+    })
+
     it("humanizes an op the table does not know rather than showing snake_case", () => {
         const descriptor = describeBuildKitPlatformTool("pause_schedule")
         expect(descriptor.name).toBe("Pause schedule")

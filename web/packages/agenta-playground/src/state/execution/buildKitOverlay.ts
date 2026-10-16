@@ -11,7 +11,7 @@
  *  - list sections (`tools`/`skills`/`mcps`) identity-merge: an overlay entry replaces a base entry
  *    with the same identity (platform op, embed slug, or name), otherwise it is appended.
  */
-import {type AgentTemplate} from "@agenta/entities/workflow"
+import {type AgentTemplate, readAgentaTools, writeAgentaTools} from "@agenta/entities/workflow"
 
 type AgentTemplateListKey = "tools" | "skills" | "mcps"
 type AgentTemplateObjectKey = "sandbox" | "runner" | "harness" | "llm" | "instructions"
@@ -155,6 +155,19 @@ const withoutDisabledOps = (
     }
 }
 
+/** `tools` with the switched-off ops dropped from the saved `agenta_tools` map, if there is one. */
+const withoutSwitchedOffAgentaTools = (
+    tools: unknown[],
+    switchedOff: (op: unknown) => boolean,
+): unknown[] => {
+    const map = readAgentaTools(tools)
+    if (!map) return tools
+    return writeAgentaTools(
+        tools,
+        Object.fromEntries(Object.entries(map).filter(([op]) => !switchedOff(op))),
+    )
+}
+
 /**
  * Apply the overlay to the run parameters. Handles both shapes `buildAgentRequest` produces: a
  * `{agent: <template>}` wrapper and a bare template (no `agent` key). Skipping the bare shape would
@@ -175,18 +188,19 @@ export const withBuildKitOverlay = (
             isRecord(tool) && tool.type === "platform" ? [tool.op] : [],
         ),
     )
-    // Removing an overlay entry must not reveal a same-op entry in the base config.
+    const switchedOff = (op: unknown) => kitOps.has(op) && disabledOps.includes(op as string)
+    // Removing an overlay entry must not reveal a same-op entry in the base config, nor the
+    // same tool in the saved `agenta_tools` map, which the resolver expands into a platform
+    // tool. Only this run copy changes; the saved entry is the agent's own choice.
     const filteredBase = Array.isArray(base.tools)
         ? {
               ...base,
-              tools: base.tools.filter(
-                  (tool) =>
-                      !(
-                          isRecord(tool) &&
-                          tool.type === "platform" &&
-                          kitOps.has(tool.op) &&
-                          disabledOps.includes(tool.op as string)
-                      ),
+              tools: withoutSwitchedOffAgentaTools(
+                  base.tools.filter(
+                      (tool) =>
+                          !(isRecord(tool) && tool.type === "platform" && switchedOff(tool.op)),
+                  ),
+                  switchedOff,
               ),
           }
         : base

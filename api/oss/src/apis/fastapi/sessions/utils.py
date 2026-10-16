@@ -1,6 +1,6 @@
 from json import dumps
 from typing import Any, Callable, Optional, TypeVar
-from urllib.parse import quote, urlencode, urlsplit
+from urllib.parse import urlencode
 from uuid import UUID
 
 from fastapi import HTTPException, status
@@ -21,6 +21,7 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
     SESSION_RESERVED_TAG_NAMESPACE,
 )
 from oss.src.utils.env import env
+from oss.src.utils.web_links import web_base_url, web_path
 
 SessionStreamT = TypeVar("SessionStreamT", bound=SessionStream)
 
@@ -37,42 +38,21 @@ def current_session_response(
         result.url_unavailable_reason = "agent_reference_missing"
     elif workspace_id is None:
         result.url_unavailable_reason = "workspace_missing"
+    elif (base := web_base_url(web_url)) is None:
+        result.url_unavailable_reason = "web_url_unavailable"
     else:
-        try:
-            parsed = urlsplit(web_url)
-            _ = (
-                parsed.port
-            )  # Parsing alone does not validate malformed or out-of-range ports.
-            valid_url = (
-                parsed.scheme in {"http", "https"}
-                and parsed.hostname
-                and not parsed.username
-                and not parsed.password
-                and not parsed.query
-                and not parsed.fragment
-            )
-        except ValueError:
-            valid_url = False
-        if not valid_url:
-            result.url_unavailable_reason = "web_url_unavailable"
-        else:
-            # Link the `/m` session page. `?agent=` lets the mobile gate send a Classic mode
-            # user to the agent's playground (web/packages/agenta-shared/src/utils/mobileGate).
-            path = "/".join(
-                quote(str(part), safe="")
-                for part in (
-                    "m",
-                    "w",
-                    workspace_id,
-                    "p",
-                    stream.project_id,
-                    "sessions",
-                    stream.session_id,
-                )
-            )
-            result.url = (
-                f"{web_url.rstrip('/')}/{path}?{urlencode({'agent': workflow_id})}"
-            )
+        # Link the `/m` session page. `?agent=` lets the mobile gate send a Classic mode
+        # user to the agent's playground (web/packages/agenta-shared/src/utils/mobileGate).
+        path = web_path(
+            "m",
+            "w",
+            workspace_id,
+            "p",
+            stream.project_id,
+            "sessions",
+            stream.session_id,
+        )
+        result.url = f"{base}/{path}?{urlencode({'agent': workflow_id})}"
     return result
 
 

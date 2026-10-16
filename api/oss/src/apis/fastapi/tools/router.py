@@ -1399,6 +1399,7 @@ class ToolsRouter:
                 workflows_service=self.workflows_service,
                 tracing_service=self.tracing_service,
                 mounts_service=self.mounts_service,
+                workspace_id=_workspace_id(request),
             )
         except PlatformToolHandlerError as e:
             raise HTTPException(status_code=e.status_code, detail=e.message) from e
@@ -1416,8 +1417,9 @@ class ToolsRouter:
         # session holding a stale configuration and the playground showing an old revision
         # until something else invalidated it. The handler says whether it wrote; this
         # reuses the emitter already here rather than growing a second one.
-        if response.committed_revision:
+        if response.committed_revision or response.wrote_revision:
             await invalidate_cache(project_id=request.state.project_id)
+        if response.committed_revision:
             await _emit_committed_revision_data_event_from_outputs(
                 request=request,
                 outputs=response.committed_revision,
@@ -1831,6 +1833,15 @@ async def _emit_data_event(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _workspace_id(request: Request) -> Optional[UUID]:
+    """The caller's workspace, for links into the web app; None when the credential has none."""
+    workspace_id = getattr(request.state, "workspace_id", None)
+    try:
+        return UUID(str(workspace_id)) if workspace_id else None
+    except ValueError:
+        return None
 
 
 def _json_for_inline_script(value: Any) -> str:

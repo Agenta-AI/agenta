@@ -29,6 +29,7 @@ from oss.src.core.workflows.change_set import (
 __all__ = [
     "normalize_operations",
     "derive_commit_message",
+    "agent_attribution",
     "find_platform_tool_entries",
     "PLATFORM_TOOL_REJECTION",
 ]
@@ -163,6 +164,23 @@ def derive_commit_message(operations: Optional[Sequence[Any]]) -> str:
 
     clauses = _clauses(operations)
     return "; ".join(clauses) if clauses else _LEGACY_MESSAGE
+
+
+def agent_attribution(
+    *,
+    agent_id: str,
+    agent_name: Optional[str],
+    session_id: str,
+) -> str:
+    """Who wrote a revision through the cross-agent tools: ``by agent "<name>" <id>, session <id>``.
+
+    Every value comes from run context the runner binds, never from the model's arguments, so
+    the history of the edited agent names the editor truthfully. The name is looked up from the
+    bound id; an agent with no name is named by its id alone. The write tools are offered only
+    to a run with a session, so the session is always there.
+    """
+    who = f'"{agent_name}" {agent_id}' if agent_name else agent_id
+    return f"by agent {who}, session {session_id}"
 
 
 def _clauses(operations: Sequence[Any]) -> List[str]:

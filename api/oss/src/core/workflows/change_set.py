@@ -4,7 +4,8 @@ Implements ``docs/design/agent-config-editing/contracts/change-set.md`` (slice S
 contract is authoritative; this module is its executable half.
 
 The engine is dependency-free: plain dicts in, a plain result out, no pydantic, no I/O, no
-database. Two wrappers call it. The commit wrapper checks ``base_revision_id`` against the
+database. Its one import from the SDK is a constant: the tool types the runtime allows once
+per list, which the engine keys by type. Two wrappers call it. The commit wrapper checks ``base_revision_id`` against the
 head and persists; the invoke-override wrapper resolves an immutable revision, applies with
 the ``parameters``-only scope policy, and persists nothing.
 
@@ -19,6 +20,8 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+
+from agenta.sdk.agents.tools import SINGLE_ENTRY_TOOL_TYPES
 
 __all__ = [
     "ChangeSetError",
@@ -110,11 +113,11 @@ _RETRYABLE = frozenset(
 # An agent that reads only this line must still know what to do.
 NEXT_STEPS: Dict[str, str] = {
     Reason.TARGET_NOT_FOUND: (
-        "Call read_config for that part of the configuration and correct the target."
+        "Read that part of the configuration again and correct the target."
     ),
     Reason.TARGET_TYPE_MISMATCH: (
-        "Call read_config for that path to see what type it holds, then use the matching "
-        "operation."
+        "Read that part of the configuration again to see what type it holds, then use "
+        "the matching operation."
     ),
     Reason.INVALID_TARGET_SHAPE: (
         "The message names the segment at fault. A segment is a field name, or "
@@ -127,9 +130,10 @@ NEXT_STEPS: Dict[str, str] = {
         "different entry — one integration takes one gateway_connection entry."
     ),
     Reason.ITEM_NOT_FOUND: (
-        "Call read_config with a {list, key} selector for that list: its refusal lists "
-        "every key the list actually holds. A gateway_connection entry's key is "
-        "gateway_connection:<connection.provider>:<connection.integration>."
+        "Read that list again with a {list, key} selector: its refusal lists every key "
+        "the list actually holds. A gateway_connection entry's key is "
+        "gateway_connection:<connection.provider>:<connection.integration>; an "
+        "agenta_tools entry's key is agenta_tools."
     ),
     Reason.ITEM_RENAME_NOT_ALLOWED: (
         "Send remove_item for the old key, then add_item with the new value."
@@ -143,7 +147,7 @@ NEXT_STEPS: Dict[str, str] = {
         "file. For a tool the key depends on its type: gateway_connection needs "
         "connection.provider and connection.integration (together they are its key); "
         "gateway needs an explicit name; reference needs name or slug; platform is keyed "
-        "by op; everything else needs name."
+        "by op; agenta_tools is keyed agenta_tools; everything else needs name."
     ),
     Reason.UNKEYED_COLLECTION: (
         "That list is not addressed by name. Use set to replace the whole list."
@@ -154,7 +158,7 @@ NEXT_STEPS: Dict[str, str] = {
     ),
     Reason.TEXT_NOT_FOUND: (
         "Re-anchor on one of details.nearest_lines, which holds the closest lines actually "
-        "stored, or call read_config for that field and copy old_text out of its value."
+        "stored, or read that field again and copy old_text out of its value."
     ),
     Reason.TEXT_NOT_UNIQUE: (
         "Add more surrounding lines to old_text until it appears once, then send the "
@@ -175,13 +179,13 @@ NEXT_STEPS: Dict[str, str] = {
         "That file is not readable as text. Reference a UTF-8 text file."
     ),
     Reason.PLATFORM_TOOL_NOT_COMMITTABLE: (
-        "Remove those entries from `tools` and send the commit again."
+        "Remove those entries from `tools` and send the call again."
     ),
     Reason.NON_EMBEDDABLE_REFERENCE: (
-        "Remove the embedded reference to that workflow and send the commit again."
+        "Remove the embedded reference to that workflow and send the call again."
     ),
     Reason.FINAL_VALIDATION_FAILED: (
-        "Correct the fields listed in `issues` and send the commit again."
+        "Correct the fields listed in `issues` and send the call again."
     ),
     Reason.VALUE_TOO_DEEP: (
         "Flatten the value: the configuration nests a few levels deep, not hundreds."
@@ -471,6 +475,11 @@ def _tool_name(entry: Dict[str, Any], *, allow_legacy_fallback: bool) -> Optiona
         return entry.get("name") or entry.get("slug")
     if kind == "platform":
         return entry.get("op")
+    if kind in SINGLE_ENTRY_TOOL_TYPES:
+        # A type the runtime allows once per list has no name, so its type is its key, and
+        # an operation can reach inside the entry instead of replacing the whole list around
+        # it. A legacy list holding two is a duplicate key, which the engine already reports.
+        return kind
     return entry.get("name")
 
 
@@ -1435,7 +1444,8 @@ def _apply_operation(
         if not isinstance(current, str):
             raise _Fail(
                 Reason.TARGET_TYPE_MISMATCH,
-                f"'edit_text' needs a string target; {name!r} is {_type_name(current)}",
+                f"'edit_text' needs a string target; {name!r} is {_type_name(current)}. "
+                "Use 'set' to replace a value, or 'merge' to change keys of an object.",
             )
         tolerance = "code" if mode == "exact" else content_class(name)
         new_text, normalized = apply_text_edits(current, edits, tolerance=tolerance)
@@ -1535,7 +1545,13 @@ def _warn_wholesale(
     index: int,
     segments: Sequence[Segment],
 ) -> None:
-    if name in ("tools", "skills", "mcps") and isinstance(value, list):
+    # Only when every entry has a key. An entry without one (an `@ag.embed`) is out of
+    # reach of the item operations, so replacing the whole list was the only way to write it.
+    if (
+        name in ("tools", "skills", "mcps")
+        and isinstance(value, list)
+        and all(item_key(name, entry) is not None for entry in value)
+    ):
         warnings.append(
             Warning(
                 code=WarningCode.WHOLESALE_LIST_REPLACE,
@@ -1876,10 +1892,10 @@ def _scope_next_step(scope_policy: ScopePolicy) -> str:
     """
     prefix = ".".join(getattr(scope_policy, "_prefix", ()) or ())
     if not prefix:
-        return "Remove the operation on that path and send the commit again."
+        return "Remove the operation on that path and send the call again."
     return (
         f"Write only under `{prefix}`. Remove the operation on the path this refusal "
-        "names, then send the commit again."
+        "names, then send the call again."
     )
 
 
@@ -2090,7 +2106,7 @@ def _finish(
         if issues:
             raise ChangeSetError(
                 Reason.FINAL_VALIDATION_FAILED,
-                "The finished configuration is not valid.",
+                f"The finished configuration is not valid: {'; '.join(issues)}.",
                 issues=list(issues),
             )
 
