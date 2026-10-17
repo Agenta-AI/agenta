@@ -980,6 +980,16 @@ class ChannelsEmbedConfig(BaseModel):
             or 240
         )
     )
+    # Open live streams per embed in one API process (each holds a Redis
+    # connection). Over the cap the widget gets a 429 and retries.
+    max_live_streams_per_embed: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_MAX_LIVE_STREAMS_PER_EMBED"
+            )
+            or 200
+        )
+    )
     # Applies to the message text and to the serialized host context.
     max_message_chars: int = Field(
         default_factory=lambda: (

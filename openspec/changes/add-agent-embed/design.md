@@ -93,6 +93,8 @@ Visitor-scoped read routes back the widget:
 
 Each route runs the same checks as the ingress, then confirms the thread belongs to the caller's space. A thread in another space answers as not found.
 
+The read routes have their own rate limits per embed and per key. A live stream holds a Redis connection for as long as the visitor keeps it open, which a request rate does not bound, so each API process also caps the open streams per embed (`max_live_streams_per_embed`) and answers 429 over the cap.
+
 | Option | Trade-off |
 | --- | --- |
 | Poll the outbox, as the `agenta` probe page does | One read source shared with the probe, but no token streaming and a second chat renderer |

@@ -49,13 +49,12 @@ itself. In Docker Compose, add this line to the env file:
 AGENTA_API_INTERNAL_URL=http://api:8000
 ```
 
-On Helm, the chart does not pass `agenta.apiInternalUrl` to the `web-mobile` pod. Set it with
-`webMobile.env`:
+On Helm, set `agenta.apiInternalUrl`. The chart passes it to the `web-mobile` pod as
+`AGENTA_API_INTERNAL_URL`:
 
 ```yaml
-webMobile:
-  env:
-    AGENTA_API_INTERNAL_URL: http://<release>-api:8000
+agenta:
+  apiInternalUrl: http://<release>-api:8000
 ```
 
 Replace `<release>-api` with the name of the API service in your cluster.
@@ -88,7 +87,8 @@ this location does not send the server's `X-Frame-Options`.
 
 ## Limits
 
-The embed routes limit their own request rate, the size of a message and the size of the files.
+The embed routes limit their own request rate, the number of open live streams per embed, the size
+of a message and the size of the files.
 The defaults and the variables that change them are in the
 [configuration reference](/self-host/configuration#channels).
 

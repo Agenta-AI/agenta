@@ -84,6 +84,9 @@ def allowed_origins(connection: ChannelConnection) -> List[str]:
     return sanitize_origins(data.get("allowed_origins"))
 
 
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
 def sanitize_origins(raw: Any) -> List[str]:
     values = raw if isinstance(raw, list) else str(raw or "").split()
     origins: List[str] = []
@@ -102,6 +105,9 @@ def sanitize_origins(raw: Any) -> List[str]:
             continue
         if parts.query or parts.fragment:
             continue
+        # The browser's origin form drops the scheme's default port.
+        if port == _DEFAULT_PORTS[parts.scheme]:
+            port = None
         origin = f"{parts.scheme}://{host}" + (f":{port}" if port else "")
         if origin not in origins:
             origins.append(origin)
