@@ -65,9 +65,6 @@ _LAYOUT = Template(
 <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
 <style>.sans{font-family:'Segoe UI',Arial,sans-serif !important}</style>
 <![endif]-->
-<!--[if !mso]><!-->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&amp;display=swap" rel="stylesheet">
-<!--<![endif]-->
 <style>
 body{margin:0;padding:0;width:100%!important;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}
 table{border-collapse:collapse;mso-table-lspace:0pt;mso-table-rspace:0pt}

@@ -61,6 +61,7 @@ def test_render_embeds_logo_inline():
         assert f'src="cid:{logo.cid}"' in rendered.html
         assert logo.content.startswith(b"\x89PNG")
     assert 'src="http' not in rendered.html
+    assert "<link" not in rendered.html
     assert "prefers-color-scheme:dark" in rendered.html
 
 
