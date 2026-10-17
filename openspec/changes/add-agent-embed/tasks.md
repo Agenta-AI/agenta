@@ -55,4 +55,4 @@
 
 ## 8. QA
 
-- [ ] 8.1 Run every scenario in `qa.md` as a recorded live QA pass and attach the evidence to the pull request
+- [x] 8.1 Run every scenario in `qa.md` as a recorded live QA pass and attach the evidence to the pull request (results: https://github.com/Agenta-AI/agenta/pull/7662#issuecomment-6231707554; the six videos are kept with the QA run, not attached)
