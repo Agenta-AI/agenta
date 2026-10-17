@@ -294,6 +294,51 @@ export const connectionsForAgent = (
     return out
 }
 
+/**
+ * Make a connection answer as an app: create the default channel agent when the connection has
+ * none, retarget the answering one otherwise, no-op when it already points there.
+ */
+export const pointConnectionAt = async ({
+    client,
+    scope,
+    appId,
+    connectionId,
+}: {
+    client: Pick<
+        ChannelsClientLike,
+        "queryChannelAgents" | "createChannelAgent" | "editChannelAgent"
+    >
+    scope: Scope
+    appId: string
+    connectionId: string
+}): Promise<void> => {
+    const res = await client.queryChannelAgents({agent: {connection_id: connectionId}}, scope)
+    const answering = answeringAgentRow(asArray(asRecord(res).agents))
+    const references = {application: {id: appId}}
+    if (!answering) {
+        await client.createChannelAgent(
+            {
+                agent: {
+                    connection_id: connectionId,
+                    slug: "default",
+                    name: "Default agent",
+                    data: {references},
+                    flags: {is_default: true},
+                },
+            },
+            scope,
+        )
+        return
+    }
+    if (referencedAppId(answering) === appId) return
+    const agentId = asString(answering.id)
+    if (!agentId) throw new Error("The connection's agent has no id.")
+    await client.editChannelAgent(
+        {agent_id: agentId, agent: {id: agentId, data: {references}}},
+        scope,
+    )
+}
+
 const rethrow = (fallback: string) => (error: unknown) => {
     throw new Error(clientErrorMessage(error, fallback))
 }
@@ -317,34 +362,8 @@ export const buildAgentChannelsActions = ({
         return asArray(asRecord(res).agents)
     }
 
-    /** Make the connection answer as this page's agent: create the default agent when the
-     * connection has none, retarget the answering one otherwise, no-op when it already
-     * points here. */
-    const pointHere = async (connectionId: string): Promise<void> => {
-        const answering = answeringAgentRow(await agentsOf(connectionId))
-        if (!answering) {
-            await client.createChannelAgent(
-                {
-                    agent: {
-                        connection_id: connectionId,
-                        slug: "default",
-                        name: "Default agent",
-                        data: {references: references()},
-                        flags: {is_default: true},
-                    },
-                },
-                scope(),
-            )
-            return
-        }
-        if (referencedAppId(answering) === appId) return
-        const agentId = asString(answering.id)
-        if (!agentId) throw new Error("The connection's agent has no id.")
-        await client.editChannelAgent(
-            {agent_id: agentId, agent: {id: agentId, data: {references: references()}}},
-            scope(),
-        )
-    }
+    const pointHere = (connectionId: string) =>
+        pointConnectionAt({client, scope: scope(), appId, connectionId})
 
     /** The channel agent row that answers on this connection — the subject of every grant. */
     const channelAgentId = async (connectionId: string): Promise<string> => {

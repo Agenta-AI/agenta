@@ -140,7 +140,7 @@ Embed conversations are channel threads mapped to sessions, so they appear where
 
 ### 10. Appearance stays small
 
-Name, avatar, greeting, up to four starter prompts, theme (light, dark or system) and accent color, stored in the connection's `data.appearance` and mapped onto the `@agenta/chat` skin.
+Name, avatar, greeting, up to four starter prompts, theme (light, dark or system) and accent color, stored in the connection's `data.appearance` and mapped onto the `@agenta/chat` skin. The settings screen writes the name as the connection's own `name` (the widget falls back to it), so the widget header and the attribution in the owner's session titles use one value.
 
 ## How later work adds to this
 
