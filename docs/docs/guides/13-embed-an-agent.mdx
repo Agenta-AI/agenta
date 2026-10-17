@@ -1,0 +1,154 @@
+---
+title: "Embed an agent in your website"
+sidebar_label: "Embed in a website"
+description: "Add a chat with an Agenta agent to your own website or internal tool with an iframe snippet, and pass a per-user key and page context from the host page."
+---
+
+Embed an agent, and visitors of your website or internal tool can chat with it in a frame on the page. Visitors do not need an Agenta account. You create the embed in Agenta, paste a snippet into your page, and optionally pass a key per user and context about the page.
+
+## Before you start
+
+You need:
+
+- **An agent in Agenta** that you want to put on your website.
+- **The origin of each website** that shows the chat, for example `https://tool.example.com`. An origin is the scheme, the host and an optional port, with no path.
+
+## 1. Create the embed
+
+1. Open the agent's chat and click **Publish**.
+2. Click **Embed**.
+3. Under **New embed**, fill in:
+   - **Name**: the name of the embed, such as `Support chat`. The agent sees this name with each message. Visitor conversations appear in the agent's session list, and their titles carry this name.
+   - **Allowed origins**: one origin per line, such as `https://tool.example.com`. The chat loads only on these websites.
+4. Click **Create**.
+
+The embed opens with its settings, the snippet and a preview. In the settings you can change the name and the origins, and set the appearance: **Avatar URL**, **Greeting**, **Starter prompts** (up to four), **Theme** and **Accent** (a hex color such as `#2563eb`). Click **Save changes** to apply them.
+
+## 2. Paste the snippet into your page
+
+Under **Snippet**, copy the code and paste it into a page on one of the allowed origins. The snippet is an iframe and an optional script:
+
+```html
+<iframe
+  id="agenta-chat"
+  src="https://agenta.example.com/m/embed/<embed id>"
+  style="width: 400px; height: 600px; border: 0"
+  allow="clipboard-write"
+></iframe>
+```
+
+The `src` in your snippet holds your Agenta address and your embed. Change the `style` to fit your page.
+
+In the widget, a visitor can start a new conversation with **New chat** and open earlier ones from the **Conversations** list.
+
+With only the iframe, the chat works and the history is anonymous. The next sections show what the script adds.
+
+## Anonymous history
+
+If your page does not pass a visitor key, the widget makes a random key and stores it in the visitor's browser. The visitor sees their earlier conversations when they come back in the same browser.
+
+This history is not reliable. The visitor loses it when they clear their browser data, in a private window, or in a browser that blocks the storage. Safari can delete it after seven days of browser use in which the visitor does not visit your website. If your users sign in to your website, pass a per-user key instead.
+
+## Pass a per-user key
+
+A visitor key gives a user the same conversations on every device and browser. Your server makes the key once per user, stores it with the user, and gives it to the page.
+
+The key is the only credential the widget has. Anyone who has a user's key can read that user's conversations with this embed. So:
+
+- Make the key random, with 128 bits or more. For example, 32 random bytes in base64url: `crypto.randomBytes(32).toString("base64url")` in Node.js, or `secrets.token_urlsafe(32)` in Python.
+- Never use a user ID, an email address or another value that someone can guess.
+- Use one key per user. Do not share a key between users.
+
+Agenta refuses a key that does not follow these rules:
+
+- 32 to 256 characters.
+- Only `A-Z`, `a-z`, `0-9`, `_` and `-`.
+- At least 12 different characters.
+
+When the page passes a key that breaks a rule, the widget does not start and shows **This chat could not start.** It does not fall back to an anonymous key.
+
+## Send the key, a name and page context
+
+When the widget is ready, it sends `{type: "agenta:ready"}` to your page. Your page answers with an `agenta:init` message. Later, your page can send `agenta:context` to update the context. Send both messages to the origin of the iframe `src` (its scheme, host and port).
+
+```html
+<script>
+  const agentaChat = document.getElementById("agenta-chat");
+  const agentaOrigin = new URL(agentaChat.src).origin;
+
+  window.addEventListener("message", (event) => {
+    if (event.source !== agentaChat.contentWindow) return;
+    if (event.data?.type !== "agenta:ready") return;
+    agentaChat.contentWindow.postMessage(
+      {
+        type: "agenta:init",
+        visitorKey: currentUser.agentaKey, // from your server
+        displayName: currentUser.name,
+        context: { page: location.pathname, plan: "team" },
+      },
+      agentaOrigin,
+    );
+  });
+
+  // Later, when the page changes:
+  function onRouteChange() {
+    agentaChat.contentWindow.postMessage(
+      { type: "agenta:context", context: { page: location.pathname } },
+      agentaOrigin,
+    );
+  }
+</script>
+```
+
+| Field | Message | Description |
+|---|---|---|
+| `visitorKey` | `agenta:init` | Optional. The user's key. Leave it out to use an anonymous key. |
+| `displayName` | `agenta:init` | Optional. A name the agent sees with each message, up to 80 characters. |
+| `context` | `agenta:init`, `agenta:context` | Optional. A JSON object about the page. `agenta:context` replaces the earlier context. |
+
+Facts about these messages:
+
+- The widget accepts a message only from its parent page on an allowed origin.
+- The widget finds your page's origin from the browser, and in some browsers from the referrer. Do not set `referrerpolicy="no-referrer"` on the iframe or a `no-referrer` policy on the page. Without the origin, the widget does not send `agenta:ready` and uses an anonymous key.
+- The widget waits one second for `agenta:init`. If none arrives, it uses an anonymous key. A key that arrives later is ignored until the page reloads.
+- The widget sends the current context with each message. The agent receives it as context from the host page, marked as not verified. Do not put secrets in it.
+
+## Approvals
+
+If a tool of the agent needs approval, the widget shows the request to the visitor, who approves or denies it. Set which tools need approval on the agent. See [Control what an agent can do](/guides/control-what-an-agent-can-do).
+
+## Files
+
+Visitors can attach files to a message:
+
+- Up to 10 files in one message.
+- Up to 5 MB for all the files of one message together.
+
+## Limits
+
+| Limit | Default |
+|---|---|
+| Sends per minute, for one embed | 600 |
+| Sends per minute, for one visitor key | 30 |
+| Characters in one message | 10,000 |
+| Characters in the context, as JSON | 10,000 |
+
+A send is a message, an approval answer, a click on **New chat**, or opening an earlier conversation. When a send passes a rate limit, the widget shows **Too many messages** and the number of seconds to wait. A message or context that is too long is refused with **The message is too long.** or **The context is too long.**
+
+The widget also reads conversations and follows replies. These reads have their own, higher limits: 6,000 per minute for one embed and 240 per minute for one visitor key.
+
+Behavior to know about:
+
+- **Visitors see the agent's tool activity**, including the inputs and outputs of its tool calls. Do not give an embedded agent tools whose output visitors must not see.
+- **The first reply of a new conversation can appear all at once** when it is complete, instead of word by word. Later replies stream.
+- **`bindings` is not supported.** The embed refuses a message that carries a `bindings` field, with status 400.
+
+## Manage the embed
+
+Open the agent's **Publish** panel and click **Embed** to come back to your embeds. Click an embed to change its settings, copy the snippet or use the preview.
+
+To stop the chat, click **Archive**. The chat stops working on every website. Past conversations stay in Agenta.
+
+## Self-hosted deployments
+
+A self-hosted deployment needs a public HTTPS address and a few settings for the embed. See [Embed the chat widget](/self-host/channels/embed-widget).
