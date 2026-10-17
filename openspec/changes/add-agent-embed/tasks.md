@@ -50,8 +50,8 @@
 
 ## 7. Docs
 
-- [ ] 7.1 Embed guide: snippet, anonymous history, a per-user key, context
-- [ ] 7.2 Self-hosting: a public HTTPS URL that visitors can reach
+- [x] 7.1 Embed guide: snippet, anonymous history, a per-user key, context
+- [x] 7.2 Self-hosting: a public HTTPS URL that visitors can reach
 
 ## 8. QA
 
