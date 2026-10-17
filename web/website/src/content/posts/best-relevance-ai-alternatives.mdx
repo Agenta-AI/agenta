@@ -1,0 +1,387 @@
+---
+slug: "best-relevance-ai-alternatives"
+title: "8 Best Relevance AI Alternatives in 2026"
+description: "Compare the best Relevance AI alternatives for AI agents, multi-step workflows, and team coworkers across pricing, seats, Slack collaboration, model choice, and self-hosting."
+category: "Article"
+date: 2026-10-17
+readingTime: "23 min read"
+heroImage: "/blog/best-relevance-ai-alternatives/hero.webp"
+ogImage: "/blog/best-relevance-ai-alternatives/hero.webp"
+author: "mahmoud-mabrouk"
+featured: false
+tags:
+  - "Relevance AI Alternatives"
+  - "AI Coworkers"
+  - "AI Agents"
+  - "Workflow Automation"
+  - "Open Source AI"
+faq:
+  - question: "What is the best Relevance AI alternative?"
+    answer: "Agenta is the strongest choice if you want an open-source, low-code workspace for shared AI coworkers in Slack with versioned configuration, cost analytics, unlimited team seats, and self-hosting. Gumloop is the closest visual AI workflow alternative for GTM teams, while n8n fits technical teams that prefer deterministic node-based pipelines."
+  - question: "Did Relevance AI remove its free plan?"
+    answer: "Yes. Relevance AI retired its legacy free plan for new sign-ups on September 29, 2025 and for existing accounts on October 20, 2025. New workspaces start on a 14-day trial or the paid Pro plan."
+  - question: "How do Relevance AI Actions and Vendor Credits work?"
+    answer: "Relevance AI bills usage across two separate meters. Every tool step or agent step in a run consumes Actions, which are platform execution units. When you use Relevance AI's managed language models or third-party integrations without your own API keys, those calls also consume Vendor Credits."
+  - question: "What is the best open-source alternative to Relevance AI?"
+    answer: "Agenta and Dify both offer open-source self-hosting, and n8n provides a free self-hosted Community Edition under its Sustainable Use License. Agenta focuses on persistent team coworkers, Slack channels, and versioned agent configuration, while Dify focuses on RAG pipelines and app builders, and n8n focuses on node-based workflow automation."
+  - question: "Which Relevance AI alternative works best for startups and automation agencies?"
+    answer: "Agenta and Gumloop work well for startups and agencies that outgrow Relevance AI Pro's limit of 2 Build Users and 1 project. Agenta Cloud Starter costs $29 per month with unlimited team members and open-source self-hosting for client handoffs, while Gumloop Pro starts at $37 per month with unlimited seats."
+  - question: "Can I use my own OpenAI or Anthropic API keys to avoid extra markup?"
+    answer: "Yes, though platform rules differ. In Relevance AI, bringing your own API keys skips Vendor Credits, but every step still consumes Actions. In Gumloop, bringing your own API keys carries an 8% orchestration fee on provider token costs. In Agenta and self-hosted n8n or Dify, you can connect your own provider API keys directly."
+  - question: "Can Agenta work with my ChatGPT subscription?"
+    answer: "Yes, on a local, self-hosted personal deployment. Agenta can use your mounted ChatGPT-compatible harness login (such as Codex or Pi) rather than a billed API key. This option is for personal local deployments and does not apply to Agenta Cloud or shared team accounts."
+  - question: "How do I migrate an agent workforce from Relevance AI?"
+    answer: "Start with one recurring workflow rather than moving every agent at once. Export your system instructions, tool input schemas, and reference tables, then rebuild the workflow in your chosen alternative, reconnect your integrations, and compare the run trace and output quality side by side."
+---
+
+[Relevance AI](https://relevanceai.com/) is a visual no-code platform for building custom AI tools, single agents, and multi-agent workforces. Teams use it to automate sales research, lead enrichment, customer support triage, and operations tasks without writing backend code.
+
+As startups, bootstrapped teams, and automation agencies move beyond their first prototype, many begin looking for a Relevance AI alternative. Common triggers include reconciling two separate usage meters (Actions and Vendor Credits), hitting the 2-builder seat and 1-project limit on the Pro plan before a jump to Team pricing, debugging multi-agent handoff graphs when a workflow fails, or needing open-source self-hosting for internal data or client delivery.
+
+The right replacement depends on what your team is actually building:
+
+1. **Shared AI coworkers in Slack with versioned configuration and self-hosting:** [Agenta](#1-agenta-best-open-source-alternative-for-shared-ai-coworkers-and-low-code-automations)
+2. **Visual AI workflow pipelines and GTM scraping with unlimited seats:** [Gumloop](#2-gumloop-best-for-visual-ai-workflows-and-gtm-operations)
+3. **Deterministic node-based automation with JavaScript or Python steps:** [n8n](#3-n8n-best-for-deterministic-node-based-workflow-automation)
+4. **Template-driven business assistants for inbox, calendar, and CRM tasks:** [Lindy](#4-lindy-best-for-template-driven-business-assistants-and-routines)
+5. **Engineering-led RAG pipelines and visual LLM application workflows:** [Dify](#5-dify-best-for-rag-pipelines-and-visual-llm-app-workflows)
+6. **Company-knowledge agents connected to internal docs and Slack:** [Dust](#6-dust-best-for-company-knowledge-agents-and-governed-search)
+7. **European-hosted multi-model team chat and modular workflows:** [Langdock](#7-langdock-best-for-european-hosted-multi-model-chat-and-workflows)
+8. **Visual multi-app scenario mapping across thousands of SaaS tools:** [Make](#8-make-best-for-visual-multi-app-scenario-orchestration)
+
+## The best Relevance AI alternatives at a glance
+
+| Platform                                  | Best for                                                           | Main reason to choose it over Relevance AI                                                                                                       | Pricing                                                                                  |
+| :---------------------------------------- | :----------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------- |
+| **[Agenta](https://agenta.ai/)**          | Shared AI coworkers, Slack collaboration, and low-code automations | Unlimited seats on paid cloud plans, Slack thread coworking, versioned instructions and skills, cost analytics, and MIT open-source self-hosting | Free cloud tier ($10 credits); Starter $29/mo (unlimited seats); self-hosted open source |
+| **[Gumloop](https://www.gumloop.com/)**   | Visual GTM, SEO, and operations workflows                          | Simpler visual node canvas with built-in web scrapers, MCP support, and unlimited seats on Pro                                                   | Free (5,000 credits); Pro from $37/mo (20,000 credits, unlimited seats)                  |
+| **[n8n](https://n8n.io/)**                | Technical workflow automation with code steps                      | Bills once per full workflow execution rather than per internal step, with full self-hosting                                                     | Free self-hosted Community Edition; Cloud Starter €20/mo billed annually                 |
+| **[Lindy](https://www.lindy.ai/)**        | Ready-made inbox, meeting, and sales assistants                    | Faster setup for non-technical operators through prebuilt business assistant templates                                                           | 7-day free trial; Plus from $29.99/user/mo (3,000 credits)                               |
+| **[Dify](https://dify.ai/)**              | RAG pipelines and developer-built LLM applications                 | Built-in document ingestion, retrieval tuning, and open-source deployment                                                                        | Free self-hosted Community Edition; Cloud Sandbox free; Professional $59/workspace/mo    |
+| **[Dust](https://dust.tt/)**              | Internal knowledge assistants and team spaces                      | Deep connectors into Notion, Google Drive, GitHub, and Slack with per-seat governance                                                            | Free tier; Pro €24/seat/mo billed annually (€30 monthly)                                 |
+| **[Langdock](https://www.langdock.com/)** | EU-focused multi-model chat, agents, and workflows                 | Combines company-wide multi-model chat with department agents and GDPR-focused hosting                                                           | Business Standard €25/user/mo; Workflows package from €539/mo (40,000 runs)              |
+| **[Make](https://www.make.com/)**         | Visual multi-app SaaS routing across 3,000+ apps                   | Mature connector catalog and visual scenario mapping at a lower entry price                                                                      | Free (1,000 credits/mo); Core from $9/mo billed annually (10,000 credits/mo)             |
+
+## What is Relevance AI?
+
+Relevance AI is a cloud platform designed around a three-layer hierarchy: **Tools**, **Agents**, and **Workforce**.
+
+1. **Tools** are deterministic step sequences that combine prompt blocks, API calls, web scrapers, Python or JavaScript snippets, and knowledge table lookups.
+2. **Agents** wrap those tools with system instructions, memory, triggers, and human approval rules so the agent can decide which tool to run for a given task.
+3. **Workforce** is a visual canvas where multiple specialized agents hand tasks to one another through conditional edges, such as an inbound research agent passing enriched account notes to an outreach drafting agent.
+
+![Relevance AI Workforce canvas showing multi-agent handoffs, tool nodes, and conditional routing](/blog/best-relevance-ai-alternatives/relevance-ai.webp)
+_Relevance AI lets teams connect specialized agents and custom tools on a visual Workforce canvas._
+
+This architecture makes Relevance AI popular with go-to-market (GTM) teams and sales operations specialists. It ships with prebuilt BDR, lifecycle marketing, and customer research agents, native connections to HubSpot, Salesforce, Gmail, and Slack, and a visual builder that lets non-engineers inspect how each tool step is wired.
+
+## Why teams look for a Relevance AI alternative
+
+Relevance AI works well when your use case matches its visual Workforce canvas and your team fits comfortably inside its seat and credit tiers. Teams typically evaluate alternatives when they run into four operational friction points.
+
+### 1. Reconciling Actions and Vendor Credits
+
+Relevance AI retired its legacy free plan in late 2025 (September 29, 2025 for new sign-ups and October 20, 2025 for existing users) and uses a two-meter billing model documented in its [pricing guide](https://relevanceai.com/docs/get-started/relevance-pricing):
+
+- **Actions** measure platform execution. Every time an agent runs a tool step or completes an agent step, it consumes Actions. Additional Action top-ups cost **$80 per 1,000 Actions**.
+- **Vendor Credits** cover the underlying cost of language models and third-party data providers when you use Relevance AI's managed credentials.
+
+You can bring your own API keys (BYOK) from OpenAI or Anthropic to avoid consuming Vendor Credits, but every step in a multi-agent run still consumes Actions. When a single research task triggers an orchestrator agent, three sub-agents, and eight tool steps, estimating monthly Action consumption becomes harder than tracking model token spend or full workflow runs.
+
+### 2. The pricing jump from Pro to Team for startups and agencies
+
+On [Relevance AI's pricing page](https://relevanceai.com/pricing), the entry **Pro** plan costs **$19 per month billed annually** ($29 billed monthly) and includes 7,000 Actions per month, **2 Build Users**, and **1 project**.
+
+Once a startup needs a third teammate to edit prompts or tools, or an automation agency needs separate projects to isolate client workspaces, the next tier is **Team** at **$234 per month billed annually** ($349 billed monthly) for 5 Build Users, 45 End Users, and 5 shared projects. For bootstrapped teams and agencies delivering workflows to clients, jumping from $19 to $234 per month just to add a third builder or a second project is often the main reason to compare other platforms.
+
+### 3. Maintaining multi-agent graphs versus working with a coworker in Slack
+
+Visual multi-agent graphs look clean in a demo, but maintaining a five-agent Workforce canvas in production requires constant upkeep. When an output looks wrong, someone has to trace which sub-agent misfired, which edge condition triggered, and which prompt version was active.
+
+Many teams discover they do not actually need five separate sub-agents passing JSON back and forth. They need one well-configured AI coworker that holds their company context, uses a clear set of skills and tools, and works directly inside a shared Slack channel where teammates can read the thread, reply with a correction, and improve the instructions in place.
+
+### 4. Cloud-only hosting and model harness lock-in
+
+Relevance AI runs as a managed cloud platform, with enterprise data residency options available on custom contracts. Teams that want to self-host the workspace on their own servers, hand a self-hosted instance over to a client, or run coding and research harnesses such as Claude Code, Codex, or Pi against their own repositories need an open-source architecture.
+
+## How to choose the right Relevance AI alternative
+
+Before comparing feature lists, decide which product shape matches the way your team works. Most tools in this category fall into one of three operating models:
+
+![Diagram comparing three product shapes for Relevance AI alternatives: visual multi-agent workforces, conversational coworker workspaces, and deterministic node workflows](/blog/best-relevance-ai-alternatives/relevance-ai-alternatives-product-shapes.webp)
+
+When evaluating alternatives with your team, test four practical questions:
+
+- **Who builds and maintains the agent?** If non-engineering operators and founders will refine instructions every week, look for plain-language instructions (`AGENTS.md`), reusable skills, and built-in version history rather than complex node graphs.
+- **How does pricing scale as more teammates join?** Check whether adding a viewer, a Slack participant, or a third builder forces a tier upgrade, and whether bringing your own API keys eliminates platform step charges.
+- **Where does the human review happen?** Decide whether you want teammates reviewing agent work inside a separate dashboard or inside existing Slack channels and threads.
+- **Do you need self-hosting or client handoff?** If you run an agency or handle sensitive internal data, verify whether you can self-host the platform under an open-source license or invite unlimited collaborators at a flat monthly rate.
+
+## 1. Agenta: best open-source alternative for shared AI coworkers and low-code automations
+
+[Agenta](https://agenta.ai/) is an open-source, low-code platform where teams build, share, and govern persistent AI coworkers and recurring automations. It combines the low-code speed of a visual agent builder like Gumloop with the collaborative workspace of a teammate in Slack, without requiring you to wire brittle node graphs for every step.
+
+Instead of splitting work across a tangle of single-purpose sub-agents, you configure an Agenta coworker with plain-language instructions (`AGENTS.md`), reusable skills, durable workspace files (`agent-files/`), and connected tools. Your coworker can chat in the web workspace, answer mentions in Slack channels, run on a cron schedule, or react to external webhook and integration events.
+
+![Agenta workspace showing a configured SEO Content Agent alongside its durable file tree and interactive preview](/blog/best-relevance-ai-alternatives/agenta.webp)
+_Agenta lets teams configure persistent AI coworkers with instructions, skills, connected tools, durable files, and live app views._
+
+### Why teams choose Agenta over Relevance AI
+
+- **Slack coworker integration:** You can publish an Agenta agent directly to Slack and invite it into channels like `#market-research`, `#support`, or `#revops`. Anyone in the channel can mention the coworker, review its draft in the thread, and steer its next step, rather than only receiving one-way escalation notifications.
+- **Versioning of instructions, skills, and tools:** Every time a founder, operator, or engineer updates the agent's instructions, skills, or tool permissions, Agenta commits a versioned revision. You can compare versions side by side and see which configuration produced a specific result.
+- **Cost and trace analytics:** Every chat turn, scheduled run, and event trigger leaves an auditable trace showing tool calls, latency, token counts, and estimated model cost. You do not have to reconcile separate Action and Vendor Credit meters to understand what an agent costs.
+- **Vendor, model, and harness freedom:** Choose models from OpenAI, Anthropic, Google, and other providers per agent, and run agentic harnesses including Claude Code, Codex, and Pi.
+- **Works with an existing ChatGPT subscription (local self-hosted personal use):** If you self-host Agenta locally for your own personal use, you can authenticate through a mounted ChatGPT-compatible harness login rather than paying per API token. For Agenta Cloud or shared team deployments, you use included cloud credits or bring your own provider API keys.
+- **Self-hosting and unlimited seats on paid cloud plans:** Agenta's core is MIT-licensed open source, making it straightforward to self-host on your own infrastructure or deploy for a client. On Agenta Cloud, the Starter plan costs $29 per month and includes unlimited team members with no per-seat fee.
+
+**Best for:** Startups, bootstrapped teams, and automation agencies that want shared AI coworkers in Slack, versioned low-code configuration, clear run cost analytics, unlimited team seats, and the option to self-host.
+
+**Pricing:** Free cloud tier with $10 in included credits and up to 3 members; **Starter** at **$29 per month** with $30 in included credits and **unlimited team members**; **Plus** at **$99 per month** with $110 in included credits and unlimited team members; or **free self-hosted open source** (MIT license).
+
+**Pros**
+
+- Persistent AI coworkers that work in Slack threads, web chat, cron schedules, and event triggers.
+- Built-in version history for instructions, skills, and connected tools so non-engineers and engineers can iterate safely.
+- Unlimited team seats on the $29/month Starter cloud plan, removing the 2-builder bottleneck on Relevance AI Pro.
+- Full trace and token cost visibility on every run without dual Action and Vendor Credit meters.
+- MIT-licensed open-source self-hosting for internal data control or client handoffs.
+
+**Cons**
+
+- Designed around conversational coworkers, skills, and scheduled/event runs rather than a drag-and-drop multi-agent flowchart canvas.
+- Using a personal ChatGPT subscription login requires a local self-hosted personal setup and is not available on Agenta Cloud.
+
+**Verdict:** Choose Agenta when you want a low-code agent workspace that your whole team or client can collaborate with in Slack, with versioned configuration, clear run costs, unlimited seats, and open-source self-hosting.
+
+## 2. Gumloop: best for visual AI workflows and GTM operations
+
+[Gumloop](https://www.gumloop.com/) is a visual AI automation platform built around drag-and-drop workflow pipelines ("flows"), custom web scrapers, and internal AI agents ("Gummie"). If your favorite part of Relevance AI is chaining prompt steps, web enrichment, and CRM updates on a visual canvas, Gumloop is the closest visual alternative.
+
+Gumloop combines deterministic workflow nodes with agentic steps and Model Context Protocol (MCP) tool servers. Marketing, SEO, and revenue operations teams use it to scrape competitor pages, enrich inbound leads, analyze call transcripts, and publish structured updates into Slack, Notion, or HubSpot.
+
+![Gumloop visual canvas showing connected workflow nodes, AI prompts, and web scraping steps](/blog/best-relevance-ai-alternatives/gumloop.webp)
+_Gumloop pairs a visual node canvas with built-in web scraping and AI enrichment steps._
+
+**Best for:** GTM, marketing, and operations teams that want a visual drag-and-drop canvas for scraping, data enrichment, and multi-step AI flows without per-seat fees on paid plans.
+
+**Pricing:** [Gumloop](https://www.gumloop.com/pricing) offers a **Free** plan with 5,000 credits, 1 seat, and 2 active triggers; **Pro** starts at **$37 per month** with 20,000 credits, **unlimited seats**, and unlimited workspaces; **Team** starts at **$244 per month** with 75,000 credits; and Enterprise uses custom pricing. You can bring your own LLM API keys on paid plans, which carries an 8% orchestration fee on provider token costs.
+
+**Pros**
+
+- Clean visual node builder that is approachable for non-engineering GTM and operations teams.
+- Pro plan ($37/month) includes unlimited seats and workspaces, avoiding Relevance AI's jump to $234/month for a third builder.
+- Strong built-in web scraping, browser automation, and document parsing nodes.
+- Single credit meter with published per-node credit costs.
+
+**Cons**
+
+- Closed-source cloud SaaS with no self-hosted open-source edition.
+- Bringing your own LLM API keys still incurs an 8% orchestration fee on provider token usage.
+- Complex branching workflows can still consume credits quickly when running large batch jobs.
+
+**Verdict:** Choose Gumloop if you want to stay with a visual drag-and-drop AI workflow builder for GTM and scraping tasks, while getting unlimited team seats at a lower starting price than Relevance AI Team.
+
+## 3. n8n: best for deterministic node-based workflow automation
+
+[n8n](https://n8n.io/) is a source-available workflow automation platform that blends deterministic app integrations, custom JavaScript and Python code nodes, and LangChain-based AI agent nodes. Where Relevance AI treats almost everything as an agent or tool step billed per Action, n8n treats AI as one node inside a predictable automation pipeline.
+
+That distinction matters for cost and reliability. On n8n, a 25-step workflow that fetches a webhook, queries Postgres, calls an AI agent node with three tools, and updates HubSpot counts as **one workflow execution**, regardless of how many internal steps run inside that execution.
+
+![n8n workflow editor showing an AI Agent node connected to an Anthropic chat model, Postgres memory, and tool nodes](/blog/best-relevance-ai-alternatives/n8n.webp)
+_n8n lets technical teams combine deterministic workflow nodes, custom code, and LangChain AI agent steps._
+
+**Best for:** Technical operators, developers, and automation agencies that want deterministic node-based workflows, custom code steps, per-execution billing, and full self-hosting.
+
+**Pricing:** Free self-hosted **Community Edition** (under the Sustainable Use License); [n8n Cloud](https://n8n.io/pricing/) **Starter** costs **€20 per month billed annually** (€24 monthly) for 2,500 workflow executions with unlimited steps and unlimited users; **Pro** costs **€50 per month billed annually** for 10,000 executions; and **Business** costs **€667 per month billed annually** for 40,000 executions. You connect your own LLM API keys directly with no n8n markup.
+
+**Pros**
+
+- Bills per complete workflow execution on Cloud (or free on self-hosted hardware) rather than charging per internal step.
+- Over 400 native integrations plus full HTTP request, webhook, JavaScript, and Python code nodes.
+- Direct BYOK model connections with zero markup on your OpenAI or Anthropic token spend.
+- Self-hosted Community Edition is widely used by agencies and startups to keep infrastructure costs low.
+
+**Cons**
+
+- Steeper learning curve for non-technical business users who prefer plain-language agent instructions over JSON data mapping.
+- Does not provide a native conversational coworker workspace out of the box unless you wire your own chat or Slack bot triggers.
+- The Sustainable Use License restricts certain commercial redistributions where n8n is offered as a hosted product to third parties.
+
+**Verdict:** Choose n8n when your workflows are 80% deterministic data routing and 20% AI reasoning, and you want predictable per-execution pricing or self-hosted control.
+
+## 4. Lindy: best for template-driven business assistants and routines
+
+[Lindy](https://www.lindy.ai/) is a no-code platform for creating personal and team AI assistants ("Lindies") that handle inbox triage, meeting scheduling, note-taking, lead qualification, and customer support responses. While Relevance AI asks you to design custom tools and multi-agent graphs from scratch or heavy GTM templates, Lindy focuses on ready-made business routines that connect to Gmail, Google Calendar, Slack, and CRM tools in a few clicks.
+
+Non-technical founders and sales reps often prefer Lindy when their primary goal is automating daily communication and scheduling tasks rather than engineering custom data pipelines.
+
+![Lindy assistant builder showing trigger conditions, email triage steps, and calendar actions](/blog/best-relevance-ai-alternatives/lindy.webp)
+_Lindy provides template-driven business assistants for email, calendar, meetings, and CRM routines._
+
+**Best for:** Non-technical founders, sales reps, and small teams that want fast, template-driven assistants for email, meetings, phone calls, and routine CRM updates.
+
+**Pricing:** 7-day free trial; **Plus** starts at **$29.99 per user per month** with 3,000 monthly credits; **Pro** costs **$49.99 per user per month** with 5,000 monthly credits; and Enterprise uses custom pricing.
+
+**Pros**
+
+- Fast onboarding for non-technical users through a large library of business assistant templates.
+- Native support for meeting recording, phone calls, email drafting, and calendar coordination.
+- Clean trigger-and-action builder that hides low-level JSON and API wiring.
+
+**Cons**
+
+- Per-user pricing plus credit consumption can add up across a growing team, especially when using phone or heavy research steps.
+- Less flexible than Agenta, n8n, or Dify for custom code, deep repository workflows, or self-hosted deployments.
+- Closed-source cloud platform with no self-hosting option.
+
+**Verdict:** Choose Lindy when you want a ready-to-run assistant for inbox, meeting, and sales follow-up routines without designing custom tool schemas.
+
+## 5. Dify: best for RAG pipelines and visual LLM app workflows
+
+[Dify](https://dify.ai/) is an open-source LLM application development platform that combines a visual workflow canvas, agent nodes, prompt IDE, and a built-in Retrieval-Augmented Generation (RAG) pipeline engine. RAG is the process of indexing your own documents so an AI model can retrieve relevant passages before answering a question.
+
+Compared with Relevance AI, Dify is geared more toward product and engineering teams building internal AI tools or customer-facing LLM features. It gives you fine-grained control over document chunking, embedding models, vector databases, hybrid search, and API publishing, and can be self-hosted via Docker Compose or Kubernetes.
+
+![Dify visual studio showing a multi-branch LLM workflow with knowledge retrieval and tool nodes](/blog/best-relevance-ai-alternatives/dify.webp)
+_Dify combines visual agent workflows with document ingestion, retrieval tuning, and API publishing._
+
+**Best for:** Engineering and product teams that need an open-source visual builder for RAG knowledge pipelines, structured workflows, and API-backed LLM applications.
+
+**Pricing:** Free self-hosted **Community Edition**; on [Dify Cloud](https://dify.ai/pricing), **Sandbox** is free (200 OpenAI calls, 1 member); **Professional** costs **$59 per workspace per month** (3 team members, 50 apps, 5 GB knowledge storage); and **Team** costs **$159 per workspace per month** (50 team members, 200 apps, 20 GB knowledge storage). You plug in your own model API keys directly.
+
+**Pros**
+
+- Strong visual RAG pipeline builder for chunking, indexing, and testing document retrieval.
+- Open-source Community Edition can be self-hosted with your own model providers and vector stores.
+- Workspace-level cloud pricing ($59/month for 3 members, $159/month for 50 members) scales more gently than Relevance AI Team.
+- Exposes every workflow as a clean REST API or embeddable web app.
+
+**Cons**
+
+- Built primarily for developers and technical builders rather than non-technical GTM operators.
+- Focuses on app and API construction rather than persistent Slack coworkers that collaborate with a team in threads.
+- Self-hosting at scale requires managing Docker containers, databases, and vector storage.
+
+**Verdict:** Choose Dify when your team is building RAG-heavy internal tools or LLM APIs and wants an open-source visual studio with direct model API key control.
+
+## 6. Dust: best for company-knowledge agents and governed search
+
+[Dust](https://dust.tt/) is a collaborative AI workspace built around connecting company knowledge to shared team agents. While Relevance AI focuses on outbound GTM tools and multi-agent task handoffs, Dust focuses on indexing your internal Notion pages, Google Drive folders, Slack channels, GitHub repositories, and Zendesk tickets so every department can build assistants grounded in live company context.
+
+Teams organize Dust into governed "Spaces" so finance, engineering, support, and sales each control which data sources their agents can read and which connected tools they can trigger.
+
+![Dust workspace showing shared company agents, skills, spaces, and multi-model selection](/blog/best-relevance-ai-alternatives/dust.webp)
+_Dust connects shared agents to internal company knowledge across Slack, Notion, Drive, and GitHub._
+
+**Best for:** Mid-sized and growing teams whose primary need is connecting shared AI assistants to internal company documents, Slack history, and operational tools with strong access controls.
+
+**Pricing:** [Dust](https://dust.tt/pricing) offers a **Free** tier; **Pro** costs **€24 per seat per month billed annually** (€30 billed monthly) and includes 8,000 monthly programmatic credits per seat; **Max** provides higher usage allowances; and **Enterprise** adds custom governance, SSO, and deployment options.
+
+**Pros**
+
+- Deep, continuously synced connectors for Notion, Google Drive, Slack, GitHub, Confluence, and Intercom.
+- Multi-model selection per agent across OpenAI, Anthropic, Google, and Mistral.
+- Governed Spaces that respect underlying document permissions.
+- Supports both interactive chat assistants and scheduled or triggered workflows.
+
+**Cons**
+
+- Per-seat pricing (€24 to €30/seat/month) adds up quickly if you want every employee in the company to have access.
+- Closed-source cloud platform with no self-hosted open-source edition.
+- Less suited for building standalone scraping or outbound BDR pipelines than Agenta, Gumloop, or n8n.
+
+**Verdict:** Choose Dust when your highest priority is giving teams governed AI assistants that search and act across scattered internal company knowledge.
+
+## 7. Langdock: best for European-hosted multi-model chat and workflows
+
+[Langdock](https://www.langdock.com/) is an enterprise-ready AI workspace that combines multi-model team chat, custom department agents, and modular workflow automation with European data hosting and GDPR compliance controls.
+
+For companies that want to replace scattered individual AI subscriptions and Relevance AI experiments with one governed workspace, Langdock lets every employee chat with OpenAI, Anthropic, Google, and Mistral models while builders create custom agents and automated workflows in the same interface.
+
+![Langdock workspace showing custom agent configuration, instructions, workflows, and integrations](/blog/best-relevance-ai-alternatives/langdock.webp)
+_Langdock combines multi-model chat, custom department agents, and workflows in one governed workspace._
+
+**Best for:** European organizations and compliance-conscious teams that want company-wide multi-model chat alongside custom agents and workflow automation.
+
+**Pricing:** [Langdock](https://www.langdock.com/pricing) bills **Business Standard** at **€25 per user per month** (up to €25 in model usage included per user) and **Business Pro** at **€55 per user per month**. Automated background workflows require the separate **Workflows** package starting at **€539 per month** for 40,000 workflow runs, plus underlying model token costs.
+
+**Pros**
+
+- Strong European data residency, GDPR alignment, and administrative governance.
+- Unified interface for everyday multi-model chat, custom assistants, and connected integrations.
+- Supports bringing your own API keys or cloud model deployments (such as Azure OpenAI or AWS Bedrock) on enterprise setups.
+
+**Cons**
+
+- Adding background workflow automation requires a €539/month package on top of per-user seat fees, making it expensive for small startups.
+- Closed-source platform; dedicated deployment is reserved for enterprise contracts.
+
+**Verdict:** Choose Langdock when you are rolling out a governed, EU-hosted AI workspace across an entire company and have the budget for its dedicated workflow tier.
+
+## 8. Make: best for visual multi-app scenario orchestration
+
+[Make](https://www.make.com/) is a visual automation platform built around multi-app "scenarios," an interactive system map called Make Grid, and over 3,000 SaaS integrations. While Make began as a deterministic integration platform (formerly Integromat), it now includes AI Agents, MCP support, and native LLM modules.
+
+If your Relevance AI workflows are mostly moving records between HubSpot, Airtable, Stripe, Google Sheets, and Slack with one or two AI summarization or classification prompts in the middle, Make can handle that work at a fraction of the monthly platform cost.
+
+![Make visual scenario editor showing connected app modules, routers, and an AI agent step](/blog/best-relevance-ai-alternatives/make.webp)
+_Make orchestrates multi-step scenarios across more than 3,000 SaaS apps with visual routing and AI modules._
+
+**Best for:** Operations and marketing teams that need visual routing across hundreds of SaaS applications with lightweight AI classification, extraction, or drafting steps.
+
+**Pricing:** [Make](https://www.make.com/en/pricing) offers a **Free** tier (1,000 credits/month); **Core** starts at **$9 per month billed annually** ($10.59 monthly) for 10,000 credits/month; **Pro** starts at **$16 per month billed annually**; and **Teams** starts at **$29 per month billed annually**. Each module action inside a scenario consumes 1 Make credit, and AI modules can use your own provider API keys or Make credits.
+
+**Pros**
+
+- Huge catalog of over 3,000 prebuilt app connectors with visual data mapping, routers, and error handlers.
+- Low entry cost ($9/month on Core, $29/month on Teams) compared with Relevance AI Team ($234/month).
+- Make Grid provides a high-level visual map of how your scenarios and data sources connect across the business.
+
+**Cons**
+
+- Built first for deterministic SaaS integration rather than persistent, memory-backed AI coworkers.
+- Bills 1 credit per module operation, so high-frequency polling or multi-step loops still require watching credit consumption.
+- Closed-source cloud platform with no self-hosting option.
+
+**Verdict:** Choose Make when your primary job is connecting SaaS tools visually with occasional AI steps, rather than building autonomous research agents or Slack coworkers.
+
+## When Relevance AI is still the right choice
+
+Staying on Relevance AI makes sense when its specific strengths match your workflow:
+
+- **You want prebuilt BDR and outbound GTM agent templates:** Relevance AI has invested heavily in ready-made sales research, account scoring, and outbound sequence templates.
+- **Your team thinks in visual multi-agent flowcharts:** If your builders prefer wiring specialized sub-agents together on a visual Workforce canvas rather than writing instructions and skills for a shared coworker, Relevance AI's UI is built for that pattern.
+- **You fit inside Pro or already budget for Team/Enterprise:** If 1 or 2 builders inside a single project cover your needs on Pro ($19/month annual), or your organization is already sized for Team ($234/month annual) and comfortable managing Action and Vendor Credit budgets, switching may not be necessary.
+
+## How to migrate from Relevance AI without breaking operations
+
+Moving off Relevance AI does not require rebuilding every tool and sub-agent over a weekend. Because platforms meter and structure multi-step runs differently, the safest approach is migrating one high-volume workflow first and comparing both its output and its run cost.
+
+![Diagram comparing how a 5-step agent workflow is metered in Relevance AI versus Agenta, Gumloop, and n8n, alongside a 4-step migration checklist](/blog/best-relevance-ai-alternatives/relevance-ai-billing-and-migration-map.webp)
+
+Follow four practical steps for your first workflow migration:
+
+1. **Export your prompts, tool schemas, and knowledge tables:** Copy the system instructions from your primary Relevance AI agent, the JSON input schemas and API endpoints from its custom tools, and any CSV or table data it references.
+2. **Collapse unnecessary sub-agents into reusable skills:** In Relevance AI, teams often create separate sub-agents just to keep prompt context manageable. In a workspace like [Agenta](https://agenta.ai/), you can turn those sub-agents into modular skills and playbooks under one coworker so there is a single configuration and version history to maintain.
+3. **Reconnect triggers and human review channels:** Wire your schedule or webhook trigger, and connect your Slack workspace so teammates review drafts and approve actions directly in a channel thread.
+4. **Compare 10 real runs side by side:** Run the same 10 inputs through both systems. Check output accuracy, failure recovery, and the exact cost recorded in the run trace before turning off the old Relevance AI trigger.
+
+## Which Relevance AI alternative should you choose?
+
+- **Choose [Agenta](https://agenta.ai/)** if you want an open-source, low-code workspace for shared AI coworkers in Slack, with versioned instructions and skills, per-run cost analytics, unlimited team seats on paid cloud plans ($29/month Starter), and self-hosting.
+- **Choose [Gumloop](https://www.gumloop.com/)** if you want a visual drag-and-drop AI workflow builder for GTM and web scraping with unlimited seats on its $37/month Pro plan.
+- **Choose [n8n](https://n8n.io/)** if you want deterministic node-based automation with JavaScript or Python code steps, per-execution billing, and free self-hosting.
+- **Choose [Lindy](https://www.lindy.ai/)** if you want ready-made business assistant templates for email triage, meetings, and CRM follow-ups.
+- **Choose [Dify](https://dify.ai/)** if your engineering team is building RAG pipelines and API-backed LLM apps and wants an open-source visual studio.
+- **Choose [Dust](https://dust.tt/)** if your top priority is connecting shared assistants to internal company knowledge in Notion, Google Drive, Slack, and GitHub.
+- **Choose [Langdock](https://www.langdock.com/)** if you need an EU-hosted, GDPR-focused multi-model chat and agent workspace across departments.
+- **Choose [Make](https://www.make.com/)** if your workflows are primarily multi-app SaaS routing across thousands of connectors with lightweight AI steps.
+
+For adjacent comparisons as you plan your stack, see our guides to the [best AI coworker platforms for business](/blog/ai-coworker-platforms-for-business), [best ChatGPT Business alternatives](/blog/best-chatgpt-business-alternatives), [best Manus alternatives](/blog/best-manus-alternatives), [best Grok Bot alternatives](/blog/best-grok-bot-alternatives), [open-source Claude Cowork alternatives](/blog/open-source-claude-cowork-alternative), and our [prompt versioning guide](/blog/prompt-versioning-guide).
+
+## Build your first AI coworker in Agenta
+
+If you are ready to replace brittle multi-agent graphs and dual credit meters with a shared AI coworker your team can use in Slack, [get started free on Agenta Cloud](https://cloud.agenta.ai/).
+
+Configure one coworker around a recurring job, connect your tools, and invite your team into the workspace with no per-seat fees on paid plans, or [self-host Agenta](https://agenta.ai/docs/self-host/overview) on your own infrastructure.
