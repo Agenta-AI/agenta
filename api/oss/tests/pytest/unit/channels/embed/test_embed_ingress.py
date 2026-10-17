@@ -144,12 +144,16 @@ def test_a_message_writes_one_row_in_the_visitor_space(client, service):
         string.ascii_letters[:40] + "!",
     ],
 )
-def test_a_weak_or_missing_key_is_refused_and_writes_nothing(client, service, key):
+def test_a_weak_or_missing_key_is_refused_and_writes_nothing(
+    client, service, throttle_calls, key
+):
     response = _post(client, {"text": "hello"}, key=key)
 
     assert response.status_code == 401
     assert response.json() == {"status": "error"}
     assert service.recorded == []
+    # A keyless request must not use up the embed's shared bucket.
+    assert throttle_calls == []
 
 
 def test_an_inactive_embed_is_refused(client, service):

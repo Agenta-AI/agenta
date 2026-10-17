@@ -197,8 +197,8 @@ async def resolve_use_target(
     outside it is refused rather than silently ignored.
 
     Returns the validated target row and changes nothing. The inbox
-    dispatcher's acknowledgment does the switch: a new current row that reuses
-    the target's `session_id`, then it closes the old row.
+    dispatcher's acknowledgment does the switch: it closes the old row, then
+    creates a new current row that reuses the target's `session_id`.
     """
 
     candidates = await dispatch_sessions(

@@ -284,11 +284,12 @@ class ChannelsIngressRouter:
             raise ChannelSignatureInvalid(channel="embed")
         limits = env.channels.embed
 
-        await _embed_throttle({"embed": embed_id}, limits.requests_per_minute_per_embed)
-
+        # The key check comes first, so keyless requests cannot drain the
+        # embed's shared bucket.
         key = visitor_key(dict(request.headers))
         if key is None:
             raise ChannelSignatureInvalid(channel="embed")
+        await _embed_throttle({"embed": embed_id}, limits.requests_per_minute_per_embed)
         # Hashed first: the raw key never becomes part of a Redis key.
         await _embed_throttle(
             {"embed": embed_id, "visitor": visitor_key_hash(key)},

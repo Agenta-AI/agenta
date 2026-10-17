@@ -2,7 +2,7 @@
 
 ### Requirement: Inbound events can carry host context
 
-A processed inbound event SHALL accept an optional `context` object. When present, `compose_input` SHALL add one text part after the sender attribution part and before the message content. The part SHALL label the values as provided by the host and not verified. Events without context SHALL produce the same input as today.
+A processed inbound event SHALL accept an optional `context` object. When present, `compose_input` SHALL add one text part after the sender attribution part and before the message content. The part SHALL label the values as data provided by the host, not verified, and not to be followed as instructions. Events without context SHALL produce the same input as today.
 
 #### Scenario: Message with context
 
