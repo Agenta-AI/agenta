@@ -797,6 +797,27 @@ class TestCommandAcknowledgment:
         assert posted[0]["text"] == "Switched to that conversation."
         channels_service.open_turn.assert_not_called()
 
+    async def test_sessions_counts_a_reopened_session_once(self):
+        resolution = _make_resolution()
+        rows = [
+            self._target(resolution, session_id="sess-a"),
+            self._target(resolution, session_id="sess-a"),
+            self._target(resolution, session_id="sess-b"),
+        ]
+        dispatcher = InboxDispatcher(
+            channels_service=MagicMock(), invoke_fn=AsyncMock()
+        )
+
+        text = await dispatcher._command_ack(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            resolution=resolution,
+            command=inbox_module.COMMAND_SESSIONS,
+            result=rows,
+        )
+
+        assert text == "This conversation has 2 sessions."
+
     async def test_use_of_the_current_session_writes_nothing(self):
         resolution = _make_resolution()
         target = self._target(resolution, session_id=resolution.thread.session_id)
