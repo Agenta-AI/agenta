@@ -59,8 +59,9 @@ agenta:
 
 Replace `<release>-api` with the name of the API service in your cluster.
 
-When the fetch fails, the widget shows **This chat is not available.** and the page sends
-`frame-ancestors 'none'`, so no website can frame it.
+When the fetch fails, the widget shows **This chat is not available.** The page then sends
+`frame-ancestors *`, so the host page shows this notice instead of a blocked frame. The notice
+holds no chat. The same happens after an owner archives the embed.
 
 ## Reverse proxy headers
 

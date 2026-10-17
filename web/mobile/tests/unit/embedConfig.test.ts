@@ -56,8 +56,11 @@ describe("frameAncestorsPolicy", () => {
         )
     })
 
-    it("frames nowhere when the embed is missing", () => {
-        expect(frameAncestorsPolicy(null, "https://cloud.agenta.ai")).toBe("frame-ancestors 'none'")
+    it("lets any page frame the unavailable notice of a missing or archived embed", () => {
+        expect(frameAncestorsPolicy(null, "https://cloud.agenta.ai")).toBe("frame-ancestors *")
+    })
+
+    it("frames nowhere when an embed has no origins and no web origin is known", () => {
         expect(frameAncestorsPolicy(parseEmbedConfig({allowed_origins: []}), undefined)).toBe(
             "frame-ancestors 'none'",
         )
