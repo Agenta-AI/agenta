@@ -159,7 +159,7 @@ async def generate_user_password_reset_link(user_id: str, admin_user_id: str):
     if not (env.smtp.enabled or env.sendgrid.enabled):
         return password_reset_link
 
-    await send_branded_email(
+    sent = await send_branded_email(
         to_email=user.email,
         email=render_password_reset_email(
             admin_name=admin_user.username,
@@ -167,3 +167,5 @@ async def generate_user_password_reset_link(user_id: str, admin_user_id: str):
             url=password_reset_link,
         ),
     )
+    # Not sent: hand the link to the admin to share, as when no mailer is set up.
+    return None if sent else password_reset_link

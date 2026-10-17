@@ -67,7 +67,8 @@ async def test_member_joined_tolerates_a_missing_organization(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_password_reset_sends_the_branded_email(monkeypatch):
+@pytest.mark.parametrize("sent", [True, False])
+async def test_password_reset_sends_the_branded_email(monkeypatch, sent):
     _enable_mailer(monkeypatch)
     users = {
         "u": SimpleNamespace(uid="1", email="you@acme.com"),
@@ -83,10 +84,14 @@ async def test_password_reset_sends_the_branded_email(monkeypatch):
         "create_reset_password_link",
         AsyncMock(return_value="https://x.test/reset?token=t"),
     )
-    send = AsyncMock(return_value=True)
+    send = AsyncMock(return_value=sent)
     monkeypatch.setattr(user_service, "send_branded_email", send)
 
-    await user_service.generate_user_password_reset_link(user_id="u", admin_user_id="a")
+    result = await user_service.generate_user_password_reset_link(
+        user_id="u", admin_user_id="a"
+    )
+
+    assert result == (None if sent else "https://x.test/reset?token=t")
 
     email = send.await_args.kwargs["email"]
     assert send.await_args.kwargs["to_email"] == "you@acme.com"
