@@ -56,7 +56,7 @@ class _FakeSlackAdapter(ChannelAdapterInterface):
     async def verify_signature(self, *, request, connection):
         raise NotImplementedError
 
-    async def parse_event(self, *, body, connection=None):
+    async def parse_event(self, *, body, connection=None, request=None):
         raise NotImplementedError
 
     async def post_message(self, *, connection, locator, content, idempotency_key):

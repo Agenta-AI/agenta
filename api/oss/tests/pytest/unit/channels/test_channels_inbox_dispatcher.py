@@ -6,6 +6,7 @@ refusal, the happy path (STARTED before invoke, exact `turn_id` echoed),
 retry-on-refusal, concurrent-claim loss, and two-agents independence.
 """
 
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from unittest.mock import AsyncMock, MagicMock
@@ -29,6 +30,8 @@ from oss.src.core.channels.dtos import (
     ChannelInboxTriggerFlags,
     ChannelOutboxEvent,
     ChannelOutboxEventData,
+    ChannelPendingChoice,
+    ChannelPendingChoiceItem,
     ChannelPolicyLevel,
     ChannelResolution,
     ChannelSessionScope,
@@ -734,6 +737,213 @@ class TestCommandAcknowledgment:
         posted = adapter.post_message.call_args.kwargs["content"]
         assert posted[0]["text"] == "Started a new conversation."
         channels_service.open_turn.assert_not_called()
+
+    def _use(self, *, resolution, target, dao_error=None):
+        event = _make_event()
+        event.data.processed.content = [{"type": "text", "text": f"!use:{target.id}"}]
+        channels_service, dao, adapter = self._wired(
+            resolution=resolution,
+            capabilities=_command_capabilities(commands=["use"]),
+        )
+        channels_service.query_threads = AsyncMock(
+            return_value=[resolution.thread, target]
+        )
+        dao.create_thread = AsyncMock(
+            side_effect=dao_error or (lambda **kw: kw["thread"])
+        )
+        return event, channels_service, dao, adapter
+
+    def _target(self, resolution, *, session_id):
+        current = resolution.thread
+        return ChannelThread(
+            id=uuid4(),
+            space_id=current.space_id,
+            agent_id=current.agent_id,
+            external_key=current.external_key,
+            session_id=session_id,
+            data=ChannelThreadData(),
+            flags=ChannelThreadFlags(is_active=False),
+        )
+
+    async def test_use_reopens_the_target_session_as_the_current_thread(self):
+        resolution = _make_resolution()
+        resolution.thread.data.external_locator = {"visitor": "h", "thread": "h"}
+        target = self._target(resolution, session_id="sess-old")
+        event, channels_service, dao, adapter = self._use(
+            resolution=resolution, target=target
+        )
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=AsyncMock()
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        dao.create_thread.assert_awaited_once()
+        created = dao.create_thread.call_args.kwargs["thread"]
+        assert created.session_id == "sess-old"
+        assert created.space_id == resolution.thread.space_id
+        assert created.agent_id == resolution.thread.agent_id
+        assert created.external_key == resolution.thread.external_key
+        assert created.data.external_locator == {"visitor": "h", "thread": "h"}
+        assert created.flags.is_active is True
+        channels_service.close_thread.assert_awaited_once()
+        assert (
+            channels_service.close_thread.call_args.kwargs["thread_id"]
+            == resolution.thread.id
+        )
+        posted = adapter.post_message.call_args.kwargs["content"]
+        assert posted[0]["text"] == "Switched to that conversation."
+        channels_service.open_turn.assert_not_called()
+
+    async def test_sessions_counts_a_reopened_session_once(self):
+        resolution = _make_resolution()
+        rows = [
+            self._target(resolution, session_id="sess-a"),
+            self._target(resolution, session_id="sess-a"),
+            self._target(resolution, session_id="sess-b"),
+        ]
+        dispatcher = InboxDispatcher(
+            channels_service=MagicMock(), invoke_fn=AsyncMock()
+        )
+
+        text = await dispatcher._command_ack(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            resolution=resolution,
+            command=inbox_module.COMMAND_SESSIONS,
+            result=rows,
+        )
+
+        assert text == "This conversation has 2 sessions."
+
+    async def test_use_of_the_current_session_writes_nothing(self):
+        resolution = _make_resolution()
+        target = self._target(resolution, session_id=resolution.thread.session_id)
+        event, channels_service, dao, adapter = self._use(
+            resolution=resolution, target=target
+        )
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=AsyncMock()
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        dao.create_thread.assert_not_called()
+        channels_service.close_thread.assert_not_called()
+        posted = adapter.post_message.call_args.kwargs["content"]
+        assert posted[0]["text"] == "You are already in that conversation."
+
+    async def test_use_closes_the_current_row_before_it_creates_the_new_one(self):
+        """`create_thread` returns the current row while it is active, so the
+        close must come first or the switch is a no-op."""
+
+        resolution = _make_resolution()
+        target = self._target(resolution, session_id="sess-old")
+        event, channels_service, dao, _ = self._use(
+            resolution=resolution, target=target
+        )
+        calls = []
+        channels_service.close_thread = AsyncMock(
+            side_effect=lambda **kw: calls.append("close")
+        )
+        dao.create_thread = AsyncMock(
+            side_effect=lambda **kw: calls.append("create") or kw["thread"]
+        )
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=AsyncMock()
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        assert calls == ["close", "create"]
+
+    async def test_use_keeps_the_open_approval_of_the_reopened_session(self):
+        resolution = _make_resolution()
+        target = self._target(resolution, session_id="sess-old")
+        target.data.pending_choice = ChannelPendingChoice(
+            choices=[ChannelPendingChoiceItem(label="Approve", token="row:approve")],
+            posted_at=datetime.now(timezone.utc),
+            interaction_id="row",
+        )
+        event, channels_service, dao, _ = self._use(
+            resolution=resolution, target=target
+        )
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=AsyncMock()
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        created = dao.create_thread.call_args.kwargs["thread"]
+        assert created.data.pending_choice == target.data.pending_choice
+
+    async def test_use_that_loses_a_race_to_a_new_message_says_so(self):
+        """`create_thread` hands back the active row a concurrent message
+        opened; the switch did not happen, so it is not reported."""
+
+        resolution = _make_resolution()
+        target = self._target(resolution, session_id="sess-old")
+        event, channels_service, dao, adapter = self._use(
+            resolution=resolution, target=target
+        )
+        dao.create_thread = AsyncMock(
+            return_value=self._target(resolution, session_id="sess-racer")
+        )
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=AsyncMock()
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        posted = adapter.post_message.call_args.kwargs["content"]
+        assert posted[0]["text"].startswith("Could not switch")
+
+    async def test_use_whose_new_row_fails_says_so(self):
+        resolution = _make_resolution()
+        target = self._target(resolution, session_id="sess-old")
+        event, channels_service, dao, adapter = self._use(
+            resolution=resolution, target=target, dao_error=RuntimeError("db")
+        )
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=AsyncMock()
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        posted = adapter.post_message.call_args.kwargs["content"]
+        assert posted[0]["text"].startswith("Could not switch")
+
+    async def test_use_outside_the_history_is_refused_without_writes(self):
+        resolution = _make_resolution()
+        target = self._target(resolution, session_id="sess-old")
+        event, channels_service, dao, adapter = self._use(
+            resolution=resolution, target=target
+        )
+        channels_service.query_threads = AsyncMock(return_value=[resolution.thread])
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=AsyncMock()
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        dao.create_thread.assert_not_called()
+        channels_service.close_thread.assert_not_called()
+        posted = adapter.post_message.call_args.kwargs["content"]
+        assert posted[0]["text"] == "That session is not part of this conversation."
 
     async def test_rejected_command_is_answered_not_silent(self):
         event = _make_event()

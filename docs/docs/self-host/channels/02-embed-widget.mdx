@@ -1,0 +1,120 @@
+---
+title: "Embed the chat widget"
+sidebar_label: "Embed widget"
+description: "Settings a self-hosted deployment needs so that other websites can embed an agent's chat widget: a public HTTPS address, the web container's API URL, the reverse proxy headers, and the embed limits."
+sidebar_position: 2
+---
+
+An embed puts an agent's chat on another website in an iframe. Users create embeds from the
+agent's **Publish** panel, as described in [Embed an agent in your website](/guides/embed-an-agent).
+This page is for the operator of a self-hosted deployment. It lists what the deployment needs so
+that the widget loads on other websites.
+
+The widget is served by the `web-mobile` container at `/m/embed/<embed id>`. Its browser calls go
+to the API under `/channels/embed/`. These routes need no Agenta login. The visitor key in the
+`X-Agenta-Visitor-Key` header is the credential.
+
+## Public HTTPS address
+
+Visitors load the widget from your deployment, so the deployment must be reachable from their
+browsers. A page served over HTTPS cannot frame a page served over HTTP, so the deployment must
+also use HTTPS.
+
+Set both URLs to the public HTTPS addresses:
+
+```bash
+AGENTA_WEB_URL=https://agenta.example.com
+AGENTA_API_URL=https://agenta.example.com/api
+```
+
+- The `api` container builds the snippet's iframe `src` from `AGENTA_WEB_URL`.
+- The `web-mobile` container allows the `AGENTA_WEB_URL` origin to frame the widget, so the
+  preview in the **Publish** panel works.
+- The widget in the visitor's browser calls the API at `AGENTA_API_URL`.
+
+For HTTPS with the bundled Traefik, see [Using SSL](/self-host/guides/using-ssl).
+
+## The web container's API URL
+
+Before it renders the widget, the `web-mobile` container fetches the embed's settings from the API
+on the server side. It needs the allowed origins to set the `Content-Security-Policy:
+frame-ancestors` header. The container uses `AGENTA_API_INTERNAL_URL` when it is set, and
+`AGENTA_API_URL` when it is not.
+
+If the `web-mobile` container cannot reach `AGENTA_API_URL`, set `AGENTA_API_INTERNAL_URL` to an
+address it can reach. For example, `AGENTA_API_URL=http://localhost/api` points at the container
+itself. In Docker Compose, add this line to the env file:
+
+```bash
+AGENTA_API_INTERNAL_URL=http://api:8000
+```
+
+On Helm, set `agenta.apiInternalUrl`. The chart passes it to the `web-mobile` pod as
+`AGENTA_API_INTERNAL_URL`:
+
+```yaml
+agenta:
+  apiInternalUrl: http://<release>-api:8000
+```
+
+Replace `<release>-api` with the name of the API service in your cluster.
+
+When the fetch fails, the widget shows **This chat is not available.** The page then sends
+`frame-ancestors *`, so the host page shows this notice instead of a blocked frame. The notice
+holds no chat. The same happens after an owner archives the embed.
+
+## Reverse proxy headers
+
+The widget page sends its own `Content-Security-Policy: frame-ancestors` header with the embed's
+allowed origins. A proxy must not add `X-Frame-Options` to `/m/embed/`. Browsers that do not
+support `frame-ancestors` follow `X-Frame-Options DENY` and block the widget.
+
+The bundled nginx config (the `with-nginx` Compose profile) adds `X-Frame-Options DENY` to every
+response except `/m/embed/`. If you run your own nginx, add a location for the widget before
+`/m/`, with no `X-Frame-Options`:
+
+```nginx
+location /m/embed/ {
+    add_header X-Content-Type-Options nosniff;
+    proxy_pass http://web-mobile:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+In nginx, an `add_header` in a `location` replaces every `add_header` from the `server` block, so
+this location does not send the server's `X-Frame-Options`.
+
+## Limits
+
+The embed routes limit their own request rate, the number of open live streams per embed, the size
+of a message and the size of the files.
+The defaults and the variables that change them are in the
+[configuration reference](/self-host/configuration#channels).
+
+The rate limits use Redis. If Redis is not reachable, the embed routes allow the request.
+
+The widget follows a reply over a server-sent event stream. The stream needs
+`AGENTA_SESSIONS_SHARED_READER`, which is on by default. The stream sends a heartbeat every 15
+seconds by default (`AGENTA_SESSIONS_WATCH_HEARTBEAT_SECONDS`), so a proxy read timeout of 30
+seconds is enough.
+
+## Check that it works
+
+1. Create an embed from an agent's **Publish** panel, with your test page's origin in **Allowed
+   origins**.
+2. Check that the preview in the panel shows the chat.
+3. Read the widget's headers:
+
+   ```bash
+   EMBED_ID=your-embed-id   # the last part of the iframe src in the snippet
+   curl -sI "https://agenta.example.com/m/embed/$EMBED_ID" | grep -i -E 'frame|security-policy'
+   ```
+
+   The answer must contain `content-security-policy: frame-ancestors` followed by your allowed
+   origins and the `AGENTA_WEB_URL` origin, and no `x-frame-options`. A value of
+   `frame-ancestors 'none'` means the `web-mobile` container could not fetch the embed. Check that
+   the embed ID is right and the embed is not archived, then check `AGENTA_API_INTERNAL_URL`.
+
+4. Paste the snippet into a page on an allowed origin and send a message.

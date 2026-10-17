@@ -3,7 +3,7 @@ broker and no DB — an in-memory fake DAO plays ChannelsDAOInterface, and the
 contract-suite fixture plays the adapter so this suite exercises the exact
 same collaborator a real adapter is held to."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List
 from uuid import UUID, uuid4
 
@@ -547,6 +547,27 @@ async def _seed_connection_and_thread(channels_dao, session_id):
     thread = channels_dao.seed_thread(space_id=space.id, session_id=session_id)
 
     return connection, thread
+
+
+@pytest.mark.asyncio
+async def test_a_reopened_session_posts_on_its_newest_row(worker, channels_dao):
+    """`!use` adds a row that reuses the session; replies and approval
+    choices belong on that newest row, not on the closed original."""
+
+    session_id = "sess-reopened"
+    _, original = await _seed_connection_and_thread(channels_dao, session_id)
+    reopened = channels_dao.seed_thread(
+        space_id=original.space_id, session_id=session_id
+    )
+    now = datetime.now(timezone.utc)
+    original.created_at = now - timedelta(minutes=5)
+    reopened.created_at = now
+
+    found = await worker._fetch_thread_for_session(
+        project_id=PROJECT_ID, session_id=session_id
+    )
+
+    assert found.id == reopened.id
 
 
 @pytest.mark.asyncio

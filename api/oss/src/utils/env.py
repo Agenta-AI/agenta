@@ -939,10 +939,80 @@ class ChannelsWhatsAppConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+# ---------------------------------------------------------------------------
+# channels.embed — the public chat widget. Its ingress has no Agenta login,
+# so it limits itself: per embed, per visitor key, and per request size.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsEmbedConfig(BaseModel):
+    requests_per_minute_per_embed: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_REQUESTS_PER_MINUTE_PER_EMBED"
+            )
+            or 600
+        )
+    )
+    requests_per_minute_per_key: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_REQUESTS_PER_MINUTE_PER_KEY"
+            )
+            or 30
+        )
+    )
+    # The four visitor read routes. Larger than the ingress buckets: the
+    # widget polls the list after a first message and reconnects the stream.
+    read_requests_per_minute_per_embed: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_EMBED"
+            )
+            or 6000
+        )
+    )
+    read_requests_per_minute_per_key: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_KEY"
+            )
+            or 240
+        )
+    )
+    # Open live streams per embed in one API process (each holds a Redis
+    # connection). Over the cap the widget gets a 429 and retries.
+    max_live_streams_per_embed: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_MAX_LIVE_STREAMS_PER_EMBED"
+            )
+            or 200
+        )
+    )
+    # Applies to the message text and to the serialized host context.
+    max_message_chars: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_CHANNELS_EMBED_MAX_MESSAGE_CHARS")
+            or 10000
+        )
+    )
+    # Uploads ride in the request body as base64 and stay in the inbox row.
+    max_file_bytes: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_CHANNELS_EMBED_MAX_FILE_BYTES")
+            or 5 * 1024 * 1024
+        )
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class ChannelsConfig(BaseModel):
     slack: ChannelsSlackConfig = ChannelsSlackConfig()
     telegram: ChannelsTelegramConfig = ChannelsTelegramConfig()
     whatsapp: ChannelsWhatsAppConfig = ChannelsWhatsAppConfig()
+    embed: ChannelsEmbedConfig = ChannelsEmbedConfig()
 
     model_config = ConfigDict(extra="ignore")
 
