@@ -415,7 +415,8 @@ class InboxDispatcher:
         if command == COMMAND_STOP:
             return "Stopping the current run."
         if command == COMMAND_SESSIONS:
-            count = len(result or [])
+            # `!use` adds a row that reuses a session, so count sessions, not rows.
+            count = len({thread.session_id for thread in result or []})
             noun = "session" if count == 1 else "sessions"
             return f"This conversation has {count} {noun}."
         if command == COMMAND_USE:
@@ -771,14 +772,18 @@ class InboxDispatcher:
         session_id = resolution.thread.session_id
         attached: List[Dict[str, Any]] = []
         notes: List[str] = []
+
+        def note(text: str) -> None:
+            notes.append(text)
+            attached.append({"type": "text", "text": text})
+
         for part in content:
             if part.get("type") != "media":
                 attached.append(part)
                 continue
             label = f"[{part.get('kind') or 'file'}]"
             if self.attachments_service is None or not session_id or user_id is None:
-                notes.append(f"{label} (files cannot be read here)")
-                attached.append({"type": "text", "text": notes[-1]})
+                note(f"{label} (files cannot be read here)")
                 continue
             try:
                 limits = getattr(self.attachments_service, "limits", None)
@@ -811,8 +816,7 @@ class InboxDispatcher:
                     attachment_ids=[attachment.id],
                 )
             except AttachmentTooLarge:
-                notes.append(f"{label} (too large to read)")
-                attached.append({"type": "text", "text": notes[-1]})
+                note(f"{label} (too large to read)")
                 continue
             except Exception as exc:  # noqa: BLE001 - the text still reaches the agent
                 log.warning(
@@ -820,8 +824,7 @@ class InboxDispatcher:
                     part.get("media_id"),
                     str(exc)[:200],
                 )
-                notes.append(f"{label} (could not be read)")
-                attached.append({"type": "text", "text": notes[-1]})
+                note(f"{label} (could not be read)")
                 continue
             attached.append(
                 {
