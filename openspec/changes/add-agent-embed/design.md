@@ -132,7 +132,7 @@ v1 ships an iframe snippet. It works anonymously without any script. The host pa
 
 If no `agenta:init` arrives within one second, the widget uses its own per-browser key. The widget accepts messages only from allowed origins, and it sends messages only to the parent's origin.
 
-The widget page sends `Content-Security-Policy: frame-ancestors` with the embed's allowed origins.
+The widget page sends `Content-Security-Policy: frame-ancestors` with the embed's allowed origins and Agenta's own web origin (for the owner's preview).
 
 ### 9. Owners read embed conversations where they read channel conversations
 
@@ -163,6 +163,8 @@ None of these changes the ingress route, the read routes, the space and thread m
 - **A host can pass a guessable key** such as a user ID. The docs require a random key, and the server refuses keys it can recognize as weak. It cannot refuse every predictable key.
 - **Visitors see the session's full records, tool activity included.** The read and live routes return every record of the visitor's own session, as the Agenta chat does: tool calls with their arguments and results, and the agent's reasoning records. A tool that reads internal data shows its raw output to the visitor, even fields the agent left out of its reply. Choose the embedded agent's tools with this in mind. A filter by record type can come later.
 - **The read routes have their own rate limits.** They use separate buckets per embed and per key, larger than the ingress buckets (6000 and 240 requests per minute by default), because the widget polls the list after a first message (about every 300 ms) and reconnects the live stream. A shared bucket with the ingress would refuse that polling. Each read is one indexed lookup in the caller's own space.
+- **The first reply of a new conversation may appear whole.** The widget learns the new thread by polling the list after the first message, then subscribes. If the reply started before that, it shows when the turn ends (task 1). Later messages stream.
+- **A reopen can race an approval card.** If a visitor reopens a conversation in the moment between its run pausing for approval and the outbox writing the card, the card's tokens land on the closed row and the approval cannot be answered from the channel. The widget hides cards while a switch is pending. Keeping the choice per session instead of per thread row would remove this.
 - **Host context is not verified.** In v1 it only informs the model, and tools use the agent's own credentials.
 - **Browser storage can be cleared.** Anonymous history lives in the iframe's storage. Safari clears script-written storage after seven days without interaction with the site. A host-provided key avoids this.
 - **`frame-ancestors` and CORS stop other websites, not scripts.** The visitor key and rate limits per embed and per key back them up. The CORS check holds only if the API's CORS policy admits no other site. Today the API also admits every `https://*.vercel.app` origin, so a page there passes the preflight. It can do no more than a script: it needs its own visitor key and meets the same rate limits. Narrowing that rule is a separate change.
@@ -173,3 +175,4 @@ None of these changes the ingress route, the read routes, the space and thread m
 - The context part is additive. Events without context give the model the same input as today.
 - The chat view of existing channels changes a little: a turn from one sender now shows that person's words without the "From ..." line. A turn from several senders shows the line as today. Sessions recorded before this change replay as before.
 - Self-hosted instances need a public HTTPS URL that visitors can reach. Documentation only.
+- The `use` command now switches the conversation on every channel that declares it. It used to answer that switching is not available. The switch closes the current thread row and adds a row that reuses the chosen session, and the outbox posts to a session's newest row.

@@ -34,13 +34,13 @@
 
 ## 5. Widget
 
-- [ ] 5.1 Widget route served with `frame-ancestors` from the connection's allowed origins
-- [ ] 5.2 Embed transport for `@agenta/chat`: send through the ingress, read through the read routes
-- [ ] 5.3 Approval and choice cards answer through the ingress
-- [ ] 5.4 File upload through the inbound media path; downloads through 4.4
-- [ ] 5.5 `agenta:ready`, `agenta:init`, `agenta:context` with origin checks; anonymous key after one second
-- [ ] 5.6 Conversation list, "New chat" (`new`), reopen (`use`), reopen after reload
-- [ ] 5.7 Appearance applied to the chat skin; phone-width layout checked
+- [x] 5.1 Widget route served with `frame-ancestors` from the connection's allowed origins
+- [x] 5.2 Embed transport for `@agenta/chat`: send through the ingress, read through the read routes
+- [x] 5.3 Approval and choice cards answer through the ingress
+- [x] 5.4 File upload through the inbound media path; downloads through 4.4
+- [x] 5.5 `agenta:ready`, `agenta:init`, `agenta:context` with origin checks; anonymous key after one second
+- [x] 5.6 Conversation list, "New chat" (`new`), reopen (`use`), reopen after reload
+- [x] 5.7 Appearance applied to the chat skin; phone-width layout checked
 
 ## 6. Publish and owner screens
 
