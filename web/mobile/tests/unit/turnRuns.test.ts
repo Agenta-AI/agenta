@@ -11,6 +11,7 @@ const turn = (id: string, isUser: boolean, over: Partial<TurnViewModel> = {}): T
         isLast: false,
         isActive: true,
         isStreamingTurn: false,
+        hadGate: false,
         status: {
             hasAnswer: true,
             hasReasoning: false,
@@ -28,6 +29,17 @@ const turn = (id: string, isUser: boolean, over: Partial<TurnViewModel> = {}): T
     }) as TurnViewModel
 
 describe("mergeAssistantRuns", () => {
+    it("keeps an earlier message's gate history within its own run", () => {
+        const merged = mergeAssistantRuns([
+            turn("u1", true),
+            turn("gate", false, {hadGate: true}),
+            turn("answer", false),
+            turn("u2", true),
+            turn("ungated", false),
+        ])
+        expect(merged.map((t) => t.hadGate)).toEqual([false, true, false, false])
+    })
+
     it("folds consecutive assistant turns into one keyed by the first, carrying the last's state", () => {
         const merged = mergeAssistantRuns([
             turn("u1", true),
