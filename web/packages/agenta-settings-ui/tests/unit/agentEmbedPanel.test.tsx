@@ -360,10 +360,10 @@ describe("AgentEmbedPanel", () => {
         expect((byTestId("agent-embed-save") as HTMLButtonElement).disabled).toBe(false)
     })
 
-    it("refuses an accent that is not a hex color", async () => {
+    it.each(["blue", "#12345"])("refuses the accent %s", async (accent) => {
         const client = makeClient()
         await render(panel(client, {connectionId: "e1"}))
-        await type(byTestId("agent-embed-accent"), "blue")
+        await type(byTestId("agent-embed-accent"), accent)
         await click(byTestId("agent-embed-save"))
         expect(document.querySelector('[role="alert"]')?.textContent).toContain("hex color")
         expect(client.editChannelConnection).not.toHaveBeenCalled()

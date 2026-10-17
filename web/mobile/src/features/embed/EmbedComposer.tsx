@@ -21,12 +21,15 @@ export const EmbedComposer = ({
 
     const submit = async () => {
         if (!canSend) return
+        const sentText = text
+        const sentFiles = files
         setSending(true)
-        const sent = await onSend(text.trim(), files)
+        const sent = await onSend(sentText.trim(), sentFiles)
         setSending(false)
         if (sent) {
-            setText("")
-            setFiles([])
+            // Keep anything the visitor typed or attached while the send ran.
+            setText((current) => (current === sentText ? "" : current))
+            setFiles((current) => current.filter((file) => !sentFiles.includes(file)))
         }
     }
 

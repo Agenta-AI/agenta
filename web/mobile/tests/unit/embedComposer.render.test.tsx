@@ -58,4 +58,18 @@ describe("EmbedComposer", () => {
 
         expect(textarea.value).toBe("hello")
     })
+
+    it("keeps text typed while a send is in flight", async () => {
+        let finish: ((sent: boolean) => void) | undefined
+        const onSend = vi.fn(() => new Promise<boolean>((resolve) => (finish = resolve)))
+        const {textarea, type, pressEnter} = mount(onSend)
+
+        type("first")
+        await pressEnter()
+        type("second")
+        await act(async () => finish?.(true))
+
+        expect(onSend).toHaveBeenCalledWith("first", [])
+        expect(textarea.value).toBe("second")
+    })
 })
