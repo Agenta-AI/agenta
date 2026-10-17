@@ -3,7 +3,6 @@ import hmac
 import json
 import re
 from collections import Counter
-from contextlib import aclosing
 from datetime import datetime, timezone
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Dict, Optional
@@ -453,15 +452,6 @@ class ChannelsIngressRouter:
             request, embed_id, thread_id
         )
         session_id = thread.session_id
-        if (
-            _embed_live_streams[embed_id]
-            >= env.channels.embed.max_live_streams_per_embed
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many open conversations. Try again later.",
-                headers={"Retry-After": "5"},
-            )
 
         async def authorized() -> bool:
             # A thread never changes space, so the embed still resolving to the
@@ -474,18 +464,6 @@ class ChannelsIngressRouter:
                 project_id=project_id, session_id=session_id, after=cursor
             )
 
-        async def counted():
-            # Counted inside the body: a response that never starts holds nothing.
-            _embed_live_streams[embed_id] += 1
-            try:
-                async with aclosing(stream):
-                    async for frame in stream:
-                        yield frame
-            finally:
-                _embed_live_streams[embed_id] -= 1
-                if _embed_live_streams[embed_id] <= 0:
-                    del _embed_live_streams[embed_id]
-
         stream = live_event_stream(
             channel=live_events_channel(str(project_id), session_id),
             pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
@@ -497,8 +475,9 @@ class ChannelsIngressRouter:
             after=after,
             replay_query=replay,
         )
-        return StreamingResponse(
-            counted(),
+        return _EmbedLiveResponse(
+            embed_id,
+            stream,
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-store",
@@ -924,6 +903,36 @@ class ChannelsIngressRouter:
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="Failed to enqueue channel inbox event",
                 ) from e
+
+
+class _EmbedLiveResponse(StreamingResponse):
+    """A live stream that holds one of the embed's slots while it runs. The
+    check and the reservation share one step with no await between them, and
+    the slot is released whatever way the response ends."""
+
+    def __init__(self, embed_id: str, content: Any, **kwargs: Any) -> None:
+        super().__init__(content, **kwargs)
+        self.embed_id = embed_id
+
+    async def __call__(self, scope, receive, send) -> None:
+        if (
+            _embed_live_streams[self.embed_id]
+            >= env.channels.embed.max_live_streams_per_embed
+        ):
+            refusal = JSONResponse(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                content={"detail": "Too many open conversations. Try again later."},
+                headers={"Retry-After": "5"},
+            )
+            await refusal(scope, receive, send)
+            return
+        _embed_live_streams[self.embed_id] += 1
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            _embed_live_streams[self.embed_id] -= 1
+            if _embed_live_streams[self.embed_id] <= 0:
+                del _embed_live_streams[self.embed_id]
 
 
 def _embed_refusal(status_code: int, detail: str) -> JSONResponse:
