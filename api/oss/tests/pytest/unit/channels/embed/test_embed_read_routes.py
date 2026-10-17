@@ -2,6 +2,7 @@
 `ChannelsService`, the records and attachments services and the live stream
 are faked; the router, the adapter and the key checks are real."""
 
+import asyncio
 from collections import Counter
 from hashlib import sha256
 from datetime import datetime, timedelta, timezone
@@ -348,6 +349,41 @@ def test_live_refuses_past_the_open_stream_cap_and_releases_on_close(
 
     ingress_module._embed_live_streams.clear()
     assert _get(client, f"{BASE}/{thread.id}/live").status_code == 200
+    assert ingress_module._embed_live_streams[EMBED_ID] == 0
+
+
+async def test_concurrent_live_requests_cannot_share_one_slot(monkeypatch):
+    monkeypatch.setattr(
+        ingress_module.env.channels.embed, "max_live_streams_per_embed", 1
+    )
+    monkeypatch.setattr(ingress_module, "_embed_live_streams", Counter())
+    release = asyncio.Event()
+
+    async def held():
+        yield "event: ready\ndata: {}\n\n"
+        await release.wait()
+
+    statuses = []
+
+    async def send(message):
+        if message["type"] == "http.response.start":
+            statuses.append(message["status"])
+
+    async def receive():
+        await release.wait()
+        return {"type": "http.disconnect"}
+
+    scope = {"type": "http", "asgi": {"spec_version": "2.4"}}
+    first = asyncio.create_task(
+        ingress_module._EmbedLiveResponse(EMBED_ID, held())(scope, receive, send)
+    )
+    second = asyncio.create_task(
+        ingress_module._EmbedLiveResponse(EMBED_ID, held())(scope, receive, send)
+    )
+    await asyncio.sleep(0.05)
+    assert sorted(statuses) == [200, 429]
+    release.set()
+    await asyncio.gather(first, second)
     assert ingress_module._embed_live_streams[EMBED_ID] == 0
 
 
