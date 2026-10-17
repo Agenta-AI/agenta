@@ -58,7 +58,7 @@ const asText = (value: unknown): string => asString(value) ?? ""
 
 // The same check the API runs on create (an edit skips it, so it is repeated here).
 const ORIGIN = /^https?:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?$/
-const ACCENT = /^#[0-9a-fA-F]{3,8}$/
+const ACCENT = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
 
 /** The typed origins as a list, or an error for the first one that is not an origin. */
 export const parseOrigins = (text: string): {origins: string[]; error: string | null} => {

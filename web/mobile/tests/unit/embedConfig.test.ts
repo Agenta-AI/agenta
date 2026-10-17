@@ -39,6 +39,14 @@ describe("parseEmbedConfig", () => {
         expect(config?.appearance.theme).toBe("system")
     })
 
+    it("drops an accent with a hex length CSS does not accept", () => {
+        for (const accent of ["#12345", "#1234567"]) {
+            expect(
+                parseEmbedConfig({allowed_origins: [], appearance: {accent}})?.appearance.accent,
+            ).toBe(null)
+        }
+    })
+
     it("keeps working when the appearance is malformed, and is null for a bad body", () => {
         expect(
             parseEmbedConfig({allowed_origins: [], appearance: {theme: "neon"}})?.appearance,

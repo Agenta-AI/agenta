@@ -33,7 +33,7 @@ export interface EmbedConfig {
 
 // `scheme://host[:port]` only: these values go into a response header.
 const ORIGIN_PATTERN = /^https?:\/\/[a-z0-9.-]+(:\d{1,5})?$/
-const ACCENT_PATTERN = /^#[0-9a-fA-F]{3,8}$/
+const ACCENT_PATTERN = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
 
 const httpUrl = (value: string | null | undefined): string | null => {
     if (!value) return null
