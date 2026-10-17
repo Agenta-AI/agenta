@@ -70,8 +70,7 @@ describe("extractLogicalRowId", () => {
 // `runStatusByRowEntityAtom` parses keys of the form "stepId:sess:entityId".
 // The separator ":sess:" is 6 characters; the old code used `sepIdx + 5`,
 // leaving a leading ":" on the entityId and producing a malformed map key.
-// We exercise the exported `parseSessionResultKey` utility from selectors so
-// regressions in the production atom are actually caught.
+// Exercise the production helper to catch parser regressions.
 
 describe("resultsByKey entity extraction (sepIdx + 6)", () => {
     it("extracts stepId and entityId from a well-formed result key", () => {
