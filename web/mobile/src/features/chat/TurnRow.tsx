@@ -225,6 +225,7 @@ const TurnRowInner = ({
                 answerStarted={activity.answer !== null}
                 waitingOnUser={turn.isLast && waitingOnUser}
                 resuming={turn.isLast && resuming}
+                hadGate={turn.hadGate}
                 traceId={traceId}
                 streamedHere={streamedHereRef.current}
                 renderClientTool={renderClientTool}

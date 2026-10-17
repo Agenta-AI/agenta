@@ -5,12 +5,16 @@
  * "Worked for …" once settled, rests closed, and opens itself only when parked on the reader.
  */
 import {act, cleanup, render, screen} from "@testing-library/react"
-import type {ToolUIPart} from "ai"
+import type {ToolUIPart, UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {ActivityTimeline} from "../../../src/components/activity/ActivityTimeline"
-import type {ActivityStep} from "../../../src/model/activitySteps"
+import {splitTurnActivity, type ActivityStep} from "../../../src/model/activitySteps"
+import {
+    buildTurnViewModels,
+    createExecutedToolIdentityCache,
+} from "../../../src/model/turnViewModel"
 import {startTurnClockAtom} from "../../../src/state/turnClock"
 
 vi.mock("@agenta/entities/gatewayTool", () => ({
@@ -18,7 +22,10 @@ vi.mock("@agenta/entities/gatewayTool", () => ({
 }))
 
 /** Trace root-span starts by trace id, for the turns that read one. */
-const {traceStarts} = vi.hoisted(() => ({traceStarts: new Map<string, string>()}))
+const {traceStarts, traceDurations} = vi.hoisted(() => ({
+    traceStarts: new Map<string, string>(),
+    traceDurations: new Map<string, number>(),
+}))
 
 vi.mock("@agenta/entities/loadable", async () => {
     const {atom} = await import("jotai")
@@ -30,7 +37,9 @@ vi.mock("@agenta/entities/loadable", async () => {
                     key,
                     atom(() => ({
                         rootSpan: traceStarts.has(key) ? {start_time: traceStarts.get(key)} : null,
-                        metrics: {},
+                        metrics: traceDurations.has(key)
+                            ? {durationMs: traceDurations.get(key)}
+                            : {},
                         isPending: false,
                         error: null,
                     })),
@@ -82,6 +91,7 @@ afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
     traceStarts.clear()
+    traceDurations.clear()
     cleanup()
 })
 
@@ -349,5 +359,202 @@ describe("ActivityTimeline", () => {
         cleanup()
         mount({steps: [toolStep("approval-requested")], streaming: true})
         expect(screen.getAllByRole("button")[0].getAttribute("aria-expanded")).toBe("false")
+    })
+
+    // #7445: After a turn resumes from an approval, the header showed "Worked for 85m 9s"
+    // because the trace duration spanned from the parked turn's start to the end of the resume.
+    it("does not count time waiting for an approval into worked time", () => {
+        traceDurations.set("t1", (85 * 60 + 9) * 1000)
+        const view = mount({steps: [toolStep("input-available")], streaming: true})
+        act(() => {
+            vi.advanceTimersByTime(3000)
+        })
+        // Parks on approval gate
+        view.rerender(
+            <Provider>
+                <ActivityTimeline
+                    messageId="m1"
+                    steps={[toolStep("approval-requested")]}
+                    streaming={false}
+                    answerStarted={false}
+                />
+            </Provider>,
+        )
+        // Parked for 85 minutes
+        act(() => {
+            vi.advanceTimersByTime(85 * 60 * 1000)
+        })
+        // User approves and turn resumes
+        view.rerender(
+            <Provider>
+                <ActivityTimeline
+                    messageId="m1"
+                    steps={[toolStep("approval-requested")]}
+                    streaming={true}
+                    resuming={true}
+                    answerStarted={false}
+                />
+            </Provider>,
+        )
+        // Resume executes for 6 seconds
+        act(() => {
+            vi.advanceTimersByTime(6000)
+        })
+        // Turn settles
+        view.rerender(
+            <Provider>
+                <ActivityTimeline
+                    messageId="m1"
+                    steps={[toolStep("output-available")]}
+                    streaming={false}
+                    answerStarted={true}
+                    traceId="t1"
+                />
+            </Provider>,
+        )
+        const line = screen.getAllByRole("button")[0]
+        expect(line.textContent).toContain("Worked for 9s")
+        expect(line.textContent).not.toContain("85m")
+    })
+
+    it("settles to Worked without duration when an unclocked turn had an approval", () => {
+        traceDurations.set("t2", (85 * 60 + 9) * 1000)
+        const stepWithApproval: ActivityStep = {
+            ...toolStep("output-available", "c2"),
+            part: {
+                ...toolStep("output-available", "c2").part,
+                approval: {id: "appr_1", approved: true},
+            } as ToolUIPart,
+        }
+        mount({
+            messageId: "m2",
+            steps: [stepWithApproval],
+            streaming: false,
+            answerStarted: true,
+            traceId: "t2",
+        })
+        const line = screen.getAllByRole("button")[0]
+        expect(line.textContent).toBe("Worked")
+        expect(line.textContent).not.toContain("85m")
+    })
+
+    it("keeps approval history when replay removes the answered gate from the timeline", () => {
+        traceDurations.set("replayed", (85 * 60 + 9) * 1000)
+        const parts: UIMessage["parts"] = [
+            {
+                type: "tool-read",
+                toolCallId: "gate",
+                state: "approval-responded",
+                input: {file_path: "src/a.ts"},
+                approval: {id: "approval", approved: true},
+            },
+            {
+                type: "tool-read",
+                toolCallId: "replayed",
+                state: "output-available",
+                input: {file_path: "src/a.ts"},
+                output: "ok",
+            },
+        ]
+        const [turn] = buildTurnViewModels([{id: "replayed", role: "assistant", parts}], {
+            busy: false,
+            executedFor: createExecutedToolIdentityCache(),
+        })
+        const activity = splitTurnActivity(turn.items)
+        expect(activity.steps).toHaveLength(1)
+        mount({
+            messageId: turn.message.id,
+            steps: activity.steps,
+            hadGate: turn.hadGate,
+            traceId: "replayed",
+        })
+        expect(screen.getAllByRole("button")[0].textContent).toBe("Worked")
+    })
+
+    it("does not use the trace start for a gated turn opened after approval", () => {
+        vi.setSystemTime(new Date("2026-09-21T11:25:03Z"))
+        traceStarts.set("resumed", "2026-09-21T10:00:00Z")
+        traceDurations.set("resumed", (85 * 60 + 9) * 1000)
+        const tree = (streaming: boolean) => (
+            <Provider>
+                <ActivityTimeline
+                    messageId="resumed"
+                    steps={[toolStep("output-available")]}
+                    streaming={streaming}
+                    answerStarted={!streaming}
+                    streamedHere={false}
+                    hadGate
+                    traceId="resumed"
+                />
+            </Provider>
+        )
+        const view = render(tree(true))
+        expect(screen.getAllByRole("button")[0].textContent).not.toMatch(/85:|85m/)
+        act(() => {
+            vi.advanceTimersByTime(6000)
+        })
+        view.rerender(tree(false))
+        expect(screen.getAllByRole("button")[0].textContent).toBe("Worked")
+    })
+
+    it("discards an anchored clock when approval history arrives after the trace start", () => {
+        vi.setSystemTime(new Date("2026-09-21T11:25:03Z"))
+        traceStarts.set("late-gate", "2026-09-21T10:00:00Z")
+        traceDurations.set("late-gate", (85 * 60 + 9) * 1000)
+        const tree = (hadGate: boolean, streaming: boolean) => (
+            <Provider>
+                <ActivityTimeline
+                    messageId="late-gate"
+                    steps={[toolStep("output-available")]}
+                    streaming={streaming}
+                    answerStarted={!streaming}
+                    streamedHere={!streaming}
+                    hadGate={hadGate}
+                    traceId="late-gate"
+                />
+            </Provider>
+        )
+        const view = render(tree(false, true))
+        expect(screen.getAllByRole("button")[0].textContent).toContain("85:03")
+        act(() => {
+            vi.advanceTimersByTime(6000)
+        })
+        view.rerender(tree(true, false))
+        expect(screen.getAllByRole("button")[0].textContent).toBe("Worked")
+    })
+
+    it("keeps the trace duration for a settled turn without a gate", () => {
+        traceDurations.set("ungated", 9000)
+        mount({steps: [toolStep("output-available")], traceId: "ungated"})
+        expect(screen.getAllByRole("button")[0].textContent).toBe("Worked for 9s")
+    })
+
+    it("discards a running clock that missed an approval while the timeline was unmounted", () => {
+        const store = createStore()
+        const tree = (hadGate: boolean, streaming: boolean) => (
+            <Provider store={store}>
+                <ActivityTimeline
+                    messageId="unmounted"
+                    steps={[toolStep(streaming ? "input-available" : "output-available")]}
+                    streaming={streaming}
+                    answerStarted={!streaming}
+                    hadGate={hadGate}
+                />
+            </Provider>
+        )
+        const initial = render(tree(false, true))
+        act(() => {
+            vi.advanceTimersByTime(3000)
+        })
+        initial.unmount()
+        act(() => {
+            vi.advanceTimersByTime(85 * 60 * 1000)
+        })
+        const resumed = render(tree(true, true))
+        act(() => {
+            vi.advanceTimersByTime(6000)
+        })
+        resumed.rerender(tree(true, false))
+        expect(screen.getAllByRole("button")[0].textContent).toBe("Worked")
     })
 })
