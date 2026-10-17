@@ -2,6 +2,7 @@
 `ChannelsService`, the records and attachments services and the live stream
 are faked; the router, the adapter and the key checks are real."""
 
+from collections import Counter
 from hashlib import sha256
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -330,6 +331,24 @@ def test_live_is_404_when_the_shared_reader_is_off(
 
     assert _get(client, f"{BASE}/{thread.id}/live").status_code == 404
     assert live_calls == []
+
+
+def test_live_refuses_past_the_open_stream_cap_and_releases_on_close(
+    client, service, live_calls, monkeypatch
+):
+    thread = service.add_thread(KEY, session_id="s1")
+    monkeypatch.setattr(
+        ingress_module.env.channels.embed, "max_live_streams_per_embed", 1
+    )
+    monkeypatch.setattr(ingress_module, "_embed_live_streams", Counter({EMBED_ID: 1}))
+
+    refused = _get(client, f"{BASE}/{thread.id}/live")
+    assert refused.status_code == 429
+    assert live_calls == []
+
+    ingress_module._embed_live_streams.clear()
+    assert _get(client, f"{BASE}/{thread.id}/live").status_code == 200
+    assert ingress_module._embed_live_streams[EMBED_ID] == 0
 
 
 # --- 4.4 files ------------------------------------------------------------- #

@@ -2,6 +2,8 @@ import asyncio
 import hmac
 import json
 import re
+from collections import Counter
+from contextlib import aclosing
 from datetime import datetime, timezone
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Dict, Optional
@@ -89,6 +91,9 @@ _EMBED_BODY_OVERHEAD_BYTES = 64 * 1024
 # Each file becomes one attachment write in the worker; bound the count too.
 _EMBED_MAX_FILES = 10
 _EPOCH = datetime.min.replace(tzinfo=timezone.utc)
+# Open widget streams per embed in this process. A stream holds a Redis
+# connection for as long as the visitor keeps it, which a request rate cannot bound.
+_embed_live_streams: Counter = Counter()
 
 
 def handle_channel_adapter_exceptions():
@@ -448,6 +453,15 @@ class ChannelsIngressRouter:
             request, embed_id, thread_id
         )
         session_id = thread.session_id
+        if (
+            _embed_live_streams[embed_id]
+            >= env.channels.embed.max_live_streams_per_embed
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many open conversations. Try again later.",
+                headers={"Retry-After": "5"},
+            )
 
         async def authorized() -> bool:
             # A thread never changes space, so the embed still resolving to the
@@ -459,6 +473,18 @@ class ChannelsIngressRouter:
             return await self.records_service.get_events_after(
                 project_id=project_id, session_id=session_id, after=cursor
             )
+
+        async def counted():
+            # Counted inside the body: a response that never starts holds nothing.
+            _embed_live_streams[embed_id] += 1
+            try:
+                async with aclosing(stream):
+                    async for frame in stream:
+                        yield frame
+            finally:
+                _embed_live_streams[embed_id] -= 1
+                if _embed_live_streams[embed_id] <= 0:
+                    del _embed_live_streams[embed_id]
 
         stream = live_event_stream(
             channel=live_events_channel(str(project_id), session_id),
@@ -472,7 +498,7 @@ class ChannelsIngressRouter:
             replay_query=replay,
         )
         return StreamingResponse(
-            stream,
+            counted(),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-store",

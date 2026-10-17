@@ -246,6 +246,14 @@ def test_origins_are_rebuilt_from_their_parts():
     ]
 
 
+def test_sanitize_origins_drops_the_default_port_like_a_browser():
+    assert sanitize_origins("https://a.example.com:443 http://b.example.com:80") == [
+        "https://a.example.com",
+        "http://b.example.com",
+    ]
+    assert sanitize_origins("https://a.example.com:80") == ["https://a.example.com:80"]
+
+
 def test_allowed_origins_reads_a_list_too():
     connection = _connection()
     connection.data["allowed_origins"] = ["https://a.example.com", 42, "nope"]

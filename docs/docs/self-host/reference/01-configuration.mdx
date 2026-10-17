@@ -1221,10 +1221,12 @@ The embedded chat widget needs no variable to work. The optional variables below
 | `AGENTA_CHANNELS_EMBED_REQUESTS_PER_MINUTE_PER_KEY`        | `channels.embed.requests_per_minute_per_key`              | _(not mapped)_   | `30`               |
 | `AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_EMBED` | `channels.embed.read_requests_per_minute_per_embed`       | _(not mapped)_   | `6000`             |
 | `AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_KEY`   | `channels.embed.read_requests_per_minute_per_key`         | _(not mapped)_   | `240`              |
+| `AGENTA_CHANNELS_EMBED_MAX_LIVE_STREAMS_PER_EMBED`         | `channels.embed.max_live_streams_per_embed`               | _(not mapped)_   | `200`              |
 | `AGENTA_CHANNELS_EMBED_MAX_MESSAGE_CHARS`                  | `channels.embed.max_message_chars`                        | _(not mapped)_   | `10000`            |
 | `AGENTA_CHANNELS_EMBED_MAX_FILE_BYTES`                     | `channels.embed.max_file_bytes`                           | _(not mapped)_   | `5242880` (5 MB)   |
 
 - The `REQUESTS` limits count posts to the embed's events route: messages, approval answers and commands. The `READ_REQUESTS` limits count the routes that list conversations, read one, follow its live stream and download a file.
+- `MAX_LIVE_STREAMS_PER_EMBED` caps the live streams that one `api` process keeps open for one embed. Each open conversation in a widget holds one stream. Over the cap the widget gets a 429 and tries again.
 - `MAX_MESSAGE_CHARS` applies to the message text and, separately, to the page context serialized as JSON.
 - `MAX_FILE_BYTES` applies to all the files of one message together. One message carries at most 10 files.
 - `MAX_FILE_BYTES` also applies when the `worker-queues` container stores each uploaded file. Set it to the same value on `api` and `worker-queues`.

@@ -134,7 +134,7 @@ Embed conversations SHALL appear wherever channel conversations appear for proje
 
 ### Requirement: Limit request rates
 
-The `embed` ingress SHALL limit request rates per embed and per visitor key, and SHALL refuse messages longer than a configured maximum.
+The `embed` ingress SHALL limit request rates per embed and per visitor key, and SHALL refuse messages longer than a configured maximum. The read routes SHALL limit request rates per embed and per visitor key, and SHALL cap the open live streams per embed.
 
 #### Scenario: Too many requests
 
