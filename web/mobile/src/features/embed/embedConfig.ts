@@ -67,12 +67,13 @@ export const parseEmbedConfig = (raw: unknown): EmbedConfig | null => {
     }
 }
 
-/** Allowed origins plus the Agenta web origin (owner preview); a missing embed frames nowhere. */
+/** Allowed origins plus the Agenta web origin (owner preview); a missing embed's notice frames anywhere. */
 export const frameAncestorsPolicy = (
     config: EmbedConfig | null,
     webUrl: string | undefined,
 ): string => {
-    if (!config) return "frame-ancestors 'none'"
+    // The "not available" notice holds no chat, so the host page can show it after an archive.
+    if (!config) return "frame-ancestors *"
     let webOrigin: string | null = null
     try {
         webOrigin = webUrl ? new URL(webUrl).origin : null
