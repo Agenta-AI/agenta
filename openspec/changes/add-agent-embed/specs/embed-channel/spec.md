@@ -16,7 +16,7 @@ The system SHALL let a project member create an `embed` channel connection for a
 
 ### Requirement: Restrict where the widget can load and call
 
-The widget page SHALL send a `Content-Security-Policy: frame-ancestors` header that lists only the embed's allowed origins. This header is the check on where the widget runs. The `embed` ingress and read routes SHALL NOT compare the request's `Origin` header with the allowed origins, because the widget's own requests carry Agenta's origin, not the host page's origin. The routes SHALL require the `X-Agenta-Visitor-Key` header, so a browser request from another website needs a CORS preflight, which the API's CORS policy refuses.
+The widget page SHALL send a `Content-Security-Policy: frame-ancestors` header that lists the embed's allowed origins and Agenta's own web origin, so the owner can preview the widget in Agenta. This header is the check on where the widget runs. The `embed` ingress and read routes SHALL NOT compare the request's `Origin` header with the allowed origins, because the widget's own requests carry Agenta's origin, not the host page's origin. The routes SHALL require the `X-Agenta-Visitor-Key` header, so a browser request from another website needs a CORS preflight, which the API's CORS policy refuses.
 
 #### Scenario: Load on an allowed site
 
