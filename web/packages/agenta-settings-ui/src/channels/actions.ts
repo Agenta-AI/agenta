@@ -28,7 +28,7 @@ import type {
  * `@agenta/sdk/resources`.
  */
 
-type Scope = {queryParams: {project_id: string}} | undefined
+export type Scope = {queryParams: {project_id: string}} | undefined
 
 /**
  * The subset of the generated `ChannelsClient` this module calls.
@@ -70,13 +70,14 @@ export interface AgentChannelsActionsOptions {
     hostedSlackInstallUrl: (projectId: string) => string | null
 }
 
-type Row = Record<string, unknown>
+export type Row = Record<string, unknown>
 
-const asRecord = (value: unknown): Row => (value && typeof value === "object" ? (value as Row) : {})
+export const asRecord = (value: unknown): Row =>
+    value && typeof value === "object" ? (value as Row) : {}
 
-const asArray = (value: unknown): Row[] => (Array.isArray(value) ? value.map(asRecord) : [])
+export const asArray = (value: unknown): Row[] => (Array.isArray(value) ? value.map(asRecord) : [])
 
-const asString = (value: unknown): string | null =>
+export const asString = (value: unknown): string | null =>
     typeof value === "string" && value ? value : null
 
 /** The backend channel key for a platform and install mode. */
@@ -339,7 +340,7 @@ export const pointConnectionAt = async ({
     )
 }
 
-const rethrow = (fallback: string) => (error: unknown) => {
+export const rethrow = (fallback: string) => (error: unknown) => {
     throw new Error(clientErrorMessage(error, fallback))
 }
 

@@ -1,13 +1,12 @@
 /** Host page messages: only the parent on an allowed origin is heard. */
 
+import {isPlainObject} from "@agenta/shared/utils"
+
 export type HostContext = Record<string, unknown>
 
-export type HostMessage =
+type HostMessage =
     | {type: "init"; visitorKey?: unknown; displayName?: string; context?: HostContext}
     | {type: "context"; context: HostContext}
-
-const isPlainObject = (value: unknown): value is HostContext =>
-    typeof value === "object" && value !== null && !Array.isArray(value)
 
 const originOf = (url: string | undefined | null): string | null => {
     if (!url) return null
