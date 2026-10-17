@@ -44,9 +44,9 @@
 
 ## 6. Publish and owner screens
 
-- [ ] 6.1 The embed appears with the other channels in the agent's publish menu
-- [ ] 6.2 Settings: allowed origins, appearance, live preview; the snippet from the setup document
-- [ ] 6.3 Embed conversations appear with other channel conversations, labeled with the connection name
+- [x] 6.1 The embed appears with the other channels in the agent's publish menu
+- [x] 6.2 Settings: allowed origins, appearance, live preview; the snippet from the setup document
+- [x] 6.3 Embed conversations appear with other channel conversations, labeled with the connection name
 
 ## 7. Docs
 
