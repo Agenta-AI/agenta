@@ -4,9 +4,9 @@ import {allowedParentOrigin, readHostMessage, type HostContext} from "./hostMess
 import {anonymousVisitorKey, isValidVisitorKey} from "./visitorKey"
 
 /** How long the widget waits for the host's `agenta:init` before it uses its own key. */
-export const HOST_INIT_TIMEOUT_MS = 1_000
+const HOST_INIT_TIMEOUT_MS = 1_000
 
-export type EmbedVisitor =
+type EmbedVisitor =
     | {status: "waiting"}
     | {status: "ready"; visitorKey: string}
     | {status: "refused"}
@@ -43,6 +43,8 @@ export const useEmbedVisitor = ({
             settled = true
             setVisitor(next)
         }
+        const settleAnonymous = () =>
+            settle({status: "ready", visitorKey: anonymousVisitorKey(embedId, browserStorage())})
 
         const onMessage = (event: MessageEvent) => {
             const message = readHostMessage(event, {parent: window.parent, allowedOrigins})
@@ -57,10 +59,7 @@ export const useEmbedVisitor = ({
             }
             // A key that arrives after the fallback is ignored: the conversation already started.
             if (message.visitorKey === undefined) {
-                settle({
-                    status: "ready",
-                    visitorKey: anonymousVisitorKey(embedId, browserStorage()),
-                })
+                settleAnonymous()
             } else if (isValidVisitorKey(message.visitorKey)) {
                 settle({status: "ready", visitorKey: message.visitorKey})
             } else {
@@ -81,14 +80,7 @@ export const useEmbedVisitor = ({
                 : null
         if (parentOrigin) window.parent.postMessage({type: "agenta:ready"}, parentOrigin)
 
-        const fallback = setTimeout(
-            () =>
-                settle({
-                    status: "ready",
-                    visitorKey: anonymousVisitorKey(embedId, browserStorage()),
-                }),
-            HOST_INIT_TIMEOUT_MS,
-        )
+        const fallback = setTimeout(settleAnonymous, HOST_INIT_TIMEOUT_MS)
         return () => {
             clearTimeout(fallback)
             window.removeEventListener("message", onMessage)

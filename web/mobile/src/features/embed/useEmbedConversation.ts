@@ -368,5 +368,3 @@ export const useEmbedConversation = ({
         fileBlob,
     }
 }
-
-export type EmbedConversationState = ReturnType<typeof useEmbedConversation>

@@ -23,7 +23,7 @@ const conversationReadSchema = z.object({
 })
 
 export type EmbedConversation = z.infer<typeof conversationSchema>
-export interface EmbedConversationRead {
+interface EmbedConversationRead {
     records: SessionRecord[]
     choiceTokens: string[]
 }
@@ -35,7 +35,7 @@ export interface EmbedUpload {
     data: string
 }
 
-export interface EmbedSendBody {
+interface EmbedSendBody {
     /** Makes a retried send land once: the server deduplicates on it. */
     id: string
     text?: string
@@ -73,7 +73,7 @@ const refusal = async (response: Response): Promise<EmbedRequestError> => {
     )
 }
 
-export interface EmbedLiveConnection {
+interface EmbedLiveConnection {
     close: () => void
 }
 

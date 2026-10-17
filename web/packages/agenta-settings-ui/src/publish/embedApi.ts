@@ -1,9 +1,15 @@
 import {
     answeringAgentRow,
     clientErrorMessage,
+    asArray,
+    asRecord,
+    asString,
     pointConnectionAt,
     referencedAppId,
+    rethrow,
     type ChannelsClientLike,
+    type Row,
+    type Scope,
 } from "../channels/actions"
 
 // The widget's name is the connection's name, so session titles and the widget header agree.
@@ -20,8 +26,6 @@ export type EmbedClient = Pick<
 > & {
     fetchChannelConnectionSetup(body: {connection_id: string}, scope?: Scope): Promise<unknown>
 }
-
-type Scope = {queryParams: {project_id: string}} | undefined
 
 export type EmbedTheme = "system" | "light" | "dark"
 
@@ -50,9 +54,7 @@ export interface Embed extends EmbedSettings {
 
 export const MAX_STARTERS = 4
 
-type Row = Record<string, unknown>
-const asRecord = (value: unknown): Row => (value && typeof value === "object" ? (value as Row) : {})
-const asString = (value: unknown): string => (typeof value === "string" ? value : "")
+const asText = (value: unknown): string => asString(value) ?? ""
 
 // The same check the API runs on create (an edit skips it, so it is repeated here).
 const ORIGIN = /^https?:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?$/
@@ -80,9 +82,9 @@ export const appearanceError = (appearance: EmbedAppearance): string | null => {
 }
 
 export const mapEmbedRow = (row: Row): Embed | null => {
-    const id = asString(row.id)
+    const id = asText(row.id)
     const data = asRecord(row.data)
-    const embedId = asString(asRecord(data.connection_locator).embed)
+    const embedId = asText(asRecord(data.connection_locator).embed)
     if (!id || !embedId || row.deleted_at) return null
     const rawOrigins = data.allowed_origins
     const appearance = asRecord(data.appearance)
@@ -90,24 +92,20 @@ export const mapEmbedRow = (row: Row): Embed | null => {
     return {
         id,
         embedId,
-        name: asString(row.name),
+        name: asText(row.name),
         origins: Array.isArray(rawOrigins)
-            ? rawOrigins.map(asString).filter(Boolean).join("\n")
-            : asString(rawOrigins),
+            ? rawOrigins.map(asText).filter(Boolean).join("\n")
+            : asText(rawOrigins),
         appearance: {
-            avatarUrl: asString(appearance.avatar_url),
-            greeting: asString(appearance.greeting),
+            avatarUrl: asText(appearance.avatar_url),
+            greeting: asText(appearance.greeting),
             starters: (Array.isArray(appearance.starters) ? appearance.starters : [])
-                .map(asString)
+                .map(asText)
                 .slice(0, MAX_STARTERS),
             theme: theme === "light" || theme === "dark" ? theme : "system",
-            accent: asString(appearance.accent),
+            accent: asText(appearance.accent),
         },
     }
-}
-
-const fail = (fallback: string) => (error: unknown) => {
-    throw new Error(clientErrorMessage(error, fallback))
 }
 
 /** The project's embeds that answer as this agent, oldest first. */
@@ -118,22 +116,17 @@ export const listAgentEmbeds = async (
 ): Promise<Embed[]> => {
     const res = await client
         .queryChannelConnections({connection: {channel: "embed"}}, scope)
-        .catch(fail("Could not load the embeds."))
-    const rows = (
-        Array.isArray(asRecord(res).connections) ? asRecord(res).connections : []
-    ) as Row[]
-    const embeds = rows.map(asRecord).flatMap((row) => {
-        const embed = asString(row.channel) === "embed" ? mapEmbedRow(row) : null
+        .catch(rethrow("Could not load the embeds."))
+    const embeds = asArray(asRecord(res).connections).flatMap((row) => {
+        const embed = asText(row.channel) === "embed" ? mapEmbedRow(row) : null
         return embed ? [embed] : []
     })
     const answering = await Promise.all(
         embeds.map(async (embed) => {
             const agents = await client
                 .queryChannelAgents({agent: {connection_id: embed.id}}, scope)
-                .catch(fail("Could not load the embeds."))
-            const row = answeringAgentRow(
-                (Array.isArray(asRecord(agents).agents) ? asRecord(agents).agents : []) as Row[],
-            )
+                .catch(rethrow("Could not load the embeds."))
+            const row = answeringAgentRow(asArray(asRecord(agents).agents))
             return row ? referencedAppId(row) : null
         }),
     )
@@ -158,8 +151,8 @@ export const createEmbed = async (
             },
             scope,
         )
-        .catch(fail("Could not create the embed."))
-    const id = asString(asRecord(asRecord(res).connection).id)
+        .catch(rethrow("Could not create the embed."))
+    const id = asText(asRecord(asRecord(res).connection).id)
     if (!id) throw new Error("The embed was created without an id.")
     try {
         await pointConnectionAt({client, scope, appId, connectionId: id})
@@ -201,7 +194,7 @@ export const saveEmbed = async (
             },
             scope,
         )
-        .catch(fail("Could not save the embed."))
+        .catch(rethrow("Could not save the embed."))
 }
 
 /** The iframe snippet from the connection's setup document. */
@@ -212,8 +205,8 @@ export const fetchEmbedSnippet = async (
 ): Promise<string> => {
     const res = await client
         .fetchChannelConnectionSetup({connection_id: connectionId}, scope)
-        .catch(fail("Could not load the snippet."))
-    const content = asString(asRecord(asRecord(asRecord(res).setup).document).content)
+        .catch(rethrow("Could not load the snippet."))
+    const content = asText(asRecord(asRecord(asRecord(res).setup).document).content)
     if (!content) throw new Error("Could not load the snippet.")
     return content
 }
@@ -225,5 +218,5 @@ export const archiveEmbed = async (
 ): Promise<void> => {
     await client
         .archiveChannelConnection({connection_id: connectionId}, scope)
-        .catch(fail("Could not archive the embed."))
+        .catch(rethrow("Could not archive the embed."))
 }
