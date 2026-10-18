@@ -6,9 +6,8 @@ import {
     invalidateToolConnections,
     useToolConnectionsQuery,
 } from "@agenta/entities/gatewayTool"
-import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
-import {EnhancedModal, ModalContent, ModalFooter, message} from "@agenta/ui"
+import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
 import {
     Field,
     Input,
@@ -19,6 +18,8 @@ import {
     SelectValue,
 } from "@agenta/ui/ui"
 import Image from "next/image"
+
+import {openToolAuthPopup} from "../utils/openToolAuthPopup"
 
 const DEFAULT_PROVIDER = "composio"
 
@@ -73,6 +74,9 @@ export default function ConnectDrawer({
     const seedName = defaultConnectionName(integrationName, existingCount)
 
     const nameTouchedRef = useRef(false)
+    // An open auth popup's listener and poll; stopped if the drawer unmounts first.
+    const popupCleanupRef = useRef<(() => void) | null>(null)
+    useEffect(() => () => popupCleanupRef.current?.(), [])
     const [name, setName] = useState(seedName)
     const [nameError, setNameError] = useState<string | null>(null)
     const slug = generateDefaultSlug(
@@ -129,63 +133,23 @@ export default function ConnectDrawer({
                 ?.redirect_url
             if (typeof redirectUrl === "string" && redirectUrl) {
                 // Composio handles all auth (OAuth and API key) via their redirect UI
-                const popup = window.open(
-                    redirectUrl,
-                    "tools_oauth",
-                    "width=600,height=700,popup=yes",
-                )
-                if (!popup) {
-                    setLoading(false)
-                    message.warning("Popup blocked. Redirecting in this tab.")
-                    window.location.assign(redirectUrl)
-                    return
-                }
-
                 const connectionId = result.connection?.id
-
-                const onAuthDone = async () => {
-                    window.focus()
-                    if (connectionId) {
-                        try {
-                            await fetchToolConnection(connectionId)
-                        } catch {
-                            /* best-effort */
+                popupCleanupRef.current = openToolAuthPopup(redirectUrl, () => {
+                    popupCleanupRef.current = null
+                    void (async () => {
+                        if (connectionId) {
+                            try {
+                                await fetchToolConnection(connectionId)
+                            } catch {
+                                /* best-effort */
+                            }
                         }
-                    }
-                    invalidateConnections()
-                    handleClose()
-                    onSuccess?.()
-                }
-
-                const trustedOrigins = new Set<string>([window.location.origin])
-                for (const url of [getAgentaApiUrl(), getAgentaWebUrl()]) {
-                    if (!url) continue
-                    try {
-                        trustedOrigins.add(new URL(url).origin)
-                    } catch {
-                        // ignore invalid env URLs
-                    }
-                }
-
-                const handler = (event: MessageEvent) => {
-                    if (
-                        event.data?.type === "tools:oauth:complete" &&
-                        trustedOrigins.has(event.origin)
-                    ) {
-                        window.removeEventListener("message", handler)
-                        void onAuthDone()
-                    }
-                }
-                window.addEventListener("message", handler)
-
-                // Fallback: detect popup closed
-                const pollTimer = setInterval(() => {
-                    if (popup && popup.closed) {
-                        clearInterval(pollTimer)
-                        window.removeEventListener("message", handler)
-                        void onAuthDone()
-                    }
-                }, 1000)
+                        invalidateConnections()
+                        handleClose()
+                        onSuccess?.()
+                    })()
+                })
+                if (!popupCleanupRef.current) setLoading(false)
             } else {
                 handleClose()
                 onSuccess?.()

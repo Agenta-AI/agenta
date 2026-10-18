@@ -30,7 +30,6 @@ from oss.src.core.secrets.dtos import (
     SSOProviderDTO,
     SSOProviderSettingsDTO,
 )
-from oss.src.core.secrets.redaction import redact_secret_response
 from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.core.shared.dtos import Header
@@ -640,7 +639,7 @@ class OrganizationProvidersService:
                         )
                     ),
                 ),
-                write_only=False,
+                write_only=True,
             )
 
             secret_dto = await self._vault_service().create_secret(
@@ -694,7 +693,12 @@ class OrganizationProvidersService:
             settings_changed = False
 
             if payload.settings is not None:
-                settings.update(payload.settings)
+                # The client secret is never sent back to the browser, so an edit that
+                # leaves it blank means "keep the stored one".
+                incoming = dict(payload.settings)
+                if not incoming.get("client_secret"):
+                    incoming.pop("client_secret", None)
+                settings.update(incoming)
                 settings_changed = True
 
             flags = provider.flags.copy() if provider.flags else {}
@@ -908,7 +912,7 @@ class OrganizationProvidersService:
     ) -> dict:
         """The provider's settings as a USER response may carry them.
 
-        Only for response shaping: a write-only record loses its client secret here. The
+        Only for response shaping: the client secret never leaves here. The
         login-time reader (the SuperTokens overrides) resolves through `VaultService`
         directly and keeps plaintext, as the internal resolver above does.
         """
@@ -919,15 +923,16 @@ class OrganizationProvidersService:
         if not secret:
             raise HTTPException(status_code=404, detail="Provider secret not found")
 
-        write_only = bool(getattr(secret, "write_only", False))
-        settings = self._provider_settings_of(redact_secret_response(secret))
+        settings = self._provider_settings_of(secret)
 
-        if write_only:
-            # The dict-shaped branch has no typed container for the redaction helper to
-            # reach into, so the field is dropped here instead.
-            settings = {
-                key: value for key, value in settings.items() if key != "client_secret"
-            }
+        # Always dropped, whatever `write_only` says: rows written before the secret was
+        # created write-only still hold a readable one. The flag tells the caller whether
+        # a secret is stored.
+        has_client_secret = bool(settings.get("client_secret"))
+        settings = {
+            key: value for key, value in settings.items() if key != "client_secret"
+        }
+        settings["has_client_secret"] = has_client_secret
 
         return settings
 

@@ -63,6 +63,7 @@ import type {
   ModelTokenUsage,
 } from "../protocol.ts";
 import type { Redactor } from "../redaction.ts";
+import { configuredApiBase, envApiUrl } from "../apiBase.ts";
 import { logExportProblem } from "./export-diagnostics.ts";
 import { createStreamTrace } from "./stream-trace.ts";
 
@@ -302,9 +303,7 @@ const CLOUD_API_BASE = "https://cloud.agenta.ai/api";
 function defaultTarget(): HttpExportTarget {
   // Internal direct hop first, then the public `.../api` base, then cloud.
   const base =
-    (
-      process.env.AGENTA_API_INTERNAL_URL ?? process.env.AGENTA_API_URL
-    )?.replace(/\/+$/, "") || CLOUD_API_BASE;
+    configuredApiBase()?.replace(/\/+$/, "") || CLOUD_API_BASE;
   // The per-run caller credential rides the request (each explicit trace target carries its own
   // authorization; Pi's runner-owned exporter receives it only at send time). The runner holds no static
   // platform key: it must not carry an `AGENTA_API_KEY` a local harness could read from /proc and
@@ -512,8 +511,8 @@ function bridgeRewrittenBase(base: string): string | undefined {
  * what it compared against — the failure is always a configuration gap, never a code path. */
 export function configuredIngestBases(): string[] {
   const configured = [
-    process.env.AGENTA_API_INTERNAL_URL,
-    process.env.AGENTA_API_URL,
+    envApiUrl("AGENTA_API_INTERNAL_URL"),
+    envApiUrl("AGENTA_API_URL"),
     CLOUD_API_BASE,
   ].filter((base): base is string => Boolean(base));
 
@@ -533,8 +532,8 @@ export function configuredIngestBases(): string[] {
  */
 export function publicApiBaseConfigured(): boolean {
   return Boolean(
-    process.env.AGENTA_API_URL?.trim() ||
-    process.env.AGENTA_API_INTERNAL_URL?.trim()?.startsWith(CLOUD_API_BASE),
+    envApiUrl("AGENTA_API_URL") ||
+    envApiUrl("AGENTA_API_INTERNAL_URL")?.startsWith(CLOUD_API_BASE),
   );
 }
 

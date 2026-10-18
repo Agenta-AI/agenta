@@ -867,6 +867,12 @@ note below): bundled SeaweedFS uses `AssumeRoleWithWebIdentity`; a remote S3 sto
 | `AGENTA_STORE_JWT_PRIVATE_KEY` | `store.jwt_private_key` | `store.jwtPrivateKey` |
 | n/a | n/a | `store.seaweedfs.enabled` |
 
+`AGENTA_MOUNTS_MAX_UPLOAD_BYTES` (env.py path `mounts.max_upload_bytes`, read by the `api` service)
+caps one file upload or write to the drive. The default is `104857600` (100 MB). The API answers a
+larger request with `413`. When the request declares its size in `Content-Length`, the API
+answers before it reads the body. Otherwise it stops reading as soon as the body passes the cap. The chart has no dedicated values key for it;
+set it through `api.env.AGENTA_MOUNTS_MAX_UPLOAD_BYTES`.
+
 `store.seaweedfs.enabled=true` bundles a SeaweedFS StatefulSet and auto-populates
 `store.endpointUrl`. Set it to `false` and supply `store.endpointUrl` to use an external
 S3-compatible store. This toggle mirrors `postgresql.enabled`.

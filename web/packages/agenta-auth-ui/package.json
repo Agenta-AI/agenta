@@ -17,6 +17,7 @@
     },
     "dependencies": {
         "@agenta/auth": "workspace:../agenta-auth",
+        "@agenta/ui": "workspace:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",
         "clsx": "^2.1.1"
     },

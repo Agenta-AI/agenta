@@ -181,13 +181,13 @@ Second trap in the same area: this is a WORKFLOW-revision commit, NOT the in-str
 `data-committed-revision` SSE frame (which is a different mechanism — the agent committing during a
 turn) and NOT a git commit. The playground's Save/Commit button hits the REST route above.
 
-## 15. User MCP servers are Claude-only, public-HTTPS-only, and must be a stored connection
+## 15. User MCP servers are public-HTTPS-only and must be a stored connection
 
-Three things will each silently break an MCP smoke test:
+Pi used to reject any run that declares `mcps`. It no longer does: Pi calls gateway MCP tools
+through `services/runner/src/extensions/pi-mcp.ts`, so the `mcp` journey runs on Pi cells too.
 
-- **Pi rejects any run that declares `mcps`** (`run-plan.ts` `PI_USER_MCP_UNSUPPORTED_MESSAGE`).
-  User MCP needs a harness with `capabilities.mcpTools` — i.e. **Claude**. Do not smoke-test MCP on
-  a Pi cell; SKIP it there.
+Two things will each silently break an MCP smoke test:
+
 - **A local MCP server is unreachable.** The SDK resolver AND the runner both run an SSRF guard
   (`assert_endpoint_url_allowed` / `validateUserMcpUrl`) that rejects `http://` and
   private/loopback/metadata hosts unless `AGENTA_INSECURE_EGRESS_ALLOWED` /

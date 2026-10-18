@@ -25,6 +25,7 @@ from oss.src.core.gateways.mcps.oauth.storage import (
     SecretsTokenStorage,
     registration_slug,
 )
+from oss.tests.pytest.utils.mcp_endpoints import InMemoryMCPEndpoints
 from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
 from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO, SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
@@ -111,15 +112,18 @@ class _FakeSecretsDAO:
 def _mock_as_handler(*, register_called: list, advertise_registration: bool = True):
     """A mock authorization server, optionally one that accepts no registrations.
 
-    `advertise_registration=False` drops `registration_endpoint` from the metadata,
-    which is the only condition under which naming ourselves with a client-id metadata
-    document is correct. `/register` stays wired up either way so that a test can prove
-    nothing reached it.
+    `advertise_registration=False` drops `registration_endpoint` from the metadata and
+    advertises client ID metadata documents instead, which is a server where naming
+    ourselves with the document is correct. `/register` stays wired up either way so
+    that a test can prove nothing reached it.
     """
     metadata = (
         _AS_METADATA
         if advertise_registration
-        else {k: v for k, v in _AS_METADATA.items() if k != "registration_endpoint"}
+        else {
+            **{k: v for k, v in _AS_METADATA.items() if k != "registration_endpoint"},
+            "client_id_metadata_document_supported": True,
+        }
     )
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -182,6 +186,7 @@ def _service(
         client=client,
         api_url=api_url,
         attempts_dao=attempts,
+        endpoints_dao=InMemoryMCPEndpoints(attempts=attempts),
         resolve=resolve,
     )
     return service, dao, attempts

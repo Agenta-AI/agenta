@@ -11,9 +11,11 @@ export {
     findCustomMcpEndpoint,
     getMcpConnectionState,
     getMcpConnectionStateLabel,
+    mcpReconnectTarget,
 } from "./connectionState"
-export type {McpConnectionState} from "./connectionState"
+export type {McpConnectionState, McpReconnectTarget} from "./connectionState"
 export {
+    getMcpConnectionCheckLabel,
     getMcpConnectionStatus,
     getMcpConnectionStatusLabel,
     readMcpConnectionHealth,
@@ -30,10 +32,26 @@ export {
     readMcpProbeResponse,
 } from "./probeResponse"
 export type {McpProbeResponse} from "./probeResponse"
+export {
+    basicCredentialValue,
+    credentialBindingComplete,
+    credentialBindingPreview,
+    hasUrlSecretPlaceholder,
+    MCP_DEFAULT_CREDENTIAL_BINDING,
+    MCP_URL_CREDENTIAL_BINDING,
+    MCP_URL_SECRET_PLACEHOLDER,
+    mcpDefaultCredentialBinding,
+    normalizeCredentialBinding,
+    urlMatchesCredentialBinding,
+    urlSecretProblem,
+    withoutCredentialParameter,
+} from "./credentialBinding"
 export type {
     MCPAuthMode,
+    MCPCredentialBinding,
     MCPConnectResponse,
     MCPEndpoint,
+    MCPEndpointCheck,
     MCPEndpointCreate,
     MCPEndpointData,
     MCPEndpointEdit,
@@ -43,6 +61,7 @@ export type {
     MCPEndpointRoute,
     MCPEndpointSettings,
     MCPEndpointsResponse,
+    MCPOAuthConfig,
     MCPOAuthData,
     MCPEndpointProbeResponse,
     MCPProbeAuth,
@@ -51,6 +70,7 @@ export type {
     MCPProbeRegistration,
     MCPServerProbe,
     MCPToolFilter,
+    MCPTokenEndpointAuthMethod,
 } from "./types"
 export {
     gatewayRefusalCode,
@@ -73,9 +93,14 @@ export {
 export type {McpToolPage} from "./mcpRpc"
 export {
     cancelDeletesEndpoint,
+    detectedAuthMode,
     isBusy,
     isConnected,
     journeyReducer,
+    needsOwnOauthApp,
+    oauthConfigFrom,
+    oauthConfigReady,
+    DEFAULT_OAUTH_CLIENT_AUTH_METHOD,
     startJourney,
     startReconnect,
 } from "./connectJourney"
