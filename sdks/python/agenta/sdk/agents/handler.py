@@ -10,6 +10,7 @@ composition override) gets them for free instead of a permissive fallback.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import UUID
@@ -62,7 +63,10 @@ from agenta.sdk.agents.tracing import (
 )
 from agenta.sdk.agents.dtos import RunContext, RunContextRun, SessionContext
 
-from agenta.sdk.engines.running.errors import ForceNotSupportedV0Error
+from agenta.sdk.engines.running.errors import (
+    ForceNotSupportedV0Error,
+    InvalidSessionIdV0Error,
+)
 from agenta.sdk.engines.tracing.server import current_product_span
 from agenta.sdk.redaction.context import get_active_redactor, redaction_context
 from agenta.sdk.redaction.redactor import Redactor
@@ -77,6 +81,9 @@ from agenta.sdk.models.workflows import (
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+# The platform's session id contract (api/oss/src/dbs/redis/sessions/contract.py).
+_AGENT_SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
 
 ResolveToolsFn = Callable[..., Awaitable[ResolvedToolSet]]
 ResolveMCPFn = Callable[..., Awaitable[List[ResolvedMCPServer]]]
@@ -425,6 +432,11 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             raise ForceNotSupportedV0Error()
         stream = flags.stream
         session_id = request.session_id
+        # An agent turn is session-owned, so its id must pass the platform's session store,
+        # whose charset is narrower than the SDK's tracing id. Without this the turn starts and
+        # the runner's admission heartbeat gets a 422, which reaches the client as a 500.
+        if session_id is not None and not _AGENT_SESSION_ID_RE.match(session_id):
+            raise InvalidSessionIdV0Error(session_id)
 
         workflow_span = current_product_span()
         record_usage = _bind_workflow_span(comp.record_usage, workflow_span)

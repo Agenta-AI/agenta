@@ -185,10 +185,12 @@ def _agent_client(*, text: str = "hello world") -> TestClient:
     return TestClient(app)
 
 
-def _post_agent(client, *, headers=None, flags=None):
+def _post_agent(client, *, headers=None, flags=None, session_id=None):
     body: dict = {"data": {"inputs": {"messages": [{"role": "user", "content": "hi"}]}}}
     if flags is not None:
         body["flags"] = flags
+    if session_id is not None:
+        body["session_id"] = session_id
     with _offline_tracing():
         return client.post("/invoke", json=body, headers=headers or {})
 
@@ -374,6 +376,23 @@ def test_agent_v0_force_header_is_406():
     resp = _post_agent(_agent_client(), headers={"x-ag-session-control": "force"})
     assert resp.status_code == 406
     assert "force-not-supported" in resp.json()["status"]["type"]
+
+
+# =========================================================================== #
+# 400: an agent session_id the platform session store refuses never starts a turn.
+# The SDK's tracing id allows '.' and ':', the session store does not; before this
+# the runner's admission heartbeat got a 422 and the client a 500 "platform is busy".
+# =========================================================================== #
+@pytest.mark.parametrize("session_id", ["matrix-gpt-4.1_pi", "slack:C123"])
+def test_agent_v0_invalid_session_id_is_400(session_id):
+    resp = _post_agent(_agent_client(), session_id=session_id)
+    assert resp.status_code == 400
+    assert "invalid-session-id" in resp.json()["status"]["type"]
+
+
+def test_agent_v0_valid_session_id_runs():
+    resp = _post_agent(_agent_client(), session_id="matrix-gpt-4_1_pi")
+    assert resp.status_code == 200
 
 
 def test_llm_v0_force_body_flag_is_406(_llm_client):
