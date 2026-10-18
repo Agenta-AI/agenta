@@ -11,26 +11,31 @@ Embed an agent, and visitors of your website or internal tool can chat with it i
 You need:
 
 - **An agent in Agenta** that you want to put on your website.
-- **Optional: the origin of each website** that may show the chat, for example `https://tool.example.com`. An origin is the scheme, the host and an optional port, with no path. Without a list, any website can show the chat.
+- **Optional: the domain of each website** that may show the chat, for example `https://tool.example.com`. A domain here is the scheme, the host and an optional port, with no path. Without a list, any website can show the chat.
 
 ## 1. Create the embed
 
 1. Open the agent's chat and click **Publish**.
 2. Click **Embed**.
-3. Under **New embed**, fill in:
-   - **Name**: the name of the embed, such as `Support chat`. The agent sees this name with each message. Visitor conversations appear in the agent's session list, and their titles carry this name.
-   - **Specific domains**: leave **Only allow embedding the agent on specific domains** off to let any website show the chat. Turn it on to limit the chat to a list of websites, and enter each domain in a new line, such as `https://tool.example.com`. An entry such as `https://*.example.com` allows every subdomain of `example.com`, but not `example.com` itself. Add both lines if you need both.
-4. Click **Create**.
+3. Click **Create embed**.
+
+Agenta creates the embed right away and opens its settings. The new embed has the agent's name, and any website can show it. The settings are in this order:
+
+- **Name**: the name of the embed, such as `Support chat`. Visitors see it in the chat header, and the agent sees it with each message. Visitor conversations appear in the agent's session list, and their titles carry this name.
+- **Add to your website**: the snippet. See the next step.
+- **Specific domains**: leave **Only allow embedding the agent on specific domains** off to let any website show the chat. Turn it on to limit the chat to a list of websites, and enter each domain in a new line, such as `https://tool.example.com`. An entry such as `https://*.example.com` allows every subdomain of `example.com`, but not `example.com` itself. Add both lines if you need both.
+- **Appearance**: **Avatar URL**, **Greeting**, **Starter prompts** (up to four), **Theme** and **Accent** (a hex color such as `#2563eb`). Without an avatar, the chat shows the first letters of the name on the accent color.
+- **Preview**: the chat as visitors see it, with the saved settings. Messages you send in the preview are real. They run the agent and appear in its session list.
+
+Click a section title to open or close it. A closed section shows its current value, such as **Any website** or **2 domains**. Click **Save changes** at the bottom of the panel to apply your changes.
 
 :::warning
 When **Only allow embedding the agent on specific domains** is off, anyone who copies the snippet can put the agent on their own website. Every message there runs the agent and uses your model credits. The [rate limits](#limits) cap how fast this can happen. To stop it, turn on specific domains, or archive the embed.
 :::
 
-The embed opens with its settings, the snippet and a preview. In the settings you can change the name and the domains, and set the appearance: **Avatar URL**, **Greeting**, **Starter prompts** (up to four), **Theme** and **Accent** (a hex color such as `#2563eb`). Click **Save changes** to apply them.
-
 ## 2. Paste the snippet into your page
 
-Under **Snippet**, copy the code and paste it into a page on your website. If you turned on specific domains, use a page on one of them. The snippet is an iframe and an optional script:
+Under **Add to your website**, copy the code and paste it into a page on your website. If you turned on specific domains, use a page on one of them. The snippet is an iframe and an optional script:
 
 ```html
 <iframe
@@ -45,7 +50,7 @@ The `src` in your snippet holds your Agenta address and your embed. Change the `
 
 If an AI coding assistant edits your website, click **Copy prompt** next to the snippet's copy button instead. The prompt holds the exact snippet and tells the assistant where to put it, what it must not change, how to pass a visitor key and how to check the result.
 
-In the widget, a visitor can start a new conversation with **New chat** and open earlier ones from the **Conversations** list.
+In the widget, a visitor can start a new conversation with **New chat** and open earlier ones from the **Conversations** list. The list also has **New chat** at the top.
 
 With only the iframe, the chat works and the history is anonymous. The next sections show what the script adds.
 
