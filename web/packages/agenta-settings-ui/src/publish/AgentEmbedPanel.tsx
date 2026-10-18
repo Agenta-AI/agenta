@@ -1,12 +1,19 @@
 import {useId, useState} from "react"
 
-import {Alert, Button, Input, LoadingButton, SkeletonBlock, Textarea} from "@agenta/ui/ui"
+import {Alert, Button, Input, LoadingButton, SkeletonBlock} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
 
 import type {EmbedViewProps} from "../channels/useChannelPanel"
 
-import {createEmbed, listAgentEmbeds, parseOrigins, type EmbedClient} from "./embedApi"
+import {
+    createEmbed,
+    listAgentEmbeds,
+    originsError,
+    parseOrigins,
+    type EmbedClient,
+} from "./embedApi"
+import {EmbedDomainsField, type EmbedDomains} from "./EmbedDomainsField"
 import {EmbedSettingsForm, FieldLabel} from "./EmbedSettingsForm"
 
 export interface AgentEmbedPanelProps extends EmbedViewProps {
@@ -34,13 +41,13 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
     const nameId = useId()
     const originsId = useId()
     const [name, setName] = useState(agentName ?? "")
-    const [origins, setOrigins] = useState("")
-    const [originsError, setOriginsError] = useState<string | null>(null)
+    const [domains, setDomains] = useState<EmbedDomains>({restricted: false, origins: ""})
+    const [domainsError, setDomainsError] = useState<string | null>(null)
     const create = useMutation({
-        mutationFn: () => createEmbed(client, scope, agentId, {name, origins}),
+        mutationFn: () => createEmbed(client, scope, agentId, {name, ...domains}),
         onSuccess: async (id) => {
             await queryClient.invalidateQueries({queryKey})
-            setOrigins("")
+            setDomains({restricted: false, origins: ""})
             onOpen(id)
         },
     })
@@ -79,8 +86,8 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
     }
 
     const submit = () => {
-        const {error} = parseOrigins(origins)
-        setOriginsError(error)
+        const error = originsError(domains)
+        setDomainsError(error)
         if (!error) create.mutate()
     }
 
@@ -100,9 +107,11 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
                                 <span className="truncate text-sm font-medium text-foreground">
                                     {embed.name || "Embed"}
                                 </span>
-                                <span className="truncate text-[12.5px] text-muted-foreground">
-                                    {parseOrigins(embed.origins).origins.join(", ")}
-                                </span>
+                                {embed.restricted ? (
+                                    <span className="truncate text-[12.5px] text-muted-foreground">
+                                        {parseOrigins(embed.origins).origins.join(", ")}
+                                    </span>
+                                ) : null}
                             </span>
                             <CaretRight size={12} className="flex-none text-muted-foreground" />
                         </Button>
@@ -120,22 +129,13 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
                     <FieldLabel htmlFor={nameId}>Name</FieldLabel>
                     <Input id={nameId} value={name} onChange={(e) => setName(e.target.value)} />
                 </div>
-                <div className="flex flex-col gap-1.5">
-                    <FieldLabel htmlFor={originsId}>Allowed origins</FieldLabel>
-                    <Textarea
-                        id={originsId}
-                        rows={2}
-                        placeholder="https://tool.example.com"
-                        value={origins}
-                        onChange={(e) => setOrigins(e.target.value)}
-                        data-testid="agent-embed-new-origins"
-                    />
-                    <span className="text-[12.5px] text-muted-foreground">
-                        One origin per line. The chat loads only on these websites.
-                    </span>
-                </div>
-                {originsError || create.error ? (
-                    <Alert type="error" showIcon message={originsError ?? create.error?.message} />
+                <EmbedDomainsField
+                    id={originsId}
+                    value={domains}
+                    onChange={(patch) => setDomains((d) => ({...d, ...patch}))}
+                />
+                {domainsError || create.error ? (
+                    <Alert type="error" showIcon message={domainsError ?? create.error?.message} />
                 ) : null}
                 <LoadingButton
                     className="self-start"

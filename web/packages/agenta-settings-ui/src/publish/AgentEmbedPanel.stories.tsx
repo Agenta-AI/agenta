@@ -72,3 +72,11 @@ export const Empty: Story = {args: {client: fakeClient([])}}
 export const LoadError: Story = {args: {client: fakeClient([], true)}}
 
 export const Settings: Story = {args: {connectionId: "e1"}}
+
+/** An embed with no domain list: any site may embed it, so the toggle is off. */
+export const SettingsAnySite: Story = {
+    args: {
+        connectionId: "e1",
+        client: fakeClient([{...EMBED, data: {...EMBED.data, allowed_origins: ""}}]),
+    },
+}

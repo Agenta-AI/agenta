@@ -1,9 +1,38 @@
 import {describe, expect, it} from "vitest"
 
-import {allowedParentOrigin, readHostMessage} from "../../src/features/embed/hostMessages"
+import {
+    allowedParentOrigin,
+    originAllowed,
+    readHostMessage,
+} from "../../src/features/embed/hostMessages"
 
 const ALLOWED = ["https://tool.example.com"]
 const parent = {}
+
+describe("originAllowed", () => {
+    const WILDCARD = ["https://*.example.com", "http://*.local.test:3000"]
+
+    it("matches any subdomain of a wildcard entry, not the bare domain", () => {
+        expect(originAllowed("https://a.example.com", WILDCARD)).toBe(true)
+        expect(originAllowed("https://a.b.example.com", WILDCARD)).toBe(true)
+        expect(originAllowed("http://app.local.test:3000", WILDCARD)).toBe(true)
+        expect(originAllowed("https://example.com", WILDCARD)).toBe(false)
+        expect(originAllowed("https://.example.com", WILDCARD)).toBe(false)
+    })
+
+    it("keeps the scheme and the port of a wildcard entry", () => {
+        expect(originAllowed("http://a.example.com", WILDCARD)).toBe(false)
+        expect(originAllowed("https://a.example.com:8443", WILDCARD)).toBe(false)
+        expect(originAllowed("http://app.local.test", WILDCARD)).toBe(false)
+        expect(originAllowed("https://evilexample.com", WILDCARD)).toBe(false)
+        expect(originAllowed("https://a.example.com.evil.test", WILDCARD)).toBe(false)
+    })
+
+    it("matches every origin for *", () => {
+        expect(originAllowed("https://anything.test", ["*"])).toBe(true)
+        expect(originAllowed("http://localhost:8791", ["*"])).toBe(true)
+    })
+})
 
 describe("allowedParentOrigin", () => {
     it("takes the ancestor origin first, then the referrer", () => {
@@ -21,6 +50,13 @@ describe("allowedParentOrigin", () => {
         )
         expect(allowedParentOrigin({referrer: ""}, ALLOWED)).toBe(null)
         expect(allowedParentOrigin({referrer: "not a url"}, ALLOWED)).toBe(null)
+    })
+
+    it("is the parent's own origin when any site may embed", () => {
+        expect(allowedParentOrigin({referrer: "https://any.test/page"}, ["*"])).toBe(
+            "https://any.test",
+        )
+        expect(allowedParentOrigin({referrer: ""}, ["*"])).toBe(null)
     })
 })
 
@@ -51,6 +87,33 @@ describe("readHostMessage", () => {
     it("ignores a message from another origin or another window", () => {
         expect(from({type: "agenta:init"}, "https://evil.example.com")).toBe(null)
         expect(from({type: "agenta:init"}, "https://tool.example.com", {})).toBe(null)
+    })
+
+    it("hears the parent on any origin when any site may embed, but never another window", () => {
+        const read = (origin: string, source: unknown) =>
+            readHostMessage(
+                {data: {type: "agenta:context", context: {}}, origin, source} as MessageEvent,
+                {
+                    parent,
+                    allowedOrigins: ["*"],
+                },
+            )
+        expect(read("https://any.test", parent)).toEqual({type: "context", context: {}})
+        expect(read("https://any.test", {})).toBe(null)
+    })
+
+    it("hears the parent on a wildcard origin", () => {
+        const event = {
+            data: {type: "agenta:context", context: {}},
+            origin: "https://a.example.com",
+            source: parent,
+        }
+        expect(
+            readHostMessage(event as MessageEvent, {
+                parent,
+                allowedOrigins: ["https://*.example.com"],
+            }),
+        ).toEqual({type: "context", context: {}})
     })
 
     it("ignores unknown types and drops fields of the wrong shape", () => {

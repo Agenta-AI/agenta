@@ -27,12 +27,13 @@ export interface EmbedAppearance {
 }
 
 export interface EmbedConfig {
+    /** `["*"]` when the owner set no origins: any site may embed the widget. */
     allowedOrigins: string[]
     appearance: EmbedAppearance
 }
 
-// `scheme://host[:port]` only: these values go into a response header.
-const ORIGIN_PATTERN = /^https?:\/\/[a-z0-9.-]+(:\d{1,5})?$/
+// `*` or `scheme://[*.]host[:port]` only: these values go into a response header.
+const ORIGIN_PATTERN = /^(\*|https?:\/\/(\*\.)?[a-z0-9.-]+(:\d{1,5})?)$/
 const ACCENT_PATTERN = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
 
 const httpUrl = (value: string | null | undefined): string | null => {
@@ -73,7 +74,7 @@ export const frameAncestorsPolicy = (
     webUrl: string | undefined,
 ): string => {
     // The "not available" notice holds no chat, so the host page can show it after an archive.
-    if (!config) return "frame-ancestors *"
+    if (!config || config.allowedOrigins.includes("*")) return "frame-ancestors *"
     let webOrigin: string | null = null
     try {
         webOrigin = webUrl ? new URL(webUrl).origin : null

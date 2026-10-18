@@ -30,10 +30,19 @@ describe("parseEmbedConfig", () => {
 
     it("drops values that are not safe for a header, a style or a link", () => {
         const config = parseEmbedConfig({
-            allowed_origins: ["https://ok.example.com", "https://x.example.com; script-src *", "*"],
+            allowed_origins: [
+                "https://ok.example.com",
+                "https://*.ok.example.com",
+                "https://x.example.com; script-src *",
+                "https://a.*.example.com",
+                "* 'unsafe-inline'",
+            ],
             appearance: {accent: "red;background:url(x)", avatar_url: "javascript:alert(1)"},
         })
-        expect(config?.allowedOrigins).toEqual(["https://ok.example.com"])
+        expect(config?.allowedOrigins).toEqual([
+            "https://ok.example.com",
+            "https://*.ok.example.com",
+        ])
         expect(config?.appearance.accent).toBe(null)
         expect(config?.appearance.avatarUrl).toBe(null)
         expect(config?.appearance.theme).toBe("system")
@@ -66,6 +75,24 @@ describe("frameAncestorsPolicy", () => {
 
     it("lets any page frame the unavailable notice of a missing or archived embed", () => {
         expect(frameAncestorsPolicy(null, "https://cloud.agenta.ai")).toBe("frame-ancestors *")
+    })
+
+    it("lets any page frame an embed that allows any site", () => {
+        expect(
+            frameAncestorsPolicy(
+                parseEmbedConfig({allowed_origins: ["*"]}),
+                "https://cloud.agenta.ai",
+            ),
+        ).toBe("frame-ancestors *")
+    })
+
+    it("keeps a wildcard origin as it is", () => {
+        expect(
+            frameAncestorsPolicy(
+                parseEmbedConfig({allowed_origins: ["https://*.example.com"]}),
+                "https://cloud.agenta.ai",
+            ),
+        ).toBe("frame-ancestors https://*.example.com https://cloud.agenta.ai")
     })
 
     it("frames nowhere when an embed has no origins and no web origin is known", () => {

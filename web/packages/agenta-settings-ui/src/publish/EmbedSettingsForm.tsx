@@ -12,12 +12,13 @@ import {
     appearanceError,
     archiveEmbed,
     fetchEmbedSnippet,
-    parseOrigins,
+    originsError,
     saveEmbed,
     type Embed,
     type EmbedSettings,
     type EmbedTheme,
 } from "./embedApi"
+import {EmbedDomainsField} from "./EmbedDomainsField"
 
 export const FieldLabel = ({children, htmlFor}: {children: React.ReactNode; htmlFor?: string}) => (
     <label htmlFor={htmlFor} className="text-[13px] font-semibold text-foreground">
@@ -34,7 +35,7 @@ const THEMES: {value: EmbedTheme; label: string}[] = [
 const padStarters = (starters: string[]) =>
     Array.from({length: MAX_STARTERS}, (_, index) => starters[index] ?? "")
 
-/** One embed: its name, origins and appearance, the snippet, a live preview, and archive. */
+/** One embed: its name, domains and appearance, the snippet, a live preview, and archive. */
 export const EmbedSettingsForm = ({
     client,
     projectId,
@@ -91,7 +92,7 @@ export const EmbedSettingsForm = ({
         setDraft((d) => ({...d, appearance: {...d.appearance, ...patch}}))
 
     const submit = () => {
-        const error = parseOrigins(draft.origins).error ?? appearanceError(draft.appearance)
+        const error = originsError(draft) ?? appearanceError(draft.appearance)
         setFormError(error)
         if (!error) save.mutate(draft)
     }
@@ -108,19 +109,7 @@ export const EmbedSettingsForm = ({
                     data-testid="agent-embed-name"
                 />
             </div>
-            <div className="flex flex-col gap-1.5">
-                <FieldLabel htmlFor={ids.origins}>Allowed origins</FieldLabel>
-                <Textarea
-                    id={ids.origins}
-                    rows={2}
-                    value={draft.origins}
-                    onChange={(e) => set({origins: e.target.value})}
-                    data-testid="agent-embed-origins"
-                />
-                <span className="text-[12.5px] text-muted-foreground">
-                    One origin per line. The chat loads only on these websites.
-                </span>
-            </div>
+            <EmbedDomainsField id={ids.origins} value={draft} onChange={set} />
             <div className="flex flex-col gap-1.5">
                 <FieldLabel htmlFor={ids.avatar}>Avatar URL</FieldLabel>
                 <Input
@@ -208,7 +197,7 @@ export const EmbedSettingsForm = ({
                     <span className="text-[12.5px] text-muted-foreground">Loading…</span>
                 )}
                 <span className="text-[12.5px] text-muted-foreground">
-                    Paste it into a page on one of the allowed origins.
+                    Paste it into a page on your website.
                 </span>
             </div>
 

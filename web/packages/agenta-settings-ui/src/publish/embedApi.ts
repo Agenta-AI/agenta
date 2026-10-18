@@ -42,7 +42,9 @@ export interface EmbedAppearance {
 export interface EmbedSettings {
     id: string
     name: string
-    /** One origin per line, as the owner typed them. */
+    /** Only `origins` may embed the agent; off means any site. Stored as an empty origin list. */
+    restricted: boolean
+    /** One origin per line, as the owner typed them. Kept while `restricted` is off, never saved then. */
     origins: string
     appearance: EmbedAppearance
 }
@@ -57,18 +59,29 @@ export const MAX_STARTERS = 4
 const asText = (value: unknown): string => asString(value) ?? ""
 
 // The same check the API runs on create (an edit skips it, so it is repeated here).
-const ORIGIN = /^https?:\/\/[A-Za-z0-9.-]+(:[0-9]{1,5})?$/
+const ORIGIN = /^https?:\/\/(\*\.)?[A-Za-z0-9.-]+(:[0-9]{1,5})?$/
 const ACCENT = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
 
 /** The typed origins as a list, or an error for the first one that is not an origin. */
 export const parseOrigins = (text: string): {origins: string[]; error: string | null} => {
     const origins = text.split(/\s+/).filter(Boolean)
-    if (!origins.length) return {origins, error: "Add at least one origin."}
+    if (!origins.length) return {origins, error: "Add at least one domain."}
     const bad = origins.find((origin) => !ORIGIN.test(origin))
     return bad
-        ? {origins, error: `${bad} is not an origin. Use https://tool.example.com, with no path.`}
+        ? {
+              origins,
+              error: `${bad} is not a domain. Use https://example.com or https://*.example.com, with no path.`,
+          }
         : {origins, error: null}
 }
+
+/** An error for the domain list when the embed is restricted, or null. */
+export const originsError = ({restricted, origins}: {restricted: boolean; origins: string}) =>
+    restricted ? parseOrigins(origins).error : null
+
+/** What `allowed_origins` stores: the typed list, or nothing for any site. */
+const storedOrigins = ({restricted, origins}: {restricted: boolean; origins: string}) =>
+    restricted ? origins : ""
 
 /** An error for appearance values the widget would ignore, or null. */
 export const appearanceError = (appearance: EmbedAppearance): string | null => {
@@ -87,15 +100,18 @@ export const mapEmbedRow = (row: Row): Embed | null => {
     const embedId = asText(asRecord(data.connection_locator).embed)
     if (!id || !embedId || row.deleted_at) return null
     const rawOrigins = data.allowed_origins
+    const origins = Array.isArray(rawOrigins)
+        ? rawOrigins.map(asText).filter(Boolean).join("\n")
+        : asText(rawOrigins)
     const appearance = asRecord(data.appearance)
     const theme = appearance.theme
     return {
         id,
         embedId,
         name: asText(row.name),
-        origins: Array.isArray(rawOrigins)
-            ? rawOrigins.map(asText).filter(Boolean).join("\n")
-            : asText(rawOrigins),
+        // The API's rule: only no value, blank text or [] means any site.
+        restricted: Array.isArray(rawOrigins) ? rawOrigins.length > 0 : origins.trim() !== "",
+        origins,
         appearance: {
             avatarUrl: asText(appearance.avatar_url),
             greeting: asText(appearance.greeting),
@@ -138,7 +154,7 @@ export const createEmbed = async (
     client: EmbedClient,
     scope: Scope,
     appId: string,
-    {name, origins}: {name: string; origins: string},
+    {name, ...domains}: {name: string; restricted: boolean; origins: string},
 ): Promise<string> => {
     const res = await client
         .createChannelConnection(
@@ -146,7 +162,7 @@ export const createEmbed = async (
                 connection: {
                     channel: "embed",
                     name: name.trim() || null,
-                    data: {allowed_origins: origins},
+                    data: {allowed_origins: storedOrigins(domains)},
                 },
             },
             scope,
@@ -169,7 +185,7 @@ export const saveEmbed = async (
     scope: Scope,
     settings: EmbedSettings,
 ): Promise<void> => {
-    const {id, name, origins, appearance} = settings
+    const {id, name, appearance} = settings
     await client
         .editChannelConnection(
             {
@@ -178,7 +194,7 @@ export const saveEmbed = async (
                     id,
                     name: name.trim() || null,
                     data: {
-                        allowed_origins: origins,
+                        allowed_origins: storedOrigins(settings),
                         appearance: {
                             avatar_url: appearance.avatarUrl.trim() || null,
                             greeting: appearance.greeting.trim() || null,

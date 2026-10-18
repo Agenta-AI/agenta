@@ -30,6 +30,24 @@ vi.mock("@agenta/ui/ui", () => {
         LoadingButton: Button,
         Input: (props: React.ComponentProps<"input">) => <input {...props} />,
         Textarea: (props: React.ComponentProps<"textarea">) => <textarea {...props} />,
+        SimpleTooltip: ({children}: {children: React.ReactNode}) => <>{children}</>,
+        Switch: ({
+            checked,
+            onCheckedChange,
+            size: _size,
+            ...props
+        }: {
+            checked: boolean
+            onCheckedChange: (checked: boolean) => void
+            size?: string
+        }) => (
+            <button
+                role="switch"
+                aria-checked={checked}
+                onClick={() => onCheckedChange(!checked)}
+                {...props}
+            />
+        ),
         SkeletonBlock: () => <div />,
         SheetFooter: ({children}: {children: React.ReactNode}) => <div>{children}</div>,
         Select: () => null,
@@ -61,6 +79,7 @@ import {
     createEmbed,
     listAgentEmbeds,
     mapEmbedRow,
+    originsError,
     parseOrigins,
     saveEmbed,
     type EmbedClient,
@@ -124,6 +143,7 @@ describe("embedApi", () => {
         expect(embeds[0]).toMatchObject({
             embedId: "pub-e1",
             name: "Widget e1",
+            restricted: true,
             origins: "https://a.example\nhttps://b.example",
             appearance: {greeting: "Hi", starters: ["One"], theme: "dark", accent: "#123456"},
         })
@@ -138,19 +158,43 @@ describe("embedApi", () => {
         expect(embed?.appearance.theme).toBe("system")
     })
 
+    it("reads an embed with no origins as open to any site", () => {
+        for (const allowed_origins of [undefined, "", "  ", []]) {
+            const embed = mapEmbedRow({
+                id: "x",
+                data: {connection_locator: {embed: "p"}, allowed_origins},
+            })
+            expect(embed?.restricted).toBe(false)
+        }
+        const blankList = mapEmbedRow({
+            id: "x",
+            data: {connection_locator: {embed: "p"}, allowed_origins: [""]},
+        })
+        expect(blankList?.restricted).toBe(true)
+    })
+
     it("checks origins like the API does", () => {
-        expect(parseOrigins("").error).toBe("Add at least one origin.")
-        expect(parseOrigins("https://a.example/path").error).toContain("is not an origin")
-        expect(parseOrigins(" https://a.example\nhttp://localhost:5173 ")).toEqual({
-            origins: ["https://a.example", "http://localhost:5173"],
+        expect(parseOrigins("").error).toBe("Add at least one domain.")
+        expect(parseOrigins("https://a.example/path").error).toContain("is not a domain")
+        expect(parseOrigins("https://a.*.example").error).toContain("is not a domain")
+        expect(
+            parseOrigins(" https://a.example\nhttp://localhost:5173 https://*.b.example "),
+        ).toEqual({
+            origins: ["https://a.example", "http://localhost:5173", "https://*.b.example"],
             error: null,
         })
+    })
+
+    it("checks the domains only when the embed is restricted", () => {
+        expect(originsError({restricted: false, origins: "not a domain"})).toBe(null)
+        expect(originsError({restricted: true, origins: ""})).toBe("Add at least one domain.")
     })
 
     it("creates an embed and points it at the agent", async () => {
         const client = makeClient({queryChannelAgents: vi.fn(async () => ({agents: []}))})
         const id = await createEmbed(client, SCOPE, "agent-1", {
             name: " Help ",
+            restricted: true,
             origins: "https://a.example",
         })
         expect(id).toBe("new-1")
@@ -183,7 +227,11 @@ describe("embedApi", () => {
             }),
         })
         await expect(
-            createEmbed(client, SCOPE, "agent-1", {name: "", origins: "https://a.example"}),
+            createEmbed(client, SCOPE, "agent-1", {
+                name: "",
+                restricted: true,
+                origins: "https://a.example",
+            }),
         ).rejects.toThrow("nope")
         expect(client.archiveChannelConnection).toHaveBeenCalledWith(
             {connection_id: "new-1"},
@@ -196,6 +244,7 @@ describe("embedApi", () => {
         await saveEmbed(client, SCOPE, {
             id: "e1",
             name: "Help",
+            restricted: true,
             origins: "https://a.example",
             appearance: {
                 avatarUrl: "",
@@ -292,16 +341,33 @@ describe("AgentEmbedPanel", () => {
         expect(onOpen).toHaveBeenCalledWith("e1")
     })
 
-    it("refuses a bad origin, then creates and opens the embed", async () => {
+    it("creates an embed open to any site by default", async () => {
+        const client = makeClient()
+        await render(panel(client))
+        expect(byTestId("agent-embed-restricted")?.getAttribute("aria-checked")).toBe("false")
+        expect(byTestId("agent-embed-origins")).toBeNull()
+        await click(byTestId("agent-embed-create"))
+        expect(client.createChannelConnection).toHaveBeenCalledWith(
+            {connection: {channel: "embed", name: "Helper", data: {allowed_origins: ""}}},
+            SCOPE,
+        )
+    })
+
+    it("needs a domain when restricted, refuses a bad one, then creates and opens the embed", async () => {
         const client = makeClient()
         const onOpen = vi.fn()
         await render(panel(client, {onOpen}))
-        await type(byTestId("agent-embed-new-origins"), "tool.example.com")
+        await click(byTestId("agent-embed-restricted"))
         await click(byTestId("agent-embed-create"))
-        expect(document.querySelector('[role="alert"]')?.textContent).toContain("is not an origin")
+        expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+            "Add at least one domain.",
+        )
+        await type(byTestId("agent-embed-origins"), "tool.example.com")
+        await click(byTestId("agent-embed-create"))
+        expect(document.querySelector('[role="alert"]')?.textContent).toContain("is not a domain")
         expect(client.createChannelConnection).not.toHaveBeenCalled()
 
-        await type(byTestId("agent-embed-new-origins"), "https://tool.example.com")
+        await type(byTestId("agent-embed-origins"), "https://tool.example.com")
         await click(byTestId("agent-embed-create"))
         expect(client.createChannelConnection).toHaveBeenCalledWith(
             {
@@ -342,6 +408,38 @@ describe("AgentEmbedPanel", () => {
             }),
             SCOPE,
         )
+    })
+
+    it("saves an empty origin list when the toggle is turned off, keeping the typed domains", async () => {
+        const client = makeClient()
+        await render(panel(client, {connectionId: "e1"}))
+        expect(byTestId("agent-embed-restricted")?.getAttribute("aria-checked")).toBe("true")
+        await click(byTestId("agent-embed-restricted"))
+        expect(byTestId("agent-embed-origins")).toBeNull()
+        await click(byTestId("agent-embed-save"))
+        expect(client.editChannelConnection).toHaveBeenCalledWith(
+            expect.objectContaining({
+                connection: expect.objectContaining({
+                    data: expect.objectContaining({allowed_origins: ""}),
+                }),
+            }),
+            SCOPE,
+        )
+        await click(byTestId("agent-embed-restricted"))
+        expect((byTestId("agent-embed-origins") as HTMLTextAreaElement).value).toBe(
+            "https://a.example\nhttps://b.example",
+        )
+    })
+
+    it("refuses to save a restricted embed with no domain", async () => {
+        const client = makeClient()
+        await render(panel(client, {connectionId: "e1"}))
+        await type(byTestId("agent-embed-origins"), " ")
+        await click(byTestId("agent-embed-save"))
+        expect(document.querySelector('[role="alert"]')?.textContent).toBe(
+            "Add at least one domain.",
+        )
+        expect(client.editChannelConnection).not.toHaveBeenCalled()
     })
 
     it("keeps an edit made while a save is in flight unsaved", async () => {
