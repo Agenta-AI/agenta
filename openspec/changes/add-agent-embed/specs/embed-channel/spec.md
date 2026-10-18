@@ -116,6 +116,16 @@ The widget SHALL render the conversation's session with `@agenta/chat`, stream t
 - **WHEN** the agent answers a visitor's message
 - **THEN** the widget shows the answer as it is produced, not only when the turn ends
 
+#### Scenario: Waiting for the reply
+
+- **WHEN** a visitor sends a message
+- **THEN** the widget shows a working indicator without a break from the send until the reply starts to show or the turn ends
+
+#### Scenario: The agent cannot reply
+
+- **WHEN** the visitor's turn fails, or never starts (for example, the agent's model has no credential)
+- **THEN** the widget shows "The agent could not reply. Try again." and never the failure's own text; the conversation read route reports turns that never started as `unstarted_turns`, because the session's records cannot show them
+
 #### Scenario: Approval
 
 - **WHEN** the agent asks for approval of a tool call during a widget conversation
