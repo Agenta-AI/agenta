@@ -9,10 +9,11 @@ from oss.src.core.channels.adapters.normalise import normalise_capabilities
 from oss.src.core.channels.dtos import ChannelCapabilities
 from oss.src.utils.env import env
 
-# One or more http(s) origins, separated by spaces or new lines. Checked on
-# create only: an edit skips it, so readers sanitize again at use time.
-_ORIGIN = r"https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?"
-ALLOWED_ORIGINS_PATTERN = rf"{_ORIGIN}(\s+{_ORIGIN})*"
+# None (any site may embed), or http(s) origins separated by spaces or new
+# lines; a host may start with one `*.` label. Checked on create only: an edit
+# skips it, so readers sanitize again at use time.
+_ORIGIN = r"https?://(\*\.)?[A-Za-z0-9.-]+(:[0-9]{1,5})?"
+ALLOWED_ORIGINS_PATTERN = rf"({_ORIGIN}(\s+{_ORIGIN})*)?"
 
 EMBED_CAPABILITIES: dict = copy.deepcopy(AGENTA_CAPABILITIES)
 EMBED_CAPABILITIES.update(
@@ -32,19 +33,20 @@ EMBED_CAPABILITIES.update(
         },
         "setup": {
             "instructions": [
-                "List the websites that may show the chat.",
-                "Copy the snippet into a page on one of those websites.",
+                "Optionally, list the websites that may show the chat.",
+                "Copy the snippet into a page on your website.",
             ],
             "fields": [
                 {
                     "name": "allowed_origins",
-                    "label": "Allowed origins",
+                    "label": "Specific domains",
                     "secret": False,
-                    "required": True,
-                    "help": "One origin per line, like https://tool.example.com",
+                    "required": False,
+                    "help": "Enter each domain in a new line. Leave empty to allow "
+                    "embedding the agent on any site.",
                     "pattern": ALLOWED_ORIGINS_PATTERN,
-                    "pattern_error": "Enter origins like https://tool.example.com, "
-                    "one per line, with no path.",
+                    "pattern_error": "Enter domains like https://example.com or "
+                    "https://*.example.com, one per line, with no path.",
                 },
             ],
         },

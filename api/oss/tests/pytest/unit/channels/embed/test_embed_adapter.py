@@ -4,11 +4,15 @@ the parsed event, the setup document and the base64 uploads. No DB."""
 import base64
 import string
 import json
+import re
 from hashlib import sha256
 from uuid import uuid4
 
 import pytest
 
+from oss.src.core.channels.adapters.embed.capabilities import (
+    ALLOWED_ORIGINS_PATTERN,
+)
 from oss.src.core.channels.adapters.embed.adapter import (
     EmbedAdapter,
     allowed_origins,
@@ -254,6 +258,51 @@ def test_sanitize_origins_drops_the_default_port_like_a_browser():
     assert sanitize_origins("https://a.example.com:80") == ["https://a.example.com:80"]
 
 
+def test_sanitize_origins_keeps_one_leading_wildcard_label():
+    raw = """https://*.example.com
+    http://*.Example.com:8080
+    https://*.example.com:443
+    https://*
+    https://a.*.example.com
+    https://**.example.com
+    https://*example.com
+    *.example.com
+    *"""
+    assert sanitize_origins(raw) == [
+        "https://*.example.com",
+        "http://*.example.com:8080",
+    ]
+
+
+@pytest.mark.parametrize(
+    "value, ok",
+    [
+        ("", True),
+        ("https://example.com", True),
+        ("https://*.example.com\nhttp://localhost:3000", True),
+        ("*", False),
+        ("https://a.*.example.com", False),
+        ("https://example.com/path", False),
+    ],
+)
+def test_the_create_pattern_allows_none_or_origins_with_a_wildcard(value, ok):
+    assert bool(re.fullmatch(ALLOWED_ORIGINS_PATTERN, value)) is ok
+
+
+def test_no_origins_means_any_site():
+    connection = _connection()
+    for raw in (None, "", "  \n ", []):
+        connection.data["allowed_origins"] = raw
+        assert allowed_origins(connection) == ["*"]
+
+
+def test_origins_that_are_all_unusable_stay_restricted():
+    connection = _connection()
+    for raw in ("* nope https://example.com/path", [""], False, 0, {}):
+        connection.data["allowed_origins"] = raw
+        assert allowed_origins(connection) == []
+
+
 def test_allowed_origins_reads_a_list_too():
     connection = _connection()
     connection.data["allowed_origins"] = ["https://a.example.com", 42, "nope"]
@@ -269,6 +318,15 @@ async def test_verify_connection_mints_an_embed_id():
 
     assert len(first["embed"]) >= 22
     assert first != second
+
+
+async def test_verify_connection_accepts_no_origins():
+    for data in ({}, {"allowed_origins": ""}):
+        create = ChannelConnectionCreate(channel="embed", data=data)
+        minted = await EmbedAdapter().verify_connection(
+            connection=create, credentials={}
+        )
+        assert minted["embed"]
 
 
 async def test_verify_connection_refuses_no_usable_origin():

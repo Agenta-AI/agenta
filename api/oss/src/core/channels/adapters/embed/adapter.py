@@ -75,22 +75,41 @@ def visitor_locator(key: str) -> Dict[str, str]:
     return {"visitor": key_hash, "thread": key_hash}
 
 
+# The config route's answer for an embed with no origin list: any site may frame it.
+ANY_ORIGIN = "*"
+
+
 def allowed_origins(connection: ChannelConnection) -> List[str]:
     """The connection's allowed origins as `scheme://host[:port]`, rebuilt from
-    the parsed parts. Anything else is dropped: an edit skips the setup
+    the parsed parts, or `["*"]` when the owner set none. A list whose entries
+    are all unusable stays restricted to nothing: an edit skips the setup
     pattern, and these values go into a CSP header."""
 
     data = connection.data if isinstance(connection.data, dict) else {}
-    return sanitize_origins(data.get("allowed_origins"))
+    raw = data.get("allowed_origins")
+    if not _origin_entries(raw):
+        return [ANY_ORIGIN]
+    return sanitize_origins(raw)
 
 
 _DEFAULT_PORTS = {"http": 80, "https": 443}
 
 
+def _origin_entries(raw: Any) -> List[Any]:
+    # Only None, blank text and [] are "no list"; any other type stays restricted.
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, str):
+        return raw.split()
+    return [] if raw is None else [raw]
+
+
 def sanitize_origins(raw: Any) -> List[str]:
-    values = raw if isinstance(raw, list) else str(raw or "").split()
+    """Each entry as `scheme://host[:port]`, where host may start with one `*.`
+    label (any subdomain, as in CSP). Anything else is dropped."""
+
     origins: List[str] = []
-    for value in values:
+    for value in _origin_entries(raw):
         if not isinstance(value, str):
             continue
         try:
@@ -99,7 +118,8 @@ def sanitize_origins(raw: Any) -> List[str]:
         except ValueError:
             continue
         host = parts.hostname or ""
-        if parts.scheme not in ("http", "https") or not _HOSTNAME_RE.fullmatch(host):
+        name = host[2:] if host.startswith("*.") else host
+        if parts.scheme not in ("http", "https") or not _HOSTNAME_RE.fullmatch(name):
             continue
         if parts.username or parts.password or parts.path not in ("", "/"):
             continue
@@ -136,11 +156,13 @@ class EmbedAdapter(AgentaAdapter):
         connection: ChannelConnectionCreate,
         credentials: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Mint the public embed id. Nothing is called; an embed with no
-        usable origin could never load, so it is refused here."""
+        """Mint the public embed id. Nothing is called. No origin list means
+        any site; a list with no usable origin could never load, so it is
+        refused here."""
 
         data = connection.data if isinstance(connection.data, dict) else {}
-        if not sanitize_origins(data.get("allowed_origins")):
+        raw = data.get("allowed_origins")
+        if _origin_entries(raw) and not sanitize_origins(raw):
             raise ChannelConnectionIncomplete(
                 channel=self.channel, field="allowed_origins"
             )

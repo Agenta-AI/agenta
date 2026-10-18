@@ -130,6 +130,7 @@ class EmbedConfigResponse(BaseModel):
     design, so it carries nothing beyond the name, origins and appearance."""
 
     name: Optional[str] = None
+    # ["*"] when the owner set no origins: any site may frame the widget.
     allowed_origins: List[str] = Field(default_factory=list)
     appearance: Dict[str, Any] = Field(default_factory=dict)
 

@@ -256,6 +256,23 @@ def test_config_returns_name_sanitized_origins_and_appearance(client):
     }
 
 
+def test_config_of_an_embed_with_no_origins_allows_any_site(client, service):
+    service.connection.data["allowed_origins"] = ""
+
+    response = client.get(f"/channels/embed/{EMBED_ID}/config")
+
+    assert response.status_code == 200
+    assert response.json()["allowed_origins"] == ["*"]
+
+
+def test_config_keeps_a_wildcard_origin(client, service):
+    service.connection.data["allowed_origins"] = "https://*.example.com"
+
+    response = client.get(f"/channels/embed/{EMBED_ID}/config")
+
+    assert response.json()["allowed_origins"] == ["https://*.example.com"]
+
+
 def test_config_is_404_for_a_missing_inactive_or_archived_embed(client, service):
     assert client.get("/channels/embed/nope/config").status_code == 404
 
