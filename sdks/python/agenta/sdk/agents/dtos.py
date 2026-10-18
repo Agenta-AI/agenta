@@ -923,8 +923,14 @@ class AgentTemplate(BaseModel):
             )
         except ValidationError as error:
             # A field value the template does not accept (a `connection.mode` it does not
-            # know, say) is the caller's configuration, not a server fault: answer 400.
-            raise AgentTemplateShapeError(str(error)) from error
+            # know, say) is the caller's configuration, not a server fault: answer 400. Name
+            # each field and the rule only; the raw input values may hold credentials.
+            raise AgentTemplateShapeError(
+                "; ".join(
+                    f"{'.'.join(str(part) for part in issue['loc'])}: {issue['msg']}"
+                    for issue in error.errors()
+                )
+            ) from error
 
 
 # ---------------------------------------------------------------------------

@@ -222,3 +222,6 @@ def test_unknown_connection_mode_is_a_named_400():
     assert excinfo.value.code == 400
     assert "connection.mode" in excinfo.value.message
     assert "'agenta' or 'self_managed'" in excinfo.value.message
+    # Only the field and the rule: the raw value may be a credential on other fields.
+    assert "input_value" not in excinfo.value.message
+    assert "default" not in excinfo.value.message
