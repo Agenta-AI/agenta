@@ -1,20 +1,11 @@
-import {useId, useState} from "react"
-
-import {Alert, Button, Input, LoadingButton, SkeletonBlock} from "@agenta/ui/ui"
-import {CaretRight} from "@phosphor-icons/react"
+import {Alert, Button, EmptyState, LoadingButton, SkeletonBlock} from "@agenta/ui/ui"
+import {CaretRight, ChatCircleText} from "@phosphor-icons/react"
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
 
 import type {EmbedViewProps} from "../channels/useChannelPanel"
 
-import {
-    createEmbed,
-    listAgentEmbeds,
-    originsError,
-    parseOrigins,
-    type EmbedClient,
-} from "./embedApi"
-import {EmbedDomainsField, type EmbedDomains} from "./EmbedDomainsField"
-import {EmbedSettingsForm, FieldLabel} from "./EmbedSettingsForm"
+import {createEmbed, listAgentEmbeds, parseOrigins, type EmbedClient} from "./embedApi"
+import {EmbedSettingsForm} from "./EmbedSettingsForm"
 
 export interface AgentEmbedPanelProps extends EmbedViewProps {
     /** The host's generated channels client (`getChannelsClient()`). */
@@ -26,7 +17,7 @@ export interface AgentEmbedPanelProps extends EmbedViewProps {
     widgetUrl: (embedId: string) => string
 }
 
-/** Publish > Embed: the agent's embeds and a form for a new one, or one embed's settings. */
+/** Publish > Embed: the agent's embeds and "Create embed", or one embed's settings. */
 export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
     const {client, projectId, agentId, agentName, connectionId, onOpen} = props
     const queryClient = useQueryClient()
@@ -38,16 +29,11 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
         refetchOnWindowFocus: false,
     })
 
-    const nameId = useId()
-    const originsId = useId()
-    const [name, setName] = useState(agentName ?? "")
-    const [domains, setDomains] = useState<EmbedDomains>({restricted: false, origins: ""})
-    const [domainsError, setDomainsError] = useState<string | null>(null)
+    // A new embed is named after the agent and open to any site; the owner edits it in its settings.
     const create = useMutation({
-        mutationFn: () => createEmbed(client, scope, agentId, {name, ...domains}),
+        mutationFn: () => createEmbed(client, scope, agentId, agentName ?? ""),
         onSuccess: async (id) => {
             await queryClient.invalidateQueries({queryKey})
-            setDomains({restricted: false, origins: ""})
             onOpen(id)
         },
     })
@@ -85,66 +71,65 @@ export const AgentEmbedPanel = (props: AgentEmbedPanelProps) => {
         return <EmbedSettingsForm key={embed.id} {...props} embed={embed} queryKey={queryKey} />
     }
 
-    const submit = () => {
-        const error = originsError(domains)
-        setDomainsError(error)
-        if (!error) create.mutate()
+    const createButton = (
+        <LoadingButton
+            loading={create.isPending}
+            onClick={() => create.mutate()}
+            data-testid="agent-embed-create"
+        >
+            Create embed
+        </LoadingButton>
+    )
+    const createError = create.error ? (
+        <Alert type="error" showIcon message={create.error.message} />
+    ) : null
+
+    if (!embeds.data.length) {
+        return (
+            <div className="flex min-w-0 flex-col gap-3" data-testid="agent-embed-panel">
+                <EmptyState
+                    image={<ChatCircleText size={24} />}
+                    title="No embeds yet"
+                    description="Add a chat with this agent to your website."
+                >
+                    {createButton}
+                </EmptyState>
+                {createError}
+            </div>
+        )
     }
 
     return (
-        <div className="flex min-w-0 flex-col gap-[18px]" data-testid="agent-embed-panel">
-            {embeds.data.length ? (
-                <div className="flex flex-col gap-2">
-                    {embeds.data.map((embed) => (
-                        <Button
-                            key={embed.id}
-                            variant="outline"
-                            onClick={() => onOpen(embed.id)}
-                            className="h-auto w-full justify-start gap-3 rounded-lg py-2.5 pl-3 pr-2.5 text-left"
-                            data-testid={`agent-embed-${embed.id}`}
-                        >
-                            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                <span className="truncate text-sm font-medium text-foreground">
-                                    {embed.name || "Embed"}
-                                </span>
-                                {embed.restricted ? (
-                                    <span className="truncate text-[12.5px] text-muted-foreground">
-                                        {parseOrigins(embed.origins).origins.join(", ")}
-                                    </span>
-                                ) : null}
-                            </span>
-                            <CaretRight size={12} className="flex-none text-muted-foreground" />
-                        </Button>
-                    ))}
-                </div>
-            ) : (
+        <div className="flex min-w-0 flex-col gap-3" data-testid="agent-embed-panel">
+            <div className="flex items-center justify-between gap-3">
                 <span className="text-[13px] text-muted-foreground">
                     Add a chat with this agent to your website.
                 </span>
-            )}
-
-            <div className="flex flex-col gap-3 rounded-lg border border-solid border-border p-3">
-                <span className="text-sm font-medium text-foreground">New embed</span>
-                <div className="flex flex-col gap-1.5">
-                    <FieldLabel htmlFor={nameId}>Name</FieldLabel>
-                    <Input id={nameId} value={name} onChange={(e) => setName(e.target.value)} />
-                </div>
-                <EmbedDomainsField
-                    id={originsId}
-                    value={domains}
-                    onChange={(patch) => setDomains((d) => ({...d, ...patch}))}
-                />
-                {domainsError || create.error ? (
-                    <Alert type="error" showIcon message={domainsError ?? create.error?.message} />
-                ) : null}
-                <LoadingButton
-                    className="self-start"
-                    loading={create.isPending}
-                    onClick={submit}
-                    data-testid="agent-embed-create"
-                >
-                    Create
-                </LoadingButton>
+                {createButton}
+            </div>
+            {createError}
+            <div className="flex flex-col gap-2">
+                {embeds.data.map((embed) => (
+                    <Button
+                        key={embed.id}
+                        variant="outline"
+                        onClick={() => onOpen(embed.id)}
+                        className="h-auto w-full justify-start gap-3 rounded-lg py-2.5 pl-3 pr-2.5 text-left"
+                        data-testid={`agent-embed-${embed.id}`}
+                    >
+                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <span className="truncate text-sm font-medium text-foreground">
+                                {embed.name || "Embed"}
+                            </span>
+                            <span className="truncate text-[12.5px] text-muted-foreground">
+                                {embed.restricted
+                                    ? parseOrigins(embed.origins).origins.join(", ")
+                                    : "Any website"}
+                            </span>
+                        </span>
+                        <CaretRight size={12} className="flex-none text-muted-foreground" />
+                    </Button>
+                ))}
             </div>
         </div>
     )

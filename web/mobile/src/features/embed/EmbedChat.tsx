@@ -39,12 +39,19 @@ export const EmbedChat = ({
     if (chat.unavailable) return <EmbedUnavailable />
 
     const empty = chat.messages.length === 0
+    const canStartNew = Boolean(chat.current) && !chat.switching
+    const newChat = () => {
+        chat.newChat()
+        setListOpen(false)
+    }
     let body
     if (listOpen) {
         body = (
             <EmbedConversationList
                 conversations={chat.conversations}
                 currentSessionId={chat.viewing?.session_id ?? null}
+                canStartNew={canStartNew}
+                onNewChat={newChat}
                 onOpen={(conversation) => {
                     chat.reopen(conversation)
                     setListOpen(false)
@@ -81,13 +88,10 @@ export const EmbedChat = ({
             <EmbedHeader
                 appearance={appearance}
                 listOpen={listOpen}
-                canStartNew={Boolean(chat.current) && !chat.switching}
+                canStartNew={canStartNew}
                 hasHistory={chat.conversations.length > 0}
                 onToggleList={() => setListOpen((open) => !open)}
-                onNewChat={() => {
-                    chat.newChat()
-                    setListOpen(false)
-                }}
+                onNewChat={newChat}
             />
             <div className="flex min-h-0 grow flex-col overflow-y-auto">{body}</div>
             {chat.pendingApprovals.length > 0 && !listOpen && !chat.switching ? (
@@ -104,11 +108,14 @@ export const EmbedChat = ({
                 </div>
             ) : null}
             {chat.notice ? <EmbedNotice text={chat.notice} onDismiss={chat.dismissNotice} /> : null}
-            <EmbedComposer
-                disabled={chat.switching || listOpen}
-                placeholder={`Message ${appearance.name}`}
-                onSend={chat.send}
-            />
+            {/* Hidden, not unmounted by the list, so a draft survives a look at the list. */}
+            <div className={listOpen ? "hidden" : "contents"}>
+                <EmbedComposer
+                    disabled={chat.switching}
+                    placeholder={`Message ${appearance.name}`}
+                    onSend={chat.send}
+                />
+            </div>
         </>
     )
 }

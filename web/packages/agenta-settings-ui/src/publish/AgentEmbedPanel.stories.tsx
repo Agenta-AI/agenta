@@ -45,7 +45,7 @@ const EMBED = {
     },
 }
 
-/** **Publish > Embed.** The agent's embeds and a form for a new one, or one embed's settings. */
+/** **Publish > Embed.** The agent's embeds and "Create embed", or one embed's settings. */
 const meta = {
     title: "@agenta/settings-ui/Publish/AgentEmbedPanel",
     component: AgentEmbedPanel,

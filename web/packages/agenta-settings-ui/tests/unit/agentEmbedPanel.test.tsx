@@ -26,6 +26,21 @@ vi.mock("@agenta/ui/ui", () => {
     }
     return {
         Alert: ({message}: {message: React.ReactNode}) => <div role="alert">{message}</div>,
+        EmptyState: ({
+            title,
+            description,
+            children,
+        }: {
+            title: React.ReactNode
+            description: React.ReactNode
+            children: React.ReactNode
+        }) => (
+            <div data-testid="agent-embed-empty">
+                {title}
+                {description}
+                {children}
+            </div>
+        ),
         Button,
         LoadingButton: Button,
         Input: (props: React.ComponentProps<"input">) => <input {...props} />,
@@ -79,6 +94,8 @@ import {
     createEmbed,
     listAgentEmbeds,
     mapEmbedRow,
+    appearanceSummary,
+    domainsSummary,
     originsError,
     parseOrigins,
     saveEmbed,
@@ -175,7 +192,9 @@ describe("embedApi", () => {
     })
 
     it("checks origins like the API does", () => {
-        expect(parseOrigins("").error).toBe("Add at least one domain.")
+        expect(parseOrigins("").error).toBe(
+            "Add at least one domain, or turn off Specific domains.",
+        )
         expect(parseOrigins("https://a.example/path").error).toContain("is not a domain")
         expect(parseOrigins("https://a.*.example").error).toContain("is not a domain")
         expect(
@@ -188,25 +207,37 @@ describe("embedApi", () => {
 
     it("checks the domains only when the embed is restricted", () => {
         expect(originsError({restricted: false, origins: "not a domain"})).toBe(null)
-        expect(originsError({restricted: true, origins: ""})).toBe("Add at least one domain.")
+        expect(originsError({restricted: true, origins: ""})).toBe(
+            "Add at least one domain, or turn off Specific domains.",
+        )
     })
 
-    it("creates an embed and points it at the agent", async () => {
+    it("summarizes the domains and the appearance for closed sections", () => {
+        expect(domainsSummary({restricted: false, origins: "https://a.example"})).toBe(
+            "Any website",
+        )
+        expect(domainsSummary({restricted: true, origins: "https://a\nhttps://b"})).toBe(
+            "2 domains",
+        )
+        expect(domainsSummary({restricted: true, origins: "https://a"})).toBe("1 domain")
+        const appearance = {avatarUrl: "", greeting: "", accent: "", theme: "system" as const}
+        expect(appearanceSummary({...appearance, starters: ["A", " ", "B", ""]})).toBe(
+            "System theme, 2 starter prompts",
+        )
+        expect(appearanceSummary({...appearance, theme: "dark", starters: ["A"]})).toBe(
+            "Dark theme, 1 starter prompt",
+        )
+        expect(appearanceSummary({...appearance, starters: []})).toBe(
+            "System theme, no starter prompts",
+        )
+    })
+
+    it("creates an embed open to any site and points it at the agent", async () => {
         const client = makeClient({queryChannelAgents: vi.fn(async () => ({agents: []}))})
-        const id = await createEmbed(client, SCOPE, "agent-1", {
-            name: " Help ",
-            restricted: true,
-            origins: "https://a.example",
-        })
+        const id = await createEmbed(client, SCOPE, "agent-1", " Help ")
         expect(id).toBe("new-1")
         expect(client.createChannelConnection).toHaveBeenCalledWith(
-            {
-                connection: {
-                    channel: "embed",
-                    name: "Help",
-                    data: {allowed_origins: "https://a.example"},
-                },
-            },
+            {connection: {channel: "embed", name: "Help", data: {allowed_origins: ""}}},
             SCOPE,
         )
         expect(client.createChannelAgent).toHaveBeenCalledWith(
@@ -227,13 +258,7 @@ describe("embedApi", () => {
                 throw new Error("nope")
             }),
         })
-        await expect(
-            createEmbed(client, SCOPE, "agent-1", {
-                name: "",
-                restricted: true,
-                origins: "https://a.example",
-            }),
-        ).rejects.toThrow("nope")
+        await expect(createEmbed(client, SCOPE, "agent-1", "")).rejects.toThrow("nope")
         expect(client.archiveChannelConnection).toHaveBeenCalledWith(
             {connection_id: "new-1"},
             SCOPE,
@@ -333,54 +358,71 @@ describe("AgentEmbedPanel", () => {
         await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
     }
 
-    it("lists the agent's embeds and opens one", async () => {
+    const openSection = (name: string) => click(byTestId(`agent-embed-${name}-section-toggle`))
+
+    it("lists the agent's embeds with their domains and opens one", async () => {
         const onOpen = vi.fn()
-        await render(panel(makeClient(), {onOpen}))
-        expect(byTestId("agent-embed-e1")?.textContent).toContain("Widget e1")
-        expect(byTestId("agent-embed-e2")).toBeNull()
+        const client = makeClient({
+            queryChannelConnections: vi.fn(async () => ({
+                connections: [
+                    embedRow("e1"),
+                    embedRow("e3", {
+                        data: {connection_locator: {embed: "pub-e3"}, allowed_origins: ""},
+                    }),
+                ],
+            })),
+        })
+        await render(panel(client, {onOpen}))
+        expect(byTestId("agent-embed-e1")?.textContent).toContain(
+            "https://a.example, https://b.example",
+        )
+        expect(byTestId("agent-embed-e3")?.textContent).toContain("Any website")
+        expect(byTestId("agent-embed-create")?.textContent).toBe("Create embed")
+        expect(byTestId("agent-embed-origins")).toBeNull()
         await click(byTestId("agent-embed-e1"))
         expect(onOpen).toHaveBeenCalledWith("e1")
     })
 
-    it("creates an embed open to any site by default", async () => {
-        const client = makeClient()
-        await render(panel(client))
-        expect(byTestId("agent-embed-restricted")?.getAttribute("aria-checked")).toBe("false")
-        expect(byTestId("agent-embed-origins")).toBeNull()
+    it("shows the empty list, then creates an embed named after the agent and opens it", async () => {
+        const client = makeClient({queryChannelConnections: vi.fn(async () => ({connections: []}))})
+        const onOpen = vi.fn()
+        await render(panel(client, {onOpen}))
+        expect(byTestId("agent-embed-empty")?.textContent).toContain("No embeds yet")
+        expect(byTestId("agent-embed-empty")?.textContent).toContain(
+            "Add a chat with this agent to your website.",
+        )
         await click(byTestId("agent-embed-create"))
         expect(client.createChannelConnection).toHaveBeenCalledWith(
             {connection: {channel: "embed", name: "Helper", data: {allowed_origins: ""}}},
             SCOPE,
         )
+        expect(onOpen).toHaveBeenCalledWith("new-1")
     })
 
-    it("needs a domain when restricted, refuses a bad one, then creates and opens the embed", async () => {
-        const client = makeClient()
-        const onOpen = vi.fn()
-        await render(panel(client, {onOpen}))
-        await click(byTestId("agent-embed-restricted"))
-        await click(byTestId("agent-embed-create"))
-        expect(document.querySelector('[role="alert"]')?.textContent).toBe(
-            "Add at least one domain.",
+    it("opens with the snippet open and the other sections closed with their values", async () => {
+        await render(panel(makeClient(), {connectionId: "e1"}))
+        expect(byTestId("agent-embed-snippet")).not.toBeNull()
+        expect(byTestId("agent-embed-snippet-hint")?.textContent).toBe(
+            "Paste it into a page on one of the domains above.",
         )
-        await type(byTestId("agent-embed-origins"), "tool.example.com")
-        await click(byTestId("agent-embed-create"))
-        expect(document.querySelector('[role="alert"]')?.textContent).toContain("is not a domain")
-        expect(client.createChannelConnection).not.toHaveBeenCalled()
+        expect(byTestId("agent-embed-domains-section-summary")?.textContent).toBe("2 domains")
+        expect(byTestId("agent-embed-appearance-section-summary")?.textContent).toBe(
+            "Dark theme, 1 starter prompt",
+        )
+        expect(byTestId("agent-embed-preview-section-summary")?.textContent).toBe("400 × 600")
+        const hidden = (id: string) => byTestId(id)?.closest(".hidden") != null
+        expect(hidden("agent-embed-snippet")).toBe(false)
+        expect(hidden("agent-embed-origins")).toBe(true)
+        expect(hidden("agent-embed-greeting")).toBe(true)
+        expect(hidden("agent-embed-preview")).toBe(true)
 
-        await type(byTestId("agent-embed-origins"), "https://tool.example.com")
-        await click(byTestId("agent-embed-create"))
-        expect(client.createChannelConnection).toHaveBeenCalledWith(
-            {
-                connection: {
-                    channel: "embed",
-                    name: "Helper",
-                    data: {allowed_origins: "https://tool.example.com"},
-                },
-            },
-            SCOPE,
+        await openSection("domains")
+        expect(byTestId("agent-embed-domains-section-summary")).toBeNull()
+        expect(hidden("agent-embed-origins")).toBe(false)
+        await click(byTestId("agent-embed-restricted"))
+        expect(byTestId("agent-embed-snippet-hint")?.textContent).toBe(
+            "Paste it into any page of your website.",
         )
-        expect(onOpen).toHaveBeenCalledWith("new-1")
     })
 
     it("copies a prompt for a coding assistant that carries the exact snippet", async () => {
@@ -404,6 +446,8 @@ describe("AgentEmbedPanel", () => {
         const client = makeClient()
         await render(panel(client, {connectionId: "e1"}))
         expect(byTestId("agent-embed-snippet")?.textContent).toContain("pub-e1")
+        await openSection("preview")
+        await openSection("appearance")
         expect(byTestId("agent-embed-preview")?.getAttribute("src")).toBe(
             "https://web/m/embed/pub-e1",
         )
@@ -431,6 +475,7 @@ describe("AgentEmbedPanel", () => {
     it("saves an empty origin list when the toggle is turned off, keeping the typed domains", async () => {
         const client = makeClient()
         await render(panel(client, {connectionId: "e1"}))
+        await openSection("domains")
         expect(byTestId("agent-embed-restricted")?.getAttribute("aria-checked")).toBe("true")
         await click(byTestId("agent-embed-restricted"))
         expect(byTestId("agent-embed-origins")).toBeNull()
@@ -449,15 +494,28 @@ describe("AgentEmbedPanel", () => {
         )
     })
 
-    it("refuses to save a restricted embed with no domain", async () => {
+    it("refuses an empty or a bad domain list under the text area", async () => {
         const client = makeClient()
         await render(panel(client, {connectionId: "e1"}))
+        await openSection("domains")
         await type(byTestId("agent-embed-origins"), " ")
         await click(byTestId("agent-embed-save"))
-        expect(document.querySelector('[role="alert"]')?.textContent).toBe(
-            "Add at least one domain.",
+        expect(byTestId("agent-embed-origins-error")?.textContent).toBe(
+            "Add at least one domain, or turn off Specific domains.",
+        )
+        await type(byTestId("agent-embed-origins"), "https://ok.example\nacme.dev/support")
+        await click(byTestId("agent-embed-save"))
+        expect(byTestId("agent-embed-origins-error")?.textContent).toBe(
+            "acme.dev/support is not a domain. Use https://example.com or https://*.example.com, with no path.",
         )
         expect(client.editChannelConnection).not.toHaveBeenCalled()
+
+        // Closed, the section still shows the error under its title.
+        await openSection("domains")
+        expect(
+            document.querySelector('[data-testid="agent-embed-domains-section"] > [role="alert"]')
+                ?.textContent,
+        ).toContain("acme.dev/support is not a domain")
     })
 
     it("keeps an edit made while a save is in flight unsaved", async () => {
@@ -468,6 +526,7 @@ describe("AgentEmbedPanel", () => {
             ),
         })
         await render(panel(client, {connectionId: "e1"}))
+        await openSection("appearance")
         await type(byTestId("agent-embed-greeting"), "A")
         await click(byTestId("agent-embed-save"))
         await type(byTestId("agent-embed-greeting"), "B")
@@ -479,6 +538,7 @@ describe("AgentEmbedPanel", () => {
     it.each(["blue", "#12345"])("refuses the accent %s", async (accent) => {
         const client = makeClient()
         await render(panel(client, {connectionId: "e1"}))
+        await openSection("appearance")
         await type(byTestId("agent-embed-accent"), accent)
         await click(byTestId("agent-embed-save"))
         expect(document.querySelector('[role="alert"]')?.textContent).toContain("hex color")

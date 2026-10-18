@@ -60,12 +60,13 @@ const asText = (value: unknown): string => asString(value) ?? ""
 
 // The same check the API runs on create (an edit skips it, so it is repeated here).
 const ORIGIN = /^https?:\/\/(\*\.)?[A-Za-z0-9.-]+(:[0-9]{1,5})?$/
-const ACCENT = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
+export const ACCENT = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
 
-/** The typed origins as a list, or an error for the first one that is not an origin. */
+/** The typed domains as a list, or an error for the first one that is not a domain. */
 export const parseOrigins = (text: string): {origins: string[]; error: string | null} => {
     const origins = text.split(/\s+/).filter(Boolean)
-    if (!origins.length) return {origins, error: "Add at least one domain."}
+    if (!origins.length)
+        return {origins, error: "Add at least one domain, or turn off Specific domains."}
     const bad = origins.find((origin) => !ORIGIN.test(origin))
     return bad
         ? {
@@ -82,6 +83,19 @@ export const originsError = ({restricted, origins}: {restricted: boolean; origin
 /** What `allowed_origins` stores: the typed list, or nothing for any site. */
 const storedOrigins = ({restricted, origins}: {restricted: boolean; origins: string}) =>
     restricted ? origins : ""
+
+const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`
+
+/** The closed "Specific domains" section's value: "Any website" or "2 domains". */
+export const domainsSummary = ({restricted, origins}: {restricted: boolean; origins: string}) =>
+    restricted ? plural(parseOrigins(origins).origins.length, "domain") : "Any website"
+
+/** The closed "Appearance" section's value, such as "System theme, 2 starter prompts". */
+export const appearanceSummary = ({theme, starters}: EmbedAppearance) => {
+    const filled = starters.filter((starter) => starter.trim()).length
+    const themeName = theme === "light" ? "Light" : theme === "dark" ? "Dark" : "System"
+    return `${themeName} theme, ${filled ? plural(filled, "starter prompt") : "no starter prompts"}`
+}
 
 /** An error for appearance values the widget would ignore, or null. */
 export const appearanceError = (appearance: EmbedAppearance): string | null => {
@@ -149,12 +163,12 @@ export const listAgentEmbeds = async (
     return embeds.filter((_, index) => answering[index] === appId)
 }
 
-/** Create an embed and point it at the agent. A failed bind archives the new row again. */
+/** Create an embed open to any site and point it at the agent. A failed bind archives it again. */
 export const createEmbed = async (
     client: EmbedClient,
     scope: Scope,
     appId: string,
-    {name, ...domains}: {name: string; restricted: boolean; origins: string},
+    name: string,
 ): Promise<string> => {
     const res = await client
         .createChannelConnection(
@@ -162,7 +176,7 @@ export const createEmbed = async (
                 connection: {
                     channel: "embed",
                     name: name.trim() || null,
-                    data: {allowed_origins: storedOrigins(domains)},
+                    data: {allowed_origins: ""},
                 },
             },
             scope,
@@ -179,7 +193,7 @@ export const createEmbed = async (
     return id
 }
 
-/** Save the name, the origins and the appearance. `data` merges key by key on the API. */
+/** Save the name, the domains and the appearance. `data` merges key by key on the API. */
 export const saveEmbed = async (
     client: EmbedClient,
     scope: Scope,

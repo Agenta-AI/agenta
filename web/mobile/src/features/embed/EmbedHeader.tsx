@@ -1,4 +1,4 @@
-import {Button} from "@agenta/ui/ui"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {ChatsCircle, NotePencil, X} from "@phosphor-icons/react"
 
 import {EmbedAvatar} from "./EmbedAvatar"
@@ -26,24 +26,31 @@ export const EmbedHeader = ({
             {appearance.name}
         </h1>
         {hasHistory ? (
-            <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={listOpen ? "Close conversations" : "Conversations"}
-                aria-expanded={listOpen}
-                onClick={onToggleList}
-            >
-                {listOpen ? <X /> : <ChatsCircle />}
-            </Button>
+            <SimpleTooltip title="Conversations">
+                <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={listOpen ? "Close conversations" : "Conversations"}
+                    aria-expanded={listOpen}
+                    onClick={onToggleList}
+                >
+                    {listOpen ? <X /> : <ChatsCircle />}
+                </Button>
+            </SimpleTooltip>
         ) : null}
-        <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="New chat"
-            disabled={!canStartNew}
-            onClick={onNewChat}
-        >
-            <NotePencil />
-        </Button>
+        <SimpleTooltip title="New chat">
+            {/* A disabled button gets no pointer events, so the span carries the hover. */}
+            <span className="inline-flex">
+                <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="New chat"
+                    disabled={!canStartNew}
+                    onClick={onNewChat}
+                >
+                    <NotePencil />
+                </Button>
+            </span>
+        </SimpleTooltip>
     </header>
 )

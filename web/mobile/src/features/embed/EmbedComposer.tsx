@@ -102,6 +102,11 @@ export const EmbedComposer = ({
                     <ArrowUp />
                 </Button>
             </div>
+            {files.length ? (
+                <p className="m-0 mt-1.5 text-xs text-muted-foreground">
+                    Up to 10 files, 5 MB each.
+                </p>
+            ) : null}
         </div>
     )
 }

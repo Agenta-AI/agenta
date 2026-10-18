@@ -35,7 +35,14 @@ const mount = (onSend: (text: string, files: File[]) => Promise<boolean>) => {
             textarea.dispatchEvent(new KeyboardEvent("keydown", {key: "Enter", bubbles: true}))
         })
     }
-    return {textarea, type, pressEnter}
+    const attach = (file: File) => {
+        const input = host.querySelector('input[type="file"]') as HTMLInputElement
+        Object.defineProperty(input, "files", {value: [file], configurable: true})
+        act(() => {
+            input.dispatchEvent(new Event("change", {bubbles: true}))
+        })
+    }
+    return {host, textarea, type, pressEnter, attach}
 }
 
 describe("EmbedComposer", () => {
@@ -71,5 +78,17 @@ describe("EmbedComposer", () => {
 
         expect(onSend).toHaveBeenCalledWith("first", [])
         expect(textarea.value).toBe("second")
+    })
+
+    it("shows the file limits only while files are attached", () => {
+        const {host, attach} = mount(async () => true)
+        expect(host.textContent).not.toContain("Up to 10 files, 5 MB each.")
+
+        attach(new File(["x"], "notes.txt", {type: "text/plain"}))
+        expect(host.textContent).toContain("Up to 10 files, 5 MB each.")
+
+        const remove = host.querySelector('[aria-label="Remove notes.txt"]') as HTMLButtonElement
+        act(() => remove.click())
+        expect(host.textContent).not.toContain("Up to 10 files, 5 MB each.")
     })
 })
