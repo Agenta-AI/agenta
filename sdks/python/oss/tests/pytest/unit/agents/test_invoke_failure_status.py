@@ -14,12 +14,16 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from agenta.sdk.agents.connections import (
     EndpointResolutionError,
     SubscriptionLoginRequiredError,
     UnsupportedDeploymentError,
     UnsupportedProviderError,
 )
+from agenta.sdk.agents.errors import AgentRunFailed
+from agenta.sdk.agents.utils.wire import result_from_wire
 from agenta.sdk.decorators import routing
 from agenta.sdk.decorators.routing import handle_invoke_failure
 from agenta.sdk.middlewares.running import normalizer
@@ -314,3 +318,85 @@ async def test_both_error_sites_withhold_and_return_together(monkeypatch):
         monkeypatch.setenv("AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE", "1")
         assert (await _routed_body(exception))["status"]["stacktrace"]
         assert (await _normalized_status(exception))["stacktrace"]
+
+
+# ---------------------------------------------------------------------------
+# A runner failure that the caller's own configuration caused is a 4xx
+# ---------------------------------------------------------------------------
+
+
+def _gateway_refusal(code: str, message: str) -> AgentRunFailed:
+    """A failed run as `result_from_wire` raises it for a refusal the LLM gateway sent.
+
+    The runner recovers the gateway's code from the `⟦agenta_code:...⟧` marker and sends it
+    as `errorDetail`, with `retryable: false`: the same request fails the same way until the
+    caller changes the request or its configuration.
+    """
+    return result_failure(
+        {
+            "ok": False,
+            "error": f"The model provider refused the request (HTTP 400): {message}",
+            "errorDetail": {"code": code, "message": message, "retryable": False},
+        }
+    )
+
+
+def result_failure(data: dict) -> AgentRunFailed:
+    try:
+        result_from_wire(data)
+    except AgentRunFailed as exception:
+        return exception
+    raise AssertionError("result_from_wire did not raise")
+
+
+_REFUSALS = [
+    (
+        "routing_field_not_allowed",
+        "Request field 'fallbacks' selects models and is not enforceable on "
+        "standard/anthropic",
+    ),
+    (
+        "secret_missing",
+        "No project secret for provider:openai under mode project_only",
+    ),
+    ("endpoint_not_found", "Endpoint custom/default not found"),
+]
+
+
+@pytest.mark.parametrize("code,message", _REFUSALS)
+async def test_a_gateway_refusal_is_a_client_error_on_both_sites(code, message):
+    exception = _gateway_refusal(code, message)
+
+    status, body = await _status_and_body(exception)
+    normalized = await _normalized_status(exception)
+
+    assert status == 422
+    assert normalized["code"] == 422
+    assert body["status"]["failure_code"] == code
+    assert normalized["failure_code"] == code
+    assert message in normalized["message"]
+
+
+async def test_a_retryable_runner_failure_stays_a_server_error():
+    # The model failed behind the gateway and another attempt may work: not the caller's fault.
+    exception = result_failure(
+        {
+            "ok": False,
+            "error": "The model failed to answer.",
+            "errorDetail": {
+                "code": "upstream_error",
+                "message": "The model failed to answer.",
+                "retryable": True,
+            },
+        }
+    )
+
+    assert (await _normalized_status(exception))["code"] == 500
+
+
+async def test_a_runner_failure_with_no_detail_stays_a_server_error():
+    exception = result_failure(
+        {"ok": False, "error": "The platform is busy and could not start this turn."}
+    )
+
+    assert (await _normalized_status(exception))["code"] == 500

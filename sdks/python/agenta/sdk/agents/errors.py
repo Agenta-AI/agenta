@@ -48,6 +48,11 @@ class AgentRunFailed(RuntimeError):
     `parseGatewayErrorDetail`); absent for every other failure, unchanged from before. When
     present, ``failure_code`` becomes ITS ``code`` (e.g. ``model_not_allowed``) instead of the
     generic default, so a caller matching on `failure_code` gets the real cause.
+
+    A refusal the runner marks ``retryable: false`` fails the same way until the caller changes
+    the request or its configuration (a routing field the connection does not allow, a missing
+    secret, an unknown endpoint), so it carries ``status_code`` 422 and the invoke answers 4xx.
+    Every other failure carries no status and stays 500.
     """
 
     failure_code: str = "agent_run_failed"
@@ -59,6 +64,8 @@ class AgentRunFailed(RuntimeError):
         self.error_detail = error_detail if isinstance(error_detail, dict) else None
         if self.error_detail and isinstance(self.error_detail.get("code"), str):
             self.failure_code = self.error_detail["code"]
+            if self.error_detail.get("retryable") is False:
+                self.status_code = 422
         super().__init__(f"Agent run failed: {message}")
 
 
