@@ -2299,6 +2299,17 @@ class ChannelsService:
             ),
         )
 
+    async def count_unstarted_turns(
+        self, *, project_id: UUID, thread_ids: List[UUID]
+    ) -> int:
+        """How many of these threads' turns never ran: refused, or not
+        accepted at start. Such a turn writes nothing to the session, so this
+        count is the only sign a reader gets of it."""
+
+        return await self.channels_dao.count_unstarted_triggers(
+            project_id=project_id, thread_ids=thread_ids
+        )
+
     async def settle_turn(
         self,
         *,

@@ -29,6 +29,7 @@ from oss.src.core.channels.commands import (
 )
 from oss.src.core.channels.dtos import (
     CHANNEL_TRIGGER_NEVER_SENT,
+    CHANNEL_TRIGGER_START_REJECTED,
     ChannelCapabilities,
     ChannelConnection,
     ChannelDeliveryState,
@@ -62,6 +63,7 @@ from oss.src.core.workflows.dtos import (
 from oss.src.core.workflows.types import (
     WorkflowDetachedStartFailed,
     WorkflowDetachedStartNeverSent,
+    WorkflowDetachedStartRejected,
 )
 from oss.src.core.channels.fill import run_backfill
 from oss.src.core.channels.service import ChannelsService
@@ -980,14 +982,17 @@ class InboxDispatcher:
                 # lost after the POST landed) may have run: replaying its
                 # input could repeat what the agent already did.
                 never_sent = isinstance(e, WorkflowDetachedStartNeverSent)
+                if never_sent:
+                    code = CHANNEL_TRIGGER_NEVER_SENT
+                elif isinstance(e, WorkflowDetachedStartRejected):
+                    code = CHANNEL_TRIGGER_START_REJECTED
+                else:
+                    code = "500"
                 await self.channels_service.settle_turn(
                     project_id=project_id,
                     trigger_id=trigger_id,
                     state=ChannelTriggerState.FAILED,
-                    status=Status(
-                        code=CHANNEL_TRIGGER_NEVER_SENT if never_sent else "500",
-                        message=str(e),
-                    ),
+                    status=Status(code=code, message=str(e)),
                 )
                 if connection and connection.channel == "slack" and request_locator:
                     adapter = self.channels_service.adapter_registry.get(

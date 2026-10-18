@@ -389,12 +389,14 @@ class ChannelsIngressRouter:
 
     async def _embed_thread(self, request: Request, embed_id: str, thread_id: UUID):
         """The caller's thread, looked up only among its own space's threads,
-        so another visitor's thread is never fetched: it is simply absent."""
+        so another visitor's thread is never fetched: it is simply absent.
+        Also returns the space's threads."""
 
         project_id, connection_id, space = await self._embed_visitor(request, embed_id)
-        for thread in await self._embed_threads(project_id, space):
+        threads = await self._embed_threads(project_id, space)
+        for thread in threads:
             if thread.id == thread_id:
-                return project_id, connection_id, thread
+                return project_id, connection_id, thread, threads
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
 
     @intercept_exceptions()
@@ -428,14 +430,22 @@ class ChannelsIngressRouter:
     async def read_embed_conversation(
         self, request: Request, embed_id: str, thread_id: UUID
     ) -> Any:
-        project_id, _, thread = await self._embed_thread(request, embed_id, thread_id)
+        project_id, _, thread, threads = await self._embed_thread(
+            request, embed_id, thread_id
+        )
         records = await self.records_service.get_records(
             project_id=project_id, session_id=thread.session_id
+        )
+        # Counted over every row of the session: a reopen adds a row.
+        unstarted_turns = await self.channels_service.count_unstarted_turns(
+            project_id=project_id,
+            thread_ids=[t.id for t in threads if t.session_id == thread.session_id],
         )
         return EmbedConversationResponse(
             count=len(records),
             records=records,
             pending_choice=thread.data.pending_choice,
+            unstarted_turns=unstarted_turns,
         )
 
     @intercept_exceptions()
@@ -449,7 +459,7 @@ class ChannelsIngressRouter:
     ) -> Any:
         if not env.sessions.shared_reader:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-        project_id, connection_id, thread = await self._embed_thread(
+        project_id, connection_id, thread, _ = await self._embed_thread(
             request, embed_id, thread_id
         )
         session_id = thread.session_id
@@ -495,7 +505,9 @@ class ChannelsIngressRouter:
         """A session attachment of the caller's thread. The lookup is scoped by
         the thread's session, so another session's file is not found."""
 
-        project_id, _, thread = await self._embed_thread(request, embed_id, thread_id)
+        project_id, _, thread, _ = await self._embed_thread(
+            request, embed_id, thread_id
+        )
         try:
             content = await self.attachments_service.fetch_attachment_content(
                 project_id=project_id,

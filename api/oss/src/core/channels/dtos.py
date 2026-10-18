@@ -92,6 +92,9 @@ class ChannelTriggerState(str, Enum):
 # workflow service. Only such a turn, or a REFUSED one, leaves the offset where
 # it was; any other failure may have run, so the next turn moves past it.
 CHANNEL_TRIGGER_NEVER_SENT = "never_sent"
+# The status code of a FAILED trigger whose start the workflow service itself
+# answered with a failure. The turn never ran; the offset rule stays the default.
+CHANNEL_TRIGGER_START_REJECTED = "start_rejected"
 
 
 class ChannelDeliveryState(str, Enum):

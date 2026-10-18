@@ -148,12 +148,15 @@ class EmbedConversationsResponse(BaseModel):
 
 
 class EmbedConversationResponse(BaseModel):
-    """The session's records, which the widget renders as the chat does, and
-    the thread's open choice, whose tokens an approval answer must carry."""
+    """The session's records, which the widget renders as the chat does, the
+    thread's open choice, whose tokens an approval answer must carry, and how
+    many of the conversation's messages got no turn (refused, or failed to
+    start), which the session's records cannot show."""
 
     count: int = 0
     records: List[SessionRecord] = Field(default_factory=list)
     pending_choice: Optional[ChannelPendingChoice] = None
+    unstarted_turns: int = 0
 
 
 class TelegramHostedBindLinkRequest(BaseModel):

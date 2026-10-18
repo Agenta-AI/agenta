@@ -18,6 +18,7 @@ from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.types import (
     WorkflowDetachedStartFailed,
     WorkflowDetachedStartNeverSent,
+    WorkflowDetachedStartRejected,
 )
 
 
@@ -164,6 +165,29 @@ async def test_stream_service_started_rejects_failure_or_malformed_first_record(
                 run_id="run-x",
                 strict_first_record=True,
             )
+
+
+@pytest.mark.parametrize(
+    "line,rejected",
+    [
+        ('{"kind": "result", "result": {"ok": false, "error": "rejected"}}', True),
+        ('{"type": "error", "data": {"type": "error", "message": "no key"}}', True),
+        ("not-json", False),
+    ],
+)
+async def test_only_a_failure_record_is_a_rejected_start(line, rejected):
+    """A rejection proves the start never ran; a malformed record proves nothing."""
+    response = _FakeStreamResponse(lines=[line])
+    with patch("httpx.AsyncClient", return_value=_FakeAsyncClient(response)):
+        with pytest.raises(WorkflowDetachedStartFailed) as raised:
+            await _service()._stream_service_started(
+                url="http://svc/invoke",
+                credentials="Secret tok",
+                payload={},
+                run_id="run-x",
+                strict_first_record=True,
+            )
+    assert isinstance(raised.value, WorkflowDetachedStartRejected) is rejected
 
 
 async def test_stream_service_started_keeps_legacy_best_effort_for_ordinary_trigger():
@@ -500,6 +524,8 @@ async def test_a_response_that_never_reached_the_service_is_marked_never_sent(
         # 503 with that header came from the service and the status stops being proof.
         (404, {"x-ag-version": "unknown", "content-type": "application/json"}),
         (503, {"x-ag-version": "0.119.1", "x-ag-trace-id": "tr-1"}),
+        # A run that failed before any output, e.g. a model with no usable credential.
+        (422, {"x-ag-version": "0.122.8", "content-type": "application/json"}),
     ],
 )
 async def test_an_ambiguous_response_stays_an_ordinary_start_failure(
@@ -518,6 +544,10 @@ async def test_an_ambiguous_response_stays_an_ordinary_start_failure(
     # Not redundant: `WorkflowDetachedStartNeverSent` subclasses the type `pytest.raises` is
     # catching, so this is the assertion that tells the two apart.
     assert not isinstance(raised.value, WorkflowDetachedStartNeverSent)
+    # The service's own failure answer ends the run; a gateway's leaves it uncertain.
+    assert isinstance(raised.value, WorkflowDetachedStartRejected) == any(
+        name.startswith("x-ag-") for name in headers
+    )
 
 
 async def test_a_never_sent_response_is_still_an_ordinary_start_failure_to_old_handlers():

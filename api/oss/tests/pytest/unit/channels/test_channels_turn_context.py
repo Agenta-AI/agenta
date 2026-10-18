@@ -16,13 +16,18 @@ import pytest
 import oss.src.tasks.asyncio.channels.inbox as inbox_module
 from oss.src.core.channels.dtos import (
     CHANNEL_TRIGGER_NEVER_SENT,
+    CHANNEL_TRIGGER_START_REJECTED,
     ChannelEventKind,
     ChannelPendingChoice,
     ChannelPendingChoiceItem,
     ChannelTriggerState,
 )
 from oss.src.core.channels.queue import ChannelQueueDecision
-from oss.src.core.workflows.types import WorkflowDetachedStartNeverSent
+from oss.src.core.workflows.types import (
+    WorkflowDetachedStartFailed,
+    WorkflowDetachedStartNeverSent,
+    WorkflowDetachedStartRejected,
+)
 from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher, TurnRefused
 
 from .turn_harness import InMemoryChannels, texts
@@ -233,6 +238,29 @@ class TestTurnsThatFail:
             if trigger.state is ChannelTriggerState.FAILED
         ]
         assert failed[0].status.code == CHANNEL_TRIGGER_NEVER_SENT
+
+    async def test_a_start_the_service_rejected_is_marked_and_moves_on(self):
+        """The service's first record rejected the start (for example, no
+        usable credential). The turn never ran, so a reader may report it, but
+        the offset rule stays the default one. Any other failed start (a
+        gateway 502) may have run and keeps the generic code."""
+        channels = InMemoryChannels()
+        runner = _Runner()
+        runner.failures["M2"] = WorkflowDetachedStartRejected("no usable credential")
+        runner.failures["M3"] = WorkflowDetachedStartFailed("HTTP 502")
+        dispatcher = _dispatcher(channels, runner)
+
+        await _say(channels, dispatcher, "M1", addressed=True)
+        await _say(channels, dispatcher, "M2", addressed=True)
+        await _say(channels, dispatcher, "M3", addressed=True)
+
+        assert runner.sent == [["M1"], ["M2"], ["M3"]]
+        codes = [
+            trigger.status.code
+            for trigger in channels.triggers
+            if trigger.state is ChannelTriggerState.FAILED
+        ]
+        assert codes == [CHANNEL_TRIGGER_START_REJECTED, "500"]
 
     async def test_a_refused_turn_keeps_its_context(self, monkeypatch):
         """REFUSED means the runner turned the start away every time: the

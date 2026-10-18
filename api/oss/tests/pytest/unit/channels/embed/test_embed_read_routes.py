@@ -63,6 +63,7 @@ class FakeReadService(FakeChannelsService):
         super().__init__()
         self.spaces = {}
         self.threads = []
+        self.unstarted = {}
         for key in (KEY, OTHER_KEY):
             space = ChannelSpace(
                 id=uuid4(),
@@ -99,6 +100,10 @@ class FakeReadService(FakeChannelsService):
     async def query_threads(self, *, project_id, thread=None, windowing=None):
         assert project_id == self.project_id
         return [t for t in self.threads if t.space_id == thread.space_id]
+
+    async def count_unstarted_turns(self, *, project_id, thread_ids):
+        assert project_id == self.project_id
+        return sum(self.unstarted.get(thread_id, 0) for thread_id in thread_ids)
 
 
 class FakeRecords:
@@ -259,6 +264,21 @@ def test_read_returns_records_and_the_pending_choice(client, service, records):
     assert body["records"][0]["session_id"] == "s1"
     assert body["pending_choice"]["choices"] == [{"label": "Approve", "token": "tok-1"}]
     assert records.calls == ["s1"]
+
+
+def test_read_counts_unstarted_turns_over_every_row_of_the_session(
+    client, service, records
+):
+    # A reopen added the newer row; both rows belong to the one session.
+    older = service.add_thread(KEY, session_id="s1")
+    newer = service.add_thread(KEY, session_id="s1", minutes=5)
+    other = service.add_thread(KEY, session_id="s2", minutes=1)
+    service.unstarted = {older.id: 1, newer.id: 1, other.id: 4}
+
+    response = _get(client, f"{BASE}/{newer.id}")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["unstarted_turns"] == 2
 
 
 def test_another_visitors_thread_answers_like_an_unknown_one(client, service, records):
