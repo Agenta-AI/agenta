@@ -155,7 +155,7 @@ export const EmbedSettingsForm = ({
                 )}
                 <span className={HINT} data-testid="agent-embed-snippet-hint">
                     {draft.restricted
-                        ? "Paste it into a page on one of the domains above."
+                        ? "Paste it into a page on one of your allowed domains."
                         : "Paste it into any page of your website."}
                 </span>
             </EmbedSection>

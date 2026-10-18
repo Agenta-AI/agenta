@@ -403,7 +403,7 @@ describe("AgentEmbedPanel", () => {
         await render(panel(makeClient(), {connectionId: "e1"}))
         expect(byTestId("agent-embed-snippet")).not.toBeNull()
         expect(byTestId("agent-embed-snippet-hint")?.textContent).toBe(
-            "Paste it into a page on one of the domains above.",
+            "Paste it into a page on one of your allowed domains.",
         )
         expect(byTestId("agent-embed-domains-section-summary")?.textContent).toBe("2 domains")
         expect(byTestId("agent-embed-appearance-section-summary")?.textContent).toBe(
