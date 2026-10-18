@@ -227,6 +227,25 @@ export const fetchEmbedSnippet = async (
     return content
 }
 
+/** A ready prompt that asks an AI coding assistant to add the snippet to a website. */
+export const embedAssistantPrompt = (snippet: string): string =>
+    [
+        "Add my Agenta agent's chat to my website.",
+        "",
+        "1. Put the iframe from the snippet below where the chat should appear, for example in a shared layout.",
+        "2. Keep the snippet exactly as given. The embed ID in the iframe URL identifies the agent.",
+        "3. Optional: pass a visitor key, a display name and page context with the `agenta:init` and `agenta:context` messages shown in the snippet's script. The visitor key must be a random secret of at least 128 bits that you store for each logged-in user. Never use a user ID or an email as the visitor key.",
+        "4. After you deploy, load the page and confirm that the chat appears.",
+        "5. If the chat does not load and domain checks are on, add the site's domain in Agenta under Publish > Embed.",
+        "",
+        "The snippet:",
+        "",
+        "```html",
+        snippet.trimEnd(),
+        "```",
+        "",
+    ].join("\n")
+
 export const archiveEmbed = async (
     client: EmbedClient,
     scope: Scope,

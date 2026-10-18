@@ -1,5 +1,6 @@
 import {useId, useState} from "react"
 
+import {CopyButton} from "@agenta/ui/components/presentational"
 import {Alert, Button, Input, LoadingButton, Segmented, Textarea} from "@agenta/ui/ui"
 import {useMutation, useQuery, useQueryClient, type QueryKey} from "@tanstack/react-query"
 
@@ -11,6 +12,7 @@ import {
     MAX_STARTERS,
     appearanceError,
     archiveEmbed,
+    embedAssistantPrompt,
     fetchEmbedSnippet,
     originsError,
     saveEmbed,
@@ -189,6 +191,17 @@ export const EmbedSettingsForm = ({
                         label="embed.html"
                         code={snippet.data}
                         maxHeightClass="max-h-[320px]"
+                        actions={
+                            <CopyButton
+                                text={embedAssistantPrompt(snippet.data)}
+                                buttonText="Copy prompt"
+                                icon
+                                variant="ghost"
+                                size="xs"
+                                successMessage="Prompt copied"
+                                data-testid="agent-embed-copy-prompt"
+                            />
+                        }
                         data-testid="agent-embed-snippet"
                     />
                 ) : snippet.isError ? (

@@ -83,6 +83,7 @@ import {
     parseOrigins,
     saveEmbed,
     type EmbedClient,
+    embedAssistantPrompt,
 } from "../../src/publish/embedApi"
 
 const SCOPE = {queryParams: {project_id: "proj-1"}}
@@ -380,6 +381,23 @@ describe("AgentEmbedPanel", () => {
             SCOPE,
         )
         expect(onOpen).toHaveBeenCalledWith("new-1")
+    })
+
+    it("copies a prompt for a coding assistant that carries the exact snippet", async () => {
+        const writeText = vi.fn(async () => {})
+        vi.stubGlobal("navigator", {...navigator, clipboard: {writeText}})
+        await render(panel(makeClient(), {connectionId: "e1"}))
+
+        await click(byTestId("agent-embed-copy-prompt"))
+
+        const snippet = '<iframe src="https://web/m/embed/pub-e1"></iframe>'
+        expect(writeText).toHaveBeenCalledWith(embedAssistantPrompt(snippet))
+        const prompt = embedAssistantPrompt(snippet)
+        expect(prompt).toContain(`\`\`\`html\n${snippet}\n\`\`\``)
+        expect(prompt).toContain("Keep the snippet exactly as given")
+        expect(prompt).toContain("at least 128 bits")
+        expect(prompt).toContain("Publish > Embed")
+        vi.unstubAllGlobals()
     })
 
     it("edits the greeting, shows the snippet and the preview", async () => {
