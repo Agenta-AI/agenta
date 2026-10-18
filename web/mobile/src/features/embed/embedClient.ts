@@ -20,12 +20,15 @@ const conversationReadSchema = z.object({
     pending_choice: z
         .object({choices: z.array(z.object({label: z.string(), token: z.string()}))})
         .nullish(),
+    unstarted_turns: z.number(),
 })
 
 export type EmbedConversation = z.infer<typeof conversationSchema>
 interface EmbedConversationRead {
     records: SessionRecord[]
     choiceTokens: string[]
+    /** Messages that got no turn (refused or failed to start): the records cannot show them. */
+    unstartedTurns: number
 }
 
 /** A file attached to a message, as base64 in the request body. */
@@ -122,6 +125,7 @@ export const createEmbedClient = ({
             return {
                 records: body.records,
                 choiceTokens: body.pending_choice?.choices.map((choice) => choice.token) ?? [],
+                unstartedTurns: body.unstarted_turns,
             }
         },
 

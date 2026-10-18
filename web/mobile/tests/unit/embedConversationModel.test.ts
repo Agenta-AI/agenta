@@ -1,3 +1,4 @@
+import type {UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
 import type {EmbedConversation} from "../../src/features/embed/embedClient"
@@ -5,6 +6,9 @@ import {
     choiceToken,
     currentConversation,
     isAwaitingSatisfied,
+    sendOutcome,
+    unrecordedSends,
+    type PendingSends,
 } from "../../src/features/embed/embedConversationModel"
 import {attachmentIdFromUrl} from "../../src/features/embed/embedFiles"
 
@@ -58,5 +62,42 @@ describe("attachmentIdFromUrl", () => {
         ).toBe("a-1")
         expect(attachmentIdFromUrl("blob:https://x/1")).toBe(null)
         expect(attachmentIdFromUrl(undefined)).toBe(null)
+    })
+})
+
+describe("the wait for a reply to sent messages", () => {
+    const pending = (count = 1, unstartedTurns = 0): PendingSends => ({
+        sessionId: "s1",
+        userCount: 1,
+        unstartedTurns,
+        messages: Array.from({length: count}, (_, index) => ({text: `m${index}`, fileNames: []})),
+    })
+    const message = (role: UIMessage["role"]) => ({id: role, role, parts: []}) as UIMessage
+    const before = [message("user"), message("assistant")]
+    const user = message("user")
+    const reply = message("assistant")
+
+    it("keeps waiting after the records hold the message, until a reply follows it", () => {
+        expect(sendOutcome(pending(), before, 0)).toBe("waiting")
+        expect(sendOutcome(pending(), [...before, user], 0)).toBe("waiting")
+        expect(sendOutcome(pending(), [...before, user, reply], 0)).toBe("replied")
+    })
+
+    it("fails when a turn never started, which the records cannot show", () => {
+        expect(sendOutcome(pending(1, 1), before, 2)).toBe("failed")
+        expect(sendOutcome(pending(1, 1), before, 1)).toBe("waiting")
+    })
+
+    it("a queued second message waits past the first message's reply", () => {
+        expect(sendOutcome(pending(2), [...before, user, reply], 0)).toBe("waiting")
+        expect(unrecordedSends(pending(2), [...before, user, reply])).toEqual([
+            {text: "m1", fileNames: []},
+        ])
+        expect(sendOutcome(pending(2), [...before, user, reply, user, reply], 0)).toBe("replied")
+    })
+
+    it("a second message that never started fails once the first is answered", () => {
+        expect(sendOutcome(pending(2), [...before, user], 1)).toBe("failed")
+        expect(sendOutcome(pending(2), before, 1)).toBe("waiting")
     })
 })

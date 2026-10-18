@@ -12,6 +12,7 @@ import {markdownIcons, proseClassName} from "../chat/AssistantMarkdown"
 import {isLiveTextItem} from "../chat/markdownStream"
 import {mobileTurnRowClass} from "../chat/turnRowClass"
 
+import {REPLY_FAILED_TEXT} from "./embedConversationModel"
 import {EmbedFile} from "./EmbedFile"
 
 const Answer = ({text, streaming}: {text: string; streaming: boolean}) => {
@@ -98,9 +99,8 @@ const EmbedTurnInner = ({
         )
     }
 
-    const errorText = turn.status.showError
-        ? (turn.status.errorText ?? "Something went wrong.")
-        : null
+    // Visitors get fixed text: the run's own error is internal.
+    const errorText = turn.status.showError ? REPLY_FAILED_TEXT : null
     return (
         <div className={`${mobileTurnRowClass} justify-start`}>
             <ChatBubble

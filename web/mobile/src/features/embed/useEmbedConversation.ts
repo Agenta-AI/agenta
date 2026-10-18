@@ -18,20 +18,26 @@ import type {UIMessage} from "ai"
 
 import {EmbedRequestError, type EmbedClient, type EmbedConversation} from "./embedClient"
 import {
+    REPLY_FAILED_TEXT,
     choiceToken,
     currentConversation,
     isAwaitingSatisfied,
     latestRecordSequence,
     optimisticUserMessage,
     recordedEntityIds,
+    sendOutcome,
+    unrecordedSends,
     userMessageCount,
     type EmbedAwaiting,
+    type PendingSends,
 } from "./embedConversationModel"
 import {fileToUpload, newRequestId} from "./embedFiles"
 import type {HostDetails} from "./useEmbedVisitor"
 
 /** D12: after a first message or a command, poll the list this often until the change shows. */
 const LIST_POLL_MS = 300
+/** While a sent message has no running turn, re-read the conversation this often. */
+const READ_POLL_MS = 1_000
 const AWAIT_TIMEOUT_MS = 20_000
 const RECONNECT_DELAY_MS = 2_000
 /** A sent message whose turn never shows in the records is given up after this long. */
@@ -40,14 +46,6 @@ const ANSWER_TIMEOUT_MS = 30_000
 const CHOICE_RETRIES = 10
 const CHOICE_RETRY_MS = 500
 const TERMINAL_EVENTS = ["execution.stopped", "execution.failed", "execution.lost"]
-
-interface PendingSend {
-    /** Null for a first message, whose conversation does not exist yet. */
-    sessionId: string | null
-    text: string
-    fileNames: string[]
-    userCount: number
-}
 
 type ApprovalPhase = {phase: "idle"} | {phase: "responding"} | {phase: "answered"; ids: string[]}
 
@@ -73,7 +71,7 @@ export const useEmbedConversation = ({
     host: RefObject<HostDetails>
 }) => {
     const [awaiting, setAwaiting] = useState<EmbedAwaiting | null>(null)
-    const [pendingSend, setPendingSend] = useState<PendingSend | null>(null)
+    const [pendingSend, setPendingSend] = useState<PendingSends | null>(null)
     const [running, setRunning] = useState(false)
     const [preview, setPreview] = useState(createSessionLivePreviewState)
     const [approval, setApproval] = useState<ApprovalPhase>({phase: "idle"})
@@ -109,6 +107,8 @@ export const useEmbedConversation = ({
         queryFn: () => client.readConversation(viewing?.thread_id ?? ""),
         enabled: Boolean(viewing),
         staleTime: Infinity,
+        // A turn that never starts sends no live event: only a re-read shows it.
+        refetchInterval: pendingSend && !running ? READ_POLL_MS : false,
     })
     const records = read.data?.records
     const recordMessages = useMemo(
@@ -134,17 +134,23 @@ export const useEmbedConversation = ({
         )
     }, [records, recordMessages])
 
-    const recordUserCount = userMessageCount(recordMessages)
+    const unstartedTurns = read.data?.unstartedTurns ?? 0
     useEffect(() => {
         if (!pendingSend) return
-        const elsewhere = pendingSend.sessionId && pendingSend.sessionId !== viewing?.session_id
-        if (elsewhere || recordUserCount > pendingSend.userCount) setPendingSend(null)
-    }, [pendingSend, recordUserCount, viewing?.session_id])
+        if (pendingSend.sessionId && pendingSend.sessionId !== viewing?.session_id) {
+            setPendingSend(null)
+            return
+        }
+        const outcome = sendOutcome(pendingSend, recordMessages, unstartedTurns)
+        if (outcome === "waiting") return
+        setPendingSend(null)
+        if (outcome === "failed") setNotice(REPLY_FAILED_TEXT)
+    }, [pendingSend, recordMessages, unstartedTurns, viewing?.session_id])
     useEffect(() => {
         if (!pendingSend) return
         const expire = setTimeout(() => {
             setPendingSend((state) => (state === pendingSend ? null : state))
-            setNotice("The agent did not answer. Try again.")
+            setNotice(REPLY_FAILED_TEXT)
         }, SEND_TIMEOUT_MS)
         return () => clearTimeout(expire)
     }, [pendingSend])
@@ -216,7 +222,7 @@ export const useEmbedConversation = ({
     const messages = useMemo<UIMessage[]>(() => {
         const live = sessionLivePreviewMessages(preview)
         const pending = pendingSend
-            ? [optimisticUserMessage(pendingSend.text, pendingSend.fileNames)]
+            ? unrecordedSends(pendingSend, recordMessages).map(optimisticUserMessage)
             : []
         return [...recordMessages, ...pending, ...live]
     }, [recordMessages, pendingSend, preview])
@@ -243,13 +249,31 @@ export const useEmbedConversation = ({
     const send = useCallback(
         async (text: string, files: File[]): Promise<boolean> => {
             setNotice(null)
+            // Registered before the request, so a reply that lands meanwhile cannot end its wait.
+            const message = {text, fileNames: files.map((file) => file.name)}
+            setPendingSend((state) =>
+                state
+                    ? {...state, messages: [...state.messages, message]}
+                    : {
+                          sessionId: viewing?.session_id ?? null,
+                          userCount: viewing ? userMessageCount(recordMessages) : 0,
+                          unstartedTurns: viewing ? unstartedTurns : 0,
+                          messages: [message],
+                      },
+            )
+            const refuse = (notice: string) => {
+                setPendingSend((state) => {
+                    const messages = state?.messages.filter((item) => item !== message) ?? []
+                    return state && messages.length ? {...state, messages} : null
+                })
+                setNotice(notice)
+                return false
+            }
             try {
                 // Another window with the same key may have switched the conversation.
                 const fresh = currentConversation((await refetchList()).data)
-                if (fresh?.session_id !== viewing?.session_id) {
-                    setNotice("This chat changed in another window. Check it and send again.")
-                    return false
-                }
+                if (fresh?.session_id !== viewing?.session_id)
+                    return refuse("This chat changed in another window. Check it and send again.")
                 const uploads = await Promise.all(files.map(fileToUpload))
                 const {displayName, context} = host.current ?? {}
                 await client.send({
@@ -260,19 +284,12 @@ export const useEmbedConversation = ({
                     ...(context ? {context} : {}),
                 })
             } catch (error) {
-                setNotice(describeRefusal(error))
-                return false
+                return refuse(describeRefusal(error))
             }
-            setPendingSend({
-                sessionId: viewing?.session_id ?? null,
-                text,
-                fileNames: files.map((file) => file.name),
-                userCount: recordUserCount,
-            })
             if (!current) setAwaiting({kind: "thread", previousThreadId: null})
             return true
         },
-        [client, current, host, refetchList, recordUserCount, viewing?.session_id],
+        [client, current, host, recordMessages, refetchList, unstartedTurns, viewing],
     )
 
     const command = useCallback(
@@ -346,7 +363,8 @@ export const useEmbedConversation = ({
     const lastMessage = messages[messages.length - 1]
     return {
         conversations: conversations ?? [],
-        loading: list.isPending || (Boolean(viewing) && read.isPending),
+        // A sent message keeps the transcript, with its dots, while its new conversation loads.
+        loading: list.isPending || (Boolean(viewing) && read.isPending && !pendingSend),
         unavailable,
         viewing,
         current,

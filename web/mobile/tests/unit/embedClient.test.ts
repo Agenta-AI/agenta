@@ -53,6 +53,7 @@ describe("createEmbedClient", () => {
                         ],
                         posted_at: "2026-10-16T00:00:00Z",
                     },
+                    unstarted_turns: 2,
                 }),
             ),
         )
@@ -61,6 +62,7 @@ describe("createEmbedClient", () => {
 
         expect(read.records[0]).toMatchObject({id: "r", sequence: 4, payload: {text: "hi"}})
         expect(read.choiceTokens).toEqual(["row:approve", "row:deny"])
+        expect(read.unstartedTurns).toBe(2)
     })
 
     it("turns a refusal into an error with its detail and Retry-After", async () => {
