@@ -1,0 +1,238 @@
+---
+title: "Build an inbound outreach agent"
+sidebar_label: "Build an inbound outreach agent"
+description: "Build an agent that finds newly activated users in PostHog, researches them, drafts personal emails, and asks for your approval in Slack before sending."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+In this tutorial you build an agent for inbound outreach. When people from your ideal customer profile (ICP) sign up for your product and start using it, the agent finds them, researches them, and drafts a personal email for each one, for example to offer a demo. It posts the drafts in Slack, and nothing is sent until you approve it.
+
+You build the agent without code, by chatting with it. You also learn a method that works for any larger agent: split the problem into parts, solve each part on its own, and only then automate the whole thing.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/hk8TMNTCZvU"
+  title="Build an inbound outreach AI agent without code"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+  allowFullScreen
+></iframe>
+
+## What you are building
+
+Every morning, the agent:
+
+1. Reviews your product analytics, here [PostHog](https://posthog.com), and finds the users who signed up and activated in the last day.
+2. Researches each one with [Exa](https://exa.ai): their company, its size, what they do. This tells you whether they fit your ICP, and gives the agent material for a personal message.
+3. Drafts a tailored email for each user who fits. Not *Hi, do you have 15 minutes for a demo?*, but a message that refers to what they are working on.
+4. Sends you a report in Slack with the users and the drafts.
+5. Sends the emails through Gmail once you approve them, and follows up later.
+
+## What you need
+
+- An Agenta account. [Agenta Cloud](https://cloud.agenta.ai) is the quickest way to start.
+- A PostHog project with your product's user analytics, or another analytics tool you can connect.
+- An Exa account, for research. Its free tier is enough to start.
+- A Slack workspace where you can create an app, and a Gmail account to send from.
+
+## Plan before you build
+
+The approach that does not work is to describe the whole workflow to the agent at once and expect it to do every part well. Instead, break the problem down:
+
+1. Identify and connect the integrations.
+2. Solve each problem on its own: filter the users in PostHog, research the prospects, draft the messages, send them to Slack, and follow up. Turn each solved part into a skill.
+3. Automate the whole workflow.
+4. Improve it over time with feedback.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/inbound-outreach/01-decompose.png")}
+  alt="The plan: identify and connect integrations, solve each problem independently, automate it, and improve over time"
+  loading="lazy"
+/>
+
+Solving one part at a time lets you check and debug each step before you depend on it.
+
+## Step 1: Create the agent and connect the integrations
+
+Go to `Agents`, click `+`, and select `New agent`.
+
+Start with the integrations. You can add them later, but having them from the start helps the agent. Open `Integrations`, click `+`, and add:
+
+- **PostHog**, to find newly activated users.
+- **Exa**, to research users and their companies.
+- **Gmail**, to send the emails. For high volumes, use a dedicated sending tool such as Instantly instead of your personal inbox.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/inbound-outreach/02-add-exa.png")}
+  alt="The Add integration dialog searching for Exa"
+  loading="lazy"
+/>
+
+Give the agent a clear name, such as `Inbound Outreach Agent`.
+
+## Step 2: Publish the agent in Slack
+
+The agent sends its daily report to Slack, and you answer it there. Connect Slack from the agent's publish settings. You can connect it in two ways:
+
+- **Agenta app**: one click, and the agent shows up as `@agenta`. A Slack workspace routes the Agenta app to one agent only, so keep it for your main agent.
+- **Your own app**: the agent gets its own name and avatar. It takes about five minutes.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/inbound-outreach/03-connect-slack.png")}
+  alt="The Connect Slack dialog with the two options, Agenta app and Your own app"
+  loading="lazy"
+/>
+
+This tutorial uses your own app. Agenta gives you a manifest for it: create a new Slack app from that manifest, install it in your workspace, and copy its credentials back into Agenta. Then invite the agent to a channel, for example `#outreach`. For each step, see [Connect Slack](/guides/connect-slack).
+
+You can now message the agent from Slack, and the agent can message you there.
+
+## Step 3: Set the instructions
+
+Start with a general description of the job. Do not try to solve everything in one message. Ask the agent to write a high-level overview into its instructions, and tell it you will build the parts one by one:
+
+```text
+Can you update your instructions so that you become an agent that deals with
+inbound outreach? Your goals are to go to PostHog, find newly activated
+signups, research them, draft messages for them, and then send them to Slack.
+
+Let's update the instructions with a general, high-level overview of what
+you're doing. Then we're going to walk through each of these steps, create
+skills for them, and finally create the automation.
+```
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/inbound-outreach/04-instructions-prompt.png")}
+  alt="The request to update the instructions, and the agent's overview of its new role and workflow"
+  loading="lazy"
+/>
+
+Read the instructions the agent writes. They should state its core objective and the workflow: user discovery in PostHog, user and company research, outreach drafting, and the Slack notification.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/inbound-outreach/05-instructions.png")}
+  alt="The agent's instructions, with its core objective and a workflow overview"
+  loading="lazy"
+/>
+
+Later, as you create skills, the instructions will point to them, for example *use this skill for user discovery*.
+
+## Step 4: Find the newly activated users
+
+You do not have to wait for one chat to finish. Start a new session and work on the first problem in parallel: finding the right users in PostHog. Say what you are trying to achieve, which is a skill, not just an answer:
+
+```text
+I want you to go to PostHog and identify the new signups from the last
+24 hours who have activated: they started using our playground, sent a couple
+of messages, and explored. Keep the ones that could fit our ideal customer
+profile, for example people from a larger company. I want to know who they
+are, what they did, and their emails.
+
+The goal right now is to do this once so that we can create a skill out of it
+and automate it later.
+```
+
+Check the result: does the agent use the right definition of *activated*, and does its list match what you expect? Give feedback until it does. When it is right, save it:
+
+```text
+This sounds good. Let's create a skill from that, and update your
+instructions so this part of the workflow uses the skill.
+```
+
+The skill describes how to find these users and how to check them. You solved the problem, made sure it is solved, and encoded it in a skill. Do the same for every part that follows.
+
+## Step 5: Research the users and draft the emails
+
+Next, research the users you found:
+
+```text
+Can you go to Exa, research these users, and get context about them that
+would help draft an outreach email?
+```
+
+When the research looks good, save it as a skill and move to drafting:
+
+```text
+Can you create a skill for how to do this research, and update your
+instructions again? Then let's draft emails to these users to book a demo,
+relevant to what they are doing.
+```
+
+Edit the drafts the way you want them to sound: your tone, your length, your demo times. Then ask the agent to learn from your edits:
+
+```text
+This sounds good. I gave some feedback. Let's make this into a skill and
+incorporate the feedback, so the emails are written in our voice.
+```
+
+To learn more about skills, see [Manage skills](/guides/manage-skills).
+
+## Step 6: Automate the workflow
+
+You have tried every part of the workflow yourself, and each one is a skill. Now ask the agent to automate the whole thing:
+
+```text
+Can you automate the whole workflow for the inbound outreach? Each morning
+at 9:00 in Berlin time:
+1. Do the research in PostHog using the skill.
+2. Do the enrichment.
+3. Determine which users are in the ICP.
+4. Draft emails for them.
+5. Send me a Slack report about who these users are and what their emails are.
+6. If I give my okay, send them through Gmail.
+```
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/inbound-outreach/06-automation-prompt.png")}
+  alt="The request to automate the inbound outreach workflow every morning, with its six steps"
+  loading="lazy"
+/>
+
+The agent creates the automation. To learn more, see [Create an automation](/guides/create-an-automation).
+
+## Step 7: Require your approval before sending
+
+At least at the start, the agent should never send an email on its own. Asking it in the instructions is not enough. Set a permission instead.
+
+Open the Gmail integration and change its permission from `Allow all` to `Ask for write and delete`. Reading still runs on its own, but every send waits for you. Even when you tell the agent to send the emails, it asks for approval first, and you approve with a button, in Slack too. It is a hard gate: the tool is never called until you click `Approve`.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/inbound-outreach/07-gmail-permission.png")}
+  alt="The Gmail permission menu, with Always ask, Ask for write and delete, Allow all, and Deny all"
+  loading="lazy"
+/>
+
+To learn more, see [Control what an agent can do](/guides/control-what-an-agent-can-do).
+
+## Step 8: Improve it over time
+
+Each time the automation runs, give feedback on what you see: an ICP match that is wrong, or an email that does not sound like you. Ask the agent to update its instructions or its skills, so it gets better with each run.
+
+Two ways to grow it from here:
+
+- **Follow-ups.** Update the automation so the agent follows up after three days, and again after five.
+- **Less supervision.** Once you trust the drafts, remove the approval step and ask the agent for a daily or weekly report of the emails it sent.
+
+## The method, in short
+
+1. Break the problem into parts.
+2. Solve each part with the agent, in a chat.
+3. Save each solved part as a skill.
+4. Automate the whole workflow.
+5. Give feedback on each run, and remove the human approval once you trust it.
+
+## Next steps
+
+- [Build your first AI coworker](/tutorials/build-your-first-ai-coworker): how instructions, tools, and skills fit together.
+- [Track your competitors while you sleep](/tutorials/track-your-competitors): a smaller agent on a weekly schedule.

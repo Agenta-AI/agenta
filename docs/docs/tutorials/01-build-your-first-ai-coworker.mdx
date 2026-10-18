@@ -1,0 +1,214 @@
+---
+title: "Build your first AI coworker"
+sidebar_label: "Build your first AI coworker"
+description: "Build a sales copilot by chatting: connect your call notes, give it a role, research prospects, save a skill, and automate call preparation."
+---
+
+```mdx-code-block
+import Image from "@theme/IdealImage";
+```
+
+In this tutorial you build a sales copilot. It reads your sales calls, researches the people you are about to meet, and sends you a briefing before each call. You build it by chatting with it. You do not write code.
+
+<iframe
+  width="100%"
+  height="400"
+  src="https://www.youtube.com/embed/TFsEXgdNowY"
+  title="How to build your first AI coworker with Agenta"
+  frameBorder="0"
+  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+  allowFullScreen
+></iframe>
+
+## What you need
+
+- An Agenta account. [Agenta Cloud](https://cloud.agenta.ai) is the quickest way to start.
+- A place where your sales calls are recorded. This tutorial uses [Granola](https://www.granola.ai). Any notes or transcripts tool you can connect works the same way.
+- Google Calendar and Gmail, for the automation at the end.
+
+## How an agent works
+
+An agent has three parts:
+
+- **The model** understands your request and reasons about it.
+- **The instructions** turn a general assistant into your sales copilot. They hold its role, the context about your company, and its rules.
+- **The tools** are the apps the agent uses. A sales copilot needs your call notes, your calendar, and your email.
+
+You will add each part in turn. Think of the agent as a smart intern: it is capable, but it only knows what you tell it.
+
+## Step 1: Connect your call notes
+
+Start with something simple: an agent that can answer questions about your sales calls.
+
+Open your agent, go to `Integrations`, and click `+`. Search for `granola`, click `Connect`, and confirm the connection.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/first-ai-coworker/01-connect-granola.png")}
+  alt="The Add integration dialog searching for Granola, with the Connect to Granola MCP dialog and its Connect button"
+  loading="lazy"
+/>
+
+The agent can now read your sales calls. Ask it something:
+
+```text
+Look at my last three sales calls. What are the customers' pain points?
+```
+
+The agent reads your recent call notes and answers with the main pain points, with quotes from the calls.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/first-ai-coworker/02-first-answer.png")}
+  alt="The agent's answer listing three customer pain points, each with a quote from a sales call"
+  loading="lazy"
+/>
+
+## Step 2: Give the agent a role
+
+The agent can answer questions about your calls, but it is not a coworker yet. It knows nothing about your company, what you want to achieve, or what its job is. That is what instructions are for.
+
+You can edit the instructions yourself, but the easier way is to ask the agent. It can read and change its own instructions:
+
+```text
+I want you to be my sales copilot for Agenta. Visit agenta.ai to understand
+our business, then update your instructions with your role and the company
+context. Help me prepare for sales calls and give me feedback after them.
+```
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/first-ai-coworker/03-set-the-role.png")}
+  alt="The chat box with the request to become a sales copilot for Agenta and to update its instructions"
+  loading="lazy"
+/>
+
+The agent visits the website, gathers context about the company, and writes its own instructions. Open `Instructions` to read them. You can edit them directly, or ask the agent to change them.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/first-ai-coworker/04-review-instructions.png")}
+  alt="The agent's AGENTS.md instructions open in the editor, with sections for its role, workflows, tone, and memory"
+  loading="lazy"
+/>
+
+## Step 3: Improve the instructions as you go
+
+Instructions are not fixed. As you work with the agent, you will find things you want done differently. Tell the agent, and it updates its instructions so the change sticks:
+
+```text
+Update your instructions so future prospect briefs include company size.
+If you cannot verify it, say that it is unknown.
+```
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/first-ai-coworker/05-improve-instructions.png")}
+  alt="The chat box with feedback asking the agent to include company size in future prospect briefs"
+  loading="lazy"
+/>
+
+## Step 4: Prepare for your next calls
+
+Now give the agent a real job: prepare you for your upcoming sales calls.
+
+First, connect the tools it needs: **Google Calendar**, to see your calls, and **Gmail**, to send you the briefing. Add them from `Integrations` as you did for Granola.
+
+Do not create an automation yet. Solve the problem once with the agent, check that it does the job the right way, and automate it after. Start a new chat and ask:
+
+```text
+Can you check which new sales calls I have in the next few days and help me
+prepare for them? Let's research the prospect.
+```
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/first-ai-coworker/06-prepare-upcoming-calls.png")}
+  alt="The chat box asking the agent to check upcoming sales calls and research the prospects"
+  loading="lazy"
+/>
+
+Read the result and decide whether the research is good enough. In the video, the briefing lacks detail about the prospect. The fix is another tool: [Exa](https://exa.ai) finds information about a person and their company, such as their role and the size of the company. Add it from `Integrations`.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/first-ai-coworker/07-add-exa.png")}
+  alt="The Add integration dialog showing Exa, Gmail, Google Calendar, and Granola MCP as added to the workspace"
+  loading="lazy"
+/>
+
+Go back and forth with the agent on the briefing, its content and its structure, until you are happy with it.
+
+## Step 5: Save the process as a skill
+
+The agent now knows how to prepare a briefing, but only in this chat. To keep that knowledge, save it as a skill. A skill is a guide that tells the agent how to do one task. Ask:
+
+```text
+Great job. Save this call-preparation process as a reusable skill named
+sales-call-preparation. Include the research steps, verified sources, and
+the briefing structure.
+```
+
+The agent creates the skill and adds it under `Skills`. Open it to see the steps it will follow, including the feedback you gave.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/first-ai-coworker/08-skill.png")}
+  alt="The Sales Call Preparation skill open in the editor, with its research and discovery steps"
+  loading="lazy"
+/>
+
+Like the instructions, a skill keeps improving. When the agent gets something wrong, ask it to update the skill:
+
+```text
+Update sales-call-preparation so its email draft has clear headings and
+short bullet points.
+```
+
+To learn more, see [Manage skills](/guides/manage-skills).
+
+## Step 6: Automate it
+
+You have done the job once and the agent has learned it. Now automate it, so the agent prepares every sales call without you asking. Again, you do not set this up yourself. Ask the agent:
+
+```text
+Can you automate this? Whenever a new calendar event is created, check
+whether it's a sales or demo call. If it is, run sales-call-preparation and
+send me the briefing by email.
+```
+
+The agent creates a subscription: a trigger that runs the agent each time a new event is created in your Google Calendar.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/first-ai-coworker/09-automation-created.png")}
+  alt="The agent confirming the Sales Call Preparation subscription is active, with the request that created it"
+  loading="lazy"
+/>
+
+Open it under `Triggers > Subscriptions` to see the event it listens for and the message it sends to the agent each time.
+
+<Image
+  style={{ display: "block", margin: "24px 0" }}
+  img={require("/images/tutorials/first-ai-coworker/10-automation-trigger.png")}
+  alt="The subscription settings: a Google Calendar event-created trigger and the message sent to the agent"
+  loading="lazy"
+/>
+
+To learn more, see [Create an automation](/guides/create-an-automation).
+
+## Keep growing your coworker
+
+This is a start. The agent grows the more you use it, and every new job follows the same loop:
+
+1. Solve the task once with the agent.
+2. Save it as a skill.
+3. Automate it.
+4. Check the results and give feedback, so the agent improves its skills and instructions.
+
+For example, the same agent could turn your sales calls into case studies, or add backlog items to Linear after each call. Each one is a new integration, a new skill, and a new automation.
+
+## Next steps
+
+- [Track your competitors while you sleep](/tutorials/track-your-competitors): an agent that runs on a weekly schedule.
+- [Build an inbound outreach agent](/tutorials/build-an-inbound-outreach-agent): a larger agent built step by step, with human approval in Slack.
