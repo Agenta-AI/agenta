@@ -2,12 +2,22 @@
 
 ### Requirement: Publish an agent as an embed
 
-The system SHALL let a project member create an `embed` channel connection for an agent. The connection SHALL hold a public embed ID, a list of allowed origins and an appearance config, and SHALL use the ordinary channel agent binding and grants. The connection's setup document SHALL be the iframe snippet.
+The system SHALL let a project member create an `embed` channel connection for an agent. The connection SHALL hold a public embed ID, an optional list of allowed origins and an appearance config, and SHALL use the ordinary channel agent binding and grants. The connection's setup document SHALL be the iframe snippet.
 
 #### Scenario: Create an embed
 
-- **WHEN** a project member creates an embed connection with at least one allowed origin and binds an agent to it
+- **WHEN** a project member creates an embed connection, with or without allowed origins, and binds an agent to it
 - **THEN** the connection is active and its setup document shows an iframe snippet that contains the public embed ID
+
+#### Scenario: Turn on specific domains
+
+- **WHEN** a project member turns on "Only allow embedding the agent on specific domains" and saves with no domain, or with an entry that is not an http or https origin with an optional leading `*.` label
+- **THEN** the settings refuse to save and name the problem
+
+#### Scenario: Turn off specific domains
+
+- **WHEN** a project member turns off "Only allow embedding the agent on specific domains" and saves
+- **THEN** the connection stores an empty origin list, and any website can embed the agent
 
 #### Scenario: Archive an embed
 
@@ -16,7 +26,9 @@ The system SHALL let a project member create an `embed` channel connection for a
 
 ### Requirement: Restrict where the widget can load and call
 
-The widget page SHALL send a `Content-Security-Policy: frame-ancestors` header that lists the embed's allowed origins and Agenta's own web origin, so the owner can preview the widget in Agenta. This header is the check on where the widget is framed. It does not stop a visitor from opening the widget page directly as a top-level page; that is allowed, because such a visitor can do no more than any client that holds a visitor key, and the visitor key and rate limits apply the same way. The `embed` ingress and read routes SHALL NOT compare the request's `Origin` header with the allowed origins, because the widget's own requests carry Agenta's origin, not the host page's origin. The routes SHALL require the `X-Agenta-Visitor-Key` header, so a browser request from another website needs a CORS preflight, which fails for every origin the API's CORS policy does not admit. The CORS policy is a separate, global setting; the frame restriction holds regardless of it.
+An embed's allowed origins SHALL be optional. When the list is empty or absent, any website MAY embed the widget. An entry SHALL be an http or https origin `scheme://host[:port]`, and its host MAY start with one `*.` label, which matches every subdomain of the rest but not the rest itself, as in CSP. The system SHALL drop every other entry before it uses the list, and a list whose entries are all dropped SHALL allow no website, not every website.
+
+The widget page SHALL send a `Content-Security-Policy: frame-ancestors` header that lists the embed's allowed origins and Agenta's own web origin, so the owner can preview the widget in Agenta. For an embed with no allowed origins, the header SHALL be `frame-ancestors *`. This header is the check on where the widget is framed. It does not stop a visitor from opening the widget page directly as a top-level page; that is allowed, because such a visitor can do no more than any client that holds a visitor key, and the visitor key and rate limits apply the same way. The `embed` ingress and read routes SHALL NOT compare the request's `Origin` header with the allowed origins, because the widget's own requests carry Agenta's origin, not the host page's origin. The routes SHALL require the `X-Agenta-Visitor-Key` header, so a browser request from another website needs a CORS preflight, which fails for every origin the API's CORS policy does not admit. The CORS policy is a separate, global setting; the frame restriction holds regardless of it.
 
 #### Scenario: Load on an allowed site
 
@@ -27,6 +39,16 @@ The widget page SHALL send a `Content-Security-Policy: frame-ancestors` header t
 
 - **WHEN** a page on an origin that is not allowed includes the iframe snippet
 - **THEN** the browser refuses to show the widget, and a browser request from that page to the ingress fails the CORS preflight
+
+#### Scenario: Load on a subdomain of a wildcard entry
+
+- **WHEN** the embed allows `https://*.example.com` and a page on `https://shop.example.com` includes the iframe snippet
+- **THEN** the widget loads and shows the chat, and a page on `https://example.com` is refused
+
+#### Scenario: Load anywhere when no origin is listed
+
+- **WHEN** the embed has no allowed origins and a page on any website includes the iframe snippet
+- **THEN** the widget loads and shows the chat, and the widget page's header is `frame-ancestors *`
 
 ### Requirement: Visitor keys own conversations
 
@@ -120,8 +142,13 @@ The widget SHALL accept a `context` object and an optional `displayName` from th
 
 #### Scenario: Messages from other windows are ignored
 
-- **WHEN** a window whose origin is not an allowed origin posts an `agenta:init` or `agenta:context` message to the widget
+- **WHEN** a window other than the widget's parent posts an `agenta:init` or `agenta:context` message to the widget, or the embed lists allowed origins and the parent is not on one of them
 - **THEN** the widget ignores the message
+
+#### Scenario: Any parent is heard when no origin is listed
+
+- **WHEN** the embed has no allowed origins and its parent page posts `agenta:init`
+- **THEN** the widget accepts the message whatever the parent's origin, and it sent `agenta:ready` only to the parent's own origin
 
 ### Requirement: Owners can read embed conversations
 

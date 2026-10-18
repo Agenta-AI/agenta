@@ -37,7 +37,7 @@ For HTTPS with the bundled Traefik, see [Using SSL](/self-host/guides/using-ssl)
 ## The web container's API URL
 
 Before it renders the widget, the `web-mobile` container fetches the embed's settings from the API
-on the server side. It needs the allowed origins to set the `Content-Security-Policy:
+on the server side. It needs the embed's domain list to set the `Content-Security-Policy:
 frame-ancestors` header. The container uses `AGENTA_API_INTERNAL_URL` when it is set, and
 `AGENTA_API_URL` when it is not.
 
@@ -66,7 +66,7 @@ holds no chat. The same happens after an owner archives the embed.
 ## Reverse proxy headers
 
 The widget page sends its own `Content-Security-Policy: frame-ancestors` header with the embed's
-allowed origins. A proxy must not add `X-Frame-Options` to `/m/embed/`. Browsers that do not
+domain list, or `frame-ancestors *` when the embed has none. A proxy must not add `X-Frame-Options` to `/m/embed/`. Browsers that do not
 support `frame-ancestors` follow `X-Frame-Options DENY` and block the widget.
 
 The bundled nginx config (the `with-nginx` Compose profile) adds `X-Frame-Options DENY` to every
@@ -88,6 +88,10 @@ this location does not send the server's `X-Frame-Options`.
 
 ## Limits
 
+An embed with **Only allow embedding the agent on specific domains** turned off can be put on any
+website, and each message there uses the owner's model credits. The rate limits below are what
+caps that cost on your instance. Keep them set, and archive an embed to stop it everywhere.
+
 The embed routes limit their own request rate, the number of open live streams per embed, the size
 of a message and the size of the files.
 The defaults and the variables that change them are in the
@@ -102,8 +106,8 @@ seconds is enough.
 
 ## Check that it works
 
-1. Create an embed from an agent's **Publish** panel, with your test page's origin in **Allowed
-   origins**.
+1. Create an embed from an agent's **Publish** panel. Turn on **Only allow embedding the agent on
+   specific domains** and enter your test page's origin.
 2. Check that the preview in the panel shows the chat.
 3. Read the widget's headers:
 
@@ -112,9 +116,9 @@ seconds is enough.
    curl -sI "https://agenta.example.com/m/embed/$EMBED_ID" | grep -i -E 'frame|security-policy'
    ```
 
-   The answer must contain `content-security-policy: frame-ancestors` followed by your allowed
-   origins and the `AGENTA_WEB_URL` origin, and no `x-frame-options`. A value of
-   `frame-ancestors 'none'` means the `web-mobile` container could not fetch the embed. Check that
-   the embed ID is right and the embed is not archived, then check `AGENTA_API_INTERNAL_URL`.
+   The answer must contain `content-security-policy: frame-ancestors` followed by your domains
+   and the `AGENTA_WEB_URL` origin, and no `x-frame-options`. A value of `frame-ancestors *`
+   for this embed means the `web-mobile` container could not fetch it. Check that the embed ID is
+   right and the embed is not archived, then check `AGENTA_API_INTERNAL_URL`.
 
-4. Paste the snippet into a page on an allowed origin and send a message.
+4. Paste the snippet into a page on one of your domains and send a message.

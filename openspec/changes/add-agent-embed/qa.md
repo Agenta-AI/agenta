@@ -23,6 +23,19 @@ Scenario: Widget is blocked on another site
   When I open the blocked test page
   Then the iframe shows no chat
   And a fetch to the ingress from that page fails the CORS preflight
+
+Scenario: An embed with no domain list loads anywhere
+  Given a second embed for the agent with "Only allow embedding the agent on specific domains" turned off
+  When I open a page with its snippet on the allowed origin and on the blocked origin
+  Then both show the chat
+  And the widget page's header is "frame-ancestors *"
+  And a host-provided visitor key from either page is used
+
+Scenario: A wildcard domain allows subdomains only
+  Given a third embed that allows "https://*.qa-allowed.example"
+  Then the widget page's header lists "https://*.qa-allowed.example"
+  And a page on "https://sub.qa-allowed.example" shows the chat
+  And a page on "https://qa-allowed.example" shows no chat
 ```
 
 ## Anonymous history

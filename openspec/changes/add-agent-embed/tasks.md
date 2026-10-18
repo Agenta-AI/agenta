@@ -56,3 +56,11 @@
 ## 8. QA
 
 - [x] 8.1 Run every scenario in `qa.md` as a recorded live QA pass and attach the evidence to the pull request (results: https://github.com/Agenta-AI/agenta/pull/7662#issuecomment-6231707554; the six videos are kept with the QA run, not attached)
+
+## 9. Optional origins
+
+- [x] 9.1 `allowed_origins` is optional: empty or absent means any site (`frame-ancestors *`, config `["*"]`); a list with no usable entry allows none
+- [x] 9.2 Wildcard entries `scheme://*.host[:port]` in `sanitize_origins`, the create pattern, the widget's origin match and the settings validation
+- [x] 9.3 Widget hears `agenta:init` and `agenta:context` from its parent on any origin when unrestricted; `agenta:ready` goes only to the parent's origin
+- [x] 9.4 Settings and create form: "Specific domains" toggle (off by default) over the domain list; the toggle is derived from the stored list
+- [x] 9.5 Design risk, guide and self-host page say that an unrestricted embed spends the owner's credits; tests for each

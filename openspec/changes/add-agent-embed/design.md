@@ -48,7 +48,11 @@ The `embed` adapter shares the `agenta` adapter's capabilities and its post meth
 
 One connection per embed. The connection's `external_key` is the public embed ID used in the snippet and the ingress path. Its `data` holds `allowed_origins` and `appearance`. The agent binding is a `ChannelAgent` row. A default grant admits every visitor.
 
-The adapter's setup declares `allowed_origins` as a setup field, so the existing channel setup form collects it. `build_setup_document` returns the iframe snippet and a `postMessage` example.
+`allowed_origins` is optional, and it is the only record of where the embed may run. When it is empty or absent, any website may embed the agent. When it lists origins, only those may. There is no separate on/off flag: the settings toggle "Only allow embedding the agent on specific domains" is on when the list is not empty, and turning it off saves an empty list. The form keeps the typed domains while the toggle is off, until the page closes; it does not store them. A second field would let the list survive a toggle off and on, but it would add a flag that must stay in step with the list, so v1 does not have one.
+
+An origin is `scheme://host[:port]`, http or https. The host may start with one `*.` label, such as `https://*.example.com`. As in CSP, that matches every subdomain at any depth (`a.example.com`, `a.b.example.com`) but not `example.com` itself, and it keeps the scheme and the port. The API rebuilds each origin from its parsed parts when it reads the list, and drops anything else, because the list goes into a response header. A list whose entries are all dropped stays restricted to no site; it never turns into "any site".
+
+The adapter's setup declares `allowed_origins` as an optional setup field, so the existing channel setup form collects it. `build_setup_document` returns the iframe snippet and a `postMessage` example.
 
 No new table and no new admin API.
 
@@ -78,7 +82,7 @@ The widget sends every visitor action to `POST /channels/embed/events/{embed_id}
 
 Rate limits per embed and per key apply at this route. The read routes (section 5) have their own, larger buckets.
 
-Where the widget may run is checked in two places, both in the browser. The widget page sends `frame-ancestors` with the allowed origins, so the browser refuses to show it elsewhere. The routes require the `X-Agenta-Visitor-Key` header, so a browser request from another website needs a CORS preflight, which the API's CORS policy refuses. A script outside a browser can still call the routes. The visitor key and the rate limits cover that case.
+Where the widget may run is checked in two places, both in the browser. The widget page sends `frame-ancestors` with the allowed origins, so the browser refuses to show it elsewhere. An embed with no origin list sends `frame-ancestors *`. The routes require the `X-Agenta-Visitor-Key` header, so a browser request from another website needs a CORS preflight, which the API's CORS policy refuses. A script outside a browser can still call the routes. The visitor key and the rate limits cover that case.
 
 ### 5. One way out: render the session
 
@@ -132,9 +136,9 @@ v1 ships an iframe snippet. It works anonymously without any script. The host pa
 - The host replies `agenta:init` with `{ visitorKey?, displayName?, context? }`.
 - The host may send `agenta:context` with a new `context` at any time, for example on page change.
 
-If no `agenta:init` arrives within one second, the widget uses its own per-browser key. The widget accepts messages only from allowed origins, and it sends messages only to the parent's origin.
+If no `agenta:init` arrives within one second, the widget uses its own per-browser key. The widget accepts messages only from its parent window. When the embed lists origins, the parent must also be on one of them. When it lists none, the parent may be on any origin. The widget sends `agenta:ready` only to the parent's origin, which it reads from `location.ancestorOrigins` or else `document.referrer`.
 
-The widget page sends `Content-Security-Policy: frame-ancestors` with the embed's allowed origins and Agenta's own web origin (for the owner's preview).
+The widget page sends `Content-Security-Policy: frame-ancestors` with the embed's allowed origins and Agenta's own web origin (for the owner's preview), or `frame-ancestors *` when the embed lists none. The public config route returns `allowed_origins: ["*"]` for such an embed, so the widget page can tell "any site" from "no usable origin".
 
 ### 9. Owners read embed conversations where they read channel conversations
 
@@ -169,6 +173,7 @@ None of these changes the ingress route, the read routes, the space and thread m
 - **A reopen can race an approval card.** If a visitor reopens a conversation in the moment between its run pausing for approval and the outbox writing the card, the card's tokens land on the closed row and the approval cannot be answered from the channel. The widget hides cards while a switch is pending. Keeping the choice per session instead of per thread row would remove this.
 - **Uploads stay in the inbox row.** A file arrives as base64 in the ingress body and the inbox row keeps it after the worker copies it into a session attachment, so each upload is stored twice (up to about 6.7 MB of base64 for a 5 MB file). Only project members with channel view access can read inbox rows, and they can already read the attachment. Moving uploads to object storage before the row is written would remove the copy.
 - **The config route has no rate limit of its own.** `GET /channels/embed/{embed_id}/config` is public. The web-mobile server calls it for every widget page load, so a per-source limit would put every visitor in one bucket. An unknown id costs one indexed lookup, as an unknown connection does on the other public channel ingress routes. Per-source limits belong at the edge.
+- **An embed with no origin list can be put on any website, and its turns use the owner's model credits.** Anyone who copies the snippet can show the agent on their own site and send it messages. This is the default, because most owners want the chat on their own site without more setup. The rate limits per embed and per key bound the cost, and archiving the embed stops it everywhere. Owners who need control turn on "Only allow embedding the agent on specific domains".
 - **Host context is not verified.** In v1 it only informs the model, and tools use the agent's own credentials.
 - **Browser storage can be cleared.** Anonymous history lives in the iframe's storage. Safari clears script-written storage after seven days without interaction with the site. A host-provided key avoids this.
 - **`frame-ancestors` and CORS stop other websites, not scripts.** The visitor key and rate limits per embed and per key back them up. The CORS check holds only if the API's CORS policy admits no other site. Today the API also admits every `https://*.vercel.app` origin, so a page there passes the preflight. It can do no more than a script: it needs its own visitor key and meets the same rate limits. Narrowing that rule is a separate change.

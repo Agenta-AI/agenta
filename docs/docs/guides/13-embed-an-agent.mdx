@@ -11,7 +11,7 @@ Embed an agent, and visitors of your website or internal tool can chat with it i
 You need:
 
 - **An agent in Agenta** that you want to put on your website.
-- **The origin of each website** that shows the chat, for example `https://tool.example.com`. An origin is the scheme, the host and an optional port, with no path.
+- **Optional: the origin of each website** that may show the chat, for example `https://tool.example.com`. An origin is the scheme, the host and an optional port, with no path. Without a list, any website can show the chat.
 
 ## 1. Create the embed
 
@@ -19,14 +19,18 @@ You need:
 2. Click **Embed**.
 3. Under **New embed**, fill in:
    - **Name**: the name of the embed, such as `Support chat`. The agent sees this name with each message. Visitor conversations appear in the agent's session list, and their titles carry this name.
-   - **Allowed origins**: one origin per line, such as `https://tool.example.com`. The chat loads only on these websites.
+   - **Specific domains**: leave **Only allow embedding the agent on specific domains** off to let any website show the chat. Turn it on to limit the chat to a list of websites, and enter each domain in a new line, such as `https://tool.example.com`. An entry such as `https://*.example.com` allows every subdomain of `example.com`, but not `example.com` itself. Add both lines if you need both.
 4. Click **Create**.
 
-The embed opens with its settings, the snippet and a preview. In the settings you can change the name and the origins, and set the appearance: **Avatar URL**, **Greeting**, **Starter prompts** (up to four), **Theme** and **Accent** (a hex color such as `#2563eb`). Click **Save changes** to apply them.
+:::warning
+When **Only allow embedding the agent on specific domains** is off, anyone who copies the snippet can put the agent on their own website. Every message there runs the agent and uses your model credits. The [rate limits](#limits) cap how fast this can happen. To stop it, turn on specific domains, or archive the embed.
+:::
+
+The embed opens with its settings, the snippet and a preview. In the settings you can change the name and the domains, and set the appearance: **Avatar URL**, **Greeting**, **Starter prompts** (up to four), **Theme** and **Accent** (a hex color such as `#2563eb`). Click **Save changes** to apply them.
 
 ## 2. Paste the snippet into your page
 
-Under **Snippet**, copy the code and paste it into a page on one of the allowed origins. The snippet is an iframe and an optional script:
+Under **Snippet**, copy the code and paste it into a page on your website. If you turned on specific domains, use a page on one of them. The snippet is an iframe and an optional script:
 
 ```html
 <iframe
@@ -108,7 +112,7 @@ When the widget is ready, it sends `{type: "agenta:ready"}` to your page. Your p
 
 Facts about these messages:
 
-- The widget accepts a message only from its parent page on an allowed origin.
+- The widget accepts a message only from its parent page. If you turned on specific domains, the parent page must also be on one of them.
 - The widget finds your page's origin from the browser, and in some browsers from the referrer. Do not set `referrerpolicy="no-referrer"` on the iframe or a `no-referrer` policy on the page. Without the origin, the widget does not send `agenta:ready` and uses an anonymous key.
 - The widget waits one second for `agenta:init`. If none arrives, it uses an anonymous key. A key that arrives later is ignored until the page reloads.
 - The widget sends the current context with each message. The agent receives it as context from the host page, marked as not verified. Do not put secrets in it.
