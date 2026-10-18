@@ -89,8 +89,9 @@ this location does not send the server's `X-Frame-Options`.
 ## Limits
 
 An embed with **Only allow embedding the agent on specific domains** turned off can be put on any
-website, and each message there uses the owner's model credits. The rate limits below are what
-caps that cost on your instance. Keep them set, and archive an embed to stop it everywhere.
+website, and each message there uses the owner's model credits. The rate limits below cap how fast
+that happens, not the total spend: there is no spend cap for an embed, and the limits allow
+requests when Redis is not reachable. Keep them set, and archive an embed to stop it everywhere.
 
 The embed routes limit their own request rate, the number of open live streams per embed, the size
 of a message and the size of the files.
