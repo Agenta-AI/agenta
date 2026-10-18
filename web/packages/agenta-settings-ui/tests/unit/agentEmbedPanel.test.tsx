@@ -516,6 +516,11 @@ describe("AgentEmbedPanel", () => {
             document.querySelector('[data-testid="agent-embed-domains-section"] > [role="alert"]')
                 ?.textContent,
         ).toContain("acme.dev/support is not a domain")
+
+        // Editing the list clears the refusal until the next save.
+        await openSection("domains")
+        await type(byTestId("agent-embed-origins"), "https://acme.dev")
+        expect(byTestId("agent-embed-origins-error")).toBeNull()
     })
 
     it("keeps an edit made while a save is in flight unsaved", async () => {

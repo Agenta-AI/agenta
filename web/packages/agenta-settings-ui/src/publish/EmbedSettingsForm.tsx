@@ -164,14 +164,18 @@ export const EmbedSettingsForm = ({
                 title="Specific domains"
                 info="When this is off, any website can show the chat. Turn it on to show the chat only on the domains you list."
                 summary={domainsSummary(draft)}
-                error={draft.restricted ? domainsError : null}
+                error={domainsError}
                 testId="agent-embed-domains-section"
             >
                 <EmbedDomainsField
                     id={ids.origins}
                     value={draft}
-                    error={draft.restricted ? domainsError : null}
-                    onChange={set}
+                    error={domainsError}
+                    onChange={(patch) => {
+                        // An edit makes the last refusal stale.
+                        set(patch)
+                        setDomainsError(null)
+                    }}
                 />
             </EmbedSection>
 
