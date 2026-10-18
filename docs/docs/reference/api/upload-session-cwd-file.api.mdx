@@ -1,0 +1,73 @@
+---
+id: upload-session-cwd-file
+title: "Upload Session Cwd File"
+description: "Write a file into the session's working directory, creating that mount if needed."
+sidebar_label: "Upload Session Cwd File"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVlFvGzcM/isCX7YBip0Fe/LT3LRFgy5o0KTbQ2IEjI72qb2TrhIvqWvcfy8o3dnnJG6H7nVP9knkR+r7SEobYFxFmF3DJcVovYuw0FBQNME2bL2DGfwTLJNCtbQVKevYKy5JxWz/S1QPPnyybqUKG8iwD2utTCBkWeMSWdW+dazsUjmigorJjbtxVyUp4+vGRwqqjRQVlzaqpQ8pTlT+nkIKhMxoypocK4PNRM2H0Bm8xKicZxVad+PWNCwMWR1ts8ppaIWuSLjeVWvluaSggm+ZMlzKXMI7UlhFf+OiXbmoIvuAK5L9ghxbrKJWD6U1ZQK7C/5BTlK3kZUjyT2QIXtPE9DgGwoobJ4VMIO2qTwWt/0pbs1DcStHBg0NBqyJKYgiG3BYE8xgMLQFaLCiyOeWwho0BPrc2kAFzDi0pCGakmqE2QZ43SRXDtatQANbrmShV1mdFdB1ehuiQS4Pgy+xinvo6NbvlinF/TiC2K+4tqqgW+wiX0iITlYEmCK/8MVawB4fwnjH5Fi26rZi22Dg6dKH+qhATuF3iTRBqGVLUb4Si88cvkc8p8LiVd7DpqmsSZpMvWHio8iBsB5R9VrQuk4PcP7uIxneI+Y6hxydUg51e0jgrhO4QLHxLuaUT46P5We/4S5bYyjGZVup970x7PEyzv5jFJ/DpCRpv1MRWRcN0X4dk2cd04rCuHTEQGbDEtuKYXbcaSDG1c8WxCvx/RG/KfuR07n0sCgjQ4nJbfnJ3P5xcvKUzr+xskUiS70KwYef57IgRlvJP8tUx6cGlTd7u/+Cl4HobrGjAkPA9Yj6v3xOUHSq4+p7cp5TjLgi2IIdNk1kqNQQnfR+0yZChu2ztNBpMPxlBLOVabA7FS6/8A+lFG5y+r3dSNadRFmhw1S8zBI8F2wweXN1dfEEMNdHTVx6mcGNj5wGrjQHTPtWjdN0R8RpuoKmuY9BQ6RwPwzlNlTigY1NKubPkrmJs+mU2ompfFtMcEWOcYI2Gy4Ew7TB8jqBzC/O3tL6DWFBAWbXi7HBpRRfLqd9s60E2Ni3JKT003vecumD/ZprpB/jZfbqkrRLP1Z2npJT84szeHzX721Jl6BJRTFEStugHx17d1rQQHXqEWDC+s/tjkgqHOYwx5PfJ8eyJDrU6EYhPiTS1XBRnT4U6nW+Hfcy3ex6+P8Hyn9+oPSFJX08bSq0adIkjYcL5Hp4hkRp4tQloNP1J799pyw0lNJYs2vYbO4w0odQdZ0s50eFlH5hI95Vo2fFQVl/fd9Pj9/UoRQ/0frxA+keq1YMU3c+CZYd+ufOznQhH8GKbWpHPbSPZJx9TnNeR2le7nyfe6JI5Ow0N4YaHpk/uW0k9HYqXby7vAINd/3LqPaF+AhwwtW7v5Jk130D310T+A==
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Upload Session Cwd File"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/sessions/mounts/files/upload"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Write a file into the session's working directory, creating that mount if needed.
+
+The composer uses this for files over the attachment cap. A session that has not run
+yet has no working-directory mount, and the only other route that creates one also
+signs storage credentials, which the browser must never receive.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./upload-session-cwd-file.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./upload-session-cwd-file.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./upload-session-cwd-file.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
