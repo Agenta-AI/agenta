@@ -144,7 +144,11 @@ class AgentTurnAdmissionRefused(AgentRunFailed):
 
     @classmethod
     def matches(cls, error_detail: Optional[Dict[str, Any]]) -> bool:
-        return isinstance(error_detail, dict) and error_detail.get("code") in cls.CODES
+        if not isinstance(error_detail, dict):
+            return False
+        code = error_detail.get("code")
+        # A non-string code (a list, a dict) is unhashable; it is not ours either way.
+        return isinstance(code, str) and code in cls.CODES
 
     def __str__(self) -> str:
         return self.message

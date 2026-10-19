@@ -119,6 +119,21 @@ def test_a_gateway_refusal_is_not_an_admission_refusal():
     assert error.failure_code == "model_not_allowed"
 
 
+@pytest.mark.parametrize("code", [["session_turn_in_use"], {"a": 1}, 17, None])
+def test_a_malformed_detail_code_stays_a_plain_run_failure(code):
+    # An unhashable code must not raise TypeError out of the membership test.
+    error = _raised(
+        {
+            "ok": False,
+            "error": IN_USE_MESSAGE,
+            "errorDetail": {"code": code, "message": "x", "retryable": True},
+            "events": [],
+        }
+    )
+
+    assert not isinstance(error, AgentTurnAdmissionRefused)
+
+
 # ------------------------------------------------------- the invoke routing layer's error body
 
 
