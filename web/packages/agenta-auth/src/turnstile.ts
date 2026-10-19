@@ -85,3 +85,18 @@ export const installTurnstileFetchPatch = (): void => {
     window.fetch = patchedFetch
     fetchPatched = true
 }
+
+/**
+ * The API answers a missing or rejected token with a 401 `{detail: {message}}`. SuperTokens'
+ * client throws that Response as is, so this reads the message for the form to show.
+ */
+export const readTurnstileRejection = async (error: unknown): Promise<string | null> => {
+    if (!(error instanceof Response) || error.status !== 401) return null
+    try {
+        const body = (await error.clone().json()) as {detail?: {message?: unknown}}
+        const message = body?.detail?.message
+        return typeof message === "string" && message ? message : null
+    } catch {
+        return null
+    }
+}

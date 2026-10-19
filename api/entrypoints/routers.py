@@ -44,6 +44,7 @@ from oss.databases.postgres.migrations.tracing.utils import (
 from oss.src.middlewares.auth import auth_middleware
 from oss.src.middlewares.analytics import analytics_middleware
 from oss.src.middlewares.prefix import ApiPrefixStripMiddleware
+from oss.src.middlewares.supertokens_errors import SuperTokensHTTPExceptionMiddleware
 
 from oss.src.core.auth.supertokens.config import init_supertokens
 
@@ -635,6 +636,8 @@ app.middleware("http")(analytics_middleware)
 app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 
 app.add_middleware(get_supertokens_middleware())
+# Added right after SuperTokens => wraps it, inside CORS, so rejections keep CORS headers.
+app.add_middleware(SuperTokensHTTPExceptionMiddleware)
 
 
 def _cors_origins(web_url: str) -> list[str]:
