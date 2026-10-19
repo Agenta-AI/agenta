@@ -120,6 +120,7 @@ export {
     doneState,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    hostedSubscriptionFamilies,
     isSubscriptionConnection,
     probeFailureMessage,
     probeRequestFor,
@@ -159,6 +160,7 @@ export {
 } from "./subscriptionConnections"
 export {
     MOUNTED_SUBSCRIPTION_SOURCE,
+    mountedSubscriptionDisplayName,
     mountedSubscriptionName,
     subscriptionPairModels,
     subscriptionPairsFrom,

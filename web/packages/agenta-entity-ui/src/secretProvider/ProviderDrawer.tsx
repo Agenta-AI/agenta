@@ -20,6 +20,7 @@
 import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
 import {
+    hostedSubscriptionFamilies,
     isSubscriptionConnection,
     SecretManagementPolicy,
     subscriptionConnectionFor,
@@ -156,6 +157,8 @@ const ProviderDrawer = ({
         () => subscriptionConnectionFor(connections, "claude"),
         [connections],
     )
+    // A mounted row names where it comes from only when one of these plans is also hosted.
+    const hostedFamilies = useMemo(() => hostedSubscriptionFamilies(connections), [connections])
     // The card owns the save; the footer that triggers it lives out here, so the card publishes
     // what it needs. Cleared on every level change — the next card publishes its own.
     const [cardSave, setCardSave] = useState<ProviderCardSaveState | null>(null)
@@ -336,6 +339,7 @@ const ProviderDrawer = ({
                                 </>
                             }
                             showMounted={showSubscriptionRows}
+                            hostedFamilies={hostedFamilies}
                         />
                     ) : null}
                 </>

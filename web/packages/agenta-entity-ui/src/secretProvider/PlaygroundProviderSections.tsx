@@ -159,15 +159,17 @@ export const PlaygroundConnectedSection = ({
  */
 const MountedSubscriptionRows = ({
     onSelectPair,
+    hostedFamilies,
 }: {
     onSelectPair: (pair: SubscriptionPair) => void
+    hostedFamilies?: ReadonlySet<string>
 }) => {
     // One poll for the whole deployment: the runner answers for EVERY harness in a single call, and
     // the shared key keeps this surface and the pickers on one TanStack query rather than three.
     const query = useAtomValue(subscriptionStatusQueryAtomFamily(SUBSCRIPTION_STATUS_QUERY_HARNESS))
     const pairs = useMemo(
-        () => subscriptionPairsFrom(query.data?.harnesses),
-        [query.data?.harnesses],
+        () => subscriptionPairsFrom(query.data?.harnesses, hostedFamilies),
+        [query.data?.harnesses, hostedFamilies],
     )
 
     if (!pairs?.length) return null
@@ -187,6 +189,11 @@ export interface PlaygroundSubscriptionsSectionProps {
     hostedCards: ReactNode
     /** Whether this deployment can mount an operator login at all. */
     showMounted?: boolean
+    /**
+     * The provider families the project holds a hosted subscription for. A mounted row of one of
+     * them says where it comes from in its name; every other mounted row is the plan name alone.
+     */
+    hostedFamilies?: ReadonlySet<string>
 }
 
 /** Below the catalog: nothing here is added from the drawer, so it closes the list. */
@@ -194,9 +201,12 @@ export const PlaygroundSubscriptionsSection = ({
     onSelectPair,
     hostedCards,
     showMounted = true,
+    hostedFamilies,
 }: PlaygroundSubscriptionsSectionProps) => (
     <div className="shrink-0 border-0 border-t border-solid border-colorSplit">
         <div className="flex flex-col gap-3 px-6 py-4">{hostedCards}</div>
-        {showMounted ? <MountedSubscriptionRows onSelectPair={onSelectPair} /> : null}
+        {showMounted ? (
+            <MountedSubscriptionRows onSelectPair={onSelectPair} hostedFamilies={hostedFamilies} />
+        ) : null}
     </div>
 )
