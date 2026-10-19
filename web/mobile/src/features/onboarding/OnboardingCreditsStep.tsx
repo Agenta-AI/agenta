@@ -1,4 +1,8 @@
-import {SubscriptionConnectionCard} from "@agenta/entity-ui/secretProvider"
+import {
+    providerIconFor,
+    SubscriptionConnectionCard,
+    SubscriptionSignInDialog,
+} from "@agenta/entity-ui/secretProvider"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {
     Button,
@@ -26,6 +30,7 @@ const copy = ONBOARDING_COPY.model
 const PILL =
     "bg-success-bg text-success inline-flex h-[22px] items-center gap-1 rounded-md px-2 text-xs font-medium leading-4"
 const ACTION = "h-7 rounded-md px-2.5 text-xs font-medium"
+const ClaudeLogo = providerIconFor("anthropic")
 
 /** The wallet step: the organization's real credits, and the other ways to pay for runs. */
 export const OnboardingCreditsStep = ({
@@ -35,7 +40,7 @@ export const OnboardingCreditsStep = ({
     model: OnboardingModel
     onContinue: () => void
 }) => {
-    const {credits, chatgpt, keys} = model
+    const {credits, chatgpt, claude, keys} = model
     const balance = credits?.balanceMusd ?? null
     const heading = credits
         ? balance !== null
@@ -91,6 +96,30 @@ export const OnboardingCreditsStep = ({
                                 variant="outline"
                                 className={ACTION}
                                 onClick={() => chatgpt.setDialogOpen(true)}
+                            >
+                                {copy.connect}
+                            </Button>
+                        )
+                    }
+                />
+            ) : null}
+            {claude.available ? (
+                <OnboardingWayRow
+                    delay={0.38}
+                    icon={<ClaudeLogo className="size-[15px]" />}
+                    title={copy.claude}
+                    hint={claude.ready ? copy.claudeReadyHint : copy.claudeHint}
+                    action={
+                        claude.ready ? (
+                            <span className={PILL}>
+                                <Check size={11} weight="bold" />
+                                {claude.inUse ? copy.inUse : copy.connected}
+                            </span>
+                        ) : (
+                            <Button
+                                variant="outline"
+                                className={ACTION}
+                                onClick={() => claude.setDialogOpen(true)}
                             >
                                 {copy.connect}
                             </Button>
@@ -183,6 +212,13 @@ export const OnboardingCreditsStep = ({
                     ) : null}
                 </DialogContent>
             </Dialog>
+            <SubscriptionSignInDialog
+                open={claude.dialogOpen}
+                onClose={() => claude.setDialogOpen(false)}
+                provider="claude"
+                connection={claude.connection}
+                logo={<ClaudeLogo />}
+            />
         </div>
     )
 }

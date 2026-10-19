@@ -1692,7 +1692,11 @@ async function acquireEnvironmentOnce(
       err,
       plan.harness,
       request.modelConnection?.provider,
-      { authFault: () => describeCodexSubscriptionAuthFault(plan), unknownText: plan.unknownErrorText },
+      {
+        authFault: () => describeCodexSubscriptionAuthFault(plan),
+        modelConnection: request.modelConnection,
+        unknownText: plan.unknownErrorText,
+      },
     );
     // Same substitution as the turn path: a hosted subscription run must never be told to add a
     // vault key. Acquire itself makes no model call, but the harness starts here and a dead login

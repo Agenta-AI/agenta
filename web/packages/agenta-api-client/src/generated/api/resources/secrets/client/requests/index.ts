@@ -7,4 +7,5 @@ export type { ReadSubscriptionLoginRequest } from "./ReadSubscriptionLoginReques
 export type { StartSubscriptionLoginRequest } from "./StartSubscriptionLoginRequest.js";
 export type { SubscriptionLoginFailureRequest } from "./SubscriptionLoginFailureRequest.js";
 export type { SubscriptionLoginPushRequest } from "./SubscriptionLoginPushRequest.js";
+export type { SubscriptionTokenRequest } from "./SubscriptionTokenRequest.js";
 export type { UpdateSecretDto } from "./UpdateSecretDto.js";

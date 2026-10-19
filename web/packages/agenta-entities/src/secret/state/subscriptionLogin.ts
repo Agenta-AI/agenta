@@ -7,6 +7,7 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import {setSubscriptionToken} from "../api/api"
 import {
     LOGIN_ATTEMPT_BACKSTOP_MS,
     MIN_LOGIN_POLL_MS,
@@ -155,6 +156,18 @@ export const startSubscriptionLoginAtom = atom(
         const attempt = await startLoginAttempt({projectId, secretId})
         if (!attempt) throw new Error("[vault] The sign-in did not start. Try again.")
         return attempt
+    },
+)
+
+/** Store a pasted token on a connection. Throws the API's refusal when the provider rejects it. */
+export const setSubscriptionTokenAtom = atom(
+    null,
+    async (get, set, {secretId, token}: {secretId: string; token: string}): Promise<void> => {
+        const projectId = get(projectIdAtom)
+        if (!projectId) throw new Error("[vault] Missing projectId for setSubscriptionToken")
+
+        await setSubscriptionToken({projectId, secretId, token})
+        await set(refreshVaultSecretsAtom)
     },
 )
 

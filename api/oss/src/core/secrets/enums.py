@@ -59,6 +59,7 @@ class SubscriptionProviderKind(str, Enum):
     """The product family behind a hosted subscription connection."""
 
     CHATGPT = "chatgpt"
+    CLAUDE = "claude"
 
 
 class SubscriptionLoginState(str, Enum):
@@ -71,11 +72,11 @@ class SubscriptionLoginState(str, Enum):
     NEEDS_LOGIN = "needs_login"
 
 
-# The models a ChatGPT subscription can drive, and the harnesses that can drive them.
-# Copied from `PI_SUBSCRIPTION_MODELS["openai-codex"]` in
-# `sdks/python/agenta/sdk/agents/capabilities.py` rather than imported: the API must not
-# depend on the SDK's agent catalog. Keep the two lists in agreement when Pi's pinned
-# version changes its codex model set.
+# The models each subscription can drive, and the harnesses that can drive them. Copied
+# from `sdks/python/agenta/sdk/agents/capabilities.py` rather than imported: the API must
+# not depend on the SDK's agent catalog. ChatGPT follows `PI_SUBSCRIPTION_MODELS
+# ["openai-codex"]` and Claude follows `CLAUDE_MODEL_ALIASES`; keep each in agreement when
+# the pinned harness changes its model set.
 SUBSCRIPTION_PROVIDER_MODELS = {
     SubscriptionProviderKind.CHATGPT: [
         "gpt-6.1-sol",
@@ -88,10 +89,18 @@ SUBSCRIPTION_PROVIDER_MODELS = {
         "gpt-5.5",
         "gpt-5.3-codex-spark",
     ],
+    SubscriptionProviderKind.CLAUDE: [
+        "default",
+        "sonnet",
+        "haiku",
+        "opus[1m]",
+        "claude-fable-5-1",
+    ],
 }
 
 SUBSCRIPTION_PROVIDER_HARNESSES = {
     SubscriptionProviderKind.CHATGPT: ["pi_core"],
+    SubscriptionProviderKind.CLAUDE: ["claude"],
 }
 
 # Every list SUBSCRIPTION_PROVIDER_MODELS has ever held, the current one included, written
@@ -102,6 +111,8 @@ SUBSCRIPTION_PROVIDER_HARNESSES = {
 # SUBSCRIPTION_PROVIDER_MODELS: when that list changes, the entry would change with it and
 # the outgoing lineup would match no snapshot. Add the new list here whenever
 # SUBSCRIPTION_PROVIDER_MODELS changes, or connections created under the old one stay pinned.
+# Claude has no entry: it arrived after the create path stopped writing the defaults, and a
+# default-filled read written back matches the current list, which the validator checks too.
 SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS = {
     SubscriptionProviderKind.CHATGPT: (
         # Introduced with the subscription_provider kind (pre Pi 0.87.1).
@@ -162,6 +173,7 @@ SUBSCRIPTION_PROVIDER_MODEL_SNAPSHOTS = {
 # The display name a new subscription connection takes when the caller sends none.
 SUBSCRIPTION_PROVIDER_DISPLAY_NAMES = {
     SubscriptionProviderKind.CHATGPT: "ChatGPT",
+    SubscriptionProviderKind.CLAUDE: "Claude",
 }
 
 

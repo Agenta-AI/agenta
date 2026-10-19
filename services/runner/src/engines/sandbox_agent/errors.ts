@@ -4,8 +4,11 @@ import {
   parseGatewayErrorDetail,
   personFacingGatewayRefusal,
 } from "../../gateway-error.ts";
-import type { AgentErrorDetail } from "../../protocol.ts";
-import { SubstitutionStuckError } from "./credential-preflight.ts";
+import type { AgentErrorDetail, ModelConnection } from "../../protocol.ts";
+import {
+  CLAUDE_TOKEN_BINDING,
+  SubstitutionStuckError,
+} from "./credential-preflight.ts";
 
 /** Map a provider family to its human-facing vault key label, for the credit/auth hint. */
 const PROVIDER_KEY_LABELS: Record<string, string> = {
@@ -373,6 +376,13 @@ const RUNNER_INTERNAL_401 =
   /tool call .*failed: HTTP|attachment (?:fetch|claim) failed|session records (?:query|persist) failed/i;
 
 /**
+ * The harness adapter's own refusal of the model credential. `claude-agent-acp` answers Claude
+ * Code's "401 OAuth access token is invalid" with the ACP `authRequired()` error (JSON-RPC
+ * -32000, "Authentication required"), so a refused setup-token never shows a 401 at all.
+ */
+const HARNESS_AUTH_REQUIRED = /authentication required/i;
+
+/**
  * How long after a Daytona Secret is delivered a credential refusal is still better explained by
  * propagation than by the key.
  *
@@ -449,6 +459,11 @@ export interface ConciseErrorOptions {
    * Lazy so the check (a stat) only runs on the error path it explains.
    */
   authFault?: () => string | undefined;
+  /**
+   * The run's resolved model connection. A run whose credentials carry a Claude setup-token gets
+   * `claudeSubscriptionTokenRefusal` when the model credential itself was refused.
+   */
+  modelConnection?: ModelConnection;
   /**
    * The run's named connection (wire `connection.slug`) and resolved deployment
    * (`modelConnection.deployment`), when the caller knows them. A custom deployment carries the
@@ -618,6 +633,15 @@ export function classifyRunError(
     };
   }
   if (AUTH_REFUSAL.test(raw)) {
+    // The model credential itself was refused (a provider 401 or the harness's
+    // `HARNESS_AUTH_REQUIRED`), not a runner call or some unrelated "unauthorized".
+    const modelRefusal =
+      (PROVIDER_401.test(raw) || HARNESS_AUTH_REQUIRED.test(raw)) &&
+      !RUNNER_INTERNAL_401.test(raw);
+    const tokenRefusal = modelRefusal
+      ? claudeSubscriptionTokenRefusal(options.modelConnection)
+      : undefined;
+    if (tokenRefusal) return tokenRefusal;
     return {
       message:
         options.authFault?.() ??
@@ -991,6 +1015,35 @@ export function subscriptionAuthFailureReason(err: unknown): string {
   }
   if (/authentication failed/i.test(raw)) return "auth_failed";
   return "unauthorized";
+}
+
+export const CLAUDE_SUBSCRIPTION_TOKEN_REFUSED_MESSAGE =
+  "The Claude subscription token was refused. Paste a new token from AI providers.";
+
+/**
+ * The result for a provider 401 on a run that authenticates with a Claude setup-token, or
+ * undefined for any other run. The token's binding name is the signal: a hosted Claude
+ * subscription and a self-hosted custom provider that carries the same variable get the same
+ * advice, which is true for both. `detail` carries the code to the final result, whose
+ * `errorDetail` is the only field a batch caller reads it from.
+ */
+function claudeSubscriptionTokenRefusal(
+  modelConnection: ModelConnection | undefined,
+): ClassifiedRunError | undefined {
+  const usesToken = modelConnection?.credentials.some(
+    (credential) => credential.binding.name === CLAUDE_TOKEN_BINDING,
+  );
+  if (!usesToken) return undefined;
+  return {
+    message: CLAUDE_SUBSCRIPTION_TOKEN_REFUSED_MESSAGE,
+    code: "subscription_login_required",
+    detail: {
+      code: "subscription_login_required",
+      message: CLAUDE_SUBSCRIPTION_TOKEN_REFUSED_MESSAGE,
+      retryable: false,
+      next_step: "Paste a new token from AI providers.",
+    },
+  };
 }
 
 /** The classified error for a subscription auth failure, given the API's `stale` answer. */

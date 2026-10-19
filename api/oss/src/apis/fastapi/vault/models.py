@@ -6,6 +6,14 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+class SubscriptionTokenRequest(BaseModel):
+    """A token pasted from `claude setup-token`."""
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+
+    token: str = Field(min_length=1)
+
+
 class SubscriptionLoginAttemptResponse(BaseModel):
     """One device login attempt, as a browser sees it. Never carries the credential."""
 

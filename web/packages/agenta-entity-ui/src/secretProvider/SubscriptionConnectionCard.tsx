@@ -9,7 +9,7 @@ import {ArrowSquareOut, Check, Copy, WarningCircle} from "@phosphor-icons/react"
 import {countdownLabel, useSubscriptionSignIn} from "./useSubscriptionSignIn"
 
 export interface SubscriptionConnectionCardProps {
-    /** The product family. `chatgpt` is the only one today. */
+    /** A device sign-in product (`chatgpt`). Token products use `SubscriptionTokenCard`. */
     provider?: string
     /** The stored connection, when the project already has one. */
     connection?: ProviderConnection | null

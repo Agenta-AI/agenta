@@ -8,6 +8,7 @@ import {
     PROVIDER_CATALOG,
     SecretKind,
     SecretManagementPolicy,
+    subscriptionConnectionFor,
     subscriptionIsReady,
     subscriptionProviderName,
     subscriptionStatusLine,
@@ -54,8 +55,6 @@ export interface AIProvidersPageProps {
     renderRemoveDialog?: (state: ProviderRemovalState) => ReactNode
     /** Where "configured in the deployment" points. */
     subscriptionDocsUrl?: string
-    /** Agenta Cloud: Claude reads a login mounted into the deployment, which the cloud has none of. */
-    isCloud?: boolean
 }
 
 type DrawerTarget = {connection: ProviderConnection} | {kind: string}
@@ -82,12 +81,12 @@ const ProviderLogo = ({kind}: {kind: string}) =>
     createElement(providerIconFor(kind), {className: "size-[18px]"})
 
 const CHATGPT_NAME = subscriptionProviderName("chatgpt")
+const CLAUDE_NAME = subscriptionProviderName("claude")
 
 /** Settings → AI providers: one row per connection, and every provider stays connectable again. */
 export const AIProvidersPage = ({
     renderRemoveDialog,
     subscriptionDocsUrl = SUBSCRIPTION_DOCS_URL,
-    isCloud = false,
 }: AIProvidersPageProps) => {
     const {loading, mutate} = useVaultSecret()
     const connections = useAtomValue(providerConnectionsAtom)
@@ -95,7 +94,7 @@ export const AIProvidersPage = ({
     const deleteSecret = useSetAtom(deleteSecretAtom)
 
     const [drawerTarget, setDrawerTarget] = useState<DrawerTarget | null>(null)
-    const [signInOpen, setSignInOpen] = useState(false)
+    const [signInProvider, setSignInProvider] = useState<"chatgpt" | "claude" | null>(null)
     const [pendingRemoval, setPendingRemoval] = useState<ProviderConnection | null>(null)
     const [removing, setRemoving] = useState(false)
     const [removeError, setRemoveError] = useState<string | null>(null)
@@ -113,10 +112,8 @@ export const AIProvidersPage = ({
         [connections],
     )
 
-    const subscription = useMemo(
-        () => connections.find(isSubscriptionConnection) ?? null,
-        [connections],
-    )
+    const chatgpt = useMemo(() => subscriptionConnectionFor(connections, "chatgpt"), [connections])
+    const claude = useMemo(() => subscriptionConnectionFor(connections, "claude"), [connections])
 
     const requestRemoval = useCallback((connection: ProviderConnection) => {
         setRemoveError(null)
@@ -204,42 +201,40 @@ export const AIProvidersPage = ({
     }, [userConnections, capabilities, canRemove, requestRemoval])
 
     const plans = useMemo<SubscriptionPlan[]>(() => {
-        const connected = subscriptionIsReady(subscription?.subscription)
-        const loginState = subscription?.subscription?.loginState
+        const chatgptConnected = subscriptionIsReady(chatgpt?.subscription)
+        const loginState = chatgpt?.subscription?.loginState
         // A sign-in that once worked and now does not needs attention, not a fresh connect.
-        const broken = !connected && !!loginState && loginState !== "pending_login"
+        const broken = !chatgptConnected && !!loginState && loginState !== "pending_login"
+        // A token is either stored or not: a refused run does not mark the row.
+        const claudeConnected = subscriptionIsReady(claude?.subscription)
         return [
             {
                 key: "chatgpt",
                 logo: <ProviderLogo kind="openai" />,
                 name: CHATGPT_NAME,
                 detail:
-                    subscriptionStatusLine(subscription?.subscription) ||
-                    "Sign in with your account",
-                state: connected ? "connected" : broken ? "attention" : "available",
+                    subscriptionStatusLine(chatgpt?.subscription) || "Sign in with your account",
+                state: chatgptConnected ? "connected" : broken ? "attention" : "available",
                 brand: "neutral",
                 action: {
-                    label: connected ? "Manage" : broken ? "Sign in again" : "Connect",
-                    onClick: () => setSignInOpen(true),
+                    label: chatgptConnected ? "Manage" : broken ? "Sign in again" : "Connect",
+                    onClick: () => setSignInProvider("chatgpt"),
                 },
             },
             {
                 key: "claude",
                 logo: <ProviderLogo kind="anthropic" />,
-                name: "Claude",
-                detail: "Read from your deployment's login",
-                state: "available",
+                name: CLAUDE_NAME,
+                detail: claudeConnected ? "Connected" : "Paste a token from Claude Code",
+                state: claudeConnected ? "connected" : "available",
                 brand: "clay",
                 action: {
-                    label: "Set up",
-                    external: true,
-                    onClick: () =>
-                        window.open(subscriptionDocsUrl, "_blank", "noopener,noreferrer"),
+                    label: claudeConnected ? "Manage" : "Connect",
+                    onClick: () => setSignInProvider("claude"),
                 },
-                unavailable: isCloud ? "Self-hosted only" : undefined,
             },
         ]
-    }, [subscription, subscriptionDocsUrl, isCloud])
+    }, [chatgpt, claude])
 
     return (
         <div className="ph-no-capture">
@@ -269,10 +264,19 @@ export const AIProvidersPage = ({
             })}
 
             <SubscriptionSignInDialog
-                open={signInOpen}
-                onClose={() => setSignInOpen(false)}
-                connection={subscription}
+                open={signInProvider === "chatgpt"}
+                onClose={() => setSignInProvider(null)}
+                provider="chatgpt"
+                connection={chatgpt}
                 logo={<ProviderLogo kind="openai" />}
+                onRemove={canRemove ? requestRemoval : undefined}
+            />
+            <SubscriptionSignInDialog
+                open={signInProvider === "claude"}
+                onClose={() => setSignInProvider(null)}
+                provider="claude"
+                connection={claude}
+                logo={<ProviderLogo kind="anthropic" />}
                 onRemove={canRemove ? requestRemoval : undefined}
             />
 

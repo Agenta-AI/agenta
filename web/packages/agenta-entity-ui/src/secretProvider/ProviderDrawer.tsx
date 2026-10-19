@@ -4,7 +4,7 @@
  * The contexts differ in what they can honestly show. Settings has a connections table beside the
  * drawer, so the drawer is the catalog and nothing else. The agent playground has no such table
  * and a harness runtime underneath it, so it gets Connected above the catalog, and below it the
- * hosted ChatGPT sign-in, Claude setup, and the deployment's mounted subscriptions. The completion playground has
+ * hosted ChatGPT and Claude cards, and the deployment's mounted subscriptions. The completion playground has
  * the table's problem but not the runtime — a completion runs no harness — so it gets Connected
  * and drops both subscription blocks.
  *
@@ -22,6 +22,7 @@ import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 import {
     isSubscriptionConnection,
     SecretManagementPolicy,
+    subscriptionConnectionFor,
     type ProviderCatalogEntry,
     type ProviderConnection,
     type SubscriptionPair,
@@ -43,6 +44,7 @@ import ProviderConnectionCard, {type ProviderCardSaveState} from "./ProviderConn
 import {providerIconFor} from "./providerIcon"
 import SubscriptionConnectionCard from "./SubscriptionConnectionCard"
 import SubscriptionPairCard, {type SubscriptionPairCardSaveState} from "./SubscriptionPairCard"
+import SubscriptionTokenCard from "./SubscriptionTokenCard"
 
 /**
  * Where the drawer was opened from. `playground` is the AGENT playground (the one with a harness
@@ -145,9 +147,13 @@ const ProviderDrawer = ({
         [connections],
     )
     const visibleCount = userConnections.length
-    // One per project, so the first is it. Null still renders the card: it carries the Connect verb.
-    const hostedSubscription = useMemo(
-        () => connections.find(isSubscriptionConnection) ?? null,
+    // One per provider. Null still renders the card: it carries the Connect verb.
+    const chatgptConnection = useMemo(
+        () => subscriptionConnectionFor(connections, "chatgpt"),
+        [connections],
+    )
+    const claudeConnection = useMemo(
+        () => subscriptionConnectionFor(connections, "claude"),
         [connections],
     )
     // The card owns the save; the footer that triggers it lives out here, so the card publishes
@@ -322,10 +328,12 @@ const ProviderDrawer = ({
                         nothing still runs a hosted subscription. */}
                     {isPlayground ? (
                         <PlaygroundSubscriptionsSection
-                            subscriptionDocsUrl={subscriptionDocsUrl}
                             onSelectPair={(pair) => showView({level: "subscription", pair})}
-                            hostedCard={
-                                <SubscriptionConnectionCard connection={hostedSubscription} />
+                            hostedCards={
+                                <>
+                                    <SubscriptionConnectionCard connection={chatgptConnection} />
+                                    <SubscriptionTokenCard connection={claudeConnection} />
+                                </>
                             }
                             showMounted={showSubscriptionRows}
                         />

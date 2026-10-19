@@ -3,5 +3,6 @@
 /** The product family behind a hosted subscription connection. */
 export const SubscriptionProviderKind = {
     Chatgpt: "chatgpt",
+    Claude: "claude",
 } as const;
 export type SubscriptionProviderKind = (typeof SubscriptionProviderKind)[keyof typeof SubscriptionProviderKind];
