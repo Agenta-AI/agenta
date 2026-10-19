@@ -42,6 +42,9 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             AGENTA_SERVICES_INTERNAL_KEY: ""
+            # The embed page fetches its config from the server side, where AGENTA_API_URL
+            # (often http://localhost/api) points at this container, not at the API.
+            AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network
