@@ -330,6 +330,8 @@ services:
         image: ghcr.io/agenta-ai/${AGENTA_RUNNER_IMAGE_NAME:-internal-ee-agenta-runner}:${AGENTA_RUNNER_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         init: true
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
         # === CONFIGURATION ======================================== #
         environment:
             AGENTA_RUNNER_PORT: "8765"
