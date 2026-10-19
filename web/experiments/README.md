@@ -4,9 +4,7 @@ The first-agent onboarding flow no longer runs a PostHog experiment. The `onboar
 
 The flow lives in the mobile app (`web/mobile/src/features/onboarding/`, served at `/m`) on its own page, `/m/w/<workspace>/p/<project>/onboarding`. Each step is a path under it (`/persona`, `/source`, `/credits`, `/templates`, `/templates/<template key>`, `/templates/scratch`), so the browser's Back and Forward walk the steps.
 
-The automatic trigger is off by default. Set `NEXT_PUBLIC_AGENTA_ONBOARDING_FLOW_ENABLED=true` to turn it on. A container takes it from `AGENTA_ONBOARDING_FLOW_ENABLED` through `web/entrypoint.sh`, and a host-run app reads it from `web/mobile/public/__env.js` or the build environment.
-
-With the flag on, onboarding is per user. When SuperTokens reports a new user at sign-up, the app saves `agenta:onboarding:pending:<user id>` in local storage. While that mark stands, Home (`/m/w/<workspace>/p/<project>/apps`) sends the user to `/onboarding` in the same project. If that project already has agents, as for an invited teammate, the app clears the mark and stays on Home. Create clears the mark. With the flag off, or without a mark, an empty project opens Home as before. The flow has four numbered steps:
+Onboarding is on for every deployment, and it is per user. When SuperTokens reports a new user at sign-up, the app saves `agenta:onboarding:pending:<user id>` in local storage. While that mark stands, Home (`/m/w/<workspace>/p/<project>/apps`) sends the user to `/onboarding` in the same project. If that project already has agents, as for an invited teammate, the app clears the mark and stays on Home. Create clears the mark. Without a mark, an empty project opens Home as before. The flow has four numbered steps:
 
 1. What best describes you? The user's role (Founder, Engineer, Product manager, and so on), picked by tap or by the letter keys; it orders Recommended in the gallery. The flow moves on by itself.
 2. How did you hear about Agenta? The same pattern.
