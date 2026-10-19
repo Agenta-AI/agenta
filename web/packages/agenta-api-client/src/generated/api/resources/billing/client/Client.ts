@@ -202,6 +202,208 @@ export class BillingClient {
     }
 
     /**
+     * @param {AgentaApi.CreateTopUpCheckoutRequest} request
+     * @param {BillingClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.billing.createTopUpCheckout({
+     *         pack: "pack",
+     *         success_url: "success_url"
+     *     })
+     */
+    public createTopUpCheckout(
+        request: AgentaApi.CreateTopUpCheckoutRequest,
+        requestOptions?: BillingClient.RequestOptions,
+    ): core.HttpResponsePromise<unknown> {
+        return core.HttpResponsePromise.fromPromise(this.__createTopUpCheckout(request, requestOptions));
+    }
+
+    private async __createTopUpCheckout(
+        request: AgentaApi.CreateTopUpCheckoutRequest,
+        requestOptions?: BillingClient.RequestOptions,
+    ): Promise<core.WithRawResponse<unknown>> {
+        const { pack, success_url: successUrl, cancel_url: cancelUrl } = request;
+        const _queryParams: Record<string, unknown> = {
+            pack,
+            success_url: successUrl,
+            cancel_url: cancelUrl,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "billing/stripe/topups/",
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/billing/stripe/topups/");
+    }
+
+    /**
+     * @param {BillingClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @example
+     *     await client.billing.fetchTopUpPacks()
+     */
+    public fetchTopUpPacks(
+        requestOptions?: BillingClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.TopUpPacksResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__fetchTopUpPacks(requestOptions));
+    }
+
+    private async __fetchTopUpPacks(
+        requestOptions?: BillingClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.TopUpPacksResponse>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "billing/stripe/topups/packs",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.TopUpPacksResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            throw new errors.AgentaApiError({
+                statusCode: _response.error.statusCode,
+                body: _response.error.body,
+                rawResponse: _response.rawResponse,
+            });
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/billing/stripe/topups/packs");
+    }
+
+    /**
+     * @param {AgentaApi.FetchTopUpPurchaseRequest} request
+     * @param {BillingClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.billing.fetchTopUpPurchase({
+     *         checkout_session_id: "checkout_session_id"
+     *     })
+     */
+    public fetchTopUpPurchase(
+        request: AgentaApi.FetchTopUpPurchaseRequest,
+        requestOptions?: BillingClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.TopUpPurchaseResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__fetchTopUpPurchase(request, requestOptions));
+    }
+
+    private async __fetchTopUpPurchase(
+        request: AgentaApi.FetchTopUpPurchaseRequest,
+        requestOptions?: BillingClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.TopUpPurchaseResponse>> {
+        const { checkout_session_id: checkoutSessionId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `billing/stripe/topups/${core.url.encodePathParam(checkoutSessionId)}`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.TopUpPurchaseResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/billing/stripe/topups/{checkout_session_id}",
+        );
+    }
+
+    /**
      * @param {BillingClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @example
