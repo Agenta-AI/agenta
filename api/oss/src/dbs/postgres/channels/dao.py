@@ -24,6 +24,7 @@ from sqlalchemy.dialects.postgresql import JSONB, insert
 
 from oss.src.core.channels.dtos import (
     CHANNEL_TRIGGER_NEVER_SENT,
+    CHANNEL_TRIGGER_START_REJECTED,
     ChannelEventKind,
     ChannelEventOrigin,
     ChannelAgent,
@@ -1886,6 +1887,34 @@ class ChannelsDAO(ChannelsDAOInterface):
                 return None
 
             return map_inbox_trigger_dbe_to_dto(trigger_dbe=trigger_dbe)
+
+    async def count_unstarted_triggers(
+        self,
+        *,
+        project_id: UUID,
+        #
+        thread_ids: List[UUID],
+    ) -> int:
+        if not thread_ids:
+            return 0
+        never_ran = or_(
+            ChannelInboxTriggerDBE.state == ChannelTriggerState.REFUSED,
+            and_(
+                ChannelInboxTriggerDBE.state == ChannelTriggerState.FAILED,
+                ChannelInboxTriggerDBE.status["code"].astext.in_(
+                    [CHANNEL_TRIGGER_NEVER_SENT, CHANNEL_TRIGGER_START_REJECTED]
+                ),
+            ),
+        )
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(func.count()).where(
+                    ChannelInboxTriggerDBE.project_id == project_id,
+                    ChannelInboxTriggerDBE.thread_id.in_(thread_ids),
+                    never_ran,
+                )
+            )
+            return int(result.scalar_one())
 
     async def query_inbox_triggers(
         self,

@@ -59,6 +59,10 @@ def _make_request(path: str) -> Request:
         "/api/channels/agenta/events/",
         "/preview/channels/agenta/events/",
         "/api/preview/channels/agenta/events/",
+        "/channels/embed/",
+        "/api/channels/embed/",
+        "/preview/channels/embed/",
+        "/api/preview/channels/embed/",
         "/channels/catalog/channels/slack/callback/",
         "/api/channels/catalog/channels/slack/callback/",
         "/preview/channels/catalog/channels/slack/callback/",
@@ -84,6 +88,10 @@ def test_ingress_paths_are_public(path):
         "/api/channels/agenta/events/",
         "/preview/channels/agenta/events/",
         "/api/preview/channels/agenta/events/",
+        "/channels/embed/events/abc/",
+        "/api/channels/embed/events/abc/",
+        "/preview/channels/embed/abc/config",
+        "/api/preview/channels/embed/abc/config",
         "/channels/catalog/channels/slack/callback/",
         "/api/channels/catalog/channels/slack/callback/",
         "/preview/channels/catalog/channels/slack/callback/",
@@ -121,6 +129,9 @@ async def test_ingress_paths_reach_the_handler_with_no_auth(path):
         "/api/channels/agents/",
         "/preview/channels/agents/",
         "/api/preview/channels/agents/",
+        # The embed prefix ends in a slash, so a sibling name stays private.
+        "/channels/embedx/",
+        "/api/channels/embedded/config",
         # The install route mints the state -- it must stay authenticated;
         # only the callback it redirects to is public.
         "/channels/catalog/channels/slack/install/",

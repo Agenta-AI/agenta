@@ -140,6 +140,10 @@ export type RunErrorCode =
   // Clients render it as a "not sent, try again" state and keep the text, never as a run error.
   // Produced by `sessions/admission.ts`, not by this module's classifier.
   | "session_turn_in_use"
+  // Not a failure of the run either: the platform answered the turn's admission beat with a
+  // request error (400, 401, 403, 404, 422), so the turn never started. Unlike
+  // `session_turn_in_use`, sending again fails the same way. Produced by `sessions/admission.ts`.
+  | "session_admission_rejected"
   // The sandbox died under a running turn: its liveness probe stopped answering, so the turn
   // was ended rather than left holding a machine that no longer exists. See
   // `sandbox-liveness.ts`.

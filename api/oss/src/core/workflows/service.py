@@ -163,6 +163,8 @@ from oss.src.core.workflows.types import (
     WorkflowServiceUrlMissing,
     WorkflowDetachedStartFailed,
     WorkflowDetachedStartNeverSent,
+    WorkflowDetachedStartRejected,
+    answered_by_service,
     detached_start_never_sent,
     transport_never_sent,
     is_static_workflow_slug,
@@ -977,6 +979,8 @@ class WorkflowsService:
                         # produce. The run was not accepted, so a one-shot caller may start over.
                         if detached_start_never_sent(response):
                             raise WorkflowDetachedStartNeverSent(message)
+                        if answered_by_service(response):
+                            raise WorkflowDetachedStartRejected(message)
                         raise WorkflowDetachedStartFailed(message)
 
                     trace_id = response.headers.get("x-ag-trace-id")
@@ -1003,7 +1007,7 @@ class WorkflowsService:
                         if strict_first_record and isinstance(record, dict):
                             failure = WorkflowsService._detached_start_failure(record)
                             if failure is not None:
-                                raise WorkflowDetachedStartFailed(
+                                raise WorkflowDetachedStartRejected(
                                     f"Workflow service rejected detached start: {failure}"
                                 )
                         record_run_id = (

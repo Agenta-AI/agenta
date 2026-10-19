@@ -12,11 +12,13 @@ import {
     effectiveHarnesses,
     firstAgentModelForConnection,
     isSubscriptionConnection,
+    MOUNTED_SUBSCRIPTION_SOURCE,
     mountedSubscriptionName,
     resolveAgentModelSelection,
     SecretKind,
     SUBSCRIPTION_SIGN_IN_HINT,
     subscriptionAvailability,
+    subscriptionPlanName,
     connectionNamespaceFrom,
     type AgentConnectionNamespace,
     type AgentModelCandidate,
@@ -52,6 +54,8 @@ export interface PickerConnectionRow {
     disabled?: boolean
     /** One short line under the name, saying why the row is disabled. */
     hint?: string
+    /** Where the row's login comes from, shown under a short `name` (a mounted subscription). */
+    source?: string
     models: PickerModelRow[]
 }
 
@@ -92,12 +96,24 @@ const candidateRowName = (
     candidate.connectionName ??
     mountedSubscriptionName(candidate.provider ?? "")
 
+/** A mounted subscription: no stored record and no built-in name, only the deployment's login. */
+const isMountedSubscription = (
+    candidate: AgentModelCandidate,
+    connection: ProviderConnection | undefined,
+): boolean => !connection && !candidate.connectionName
+
 const rowFromCandidate = (
     candidate: AgentModelCandidate,
     connection: ProviderConnection | undefined,
 ): PickerConnectionRow => ({
     key: candidate.connectionKey,
-    name: candidateRowName(candidate, connection),
+    // The row splits the long name in two, so the plan name fits beside the narrow column's tag.
+    ...(isMountedSubscription(candidate, connection)
+        ? {
+              name: subscriptionPlanName(candidate.provider ?? ""),
+              source: MOUNTED_SUBSCRIPTION_SOURCE,
+          }
+        : {name: candidateRowName(candidate, connection)}),
     // A built-in model has no stored connection; it runs on Agenta's account.
     iconKey:
         candidate.managed || (!connection && candidate.connectionName)

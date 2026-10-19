@@ -1,7 +1,7 @@
 import {useState} from "react"
 
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
-import {CaretDown, CaretRight, CaretUp, Code, Plus} from "@phosphor-icons/react"
+import {CaretDown, CaretRight, CaretUp, ChatCircleText, Code, Plus} from "@phosphor-icons/react"
 
 import {ChannelsHubDiagram, type ChannelsHubDiagramTarget} from "./ChannelsHubDiagram"
 import {
@@ -32,6 +32,9 @@ export interface ChannelsHubViewProps {
     /** Starts another connection on a platform that already has one. */
     onAdd: (platform: ChannelPlatform) => void
     onOpenApi: () => void
+    /** Lists the Embed row. */
+    showEmbed?: boolean
+    onOpenEmbed?: () => void
 }
 
 /** The Publish panel's first view: where this agent answers, one card per platform, and API. */
@@ -48,6 +51,8 @@ export const ChannelsHubView = ({
     onOpenConnection,
     onAdd,
     onOpenApi,
+    showEmbed = false,
+    onOpenEmbed,
 }: ChannelsHubViewProps) => {
     const [expanded, setExpanded] = useState<Partial<Record<ChannelPlatform, boolean>>>({})
     const [retrying, setRetrying] = useState(false)
@@ -63,6 +68,9 @@ export const ChannelsHubView = ({
         })),
         ...(showApi
             ? [{key: "api", name: "API", icon: <Code size={12} weight="bold" />, live: apiLive}]
+            : []),
+        ...(showEmbed
+            ? [{key: "embed", name: "Embed", icon: <ChatCircleText size={12} />, live: false}]
             : []),
     ]
 
@@ -280,6 +288,28 @@ export const ChannelsHubView = ({
                                 {apiLive
                                     ? "Always on for saved versions"
                                     : "Save the agent to call it"}
+                            </span>
+                        </span>
+                        <span className="flex size-7 flex-none items-center justify-center text-muted-foreground">
+                            <CaretRight size={12} />
+                        </span>
+                    </Button>
+                ) : null}
+
+                {showEmbed ? (
+                    <Button
+                        variant="outline"
+                        onClick={onOpenEmbed}
+                        className={`${ROW_BUTTON} w-full gap-3 rounded-lg py-2.5 pl-3 pr-2.5`}
+                        data-testid="channels-hub-embed"
+                    >
+                        <span className="flex size-[34px] flex-none items-center justify-center rounded-lg bg-muted text-foreground">
+                            <ChatCircleText size={16} />
+                        </span>
+                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <span className="text-sm font-medium text-foreground">Embed</span>
+                            <span className="truncate text-[12.5px] text-muted-foreground">
+                                A chat on your website
                             </span>
                         </span>
                         <span className="flex size-7 flex-none items-center justify-center text-muted-foreground">

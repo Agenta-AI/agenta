@@ -18,7 +18,7 @@ import type {
     ProviderSection,
     SelectSize,
 } from "./types"
-import {getHarnessIcon, getProviderIcon, getProviderDisplayName} from "./utils"
+import {getHarnessIcon, getProviderIcon, getProviderDisplayName, optionMatchesSearch} from "./utils"
 
 const DEFAULT_PROVIDER_DROPDOWN_WIDTH = 400
 
@@ -193,11 +193,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
 
         const filterGroupOptions = (group: ProviderGroup): ProviderGroup => ({
             ...group,
-            options: group.options.filter(
-                (option) =>
-                    option.label.toLowerCase().includes(normalizedSearchTerm) ||
-                    option.value.toLowerCase().includes(normalizedSearchTerm) ||
-                    group.label?.toLowerCase().includes(normalizedSearchTerm),
+            options: group.options.filter((option) =>
+                optionMatchesSearch(option, group, normalizedSearchTerm),
             ),
         })
 
@@ -877,26 +874,33 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                         <Icon className="w-4 h-4 flex-shrink-0" />
                                                     )}
                                                     <span className="flex min-w-0 flex-1 flex-col">
-                                                        <span className="flex min-w-0 items-center gap-1.5">
-                                                            <span className="truncate text-xs">
-                                                                {displayName}
-                                                            </span>
-                                                            {group.tag ? (
-                                                                <span
-                                                                    className={clsx(
-                                                                        "shrink-0 rounded-control-sm px-1.5 text-[11px]",
-                                                                        group.tagTone === "olive"
-                                                                            ? "bg-[var(--ag-ref-environment-bg)] text-[var(--ag-ref-environment-text)]"
-                                                                            : "bg-muted text-colorTextSecondary",
-                                                                    )}
-                                                                >
-                                                                    {group.tag}
-                                                                </span>
-                                                            ) : null}
+                                                        <span
+                                                            className="truncate text-xs"
+                                                            title={displayName}
+                                                        >
+                                                            {displayName}
                                                         </span>
-                                                        {group.caption ? (
-                                                            <span className="truncate text-[11px] text-colorTextTertiary">
-                                                                {group.caption}
+                                                        {/* Below the name so the tag never takes its width; wraps rather than clip the caption. */}
+                                                        {group.tag || group.caption ? (
+                                                            <span className="flex min-w-0 flex-wrap items-center gap-x-1.5">
+                                                                {group.tag ? (
+                                                                    <span
+                                                                        className={clsx(
+                                                                            "shrink-0 rounded-control-sm px-1.5 text-[11px]",
+                                                                            group.tagTone ===
+                                                                                "olive"
+                                                                                ? "bg-[var(--ag-ref-environment-bg)] text-[var(--ag-ref-environment-text)]"
+                                                                                : "bg-muted text-colorTextSecondary",
+                                                                        )}
+                                                                    >
+                                                                        {group.tag}
+                                                                    </span>
+                                                                ) : null}
+                                                                {group.caption ? (
+                                                                    <span className="truncate text-[11px] text-colorTextTertiary">
+                                                                        {group.caption}
+                                                                    </span>
+                                                                ) : null}
                                                             </span>
                                                         ) : null}
                                                     </span>

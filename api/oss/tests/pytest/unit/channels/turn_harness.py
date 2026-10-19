@@ -260,7 +260,14 @@ class InMemoryChannels:
     # --- driving --------------------------------------------------------- #
 
     def store(
-        self, text, *, addressed=False, kind=ChannelEventKind.MESSAGE, created_at=None
+        self,
+        text,
+        *,
+        addressed=False,
+        kind=ChannelEventKind.MESSAGE,
+        created_at=None,
+        sender=None,
+        context=None,
     ):
         """What the ingress does: log the arrival, in arrival order."""
         event = ChannelInboxEvent(
@@ -276,7 +283,8 @@ class InMemoryChannels:
                 external_locator=LOCATOR,
                 processed=ChannelInboxEventProcessed(
                     content=[{"type": "text", "text": text}],
-                    sender={"id": "U1"},
+                    sender=sender or {"id": "U1"},
+                    context=context,
                 ),
                 space_kind=self.space_kind,
                 addressed=addressed or None,

@@ -59,6 +59,12 @@ export const SESSION_TURN_IN_USE_CODE = "session_turn_in_use"
 export const SESSION_TURN_IN_USE_MESSAGE =
     "This session is already running a turn. Your message was not sent. Wait for the reply, or stop the turn, then send again."
 
+/**
+ * The platform refused the turn's admission request itself (an invalid session id, a key without
+ * access). The message was not sent, and sending it again fails the same way.
+ */
+export const SESSION_ADMISSION_REJECTED_CODE = "session_admission_rejected"
+
 /** True when a `useChat` error is the single-turn admission refusal. */
 export const isSessionBusyRefusal = (err: unknown): boolean =>
     parseAgentRunError(err).message.trim() === SESSION_TURN_IN_USE_MESSAGE

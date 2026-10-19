@@ -1026,6 +1026,20 @@ async def _free_credits_check(organization_email: str) -> tuple[bool, bool]:
         return False, False
 
 
+async def _email_rules_refuse(organization_email: str) -> bool:
+    """True when the mint policy's email rules refuse the owner email. A missing policy
+    or any error refuses nothing, as on the signup path."""
+    try:
+        async with asyncio.timeout(5):
+            policy = await _mint_policy._resolve_mint_policy()
+            return policy is not None and not _mint_policy.email_rules_allow(
+                organization_email, policy
+            )
+    except Exception:
+        log.warning("[wallets] email rules check failed; normal floor", exc_info=True)
+        return False
+
+
 async def _provision_wallet_general_balance(
     *,
     organization_id: UUID,
@@ -1128,7 +1142,11 @@ async def provision_signup_subscription(
             await _award_signup_grant(organization_id=organization.id)
 
 
-async def provision_user_subscription(organization: OrganizationDB) -> None:
+async def provision_user_subscription(
+    organization: OrganizationDB,
+    *,
+    organization_email: str,
+) -> None:
     """Start the default plan + seed the user gauge for an explicitly-created org.
 
     Entry point for `POST /organizations/`. Called from OSS via the `is_ee()` seam.
@@ -1156,6 +1174,10 @@ async def provision_user_subscription(organization: OrganizationDB) -> None:
     )
 
     if env.wallets.enabled:
+        # Without this, each extra organization of a refused email collects daily credits.
+        refused = await _email_rules_refuse(organization_email)
         await _provision_wallet_general_balance(
-            organization_id=organization.id, plan=plan
+            organization_id=organization.id,
+            plan=plan,
+            floor_musd=REFUSED_EMAIL_FLOOR_MUSD if refused else None,
         )
