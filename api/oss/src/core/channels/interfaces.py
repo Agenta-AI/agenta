@@ -737,6 +737,18 @@ class ChannelsDAOInterface(ABC):
         windowing: Optional[Windowing] = None,
     ) -> List[ChannelInboxTrigger]: ...
 
+    @abstractmethod
+    async def count_unstarted_triggers(
+        self,
+        *,
+        project_id: UUID,
+        #
+        thread_ids: List[UUID],
+    ) -> int:
+        """The REFUSED triggers of these threads and the FAILED ones that never
+        started (`never_sent`, `start_rejected`)."""
+        ...
+
     # --- outbox ------------------------------------------------------------- #
 
     @abstractmethod

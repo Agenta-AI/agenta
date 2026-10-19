@@ -11,6 +11,7 @@ from entrypoints.channel_adapters import (
 )
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.channels.adapters.agenta.adapter import AgentaAdapter
+from oss.src.core.channels.adapters.embed.adapter import EmbedAdapter
 
 
 def test_registry_includes_agenta_beside_slack_and_mock():
@@ -18,6 +19,10 @@ def test_registry_includes_agenta_beside_slack_and_mock():
 
     assert set(registry.keys()) >= {"slack", "mock", "agenta"}
     assert isinstance(registry.get("agenta"), AgentaAdapter)
+
+
+def test_registry_includes_embed():
+    assert isinstance(build_channel_adapter_registry().get("embed"), EmbedAdapter)
 
 
 async def test_resolve_agenta_api_key_project_returns_none_for_an_invalid_key():

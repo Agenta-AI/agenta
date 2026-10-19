@@ -4,6 +4,7 @@ from typing import Optional
 
 from oss.src.core.channels.adapters.agenta.adapter import AgentaAdapter
 from oss.src.core.channels.adapters.bridge.adapter import BridgeAdapter
+from oss.src.core.channels.adapters.embed.adapter import EmbedAdapter
 from oss.src.core.channels.adapters.mock.adapter import MockAdapter
 from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
 from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
@@ -60,5 +61,6 @@ def build_channel_adapter_registry() -> ChannelAdapterRegistry:
                 channels_dao=ChannelsDAO(),
                 resolve_project=_resolve_agenta_api_key_project,
             ),
+            "embed": EmbedAdapter(),
         }
     )

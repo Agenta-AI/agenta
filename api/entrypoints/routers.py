@@ -683,6 +683,9 @@ app.add_middleware(
         "Content-Type",
         "Idempotency-Key",
         "X-Agenta-App-Scope",
+        # The embed widget's credential. Only the web origin passes CORS, so a
+        # request from another site carrying it still fails the preflight.
+        "X-Agenta-Visitor-Key",
         "If-Match",
         "If-None-Match",
     ]
@@ -1333,6 +1336,8 @@ channels_ingress = ChannelsIngressRouter(
     adapter_registry=channels_adapter_registry,
     dispatch_task=_channels_inbox_worker.dispatch_inbox_event,
     telegram_binding_service=_telegram_binding_service,
+    records_service=records_service,
+    attachments_service=session_attachments_service,
 )
 
 channels = ChannelsRouter(
