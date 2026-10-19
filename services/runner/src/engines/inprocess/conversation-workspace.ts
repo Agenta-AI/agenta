@@ -83,8 +83,8 @@ export class ConversationWorkspace {
   private viewTurn = 0;
   /** The refresh in progress, for the turn it serves: concurrent tool calls share it. */
   private viewRefresh: { turn: number; done: Promise<void> } | undefined;
-  /** Parks so far: only the latest park's barrier may remove the signer. */
-  private parks = 0;
+  /** Holds and parks so far: a park's barrier removes the signer only when nothing came after it. */
+  private generation = 0;
 
   constructor(
     readonly sandbox: CommandSandbox,
@@ -101,15 +101,23 @@ export class ConversationWorkspace {
    * drive's credential functions are the last environment's closures, and they keep that run's
    * whole scope on the heap (its request, plan and environment) for as long as the conversation
    * stays parked. The drive keeps its current credentials instead, and the signer goes once the
-   * transcript saves in flight have ended, unless the workspace was held again or parked again
-   * meanwhile (a later park's saves are queued behind this barrier). The next hold sets both again.
+   * transcript saves in flight have ended, unless the workspace was held again meanwhile (that
+   * hold's saves are queued behind this barrier). The next hold sets both again.
    */
   detachEnvironment(): void {
     this.drive.detachCredentials();
-    const park = ++this.parks;
+    const park = ++this.generation;
     void this.transcripts.settled().then(() => {
-      if (this.sandbox.holders === 0 && this.parks === park) this.signTranscriptMount = noTranscriptCredentials;
+      if (this.sandbox.holders === 0 && this.generation === park) this.signTranscriptMount = noTranscriptCredentials;
     });
+  }
+
+  /**
+   * An environment holds this workspace. An earlier park's barrier then keeps the signer, also when
+   * this hold ends with a delete (no park follows) while its saves wait behind that barrier.
+   */
+  attachEnvironment(): void {
+    this.generation += 1;
   }
 
   /**

@@ -94,6 +94,7 @@ export class ConversationRegistry {
     workspace.sandbox.useUsage(spec.usage);
     // Counted before pruning, so the entry being handed out is never the one evicted.
     workspace.sandbox.holders += 1;
+    workspace.attachEnvironment();
     this.prune();
     return workspace;
   }
@@ -153,10 +154,13 @@ export class ConversationRegistry {
     return evicted;
   }
 
-  /** Conversations no environment holds and no work uses, least recently used first. */
+  /**
+   * Conversations no environment holds, no work uses and no retired sandbox still settles, least
+   * recently used first.
+   */
   private parked(): ConversationWorkspace[] {
     return [...this.entries.values()]
-      .filter((w) => w.sandbox.holders === 0 && !w.sandbox.inUse)
+      .filter((w) => w.sandbox.holders === 0 && !w.sandbox.inUse && !w.sandbox.settling)
       .sort((a, b) => a.sandbox.lastUsedAt - b.sandbox.lastUsedAt);
   }
 

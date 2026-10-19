@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 import { ConversationRegistry } from "../../../src/engines/inprocess/conversation-registry.ts";
 import { boundedDaytonaApi } from "../../../src/engines/inprocess/sandbox/daytona-api.ts";
 import type { MountCredentials } from "../../../src/engines/sandbox_agent/mount.ts";
-import { sandboxSettings, TEST_DEADLINES, testConversation, testOwner, testRegistryOptions } from "../../utils/inprocess-workspace.ts";
+import { OPEN_NETWORK, sandboxSettings, TEST_DEADLINES, testConversation, testOwner, testRegistryOptions } from "../../utils/inprocess-workspace.ts";
 import { LocalDaytona } from "../../utils/local-daytona.ts";
 import { memoryObjects, TEST_CREDENTIALS, TEST_TRANSCRIPT_CREDENTIALS } from "../../utils/local-drive.ts";
 
@@ -29,7 +29,7 @@ function registryFor(options: { objects?: ReturnType<typeof memoryObjects>; maxE
     ...testRegistryOptions(daytona, options.maxEntries ? { maxEntries: options.maxEntries } : {}),
     ...(options.objects ? { objects: options.objects } : {}),
   });
-  return { registry, logs };
+  return { registry, logs, daytona };
 }
 
 /** A conversation whose credential closures share a scope with `run`, as the environment's do. */
@@ -164,6 +164,34 @@ describe("a conversation parked twice", () => {
   });
 });
 
+describe("a conversation parked, held again and deleted", () => {
+  it("keeps the signer for a save the second hold queued before the first park's barrier ended", async () => {
+    let unblock!: () => void;
+    const blocked = new Promise<void>((resolve) => (unblock = resolve));
+    const prefixes = new Map<string, Map<string, Buffer>>();
+    const { started, beforePut } = blockFirstPut(blocked);
+    const objects = memoryObjects(prefixes, { beforePut });
+    const { registry } = registryFor({ objects });
+    const spec = testConversation("c", join(mkdtempSync(join(tmpdir(), "registry-cwd-")), "session"));
+    const workspace = registry.hold(spec);
+    mkdirSync(workspace.transcripts.dir, { recursive: true });
+    writeFileSync(join(workspace.transcripts.dir, "a.jsonl"), "{}\n");
+
+    // The first park's barrier waits behind a blocked save.
+    const first = workspace.transcripts.save();
+    await started;
+    registry.release(workspace, "park");
+    // Held again, a save queued behind the first barrier, then released with a delete (no park).
+    expect(registry.hold(spec)).toBe(workspace);
+    writeFileSync(join(workspace.transcripts.dir, "b.jsonl"), "{}\n");
+    const second = workspace.transcripts.save();
+    registry.release(workspace, "delete");
+    unblock();
+    await Promise.all([first, second]);
+    expect([...prefixes.get(TEST_TRANSCRIPT_CREDENTIALS.prefix)!.keys()].sort()).toEqual(["a.jsonl", "b.jsonl"]);
+  });
+});
+
 describe("eviction under heap pressure", () => {
   it("evicts the least recently used half of the parked conversations, never a held one", async () => {
     const { registry, logs } = registryFor();
@@ -182,6 +210,23 @@ describe("eviction under heap pressure", () => {
     expect(registry.hold(testConversation("c"))).toBe(parked[2]);
     expect(registry.hold(testConversation("held"))).toBe(held);
     expect(logs.some((m) => m.includes("evicted 2 parked conversation(s)"))).toBe(true);
+  });
+
+  it("keeps a parked conversation whose retired sandbox is not confirmed gone yet", async () => {
+    const { registry, daytona } = registryFor();
+    const settling = registry.hold(testConversation("settling"));
+    const use = await settling.sandbox.acquire(OPEN_NETWORK);
+    daytona.sandboxes.get(use.sandbox.id)!.faults = { hang: new Set(["remove"]) };
+    use.retire("test");
+    use.release();
+    registry.release(settling, "park");
+    const idle = registry.hold(testConversation("idle"));
+    registry.release(idle, "park");
+
+    expect(settling.sandbox.settling).toBe(true);
+    expect(registry.evictParkedConversations()).toBe(1);
+    expect(registry.hold(testConversation("settling"))).toBe(settling);
+    expect(registry.hold(testConversation("idle"))).not.toBe(idle);
   });
 
   it("evicts nothing when no conversation is parked", () => {
