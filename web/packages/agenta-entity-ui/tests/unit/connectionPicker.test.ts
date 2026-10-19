@@ -624,10 +624,8 @@ describe("buildConnectionPickerRows", () => {
             ],
         })
 
-        // The plan's consumer name plus where the login comes from. Never "Claude subscription":
-        // the picker's olive tag already says it is a subscription, so the name says the one thing
-        // the tag cannot, which is that this login is the deployment's and not a hosted one.
-        expect(rows.map((row) => row.name)).toEqual(["Claude (deployment login)"])
+        // The plan's consumer name, with where the login comes from as its own line.
+        expect(rows.map((row) => [row.name, row.source])).toEqual([["Claude", "Deployment login"]])
         const subscription = rows[0]
         expect(subscription.kind).toBe("subscription")
         expect(subscription.iconKey).toBe("anthropic")
@@ -668,8 +666,8 @@ describe("buildConnectionPickerRows", () => {
         })
 
         expect(rows.map((row) => [row.name, row.key])).toEqual([
-            ["Claude (deployment login)", "subscription:anthropic"],
-            ["ChatGPT (deployment login)", "subscription:openai"],
+            ["Claude", "subscription:anthropic"],
+            ["ChatGPT", "subscription:openai"],
         ])
         // Every pair names its family; a self_managed pick without one fails server-side.
         expect(rows.every((row) => row.models.every((model) => model.provider))).toBe(true)

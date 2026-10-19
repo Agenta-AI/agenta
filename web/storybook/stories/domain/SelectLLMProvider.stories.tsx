@@ -126,3 +126,59 @@ export const Flat: Story = {
         return <Demo />
     },
 }
+
+const SUBSCRIPTION_OPTIONS: ProviderGroup[] = [
+    ...MOCK_OPTIONS.slice(0, 2),
+    {
+        key: "subscription:anthropic",
+        label: "Claude",
+        iconKey: "anthropic",
+        tag: "Subscription",
+        tagTone: "olive",
+        caption: "Deployment login",
+        options: [{label: "claude-fable-5", value: "anthropic/claude-fable-5"}],
+    },
+    {
+        key: "subscription:openai",
+        label: "ChatGPT",
+        iconKey: "openai",
+        tag: "Subscription",
+        tagTone: "olive",
+        caption: "Deployment login",
+        options: [{label: "gpt-5.6-sol", value: "openai/gpt-5.6-sol"}],
+    },
+    {
+        key: "hosted:openai",
+        label: "ChatGPT",
+        iconKey: "openai",
+        tag: "Subscription",
+        tagTone: "olive",
+        caption: "Sign in needed",
+        disabled: true,
+        options: [],
+    },
+]
+
+/** The agent picker's narrow left column: the tag sits on line two so the name keeps its width. */
+export const Subscriptions: Story = {
+    render: () => {
+        const Demo = () => {
+            const [value, setValue] = useState<string>("openai/gpt-5.6-sol")
+            return (
+                <div className="w-[320px]">
+                    <SelectLLMProviderBase
+                        value={value}
+                        onChange={(v) => setValue(v as string)}
+                        options={SUBSCRIPTION_OPTIONS}
+                        showGroup
+                        showSearch
+                        providerDropdownWidth={460}
+                        connectionColumnWidth={200}
+                        placeholder="Select a model"
+                    />
+                </div>
+            )
+        }
+        return <Demo />
+    },
+}
