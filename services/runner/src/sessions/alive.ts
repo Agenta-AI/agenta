@@ -80,6 +80,15 @@ function log(msg: string): void {
 }
 
 /**
+ * A status that says the beat itself was wrong (a bad session id, a credential without access), so
+ * asking again gets the same answer. 408 and 429 are 4xx too, but they say "not now", not "no":
+ * they stay with transport errors and 5xx as an unconfirmed admission.
+ */
+export function isRequestError(status: number): boolean {
+  return status >= 400 && status < 500 && status !== 408 && status !== 429;
+}
+
+/**
  * Send one heartbeat to keep the `alive` lock and the `session_streams` row live. Carries the
  * container `replica_id` (the turn binds to it) and the `turn_id` (proves alive ownership).
  * Authenticates AS the invoke caller (the run credential) — project scope is resolved server-side
@@ -93,6 +102,9 @@ function log(msg: string): void {
  * this turn's alive/running lock since the last beat — W7.4, the control-signal path). A
  * network/HTTP failure is unconfirmed and unowned. Initial admission fails closed, and a durable
  * continuation additionally requires an explicit ownership response before reporting `started`.
+ *
+ * `rejectedStatus` is set when the platform READ the beat and refused it as a request error (see
+ * `isRequestError`). The platform is not busy then, so the caller must not say it is.
  */
 async function sendHeartbeat(
   sessionId: string,
@@ -107,6 +119,7 @@ async function sendHeartbeat(
   interrupted: boolean;
   confirmed: boolean;
   owned: boolean;
+  rejectedStatus?: number;
 }> {
   try {
     const base = apiBase();
@@ -141,6 +154,7 @@ async function sendHeartbeat(
         interrupted: false,
         confirmed: false,
         owned: false,
+        ...(isRequestError(res.status) ? { rejectedStatus: res.status } : {}),
       };
     }
     const body = (await res.json()) as {
@@ -217,8 +231,13 @@ export async function startAliveWatchdog(
   streamId: () => string | undefined;
   /** False when the FIRST beat reported `is_current_turn: false` — another turn owns the session. */
   admitted: boolean;
-  /** True when the platform never answered the first beat: nothing is known about ownership. */
+  /**
+   * True when the platform never answered the first beat (transport error, timeout, 429 or 5xx
+   * after the retry budget): nothing is known about ownership.
+   */
   admissionUnconfirmed: boolean;
+  /** The 4xx status when the platform refused the first beat as a request error; else undefined. */
+  admissionRejectedStatus: number | undefined;
   /** True only when the awaited first heartbeat confirmed this turn owns the session. */
   firstBeatOwned: boolean;
 }> {
@@ -291,7 +310,8 @@ export async function startAliveWatchdog(
   return {
     // Read from the FIRST beat only. Later interruptions travel the abort path instead.
     admitted: first.confirmed && !first.interrupted,
-    admissionUnconfirmed: !first.confirmed,
+    admissionUnconfirmed: !first.confirmed && first.rejectedStatus === undefined,
+    admissionRejectedStatus: first.rejectedStatus,
     async release() {
       clearInterval(interval);
       credentialLease.release();

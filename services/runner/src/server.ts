@@ -103,11 +103,7 @@ import {
 import { applyDaytonaSdkEnv } from "./engines/sandbox_agent/daytona-provider.ts";
 import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
-import {
-  SESSION_TURN_IN_USE_CODE,
-  SESSION_TURN_IN_USE_MESSAGE,
-  SESSION_ADMISSION_UNCONFIRMED_MESSAGE,
-} from "./sessions/admission.ts";
+import { admissionRefusal } from "./sessions/admission.ts";
 import {
   REPLICA_ADDRESS,
   REPLICA_ID,
@@ -777,6 +773,7 @@ async function runAndStreamWithApiBaseResolved(
         firstBeatOwned: boolean;
         admitted: boolean;
         admissionUnconfirmed?: boolean;
+        admissionRejectedStatus?: number;
       }
     | undefined;
   if (!sessionOwned && !detached) {
@@ -985,12 +982,20 @@ async function runAndStreamWithApiBaseResolved(
       // which is the path every runner failure already takes to the browser. Nothing is persisted,
       // so the refused message never appears in the session's history — the client keeps the text.
       if (!watchdog.admitted) {
-        const refusal = watchdog.admissionUnconfirmed ? SESSION_ADMISSION_UNCONFIRMED_MESSAGE : SESSION_TURN_IN_USE_MESSAGE;
+        const refusal = admissionRefusal(
+          watchdog.admissionRejectedStatus !== undefined
+            ? { kind: "rejected", status: watchdog.admissionRejectedStatus }
+            : watchdog.admissionUnconfirmed
+              ? { kind: "unconfirmed" }
+              : { kind: "in_use" },
+        );
         process.stderr.write(
           `[sessions] admission REFUSED session=${sessionId} turn=${turnId}; ` +
-            (watchdog.admissionUnconfirmed
-              ? "the platform did not answer the admission beat. "
-              : "another turn owns this session. ") +
+            (watchdog.admissionRejectedStatus !== undefined
+              ? `the platform rejected the admission beat with HTTP ${watchdog.admissionRejectedStatus}. `
+              : watchdog.admissionUnconfirmed
+                ? "the platform did not answer the admission beat. "
+                : "another turn owns this session. ") +
             `No pool resolve, no eviction.\n`,
         );
         // Stops the heartbeat interval and releases the credential lease. Its final
@@ -1001,12 +1006,17 @@ async function runAndStreamWithApiBaseResolved(
         unregisterExecution(sessionId, turnId);
         liveEmit({
           type: "error",
-          message: refusal,
-          code: SESSION_TURN_IN_USE_CODE,
+          message: refusal.message,
+          code: refusal.code,
         });
         writeRecord({
           kind: "result",
-          result: { ok: false, error: refusal, events: [] },
+          result: {
+            ok: false,
+            error: refusal.message,
+            errorDetail: refusal.detail,
+            events: [],
+          },
         });
         res.end();
         return;
