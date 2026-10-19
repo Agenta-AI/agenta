@@ -42,8 +42,9 @@ import {cn} from "@/lib/utils"
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
 import {isLiveTextItem} from "./markdownStream"
-import {useBillingRoute, useBuyCreditsRoute, useProviderRecovery} from "./providerRecovery"
-import {RunErrorCallout} from "./RunErrorCallout"
+import {useBillingRoute, useCanBuyCredits, useProviderRecovery} from "./providerRecovery"
+import {describeRunFailure, RunErrorMessage} from "./RunErrorMessage"
+import {RunErrorRecovery} from "./RunErrorRecovery"
 import {runRetryAction} from "./runRetry"
 import {mobileTurnRowClass} from "./turnRowClass"
 import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
@@ -100,7 +101,7 @@ const TurnRowInner = ({
     const usage = getMessageUsage(turn.message)
     const openProviders = useProviderRecovery()
     const openBilling = useBillingRoute()
-    const openBuyCredits = useBuyCreditsRoute(turn.status.errorCode)
+    const canBuyCredits = useCanBuyCredits(turn.status.errorCode)
 
     /**
      * Notices about a server that did not join the run, above the timeline rather than in it.
@@ -159,6 +160,16 @@ const TurnRowInner = ({
     const errorText = turn.status.showError
         ? (turn.status.errorText ?? "Something went wrong.")
         : traceError
+    const runError = errorText
+        ? describeRunFailure({
+              text: errorText,
+              code: turn.status.errorCode ?? undefined,
+              transport: isMessageRunErrorTransport(turn.message),
+              onRetry: runRetryAction(turn, onRewind ? () => onRewind(turn) : undefined),
+              can: {providers: !!openProviders, buyCredits: canBuyCredits, plans: !!openBilling},
+              onSignIn: openProviders,
+          })
+        : null
     // A closed text is only the answer once the run is over: until then a call can still follow it,
     // and the model may take many seconds to start that call. A timed hold promoted such asides to
     // the answer and pulled them back into the fold when the call landed.
@@ -228,6 +239,7 @@ const TurnRowInner = ({
                 traceId={traceId}
                 streamedHere={streamedHereRef.current}
                 renderClientTool={renderClientTool}
+                failure={runError?.failure}
             />
             {activity.answer ? (
                 <div {...quoteProps}>
@@ -239,21 +251,11 @@ const TurnRowInner = ({
                     </AnswerReveal>
                 </div>
             ) : null}
-            {errorText ? (
-                <RunErrorCallout
-                    text={errorText}
-                    // Failed before any step: nothing to hang a node on, so it is its own card.
-                    variant={activity.steps.length ? "step" : "card"}
-                    code={turn.status.errorCode ?? undefined}
-                    transport={isMessageRunErrorTransport(turn.message)}
-                    onRetry={runRetryAction(turn, onRewind ? () => onRewind(turn) : undefined)}
-                    // Both classes the callout can clear with a credential go to the same page,
-                    // as they do on the desktop.
-                    onAddKey={openProviders}
-                    onSignIn={openProviders}
-                    onOpenBilling={openBilling}
-                    onBuyCredits={openBuyCredits}
-                />
+            {runError ? (
+                <>
+                    <RunErrorMessage paragraphs={runError.paragraphs} quote={runError.quote} />
+                    <RunErrorRecovery actions={runError.recoveries} />
+                </>
             ) : answerless && !traceSummary.isPending ? (
                 <span className="text-xs italic text-colorTextSecondary">
                     No response — the agent ended its turn without answering.
@@ -272,7 +274,12 @@ const TurnRowInner = ({
                         inspectorEnabled ? "" : turnToolbarRevealClass
                     }`}
                 >
-                    <TurnFooter {...footer} isUser={false} />
+                    <TurnFooter
+                        {...footer}
+                        isUser={false}
+                        copyText={footer.copyText || runError?.paragraphs.join("\n\n")}
+                        onRetry={runError?.onRetry}
+                    />
                 </div>
             ) : null}
         </div>
