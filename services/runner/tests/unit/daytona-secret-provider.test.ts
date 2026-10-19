@@ -4,6 +4,7 @@ import { afterEach, describe, it, vi } from "vitest";
 import type { AgentRunRequest, McpServerConfig } from "../../src/protocol.ts";
 import {
   daytonaWithProcessLocalSecrets,
+  flushPendingDaytonaSecretCleanups,
   type DaytonaProviderLike,
   type ProcessLocalDaytonaSecretProvider,
 } from "../../src/engines/sandbox_agent/daytona-secret-provider.ts";
@@ -288,6 +289,126 @@ describe("process-local Daytona Secret provider", () => {
       "secret:delete:secret-2",
       "secret:delete:secret-1",
     ]);
+  });
+
+  describe("shutdown flush of pending cleanups", () => {
+    function parkedProvider(events: string[], registry: Map<string, any>) {
+      return daytonaWithProcessLocalSecrets(
+        providerFactory(events, []),
+        plan,
+        secretApi(events),
+        {
+          registry,
+          cleanupDelayMilliseconds: 60_000,
+          createFingerprint: GENERATION,
+        },
+      );
+    }
+
+    it("deletes a stopped sandbox, then its Secrets, before the timer fires", async () => {
+      vi.useFakeTimers();
+      const events: string[] = [];
+      const registry = new Map();
+      const provider = parkedProvider(events, registry);
+      const id = await provider.create();
+      await provider.pause!(id);
+
+      await flushPendingDaytonaSecretCleanups(registry);
+
+      assert.deepEqual(events.slice(-3), [
+        "sandbox:destroy:sandbox-1",
+        "secret:delete:secret-2",
+        "secret:delete:secret-1",
+      ]);
+      assert.equal(registry.size, 0);
+
+      // The timer was cancelled: it never runs a second cleanup.
+      const before = events.length;
+      await vi.advanceTimersByTimeAsync(60_000);
+      assert.equal(events.length, before);
+    });
+
+    it("leaves a sandbox with no pending cleanup alone", async () => {
+      vi.useFakeTimers();
+      const events: string[] = [];
+      const registry = new Map();
+      const provider = parkedProvider(events, registry);
+      const id = await provider.create();
+
+      await flushPendingDaytonaSecretCleanups(registry);
+
+      assert.equal(
+        events.some(
+          (event) =>
+            event.startsWith("sandbox:destroy") ||
+            event.startsWith("secret:delete"),
+        ),
+        false,
+        "a running sandbox has no timer, so the flush does not touch it",
+      );
+      assert.equal(registry.has(id), true);
+    });
+
+    it("does nothing for a stopped sandbox that was reconnected", async () => {
+      vi.useFakeTimers();
+      const events: string[] = [];
+      const registry = new Map();
+      const provider = parkedProvider(events, registry);
+      const id = await provider.create();
+      await provider.pause!(id);
+      await provider.reconnect!(id);
+
+      await flushPendingDaytonaSecretCleanups(registry);
+
+      assert.equal(
+        events.some((event) => event.startsWith("secret:delete")),
+        false,
+      );
+      assert.equal(registry.has(id), true);
+    });
+
+    it("keeps the Secrets and logs when the sandbox delete fails", async () => {
+      vi.useFakeTimers();
+      const events: string[] = [];
+      const logs: string[] = [];
+      const registry = new Map();
+      const provider = daytonaWithProcessLocalSecrets(
+        (): DaytonaProviderLike => ({
+          name: "daytona",
+          async create() {
+            return "sandbox-1";
+          },
+          async pause() {},
+          async destroy() {
+            events.push("sandbox:destroy:failed");
+            throw new Error("daytona unavailable");
+          },
+        }),
+        plan,
+        secretApi(events),
+        {
+          registry,
+          cleanupDelayMilliseconds: 60_000,
+          createFingerprint: GENERATION,
+        },
+      );
+      const id = await provider.create();
+      await provider.pause!(id);
+
+      await flushPendingDaytonaSecretCleanups(registry, (message) =>
+        logs.push(message),
+      );
+
+      assert.ok(events.includes("sandbox:destroy:failed"));
+      assert.equal(
+        events.some((event) => event.startsWith("secret:delete")),
+        false,
+        "absence is unproven, so the Secrets stay",
+      );
+      assert.equal(registry.has(id), true);
+      assert.equal(logs.length, 1);
+      assert.match(logs[0], /sandbox=sandbox-1/);
+    });
   });
 
   it("retains allocation across park/reconnect and cancels timed cleanup", async () => {

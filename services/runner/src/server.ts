@@ -101,6 +101,7 @@ import {
   runnerConfigSummary,
 } from "./config/runner-config.ts";
 import { applyDaytonaSdkEnv } from "./engines/sandbox_agent/daytona-provider.ts";
+import { flushPendingDaytonaSecretCleanups } from "./engines/sandbox_agent/daytona-secret-provider.ts";
 import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
 import { admissionRefusal } from "./sessions/admission.ts";
@@ -129,6 +130,7 @@ import {
   cancelExecutions,
   cancelParkedPrompts,
   drainThenTearDown,
+  withinBudget,
   isDraining,
   shutdownCancelBudgetMs,
 } from "./lifecycle/shutdown.ts";
@@ -171,7 +173,10 @@ import { endAbandonedTurn, noteTurnScope, runAdmittedTurn } from "./metering/tur
 
 /** How long a shutdown waits for interrupted turns to write their terminal records. */
 const SHUTDOWN_TURN_END_BUDGET_MS = 10_000;
-/** The bound on each of the two shutdown delete sweeps: the keep-alive pools, then in-flight runs. */
+/**
+ * The bound on each shutdown delete sweep: the keep-alive pools, the in-flight runs, then the
+ * stopped sandboxes whose Secret cleanup still waits on a timer.
+ */
 const SHUTDOWN_DELETE_BUDGET_MS = 10_000;
 /** The bound on the wait for in-process command sandboxes still being deleted in the background. */
 const SHUTDOWN_INPROCESS_SETTLE_MS = 20_000;
@@ -1910,6 +1915,10 @@ export async function tearDownHeldSandboxes(
     reason: TeardownReason,
   ) => Promise<void> = destroyInFlightSandboxes,
   abandonLogins: () => Promise<void> = abandonSubscriptionLogins,
+  flushSecretCleanups: () => Promise<void> = () =>
+    flushPendingDaytonaSecretCleanups(undefined, (message) =>
+      process.stderr.write(`[sandbox-agent] ${message}\n`),
+    ),
 ): Promise<void> {
   // While the API is still reachable: an in-process turn the cancel step did not end writes its
   // ending, so no client waits on a turn this process will never finish; and a device login whose
@@ -1931,6 +1940,11 @@ export async function tearDownHeldSandboxes(
     ),
   );
   await destroyInFlight(SHUTDOWN_DELETE_BUDGET_MS, "shutdown-in-flight");
+  // A sandbox stopped outside the pools (an idle-expiry stop, or a turn with keep-alive off) is
+  // held only by its process-local cleanup timer. Run those cleanups now, or the Secrets they
+  // would delete outlive this process. Last of the sweeps, so a sandbox the sweeps above deleted
+  // already left the registry.
+  await withinBudget(flushSecretCleanups().catch(() => {}), SHUTDOWN_DELETE_BUDGET_MS);
   // A command sandbox whose environment already left the pool is still held by the in-process
   // provider. Its delete, like the ones above, runs in the background; let them all reach Daytona
   // before exit.
