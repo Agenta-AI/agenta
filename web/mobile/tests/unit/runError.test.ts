@@ -72,6 +72,12 @@ describe("formatRunError", () => {
         expect(error.raw).toBe(text)
     })
 
+    it("keeps a sentence that ends in 'here' when it never had a link", () => {
+        expect(formatRunError("Model is not available here.").paragraphs).toEqual([
+            "Model is not available here.",
+        ])
+    })
+
     it("keeps no raw text when the message only gained a period", () => {
         const error = formatRunError("Failed to fetch")
 
@@ -119,6 +125,13 @@ describe("formatRunError", () => {
 })
 
 describe("providerOf", () => {
+    it("leaves a sentence's closing stop off the billing link", () => {
+        expect(
+            providerOf("Out of credits, top up at https://openrouter.ai/settings/credits.")
+                ?.billingUrl,
+        ).toBe("https://openrouter.ai/settings/credits")
+    })
+
     it("prefers the provider's own billing link, never its docs link", () => {
         expect(
             providerOf("Quota exceeded. See https://platform.openai.com/docs/guides/error-codes")

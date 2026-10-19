@@ -64,7 +64,8 @@ const PROVIDERS: {kind: string; host: string; named: RegExp; billing: string}[] 
     },
 ]
 
-const URLS = /https?:\/\/[^\s"'<>)]+/gi
+// A sentence's closing stop is not part of the link.
+const URLS = /https?:\/\/[^\s"'<>)]+[^\s"'<>).,;:!?]/gi
 
 const hostOf = (url: string): string => {
     try {
@@ -195,14 +196,15 @@ export const describeRunError = (text: string): RunErrorView => {
             message = null
         }
     }
-    // Links go to the details; a sentence left pointing at nothing ("visit") goes with them.
-    const said = splitSentences(
-        (message ?? body)
-            .replace(/\s*https?:\/\/\S+/g, "")
-            .replace(/\s+/g, " ")
-            .trim(),
-    )
-        .filter((sentence) => !/\b(visit|see|at|here)[.:]?$/i.test(sentence))
+    // Links go to the details; a sentence a link leaves pointing at nothing ("visit") goes too.
+    const said = splitSentences((message ?? body).replace(/\s+/g, " ").trim())
+        .map((sentence) => {
+            const unlinked = sentence.replace(/\s*https?:\/\/\S+/g, "").trim()
+            if (unlinked === sentence) return sentence
+            if (!unlinked || /\b(visit|see|at|here)[.:]?$/i.test(unlinked)) return ""
+            return /[.!?:]$/.test(unlinked) ? unlinked : `${unlinked}.`
+        })
+        .filter(Boolean)
         .join(" ")
     const headline = firstSentence(said)
     const known = recognise(status, trimmed)
