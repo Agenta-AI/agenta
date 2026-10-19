@@ -57,9 +57,21 @@ vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
         if (open) opened.push(reconnect ?? null)
         return open ? <div data-testid="mcp-connect-journey" /> : null
     },
-    McpConnectionDetail: ({endpoint}: {endpoint: {name?: string; secret_id?: string} | null}) =>
+    McpConnectionDetail: ({
+        endpoint,
+        readOnly,
+        canListTools,
+    }: {
+        endpoint: {name?: string; secret_id?: string} | null
+        readOnly?: boolean
+        canListTools?: boolean
+    }) =>
         endpoint ? (
-            <div data-testid="mcp-connection-detail">
+            <div
+                data-testid="mcp-connection-detail"
+                data-readonly={String(Boolean(readOnly))}
+                data-can-list-tools={String(canListTools)}
+            >
                 {endpoint.name}
                 <span data-testid="detail-secret">{endpoint.secret_id ?? "none"}</span>
             </div>
@@ -114,7 +126,10 @@ interface Endpoint {
     auth_mode: "oauth" | "api_key" | "none"
     secret_id?: string | null
     flags?: {is_valid?: boolean}
-    data: {route: {base_url: string}}
+    data: {
+        route: {base_url: string}
+        check?: {ok: boolean; reason?: string | null; checked_at: string}
+    }
 }
 
 const endpoint = (over: Partial<Endpoint> & Pick<Endpoint, "id" | "name">): Endpoint => ({
@@ -128,12 +143,32 @@ const endpoint = (over: Partial<Endpoint> & Pick<Endpoint, "id" | "name">): Endp
 const LINEAR = endpoint({id: "linear", name: "Linear", auth_mode: "oauth", secret_id: "sec-1"})
 const AXIOM = endpoint({id: "axiom", name: "Axiom", auth_mode: "api_key", secret_id: "sec-2"})
 const MEMORY = endpoint({id: "memory", name: "Memory", auth_mode: "none", secret_id: null})
+// Signed in once, then the provider revoked the grant: the row keeps its handle and the gateway
+// marks it invalid, and the check from that sign-in stays on the row.
 const OCTOLENS = endpoint({
     id: "octolens",
     name: "Octolens",
     auth_mode: "oauth",
-    secret_id: null,
+    secret_id: "sec-3",
+    flags: {is_valid: false},
+    data: {
+        route: {base_url: "https://mcp.octolens.example/mcp"},
+        check: {ok: true, checked_at: "2026-10-14T12:00:00Z"},
+    },
 })
+// Signed in once, then the person pressed Disconnect: the grant is gone and the check stayed.
+const DISCONNECTED = endpoint({
+    id: "disconnected",
+    name: "Disconnected",
+    auth_mode: "oauth",
+    secret_id: null,
+    data: {
+        route: {base_url: "https://mcp.disconnected.example/mcp"},
+        check: {ok: true, checked_at: "2026-10-14T12:00:00Z"},
+    },
+})
+// Made by a connect sheet whose sign-in has not finished.
+const PENDING = endpoint({id: "pending", name: "Pending", auth_mode: "oauth", secret_id: null})
 
 const state: {
     query: {data: Endpoint[] | undefined; isPending: boolean}
@@ -145,10 +180,19 @@ const ALL_SECRETS = [
     {id: "sec-2", name: "axiom_token", slug: "axiom_token"},
 ]
 
-const show = (rows: Endpoint[], options: {isPending?: boolean; readOnly?: boolean} = {}) => {
+const show = (
+    rows: Endpoint[],
+    options: {isPending?: boolean; readOnly?: boolean; canListTools?: boolean} = {},
+) => {
     state.query = {data: rows, isPending: options.isPending ?? false}
     state.secrets = ALL_SECRETS
-    return render(<McpServersSection confirm={confirmSpy} readOnly={options.readOnly} />)
+    return render(
+        <McpServersSection
+            confirm={confirmSpy}
+            readOnly={options.readOnly}
+            canListTools={options.canListTools}
+        />,
+    )
 }
 
 let confirmSpy: ReturnType<typeof vi.fn>
@@ -184,8 +228,9 @@ const openRowMenu = (name: string) => {
 const menuItems = () => screen.getAllByRole("menuitem").map((item) => item.textContent?.trim())
 
 /** The colour the dot and its label carry, which `StatusIndicator` puts on its wrapper. */
+// The indicator sits above the last-check line, in the cell's first column.
 const statusTone = (cell: HTMLElement) =>
-    (cell.firstElementChild as HTMLElement | null)?.className ?? ""
+    (cell.firstElementChild?.firstElementChild as HTMLElement | null)?.className ?? ""
 
 beforeEach(() => {
     opened.length = 0
@@ -255,7 +300,14 @@ describe("the status cell", () => {
         expect(within(cell).queryByRole("button", {name: "Reconnect"})).toBeNull()
     })
 
-    it("reads Login expired with an inline Reconnect when the grant is gone", () => {
+    it("reads Not signed in for a connection the person disconnected", () => {
+        show([DISCONNECTED])
+        const cell = screen.getByTestId("mcp-connection-status")
+        expect(within(cell).getByText("Not signed in")).toBeTruthy()
+        expect(within(cell).queryByText("Login expired")).toBeNull()
+    })
+
+    it("reads Login expired with an inline Reconnect when the grant was revoked", () => {
         show([OCTOLENS])
         const cell = screen.getByTestId("mcp-connection-status")
         expect(within(cell).getByText("Login expired")).toBeTruthy()
@@ -264,6 +316,13 @@ describe("the status cell", () => {
         expect(statusTone(cell)).toContain("text-colorWarning")
         expect(statusTone(cell)).not.toContain("text-colorSuccess")
         expect(within(cell).getByRole("button", {name: "Reconnect"})).toBeTruthy()
+    })
+
+    it("reads Not signed in for a connection whose first sign-in is under way", () => {
+        show([PENDING])
+        const cell = screen.getByTestId("mcp-connection-status")
+        expect(within(cell).getByText("Not signed in")).toBeTruthy()
+        expect(statusTone(cell)).toContain("text-colorWarning")
     })
 
     it("reads Login expired for a key the server stopped accepting", () => {
@@ -279,6 +338,39 @@ describe("the status cell", () => {
         // The two the page can actually tell apart, and the old wording for neither.
         expect(screen.queryByText("Needs authorization")).toBeNull()
         expect(screen.queryByText("Needs input")).toBeNull()
+    })
+
+    it("says when a connection was last checked, and why a failed check failed", () => {
+        const minutesAgo = (minutes: number) =>
+            new Date(Date.now() - minutes * 60 * 1000).toISOString()
+        show([
+            {
+                ...LINEAR,
+                data: {...LINEAR.data, check: {ok: true, checked_at: minutesAgo(5)}},
+            },
+            {
+                ...AXIOM,
+                data: {
+                    ...AXIOM.data,
+                    check: {
+                        ok: false,
+                        reason: "The server did not accept that credential.",
+                        checked_at: minutesAgo(120),
+                    },
+                },
+            },
+        ])
+        expect(
+            screen.getAllByTestId("mcp-connection-check").map((line) => line.textContent),
+        ).toEqual([
+            "Checked 5m ago",
+            "Check failed 2h ago: The server did not accept that credential.",
+        ])
+    })
+
+    it("shows no check line for a connection nobody has checked", () => {
+        show([LINEAR])
+        expect(screen.queryByTestId("mcp-connection-check")).toBeNull()
     })
 
     it("opens the reconnect journey without also opening the connection", () => {
@@ -335,8 +427,8 @@ describe("the row menu", () => {
     it("hides Disconnect once the grant is already gone", () => {
         // Two rows, and the second is the one asked about: a section that hands over whichever
         // row it finds first passes every single-row fixture ever written (D154).
-        show([LINEAR, OCTOLENS])
-        openRowMenu("Octolens")
+        show([LINEAR, DISCONNECTED])
+        openRowMenu("Disconnected")
         expect(screen.queryByRole("menuitem", {name: "Disconnect"})).toBeNull()
     })
 })
@@ -537,6 +629,33 @@ describe("read-only", () => {
         show([LINEAR], {readOnly: true})
         const row = screen.getByText("Linear").closest('[role="button"]') as HTMLElement
         expect(within(row).queryAllByRole("button")).toHaveLength(0)
+    })
+
+    it("opens the connection read-only, so its detail offers no write either", () => {
+        show([AXIOM], {readOnly: true, canListTools: false})
+        act(() => {
+            fireEvent.click(screen.getByTestId("mcp-connection-name"))
+        })
+        const detail = screen.getByTestId("mcp-connection-detail")
+        expect(detail.dataset.readonly).toBe("true")
+        expect(detail.dataset.canListTools).toBe("false")
+    })
+
+    it("leaves View tools out of the row menu when the member may not read tools", () => {
+        show([LINEAR], {canListTools: false})
+        openRowMenu("Linear")
+        expect(screen.queryByRole("menuitem", {name: "View tools"})).toBeNull()
+        expect(screen.getByRole("menuitem", {name: "Rename"})).toBeTruthy()
+    })
+
+    it("opens the connection writable, with its tools, when nothing is withheld", () => {
+        show([AXIOM])
+        act(() => {
+            fireEvent.click(screen.getByTestId("mcp-connection-name"))
+        })
+        const detail = screen.getByTestId("mcp-connection-detail")
+        expect(detail.dataset.readonly).toBe("false")
+        expect(detail.dataset.canListTools).toBe("true")
     })
 })
 

@@ -24,6 +24,8 @@ import {
 } from "@agenta/ui/ui"
 import Image from "next/image"
 
+import {consentPopupFeatures} from "../../shared/consentPopupFeatures"
+
 const DEFAULT_PROVIDER = "composio"
 
 type AuthMode = "oauth" | "api_key"
@@ -158,7 +160,7 @@ export default function TriggerConnectDrawer({
                 const popup = window.open(
                     redirectUrl,
                     "triggers_oauth",
-                    "width=600,height=700,popup=yes",
+                    consentPopupFeatures(window),
                 )
                 if (!popup) {
                     setLoading(false)

@@ -1,9 +1,9 @@
 // The ChatGPT subscription card: a connection whose credential is a sign-in, so one verb per state
 // and no form. Design: docs/design/hosted-subscription-connections/implementation-contract.md §4.
-import {useCallback, useEffect, useState} from "react"
+import {useCallback, useEffect, useRef, useState} from "react"
 
 import {type ProviderConnection} from "@agenta/entities/secret"
-import {Button} from "@agenta/ui/ui"
+import {Button, Spinner} from "@agenta/ui/ui"
 import {ArrowSquareOut, Check, Copy, WarningCircle} from "@phosphor-icons/react"
 
 import {countdownLabel, useSubscriptionSignIn} from "./useSubscriptionSignIn"
@@ -15,6 +15,8 @@ export interface SubscriptionConnectionCardProps {
     connection?: ProviderConnection | null
     /** Remove the connection. Absent hides the verb rather than letting it go dead. */
     onRemove?: (connection: ProviderConnection) => void
+    /** Start the sign-in on mount when there is none — for surfaces whose opener IS the verb. */
+    autoStart?: boolean
 }
 
 const CodeBlock = ({code}: {code: string}) => {
@@ -47,6 +49,7 @@ const SubscriptionConnectionCard = ({
     provider = "chatgpt",
     connection = null,
     onRemove,
+    autoStart = false,
 }: SubscriptionConnectionCardProps) => {
     const {
         name,
@@ -62,6 +65,14 @@ const SubscriptionConnectionCard = ({
         cancel,
     } = useSubscriptionSignIn({provider, connection})
 
+    // One start per mount: re-running on state churn would cancel a login mid-flight.
+    const autoStarted = useRef(false)
+    useEffect(() => {
+        if (!autoStart || autoStarted.current || isReady || pending || starting) return
+        autoStarted.current = true
+        void connect()
+    }, [autoStart, connect, isReady, pending, starting])
+
     return (
         <section className="flex flex-col gap-3 rounded-md border border-solid border-colorBorderSecondary p-4 text-xs">
             <div className="flex items-start justify-between gap-3">
@@ -71,7 +82,7 @@ const SubscriptionConnectionCard = ({
                         className={
                             isReady && !pending
                                 ? "flex items-center gap-1.5 text-colorSuccess"
-                                : "text-colorTextSecondary"
+                                : "flex items-center gap-1.5 text-colorTextSecondary"
                         }
                     >
                         {isReady && !pending ? (
@@ -80,7 +91,10 @@ const SubscriptionConnectionCard = ({
                                 className="size-1.5 shrink-0 rounded-full bg-colorSuccess"
                             />
                         ) : null}
-                        {statusLine || "Sign in with your ChatGPT subscription to run agents."}
+                        {pending ? <Spinner className="size-3 shrink-0" /> : null}
+                        <span className={pending ? "animate-pulse" : undefined}>
+                            {statusLine || "Sign in with your ChatGPT subscription to run agents."}
+                        </span>
                     </span>
                 </div>
 

@@ -22,14 +22,13 @@ export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
     "apiKeys",
     "webhooks",
     "analytics",
+    "credits",
     "billing",
     "workspace",
     "organizationGeneral",
     "projects",
     "organization",
     "auditLog",
-    "credits",
-    "walletUsage",
     "account",
     "preferences",
 ]
@@ -56,8 +55,8 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
 
     return useMemo(
         () => ({
-            // Names the tab "Usage & Billing" rather than "Usage" — this surface can now change
-            // a subscription, not only report against one.
+            // Names the tab "Plan & billing" rather than "Usage" — this surface can change a
+            // subscription, not only report against one.
             billingEnabled,
             canShowMcpEndpoints: mcpGatewayEnabled,
             canShowTools: toolsEnabled,
@@ -69,8 +68,6 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
             isOwner: true,
             walletsEnabled,
             walletEnforced,
-            // The raw wallet data is for developers: it stays out of production builds.
-            walletDebug: process.env.NODE_ENV !== "production",
         }),
         [
             enterprise,
@@ -101,18 +98,15 @@ export const useActiveSettingsTab = (): SettingsTabKey => {
     const fromPath = router.asPath.split("?")[1]
         ? new URLSearchParams(router.asPath.split("?")[1]).get("tab")
         : null
-    const requested = fromQuery ?? fromPath
+    const asked = fromQuery ?? fromPath
+    // The wallet's debug tab folded into Credits; old links land there.
+    const requested = asked === "walletUsage" ? "credits" : asked
 
     if (!AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey))
         return DEFAULT_MOBILE_SETTINGS_TAB
     if (requested === "tools" && !access.canShowTools) return DEFAULT_MOBILE_SETTINGS_TAB
     if (requested === "billing" && !access.billingEnabled) return DEFAULT_MOBILE_SETTINGS_TAB
     // The wallet routes are EE-only, whatever the mirrored wallet flag says.
-    if (
-        requested === "walletUsage" &&
-        !(access.isEE && access.walletsEnabled && access.walletDebug)
-    )
-        return DEFAULT_MOBILE_SETTINGS_TAB
     if (requested === "credits" && !(access.isEE && access.walletsEnabled))
         return DEFAULT_MOBILE_SETTINGS_TAB
     // A deployment serving no MCP gateway refuses every route behind this tab, so a deep

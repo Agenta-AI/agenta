@@ -8,6 +8,7 @@ import {
     quotesToMarkdown,
     refreshFileQuote,
     relocateQuote,
+    splitQuotedMessage,
     tidyQuoteText,
     truncateQuoteText,
     QUOTE_EXCERPT_CAP,
@@ -279,5 +280,34 @@ describe("quotesToMarkdown", () => {
         expect(out).toContain("> > an older reply\n> new line")
         const fenced = quotesToMarkdown([fileQuote({text: "~~~\nx\n~~~", note: ""})])
         expect(fenced.match(/~~~/g)).toHaveLength(2)
+    })
+})
+
+describe("splitQuotedMessage", () => {
+    it("reads back what quotesToMarkdown wrote", () => {
+        const message = quotesToMarkdown(
+            [
+                fileQuote({text: "one\n\ntwo"}),
+                fileQuote({id: "q2", source: {kind: "message", messageId: "m1"}, note: ""}),
+            ],
+            "Fix these.",
+        )
+        expect(splitQuotedMessage(message)).toEqual({
+            quotes: [
+                {origin: "agent-files/docs/07-schedule.mdx", text: "one\n\ntwo"},
+                {origin: "Agent reply", text: "A schedule runs one pinned variant and revision."},
+            ],
+            text: "This contradicts the section above.\n\nFix these.",
+        })
+    })
+
+    it("keeps a head-shaped excerpt line inside its quote", () => {
+        const message = quotesToMarkdown([fileQuote({text: "x\n**Agent reply**", note: ""})])
+        expect(splitQuotedMessage(message).quotes).toHaveLength(1)
+    })
+
+    it("leaves a hand-written blockquote alone", () => {
+        const message = "> **`main.py`** is broken\nplease fix"
+        expect(splitQuotedMessage(message)).toEqual({quotes: [], text: message})
     })
 })

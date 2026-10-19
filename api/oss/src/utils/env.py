@@ -1086,9 +1086,9 @@ class MockGatewaysConfig(BaseModel):
     # answers with.
     #
     # Both halves are configurable so a stack can move them, and both have defaults so the
-    # QA runbook can name one pair. The name is what an endpoint registers as its
-    # `credential_header`; an endpoint that registers none sends the same value as
-    # `Authorization: Bearer <value>`, and the surface accepts that form too.
+    # QA runbook can name one pair. The name is what an endpoint's credential binding
+    # names, as a header or a query parameter; the surface also accepts the value as
+    # `Authorization: Bearer <value>` and as the password of `Authorization: Basic`.
     mcp_key_header: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_KEY_HEADER", "X-Api-Key")
     mcp_key_value: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_KEY", "agenta-mock-mcp-key")
 
@@ -1745,6 +1745,17 @@ class MountsConfig(BaseModel):
         default_factory=lambda: (
             _parse_optional_positive_int_env("AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS")
             or 43200
+        )
+    )
+
+    # Largest request body the drive upload and write routes accept, in bytes. The API holds
+    # the whole file in memory while it writes it to the store, so this bounds the memory one
+    # request can take. A larger request gets 413: before its body is read when it declares
+    # Content-Length, and as soon as it passes the limit when it does not.
+    max_upload_bytes: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_MOUNTS_MAX_UPLOAD_BYTES")
+            or 100 * 1024 * 1024
         )
     )
 

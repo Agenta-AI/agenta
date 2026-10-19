@@ -18,7 +18,7 @@ from oss.src.core.gateways.mcps.dtos import (
 )
 from oss.src.core.gateways.mcps.echo import credential_echo_scanner
 from oss.src.core.gateways.mcps.interfaces import MCPRelayResult, MCPUpstreamInterface
-from oss.src.core.gateways.mcps.providers.http.adapter import credential_headers
+from oss.src.core.gateways.mcps.providers.http.adapter import injected_credentials
 from oss.src.core.gateways.mcps.types import MCPUpstreamError
 from oss.src.core.managed_tools.dtos import (
     ManagedActionContext,
@@ -60,7 +60,10 @@ class MCPActionProvider(ManagedActionProviderInterface):
         self._route = route
         self._auth = auth
         # The gateway adapter scans raw bytes; this scans what they decode to.
-        self._echo = credential_echo_scanner(credential_headers(route, auth))
+        credentials = injected_credentials(route, auth)
+        self._echo = credential_echo_scanner(
+            credentials.headers, url_values=credentials.url_values
+        )
 
     async def invoke(
         self,

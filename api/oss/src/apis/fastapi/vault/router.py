@@ -26,6 +26,7 @@ from oss.src.core.secrets.subscription_service import (
     SubscriptionLoginService,
 )
 from oss.src.core.secrets.types import (
+    SecretSlugConflict,
     ServerOwnedFieldNotWritable,
     SubscriptionLoginAttemptNotFound,
     SubscriptionLoginRunnerNotConfigured,
@@ -301,7 +302,9 @@ class VaultRouter:
                 create_secret_dto=body,
                 user_id=UUID(request.state.user_id),
             )
-        except SubscriptionProviderConflict as e:
+        except (SubscriptionProviderConflict, SecretSlugConflict) as e:
+            # A taken slug is the caller's to change. Unmapped, it answered 500, which the
+            # connect sheet's create-secret drawer showed as a server failure (#6928).
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=e.message
             ) from e

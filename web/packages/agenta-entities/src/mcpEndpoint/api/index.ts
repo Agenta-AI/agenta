@@ -8,4 +8,5 @@ export {
     listMcpTools,
     probeMcpUrl,
     queryMcpEndpoints,
+    recordMcpEndpointCheck,
 } from "./api"

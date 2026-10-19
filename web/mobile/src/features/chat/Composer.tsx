@@ -10,7 +10,7 @@ import {
     VoiceInputButton,
 } from "@agenta/chat/components"
 import {
-    stagedFilesToParts,
+    stagedFilesToOutbound,
     useChatSlashCommands,
     useComposerDraft,
     useVoiceComposer,
@@ -199,11 +199,13 @@ export const Composer = ({
         if (!uploadedExtras) return false
         const outbound = [...staged, ...uploadedExtras]
         let parts: FileUIPart[] | undefined
+        let sendText = text
         let cleared = false
         try {
             // `stagedFilesToParts` THROWS on a file whose upload hasn't settled — reachable via
             // Enter, which the send button's `sendDisabled` guard doesn't cover.
-            parts = outbound.length > 0 ? stagedFilesToParts(outbound, sessionId) : undefined
+            // Files over the attachment cap went to the session drive; the text names them.
+            ;({text: sendText, parts} = stagedFilesToOutbound(text, outbound, sessionId))
             // The message leaves the composer HERE, before the send can fail: draft and tray go
             // now, and every refusal path puts them back afterwards (the catch below for an early
             // one, the screen's `restoreRefusedSend` for a late one). Clearing after the await let
@@ -213,8 +215,9 @@ export const Composer = ({
             attachments.clearAttachments(staged.map((file) => file.uid))
             cleared = true
             release()
-            if (policy === "steer" && onSteer) await onSteer({text, parts, stagedFiles: outbound})
-            else await onSend({text, parts, stagedFiles: outbound})
+            if (policy === "steer" && onSteer)
+                await onSteer({text: sendText, parts, stagedFiles: outbound})
+            else await onSend({text: sendText, parts, stagedFiles: outbound})
             return true
         } catch (error: unknown) {
             // Nothing consumes this promise (RichChatInput's submit is fire-and-forget), so an

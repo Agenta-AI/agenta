@@ -33,6 +33,7 @@ import { assert } from "./capabilities.ts";
 import type { ClientToolPauseDisposition } from "./client-tools.ts";
 import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText } from "./transcript.ts";
+import { isInNetworkApiEndpoint } from "../../apiBase.ts";
 import {
   KNOWN_SANDBOX_PROVIDER_IDS,
   sandboxProviderTraits,
@@ -681,8 +682,12 @@ export function materializeModelEnvironment(
     // provider secret above guards them here. Without this the two legs disagreed: the SDK
     // refused a plain-http routable gateway while the runner accepted one, which is the
     // inconsistency `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` now resolves in both directions.
+    // The operator's own in-network api hop counts as secure: the runner already sends its
+    // token and the run credential there (`apiBase.ts`), and an in-process harness is moved onto
+    // it (`gateway-in-network.ts`).
     if (
       !isEffectiveSecureEndpoint(connection.endpoint?.baseUrl) &&
+      !isInNetworkApiEndpoint(connection.endpoint?.baseUrl) &&
       !gatewayInsecureHttpAllowed()
     ) {
       return {

@@ -246,6 +246,17 @@ Each entry is an inline skill package. See [Skills](/concepts/skills).
 
 `pi_agenta` was an experimental Pi variant, removed in August 2026. A stored config that still carries the value runs as `pi_core`.
 
+### Claude Code built-in tools
+
+A `claude` agent keeps the Claude Code file, shell, web, and skill tools. Agenta turns off the built-in tools that do not work inside an agent run:
+
+- Subagent, team, and messaging tools: `Agent`, `SendMessage`, `ListAgents`, `TeamCreate`, `TeamDelete`, and `Workflow`. To let an agent call another agent, add it as a [subagent](/reference/agents/subagents).
+- Task-list tools: `TaskCreate`, `TaskGet`, `TaskList`, and `TaskUpdate`.
+- Scheduling tools: `CronCreate`, `CronDelete`, `CronList`, `ScheduleWakeup`, and `RemoteTrigger`. To run an agent on a schedule, use an [automation](/reference/agents/automate-agent-runs).
+- Tools that need claude.ai or a Claude app: `Artifact`, `ArtifactComments`, `ArtifactData`, `DesignSync`, `PushNotification`, and `ReportFindings`.
+
+Claude Code does not load claude.ai connectors. A run that uses a Claude subscription login does not get the connectors of that claude.ai account as tools.
+
 ### harness.permissions
 
 Applied by harnesses that gate tool use. Claude Code renders it into `.claude/settings.json` in the session working directory. Pi uses these rules for its built-in tools. Codex renders no per-tool rules of its own; its tool gating comes from [runner.permissions](#runnerpermissions) and the `permission` on each tool entry.

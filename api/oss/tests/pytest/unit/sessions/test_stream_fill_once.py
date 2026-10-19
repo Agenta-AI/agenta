@@ -454,3 +454,17 @@ async def test_a_send_on_a_named_session_keeps_the_name(lock_engine):
     )
 
     assert dao.row.name == "Kept"
+
+
+def test_the_drive_file_note_never_becomes_the_title():
+    # The composer appends this line for a file too large to attach. The title is the user's text.
+    note = (
+        "Uploaded to the session drive (too large to attach): `uploads/r.pdf` (40.0 MB)"
+    )
+    inputs = {
+        "messages": [{"role": "user", "content": f"Summarize this report\n\n{note}"}]
+    }
+    assert derive_session_name(inputs) == "Summarize this report"
+    assert (
+        derive_session_name({"messages": [{"role": "user", "content": note}]}) is None
+    )

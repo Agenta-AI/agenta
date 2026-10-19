@@ -15,8 +15,8 @@
 <a href="https://youtu.be/7Wfvtv428Fs?si=bTBUoS9JJC2Crkxs">
   <img
     width="900"
-    alt="Agenta 플랫폼 데모 영상 보기"
-    src="https://github.com/user-attachments/assets/b7d7ff89-2653-4883-9141-fe400d42d5ef"
+    alt="2분 Agenta 제품 투어 보기"
+    src="./.github/images/readme/agenta-product-tour.png"
   />
 </a>
 
@@ -95,6 +95,32 @@ Agenta는 업무를 자동화하고 지원하는 특화 에이전트를 만들 �
 웹 앱에서 에이전트와 협업할 수도 있고, 이미 사용하는 곳(**Slack**, **Telegram**, **WhatsApp Business**)에서 바로 대화할 수도 있습니다.
 
 반복되는 업무에는 자동화를 만들 수 있습니다. 에이전트는 일정에 따라, 또는 연결된 앱에서 이벤트가 발생할 때 실행되며, 각 실행이 무엇을 했는지 확인할 수 있습니다.
+
+## 튜토리얼
+
+단계별 영상입니다. 각 영상에서 채팅만으로 실제 에이전트를 처음부터 만듭니다.
+
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <a href="https://youtu.be/TFsEXgdNowY"><img src="./.github/images/readme/tutorial-first-ai-coworker.png" alt="튜토리얼: 첫 AI 동료 만들기" width="100%"></a>
+      <br><b><a href="https://youtu.be/TFsEXgdNowY">첫 AI 동료 만들기</a></b> · 10분
+      <br>도구를 연결하고, 에이전트에 역할을 주고, 스킬을 저장한 뒤, 영업 미팅 준비를 자동화합니다.
+    </td>
+    <td width="33%" valign="top">
+      <a href="https://youtu.be/c3iVw0MBZTE"><img src="./.github/images/readme/tutorial-competitor-tracker.png" alt="튜토리얼: 경쟁사를 추적하는 에이전트 만들기" width="100%"></a>
+      <br><b><a href="https://youtu.be/c3iVw0MBZTE">잠자는 동안 경쟁사 추적하기</a></b> · 7분
+      <br>에이전트에 웹 검색을 연결하고, 매주 월요일에 실행되도록 예약한 뒤, Gmail로 요약을 받습니다.
+    </td>
+    <td width="33%" valign="top">
+      <a href="https://youtu.be/hk8TMNTCZvU"><img src="./.github/images/readme/tutorial-inbound-outreach.png" alt="튜토리얼: 노코드로 인바운드 아웃리치 에이전트 만들기" width="100%"></a>
+      <br><b><a href="https://youtu.be/hk8TMNTCZvU">노코드로 인바운드 아웃리치 에이전트 만들기</a></b> · 17분
+      <br>새 리드를 조사하고 적합도를 판단한 뒤, 맞춤형 답장을 보냅니다.
+    </td>
+  </tr>
+</table>
+
+더 많은 튜토리얼은 [YouTube 채널](https://www.youtube.com/@agentaAI)에서 볼 수 있습니다.
 
 ## 왜 Agenta인가?
 

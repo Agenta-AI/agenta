@@ -15,8 +15,8 @@
 <a href="https://youtu.be/7Wfvtv428Fs?si=bTBUoS9JJC2Crkxs">
   <img
     width="900"
-    alt="观看 Agenta 平台演示"
-    src="https://github.com/user-attachments/assets/b7d7ff89-2653-4883-9141-fe400d42d5ef"
+    alt="观看 2 分钟 Agenta 产品导览"
+    src="./.github/images/readme/agenta-product-tour.png"
   />
 </a>
 
@@ -95,6 +95,32 @@ Agenta 是一个开源工作空间，你可以在其中构建专门的智能体�
 你可以在 Web 应用中与智能体协作，也可以在你已经常用的地方与它们交流：**Slack**、**Telegram** 或 **WhatsApp Business**。
 
 对于重复性的工作，你可以创建自动化任务。你的智能体会定时运行，或在已连接的应用中发生某个事件时触发运行，而且每次运行做了什么你都能看到。
+
+## 教程
+
+分步视频教程。每个视频都通过对话，从零开始构建一个真实的智能体。
+
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <a href="https://youtu.be/TFsEXgdNowY"><img src="./.github/images/readme/tutorial-first-ai-coworker.png" alt="教程：构建你的第一个 AI 同事" width="100%"></a>
+      <br><b><a href="https://youtu.be/TFsEXgdNowY">构建你的第一个 AI 同事</a></b> · 10 分钟
+      <br>连接工具，为智能体设定角色，保存技能，并自动完成销售电话准备。
+    </td>
+    <td width="33%" valign="top">
+      <a href="https://youtu.be/c3iVw0MBZTE"><img src="./.github/images/readme/tutorial-competitor-tracker.png" alt="教程：构建一个追踪竞争对手的智能体" width="100%"></a>
+      <br><b><a href="https://youtu.be/c3iVw0MBZTE">在你睡觉时追踪竞争对手</a></b> · 7 分钟
+      <br>为智能体添加网页搜索，设置每周一运行，并通过 Gmail 收到摘要。
+    </td>
+    <td width="33%" valign="top">
+      <a href="https://youtu.be/hk8TMNTCZvU"><img src="./.github/images/readme/tutorial-inbound-outreach.png" alt="教程：无代码构建入站外联智能体" width="100%"></a>
+      <br><b><a href="https://youtu.be/hk8TMNTCZvU">无代码构建入站外联智能体</a></b> · 17 分钟
+      <br>研究每个新线索，判断是否匹配，并发送个性化回复。
+    </td>
+  </tr>
+</table>
+
+更多教程请访问我们的 [YouTube 频道](https://www.youtube.com/@agentaAI)。
 
 ## 为什么选择 Agenta？
 
