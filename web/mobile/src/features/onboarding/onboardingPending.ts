@@ -37,7 +37,6 @@ export const endOnboarding = (userId: string) => {
 export type PendingOnboarding = "none" | "wait" | "start" | "dismiss"
 
 export interface PendingOnboardingInput {
-    enabled: boolean
     /** The signed-in user's mark; `null` while the user is still loading. */
     pending: boolean | null
     agentCount: number
@@ -46,13 +45,12 @@ export interface PendingOnboardingInput {
 }
 
 export const resolvePendingOnboarding = ({
-    enabled,
     pending,
     agentCount,
     agentsPending,
     agentsError,
 }: PendingOnboardingInput): PendingOnboarding => {
-    if (!enabled || pending === false) return "none"
+    if (pending === false) return "none"
     if (pending === null) return "wait"
     if (agentCount > 0) return "dismiss"
     // A failed list is not an empty project; Home is where it can be retried.
