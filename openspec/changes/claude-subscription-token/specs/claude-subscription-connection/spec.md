@@ -112,7 +112,7 @@ A run that uses the Claude subscription connection SHALL run the official Claude
 
 ### Requirement: Report a refused token during a run
 
-When Anthropic refuses the token during a run, the run SHALL fail with the code `subscription_login_required` and a message that names Claude. A 401 from Agenta's own services during the run MUST NOT be reported as a refused token. The chat SHALL offer an "Open AI providers" action.
+When Anthropic refuses the token during a run, the run SHALL fail with the code `subscription_login_required` and a message that names Claude. A 401 from Agenta's own services during the run MUST NOT be reported as a refused token. A raw provider 401 in the first moments after a Daytona Secret is delivered SHALL keep the existing credential delivery result, because it can be a delivery race. The chat SHALL offer an "Open AI providers" action.
 
 #### Scenario: Revoked token
 
