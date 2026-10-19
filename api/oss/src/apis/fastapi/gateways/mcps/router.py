@@ -174,6 +174,12 @@ class MCPGatewayRouter:
             methods=["DELETE"],
             operation_id="delete_mcp_endpoint",
             status_code=status.HTTP_204_NO_CONTENT,
+            responses={
+                status.HTTP_409_CONFLICT: {
+                    "description": "The row no longer matches `pending_auth_mode`, "
+                    "has a credential bound, or has a sign-in in flight."
+                }
+            },
         )
         self.router.add_api_route(
             "/endpoints/{endpoint_id}/check",
@@ -206,6 +212,9 @@ class MCPGatewayRouter:
             operation_id="fetch_mcp_connect_attempt",
             response_model=MCPConnectAttemptResponse,
             response_model_exclude_none=True,
+            responses={
+                status.HTTP_404_NOT_FOUND: {"description": "The attempt is not found."}
+            },
         )
         self.router.add_api_route(
             "/endpoints/{endpoint_id}/connect/attempts/{attempt_id}",
@@ -438,8 +447,10 @@ class MCPGatewayRouter:
         A connect sheet abandoning the row it made sends `pending_auth_mode`, the mode it
         made the row in, after it cancelled its own sign-in. The row is then deleted only
         while it is still in that mode with no credential bound and no sign-in in flight,
-        decided under the connection's lock. A row that another tab took over since, or is
-        signing in on, is kept, and the answer is 409.
+        decided under the connection's lock. The answer is 409 only when the row's
+        `auth_mode` no longer matches `pending_auth_mode`, a credential is bound, or a
+        sign-in is in flight. A change to another field, such as the name or URL, does not
+        by itself keep the row.
         """
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
@@ -669,9 +680,11 @@ class MCPGatewayRouter:
         endpoint_id: UUID,
         body: MCPEndpointCheckRequest,
     ) -> MCPEndpointResponse:
-        """Record the result of a check the connect sheet ran, so the connection's row can
-        say when it was last checked and how that went. The check itself is the sheet's
-        handshake through the relay; agent calls never write this."""
+        """Record the result of a check the connect sheet ran.
+
+        The connection's row can then say when it was last checked and how that went. The
+        check itself is the sheet's handshake through the relay; agent calls never write
+        this."""
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
 
