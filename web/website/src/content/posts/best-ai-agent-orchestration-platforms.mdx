@@ -29,11 +29,11 @@ faq:
   - question: "How do AI agent orchestration platforms charge for multi-step runs?"
     answer: "Pricing follows three main models: per-run or credit-pool billing (such as Agenta and Gumloop), per-workflow execution billing regardless of internal step count (such as n8n), and dual-meter billing where every internal tool step consumes platform actions alongside model vendor credits (such as Relevance AI)."
   - question: "Can I use my own OpenAI or Anthropic API keys on an AI agent orchestration platform?"
-    answer: "Yes, most platforms support Bring Your Own Key (BYOK), though the fee rules differ. Agenta, n8n, Dify, and Langdock let you connect provider API keys without adding a platform percentage fee on token spend. Gumloop charges an 8% orchestration fee on BYOK token cost, and Relevance AI still deducts platform Actions for each tool or agent step when using BYOK."
+    answer: "Yes, most platforms support Bring Your Own Key (BYOK), though the fee rules differ. Agenta, n8n, Dify, and Langdock let you connect provider API keys without adding a platform percentage fee on token spend. Gumloop removes direct token credit charges when you use your own model API keys and applies a 16% orchestration fee on the equivalent provider list cost (compared to its 8% orchestration fee on managed credits), and Relevance AI still deducts platform Actions for each tool or agent step when using BYOK."
   - question: "Can I run orchestrated AI agents with an existing ChatGPT subscription?"
     answer: "On local, self-hosted personal deployments of Agenta, you can mount a personal coding harness login (such as Codex or Claude Code) to run tasks using your existing personal subscription. On Agenta Cloud or shared multi-user team workspaces, runs use included cloud credits or your own provider API keys."
   - question: "Where should human-in-the-loop approvals happen in an orchestrated agent workflow?"
-    answer: "If your team or agency client already works in Slack, routing agent drafts, questions, and approval cards directly into shared Slack threads keeps review fast and visible. Platforms that rely only on a separate builder inbox often leave pending approvals unseen by non-technical stakeholders."
+    answer: "If your team or agency client already works in Slack, routing agent drafts, questions, and approval cards directly into shared Slack threads keeps review fast and visible. You can also embed an Agenta coworker as a chat widget inside an internal tool, dashboard, or website so stakeholders can interact with it without logging into a separate builder console."
 ---
 
 Running one AI prompt in a browser tab is easy. Keeping five recurring AI agents reliable across cron schedules, webhook events, connected SaaS tools, and human review is an orchestration problem.
@@ -44,17 +44,17 @@ This guide focuses on the platforms that give your team a working orchestration 
 
 ## The Best AI Agent Orchestration Platforms at a Glance
 
-| Platform                            | Best for                                                                                 | Orchestration style                                                                  | Pricing                                                                                                          |
-| ----------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
-| **[Agenta](#1-agenta)**             | Shared AI coworkers, Slack collaboration, versioned skills, and open-source self-hosting | Conversational coworker & automation workspace (`AGENTS.md`, skills, cron, webhooks) | Free cloud ($10 credits, 3 seats); Starter **$29/mo** (unlimited seats); Plus **$99/mo**; Free self-hosted (MIT) |
-| **[Gumloop](#2-gumloop)**           | Visual low-code AI workflows for GTM, SEO, and web scraping                              | Visual drag-and-drop AI node canvas and sub-flows                                    | Free (5,000 credits, 1 seat); Pro from **$37/mo** (unlimited seats); Team custom                                 |
-| **[n8n](#3-n8n)**                   | Technical operators combining deterministic SaaS workflows with AI agent nodes           | Node-based execution graph with JavaScript and Python steps                          | Free self-hosted; Cloud Starter **€20/mo** billed annually (2,500 executions, unlimited users); Pro **€50/mo**   |
-| **[Relevance AI](#4-relevance-ai)** | Visual multi-agent sales and GTM role hierarchies                                        | Visual Workforce canvas with sub-agent handoffs and custom Tool steps                | 14-day trial; Pro **$19/mo** annual (2 Build Users, 1 project); Team **$234/mo** annual (5 Build Users)          |
-| **[Dify](#5-dify)**                 | Engineering teams building RAG pipelines and visual LLM app backends                     | Visual DAG studio for prompts, knowledge retrieval, and agent nodes                  | Free self-hosted; Cloud Sandbox free; Professional **$59/workspace/mo** (3 seats); Team **$159/workspace/mo**    |
-| **[Lindy](#6-lindy)**               | Template-driven business assistants for email, calendar, and CRM tasks                   | Trigger-and-action assistant builder with condition branches                         | 7-day trial; Plus from **$29.99/user/mo** (3,000 credits); Pro custom                                            |
-| **[Dust](#7-dust)**                 | Company-wide assistants grounded in Notion, Google Drive, GitHub, and Slack              | Knowledge spaces with `@agent` mentions and multi-step tool actions                  | Free trial; Pro **€24/seat/mo** billed annually (€30 monthly); Enterprise custom                                 |
-| **[Langdock](#8-langdock)**         | European-hosted multi-model team chat, department agents, and compliance                 | Shared chat workspace with custom assistants and modular workflow add-on             | Business **€25/user/mo**; Enterprise **€99/user/mo**; Workflows add-on from **€539/mo**                          |
-| **[Make](#9-make)**                 | High-volume visual routing across 3,000+ business apps                                   | Visual multi-app scenario builder and Make Grid architecture view                    | Free (1,000 credits/mo); Core **$9/mo** annual; Pro **$16/mo**; Teams **$29/mo**                                 |
+| Platform                            | Best for                                                                                | Orchestration style                                                                        | Pricing                                                                                                          |
+| ----------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| **[Agenta](#1-agenta)**             | Shared AI coworkers, Slack & web embeds, versioned skills, and open-source self-hosting | Conversational coworker & automation workspace (instructions, skills, schedules, webhooks) | Free cloud ($10 credits, 3 seats); Starter **$29/mo** (unlimited seats); Plus **$99/mo**; Free self-hosted (MIT) |
+| **[Gumloop](#2-gumloop)**           | Visual low-code AI workflows for GTM, SEO, and web scraping                             | Visual drag-and-drop AI node canvas and sub-flows                                          | 14-day trial; Pro from **$37/mo** (20,000 credits, unlimited seats); Enterprise custom                           |
+| **[n8n](#3-n8n)**                   | Technical operators combining deterministic SaaS workflows with AI agent nodes          | Node-based execution graph with JavaScript and Python steps                                | Free self-hosted; Cloud Starter **€20/mo** billed annually (2,500 executions, unlimited users); Pro **€50/mo**   |
+| **[Relevance AI](#4-relevance-ai)** | Visual multi-agent sales and GTM role hierarchies                                       | Visual Workforce canvas with sub-agent handoffs and custom Tool steps                      | 14-day trial; Pro **$19/mo** annual (2 Build Users, 1 project); Team **$234/mo** annual (5 Build Users)          |
+| **[Dify](#5-dify)**                 | Engineering teams building RAG pipelines and visual LLM app backends                    | Visual DAG studio for prompts, knowledge retrieval, and agent nodes                        | Free self-hosted; Cloud Sandbox free; Professional **$59/workspace/mo** (3 seats); Team **$159/workspace/mo**    |
+| **[Lindy](#6-lindy)**               | Template-driven business assistants for email, calendar, and CRM tasks                  | Trigger-and-action assistant builder with condition branches                               | 7-day trial; Plus from **$29.99/user/mo** (3,000 credits); Pro custom                                            |
+| **[Dust](#7-dust)**                 | Company-wide assistants grounded in Notion, Google Drive, GitHub, and Slack             | Knowledge spaces with `@agent` mentions and multi-step tool actions                        | Free trial; Pro **€24/seat/mo** billed annually (€30 monthly); Enterprise custom                                 |
+| **[Langdock](#8-langdock)**         | European-hosted multi-model team chat, department agents, and compliance                | Shared chat workspace with custom assistants and modular workflow add-on                   | Business **€25/user/mo**; Enterprise **€99/user/mo**; Workflows add-on from **€539/mo**                          |
+| **[Make](#9-make)**                 | High-volume visual routing across 3,000+ business apps                                  | Visual multi-app scenario builder and Make Grid architecture view                          | Free (1,000 credits/mo); Core **$9/mo** annual; Pro **$16/mo**; Teams **$29/mo**                                 |
 
 ## What Is AI Agent Orchestration? (Low-Code Platforms vs. Code Frameworks)
 
@@ -70,13 +70,13 @@ In plain terms, **AI agent orchestration** is the control layer that turns an LL
 
 When evaluating orchestration tools, the first decision is whether you want a **platform** or a **code framework**:
 
-| Dimension                   | Low-Code & Workspace Orchestration Platforms (Agenta, Gumloop, n8n, Relevance AI, Dify)      | Code-First Agent Frameworks (LangGraph, CrewAI, AutoGen, OpenAI Agents SDK)          |
-| --------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| **How you build**           | Plain-language instructions (`AGENTS.md`), reusable skills, or visual drag-and-drop canvases | Python or TypeScript state graphs, classes, and control loops in your IDE            |
-| **Included infrastructure** | Built-in workspace UI, cron schedules, webhooks, OAuth tool connections, and trace logs      | Library only; you deploy and maintain your own API server, queue, database, and auth |
-| **Human collaboration**     | Shared Slack channels, approval cards, and team workspaces out of the box                    | Requires custom frontend engineering for every human approval or chat view           |
-| **Who can maintain it**     | Founders, GTM leads, agency consultants, and engineers working together                      | Software engineers with access to the codebase and CI/CD deployment pipeline         |
-| **Best use case**           | Internal operations, GTM/SEO automation, agency client delivery, and team coworkers          | Embedding custom agent logic deeply inside your own SaaS product's backend           |
+| Dimension                   | Low-Code & Workspace Orchestration Platforms (Agenta, Gumloop, n8n, Relevance AI, Dify) | Code-First Agent Frameworks (LangGraph, CrewAI, AutoGen, OpenAI Agents SDK)          |
+| --------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **How you build**           | Plain-language instructions, reusable skills, or visual drag-and-drop canvases          | Python or TypeScript state graphs, classes, and control loops in your IDE            |
+| **Included infrastructure** | Built-in workspace UI, cron schedules, webhooks, OAuth tool connections, and trace logs | Library only; you deploy and maintain your own API server, queue, database, and auth |
+| **Human collaboration**     | Shared Slack channels, approval cards, embeddable chat widgets, and team workspaces     | Requires custom frontend engineering for every human approval or chat view           |
+| **Who can maintain it**     | Founders, GTM leads, agency consultants, and engineers working together                 | Software engineers with access to the codebase and CI/CD deployment pipeline         |
+| **Best use case**           | Internal operations, GTM/SEO automation, agency client delivery, and team coworkers     | Embedding custom agent logic deeply inside your own SaaS product's backend           |
 
 If you are a software engineer building agent logic directly inside your own SaaS product's backend microservice, a Python or TypeScript SDK like LangGraph or CrewAI gives you low-level code control. If you are a startup team, operations lead, or automation agency that wants working AI coworkers, scheduled automations, Slack collaboration, and trace visibility today without maintaining custom infrastructure, the nine platforms below are built for that job.
 
@@ -95,18 +95,19 @@ Before comparing individual tools, check four practical details that determine w
 
 ![Agenta workspace showing versioned agent instructions, skills, connected integrations, and scheduled automation runs](/blog/best-ai-agent-orchestration-platforms/agenta.webp)
 
-[Agenta](https://agenta.ai) is an open-source, low-code workspace for building and orchestrating AI coworkers and recurring automations. Instead of wiring fragile box-and-arrow flowcharts for every edge case, you configure each agent with plain-language instructions (`AGENTS.md`), attach reusable skills (`SKILL.md`), connect integrations, and bind the agent to cron schedules, webhook subscriptions, or Slack channels.
+[Agenta](https://agenta.ai) is an open-source, low-code workspace for building and orchestrating AI coworkers and recurring automations. Instead of wiring fragile box-and-arrow flowcharts for every edge case, you configure each agent with plain-language instructions, attach reusable skills, connect integrations, and bind the agent to cron schedules, webhook subscriptions, or Slack channels.
 
 Agenta is designed around the way startups, midmarket teams, and automation agencies actually collaborate with agents day to day:
 
-- **Slack coworker integration:** Agents can read, search, and post updates in shared Slack channels (`#team-marketing`, `#support`, `#revops`), reply in threads, and pause for human approval on sensitive actions. Your team reviews work where they already talk instead of checking a separate admin inbox.
+- **Slack, messaging, and embeddable web channels:** Agents can read, search, and post updates in shared Slack channels (`#team-marketing`, `#support`, `#revops`), reply in threads, connect to Telegram or WhatsApp, and pause for human approval on sensitive actions. You can also publish any coworker as an [embeddable chat iframe](https://agenta.ai/docs/guides/embed-an-agent) (`Publish > Embed`) inside an external website, customer portal, dashboard, or internal tool, with domain allowlists, per-visitor session keys, and host-page context passed directly into the conversation.
+- **Shared agent files and temporary session files:** Each coworker has [two distinct file scopes](https://agenta.ai/docs/concepts/files-and-knowledge). **Session files** hold one-off uploads and scratch work for a single conversation or run, while **shared agent files** persist across every session so brand guidelines, reference data, operating playbooks, and past reports stay available to the agent and your whole team over time.
 - **Versioning of instructions, skills, and tools:** Every update to an agent's instructions, attached skills, model selection, or tool permissions is saved as an immutable revision. If a change introduces a regression on a daily scheduled run, you can inspect the diff and roll back immediately.
 - **Cost and trace analytics:** Every interactive session and scheduled delivery records a complete execution trace showing each step, tool call, latency, token count, and estimated model cost. You get full operational visibility without reconciling separate platform action counters and vendor credit pools.
 - **Works with an existing ChatGPT subscription (local self-hosted personal use):** When running Agenta locally on your own machine for personal workflows, you can mount a local harness login (`Codex`, `Claude Code`, or `Pi`) and use your existing personal ChatGPT or Claude subscription. On Agenta Cloud or shared team deployments, runs use included cloud credits or your own provider API keys.
 - **Self-hosting capability:** Agenta's core is open source under the MIT license on GitHub (`Agenta-AI/agenta`). You can start on Agenta Cloud in seconds or self-host via Docker Compose on your own infrastructure or a client's cloud environment.
-- **Vendor, model, and harness freedom:** Switch freely between OpenAI, Anthropic, Google, and custom endpoints, and run specialized coding and research harnesses (`Claude Code`, `Codex`, `Pi`) inside a persistent sandbox with durable `agent-files/` storage.
+- **Vendor, model, and harness freedom:** Switch freely between OpenAI, Anthropic, Google, and custom endpoints, and run specialized coding and research harnesses (`Claude Code`, `Codex`, `Pi`) inside an isolated sandbox with persistent shared files.
 
-**Best for:** Startups, SMBs, midmarket teams, and automation agencies that want a low-code platform (as approachable as Gumloop and simpler to maintain than raw n8n graphs) to orchestrate shared AI coworkers across Slack, cron schedules, and webhooks with versioned configuration and open-source ownership.
+**Best for:** Startups, SMBs, midmarket teams, and automation agencies that want a low-code platform (as approachable as Gumloop and simpler to maintain than raw n8n graphs) to orchestrate shared AI coworkers across Slack, web embeds, cron schedules, and webhooks with versioned configuration and open-source ownership.
 
 **Pricing:**
 
@@ -118,7 +119,8 @@ Agenta is designed around the way startups, midmarket teams, and automation agen
 **Pros:**
 
 - Unlimited team seats on the $29/month Starter plan makes it easy for whole startup teams or agency client stakeholders to collaborate without per-seat penalties.
-- Native Slack thread coworking and human approval gates keep humans in the loop without context switching.
+- Native Slack thread coworking, human approval gates, and embeddable web chat widgets (`Publish > Embed`) let teams and external users work with agents wherever they already spend time.
+- Persistent shared agent files alongside temporary session files keep reference materials and past reports organized across runs.
 - Immutable revision history across instructions, skills, and tools prevents silent prompt drift on scheduled automations.
 - MIT-licensed open-source self-hosting gives agencies and engineering teams a clean deployment and handoff path.
 
@@ -142,21 +144,21 @@ To handle larger jobs, Gumloop supports sub-flows (reusable child workflows call
 
 **Pricing:**
 
-- **Free:** $0/month with 5,000 credits, 1 seat, and 2 active triggers.
-- **Pro:** Starts at $37/month (for 20,000 credits, scaling up by credit volume) with **unlimited seats**, 5 concurrent runs, webhooks, and BYOK support.
-- **Team / Enterprise:** Custom pricing for dedicated concurrency, SSO, and audit logs.
-- **BYOK note:** Paid plans let you attach your own OpenAI or Anthropic API keys, and Gumloop charges an 8% orchestration fee relative to the underlying provider token cost instead of full credit rates.
+- **Free Trial:** 14-day free trial (Gumloop removed its permanent free plan).
+- **Pro:** Starts at $37/month for 20,000 monthly credits (scaling up by credit volume) with **unlimited seats**, **unlimited teams**, 35+ models, 5 concurrent workflow runs, 25 concurrent agent chats, 1 hosted MCP server, webhooks, and BYOK support.
+- **Enterprise:** Custom pricing for orchestration fee discounts, custom credit allocations, RBAC, SCIM/SAML SSO, audit logs, and optional VPC deployment.
+- **Orchestration fee & BYOK note:** Gumloop bills model tokens, compute, and paid API tool calls at provider list cost plus an 8% orchestration fee. When you attach your own model API keys (BYOK), direct token credit charges drop to zero and Gumloop applies a 16% orchestration fee on the full list cost of the task.
 
 **Pros:**
 
 - Clean visual canvas with built-in web scraping, PDF parsing, and GTM enrichment nodes.
-- Single credit meter and unlimited seats on the Pro tier ($37/month) simplify team collaboration compared to per-builder pricing.
+- Single credit pool and unlimited seats and teams on the Pro tier ($37/month) simplify team collaboration compared to per-builder pricing.
 - Sub-flows and parallel loop nodes make batch processing straightforward for non-developers.
 
 **Cons:**
 
-- Cloud-only SaaS with no open-source or self-hosted option for client infrastructure handoffs.
-- Still applies an 8% platform orchestration fee even when you bring your own LLM API keys.
+- No permanent free tier beyond the 14-day trial, and cloud-only SaaS with no open-source or self-hosted option for client infrastructure handoffs.
+- Applies an 8% platform orchestration fee on managed runs and a 16% orchestration fee on the equivalent task list cost when you bring your own model API keys.
 
 **Verdict:** Gumloop is one of the easiest visual AI workflow builders for GTM and SEO pipelines, provided you are comfortable with cloud-only hosting and node-based maintenance.
 
@@ -376,12 +378,12 @@ Two platforms with similar $20 to $37 starting prices can produce very different
 When modeling your total cost, check three variables before committing:
 
 1. **How internal steps are counted:** A single orchestrated task often runs 1 trigger, 3 tool calls, and 2 LLM calls. On **n8n Cloud**, that entire 6-step run counts as **1 workflow execution**. On **Agenta**, you see the exact token usage and tool steps in a single run trace and pay through your included credit pool ($29/mo Starter), your own BYOK API keys, or free self-hosting. On **Relevance AI**, every tool call and sub-agent step deducts from your **Actions** allowance ($80 per 1,000 top-up Actions) on top of model vendor credits.
-2. **BYOK fees and personal subscription options:** If you bring your own OpenAI or Anthropic API keys, **Agenta**, **n8n**, **Dify**, and **Langdock** pass requests to your provider keys without adding a platform percentage fee. **Gumloop** reduces credit burn on BYOK runs but still charges an 8% orchestration fee relative to provider token cost. For solo builders running **Agenta** locally on their own machine, you can also mount a personal harness login (`Codex` or `Claude Code`) to run personal tasks on your existing ChatGPT or Claude subscription.
+2. **BYOK fees and personal subscription options:** If you bring your own OpenAI or Anthropic API keys, **Agenta**, **n8n**, **Dify**, and **Langdock** pass requests to your provider keys without adding a platform percentage fee. **Gumloop** removes direct token credit charges on BYOK runs and applies a 16% orchestration fee on the equivalent provider list cost (compared to its 8% orchestration fee on managed runs). For solo builders running **Agenta** locally on their own machine, you can also mount a personal harness login (`Codex` or `Claude Code`) to run personal tasks on your existing ChatGPT or Claude subscription.
 3. **Team seats and agency client handoff:** **Agenta Starter** ($29/month), **Gumloop Pro** ($37/month), and **n8n Cloud Starter** (€20/month annual) all include **unlimited users**, so you can invite your whole startup team or client reviewers immediately. By contrast, per-seat platforms (**Dust** at €24/seat/month, **Langdock** at €25/user/month) scale linearly with headcount, and **Relevance AI** caps its Pro tier ($19/month annual) at 2 Build Users and 1 project before requiring a jump to the Team plan ($234/month annual).
 
 ## Which AI Agent Orchestration Platform Should You Choose?
 
-- **Choose [Agenta](https://agenta.ai)** if you want an open-source, low-code workspace where agents work like shared teammates: running on cron schedules and webhooks, collaborating in Slack threads, keeping instructions (`AGENTS.md`) and skills versioned, tracking per-run traces and costs, and supporting unlimited team members on a $29/month Starter plan or free MIT self-hosting.
+- **Choose [Agenta](https://agenta.ai)** if you want an open-source, low-code workspace where agents work like shared teammates: running on cron schedules and webhooks, collaborating in Slack threads or embedded web chat widgets, keeping instructions, skills, and shared agent files versioned and organized, tracking per-run traces and costs, and supporting unlimited team members on a $29/month Starter plan or free MIT self-hosting.
 - **Choose Gumloop** if your GTM or SEO team prefers a cloud drag-and-drop canvas with built-in web scrapers and batch loop nodes.
 - **Choose n8n** if you want deterministic node-based workflows with JavaScript/Python steps and flat per-execution cloud billing or fair-code self-hosting.
 - **Choose Relevance AI** if you are designing a visual multi-agent sales hierarchy on a cloud Workforce canvas and your budget accounts for Action metering and Team builder tiers.
@@ -416,7 +418,7 @@ Pricing follows three main models: per-run or credit-pool billing (such as Agent
 
 ### Can I use my own OpenAI or Anthropic API keys on an AI agent orchestration platform?
 
-Yes, most platforms support Bring Your Own Key (BYOK), though the fee rules differ. Agenta, n8n, Dify, and Langdock let you connect provider API keys without adding a platform percentage fee on token spend. Gumloop charges an 8% orchestration fee on BYOK token cost, and Relevance AI still deducts platform Actions for each tool or agent step when using BYOK.
+Yes, most platforms support Bring Your Own Key (BYOK), though the fee rules differ. Agenta, n8n, Dify, and Langdock let you connect provider API keys without adding a platform percentage fee on token spend. Gumloop removes direct token credit charges when you use your own model API keys and applies a 16% orchestration fee on the equivalent provider list cost (compared to its 8% orchestration fee on managed credits), and Relevance AI still deducts platform Actions for each tool or agent step when using BYOK.
 
 ### Can I run orchestrated AI agents with an existing ChatGPT subscription?
 
@@ -424,7 +426,7 @@ On local, self-hosted personal deployments of Agenta, you can mount a personal c
 
 ### Where should human-in-the-loop approvals happen in an orchestrated agent workflow?
 
-If your team or agency client already works in Slack, routing agent drafts, questions, and approval cards directly into shared Slack threads keeps review fast and visible. Platforms that rely only on a separate builder inbox often leave pending approvals unseen by non-technical stakeholders.
+If your team or agency client already works in Slack, routing agent drafts, questions, and approval cards directly into shared Slack threads keeps review fast and visible. You can also embed an Agenta coworker as a chat widget inside an internal tool, dashboard, or website so stakeholders can interact with it without logging into a separate builder console.
 
 ---
 
