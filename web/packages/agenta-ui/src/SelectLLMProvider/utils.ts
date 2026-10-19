@@ -111,6 +111,11 @@ export const optionMatchesSearch = (
     group: ProviderGroup,
     normalizedTerm: string,
 ): boolean =>
-    [option.label, option.value, option.searchCaption, group.label, group.caption].some((text) =>
-        text?.toLowerCase().includes(normalizedTerm),
-    )
+    [
+        option.label,
+        option.value,
+        option.caption,
+        option.searchCaption,
+        group.label,
+        group.caption,
+    ].some((text) => text?.toLowerCase().includes(normalizedTerm))

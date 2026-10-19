@@ -22,6 +22,11 @@ describe("optionMatchesSearch", () => {
         expect(optionMatchesSearch(option, {...group, caption: undefined}, "deployment")).toBe(true)
     })
 
+    it("matches an option's own caption", () => {
+        const current: ProviderOption = {label: "gpt-4o", value: "gpt-4o", caption: "Not connected"}
+        expect(optionMatchesSearch(current, {options: [current]}, "not connected")).toBe(true)
+    })
+
     it("rejects text the option does not show", () => {
         expect(optionMatchesSearch(option, group, "claude")).toBe(false)
     })
