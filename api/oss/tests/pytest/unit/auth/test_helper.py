@@ -290,3 +290,46 @@ async def test_passwordless_consume_code_does_not_check_turnstile(monkeypatch):
 
     verify_turnstile_or_raise.assert_not_awaited()
     original_consume_code_post.assert_awaited_once()
+
+
+@pytest.fixture
+def _blocked_domain_env(monkeypatch):
+    access = auth_helper.env.agenta.access
+    monkeypatch.setattr(access, "blocked_domains", {"blocked.example"})
+    monkeypatch.setattr(access, "blocked_emails", set())
+    monkeypatch.setattr(access, "allowed_domains", set())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "email",
+    ["user@blocked.example", "user@007.blocked.example", "User@A.B.Blocked.Example"],
+)
+async def test_signup_on_blocked_domain_or_subdomain_creates_no_account(
+    monkeypatch, _blocked_domain_env, email
+):
+    create_accounts = AsyncMock()
+    monkeypatch.setattr(overrides, "create_accounts", create_accounts)
+    monkeypatch.setattr(overrides, "get_user_with_email", AsyncMock(return_value=None))
+
+    with pytest.raises(UnauthorizedException, match="Access Denied."):
+        await overrides._create_account(email, "uid")
+
+    create_accounts.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "email", ["user@notblocked.example", "user@blocked.example.com"]
+)
+async def test_signup_on_lookalike_domain_is_not_blocked(
+    monkeypatch, _blocked_domain_env, email
+):
+    create_accounts = AsyncMock()
+    monkeypatch.setattr(overrides, "create_accounts", create_accounts)
+    monkeypatch.setattr(overrides, "get_user_with_email", AsyncMock(return_value=None))
+    monkeypatch.setattr(overrides, "_load_posthog", lambda: None)
+
+    assert await overrides._create_account(email, "uid") is True
+
+    create_accounts.assert_awaited_once()

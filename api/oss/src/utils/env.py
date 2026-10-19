@@ -173,6 +173,10 @@ class AccessConfig(BaseModel):
         "AGENTA_ACCESS_BLOCKED_EMAILS",
         "AGENTA_BLOCKED_EMAILS",
     )
+    # Unset means no limit. Counts the organizations a user owns now, so deleting one frees a slot.
+    max_owned_organizations: int | None = _parse_optional_positive_int_env(
+        "AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS"
+    )
 
     default_plan: str | None = (
         os.getenv("AGENTA_ACCESS_DEFAULT_PLAN")

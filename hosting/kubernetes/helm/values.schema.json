@@ -81,6 +81,13 @@
               "type": "string",
               "description": "Comma-separated. AGENTA_ACCESS_ALLOWED_OWNER_EMAILS."
             },
+            "maxOwnedOrganizations": {
+              "type": [
+                "integer",
+                "string"
+              ],
+              "description": "AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS \u2014 most organizations one user can own; unset means no limit."
+            },
             "emailDisabled": {
               "type": [
                 "boolean",
