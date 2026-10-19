@@ -8,9 +8,7 @@ description: "Build an agent that finds newly activated users in PostHog, resear
 import Image from "@theme/IdealImage";
 ```
 
-In this tutorial you build an agent for inbound outreach. When people from your ideal customer profile (ICP) sign up for your product and start using it, the agent finds them, researches them, and drafts a personal email for each one, for example to offer a demo. It posts the drafts in Slack, and nothing is sent until you approve it.
-
-You build the agent without code, by chatting with it. You also learn a method that works for any larger agent: split the problem into parts, solve each part on its own, and only then automate the whole thing.
+This agent handles inbound outreach. When people from your ideal customer profile (ICP) sign up for your product and start using it, the agent finds them, researches them, and drafts a personal email for each one, for example to offer a demo. It posts the drafts in Slack, and nothing is sent until you approve it.
 
 <iframe
   width="100%"
@@ -90,7 +88,7 @@ The agent sends its daily report to Slack, and you answer it there. Connect Slac
   loading="lazy"
 />
 
-This tutorial uses your own app. Agenta gives you a manifest for it: create a new Slack app from that manifest, install it in your workspace, and copy its credentials back into Agenta. Then invite the agent to a channel, for example `#outreach`. For each step, see [Connect Slack](/guides/connect-slack).
+To use your own app, start from the manifest Agenta gives you for it: create a new Slack app from that manifest, install it in your workspace, and copy its credentials back into Agenta. Then invite the agent to a channel, for example `#outreach`. For each step, see [Connect Slack](/guides/connect-slack).
 
 You can now message the agent from Slack, and the agent can message you there.
 
