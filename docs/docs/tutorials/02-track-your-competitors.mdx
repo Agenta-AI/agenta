@@ -111,6 +111,10 @@ To learn more, see [Write your agent's instructions](/guides/write-your-agents-i
 
 The agent also added a schedule. Open it under `Schedules`. Every Monday it sends the agent a message, *Prepare this week's concise competitor intelligence digest*, and the agent does the research.
 
+:::note
+Schedules run in UTC, so the agent converts the time you asked for. 10:00 in Berlin is 08:00 UTC in summer and 09:00 UTC in winter. The schedule does not change for daylight saving time.
+:::
+
 <Image
   style={{ display: "block", margin: "24px 0" }}
   img={require("/images/tutorials/competitor-tracker/06-schedule.png")}
@@ -136,6 +140,8 @@ Please send this digest by email each time after you write it.
 ```
 
 The agent asks for your email address, adds the Gmail tool it needs to send email, and updates its instructions: when the digest is complete, send it to your email.
+
+The permission policy is still `Allow all`, so the agent now sends email without asking you. To approve each email before it is sent, open the Gmail integration and set its permission to `Ask for write and delete`. A scheduled run then waits for your approval before it sends the digest. To learn more, see [Control what an agent can do](/guides/control-what-an-agent-can-do).
 
 ## Step 6: Test it without waiting for Monday
 

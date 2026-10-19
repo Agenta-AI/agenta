@@ -185,7 +185,7 @@ at 9:00 in Berlin time:
 2. Do the enrichment.
 3. Determine which users are in the ICP.
 4. Draft emails for them.
-5. Send me a Slack report about who these users are and what their emails are.
+5. Send me a Slack report about who these users are and the email drafts for them.
 6. If I give my okay, send them through Gmail.
 ```
 
@@ -196,7 +196,9 @@ at 9:00 in Berlin time:
   loading="lazy"
 />
 
-The agent creates the automation. To learn more, see [Create an automation](/guides/create-an-automation).
+The agent creates the automation. Schedules run in UTC, so the agent converts 9:00 in Berlin to a UTC time, and the run time shifts by one hour when daylight saving time starts or ends. To learn more, see [Create an automation](/guides/create-an-automation).
+
+Do Step 7 before the first morning run, so no email goes out without your approval.
 
 ## Step 7: Require your approval before sending
 
