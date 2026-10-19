@@ -118,7 +118,7 @@ export const sessionReferenceSchema = z.object({
     key: z.string().nullish().catch(undefined),
 })
 
-export const sessionOriginSchema = z.enum(["manual", "trigger"])
+export const sessionOriginSchema = z.enum(["manual", "trigger", "agent"])
 export const sessionTriggerKindSchema = z.enum(["schedule", "subscription"])
 export const sessionExpansionSchema = z.enum(["last_message", "trigger"])
 

@@ -49,6 +49,7 @@ class SessionReference(Reference):
 class SessionOrigin(str, Enum):
     manual = "manual"
     trigger = "trigger"
+    agent = "agent"
 
 
 class SessionTriggerKind(str, Enum):

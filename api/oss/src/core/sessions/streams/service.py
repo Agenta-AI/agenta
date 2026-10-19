@@ -74,7 +74,7 @@ from oss.src.core.sessions.streams.types import (
 )
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.runner_client import kill_runner_sandbox
-from oss.src.core.sessions.types import SessionReference
+from oss.src.core.sessions.types import SessionOrigin, SessionReference
 from oss.src.core.shared.dtos import Windowing
 
 log = get_module_logger(__name__)
@@ -784,6 +784,9 @@ class SessionStreamsService:
                         turn_id=durable_turn_id,
                         name=proposed_name,
                         references=proposed_references,
+                        origin=(
+                            SessionOrigin.agent if request.run_kind == "test" else None
+                        ),
                     ),
                 )
                 created = True

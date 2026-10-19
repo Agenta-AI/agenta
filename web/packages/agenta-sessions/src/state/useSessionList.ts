@@ -12,7 +12,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {keepPreviousData, useInfiniteQuery, useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 
-import {type SessionStatusFilter} from "./filters"
+import {sessionShowAgentCreatedAtom, type SessionStatusFilter} from "./filters"
 import {
     sessionListIdGroupLimit,
     sessionListRequestFilters,
@@ -157,6 +157,7 @@ export const useSessionList = ({
     enabled = true,
 }: SessionListOptions) => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
+    const showAgentCreated = useAtomValue(sessionShowAgentCreatedAtom)
 
     // "Waiting" narrows to the gated ids; combined with an explicit set, the server intersects.
     const idWindow = sessionListIdWindow({sessionIds, waitingSessionIds, status, limit})
@@ -171,7 +172,7 @@ export const useSessionList = ({
         includeArchived,
         archivedOnly,
         activityFloor,
-        ...sessionListRequestFilters({origin: originPolicy, expansions}),
+        ...sessionListRequestFilters({origin: originPolicy, expansions}, showAgentCreated),
         flags: STATUS_FLAGS[status],
         sessionIds: idWindow.sessionIds,
         excludeSessionIds,

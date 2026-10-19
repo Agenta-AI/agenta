@@ -64,8 +64,18 @@ export const SessionFilterMenu = ({
      */
     onReset: () => void
 }) => {
-    const {agentId, status, mode, archivedOnly, setAgentId, setStatus, setMode, setArchivedOnly} =
-        useSessionFilters()
+    const {
+        agentId,
+        status,
+        mode,
+        archivedOnly,
+        showAgentCreated,
+        setAgentId,
+        setStatus,
+        setMode,
+        setArchivedOnly,
+        setShowAgentCreated,
+    } = useSessionFilters()
 
     const sections = useMemo<FilterMenuItem[]>(() => {
         return [
@@ -151,6 +161,14 @@ export const SessionFilterMenu = ({
             },
             {
                 kind: "toggle",
+                key: "agent-created",
+                label: "Show agent-created sessions",
+                icon: <Robot size={ICON} />,
+                checked: showAgentCreated,
+                onChange: setShowAgentCreated,
+            },
+            {
+                kind: "toggle",
                 key: "archived",
                 label: "Only archived",
                 icon: <Archive size={ICON} />,
@@ -181,6 +199,8 @@ export const SessionFilterMenu = ({
         setAgentId,
         setArchivedOnly,
         setMode,
+        setShowAgentCreated,
+        showAgentCreated,
         setStatus,
         status,
         view,
@@ -193,6 +213,7 @@ export const SessionFilterMenu = ({
         Boolean(agentId) ||
         status !== "all" ||
         mode ||
+        showAgentCreated ||
         archivedOnly ||
         !isDefaultSessionListView(view)
 

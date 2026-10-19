@@ -57,6 +57,7 @@ class _FakeStreamsDAO:
             project_id=project_id,
             session_id=stream.session_id,
             name=stream.name,
+            origin=stream.origin,
             flags=stream.flags,
             turn_id=stream.turn_id,
         )
@@ -70,6 +71,7 @@ class _FakeStreamsDAO:
             project_id=project_id,
             session_id=session_id,
             name=prior.name if prior else None,
+            origin=prior.origin if prior else None,
             flags=stream.flags if stream.flags is not None else prior.flags,
             turn_id=stream.turn_id if stream.turn_id is not None else prior.turn_id,
         )
@@ -138,6 +140,34 @@ async def test_turn_end_heartbeat_clears_running_on_the_row(lock_engine):
     # `running` collapses — the phantom-running badge is what this guards.
     assert result.stream.flags.is_running is False
     assert result.stream.flags.is_alive is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "run_kind, origin", [("test", "agent"), (None, None), ("eval", None)]
+)
+async def test_first_beat_attributes_only_agent_test_sessions(
+    lock_engine, run_kind, origin
+):
+    dao = _FakeStreamsDAO()
+    svc = SessionStreamsService(streams_dao=dao, lock_engine=lock_engine)
+    beat = _beat("turn-1").model_copy(update={"run_kind": run_kind})
+    first = await svc.heartbeat(project_id=_PROJECT, request=beat)
+    assert first.stream.origin == origin
+    last = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1", is_running=False)
+    )
+    assert last.stream.origin == origin
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("origin", ["manual", "trigger", "agent"])
+async def test_test_beat_preserves_existing_session_origin(lock_engine, origin):
+    dao = _FakeStreamsDAO(_named_row().model_copy(update={"origin": origin}))
+    svc = SessionStreamsService(streams_dao=dao, lock_engine=lock_engine)
+    beat = _beat("turn-1").model_copy(update={"run_kind": "test"})
+    result = await svc.heartbeat(project_id=_PROJECT, request=beat)
+    assert result.stream.origin == origin
 
 
 @pytest.mark.asyncio
