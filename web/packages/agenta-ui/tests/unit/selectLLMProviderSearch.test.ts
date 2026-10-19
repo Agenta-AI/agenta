@@ -6,9 +6,9 @@ import {optionMatchesSearch} from "../../src/SelectLLMProvider/utils"
 const option: ProviderOption = {
     label: "gpt-5.6-sol",
     value: "openai/gpt-5.6-sol",
-    searchCaption: "ChatGPT (deployment login)",
+    searchCaption: "ChatGPT (set up on the server)",
 }
-const group: ProviderGroup = {label: "ChatGPT", caption: "Deployment login", options: [option]}
+const group: ProviderGroup = {label: "ChatGPT", caption: "Set up on the server", options: [option]}
 
 describe("optionMatchesSearch", () => {
     it("matches the model by its label, value, and group name", () => {
@@ -18,8 +18,8 @@ describe("optionMatchesSearch", () => {
     })
 
     it("keeps a mounted subscription findable by where its login comes from", () => {
-        expect(optionMatchesSearch(option, group, "deployment login")).toBe(true)
-        expect(optionMatchesSearch(option, {...group, caption: undefined}, "deployment")).toBe(true)
+        expect(optionMatchesSearch(option, group, "set up on the server")).toBe(true)
+        expect(optionMatchesSearch(option, {...group, caption: undefined}, "server")).toBe(true)
     })
 
     it("matches an option's own caption", () => {

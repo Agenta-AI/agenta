@@ -39,7 +39,7 @@ export interface ProviderGroup {
     key?: string
     /** Provider family the group's logo is looked up by, when the label is not one. */
     iconKey?: string
-    /** Muted second line under the group name, after `tag` (e.g. "Deployment login"). */
+    /** Muted second line under the group name, after `tag` (e.g. "Set up on the server"). */
     caption?: string
     /** Tag on line two, before `caption` (the agent picker marks a subscription here). */
     tag?: string

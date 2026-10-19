@@ -618,14 +618,15 @@ describe("buildConnectionPickerRows", () => {
                 {
                     key: "anthropic:claude",
                     provider: "anthropic",
-                    name: "Claude (deployment login)",
+                    name: "Claude",
                     harness: "claude",
                 },
             ],
         })
 
-        // The plan's consumer name, with where the login comes from as its own line.
-        expect(rows.map((row) => [row.name, row.source])).toEqual([["Claude", "Deployment login"]])
+        // The plan's consumer name. Nothing else in the picker carries the plan, so no source line.
+        expect(rows.map((row) => [row.name, row.source])).toEqual([["Claude", undefined]])
+        expect(rows[0].models.every((model) => model.connectionName === "Claude")).toBe(true)
         const subscription = rows[0]
         expect(subscription.kind).toBe("subscription")
         expect(subscription.iconKey).toBe("anthropic")
@@ -653,13 +654,13 @@ describe("buildConnectionPickerRows", () => {
                 {
                     key: "anthropic:claude",
                     provider: "anthropic",
-                    name: "Claude (deployment login)",
+                    name: "Claude",
                     harness: "claude",
                 },
                 {
                     key: "openai:codex",
                     provider: "openai",
-                    name: "ChatGPT (deployment login)",
+                    name: "ChatGPT",
                     harness: "codex",
                 },
             ],
@@ -686,7 +687,7 @@ describe("buildConnectionPickerRows", () => {
                 {
                     key: "anthropic:claude",
                     provider: "anthropic",
-                    name: "Claude (deployment login)",
+                    name: "Claude",
                     harness: "claude",
                 },
             ],
@@ -743,7 +744,7 @@ describe("buildConnectionPickerRows", () => {
                 {
                     key: "anthropic:claude",
                     provider: "anthropic",
-                    name: "Claude (deployment login)",
+                    name: "Claude",
                     harness: "claude",
                 },
             ],
@@ -757,6 +758,102 @@ describe("buildConnectionPickerRows", () => {
         expect(subscription.models.find((model) => model.modelId === "claude-fable-5")!.mode).toBe(
             "self_managed",
         )
+    })
+})
+
+describe("a mounted subscription beside a hosted one of the same plan", () => {
+    // A hosted Claude subscription (a pasted setup-token) runs only on Claude Code. Its candidates
+    // are built here by hand, so the test does not depend on which run providers the entity layer
+    // maps for it.
+    const hostedClaude = (loginState: string): ProviderConnection => ({
+        id: "claude-1",
+        slug: "claude",
+        name: "Claude",
+        kind: "anthropic",
+        title: "Claude",
+        secretKind: "subscription_provider" as SecretKind,
+        models: ["sonnet"],
+        harnesses: ["claude"],
+        hasStoredCredential: true,
+        subscription: {provider: "claude", loginState},
+        source: {name: "Claude", provider: "claude"} as ProviderConnection["source"],
+    })
+    const mountedClaude: SubscriptionPair = {
+        key: "anthropic:claude",
+        provider: "anthropic",
+        name: "Claude (set up on the server)",
+        harness: "claude",
+    }
+    const mountedCandidates = buildAgentModelCandidates({
+        connections: [],
+        capabilities: CAPABILITIES,
+        harnessIds: HARNESS_IDS,
+        subscriptionPairs: [mountedClaude],
+    })
+    const hostedCandidate = {
+        modelId: "sonnet",
+        provider: "anthropic",
+        mode: "self_managed" as const,
+        slug: "claude",
+        harness: "claude",
+        source: "subscription" as const,
+        connectionKey: "claude-1",
+        managed: false,
+    }
+
+    it("says where the mounted row comes from, and leaves the hosted row plain", () => {
+        const connection = hostedClaude("ready")
+        const rows = presentConnectionPickerRows({
+            candidates: [hostedCandidate, ...mountedCandidates],
+            connections: [connection],
+            capabilities: CAPABILITIES,
+        })
+
+        expect(rows.map((row) => [row.key, row.name, row.source])).toEqual([
+            ["claude-1", "Claude", undefined],
+            ["subscription:anthropic", "Claude", "Set up on the server"],
+        ])
+        const mounted = rows.find((row) => row.key === "subscription:anthropic")!
+        expect(
+            mounted.models.every(
+                (model) => model.connectionName === "Claude (set up on the server)",
+            ),
+        ).toBe(true)
+        expect(rows[0].models[0].connectionName).toBe("Claude")
+    })
+
+    it("counts a hosted row that still needs a sign-in, because it is in the picker too", () => {
+        const rows = presentConnectionPickerRows({
+            candidates: mountedCandidates,
+            connections: [hostedClaude("needs_login")],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+
+        expect(rows.map((row) => [row.key, row.source, row.disabled])).toEqual([
+            ["subscription:anthropic", "Set up on the server", undefined],
+            ["claude-1", undefined, true],
+        ])
+    })
+
+    it("stays plain when the hosted subscription is for another plan", () => {
+        const chatgpt: ProviderConnection = {
+            ...hostedClaude("needs_login"),
+            id: "chatgpt-1",
+            kind: "openai",
+            harnesses: ["pi_core"],
+            subscription: {provider: "chatgpt", loginState: "needs_login"},
+        }
+        const rows = presentConnectionPickerRows({
+            candidates: mountedCandidates,
+            connections: [chatgpt],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+
+        const mounted = rows.find((row) => row.key === "subscription:anthropic")!
+        expect(mounted.source).toBeUndefined()
+        expect(mounted.models.every((model) => model.connectionName === "Claude")).toBe(true)
     })
 })
 
@@ -794,7 +891,7 @@ describe("selectedModelRowKey", () => {
                 {
                     key: "anthropic:claude",
                     provider: "anthropic",
-                    name: "Claude (deployment login)",
+                    name: "Claude",
                     harness: "claude",
                 },
             ],
@@ -846,7 +943,7 @@ describe("selectedModelRowKey", () => {
             }),
         )!
         expect(marked.model.mode).toBe("self_managed")
-        expect(marked.model.connectionName).toBe("Claude (deployment login)")
+        expect(marked.model.connectionName).toBe("Claude")
     })
 
     it("marks nothing when no model is stored", () => {

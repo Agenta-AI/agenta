@@ -12,6 +12,8 @@
 import {
     buildAgentModelCandidates,
     subscriptionPairsFrom,
+    type ProviderConnection,
+    type SecretKind,
     type SubscriptionPair,
 } from "@agenta/entities/secret"
 import {describe, expect, it} from "vitest"
@@ -133,14 +135,53 @@ describe("subscription rows from the runner's live pairs", () => {
         expect(rowsFor(pairs).map((row) => row.name)).toEqual(["Claude", "ChatGPT"])
     })
 
-    it("names the plan on line one and the deployment login on line two", () => {
+    it("names a lone mounted plan by the plan alone, with no source line", () => {
         const rows = rowsFor(subscriptionPairsFrom({codex: {state: "ready"}}))
         const [group] = buildPickerGroupsWithSections(rows)
 
         expect(group).toMatchObject({label: "ChatGPT", tag: "Subscription"})
-        expect(group.caption).toBe("Deployment login")
+        expect(group.caption).toBeUndefined()
+        expect(group.options[0]?.searchCaption).toBe("ChatGPT")
+    })
+
+    it("says where the mounted row comes from when a hosted row has the same plan", () => {
+        // A hosted ChatGPT sign-in and a ChatGPT login set up on the server: two Subscription rows
+        // of one plan, told apart only by the mounted row's second line.
+        const hosted: ProviderConnection = {
+            id: "sub-1",
+            slug: "chatgpt",
+            name: "ChatGPT",
+            kind: "openai",
+            title: "ChatGPT",
+            secretKind: "subscription_provider" as SecretKind,
+            models: ["gpt-5.6-sol"],
+            harnesses: ["pi_core"],
+            hasStoredCredential: true,
+            subscription: {provider: "chatgpt", loginState: "ready"},
+            source: {name: "ChatGPT", provider: "chatgpt"} as ProviderConnection["source"],
+        }
+        const connections = [hosted]
+        const rows = buildConnectionPickerRows({
+            candidates: buildAgentModelCandidates({
+                connections,
+                capabilities: CAPABILITIES,
+                harnessIds: HARNESS_IDS,
+                subscriptionPairs: subscriptionPairsFrom({codex: {state: "ready"}}) ?? [],
+            }),
+            connections,
+            capabilities: CAPABILITIES,
+        })
+        const groups = buildPickerGroupsWithSections(rows)
+
+        expect(groups.map((group) => [group.key, group.label, group.caption])).toEqual([
+            ["sub-1", "ChatGPT", undefined],
+            ["subscription:openai", "ChatGPT", "Set up on the server"],
+        ])
+        const mounted = groups.find((group) => group.key === "subscription:openai")!
         // Flat search has no second line, so its caption keeps the full name.
-        expect(group.options[0]?.searchCaption).toBe("ChatGPT (deployment login)")
+        expect(mounted.options[0]?.searchCaption).toBe("ChatGPT (set up on the server)")
+        const hostedGroup = groups.find((group) => group.key === "sub-1")!
+        expect(hostedGroup.options[0]?.searchCaption).toBe("ChatGPT")
     })
 
     it("offers only what the runner reports ready", () => {
