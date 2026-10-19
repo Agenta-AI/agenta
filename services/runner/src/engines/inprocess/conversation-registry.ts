@@ -155,12 +155,13 @@ export class ConversationRegistry {
   }
 
   /**
-   * Conversations no environment holds, no work uses and no retired sandbox still settles, least
-   * recently used first.
+   * Conversations no environment holds and no work uses, least recently used first. A conversation
+   * whose retired sandbox still settles, or whose transcript save is still queued, stays: a
+   * replacement would not wait for them, so a late write could overwrite a newer one.
    */
   private parked(): ConversationWorkspace[] {
     return [...this.entries.values()]
-      .filter((w) => w.sandbox.holders === 0 && !w.sandbox.inUse && !w.sandbox.settling)
+      .filter((w) => w.sandbox.holders === 0 && !w.sandbox.inUse && !w.sandbox.settling && !w.transcripts.busy)
       .sort((a, b) => a.sandbox.lastUsedAt - b.sandbox.lastUsedAt);
   }
 

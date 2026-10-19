@@ -57,6 +57,8 @@ export class TranscriptStore {
   private readonly steps = new SerialQueue();
   /** What was saved last, per file: size and modification time. */
   private readonly saved = new Map<string, string>();
+  /** Restores and saves queued and not ended yet. */
+  private queued = 0;
 
   constructor(
     /** The runner-local folder Pi reads and writes. */
@@ -72,7 +74,7 @@ export class TranscriptStore {
    * resuming from it would disagree with every other runner.
    */
   restore(): Promise<void> {
-    return this.steps.run(async () => {
+    return this.counted(async () => {
       await mkdir(this.dir, { recursive: true });
       const remote = (await this.store.list("")).filter((o) => isTranscript(o.rel));
       const savedLast = async (name: string) => {
@@ -98,7 +100,7 @@ export class TranscriptStore {
 
   /** Put every file that changed since it was last saved. */
   save(): Promise<void> {
-    return this.steps.run(async () => {
+    return this.counted(async () => {
       for (const name of (await readdir(this.dir).catch(() => [] as string[])).filter(isTranscript)) {
         const st = await stat(join(this.dir, name)).catch(() => undefined);
         if (!st) continue;
@@ -107,6 +109,21 @@ export class TranscriptStore {
         await this.store.put(name, await readFile(join(this.dir, name)));
         this.saved.set(name, stamp);
       }
+    });
+  }
+
+  /**
+   * A restore or save is queued or running. A save that outlived its turn's timeout is one: a
+   * replacement instance must not restore before it ends, or its put could overwrite a newer save.
+   */
+  get busy(): boolean {
+    return this.queued > 0;
+  }
+
+  private counted(task: () => Promise<void>): Promise<void> {
+    this.queued += 1;
+    return this.steps.run(task).finally(() => {
+      this.queued -= 1;
     });
   }
 

@@ -229,6 +229,29 @@ describe("eviction under heap pressure", () => {
     expect(registry.hold(testConversation("idle"))).not.toBe(idle);
   });
 
+  it("keeps a parked conversation whose transcript save has not ended", async () => {
+    let unblock!: () => void;
+    const blocked = new Promise<void>((resolve) => (unblock = resolve));
+    const prefixes = new Map<string, Map<string, Buffer>>();
+    const { started, beforePut } = blockFirstPut(blocked);
+    const { registry } = registryFor({ objects: memoryObjects(prefixes, { beforePut }) });
+    const saving = registry.hold(testConversation("saving", join(mkdtempSync(join(tmpdir(), "registry-cwd-")), "session")));
+    mkdirSync(saving.transcripts.dir, { recursive: true });
+    writeFileSync(join(saving.transcripts.dir, "a.jsonl"), "{}\n");
+    const save = saving.transcripts.save();
+    await started;
+    registry.release(saving, "park");
+    const idle = registry.hold(testConversation("idle"));
+    registry.release(idle, "park");
+
+    expect(registry.evictParkedConversations()).toBe(1);
+    expect(registry.hold(testConversation("idle"))).not.toBe(idle);
+    unblock();
+    await save;
+    expect(saving.transcripts.busy).toBe(false);
+    expect(registry.hold(testConversation("saving"))).toBe(saving);
+  });
+
   it("evicts nothing when no conversation is parked", () => {
     const { registry } = registryFor();
     registry.hold(testConversation("held"));
