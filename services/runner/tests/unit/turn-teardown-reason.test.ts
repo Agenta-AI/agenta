@@ -1,9 +1,14 @@
 /**
- * The teardown reason a one-turn environment gets once its turn ends. Both one-turn paths share
- * `turnTeardownReason`: `runSandboxAgent` (the cold engine entry) and the keep-alive engine's
- * `runCold` in `server.ts`. The reason decides park or delete (`teardown.ts`), so a turn another
- * runner already wrote must tear down as `continuity-invalid` (parks), never `failed-turn`
- * (deletes).
+ * The teardown reason a one-turn environment gets once its turn ends. The reason decides park or
+ * delete (`teardown.ts`).
+ *
+ * `runSandboxAgent` (the cold engine entry) uses `turnTeardownReason`, so a turn another runner
+ * already wrote tears down as `continuity-invalid` (parks), never `failed-turn` (deletes).
+ *
+ * The keep-alive engine's `runCold` in `server.ts` uses `unpooledTeardownReason` instead, and
+ * every one of its endings deletes. The coordinator sends a run there only when it cannot pool
+ * it, and a stopped sandbox with no pool entry leaked itself and its Daytona Secrets: observed
+ * on 2026-10-19 for a Daytona `/run` with a `sessionId` and no `runContext.project.id`.
  *
  * `runCold` is driven through `makeKeepaliveEngine` with `acquireEnvironment` and `runTurn`
  * replaced, so the test reads the exact reason passed to `destroy`.
@@ -19,7 +24,11 @@ import {
   TURN_INDEX_TAKEN_CODE,
   TURN_INDEX_TAKEN_MESSAGE,
 } from "../../src/engines/sandbox_agent/errors.ts";
-import { turnTeardownReason } from "../../src/engines/sandbox_agent/engine.ts";
+import {
+  turnTeardownReason,
+  unpooledTeardownReason,
+} from "../../src/engines/sandbox_agent/engine.ts";
+import { teardownDisposition } from "../../src/engines/sandbox_agent/teardown.ts";
 import { makeKeepaliveEngine } from "../../src/server.ts";
 
 const mocks = vi.hoisted(() => ({
@@ -102,6 +111,25 @@ describe("turnTeardownReason", () => {
   });
 });
 
+describe("unpooledTeardownReason", () => {
+  it("never names a reason that parks", () => {
+    const endings: Array<[AgentRunResult | undefined, AbortSignal | undefined, (() => boolean) | undefined]> = [
+      [COMPLETED, undefined, undefined],
+      [{ ...COMPLETED, stopReason: "cancelled", cancelSettled: true }, undefined, undefined],
+      [{ ...COMPLETED, stopReason: "paused" }, undefined, undefined],
+      [TURN_INDEX_TAKEN, undefined, undefined],
+      [FAILED, undefined, undefined],
+      [undefined, undefined, undefined],
+      [COMPLETED, abortedSignal(), undefined],
+      [COMPLETED, undefined, () => true],
+    ];
+    for (const [result, signal, clientGone] of endings) {
+      const reason = unpooledTeardownReason(result, signal, clientGone);
+      assert.equal(teardownDisposition(reason), "delete", reason);
+    }
+  });
+});
+
 describe("keep-alive engine runCold teardown", () => {
   let destroyed: TeardownReason[];
 
@@ -135,9 +163,9 @@ describe("keep-alive engine runCold teardown", () => {
     reason: TeardownReason;
   }> = [
     {
-      name: "a turn another runner already wrote parks as continuity-invalid",
+      name: "a turn another runner already wrote deletes as failed-turn",
       turn: async () => TURN_INDEX_TAKEN,
-      reason: "continuity-invalid",
+      reason: "failed-turn",
     },
     {
       name: "an ordinary failed turn deletes as failed-turn",
@@ -145,9 +173,9 @@ describe("keep-alive engine runCold teardown", () => {
       reason: "failed-turn",
     },
     {
-      name: "a completed turn parks as clean-resumable",
+      name: "a completed turn deletes as unpooled, even in a resumable environment",
       turn: async () => COMPLETED,
-      reason: "clean-resumable",
+      reason: "unpooled",
     },
     {
       name: "an aborted signal deletes as aborted",
@@ -166,8 +194,22 @@ describe("keep-alive engine runCold teardown", () => {
 
       assert.deepEqual(result, expected);
       assert.deepEqual(destroyed, [reason]);
+      assert.equal(teardownDisposition(reason), "delete");
     });
   }
+
+  it("a client that left mid-turn deletes as aborted", async () => {
+    mocks.runTurn.mockResolvedValue(COMPLETED);
+
+    await makeKeepaliveEngine(() => ({})).runCold(
+      REQUEST,
+      undefined,
+      undefined,
+      undefined,
+      () => true,
+    );
+    assert.deepEqual(destroyed, ["aborted"]);
+  });
 
   it("a runTurn that threw deletes as failed-turn", async () => {
     mocks.runTurn.mockRejectedValue(new Error("harness crashed"));
