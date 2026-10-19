@@ -7,7 +7,11 @@
  * proposes a name on the heartbeat; the server fills it only while the stored name is NULL, and
  * a rename or the browser's own auto-title always wins by overwriting.
  */
-import { type AgentRunRequest, messageText } from "../protocol.ts";
+import {
+  type AgentRunRequest,
+  type ChatMessage,
+  messageText,
+} from "../protocol.ts";
 
 /** Mirrors the browser auto-title's `AUTO_TITLE_MAX_CHARS` so both writers produce one string. */
 const NAME_MAX_CODE_POINTS = 60;
@@ -25,6 +29,17 @@ const withoutDriveFileNotes = (text: string): string =>
     .join("\n");
 
 /**
+ * The words the person wrote. A channel turn (Slack, Telegram, the embed) adds a "From ..."
+ * attribution line and host context to `content` for the model, and keeps the person's own words in
+ * `display_content`, which is also what the chat shows. A null `display_content` hides the
+ * message in chat but says nothing about its words, so the name falls back to `content`.
+ */
+const personText = (message: ChatMessage): string =>
+  typeof message.display_content === "string"
+    ? message.display_content
+    : messageText(message.content);
+
+/**
  * The first user message's text, trimmed and capped. Undefined when the request carries no
  * readable user text at all (an attachment- or image-only turn, or a resume whose tail is a
  * tool envelope) — a session is better untitled than titled with an empty string.
@@ -34,7 +49,7 @@ export function proposeSessionName(
 ): string | undefined {
   for (const message of request.messages ?? []) {
     if (message?.role !== "user") continue;
-    const text = withoutDriveFileNotes(messageText(message.content)).trim();
+    const text = withoutDriveFileNotes(personText(message)).trim();
     if (!text) continue;
     // Cut on code points, not UTF-16 units, so an emoji straddling the cap isn't halved.
     return Array.from(text).slice(0, NAME_MAX_CODE_POINTS).join("");
