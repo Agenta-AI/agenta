@@ -70,15 +70,14 @@ export const PasswordlessRequestForm = ({
     }
 
     // Once per mount: a StrictMode remount or a token refresh must not send a second code.
+    // `send` is a new function each render, so the effect re-runs often; the ref makes it a no-op.
     const autoSentRef = useRef(false)
-    const sendRef = useRef(send)
-    sendRef.current = send
     const securityReady = !security || security.hasToken
     useEffect(() => {
         if (!autoSend || !securityReady || autoSentRef.current) return
         autoSentRef.current = true
-        void sendRef.current()
-    }, [autoSend, securityReady])
+        void send()
+    }, [autoSend, securityReady, send])
 
     return (
         <form className="flex w-full flex-col gap-[10px]" onSubmit={submit} noValidate>
