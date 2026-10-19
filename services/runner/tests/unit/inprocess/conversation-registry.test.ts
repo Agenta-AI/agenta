@@ -118,6 +118,36 @@ describe("a parked conversation", () => {
   });
 });
 
+describe("a conversation parked twice", () => {
+  it("keeps the signer for a save the second hold queued, when both holds share one signer", async () => {
+    let unblock!: () => void;
+    const blocked = new Promise<void>((resolve) => (unblock = resolve));
+    let puts = 0;
+    const prefixes = new Map<string, Map<string, Buffer>>();
+    const objects = memoryObjects(prefixes, { beforePut: async () => (puts++ === 0 ? blocked : undefined) });
+    const { registry } = registryFor({ objects });
+    const spec = testConversation("c", join(mkdtempSync(join(tmpdir(), "registry-cwd-")), "session"));
+    const workspace = registry.hold(spec);
+    mkdirSync(workspace.transcripts.dir, { recursive: true });
+    writeFileSync(join(workspace.transcripts.dir, "a.jsonl"), "{}\n");
+
+    // The first park's barrier waits behind a blocked save.
+    const first = workspace.transcripts.save();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    registry.release(workspace, "park");
+    // Held again with the same signer, a save queued behind the first barrier, parked again.
+    expect(registry.hold(spec)).toBe(workspace);
+    writeFileSync(join(workspace.transcripts.dir, "b.jsonl"), "{}\n");
+    const second = workspace.transcripts.save();
+    registry.release(workspace, "park");
+    unblock();
+    await Promise.all([first, second]);
+    expect([...prefixes.get(TEST_TRANSCRIPT_CREDENTIALS.prefix)!.keys()].sort()).toEqual(["a.jsonl", "b.jsonl"]);
+    await workspace.transcripts.settled();
+    expect(await workspace.signTranscriptMount()).toBeNull();
+  });
+});
+
 describe("eviction under heap pressure", () => {
   it("evicts the least recently used half of the parked conversations, never a held one", async () => {
     const { registry, logs } = registryFor();
