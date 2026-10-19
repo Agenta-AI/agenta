@@ -113,6 +113,7 @@ export {
     connectedRowSubtitle,
     connectionModelCount,
     mountedSubscriptionName,
+    MOUNTED_SUBSCRIPTION_SOURCE,
     subscriptionAttemptErrorSentence,
     subscriptionAvailability,
     subscriptionConnectionCandidates,

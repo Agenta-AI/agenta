@@ -65,6 +65,9 @@ const PROVIDER_BY_HARNESS: Record<string, string> = {
 export const subscriptionPlanName = (provider: string): string =>
     PLAN_NAME_BY_PROVIDER[provider] ?? provider
 
+/** Where a mounted subscription comes from; a compact row shows it under the plan name. */
+export const MOUNTED_SUBSCRIPTION_SOURCE = "Deployment login"
+
 /**
  * What a MOUNTED subscription calls itself, once a hosted one can carry the same plan.
  *
@@ -75,7 +78,7 @@ export const subscriptionPlanName = (provider: string): string =>
  * where it comes from, and the hosted one keeps the plain product name it was signed in under.
  */
 export const mountedSubscriptionName = (provider: string): string =>
-    `${subscriptionPlanName(provider)} (deployment login)`
+    `${subscriptionPlanName(provider)} (${MOUNTED_SUBSCRIPTION_SOURCE.toLowerCase()})`
 
 /**
  * Every usable subscription × harness pair the runner reported, in harness-id order.

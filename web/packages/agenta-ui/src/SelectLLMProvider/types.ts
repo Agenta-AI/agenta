@@ -39,9 +39,9 @@ export interface ProviderGroup {
     key?: string
     /** Provider family the group's logo is looked up by, when the label is not one. */
     iconKey?: string
-    /** Muted second line under the group name (e.g. "Connected" on a stored connection). */
+    /** Muted second line under the group name, after `tag` (e.g. "Deployment login"). */
     caption?: string
-    /** Neutral tag after the group name (the agent picker marks a subscription here). */
+    /** Tag on line two, before `caption` (the agent picker marks a subscription here). */
     tag?: string
     /** The tag's colour. Defaults to the neutral fill; a subscription takes the olive one. */
     tagTone?: "neutral" | "olive"
