@@ -472,7 +472,7 @@ def test_the_drive_file_note_never_becomes_the_title():
 
 def test_the_title_uses_the_persons_words_over_the_model_content():
     # A channel turn adds a "From ..." line for the model and keeps the person's
-    # words in display_content. The title is the person's words.
+    # words in display_content.
     chat_message = {
         "role": "user",
         "content": [
@@ -492,6 +492,5 @@ def test_the_title_uses_the_persons_words_over_the_model_content():
         "metadata": {"display_content": "/summarize"},
     }
     assert derive_session_name({"messages": [ui_message]}) == "/summarize"
-    # A null display_content falls back to the content.
     hidden = {"role": "user", "content": "hidden prompt", "display_content": None}
     assert derive_session_name({"messages": [hidden]}) == "hidden prompt"
