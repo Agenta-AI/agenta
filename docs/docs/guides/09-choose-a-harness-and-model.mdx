@@ -27,7 +27,7 @@ The header carries a badge when something needs your attention:
 
 These are one choice, not two. Click the combobox, which reads `Select a model…` until a model is set.
 
-The picker has two columns. The left lists your connections, one row each, with a `Subscription` tag on any subscription mounted into your deployment. Click a connection and its models fill the right column, grouped under a heading per harness.
+The picker has two columns. The left lists your connections, one row each, with a `Subscription` tag on each subscription connection. Click a connection and its models fill the right column, grouped under a heading per harness.
 
 Click a model row. That one click sets the model, its provider, the connection it runs through, and the harness. There is no separate harness control.
 
@@ -39,7 +39,7 @@ A model reachable through two harnesses appears under both headings, so pick the
 
 The picker's footer row, `Manage model providers`, opens the `Model providers` drawer. When no provider is connected yet the `Model` section shows a `Set up model providers` button instead of the combobox, which opens the same drawer.
 
-In the drawer, pick a provider under `Add a provider`, fill in its credential, and click `Done`. `Name` is optional; leave it blank to take the generated one. `Test` checks the credential first, but `Done` does not require it. Connections you already have sit under `Connected`, and mounted subscriptions under `Subscriptions`.
+In the drawer, pick a provider under `Add a provider`, fill in its credential, and click `Done`. `Name` is optional; leave it blank to take the generated one. `Test` checks the credential first, but `Done` does not require it. Connections you already have sit under `Connected`, and subscriptions under `Subscriptions`.
 
 To manage connections for the whole project instead of from one agent, go to `Sidebar > Settings > AI providers` and click `Add provider`. The table lists each connection's provider, name, credential, active models, and creation date.
 
@@ -50,4 +50,4 @@ To manage connections for the whole project instead of from one agent, go to `Si
   loading="lazy"
 />
 
-To run an agent against a Claude or ChatGPT subscription rather than a metered API key, see [Use your own Claude or ChatGPT subscription](/guides/use-your-own-subscription).
+To run an agent on a Claude Pro or Max plan rather than a metered API key, see [Connect a Claude subscription](/guides/connect-a-claude-subscription). To use a login mounted into a self-hosted runner, see [Use your own Claude or ChatGPT subscription](/guides/use-your-own-subscription).

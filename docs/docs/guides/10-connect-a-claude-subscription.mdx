@@ -1,0 +1,81 @@
+---
+title: "Connect a Claude subscription"
+sidebar_label: "Connect a Claude subscription"
+description: "Run agents on your Claude Pro or Max plan instead of an API key, on Agenta Cloud or a self-hosted deployment."
+---
+
+Connect your Claude Pro or Max plan to a project, and agents that use the `Claude Code` harness run on that plan instead of an Anthropic API key. You create a token with Claude Code on your own computer and paste it into Agenta. This works on Agenta Cloud and on self-hosted deployments.
+
+The connection belongs to the project. Every member of the project can run agents on it.
+
+## Before you start
+
+You need:
+
+- A Claude Pro or Max plan.
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code/setup) installed on your computer.
+- Permission to edit the project's AI providers.
+
+## 1. Create a token
+
+Run this command on your computer:
+
+```bash
+claude setup-token
+```
+
+A browser window opens. Sign in with your Pro or Max account and approve access. The command then prints a token that starts with `sk-ant-oat`. Copy it.
+
+## 2. Paste the token in Agenta
+
+1. Go to `Settings > AI providers`.
+2. In the `Claude` cell, click `Connect`.
+3. Paste the token in `Paste the token the command prints`.
+4. Click `Connect`.
+
+Agenta checks the token with Claude before it saves it. The button reads `Checking…` while the check runs. When the check passes, the dialog shows `Claude connected`.
+
+You can also connect from two other places. Both show the same steps:
+
+- The `Model providers` drawer. Open it from `Manage model providers` at the foot of an agent's model picker, and click `Connect Claude` on the Claude card under `Subscriptions`.
+- The Credits step of onboarding, on the `Claude subscription` row.
+
+## 3. Pick the subscription on an agent
+
+Open the `Model` section in the agent's `Configuration` column and click the model combobox. In the left column, click the `Claude` row tagged `Subscription`. Then click a model under the `Claude Code` harness.
+
+This row is separate from any Anthropic API key connection. See [Choose a harness and model](/guides/choose-a-harness-and-model) for how the picker works.
+
+## What to know about the token
+
+- **It works for one year.** Agenta cannot show when your token expires. When it stops working, runs fail with the error under [Troubleshooting](#troubleshooting).
+- **Agenta stores it encrypted.** Agenta never shows the token again after you save it.
+- **Only the Claude Code harness uses it.** Other harnesses, such as Pi, cannot run on this connection.
+- **On Agenta Cloud, the agent's sandbox does not see the token.** The sandbox holds a placeholder. The real token is added only to requests that go to Claude.
+
+## Replace or remove the connection
+
+Go to `Settings > AI providers` and click `Manage` in the `Claude` cell.
+
+- To use a new token, click `Replace token`, paste the new token, and click `Connect`. Agenta checks the new token first. If the check fails, the old token stays in use. The next agent turn uses the new token.
+- To disconnect, click `Remove`. Agenta deletes the token, and the `Claude` subscription row leaves the model picker. Agents that still use it fail until you pick another model.
+
+In the `Model providers` drawer, the Claude card has a `Replace token` button.
+
+## Troubleshooting
+
+### `Claude did not accept this token.`
+
+Claude refused the token when Agenta checked it. Agenta did not save it. Run `claude setup-token` again and paste the new token.
+
+### `Agenta could not check this token with Claude.`
+
+Agenta could not reach Claude, or got an answer it could not use. Agenta did not save the token. Try again in a moment.
+
+On a self-hosted deployment, the Agenta API must be able to reach `api.anthropic.com` over the internet. If it cannot, the check fails every time.
+
+### A run fails with `The Claude subscription token was refused.`
+
+Claude refused the token during the run. This happens when the token expires or is revoked. Click `Open AI providers` in the chat, or go to `Settings > AI providers`, and replace the token with a new one from `claude setup-token`.
+
+The `Claude` cell still shows `Connected` after this error. It changes only when you replace or remove the token.
