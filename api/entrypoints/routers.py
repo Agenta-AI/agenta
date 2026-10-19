@@ -85,6 +85,7 @@ from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.core.webhooks.service import WebhooksService
@@ -793,6 +794,7 @@ vault_service = VaultService(
 subscription_login_service = SubscriptionLoginService(
     vault_service=vault_service,
     runner_client=SubscriptionLoginRunnerClient(),
+    claude_token_client=ClaudeTokenClient(),
 )
 
 provider_probe_service = ProviderProbeService()
