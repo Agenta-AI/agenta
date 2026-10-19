@@ -86,6 +86,8 @@
                 "integer",
                 "string"
               ],
+              "minimum": 1,
+              "pattern": "^[1-9][0-9]*$",
               "description": "AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS \u2014 most organizations one user can own; unset means no limit."
             },
             "emailDisabled": {

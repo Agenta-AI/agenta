@@ -298,6 +298,10 @@ def _blocked_domain_env(monkeypatch):
     monkeypatch.setattr(access, "blocked_domains", {"blocked.example"})
     monkeypatch.setattr(access, "blocked_emails", set())
     monkeypatch.setattr(access, "allowed_domains", set())
+    # The empty email list falls back to PostHog; keep the test off the network.
+    monkeypatch.setattr(
+        auth_helper, "_get_posthog_string_entries", AsyncMock(return_value=set())
+    )
 
 
 @pytest.mark.asyncio

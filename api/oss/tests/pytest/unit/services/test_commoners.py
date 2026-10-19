@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.auth import helper as auth_helper
 from oss.src.core.organizations.exceptions import (
     OrganizationCreationNotAllowedError,
     OrganizationLimitReachedError,
@@ -50,6 +51,10 @@ def _owner(monkeypatch):
     monkeypatch.setattr(access, "blocked_emails", set())
     monkeypatch.setattr(access, "blocked_domains", {"blocked.example"})
     monkeypatch.setattr(access, "max_owned_organizations", None)
+    # The empty email list falls back to PostHog; keep the test off the network.
+    monkeypatch.setattr(
+        auth_helper, "_get_posthog_string_entries", AsyncMock(return_value=set())
+    )
     monkeypatch.setattr(commoners, "is_ee", lambda: False)
 
     created = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
