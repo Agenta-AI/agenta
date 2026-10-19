@@ -304,6 +304,10 @@ underlying text on purpose, so do not replace it with a trace's error text.
 | `starter_credits_exhausted` | The organization's free Agenta credits are used up. | No: add a provider key |
 | `starter_credits_program_paused` | Free Agenta credits are paused for everyone. | No: add a provider key |
 | `starter_credits_unavailable` | The credits service could not be reached. | Yes, after a moment |
+| `run_idle_time_limit` | The agent made no progress for the runtime's idle limit, so the runtime ended the turn. `errorText` names the limit, for example "The agent stopped responding: no progress for 120 seconds, so the turn was ended. Send the message again to retry." | Yes |
+| `run_first_response_time_limit` | The model did not start to answer within the runtime's limit, so the runtime ended the turn. `errorText` names the limit. | Yes |
+| `run_total_time_limit` | The turn ran longer than the runtime's total limit, so the runtime ended it. `errorText` names the limit. | Yes, with a smaller request |
+| `tool_call_time_limit` | A tool call ran longer than the runtime's limit and did not stop, so the runtime ended the turn. `errorText` names the limit. | Yes, with smaller steps |
 | `credential_delivery_failed` | The run's model credential did not reach the model in time (a cloud sandbox race). | Yes |
 | `subscription_login_required` | The ChatGPT sign-in used by this connection is no longer valid. | No: sign in again |
 | `subscription_login_refreshed` | Another session renewed the ChatGPT sign-in during this run. | Yes |

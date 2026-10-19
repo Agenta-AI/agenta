@@ -897,7 +897,7 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
                                                                     </span>
                                                                 ) : null}
                                                                 {group.caption ? (
-                                                                    <span className="truncate text-[11px] text-colorTextTertiary">
+                                                                    <span className="min-w-0 break-words text-[11px] text-colorTextTertiary">
                                                                         {group.caption}
                                                                     </span>
                                                                 ) : null}
