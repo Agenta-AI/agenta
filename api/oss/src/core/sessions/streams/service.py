@@ -114,11 +114,27 @@ def _without_drive_file_notes(text: str) -> str:
     )
 
 
+def _display_content(message: Dict[str, Any]) -> Optional[str]:
+    """The person's own words when the message carries them apart from what the model
+    reads (a command's expanded prompt, a channel's "From ..." line). Top level on a
+    chat message, under `metadata` on a UI message. None means use the content."""
+    display = message.get("display_content")
+    if isinstance(display, str):
+        return display
+    metadata = message.get("metadata")
+    if isinstance(metadata, dict) and isinstance(metadata.get("display_content"), str):
+        return metadata["display_content"]
+    return None
+
+
 def _first_user_message_text(messages: List[Any]) -> Optional[str]:
     """Text of the first user message, joining its text parts — the browser's rule."""
     for message in messages:
         if not isinstance(message, dict) or message.get("role") != "user":
             continue
+        display = _display_content(message)
+        if display is not None:
+            return display
         content = message.get("content")
         if content is None:
             content = message.get("parts")
