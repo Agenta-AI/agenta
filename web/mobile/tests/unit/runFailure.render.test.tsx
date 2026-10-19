@@ -3,16 +3,13 @@
 import {act} from "react"
 
 import {
+    NOT_SENT_CODES,
     OWN_KEY_CODES,
     PLAN_LIMIT_TITLES,
     RETRYABLE_CODES,
     SUBSCRIPTION_LOGIN_CODES,
 } from "@agenta/chat/components"
-import {
-    buildTurnViewModels,
-    createExecutedToolIdentityCache,
-    SESSION_TURN_IN_USE_CODE,
-} from "@agenta/chat/model"
+import {buildTurnViewModels, createExecutedToolIdentityCache} from "@agenta/chat/model"
 import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -147,8 +144,8 @@ describe("mobile TurnRow: a run that failed", () => {
         expect(hasRetry()).toBe(true)
     })
 
-    it("says the message was not sent, with no retry, when the session refused it", () => {
-        const text = renderTurn(failedTurn("That session is busy.", SESSION_TURN_IN_USE_CODE))
+    it.each([...NOT_SENT_CODES])("says the message was not sent, with no retry, for %s", (code) => {
+        const text = renderTurn(failedTurn("That session is busy.", code))
 
         expect(text).toContain("Message not sent")
         expect(hasRetry()).toBe(false)
