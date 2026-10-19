@@ -8,7 +8,10 @@
  * to a session.
  * Admission refuses a new session, with a sentence the person can act on, when this runner already
  * hosts its maximum number of sessions or when the V8 heap is above the configured share of its
- * limit. It does not bound one session's own growth.
+ * limit. Under heap pressure it first calls `onHeapPressure` (the runner evicts parked
+ * conversations) and reads the heap again; it refuses while the heap is still above the share, so
+ * a later attempt is the one that sees what the collector reclaimed. It does not bound one
+ * session's own growth.
  */
 import { getHeapStatistics } from "node:v8";
 import { withPublicCode } from "../sandbox_agent/errors.ts";
@@ -37,6 +40,8 @@ export interface SessionLedgerOptions {
   heapPressureRatio: number;
   /** Heap figures; injectable for tests. */
   heap?: () => { used: number; limit: number };
+  /** Called when the heap is above the share, before it is read again. */
+  onHeapPressure?: () => void;
 }
 
 export class SessionLedger {
@@ -60,9 +65,16 @@ export class SessionLedger {
   admit(sessionId: string): void {
     if (this.sessions.has(sessionId)) return;
     if (this.sessions.size >= this.options.maxSessions) throw withPublicCode(new Error(RUNNER_AT_CAPACITY_MESSAGE), "runner_capacity");
-    const { used, limit } = this.heap();
-    if (limit > 0 && used / limit > this.options.heapPressureRatio) throw withPublicCode(new Error(RUNNER_AT_CAPACITY_MESSAGE), "runner_capacity");
+    if (this.underPressure()) {
+      this.options.onHeapPressure?.();
+      if (this.underPressure()) throw withPublicCode(new Error(RUNNER_AT_CAPACITY_MESSAGE), "runner_capacity");
+    }
     this.sessions.set(sessionId, { transcriptBytes: 0, outputs: new Set() });
+  }
+
+  private underPressure(): boolean {
+    const { used, limit } = this.heap();
+    return limit > 0 && used / limit > this.options.heapPressureRatio;
   }
 
   close(sessionId: string): void {

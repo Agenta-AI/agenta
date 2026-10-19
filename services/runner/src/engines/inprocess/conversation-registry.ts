@@ -115,6 +115,7 @@ export class ConversationRegistry {
         }
         this.track(this.drop(workspace));
       } else {
+        workspace.detachEnvironment();
         this.track(sandbox.stop("parked"));
       }
     }
@@ -138,14 +139,34 @@ export class ConversationRegistry {
   /** Drop the least recently used parked entries past capacity, and delete their sandboxes. */
   private prune(): void {
     const max = this.options.maxEntries ?? 500;
-    if (this.entries.size <= max) return;
-    const parked = [...this.entries.values()]
+    if (this.entries.size > max) this.dropParked(this.entries.size - max);
+  }
+
+  /**
+   * Heap pressure: evict the least recently used half of the parked conversations (at least one),
+   * and delete their sandboxes. Returns how many were evicted; 0 when none is parked. Their memory
+   * is reclaimed by a later collection, not by this call.
+   */
+  evictParkedConversations(): number {
+    const evicted = this.dropParked(Math.ceil(this.parked().length / 2));
+    if (evicted > 0) this.log(`[inprocess] heap pressure: evicted ${evicted} parked conversation(s)`);
+    return evicted;
+  }
+
+  /** Conversations no environment holds and no work uses, least recently used first. */
+  private parked(): ConversationWorkspace[] {
+    return [...this.entries.values()]
       .filter((w) => w.sandbox.holders === 0 && !w.sandbox.inUse)
       .sort((a, b) => a.sandbox.lastUsedAt - b.sandbox.lastUsedAt);
-    for (const workspace of parked.slice(0, this.entries.size - max)) {
+  }
+
+  private dropParked(count: number): number {
+    const victims = this.parked().slice(0, count);
+    for (const workspace of victims) {
       this.entries.delete(workspace.sandbox.key);
       this.track(this.drop(workspace));
     }
+    return victims.length;
   }
 
   /** Operational counters over every conversation this runner holds (logged periodically). */

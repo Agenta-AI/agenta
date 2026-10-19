@@ -110,6 +110,11 @@ export class TranscriptStore {
     });
   }
 
+  /** Resolves once every restore and save queued so far has ended. */
+  settled(): Promise<void> {
+    return this.steps.run(async () => {});
+  }
+
   /**
    * Remove this instance's folder, after any save in flight (the store keeps the file). The
    * conversation's parent folder goes too once no other instance uses it.
