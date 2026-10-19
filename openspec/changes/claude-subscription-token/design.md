@@ -88,7 +88,7 @@ A refused or unchecked token changes nothing. A failed replacement keeps the old
 - **C. The runner runs `claude -p` once.** It proves the most but uses quota, needs a sandbox, and takes seconds.
 - **D. No check.** The first run would find a bad token.
 
-**Choice: A.** A 200 lets the token be stored. A 401 or 403 answers `subscription_token_rejected`. Any other answer or a network error answers `subscription_token_unverified`. This is the only request Agenta's own services send with the token. A model call from our services would be refused (the 429 above), so no other code may try one.
+**Choice: A.** A 200 lets the token be stored. A 401 or 403 answers `subscription_token_rejected`. Any other answer or a network error answers `subscription_token_unverified`. This is the only request Agenta's own services send with the token. The runner's credential preflight, which probes `/v1/models` with `x-api-key` before a run (`credential-preflight.ts:375-382`), skips this credential: the header is wrong for an OAuth token, so the probe always reports a rejected key, and the API has already checked the token. A model call from our services would be refused (the 429 above), so no other code may try one.
 
 ### 4. Deliver the token as an environment credential
 
@@ -116,17 +116,17 @@ If the placeholder fails, the SDK classifies `CLAUDE_CODE_OAUTH_TOKEN` as `local
 
 **Problem.** If the person revokes the token, or Anthropic stops accepting it, the run must say so and point to the fix. Today the runner reports a provider 401 as `runner_error` with "add ANTHROPIC_API_KEY to the project vault, or log in" (`errors.ts:616-622`).
 
-The runner cannot use its broad authentication matcher for this. `AUTH_REFUSAL` also matches "unauthorized" in tool and platform errors (`errors.ts:312-313`). A provider 401 in the first moments after a Daytona Secret is delivered is a delivery race, and the runner already reports it as `credential_delivery_failed` (`errors.ts:606-614`).
+The runner never sees Anthropic's 401 for this harness. Claude Code reports `401 OAuth access token is invalid`, but the ACP adapter (`claude-agent-acp`) replaces it with a JSON-RPC -32000 error whose text is `Authentication required` (measured in task 1.1). The runner cannot use its broad authentication matcher either: `AUTH_REFUSAL` also matches "unauthorized" in tool and platform errors (`errors.ts:312-313`).
 
 **Options.**
 
-- **A. The runner recognizes the token by its environment binding name.** A run whose model credentials include `CLAUDE_CODE_OAUTH_TOKEN` is a Claude token run. In the provider-401 branch (`PROVIDER_401`, not `AUTH_REFUSAL`, after the delivery-race check and excluding the runner's own 401s), the runner reports the existing code `subscription_login_required` with a Claude message. This is the same code it already sends for a refused Pi login. The live stream and replays already carry the code to the web app (`agenta-chat/src/assets/trace.ts:57`, `transcriptToMessages.ts:674`). The final result does not: `run-turn.ts:2160` returns only `errorDetail`, and the SDK falls back to `agent_run_failed` without it (`sdks/python/agenta/sdk/agents/errors.py:52`). So the classified result also sets `detail` with the code, which the existing `errorDetail` contract carries to batch callers.
+- **A. The runner recognizes the token by its environment binding name.** A run whose model credentials include `CLAUDE_CODE_OAUTH_TOKEN` is a Claude token run. When such a run fails with the adapter's `Authentication required` error, or with a provider 401, and the failure is not one of the runner's own 401s, the runner reports the existing code `subscription_login_required` with a Claude message. This is the same code it already sends for a refused Pi login. The live stream and replays already carry the code to the web app (`agenta-chat/src/assets/trace.ts:57`, `transcriptToMessages.ts:674`). The final result does not: `run-turn.ts:2160` returns only `errorDetail`, and the SDK falls back to `agent_run_failed` without it (`sdks/python/agenta/sdk/agents/errors.py:52`). So the classified result also sets `detail` with the code, which the existing `errorDetail` contract carries to batch callers.
 - **B. A new runner code, `model_authentication_failed`, that the SDK turns into `subscription_login_required` for subscription connections.** The SDK knows the connection came from a subscription row only in the handler, not in the wire parser (`wire.py:198`). The mapping would have to cover the live stream, the batch result and replays separately.
 - **C. Also mark the row `needs_login`.** The picker and the providers page would show the broken state. It needs a call to the API on every refused run, plus rules for a token replaced in the meantime.
 
 **Choice: A without C.** It needs no new wire field, no new code and no SDK change. The runner change is a small extension of the existing `authFault` option in `errors.ts:441-447`, so that it can return a code and a detail as well as a message. API key runs keep their current message. A self-hosted operator who puts `CLAUDE_CODE_OAUTH_TOKEN` in a custom provider gets the same message, which is also true for them.
 
-The limits: after a refused run, the providers page still shows "Connected" until someone replaces the token. A refusal on the first turn after a Daytona sandbox starts reads as a delivery problem and asks for a retry. The next turn reports the refused token.
+The limit: after a refused run, the providers page still shows "Connected" until someone replaces the token.
 
 ### 6. Name the provider in subscription errors
 
@@ -168,6 +168,6 @@ None. The change adds a provider kind and a route. Existing ChatGPT rows are unc
 
 - API unit tests: the route stores a token on 200; refuses on 401 and 403; refuses on network errors; refuses non-Claude rows, malformed values and other projects' rows; needs the edit permission; keeps the old token on a failed replacement; never returns the token, including in request-validation errors.
 - SDK unit tests: a Claude row resolves to one `CLAUDE_CODE_OAUTH_TOKEN` env credential with no subscription block; a non-`claude` harness raises the named error; error messages name the provider, and the missing-row message is neutral.
-- Runner unit tests: an `env` run with the token reaches the Claude daemon with no API key; the Daytona plan makes it a Secret for `api.anthropic.com`; a provider 401 on a token run reports `subscription_login_required`; a runner-internal 401 and a delivery race do not; an API key run keeps its message.
+- Runner unit tests: an `env` run with the token reaches the Claude daemon with no API key; the Daytona plan makes it a Secret for `api.anthropic.com`; the adapter's `Authentication required` error on a token run reports `subscription_login_required`; a runner-internal 401 does not; the credential preflight skips the token; an API key run keeps its message.
 - Web unit tests: provider table, picker row, the dialog never starting a device login for Claude, token steps states, onboarding selection with both subscriptions, starter credits and a mounted login row.
 - Live QA on the dev stack with a real token: connect, local turn, Daytona turn, replace between turns, revoke and see the error card, and the three connect surfaces in the browser.

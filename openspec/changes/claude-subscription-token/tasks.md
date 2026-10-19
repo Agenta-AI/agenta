@@ -4,7 +4,7 @@ Not started. Mahmoud reviews the proposal, the specification and the design befo
 
 ## 1. Prove the delivery path
 
-- [ ] 1.1 With a real setup-token in a custom-provider key's extras (`CLAUDE_CODE_OAUTH_TOKEN`), run Claude Code turns on Daytona with credential hiding on. Record: the placeholder works; `ANTHROPIC_BASE_URL` and `ANTHROPIC_MODEL` do not stop the OAuth token; a replaced token takes effect on the next turn; a refused token gives a provider 401. On a local runner that also mounts a Claude login, record which credential Claude Code uses. If the placeholder fails, classify the variable `local_use` (approved by Mahmoud) and update the proposal and specification to say the agent can read the token on Daytona. Stop and report to Mahmoud if any other check fails.
+- [x] 1.1 With a real setup-token in a custom-provider key's extras (`CLAUDE_CODE_OAUTH_TOKEN`), run Claude Code turns on Daytona with credential hiding on. Record: the placeholder works; `ANTHROPIC_BASE_URL` and `ANTHROPIC_MODEL` do not stop the OAuth token; a replaced token takes effect on the next turn; a refused token gives a provider 401. On a local runner that also mounts a Claude login, record which credential Claude Code uses. If the placeholder fails, classify the variable `local_use` (approved by Mahmoud) and update the proposal and specification to say the agent can read the token on Daytona. Stop and report to Mahmoud if any other check fails.
 
 ## 2. API
 
@@ -21,8 +21,8 @@ Not started. Mahmoud reviews the proposal, the specification and the design befo
 
 ## 4. Runner
 
-- [ ] 4.1 Let the `authFault` option return a classified error (message and code). For a run whose model credentials include `CLAUDE_CODE_OAUTH_TOKEN`, report a provider 401 as `subscription_login_required` with the Claude message, after the delivery-race check and excluding runner-internal 401s. Set the classified `detail` so the final result's `errorDetail` carries the code to batch callers.
-- [ ] 4.2 Unit tests: token reaches the Claude daemon with no API key; Daytona plan makes it a Secret for `api.anthropic.com`; provider 401 on a token run gives the new result in the stream event and in the final result's `errorDetail`; internal 401, delivery race and API key runs keep their current results.
+- [ ] 4.1 Let the `authFault` option return a classified error (message and code). For a run whose model credentials include `CLAUDE_CODE_OAUTH_TOKEN`, report the adapter's `Authentication required` error (JSON-RPC -32000) or a provider 401 as `subscription_login_required` with the Claude message, excluding runner-internal 401s. Skip the credential preflight for this credential. Set the classified `detail` so the final result's `errorDetail` carries the code to batch callers.
+- [ ] 4.2 Unit tests: token reaches the Claude daemon with no API key; Daytona plan makes it a Secret for `api.anthropic.com`; the adapter's `Authentication required` error on a token run gives the new result in the stream event and in the final result's `errorDetail`; internal 401 and API key runs keep their current results; the preflight skips the token.
 
 ## 5. Web
 
