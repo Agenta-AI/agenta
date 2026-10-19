@@ -17,7 +17,7 @@ A project member with permission to edit secrets SHALL be able to connect a Clau
 
 #### Scenario: Refused token
 
-- **WHEN** a member pastes a token that Anthropic refuses
+- **WHEN** a member pastes a token that Anthropic refuses on a connection that has no token yet
 - **THEN** no token is stored, the connection stays not connected, and the dialog says that Claude did not accept the token and tells the member to run `claude setup-token` again.
 
 #### Scenario: Anthropic cannot be reached

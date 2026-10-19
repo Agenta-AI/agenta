@@ -34,7 +34,7 @@ The token is opaque and never rotates. Claude Code creates it with a one-year li
 
 ## Goals / Non-Goals
 
-Goals: a project can connect a pasted token, pick it in the model picker, and run the Claude Code harness on it, locally and on Daytona. The token never reaches a browser. On Daytona, when the runner hides credentials (the default), it never reaches the sandbox.
+Goals: a project can connect a pasted token, pick it in the model picker, and run the Claude Code harness on it, locally and on Daytona. After the person pastes it, Agenta never sends the stored token back to a browser. On Daytona, when the runner hides credentials (the default), it never reaches the sandbox.
 
 Non-goals are listed in the proposal. The main ones: no per-person ownership, no Pi harness, no browser sign-in, no per-account model list, no expiry date, no persisted "broken" state after a refused run.
 
