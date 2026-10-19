@@ -541,13 +541,11 @@ export const resolveAgentModelSelection = ({
     return candidates.find((candidate) => candidate.managed) ?? candidates[0] ?? null
 }
 
+/** The first model of one stored connection, a hosted subscription included, by record id. */
 export const firstAgentModelForConnection = (
     candidates: readonly AgentModelCandidate[],
     connectionId: string | null | undefined,
 ): AgentModelCandidate | null =>
     connectionId
-        ? (candidates.find(
-              (candidate) =>
-                  candidate.source === "connection" && candidate.connectionKey === connectionId,
-          ) ?? null)
+        ? (candidates.find((candidate) => candidate.connectionKey === connectionId) ?? null)
         : null

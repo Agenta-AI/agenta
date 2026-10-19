@@ -67,3 +67,18 @@ export const deleteVaultSecret = async ({
     const request: DeleteSecretRequest = {secret_id}
     return getSecretsClient().deleteSecret(request, projectScopedRequest(projectId))
 }
+
+/** Check a pasted subscription token with its provider and store it on the connection. */
+export const setSubscriptionToken = async ({
+    projectId,
+    secretId,
+    token,
+}: {
+    projectId: string
+    secretId: string
+    token: string
+}) =>
+    getSecretsClient().setSubscriptionToken(
+        {secret_id: secretId, token},
+        projectScopedRequest(projectId),
+    )

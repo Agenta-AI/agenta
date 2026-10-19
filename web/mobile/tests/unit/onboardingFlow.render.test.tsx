@@ -56,7 +56,9 @@ vi.mock("@agenta/shared/api/env", () => ({isToolsEnabled: () => true}))
 vi.mock("@agenta/entity-ui/secretProvider", () => ({
     KEY_PROVIDERS: [],
     ProviderDrawer: () => null,
+    providerIconFor: () => () => null,
     SubscriptionConnectionCard: () => null,
+    SubscriptionSignInDialog: () => null,
 }))
 // The composer as a textarea: the real one is a lazy Lexical editor.
 vi.mock("@agenta/home-ui", async () => {
@@ -275,6 +277,14 @@ const model = (ready = true): OnboardingModel => ({
     ready,
     credits: ready ? {inUse: true, runnable: true, balanceMusd: 5_000_000} : null,
     chatgpt: {
+        available: false,
+        connection: null,
+        ready: false,
+        inUse: false,
+        dialogOpen: false,
+        setDialogOpen: vi.fn(),
+    },
+    claude: {
         available: false,
         connection: null,
         ready: false,

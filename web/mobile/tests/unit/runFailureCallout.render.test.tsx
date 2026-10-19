@@ -177,13 +177,13 @@ describe("mobile TurnRow: a run that failed", () => {
 
     it.each([...SUBSCRIPTION_LOGIN_CODES])("offers the sign-in escape for %s", (code) => {
         // A dead subscription sign-in is not fixed by a key, but it is fixed on the same page: the
-        // AI providers page is where a new device login happens. One destination, as on the desktop.
+        // AI providers page is where a new sign-in or token goes. One destination, as on the desktop.
         const shown = renderTurn(failedTurn("Your Claude sign-in expired.", code))
 
-        expect(shown).toContain("Sign in again")
+        expect(shown).toContain("Open AI providers")
         expect(shown).not.toContain("Add your key")
 
-        press("Sign in again")
+        press("Open AI providers")
 
         expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=llms")
     })

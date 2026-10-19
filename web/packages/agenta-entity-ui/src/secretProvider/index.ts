@@ -46,6 +46,10 @@ export {
     default as SubscriptionSignInDialog,
     type SubscriptionSignInDialogProps,
 } from "./SubscriptionSignInDialog"
+export {
+    default as SubscriptionTokenCard,
+    type SubscriptionTokenCardProps,
+} from "./SubscriptionTokenCard"
 export {default as ScrollScrim, type ScrollScrimProps} from "./ScrollScrim"
 
 /**

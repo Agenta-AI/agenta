@@ -34,9 +34,8 @@ export const STARTER_CREDIT_CODES = new Set([
 export const OWN_KEY_CODES = new Set([...STARTER_CREDIT_CODES, "builtin_models_not_enabled"])
 
 /**
- * Failure classes cleared by signing in again, not by a key. The subscription's stored sign-in is
- * dead and no newer one exists, so the fix is a new device login on the AI providers page — which
- * is where the provider drawer opens.
+ * Failure classes cleared on the AI providers page, not by a key: the subscription's stored sign-in
+ * or token was refused, and the message above the button names the fix there.
  */
 export const SUBSCRIPTION_LOGIN_CODES = new Set(["subscription_login_required"])
 
@@ -182,7 +181,7 @@ export const RunFailureCallout = ({
                 )}
                 {offerSignIn && (
                     <Button size="sm" variant="outline" className="mt-1" onClick={onSignIn}>
-                        Sign in again
+                        Open AI providers
                     </Button>
                 )}
                 {offerBuyCredits && (
