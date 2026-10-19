@@ -2100,6 +2100,7 @@ export async function runTurn(
       request.modelConnection?.provider,
       {
         authFault: () => describeCodexSubscriptionAuthFault(plan),
+        modelConnection: request.modelConnection,
         connection: {
           slug: request.connection?.slug,
           deployment: request.modelConnection?.deployment,
