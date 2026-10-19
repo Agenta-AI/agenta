@@ -18,7 +18,7 @@ export default function Document() {
                 <link rel="icon" href="/m/assets/favicon.ico" sizes="any" />
                 <link rel="icon" href="/m/assets/agenta-symbol.svg" type="image/svg+xml" />
                 <link rel="apple-touch-icon" href="/m/assets/agenta-symbol.svg" />
-                {/* Root-relative: the public host is only known at runtime, and pages build static. */}
+                {/* The website's card: og:image must be absolute, and this app's host is only known at runtime. */}
                 <meta property="og:type" content="website" />
                 <meta property="og:site_name" content="Agenta" />
                 <meta property="og:title" content="Agenta" />
@@ -26,11 +26,11 @@ export default function Document() {
                     property="og:description"
                     content="The open-source, no-code agent workspace."
                 />
-                <meta property="og:image" content="/m/assets/og-card.png" />
+                <meta property="og:image" content="https://agenta.ai/og/default.png" />
                 <meta property="og:image:width" content="2000" />
                 <meta property="og:image:height" content="1050" />
                 <meta name="twitter:card" content="summary_large_image" />
-                <meta name="twitter:image" content="/m/assets/og-card.png" />
+                <meta name="twitter:image" content="https://agenta.ai/og/default.png" />
                 <script dangerouslySetInnerHTML={{__html: themeInitScript}} />
             </Head>
             <body>
