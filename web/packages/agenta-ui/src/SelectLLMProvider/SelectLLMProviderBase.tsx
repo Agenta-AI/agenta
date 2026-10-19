@@ -18,7 +18,7 @@ import type {
     ProviderSection,
     SelectSize,
 } from "./types"
-import {getHarnessIcon, getProviderIcon, getProviderDisplayName} from "./utils"
+import {getHarnessIcon, getProviderIcon, getProviderDisplayName, optionMatchesSearch} from "./utils"
 
 const DEFAULT_PROVIDER_DROPDOWN_WIDTH = 400
 
@@ -193,11 +193,8 @@ const SelectLLMProviderBase: React.FC<SelectLLMProviderBaseProps> = ({
 
         const filterGroupOptions = (group: ProviderGroup): ProviderGroup => ({
             ...group,
-            options: group.options.filter(
-                (option) =>
-                    option.label.toLowerCase().includes(normalizedSearchTerm) ||
-                    option.value.toLowerCase().includes(normalizedSearchTerm) ||
-                    group.label?.toLowerCase().includes(normalizedSearchTerm),
+            options: group.options.filter((option) =>
+                optionMatchesSearch(option, group, normalizedSearchTerm),
             ),
         })
 
