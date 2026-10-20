@@ -202,6 +202,18 @@ export class SandboxDrive {
     this.roots = roots;
   }
 
+  /**
+   * No environment holds the drive any more: keep each root's credentials as they are now, not the
+   * environment's function for them, which keeps that run's whole scope on the heap. The next hold
+   * sets new roots.
+   */
+  detachCredentials(): void {
+    this.roots = this.roots.map((r) => {
+      const credentials = r.credentials();
+      return { root: r.root, credentials: () => credentials };
+    });
+  }
+
   addModes(modes: Map<string, number>): void {
     for (const [path, mode] of modes) this.modes.set(path, mode);
   }

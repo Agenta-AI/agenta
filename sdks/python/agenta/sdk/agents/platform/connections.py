@@ -631,19 +631,31 @@ SUBSCRIPTION_SECRET_KIND = "subscription_provider"
 # The login state a run needs. Any other state means the person must sign in again.
 _SUBSCRIPTION_READY = "ready"
 
-# The provider family a subscription resolves to, per harness. Pi reaches the ChatGPT
-# subscription through its ``openai-codex`` provider, which the capability table already
-# declares, so the resolved pair passes the harness check without a new capability.
-#
-# Pi is the only entry. Codex 0.145.0 refuses a login file without an ``id_token`` and the
-# ChatGPT device login never issues one, so the same credential cannot be handed to it. Add
-# a harness here once its credential format is supported end to end.
-_SUBSCRIPTION_HARNESS_PROVIDERS: Dict[str, str] = {
-    "pi_core": "openai-codex",
-}
+# The environment variable Claude Code reads a `claude setup-token` value from.
+_CLAUDE_TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN"
 
-# The subscription providers a run can consume. `chatgpt` is the only one today.
-_SUBSCRIPTION_PROVIDERS = frozenset({"chatgpt"})
+
+@dataclass(frozen=True)
+class _SubscriptionRun:
+    """The one harness a subscription provider runs on, and the provider family it uses."""
+
+    harness: str
+    harness_name: str
+    provider: str
+
+
+# Pi reaches the ChatGPT subscription through its ``openai-codex`` provider, which the
+# capability table already declares. Codex 0.145.0 refuses a login file without an
+# ``id_token`` and the ChatGPT device login never issues one, so ChatGPT stays on Pi. Claude
+# Code reads the Claude setup-token under the ``anthropic`` family.
+_SUBSCRIPTION_RUNS: Dict[str, _SubscriptionRun] = {
+    "chatgpt": _SubscriptionRun(
+        harness="pi_core", harness_name="Pi", provider="openai-codex"
+    ),
+    "claude": _SubscriptionRun(
+        harness="claude", harness_name="Claude Code", provider="anthropic"
+    ),
+}
 
 
 @dataclass
@@ -692,14 +704,6 @@ def _subscription_candidate(secret: Dict[str, Any]) -> Optional[_SubscriptionCan
     )
 
 
-def _subscription_provider(harness: Optional[str]) -> str:
-    """The provider family this subscription resolves to for ``harness``.
-
-    Callers check the harness first, so the mapping always holds an entry here.
-    """
-    return _SUBSCRIPTION_HARNESS_PROVIDERS[harness or ""]
-
-
 def _resolve_subscription(
     *,
     secrets: Sequence[Any],
@@ -709,9 +713,9 @@ def _resolve_subscription(
 ) -> ResolvedConnection:
     """Resolve a ``self_managed`` connection that names a hosted subscription secret.
 
-    The credential mode stays ``runtime_provided`` and the environment stays empty: the
-    harness still authenticates itself. What changes is that Agenta now delivers the login
-    the harness signs in with, as the ``subscription`` block beside the connection.
+    A ChatGPT login stays ``runtime_provided``: the harness authenticates itself with the
+    login Agenta delivers as the ``subscription`` block, and refreshes it during the turn. A
+    Claude setup-token never refreshes, so it travels as an ordinary environment credential.
     """
     chosen: Optional[_SubscriptionCandidate] = None
     for item in secrets:
@@ -723,27 +727,38 @@ def _resolve_subscription(
             chosen = candidate
             break
 
-    # The pair is checked before the login state: signing in again would not help a run
-    # that cannot consume the credential in the first place.
-    if (harness or "") not in _SUBSCRIPTION_HARNESS_PROVIDERS:
-        raise SubscriptionNotSupportedError(
-            harness=harness, provider=chosen.provider if chosen else ""
-        )
-
     if chosen is None:
         # The config names a connection this project does not hold. Signing in cannot fix a
         # name, so this is not the sign-in prompt.
         raise SubscriptionConnectionMissingError(slug=slug)
+
+    # The pair is checked before the login state: signing in again would not help a run
+    # that cannot consume the credential in the first place.
+    run = _SUBSCRIPTION_RUNS.get(chosen.provider)
+    if run is None or harness != run.harness:
+        raise SubscriptionNotSupportedError(
+            harness=harness,
+            provider=chosen.provider,
+            supported_harness=run.harness_name if run else None,
+        )
 
     if not chosen.is_ready():
         # One error for a not-ready state and an absent login: the person takes the same
         # action in both cases. Never name the login or its state here.
         raise SubscriptionLoginRequiredError(slug=slug, provider=chosen.provider)
 
-    if chosen.provider not in _SUBSCRIPTION_PROVIDERS:
-        raise SubscriptionNotSupportedError(harness=harness, provider=chosen.provider)
+    provider = run.provider
+    if chosen.provider == "claude":
+        return build_resolved_connection(
+            provider=provider,
+            model=model.model,
+            credential_mode="env",
+            values={_CLAUDE_TOKEN_ENV: chosen.login.get("access", "")},
+            input_modalities=model_input_modalities(
+                harness, model.model, provider=provider
+            ),
+        )
 
-    provider = _subscription_provider(harness)
     return build_resolved_connection(
         provider=provider,
         model=model.model,
@@ -751,7 +766,7 @@ def _resolve_subscription(
         values={},
         # A miss means workspace-only downstream; do not guess.
         input_modalities=model_input_modalities(
-            harness, model.model, provider=provider or None
+            harness, model.model, provider=provider
         ),
         subscription=ResolvedSubscription(
             id=chosen.id,

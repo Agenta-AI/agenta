@@ -15,6 +15,7 @@ from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.workflows import (
     failure_code_of,
+    retry_after_of,
     returned_stacktrace,
     WorkflowInvokeRequest,
     WorkflowInspectRequest,
@@ -389,6 +390,10 @@ def _make_json_response(
         content=response.model_dump(mode="json", exclude_none=True),
     )
 
+    retry_after = getattr(response.status, "retry_after", None)
+    if retry_after is not None:
+        res.headers["Retry-After"] = str(retry_after)
+
     return _set_common_headers(res, response)  # type: ignore
 
 
@@ -582,6 +587,7 @@ async def handle_invoke_failure(exception: Exception) -> Response:
             message=exception.message,
             stacktrace=returned_stacktrace(exception.stacktrace),
             failure_code=failure_code,
+            retry_after=retry_after_of(exception),
         )
 
     else:
@@ -611,6 +617,7 @@ async def handle_invoke_failure(exception: Exception) -> Response:
             message=message,
             stacktrace=returned_stacktrace(stacktrace),
             failure_code=failure_code,
+            retry_after=retry_after_of(exception),
         )
 
     trace_id = None

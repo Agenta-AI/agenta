@@ -108,6 +108,30 @@ async def test_rechecks_authorization_and_closes_revoked_reader():
     assert checks == 1
 
 
+async def test_closing_during_a_slow_unsubscribe_still_closes_the_pubsub():
+    pubsub = FakePubSub([])
+    unsubscribing = asyncio.Event()
+
+    async def slow_unsubscribe(channel):
+        unsubscribing.set()
+        await asyncio.sleep(10)
+
+    pubsub.unsubscribe = slow_unsubscribe
+    stream = live_event_stream(
+        channel="events:project-1:session:session-1",
+        pubsub_factory=lambda: pubsub,
+        authorization_check=AsyncMock(return_value=False),
+        authorization_recheck_seconds=0.001,
+        heartbeat_seconds=60,
+        retry_milliseconds=5000,
+        buffer_limit=4,
+    )
+    frames = [frame async for frame in stream]
+
+    assert frames[-1].startswith("event: relay-close")
+    pubsub.closed.assert_awaited_once()
+
+
 async def test_slow_reader_gets_terminal_close_frame():
     messages = [{"type": "message", "data": dumps(_frame(index))} for index in range(3)]
     pubsub = FakePubSub(messages)

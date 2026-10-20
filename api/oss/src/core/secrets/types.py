@@ -99,3 +99,47 @@ class ServerOwnedFieldNotWritable(SecretsError):
             f"These fields are set by the sign-in routes and cannot be written here: "
             f"{listed}. Omit them to keep the stored values."
         )
+
+
+class SubscriptionProviderMismatch(SecretsError):
+    """The route does not apply to this connection's provider.
+
+    A ChatGPT connection signs in through the device login routes. A Claude connection takes
+    a pasted token, which never refreshes, so it has no device login and nothing to push.
+    """
+
+    def __init__(self, *, provider: str):
+        self.provider = provider
+        super().__init__(
+            f"This route does not apply to a {provider} subscription connection."
+        )
+
+
+class SubscriptionTokenError(SecretsError):
+    """A pasted subscription token was not stored. Nothing on the row changed."""
+
+    code: str
+    retryable: bool
+    next_step: str
+
+
+class SubscriptionTokenRejected(SubscriptionTokenError):
+    """The value is not a setup-token, or Anthropic refused it."""
+
+    code = "subscription_token_rejected"
+    retryable = False
+    next_step = "Run `claude setup-token` again and paste the new token."
+
+    def __init__(self, message: str = "Claude did not accept this token."):
+        super().__init__(message)
+
+
+class SubscriptionTokenUnverified(SubscriptionTokenError):
+    """Anthropic could not be reached, or gave an answer that proves nothing."""
+
+    code = "subscription_token_unverified"
+    retryable = True
+    next_step = "Try again in a moment."
+
+    def __init__(self, message: str = "Agenta could not check this token with Claude."):
+        super().__init__(message)

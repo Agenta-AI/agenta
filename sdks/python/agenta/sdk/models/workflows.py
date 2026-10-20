@@ -229,6 +229,10 @@ class WorkflowServiceStatus(Status):
     # the integer status, and one status covers many failure classes. Set only when the raised
     # exception names one, so every other error body stays exactly as it was.
     failure_code: Optional[str] = None
+    # Seconds the caller should wait before it sends the same request again, when the failure is
+    # temporary and the server can say how long. It also rides the response's `Retry-After`
+    # header. Set only when the raised exception names one.
+    retry_after: Optional[int] = None
 
 
 def failure_code_of(exception: BaseException) -> Optional[str]:
@@ -243,6 +247,18 @@ def failure_code_of(exception: BaseException) -> Optional[str]:
     """
     code = getattr(exception, "failure_code", None)
     return code if isinstance(code, str) and code else None
+
+
+def retry_after_of(exception: BaseException) -> Optional[int]:
+    """The seconds to wait before a retry that an exception declares, or ``None``.
+
+    Read by the same two sites as :func:`failure_code_of`, for the same reason. Only a
+    non-negative ``int`` counts.
+    """
+    seconds = getattr(exception, "retry_after", None)
+    if isinstance(seconds, bool) or not isinstance(seconds, int) or seconds < 0:
+        return None
+    return seconds
 
 
 # Whether an error body returns its Python traceback to whoever made the request.

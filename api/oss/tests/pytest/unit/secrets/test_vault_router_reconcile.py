@@ -8,6 +8,7 @@ import pytest
 
 from oss.src.apis.fastapi.vault import router as vault_router
 from oss.src.core.secrets.dtos import SecretResponseDTO
+from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 
@@ -61,6 +62,7 @@ def route(monkeypatch):
             subscription_login_service=SubscriptionLoginService(
                 vault_service=service,
                 runner_client=SubscriptionLoginRunnerClient(base_url="", token=""),
+                claude_token_client=ClaudeTokenClient(),
             ),
         )
 
