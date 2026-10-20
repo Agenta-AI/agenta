@@ -162,7 +162,7 @@ export const SessionFilterMenu = ({
             {
                 kind: "toggle",
                 key: "agent-created",
-                label: "Show agent-created sessions",
+                label: "Show test sessions",
                 icon: <Robot size={ICON} />,
                 checked: showAgentCreated,
                 onChange: setShowAgentCreated,
