@@ -661,13 +661,19 @@ async def test_api_key_mode_off_makes_no_request(service, flag, jev):
 
 
 @pytest.mark.asyncio
-async def test_api_key_already_marked_organization_is_not_rescored(service, flag, jev):
+async def test_api_key_already_marked_organization_is_held_without_rescoring(
+    service, flag, jev
+):
+    """A marker without a finished hold (a failed or timed out hold) is completed by the
+    next key, and nothing is sent to Jev again."""
     service.fraud_dao.blocked.add(ORGANIZATION_ID)
+    assert await service.wallets_service.check(organization_id=ORGANIZATION_ID)
     assert (
         await service.check_api_key_creation(user_id=uuid4(), project_id=uuid4())
         is None
     )
     assert jev.requests == []
+    assert not await service.wallets_service.check(organization_id=ORGANIZATION_ID)
 
 
 @pytest.mark.asyncio

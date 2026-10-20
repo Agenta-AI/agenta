@@ -197,24 +197,35 @@ class FraudService:
                 self._skip(email=signals.email, threshold=threshold, reason="paid")
                 return None
 
-            if await self.fraud_dao.grants_blocked(
+            marked = await self.fraud_dao.grants_blocked(
                 organization_id=signals.organization_id
-            ):
-                log.info(
-                    "[fraud] decision",
-                    checkpoint=FraudCheckpoint.API_KEY.value,
-                    domain=_domain(signals.email),
-                    score=None,
-                    threshold=threshold,
-                    action="already_held",
-                    reason="marked",
-                )
-                return None
-
-            score = await ask_noul(
-                state={"policy": POLICY, "signup": signals.to_state()},
-                question=API_KEY_QUESTION,
             )
+            score = None
+            if not marked:
+                score = await ask_noul(
+                    state={"policy": POLICY, "signup": signals.to_state()},
+                    question=API_KEY_QUESTION,
+                )
+
+        if marked:
+            # Already marked, at signup or by an earlier key whose hold did not finish.
+            # The hold is idempotent, so run it again rather than rescore.
+            log.info(
+                "[fraud] decision",
+                checkpoint=FraudCheckpoint.API_KEY.value,
+                domain=_domain(signals.email),
+                score=None,
+                threshold=threshold,
+                action="hold_wallet",
+                reason="marked",
+            )
+            async with asyncio.timeout(ACTION_TIMEOUT_SECONDS):
+                await self.wallets_service.hold(
+                    organization_id=signals.organization_id,
+                    keep_credit_kinds=PAID_CREDIT_KINDS,
+                    now=datetime.now(timezone.utc),
+                )
+            return None
         verdict = self._decide(
             checkpoint=FraudCheckpoint.API_KEY,
             email=signals.email,
