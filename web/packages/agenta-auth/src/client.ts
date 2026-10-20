@@ -11,7 +11,7 @@ import ThirdParty from "supertokens-web-js/recipe/thirdparty"
 
 import {describeCreateCode, describeResendCode} from "./otpMachine"
 import {authApiUrl, authEnv} from "./runtime"
-import {readTurnstileRejection} from "./turnstile"
+import {readAuthRejection} from "./turnstile"
 
 /**
  * Headless SuperTokens client (supertokens-web-js — same 0.16.x the desktop's
@@ -92,20 +92,22 @@ export async function requestEmailCode(
         if (outcome.kind === "ok") await tagAttemptWithHost()
         return outcome
     } catch (error) {
-        const rejection = await readTurnstileRejection(error)
+        const rejection = await readAuthRejection(error)
         if (rejection) return {kind: "failed", message: rejection}
         return describeCreateCode(null)
     }
 }
 
-/** Re-send the code for the open attempt. */
+/** Re-send the code for the open attempt. A rejection (too many requests) keeps the attempt open. */
 export async function resendEmailCode(): Promise<
-    {kind: "ok"} | {kind: "restart"; message: string}
+    {kind: "ok"} | {kind: "failed"; message: string} | {kind: "restart"; message: string}
 > {
     ensureAuthInit()
     try {
         return describeResendCode(await Passwordless.resendCode())
-    } catch {
+    } catch (error) {
+        const rejection = await readAuthRejection(error)
+        if (rejection) return {kind: "failed", message: rejection}
         return describeResendCode(null)
     }
 }
@@ -193,7 +195,7 @@ export async function completeOidcSignIn(): Promise<OidcCallbackOutcome> {
             message: "That provider did not share an email. Try another sign-in method.",
         }
     } catch (error) {
-        const rejection = await readTurnstileRejection(error)
+        const rejection = await readAuthRejection(error)
         return {kind: "failed", message: rejection ?? "Sign-in could not be completed. Try again."}
     }
 }
@@ -286,7 +288,7 @@ export async function signInDetailed(
             message: "You need to be invited by the organization owner to gain access.",
         }
     } catch (error) {
-        const rejection = await readTurnstileRejection(error)
+        const rejection = await readAuthRejection(error)
         if (rejection) return {kind: "not-allowed", message: rejection}
         return {kind: "error"}
     }
@@ -316,7 +318,7 @@ export async function signUpDetailed(
             message: "You need to be invited by the organization owner to gain access.",
         }
     } catch (error) {
-        const rejection = await readTurnstileRejection(error)
+        const rejection = await readAuthRejection(error)
         if (rejection) return {kind: "not-allowed", message: rejection}
         return {kind: "error"}
     }

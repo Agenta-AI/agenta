@@ -1,3 +1,4 @@
+import asyncio
 import pytest
 
 from oss.src.core.auth import rate_limit
@@ -40,8 +41,25 @@ class _DownRedis:
         raise ConnectionError("redis is down")
 
 
+class _Log:
+    def __init__(self):
+        self.warnings: list[str] = []
+
+    def warning(self, message, *args, **kwargs):
+        self.warnings.append(message % args)
+
+    def info(self, message, *args, **kwargs):
+        pass
+
+
+class _SlowRedis:
+    async def eval(self, *args):
+        await asyncio.sleep(30)
+
+
 @pytest.fixture(autouse=True)
 def _limit_config(monkeypatch):
+    monkeypatch.setattr(rate_limit, "_redis_failing", False)
     monkeypatch.setattr(env.agenta.auth_code_rate_limit, "enabled", True)
     monkeypatch.setattr(env.agenta.auth_code_rate_limit, "requests_per_window", 5)
     monkeypatch.setattr(env.agenta.auth_code_rate_limit, "window_seconds", 600)
@@ -121,6 +139,44 @@ async def test_redis_down_allows_the_request(monkeypatch):
         await enforce_auth_code_rate_limit(
             request=_request(), api_name="create_code_post"
         )
+
+
+async def test_redis_outage_is_logged_once(monkeypatch):
+    log = _Log()
+    monkeypatch.setattr(rate_limit, "log", log)
+    monkeypatch.setattr(rate_limit, "get_cache_engine", lambda: _DownRedis())
+
+    for _ in range(3):
+        await enforce_auth_code_rate_limit(
+            request=_request(), api_name="create_code_post"
+        )
+
+    assert len([w for w in log.warnings if "rate limit skipped" in w]) == 1
+
+
+async def test_redis_recovery_logs_a_new_warning_on_the_next_outage(monkeypatch):
+    log = _Log()
+    monkeypatch.setattr(rate_limit, "log", log)
+    engine = {"current": _DownRedis()}
+    monkeypatch.setattr(rate_limit, "get_cache_engine", lambda: engine["current"])
+
+    await enforce_auth_code_rate_limit(request=_request(), api_name="create_code_post")
+    engine["current"] = _FakeRedis()
+    await enforce_auth_code_rate_limit(request=_request(), api_name="create_code_post")
+    engine["current"] = _DownRedis()
+    await enforce_auth_code_rate_limit(request=_request(), api_name="create_code_post")
+
+    assert len([w for w in log.warnings if "rate limit skipped" in w]) == 2
+
+
+async def test_slow_redis_allows_the_request_quickly(monkeypatch):
+    monkeypatch.setattr(rate_limit, "get_cache_engine", lambda: _SlowRedis())
+    monkeypatch.setattr(rate_limit, "_REDIS_TIMEOUT_SECONDS", 0.05)
+
+    await asyncio.wait_for(
+        enforce_auth_code_rate_limit(request=_request(), api_name="create_code_post"),
+        timeout=1,
+    )
 
 
 async def test_disabled_limit_never_touches_redis(monkeypatch):

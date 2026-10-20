@@ -1,3 +1,5 @@
+import asyncio
+
 from supertokens_python.framework.request import BaseRequest
 
 from oss.src.core.auth.turnstile import get_client_ip
@@ -11,6 +13,13 @@ log = get_module_logger(__name__)
 AUTH_CODE_RATE_LIMIT_MESSAGE = "Too many sign-in attempts. Try again in a few minutes."
 
 _KEY_PREFIX = "auth:code:rate_limit:"
+
+# The most time the check adds to a sign-in request. redis-py retries a failed command with
+# backoff, so without a bound a Redis outage would add seconds to every sign-in.
+_REDIS_TIMEOUT_SECONDS = 0.5
+
+# True while Redis is failing, so an outage logs one warning and not one per request.
+_redis_failing = False
 
 # INCR and the first EXPIRE in one step, so a worker that dies between the two cannot
 # leave a counter that never expires.
@@ -32,9 +41,11 @@ async def enforce_auth_code_rate_limit(
 
     The counter is shared by every endpoint that calls this, so the limit covers them
     together. The window is fixed: it starts at the first request and the counter is
-    dropped when it expires. When Redis cannot be reached the request is allowed and
-    the failure is logged.
+    dropped when it expires. When Redis cannot be reached or is slow the request is
+    allowed, and the outage is logged once.
     """
+    global _redis_failing
+
     config = env.agenta.auth_code_rate_limit
     if not config.enabled:
         return
@@ -44,20 +55,28 @@ async def enforce_auth_code_rate_limit(
         return
 
     try:
-        count = await get_cache_engine().eval(
-            _INCR_WITH_WINDOW,
-            1,
-            _KEY_PREFIX + client_ip,
-            config.window_seconds,
+        count = await asyncio.wait_for(
+            get_cache_engine().eval(
+                _INCR_WITH_WINDOW,
+                1,
+                _KEY_PREFIX + client_ip,
+                config.window_seconds,
+            ),
+            timeout=_REDIS_TIMEOUT_SECONDS,
         )
     except Exception:
-        log.warning(
-            "[AUTH] Auth code rate limit skipped api_name=%s client_ip=%s reason=redis_unavailable",
-            api_name,
-            client_ip,
-            exc_info=True,
-        )
+        if not _redis_failing:
+            _redis_failing = True
+            log.warning(
+                "[AUTH] Auth code rate limit skipped until Redis answers again api_name=%s reason=redis_unavailable",
+                api_name,
+                exc_info=True,
+            )
         return
+
+    if _redis_failing:
+        _redis_failing = False
+        log.info("[AUTH] Auth code rate limit active again, Redis answers")
 
     if int(count) <= config.requests_per_window:
         return
