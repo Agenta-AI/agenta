@@ -1,12 +1,15 @@
 import {useCallback} from "react"
 
+import {getChannelsClient} from "@agenta/sdk/resources"
 import {
     AgentApiPanel,
+    AgentEmbedPanel,
     ChannelsPanelSheet,
     agentHostFromApiUrl,
     useChannelPanel,
     type ChannelsPanelRenderProps,
 } from "@agenta/settings-ui"
+import {useRouter} from "next/router"
 
 import {getApiUrl} from "@/lib/env"
 
@@ -36,6 +39,7 @@ export const useAgentPublishPanel = ({
     /** Where the panel opens on a phone; the playground passes `right`. */
     side?: "responsive" | "right"
 }) => {
+    const {basePath} = useRouter()
     const {connections, loading, loadError, actions} = useAgentChannels(agentId, {
         resolveAgentName,
     })
@@ -57,6 +61,16 @@ export const useAgentPublishPanel = ({
                 projectId={projectId}
                 workspaceId={workspaceId}
                 host={agentHostFromApiUrl(getApiUrl())}
+            />
+        ),
+        embed: (view) => (
+            <AgentEmbedPanel
+                {...view}
+                client={getChannelsClient()}
+                projectId={projectId}
+                agentId={agentId}
+                agentName={agentName}
+                widgetUrl={(embedId) => `${window.location.origin}${basePath}/embed/${embedId}`}
             />
         ),
     })

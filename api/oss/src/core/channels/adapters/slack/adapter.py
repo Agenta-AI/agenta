@@ -216,6 +216,7 @@ class SlackAdapter(ChannelAdapterInterface):
         *,
         request_url: str,
         identity: Optional[ChannelSetupIdentity] = None,
+        locator: Optional[Dict[str, Any]] = None,
     ) -> Optional[ChannelSetupDoc]:
         identity = identity or ChannelSetupIdentity()
         manifest = build_slack_manifest(
@@ -319,7 +320,11 @@ class SlackAdapter(ChannelAdapterInterface):
         return event.get("type") in _DEACTIVATION_EVENT_TYPES
 
     async def parse_event(
-        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+        self,
+        *,
+        body: bytes,
+        connection: Optional[ChannelConnection] = None,
+        request: Optional[ChannelRequestContext] = None,
     ) -> Optional[ChannelInboundEvent]:
         # block_actions arrives form-encoded (payload= field); event_callback
         # arrives as raw JSON. _parse_slack_payload handles both.

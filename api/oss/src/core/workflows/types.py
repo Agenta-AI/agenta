@@ -167,6 +167,13 @@ class WorkflowDetachedStartNeverSent(WorkflowDetachedStartFailed):
     """
 
 
+class WorkflowDetachedStartRejected(WorkflowDetachedStartFailed):
+    """The service itself answered the start with a failure: a stamped non-2xx response, or a
+    failure as the first record. The stamp proves who answered, not that nothing ran. For an
+    agent turn it does: the agent handler starts the harness only after the stream commits
+    200, so a non-2xx answer comes before any agent work. A gateway 502 or 504 is not this."""
+
+
 # The statuses that mean the run was not accepted, whoever answered.
 #
 # 404: no route matched. From a reverse proxy this is the catch-all picking up the path after the
@@ -200,13 +207,18 @@ _NEVER_DISPATCHED_STATUSES = frozenset({404, 503})
 _SERVICE_HEADER_PREFIX = "x-ag-"
 
 
+def answered_by_service(response: httpx.Response) -> bool:
+    """True when the workflow service built this response (it carries the service's stamp)."""
+    return any(
+        name.lower().startswith(_SERVICE_HEADER_PREFIX) for name in response.headers
+    )
+
+
 def detached_start_never_sent(response: httpx.Response) -> bool:
     """True when this non-2xx response proves the workflow service never saw the request."""
     if response.status_code not in _NEVER_DISPATCHED_STATUSES:
         return False
-    return not any(
-        name.lower().startswith(_SERVICE_HEADER_PREFIX) for name in response.headers
-    )
+    return not answered_by_service(response)
 
 
 # Transport failures where no byte reached the address we aimed at: the request never left this

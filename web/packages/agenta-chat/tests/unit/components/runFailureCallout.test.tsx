@@ -77,7 +77,7 @@ describe("RunFailureCallout", () => {
         )
 
         expect(rendered).toContain("no longer valid")
-        expect(rendered).not.toContain("Sign in again")
+        expect(rendered).not.toContain("Open AI providers")
     })
 
     it("clamps a stacktrace behind Show more and says so on the toggle", () => {
@@ -151,7 +151,7 @@ describe("RunFailureCallout", () => {
         expect(rendered).not.toContain("Try again")
     })
 
-    it("offers Sign in again when the subscription's stored sign-in is dead", () => {
+    it("offers Open AI providers when the subscription's stored sign-in is dead", () => {
         const rendered = text(
             <RunFailureCallout
                 text="The ChatGPT sign-in is no longer valid. Sign in again from AI providers."
@@ -162,7 +162,7 @@ describe("RunFailureCallout", () => {
             />,
         )
 
-        expect(rendered).toContain("Sign in again")
+        expect(rendered).toContain("Open AI providers")
         // A new key would not fix this, and re-running the same dead sign-in would not either.
         expect(rendered).not.toContain("Add your key")
         expect(rendered).not.toContain("Try again")
@@ -184,7 +184,7 @@ describe("RunFailureCallout", () => {
         )
 
         expect(rendered).toContain("No ChatGPT connection named")
-        expect(rendered).not.toContain("Sign in again")
+        expect(rendered).not.toContain("Open AI providers")
         expect(rendered).not.toContain("Try again")
         expect(rendered).not.toContain("Add your key")
     })
@@ -201,7 +201,7 @@ describe("RunFailureCallout", () => {
         )
 
         expect(rendered).toContain("Try again")
-        expect(rendered).not.toContain("Sign in again")
+        expect(rendered).not.toContain("Open AI providers")
     })
 
     it("does not offer Try again for a non-transient failure", () => {

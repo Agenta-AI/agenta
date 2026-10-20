@@ -23,7 +23,7 @@ const PROVIDER_ERROR_CODES = new Set(["provider_error", "upstream_error", "upstr
  *
  * Which failure classes deserve which escape is the shared callout's, in one place for both apps.
  * This host answers only for position (the caller's retry) and destination: "Add your key" and
- * "Sign in again" both route to Settings -> LLM providers, the page the desktop's provider drawer
+ * "Open AI providers" both route to Settings -> LLM providers, the page the desktop's provider drawer
  * opens. A class with nowhere to send the reader draws no button, which is why they are props.
  */
 export const RunErrorCallout = ({
@@ -83,7 +83,7 @@ export const RunErrorCallout = ({
             ) : null}
             {offerSignIn ? (
                 <Button size="sm" variant="outline" onClick={onSignIn}>
-                    Sign in again
+                    Open AI providers
                 </Button>
             ) : null}
             {offerBuyCredits ? (

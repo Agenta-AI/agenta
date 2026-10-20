@@ -8,4 +8,5 @@ export interface ChannelInboxEventProcessed {
     sender: Record<string, unknown>;
     sent_at?: (string | null) | undefined;
     message_ref?: (string | null) | undefined;
+    context?: (Record<string, unknown> | null) | undefined;
 }

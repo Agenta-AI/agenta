@@ -134,3 +134,81 @@ describe("the hosted subscription row against the agent's harness", () => {
         expect(rowsWithoutCandidates("ready", HARNESS_IDS)).toEqual([])
     })
 })
+
+// A Claude subscription runs only on Claude Code, and sits apart from an Anthropic API key.
+describe("the Claude subscription row", () => {
+    const capabilities = {
+        claude: {
+            providers: ["anthropic"],
+            deployments: ["direct"],
+            connection_modes: ["agenta", "self_managed"],
+            models: {anthropic: ["sonnet", "haiku"]},
+        },
+        pi_core: CAPABILITIES.pi_core,
+    } satisfies HarnessCapabilityMap
+
+    const claude: ProviderConnection = {
+        id: "claude-1",
+        slug: "claude",
+        name: "Claude",
+        kind: "anthropic",
+        title: "Claude",
+        secretKind: "subscription_provider" as SecretKind,
+        models: ["sonnet", "haiku"],
+        harnesses: ["claude"],
+        hasStoredCredential: true,
+        subscription: {provider: "claude", loginState: "ready"},
+        source: {name: "Claude", provider: "claude"} as ProviderConnection["source"],
+    }
+    const anthropicKey: ProviderConnection = {
+        id: "key-1",
+        slug: "anthropic",
+        name: "Anthropic",
+        kind: "anthropic",
+        title: "Anthropic",
+        secretKind: SecretKind.ProviderKey,
+        models: ["claude-sonnet-4-5"],
+        hasStoredCredential: true,
+        source: {name: "Anthropic", provider: "anthropic"} as ProviderConnection["source"],
+    }
+
+    const rowsOn = (harnessIds: string[]) => {
+        const connections = [claude, anthropicKey]
+        return buildConnectionPickerRows({
+            candidates: buildAgentModelCandidates({
+                connections,
+                capabilities,
+                harnessIds,
+                subscriptionPairs: [],
+            }),
+            connections,
+            capabilities: capabilities as HarnessCapabilitiesMap,
+            harnessIds,
+        })
+    }
+
+    it("is a Subscription row of Claude Code models, separate from the API key row", () => {
+        const rows = rowsOn(["claude"])
+        const subscription = rows.find((row) => row.key === "claude-1")
+
+        expect(subscription).toMatchObject({name: "Claude", kind: "subscription"})
+        expect(subscription?.models.map((model) => model.modelId)).toEqual(["sonnet", "haiku"])
+        expect(
+            subscription?.models.every(
+                (model) =>
+                    model.harness === "claude" &&
+                    model.provider === "anthropic" &&
+                    model.mode === "self_managed" &&
+                    model.slug === "claude",
+            ),
+        ).toBe(true)
+        expect(rows.some((row) => row.key === "key-1")).toBe(true)
+
+        const group = buildPickerGroupsWithSections(rows).find((item) => item.key === "claude-1")
+        expect(group).toMatchObject({label: "Claude", tag: "Subscription"})
+    })
+
+    it("offers nothing to another harness", () => {
+        expect(rowsOn(["pi_core"]).some((row) => row.key === "claude-1")).toBe(false)
+    })
+})

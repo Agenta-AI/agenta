@@ -11,6 +11,7 @@ import ThirdParty from "supertokens-web-js/recipe/thirdparty"
 
 import {describeCreateCode, describeResendCode} from "./otpMachine"
 import {authApiUrl, authEnv} from "./runtime"
+import {readTurnstileRejection} from "./turnstile"
 
 /**
  * Headless SuperTokens client (supertokens-web-js — same 0.16.x the desktop's
@@ -90,7 +91,9 @@ export async function requestEmailCode(
         const outcome = describeCreateCode(await Passwordless.createCode({email}))
         if (outcome.kind === "ok") await tagAttemptWithHost()
         return outcome
-    } catch {
+    } catch (error) {
+        const rejection = await readTurnstileRejection(error)
+        if (rejection) return {kind: "failed", message: rejection}
         return describeCreateCode(null)
     }
 }
@@ -189,8 +192,9 @@ export async function completeOidcSignIn(): Promise<OidcCallbackOutcome> {
             kind: "failed",
             message: "That provider did not share an email. Try another sign-in method.",
         }
-    } catch {
-        return {kind: "failed", message: "Sign-in could not be completed. Try again."}
+    } catch (error) {
+        const rejection = await readTurnstileRejection(error)
+        return {kind: "failed", message: rejection ?? "Sign-in could not be completed. Try again."}
     }
 }
 
@@ -281,7 +285,9 @@ export async function signInDetailed(
             kind: "not-allowed",
             message: "You need to be invited by the organization owner to gain access.",
         }
-    } catch {
+    } catch (error) {
+        const rejection = await readTurnstileRejection(error)
+        if (rejection) return {kind: "not-allowed", message: rejection}
         return {kind: "error"}
     }
 }
@@ -309,7 +315,9 @@ export async function signUpDetailed(
             kind: "not-allowed",
             message: "You need to be invited by the organization owner to gain access.",
         }
-    } catch {
+    } catch (error) {
+        const rejection = await readTurnstileRejection(error)
+        if (rejection) return {kind: "not-allowed", message: rejection}
         return {kind: "error"}
     }
 }

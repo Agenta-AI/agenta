@@ -39,13 +39,17 @@ class ChannelAdapterInterface(ABC):
         *,
         request_url: str,
         identity: Optional[ChannelSetupIdentity] = None,
+        locator: Optional[Dict[str, Any]] = None,
     ) -> Optional[ChannelSetupDoc]:
         """What we generate for the operator to apply — a manifest, a
         package, whatever the platform's setup form takes. Defaults to
         nothing: a channel with no document to generate answers with none,
         the same discipline as an empty capability slot. `identity` is how
         the app built from the document presents itself; a document that
-        names nothing ignores it."""
+        names nothing ignores it. `locator` is the installation's recorded
+        `connection_locator`, when one exists (the embed snippet names its
+        id). Only the locator, never the connection: a fetched connection
+        carries its hydrated credentials, and a document must not reach them."""
 
         return None
 
@@ -135,7 +139,11 @@ class ChannelAdapterInterface(ABC):
 
     @abstractmethod
     async def parse_event(
-        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+        self,
+        *,
+        body: bytes,
+        connection: Optional[ChannelConnection] = None,
+        request: Optional[ChannelRequestContext] = None,
     ) -> Union[None, ChannelInboundEvent, List[ChannelInboundEvent]]:
         """Platform payload → the normalised event, or None for anything we do not
         act on (acks, bot echoes, platform noise). A platform that batches
@@ -146,7 +154,9 @@ class ChannelAdapterInterface(ABC):
 
         `connection` is available for adapters that need one of its own
         fields to parse correctly (Slack's bot user id, for bot-echo
-        filtering); ignored where nothing in the parse depends on it."""
+        filtering); ignored where nothing in the parse depends on it.
+        `request` is the same for a header the event depends on (the embed's
+        visitor key); every other adapter ignores it."""
 
     async def detect_deactivation(self, *, body: bytes) -> bool:
         """True when this inbound payload is the platform telling us an

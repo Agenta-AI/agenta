@@ -29,6 +29,7 @@ export const useTurnstileSecurity = (
     return useMemo(() => {
         if (!enabled) return undefined
         return {
+            hasToken: token !== null,
             ensureToken: () => {
                 if (tokenRef.current) return tokenRef.current
                 setMessage({message: "Please complete the security check.", type: "error"})
@@ -59,5 +60,5 @@ export const useTurnstileSecurity = (
                 />
             ),
         }
-    }, [enabled, handleTokenChange, setMessage])
+    }, [enabled, token, handleTokenChange, setMessage])
 }

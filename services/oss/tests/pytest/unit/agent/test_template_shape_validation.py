@@ -204,3 +204,24 @@ async def test_handler_raises_a_coded_400_on_an_unreadable_harness_kind(kind):
 
     assert caught.value.code == 400
     assert "harness.kind" in caught.value.message
+
+
+# ---------------------------------------------------------------------------
+# A field value the template does not accept is the caller's error, not a 500.
+# ---------------------------------------------------------------------------
+
+
+def test_unknown_connection_mode_is_a_named_400():
+    # Production sent `connection.mode` values such as "default" and "platform". Pydantic
+    # refused them, and the raw ValidationError reached the invoke route as HTTP 500.
+    with pytest.raises(AgentTemplateShapeError) as excinfo:
+        AgentTemplate.from_params(
+            {"agent": {"llm": {"model": "gpt-5.5", "connection": {"mode": "default"}}}}
+        )
+
+    assert excinfo.value.code == 400
+    assert "connection.mode" in excinfo.value.message
+    assert "'agenta' or 'self_managed'" in excinfo.value.message
+    # Only the field and the rule: the raw value may be a credential on other fields.
+    assert "input_value" not in excinfo.value.message
+    assert "default" not in excinfo.value.message

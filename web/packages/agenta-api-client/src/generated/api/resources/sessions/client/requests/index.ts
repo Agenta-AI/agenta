@@ -1,4 +1,5 @@
 export type { ArchiveSessionRequest } from "./ArchiveSessionRequest.js";
+export type { BodyUploadSessionCwdFile } from "./BodyUploadSessionCwdFile.js";
 export type { BodyUploadSessionMountFile } from "./BodyUploadSessionMountFile.js";
 export type { CancelSessionExecutionRequest } from "./CancelSessionExecutionRequest.js";
 export type { CreateSessionAttachmentRequest } from "./CreateSessionAttachmentRequest.js";
@@ -28,6 +29,7 @@ export type { SessionInteractionTransitionRequest } from "./SessionInteractionTr
 export type { SessionMountQueryRequest } from "./SessionMountQueryRequest.js";
 export type { SessionQueryRequest } from "./SessionQueryRequest.js";
 export type { SessionRecordQueryRequest } from "./SessionRecordQueryRequest.js";
+export type { SessionRecordsIncompleteRequest } from "./SessionRecordsIncompleteRequest.js";
 export type { SessionStreamCommandRequest } from "./SessionStreamCommandRequest.js";
 export type { SessionStreamQueryRequest } from "./SessionStreamQueryRequest.js";
 export type { SessionTurnAppendRequest } from "./SessionTurnAppendRequest.js";

@@ -55,6 +55,14 @@ class MissingCredentialError(ConnectionResolutionError):
         self.slug = slug
 
 
+# The name a person knows each hosted subscription provider by, for the messages below.
+SUBSCRIPTION_PROVIDER_NAMES = {"chatgpt": "ChatGPT", "claude": "Claude"}
+
+
+def _subscription_name(provider: str) -> str:
+    return SUBSCRIPTION_PROVIDER_NAMES.get(provider, provider or "subscription")
+
+
 class SubscriptionConnectionMissingError(ConnectionResolutionError):
     """Raised when the config names a subscription connection the project does not hold.
 
@@ -69,9 +77,10 @@ class SubscriptionConnectionMissingError(ConnectionResolutionError):
     failure_code = "subscription_connection_missing"
 
     def __init__(self, *, slug: str) -> None:
-        # The message names ChatGPT because `chatgpt` is the only subscription provider today.
+        # Neutral: the provider is unknowable for a row that does not exist.
         super().__init__(
-            f"No ChatGPT connection named '{slug}'. Check the agent's model connection."
+            f"No subscription connection named '{slug}'. "
+            "Check the agent's model connection."
         )
         self.slug = slug
 
@@ -93,13 +102,20 @@ class SubscriptionLoginRequiredError(ConnectionResolutionError):
     status_code = 422
     failure_code = "subscription_login_required"
 
-    # The message names ChatGPT because `chatgpt` is the only subscription provider today.
-    # Add a per-provider name here when a second provider lands.
-    MESSAGE = "The ChatGPT sign-in is not ready. Sign in from AI providers."
+    # A Claude subscription is connected by pasting a token, not by signing in.
+    _CLAUDE_MESSAGE = (
+        "The Claude subscription is not connected. "
+        "Paste a token from `claude setup-token` in AI providers."
+    )
 
-    def __init__(self, *, slug: str, provider: str = "") -> None:
+    def __init__(self, *, slug: str, provider: str) -> None:
         # Never name the login, the token, or the file path: this string reaches the browser.
-        super().__init__(self.MESSAGE)
+        super().__init__(
+            self._CLAUDE_MESSAGE
+            if provider == "claude"
+            else f"The {_subscription_name(provider)} sign-in is not ready. "
+            "Sign in from AI providers."
+        )
         self.slug = slug
         self.provider = provider
 
@@ -107,21 +123,30 @@ class SubscriptionLoginRequiredError(ConnectionResolutionError):
 class SubscriptionNotSupportedError(ConnectionResolutionError):
     """Raised when a hosted subscription login cannot be delivered to this run.
 
-    Only the ChatGPT subscription on the Pi harness is supported. Codex refuses a login
-    file without an ``id_token``, which the ChatGPT device login never issues, so the same
-    credential cannot be handed to it. Failing here beats starting a run that authenticates
-    with nothing and reports a provider auth error the person cannot act on.
+    Each subscription provider runs on one harness: ChatGPT on Pi, Claude on Claude Code.
+    Codex refuses a login file without an ``id_token``, which the ChatGPT device login never
+    issues, so the same credential cannot be handed to it. Failing here beats starting a run
+    that authenticates with nothing and reports a provider auth error the person cannot act
+    on.
     """
 
     # An unsupported pair comes from the config, not from the server.
     status_code = 422
     failure_code = "subscription_not_supported"
 
-    def __init__(self, *, harness: Optional[str] = None, provider: str = "") -> None:
+    def __init__(
+        self,
+        *,
+        harness: Optional[str] = None,
+        provider: str,
+        supported_harness: Optional[str] = None,
+    ) -> None:
+        name = _subscription_name(provider)
         super().__init__(
-            "A hosted subscription runs a ChatGPT connection on the Pi harness only. "
-            f"This run asked for provider '{provider or 'unknown'}' on harness "
-            f"'{harness or 'none'}'."
+            f"A {name} subscription runs on the {supported_harness} harness only. "
+            f"This run asked for harness '{harness or 'none'}'."
+            if supported_harness
+            else f"This version of Agenta cannot run a {name} subscription."
         )
         self.harness = harness
         self.provider = provider

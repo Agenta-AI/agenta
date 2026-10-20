@@ -12,11 +12,13 @@ import {
     effectiveHarnesses,
     firstAgentModelForConnection,
     isSubscriptionConnection,
-    mountedSubscriptionName,
+    MOUNTED_SUBSCRIPTION_SOURCE,
+    mountedSubscriptionDisplayName,
     resolveAgentModelSelection,
     SecretKind,
     SUBSCRIPTION_SIGN_IN_HINT,
     subscriptionAvailability,
+    subscriptionPlanName,
     connectionNamespaceFrom,
     type AgentConnectionNamespace,
     type AgentModelCandidate,
@@ -52,6 +54,11 @@ export interface PickerConnectionRow {
     disabled?: boolean
     /** One short line under the name, saying why the row is disabled. */
     hint?: string
+    /**
+     * Where the row's login comes from, shown under a short `name`. Only a mounted subscription
+     * sets it, and only when a hosted subscription to the same plan is in the same picker.
+     */
+    source?: string
     models: PickerModelRow[]
 }
 
@@ -77,27 +84,44 @@ export interface BuildPickerRowsArgs {
     harnessIds?: readonly string[]
 }
 
+/** A mounted subscription: no stored record and no built-in name, only the deployment's login. */
+const isMountedSubscription = (
+    candidate: AgentModelCandidate,
+    connection: ProviderConnection | undefined,
+): boolean => !connection && !candidate.connectionName
+
 /**
  * What a candidate's row is called.
  *
  * A candidate backed by a stored record uses the record's own name; a built-in model carries its
- * own. Only a MOUNTED subscription has neither, and that fallback has to say so: a project that also holds a hosted subscription
- * to the same plan would otherwise show two rows called "ChatGPT · Subscription".
+ * own. Only a MOUNTED subscription has neither. It is called by its plan name, and says where it
+ * comes from only when `hostedFamilies` holds its plan: a picker that also lists a hosted
+ * subscription to the same plan would otherwise show two rows called "ChatGPT · Subscription".
  */
 const candidateRowName = (
     candidate: AgentModelCandidate,
     connection: ProviderConnection | undefined,
+    hostedFamilies: ReadonlySet<string>,
 ): string =>
     connection?.name ??
     candidate.connectionName ??
-    mountedSubscriptionName(candidate.provider ?? "")
+    mountedSubscriptionDisplayName(candidate.provider ?? "", hostedFamilies)
 
 const rowFromCandidate = (
     candidate: AgentModelCandidate,
     connection: ProviderConnection | undefined,
+    hostedFamilies: ReadonlySet<string>,
 ): PickerConnectionRow => ({
     key: candidate.connectionKey,
-    name: candidateRowName(candidate, connection),
+    // A duplicate splits the long name in two, so the plan name fits beside the narrow column's tag.
+    ...(isMountedSubscription(candidate, connection)
+        ? {
+              name: subscriptionPlanName(candidate.provider ?? ""),
+              ...(hostedFamilies.has(candidate.provider ?? "")
+                  ? {source: MOUNTED_SUBSCRIPTION_SOURCE}
+                  : {}),
+          }
+        : {name: candidateRowName(candidate, connection, hostedFamilies)}),
     // A built-in model has no stored connection; it runs on Agenta's account.
     iconKey:
         candidate.managed || (!connection && candidate.connectionName)
@@ -112,6 +136,7 @@ const modelFromCandidate = (
     candidate: AgentModelCandidate,
     capabilities: HarnessCapabilitiesMap | null | undefined,
     connection: ProviderConnection | undefined,
+    hostedFamilies: ReadonlySet<string>,
 ): PickerModelRow => {
     const catalogLabel = modelDisplayName(capabilities, candidate.harness, candidate.modelId)
     const label =
@@ -129,7 +154,7 @@ const modelFromCandidate = (
         namespace: candidate.namespace ?? null,
         provider: candidate.provider,
         connectionKey: candidate.connectionKey,
-        connectionName: candidateRowName(candidate, connection),
+        connectionName: candidateRowName(candidate, connection, hostedFamilies),
     }
 }
 
@@ -155,23 +180,44 @@ export const buildConnectionPickerRows = (args: BuildPickerRowsArgs): PickerConn
     const rows: PickerConnectionRow[] = []
     const byKey = new Map<string, PickerConnectionRow>()
     const connections = new Map(args.connections.map((connection) => [connection.id, connection]))
+    const candidateKeys = new Set(args.candidates.map((candidate) => candidate.connectionKey))
+
+    // Only a sign-in the user can act on earns a row without candidates. A READY subscription with
+    // no candidates was dropped for another reason, and a row this agent cannot drive has nothing
+    // to say.
+    const disabledSubscriptions = args.connections.filter(
+        (connection) =>
+            isSubscriptionConnection(connection) &&
+            !candidateKeys.has(connection.id) &&
+            subscriptionAvailability(connection, args.harnessIds) === "sign_in_needed",
+    )
+
+    // The plans a hosted subscription row in THIS picker carries, enabled or not. A mounted row of
+    // one of them is the duplicate that has to say where it comes from.
+    const hostedFamilies = new Set(
+        [
+            ...args.connections.filter(
+                (connection) =>
+                    isSubscriptionConnection(connection) && candidateKeys.has(connection.id),
+            ),
+            ...disabledSubscriptions,
+        ].map((connection) => connection.kind),
+    )
+
     for (const candidate of args.candidates) {
         const connection = connections.get(candidate.connectionKey)
         let row = byKey.get(candidate.connectionKey)
         if (!row) {
-            row = rowFromCandidate(candidate, connection)
+            row = rowFromCandidate(candidate, connection, hostedFamilies)
             byKey.set(candidate.connectionKey, row)
             rows.push(row)
         }
-        row.models.push(modelFromCandidate(candidate, args.capabilities, connection))
+        row.models.push(
+            modelFromCandidate(candidate, args.capabilities, connection, hostedFamilies),
+        )
     }
 
-    for (const connection of args.connections) {
-        if (!isSubscriptionConnection(connection)) continue
-        if (byKey.has(connection.id)) continue
-        // Only a sign-in the user can act on earns the row. A READY subscription with no candidates
-        // was dropped for another reason, and a row this agent cannot drive has nothing to say.
-        if (subscriptionAvailability(connection, args.harnessIds) !== "sign_in_needed") continue
+    for (const connection of disabledSubscriptions) {
         rows.push(disabledSubscriptionRow(connection))
     }
 

@@ -40,6 +40,10 @@ export const ONBOARDING_COPY = {
         chatgptDialogBody:
             "Sign in with your ChatGPT subscription. Your agent runs on it through the Codex harness.",
         chatgptConnected: "ChatGPT connected. Your agent will run on it.",
+        claude: "Claude subscription",
+        claudeHint: "Run agents on your Pro or Max plan.",
+        claudeReadyHint: "Agents can run on your Claude plan.",
+        claudeConnected: "Claude connected. Your agent will run on it.",
         key: "Your API key",
         keyHint: (more: number) => `OpenAI, Anthropic, Gemini and ${more} more.`,
         keySaved: "Saved securely. You can use it on any agent.",
@@ -61,7 +65,7 @@ export const ONBOARDING_COPY = {
         added: "Added",
         inUse: "In use",
         noneRunnable:
-            "No model can run your agent yet. Connect ChatGPT or add an API key to continue.",
+            "No model can run your agent yet. Connect ChatGPT or Claude, or add an API key to continue.",
     },
     gallery: {
         title: "Create your first agent",
