@@ -50,6 +50,7 @@ from ee.src.core.organizations.types import (
     OrganizationProviderUpdate,
 )
 from ee.src.core.organizations.exceptions import OrganizationSlugConflictError
+from ee.src.core.fraud.types import FRAUD_FLAG_KEYS
 
 
 log = get_module_logger(__name__)
@@ -93,6 +94,12 @@ async def update_organization(
         if "flags" in payload_dict:
             new_flags = payload_dict["flags"]
             if new_flags is not None:
+                # The fraud check owns its keys: a client cannot set or clear them.
+                new_flags = {
+                    key: value
+                    for key, value in new_flags.items()
+                    if key not in FRAUD_FLAG_KEYS
+                }
                 existing_flags = organization.flags or {}
 
                 default_flags = {
@@ -974,6 +981,7 @@ from ee.src.core.starter_credits_bridge.service import (  # noqa: E402
     seed_starter_credits_bridge_safely,
 )
 from ee.src.core.wallets.service import WalletsService  # noqa: E402
+from ee.src.core.fraud.service import signup_is_fraud  # noqa: E402
 
 
 _subscription_service = SubscriptionsService(
@@ -1111,13 +1119,21 @@ async def provision_signup_subscription(
         scope=scope_from(organization_id=organization.id),
     )
 
+    # Never raises; bounded to a few seconds. A flagged organization is created as
+    # normal but gets no free credits of any kind: no starter credits, no signup grant,
+    # and (through the marker) no daily grants.
+    flagged = await signup_is_fraud(
+        organization_id=organization.id, email=organization_email
+    )
+
     # Bounded (10s) and swallow-all: a failure degrades to "no starter credits"
     # and must never raise here — the signup path deletes the new user when
     # setup fails. Nothing retries a failed seed.
-    await seed_starter_credits_bridge_safely(
-        organization_id=str(organization.id),
-        organization_email=organization_email,
-    )
+    if not flagged:
+        await seed_starter_credits_bridge_safely(
+            organization_id=str(organization.id),
+            organization_email=organization_email,
+        )
 
     # Both helpers re-raise, and the signup path deletes the new user when this
     # coroutine fails, so an unfinished wallet must not run here.
@@ -1133,6 +1149,8 @@ async def provision_signup_subscription(
             )
         plan = subscription.plan if subscription is not None else get_default_plan()
         award_grant, raise_floor = await _free_credits_check(organization_email)
+        if flagged:
+            award_grant = False
         await _provision_wallet_general_balance(
             organization_id=organization.id,
             plan=plan,

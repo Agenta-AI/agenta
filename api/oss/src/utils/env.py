@@ -1990,6 +1990,26 @@ class PostHogConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# typesafe
+# ---------------------------------------------------------------------------
+
+
+class TypeSafeConfig(BaseModel):
+    """TypeSafe judgment model (Jev), used by the EE fraud check at signup and at
+    API key creation. Without a key the check is skipped and every signup is allowed."""
+
+    api_url: str = os.getenv("TYPESAFE_API_URL") or "https://api.typesafe.ai"
+    api_key: str | None = os.getenv("TYPESAFE_API_KEY") or None
+    model: str = os.getenv("TYPESAFE_MODEL") or "jev-latest"
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.api_key)
+
+
+# ---------------------------------------------------------------------------
 # redis
 # ---------------------------------------------------------------------------
 
@@ -2470,6 +2490,7 @@ class EnvironSettings(BaseModel):
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
     triggers: TriggersConfig = TriggersConfig()
+    typesafe: TypeSafeConfig = TypeSafeConfig()
     wallets: WalletsConfig = WalletsConfig()
     rollout: RolloutConfig = RolloutConfig()
 
