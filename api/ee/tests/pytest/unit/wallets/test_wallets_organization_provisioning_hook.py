@@ -403,9 +403,13 @@ class _Policy:
     def email_rules_allow(self, organization_email, policy):
         return self.email_allowed
 
-    async def _mint_policy_allows(self, organization_email, policy, counter_prefix):
+    async def _mint_policy_refusal(self, organization_email, policy, counter_prefix):
         assert counter_prefix == self.SIGNUP_GRANT_COUNTER_PREFIX
-        return self.email_allowed and self.caps_allow
+        if not self.email_allowed:
+            return "disposable_domain"
+        if not self.caps_allow:
+            return "global_daily"
+        return None
 
 
 async def _signup_with(monkeypatch, policy):

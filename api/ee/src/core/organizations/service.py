@@ -1006,27 +1006,50 @@ def _get_wallets_service() -> WalletsService:
     return _wallets_service
 
 
-# The floor given to a new organization whose email the mint policy refuses: 100
-# credits, above the daily 75, so the daily free credits can never be spent.
+# The floor given to a new organization that the mint policy refuses with one of
+# FLOOR_RAISING_REFUSALS: 100 credits, above the daily 75, so the daily free credits
+# can never be spent.
 REFUSED_EMAIL_FLOOR_MUSD = 1_000_000
+
+# Refusals that also raise the wallet floor. The email rules, and the per-domain cap:
+# one domain past its daily signup grants can still create many accounts, and each
+# would collect the daily credits. The global caps do not raise the floor, so a real
+# user who signs up in a busy hour still gets the daily credits.
+FLOOR_RAISING_REFUSALS = frozenset(
+    {
+        "disposable_domain",
+        "plus_local_part",
+        "digit_local_part",
+        "work_domain_daily",
+    }
+)
 
 
 async def _free_credits_check(organization_email: str) -> tuple[bool, bool]:
     """Apply the mint policy to a new organization's owner email, and return
-    (award the signup grant, raise the wallet floor). An email rule refusal does both;
-    a velocity cap, a missing policy or any error skips only the grant."""
+    (award the signup grant, raise the wallet floor). A refusal in
+    FLOOR_RAISING_REFUSALS does both; any other refusal, a missing policy or any
+    error skips only the grant."""
     try:
         async with asyncio.timeout(5):
             policy = await _mint_policy._resolve_mint_policy()
             if policy is None:
                 return False, False
-            if not _mint_policy.email_rules_allow(organization_email, policy):
-                return False, True
-            return await _mint_policy._mint_policy_allows(
+            refusal = await _mint_policy._mint_policy_refusal(
                 organization_email,
                 policy,
                 counter_prefix=_mint_policy.SIGNUP_GRANT_COUNTER_PREFIX,
-            ), False
+            )
+            if refusal is None:
+                return True, False
+            raise_floor = refusal in FLOOR_RAISING_REFUSALS
+            log.info(
+                "[wallets] signup grant refused",
+                rule=refusal,
+                raise_floor=raise_floor,
+                domain=organization_email.rpartition("@")[2].lower(),
+            )
+            return False, raise_floor
     except Exception:
         log.warning(
             "[wallets] free credits check failed; no signup grant", exc_info=True
