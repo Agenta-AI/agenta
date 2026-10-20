@@ -21,6 +21,7 @@ from oss.src.apis.fastapi.vault import router as vault_router_module
 from oss.src.apis.fastapi.vault.router import VaultRouter
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.core.secrets.types import SecretSlugConflict
@@ -63,6 +64,7 @@ def _client(monkeypatch):
         subscription_login_service=SubscriptionLoginService(
             vault_service=vault_service,
             runner_client=SubscriptionLoginRunnerClient(base_url="", token=""),
+            claude_token_client=ClaudeTokenClient(),
         ),
     )
 

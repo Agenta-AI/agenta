@@ -25,7 +25,7 @@ from agenta.sdk.redaction.context import get_active_redactor
 
 from .effective_config import stamp_effective_parameters
 from ..permission_rules import PermissionRule
-from ..errors import AgentRunFailed
+from ..errors import AgentRunFailed, AgentTurnAdmissionRefused
 from ..dtos import (
     Event,
     AgentResult,
@@ -205,6 +205,10 @@ def result_from_wire(data: Dict[str, Any]) -> AgentResult:
     data = get_active_redactor().redact_json(data, sink="runner_result")
     if not data.get("ok"):
         error_detail = data.get("errorDetail")
+        if AgentTurnAdmissionRefused.matches(error_detail):
+            raise AgentTurnAdmissionRefused(
+                sanitize_runner_error(data.get("error")), error_detail=error_detail
+            )
         raise AgentRunFailed(
             sanitize_runner_error(data.get("error")),
             error_detail=error_detail if isinstance(error_detail, dict) else None,

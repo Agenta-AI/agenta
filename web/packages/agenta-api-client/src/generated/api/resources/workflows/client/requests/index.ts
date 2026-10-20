@@ -20,6 +20,8 @@ export type { SimpleWorkflowCreateRequest } from "./SimpleWorkflowCreateRequest.
 export type { SimpleWorkflowEditRequest } from "./SimpleWorkflowEditRequest.js";
 export type { SimpleWorkflowQueryRequest } from "./SimpleWorkflowQueryRequest.js";
 export { TemplateLoadRequest } from "./TemplateLoadRequest.js";
+export type { TemplateSourceScanRequest } from "./TemplateSourceScanRequest.js";
+export type { TemplateValidateRequest } from "./TemplateValidateRequest.js";
 export type { UnarchiveSimpleWorkflowRequest } from "./UnarchiveSimpleWorkflowRequest.js";
 export type { UnarchiveWorkflowRequest } from "./UnarchiveWorkflowRequest.js";
 export type { UnarchiveWorkflowRevisionRequest } from "./UnarchiveWorkflowRevisionRequest.js";

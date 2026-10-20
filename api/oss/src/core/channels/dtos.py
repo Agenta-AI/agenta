@@ -92,6 +92,9 @@ class ChannelTriggerState(str, Enum):
 # workflow service. Only such a turn, or a REFUSED one, leaves the offset where
 # it was; any other failure may have run, so the next turn moves past it.
 CHANNEL_TRIGGER_NEVER_SENT = "never_sent"
+# The status code of a FAILED trigger whose start the workflow service itself
+# answered with a failure. The turn never ran; the offset rule stays the default.
+CHANNEL_TRIGGER_START_REJECTED = "start_rejected"
 
 
 class ChannelDeliveryState(str, Enum):
@@ -516,8 +519,11 @@ class ChannelInboxEventProcessed(BaseModel):
     # first and matches the bot's own posts by the second
     sent_at: Optional[datetime] = None
     message_ref: Optional[str] = None
+    # facts the sender's side supplied about where the message came from (the
+    # embed's host page); shown to the model as provided, never verified
+    context: Optional[Dict[str, Any]] = None
 
-    @field_validator("content", "sender", mode="after")
+    @field_validator("content", "sender", "context", mode="after")
     @classmethod
     def _redact(cls, value):
         return _redact_credentials(value)
@@ -1024,6 +1030,9 @@ class ChannelTurnInput(BaseModel):
 
     content: List[Dict[str, Any]]
     is_backfilled: bool = False
+    # the person's own words when `content` also holds parts this layer added
+    # (attribution, host context): the chat shows this, the model sees content
+    display_content: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

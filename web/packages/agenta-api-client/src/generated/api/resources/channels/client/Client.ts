@@ -370,6 +370,460 @@ export class ChannelsClient {
     }
 
     /**
+     * @param {AgentaApi.IngestEmbedEventRequest} request
+     * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.channels.ingestEmbedEvent({
+     *         embed_id: "embed_id"
+     *     })
+     */
+    public ingestEmbedEvent(
+        request: AgentaApi.IngestEmbedEventRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.ChannelEventAck> {
+        return core.HttpResponsePromise.fromPromise(this.__ingestEmbedEvent(request, requestOptions));
+    }
+
+    private async __ingestEmbedEvent(
+        request: AgentaApi.IngestEmbedEventRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.ChannelEventAck>> {
+        const { embed_id: embedId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `channels/embed/events/${core.url.encodePathParam(embedId)}/`,
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.ChannelEventAck, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/channels/embed/events/{embed_id}/",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.FetchEmbedConfigRequest} request
+     * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.channels.fetchEmbedConfig({
+     *         embed_id: "embed_id"
+     *     })
+     */
+    public fetchEmbedConfig(
+        request: AgentaApi.FetchEmbedConfigRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.EmbedConfigResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__fetchEmbedConfig(request, requestOptions));
+    }
+
+    private async __fetchEmbedConfig(
+        request: AgentaApi.FetchEmbedConfigRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.EmbedConfigResponse>> {
+        const { embed_id: embedId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `channels/embed/${core.url.encodePathParam(embedId)}/config`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.EmbedConfigResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/channels/embed/{embed_id}/config",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.ListEmbedConversationsRequest} request
+     * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.channels.listEmbedConversations({
+     *         embed_id: "embed_id"
+     *     })
+     */
+    public listEmbedConversations(
+        request: AgentaApi.ListEmbedConversationsRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.EmbedConversationsResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__listEmbedConversations(request, requestOptions));
+    }
+
+    private async __listEmbedConversations(
+        request: AgentaApi.ListEmbedConversationsRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.EmbedConversationsResponse>> {
+        const { embed_id: embedId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `channels/embed/${core.url.encodePathParam(embedId)}/conversations`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.EmbedConversationsResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/channels/embed/{embed_id}/conversations",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.ReadEmbedConversationRequest} request
+     * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.channels.readEmbedConversation({
+     *         embed_id: "embed_id",
+     *         thread_id: "thread_id"
+     *     })
+     */
+    public readEmbedConversation(
+        request: AgentaApi.ReadEmbedConversationRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.EmbedConversationResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__readEmbedConversation(request, requestOptions));
+    }
+
+    private async __readEmbedConversation(
+        request: AgentaApi.ReadEmbedConversationRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.EmbedConversationResponse>> {
+        const { embed_id: embedId, thread_id: threadId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `channels/embed/${core.url.encodePathParam(embedId)}/conversations/${core.url.encodePathParam(threadId)}`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.EmbedConversationResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/channels/embed/{embed_id}/conversations/{thread_id}",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.StreamEmbedConversationRequest} request
+     * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.channels.streamEmbedConversation({
+     *         embed_id: "embed_id",
+     *         thread_id: "thread_id"
+     *     })
+     */
+    public streamEmbedConversation(
+        request: AgentaApi.StreamEmbedConversationRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): core.HttpResponsePromise<void> {
+        return core.HttpResponsePromise.fromPromise(this.__streamEmbedConversation(request, requestOptions));
+    }
+
+    private async __streamEmbedConversation(
+        request: AgentaApi.StreamEmbedConversationRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<void>> {
+        const { embed_id: embedId, thread_id: threadId, after } = request;
+        const _queryParams: Record<string, unknown> = {
+            after,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `channels/embed/${core.url.encodePathParam(embedId)}/conversations/${core.url.encodePathParam(threadId)}/live`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: undefined, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/channels/embed/{embed_id}/conversations/{thread_id}/live",
+        );
+    }
+
+    /**
+     * A session attachment of the caller's thread. The lookup is scoped by
+     * the thread's session, so another session's file is not found.
+     *
+     * @param {AgentaApi.DownloadEmbedFileRequest} request
+     * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.channels.downloadEmbedFile({
+     *         embed_id: "embed_id",
+     *         thread_id: "thread_id",
+     *         file_id: "file_id"
+     *     })
+     */
+    public downloadEmbedFile(
+        request: AgentaApi.DownloadEmbedFileRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): core.HttpResponsePromise<void> {
+        return core.HttpResponsePromise.fromPromise(this.__downloadEmbedFile(request, requestOptions));
+    }
+
+    private async __downloadEmbedFile(
+        request: AgentaApi.DownloadEmbedFileRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<void>> {
+        const { embed_id: embedId, thread_id: threadId, file_id: fileId } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `channels/embed/${core.url.encodePathParam(embedId)}/conversations/${core.url.encodePathParam(threadId)}/files/${core.url.encodePathParam(fileId)}`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: undefined, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/channels/embed/{embed_id}/conversations/{thread_id}/files/{file_id}",
+        );
+    }
+
+    /**
      * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @example

@@ -119,6 +119,17 @@ def main() -> int:
     assert mobile_path["pathType"] == "Prefix"
     assert mobile_path["backend"]["service"]["name"].endswith("-web-mobile")
 
+    # The embed widget page reads AGENTA_API_INTERNAL_URL; it is set only when configured.
+    assert env_value(mobile_deployment, "AGENTA_API_INTERNAL_URL") is None
+    internal_docs = render(["--set", "agenta.apiInternalUrl=http://agenta-api:8000"])
+    assert (
+        env_value(
+            component(internal_docs, "Deployment", "web-mobile"),
+            "AGENTA_API_INTERNAL_URL",
+        )
+        == "http://agenta-api:8000"
+    )
+
     custom_docs = render(
         [
             "--set",

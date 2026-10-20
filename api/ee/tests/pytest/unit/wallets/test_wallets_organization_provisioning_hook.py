@@ -26,6 +26,7 @@ def _wallets_enabled(monkeypatch):
 
 
 _REAL_FREE_CREDITS_CHECK = organizations_service_module._free_credits_check
+_REAL_EMAIL_RULES_REFUSE = organizations_service_module._email_rules_refuse
 
 
 @pytest.fixture(autouse=True)
@@ -37,6 +38,13 @@ def _email_allowed(monkeypatch):
         return True, False
 
     monkeypatch.setattr(organizations_service_module, "_free_credits_check", _allowed)
+
+    async def _not_refused(organization_email):
+        return False
+
+    monkeypatch.setattr(
+        organizations_service_module, "_email_rules_refuse", _not_refused
+    )
 
 
 class _RecordingWalletsService:
@@ -236,7 +244,9 @@ async def test_provision_user_subscription_never_awards_signup_grant(monkeypatch
         organizations_service_module, "check_entitlements", _fake_check_entitlements
     )
 
-    await organizations_service_module.provision_user_subscription(_FakeOrganization())
+    await organizations_service_module.provision_user_subscription(
+        _FakeOrganization(), organization_email="user@example.com"
+    )
 
     assert awarded == []  # never called on the explicit-creation path
 
@@ -466,3 +476,59 @@ async def test_no_policy_skips_only_the_grant(monkeypatch):
 
     assert floors == [None]
     assert grants == []
+
+
+async def _create_organization_with(monkeypatch, policy):
+    """Run the `POST /organizations/` path with `policy`; return the floors provisioned."""
+    floors = []
+
+    async def _provision(*, organization_id, plan, floor_musd=None):
+        floors.append(floor_musd)
+
+    class _Subscriptions:
+        async def start_plan(self, *, organization_id, plan):
+            return None
+
+    async def _check_entitlements(**kwargs):
+        return None
+
+    class _Organization:
+        id = uuid4()
+        name = "acme"
+
+    m = organizations_service_module
+    monkeypatch.setattr(m, "_email_rules_refuse", _REAL_EMAIL_RULES_REFUSE)
+    monkeypatch.setattr(m, "_mint_policy", policy)
+    monkeypatch.setattr(m, "_provision_wallet_general_balance", _provision)
+    monkeypatch.setattr(m, "_subscription_service", _Subscriptions())
+    monkeypatch.setattr(m, "check_entitlements", _check_entitlements)
+
+    await m.provision_user_subscription(
+        _Organization(), organization_email="user@example.com"
+    )
+    return floors
+
+
+@pytest.mark.asyncio
+async def test_an_extra_organization_of_a_refused_email_gets_the_raised_floor(
+    monkeypatch,
+):
+    floors = await _create_organization_with(monkeypatch, _Policy(email_allowed=False))
+
+    assert floors == [organizations_service_module.REFUSED_EMAIL_FLOOR_MUSD]
+
+
+@pytest.mark.asyncio
+async def test_an_extra_organization_of_an_allowed_email_gets_the_plan_floor(
+    monkeypatch,
+):
+    floors = await _create_organization_with(monkeypatch, _Policy())
+
+    assert floors == [None]
+
+
+@pytest.mark.asyncio
+async def test_an_extra_organization_with_no_policy_gets_the_plan_floor(monkeypatch):
+    floors = await _create_organization_with(monkeypatch, _Policy(policy=None))
+
+    assert floors == [None]

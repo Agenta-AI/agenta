@@ -58,6 +58,6 @@ describe("AgentMessage: a run that failed", () => {
     it("wires the sign-in escape on the same grounds", () => {
         expect(
             text(failedTurn("The sign-in is no longer valid.", "subscription_login_required")),
-        ).toContain("Sign in again")
+        ).toContain("Open AI providers")
     })
 })

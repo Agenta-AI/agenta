@@ -89,6 +89,15 @@ export const isSubscriptionConnection = (connection: ProviderConnection): boolea
     !!connection.subscription
 
 /**
+ * The provider families (`openai`, `anthropic`) the project holds a hosted subscription for, in
+ * any login state. A mounted subscription of one of these families needs its long name.
+ */
+export const hostedSubscriptionFamilies = (
+    connections: readonly ProviderConnection[],
+): Set<string> =>
+    new Set(connections.filter(isSubscriptionConnection).map((connection) => connection.kind))
+
+/**
  * The MCP plane keeps its project credentials in the same vault, under the same `provider_key`
  * kind, so a stored Composio key reaches this derivation looking like any other standard row.
  * It names no LLM provider, and everything downstream of a connection assumes one.

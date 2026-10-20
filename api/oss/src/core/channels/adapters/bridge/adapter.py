@@ -109,6 +109,7 @@ class BridgeAdapter(ChannelAdapterInterface):
         *,
         request_url: str,
         identity: Optional[ChannelSetupIdentity] = None,
+        locator: Optional[Dict[str, Any]] = None,
     ) -> Optional[ChannelSetupDoc]:
         """The GET path only -- reachable any number of times, so it must be
         structurally incapable of leaking the secret, not merely trusted not
@@ -160,7 +161,11 @@ class BridgeAdapter(ChannelAdapterInterface):
         return declared_source
 
     async def parse_event(
-        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+        self,
+        *,
+        body: bytes,
+        connection: Optional[ChannelConnection] = None,
+        request: Optional[ChannelRequestContext] = None,
     ) -> Optional[ChannelInboundEvent]:
         payload = _parse_json(body)
         return parse_inbound_envelope(payload)

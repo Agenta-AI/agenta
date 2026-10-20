@@ -79,7 +79,11 @@ class FakeAdapter:
         return False
 
     async def parse_event(
-        self, *, body: bytes, connection: Optional[ChannelConnection] = None
+        self,
+        *,
+        body: bytes,
+        connection: Optional[ChannelConnection] = None,
+        request=None,
     ) -> Optional[ChannelInboundEvent]:
         self.parse_calls += 1
         if body == b"noop":

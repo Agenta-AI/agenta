@@ -120,6 +120,7 @@ export {
     doneState,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    hostedSubscriptionFamilies,
     isSubscriptionConnection,
     probeFailureMessage,
     probeRequestFor,
@@ -136,6 +137,7 @@ export type {SubscriptionHarnessStatus, SubscriptionPair} from "./subscriptionPa
 
 export type {
     SubscriptionAvailability,
+    SubscriptionConnectMethod,
     SubscriptionLoginState,
     SubscriptionRowFacts,
 } from "./subscriptionConnections"
@@ -146,14 +148,19 @@ export {
     SUBSCRIPTION_SIGN_IN_HINT,
     subscriptionAttemptErrorSentence,
     subscriptionAvailability,
+    subscriptionConnectMethod,
+    subscriptionConnectionFor,
     subscriptionHarnesses,
     subscriptionIsReady,
     subscriptionProviderFamily,
     subscriptionProviderName,
     subscriptionRunProvider,
     subscriptionStatusLine,
+    subscriptionTokenErrorText,
 } from "./subscriptionConnections"
 export {
+    MOUNTED_SUBSCRIPTION_SOURCE,
+    mountedSubscriptionDisplayName,
     mountedSubscriptionName,
     subscriptionPairModels,
     subscriptionPairsFrom,
