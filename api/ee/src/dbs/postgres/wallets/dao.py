@@ -347,6 +347,53 @@ class WalletsDAO(WalletsDAOInterface):
 
             return balance_dbe_to_dto(balance)
 
+    async def hold_credits(
+        self,
+        *,
+        organization_id: UUID,
+        floor_musd: int,
+        now: datetime,
+    ) -> int:
+        async with self.engine.session() as session:
+            general = await self._lock_general_balance(
+                session=session,
+                organization_id=organization_id,
+            )
+            general.floor_musd = floor_musd
+
+            live_stmt = (
+                select(WalletCreditDBE)
+                .where(
+                    WalletCreditDBE.organization_id == organization_id,
+                    WalletCreditDBE.deleted_at.is_(None),
+                    or_(
+                        WalletCreditDBE.end_time.is_(None),
+                        WalletCreditDBE.end_time > now,
+                    ),
+                )
+                .with_for_update()
+            )
+            credits = (await session.execute(live_stmt)).scalars().all()
+            for credit in credits:
+                data = dict(credit.data or {})
+                data["revoked"] = {
+                    "previous_end_time": (
+                        credit.end_time.isoformat() if credit.end_time else None
+                    ),
+                    "at": now.isoformat(),
+                }
+                credit.data = data
+                credit.end_time = now
+            await session.flush()
+
+            log.info(
+                "[WALLETS] Held an organization's wallet",
+                organization_id=str(organization_id),
+                floor_musd=floor_musd,
+                credits_expired=len(credits),
+            )
+            return len(credits)
+
     async def get_awarded_credit(
         self,
         *,

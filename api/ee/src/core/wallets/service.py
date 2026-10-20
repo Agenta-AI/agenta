@@ -52,6 +52,7 @@ from ee.src.core.wallets.types import (
 log = get_module_logger(__name__)
 
 PlanReader = Callable[[UUID], Awaitable[Optional[str]]]
+GrantsBlockedReader = Callable[[UUID], Awaitable[bool]]
 
 # The daily grant's share of an admission. Well below the 1s shadow bound and the 2s bound
 # each admission point puts around its whole answer, so a stalled plan read or award lock
@@ -70,11 +71,14 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         *,
         wallets_dao: WalletsDAOInterface,
         plan_reader: Optional[PlanReader] = None,
+        grants_blocked_reader: Optional[GrantsBlockedReader] = None,
     ):
         self.wallets_dao = wallets_dao
         # Reads an organization's plan slug. Only the admission instance has one, and only
         # that instance grants the daily free credits.
         self.plan_reader = plan_reader
+        # True for an organization the fraud check marked: it gets no daily grant.
+        self.grants_blocked_reader = grants_blocked_reader
         # Organizations whose daily grant this process already settled for `_daily_day`.
         # Spares a plan read and a locked award on every admission; the award's
         # idempotency key, not this set, is what guarantees one grant per day.
@@ -175,6 +179,10 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         plan = await self.plan_reader(organization_id)
         if plan not in DAILY_FREE_CREDIT_PLANS:
             return
+        if self.grants_blocked_reader is not None and await self.grants_blocked_reader(
+            organization_id
+        ):
+            return
         try:
             await self.award(
                 organization_id=organization_id,
@@ -188,6 +196,21 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
 
     async def settle(self, command: DebitCommandV1) -> None:
         await self.wallets_dao.settle(command=command)
+
+    async def hold(
+        self,
+        *,
+        organization_id: UUID,
+        floor_musd: int,
+        now: Optional[datetime] = None,
+    ) -> int:
+        """Freeze the wallet so `check()` refuses: expire the live credits and raise the
+        floor above any balance. See `WalletsDAOInterface.hold_credits`."""
+        return await self.wallets_dao.hold_credits(
+            organization_id=organization_id,
+            floor_musd=floor_musd,
+            now=now or datetime.now(timezone.utc),
+        )
 
     async def provision_general_balance(
         self,

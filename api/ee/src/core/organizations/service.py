@@ -974,6 +974,7 @@ from ee.src.core.starter_credits_bridge.service import (  # noqa: E402
     seed_starter_credits_bridge_safely,
 )
 from ee.src.core.wallets.service import WalletsService  # noqa: E402
+from ee.src.core.fraud.service import signup_is_fraud  # noqa: E402
 
 
 _subscription_service = SubscriptionsService(
@@ -1133,6 +1134,12 @@ async def provision_signup_subscription(
             )
         plan = subscription.plan if subscription is not None else get_default_plan()
         award_grant, raise_floor = await _free_credits_check(organization_email)
+        # The Jev verdict marks the organization so the daily grants stay off too; the
+        # account itself is created as normal.
+        if await signup_is_fraud(
+            organization_id=organization.id, email=organization_email
+        ):
+            award_grant = False
         await _provision_wallet_general_balance(
             organization_id=organization.id,
             plan=plan,

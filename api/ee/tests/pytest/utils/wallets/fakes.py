@@ -193,6 +193,28 @@ class FakeWalletsDAO(WalletsDAOInterface):
 
         return created
 
+    async def hold_credits(
+        self,
+        *,
+        organization_id: UUID,
+        floor_musd: int,
+        now: datetime,
+    ) -> int:
+        general = await self._lock_general_balance(organization_id=organization_id)
+        self.general_balance = general.model_copy(update={"floor_musd": floor_musd})
+        expired = 0
+        for credit_id, (candidate, balance) in list(self._credits.items()):
+            if balance.organization_id != organization_id:
+                continue
+            if candidate.end_time is not None and candidate.end_time <= now:
+                continue
+            self._credits[credit_id] = (
+                candidate.model_copy(update={"end_time": now}),
+                balance,
+            )
+            expired += 1
+        return expired
+
     async def provision_general_balance(
         self,
         *,

@@ -38,6 +38,8 @@ from ee.src.core.measurements.sandboxes import SandboxUsageService
 from ee.src.dbs.redis.wallets.streams import RedisMeasurementPublisher
 from ee.src.dbs.redis.wallets.turns import RedisSessionTurnHolds, RedisTurnSlots
 from ee.src.core.organizations.service import register_wallets_service
+from ee.src.core.fraud.service import FraudService, register_fraud_service
+from ee.src.dbs.postgres.fraud.dao import FraudDAO
 
 from ee.src.apis.fastapi.access.router import AccessRouter
 from ee.src.apis.fastapi.billing.router import BillingRouter
@@ -114,9 +116,17 @@ async def _read_plan(organization_id: UUID) -> Optional[str]:
     return subscription.plan if subscription else None
 
 
+fraud_dao = FraudDAO(engine=_transactions_engine)
+
+
+async def _grants_blocked(organization_id: UUID) -> bool:
+    return await fraud_dao.grants_blocked(organization_id=organization_id)
+
+
 wallets_service = WalletsService(
     wallets_dao=wallets_dao,
     plan_reader=_read_plan,
+    grants_blocked_reader=_grants_blocked,
 )
 
 wallet_usage_service = WalletUsageService(
@@ -132,6 +142,9 @@ subscription_service = SubscriptionsService(
 
 # The signup and organization-creation hooks provision wallets through this instance.
 register_wallets_service(wallets_service=wallets_service)
+register_fraud_service(
+    fraud_service=FraudService(fraud_dao=fraud_dao, wallets_service=wallets_service)
+)
 
 # Wire entitlements module against the freshly-built services so the
 # `BillingRouter` and the entitlements helper share one instance each.

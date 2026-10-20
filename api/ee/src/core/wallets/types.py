@@ -350,6 +350,19 @@ class WalletsDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def hold_credits(
+        self,
+        *,
+        organization_id: UUID,
+        floor_musd: int,
+        now: datetime,
+    ) -> int:
+        """Freeze the organization's wallet: set the general row's `floor_musd` and
+        expire every live credit (`end_time = now`, the old value kept under
+        `data.revoked.previous_end_time`). Returns the number of credits expired."""
+        raise NotImplementedError
+
+    @abstractmethod
     async def get_awarded_credit(
         self,
         *,
