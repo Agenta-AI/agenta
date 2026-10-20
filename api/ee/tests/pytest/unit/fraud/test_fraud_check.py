@@ -450,9 +450,11 @@ async def test_provision_signup_subscription_skips_grant_when_flagged(monkeypatc
     async def _allowed(organization_email):
         return True, False
 
+    flagged = [True]
+
     async def _fraud(*, organization_id, email):
         calls.append(("fraud", organization_id, email))
-        return True
+        return bool(flagged)
 
     async def _provision(*, organization_id, plan, floor_musd=None):
         calls.append(("provision", floor_musd))
@@ -470,8 +472,8 @@ async def test_provision_signup_subscription_skips_grant_when_flagged(monkeypatc
     async def _no_entitlements(*, key, delta, scope):
         return None
 
-    async def _no_seed(**kwargs):
-        return None
+    async def _seed(**kwargs):
+        calls.append(("seed",))
 
     m = organizations_service_module
     monkeypatch.setattr(m, "_free_credits_check", _allowed)
@@ -480,17 +482,85 @@ async def test_provision_signup_subscription_skips_grant_when_flagged(monkeypatc
     monkeypatch.setattr(m, "_award_signup_grant", _award)
     monkeypatch.setattr(m, "_subscription_service", _FakeSubscriptionService())
     monkeypatch.setattr(m, "check_entitlements", _no_entitlements)
-    monkeypatch.setattr(m, "seed_starter_credits_bridge_safely", _no_seed)
+    monkeypatch.setattr(m, "seed_starter_credits_bridge_safely", _seed)
 
     organization = SimpleNamespace(id=ORGANIZATION_ID, name="acme")
     await m.provision_signup_subscription(
         organization, organization_email="qzxvbn@mail-drop.example"
     )
 
+    # No starter credits and no signup grant; the balance row is still created.
     assert calls == [
         ("fraud", ORGANIZATION_ID, "qzxvbn@mail-drop.example"),
         ("provision", None),
     ]
+
+    calls.clear()
+    flagged.clear()
+    await m.provision_signup_subscription(
+        organization, organization_email="ada@work.example"
+    )
+    assert calls == [
+        ("fraud", ORGANIZATION_ID, "ada@work.example"),
+        ("seed",),
+        ("provision", None),
+        ("award", ORGANIZATION_ID),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_organization_update_cannot_set_or_clear_fraud_flags(monkeypatch):
+    from oss.src.models.api.organization_models import OrganizationUpdate
+
+    organization = SimpleNamespace(
+        id=ORGANIZATION_ID,
+        slug=None,
+        flags={
+            "fraud_no_grants": True,
+            "fraud_check": {"checkpoint": "signup", "score": 0.9},
+            "allow_email": True,
+        },
+    )
+
+    class _Result:
+        def scalars(self):
+            return self
+
+        def first(self):
+            return organization
+
+    class _Session:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def execute(self, statement):
+            return _Result()
+
+        async def commit(self):
+            return None
+
+        async def refresh(self, instance):
+            return None
+
+    m = organizations_service_module
+    monkeypatch.setattr(
+        m, "get_transactions_engine", lambda: SimpleNamespace(session=_Session)
+    )
+    await m.update_organization(
+        str(ORGANIZATION_ID),
+        OrganizationUpdate(
+            flags={
+                "fraud_no_grants": False,
+                "fraud_check": None,
+                "allow_email": True,
+            }
+        ),
+    )
+    assert organization.flags["fraud_no_grants"] is True
+    assert organization.flags["fraud_check"] == {"checkpoint": "signup", "score": 0.9}
 
 
 # ---------------------------------------------------------------------------

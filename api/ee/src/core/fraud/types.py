@@ -22,6 +22,10 @@ FRAUD_CHECK_FLAG = "fraud-check"
 
 # `organizations.flags` key: the grant code awards nothing to an organization carrying it.
 NO_GRANTS_FLAG = "fraud_no_grants"
+# `organizations.flags` key: the verdict that set `NO_GRANTS_FLAG`.
+VERDICT_FLAG = "fraud_check"
+# Keys only the fraud check writes. An organization update never sets or clears them.
+FRAUD_FLAG_KEYS = frozenset({NO_GRANTS_FLAG, VERDICT_FLAG})
 
 # The whole decision (flag read, database reads, Jev call) at one check point. Past it
 # the check allows. The Jev call has its own, shorter timeout inside this budget.

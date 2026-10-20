@@ -13,6 +13,7 @@ from oss.src.models.db_models import APIKeyDB, OrganizationDB, ProjectDB, UserDB
 from ee.src.core.fraud.types import (
     NO_GRANTS_FLAG,
     PAID_CREDIT_KINDS,
+    VERDICT_FLAG,
     ApiKeySignals,
     BillingFacts,
     FraudCheckpoint,
@@ -128,7 +129,7 @@ class FraudDAO(FraudDAOInterface):
                 return
             flags = dict(organization.flags or {})
             flags[NO_GRANTS_FLAG] = True
-            flags["fraud_check"] = {
+            flags[VERDICT_FLAG] = {
                 "checkpoint": checkpoint.value,
                 "score": score,
                 "at": now.isoformat(),
