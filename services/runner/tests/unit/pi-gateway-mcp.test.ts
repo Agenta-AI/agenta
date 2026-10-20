@@ -1028,6 +1028,46 @@ describe("the Pi MCP client's own SSRF posture (CR9)", () => {
     }
   });
 
+  it("accepts the host.docker.internal form of a localhost public base", () => {
+    // The SDK writes the gateway URL through `parse_url`, which turns a loopback public base
+    // into host.docker.internal for a container. The runner must accept that same origin.
+    process.env.AGENTA_API_URL = "http://localhost:9080";
+    process.env.AGENTA_API_INTERNAL_URL = "http://api:8000";
+
+    const server = (
+      url: string,
+    ): NonNullable<
+      Parameters<typeof piGatewayMcpServersFromWire>[0]
+    >[number] => ({
+      name: "deepwiki",
+      connection: {
+        type: "http",
+        url,
+        credentials: [
+          {
+            binding: { kind: "header", name: "X-AG-Credentials" },
+            value: "short-lived-gateway-token",
+            usage: "opaque_http",
+          },
+        ],
+      },
+      policy: { tools: { mode: "all" } },
+    });
+
+    const url =
+      "http://host.docker.internal:9080/gateways/mcps/custom/deepwiki";
+    assert.equal(piGatewayMcpServersFromWire([server(url)])[0].url, url);
+    assert.throws(
+      () =>
+        piGatewayMcpServersFromWire([
+          server(
+            "http://host.docker.internal:9081/gateways/mcps/custom/deepwiki",
+          ),
+        ]),
+      /must be a route on this deployment's API/,
+    );
+  });
+
   it("keeps the path check alone when no API base is configured", () => {
     // A real self-hosted shape. Refusing every MCP server there would be a worse failure than
     // the narrower check, so the origin rule arms itself only when it can be decided.
