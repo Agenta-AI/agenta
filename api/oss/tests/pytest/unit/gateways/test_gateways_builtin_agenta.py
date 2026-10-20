@@ -4,6 +4,7 @@ The relay runs for real here, through `RelayLLMAdapter`, against an in-process V
 (`httpx.MockTransport`). Only Google's token minting is replaced.
 """
 
+import asyncio
 import base64
 import json
 from typing import List
@@ -24,7 +25,7 @@ from oss.src.core.gateways.llms.dtos import (
 )
 from oss.src.core.gateways.llms.providers.passthrough.adapter import (
     RelayLLMAdapter,
-    _StreamUsageReader,
+    _StreamReader,
     _usage_from_body,
 )
 from oss.src.core.gateways.llms.providers.passthrough.routing import build_url
@@ -112,7 +113,7 @@ def test_a_project_without_a_credential_document_serves_nothing(monkeypatch):
     assert builtin_llm_endpoint(provider_key="agenta") is None
 
 
-def test_agenta_serves_the_two_gemini_flash_models_from_vertex(vertex):
+def test_agenta_serves_the_gemini_models_from_vertex(vertex):
     endpoint = builtin_llm_endpoint(provider_key="agenta")
 
     assert endpoint is not None
@@ -123,6 +124,7 @@ def test_agenta_serves_the_two_gemini_flash_models_from_vertex(vertex):
     assert endpoint.data.models.allowlist == [
         "google/gemini-3.7-flash",
         "google/gemini-3.8-flash",
+        "google/gemini-4-argon",
     ]
 
 
@@ -450,7 +452,7 @@ def test_a_stream_cut_before_its_last_frame_reports_no_usage():
     """The remaining gap: Vertex sends usage only on the final frame, so a stream the
     upstream itself cuts off before it (or one still running past the drain bound) measures
     nothing. Recorded as None (unknown), never as zero."""
-    reader = _StreamUsageReader(LLMProtocol.CHAT_COMPLETIONS)
+    reader = _StreamReader(LLMProtocol.CHAT_COMPLETIONS)
     reader.feed(b'data: {"choices": [{"delta": {"content": "Hi"}}]}\n\n')
     reader.flush()
 
@@ -874,3 +876,67 @@ async def test_a_starter_credits_connection_that_still_exists_keeps_its_own_rout
         "starter-credits",
     )
     assert resolution.model == "vertex_ai/gemini-3.7-flash"
+
+
+# --- slow providers --------------------------------------------------------- #
+
+
+def test_agenta_waits_five_minutes_for_a_slow_gemini(vertex):
+    endpoint = builtin_llm_endpoint(provider_key="agenta")
+
+    assert endpoint.data.settings.timeout_seconds == 300
+
+
+@pytest.mark.asyncio
+async def test_a_retried_builtin_call_is_admitted_once_and_charged_once(
+    vertex, monkeypatch
+):
+    async def _no_wait(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(asyncio, "sleep", _no_wait)
+    requests: List[httpx.Request] = []
+    answers = iter(
+        [
+            httpx.Response(503, text="overloaded"),
+            httpx.Response(
+                200,
+                json={
+                    "choices": [{"message": {"role": "assistant", "content": "Hi"}}],
+                    "usage": _GEMINI_USAGE,
+                },
+            ),
+        ]
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return next(answers)
+
+    policy = _AdmittingPolicy()
+    service = LLMGatewayService(
+        llm_endpoints_dao=_NoRows(),
+        policy=policy,
+        resolver=_NoVault(),
+        upstream_registry=LLMUpstreamRegistry(
+            adapters={
+                "relay": RelayLLMAdapter(
+                    client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+                )
+            }
+        ),
+    )
+    result = await service.relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.BUILTIN,
+        name="agenta",
+        body=json.dumps({"model": "google/gemini-3.8-flash", "messages": []}).encode(),
+        headers={},
+    )
+
+    assert len(requests) == 2
+    assert result.status_code == 200
+    assert len(policy.admitted) == 1
+    ((_, outcome),) = policy.records
+    assert outcome.status_code == 200
+    assert outcome.usage == GatewayUsage(input_tokens=14, output_tokens=494)

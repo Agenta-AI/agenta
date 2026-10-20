@@ -33,6 +33,7 @@ export {
     loginAttemptPollInterval,
     loginAttemptQueryAtomFamily,
     refreshVaultSecretsAtom,
+    setSubscriptionTokenAtom,
     startSubscriptionLoginAtom,
     type LoginAttemptKey,
     type LoginAttemptOutcome,

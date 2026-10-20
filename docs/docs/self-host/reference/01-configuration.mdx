@@ -100,6 +100,7 @@ for how they behave. The plan and role variables are Enterprise-only; see
 | `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` | `agenta.access.allowed_owner_emails` | `agenta.access.allowedOwnerEmails` |
 | `AGENTA_ACCESS_BLOCKED_DOMAINS` | `agenta.access.blocked_domains` | `agenta.access.blockedDomains` |
 | `AGENTA_ACCESS_BLOCKED_EMAILS` | `agenta.access.blocked_emails` | `agenta.access.blockedEmails` |
+| `AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS` | `agenta.access.max_owned_organizations` | `agenta.access.maxOwnedOrganizations` |
 | `AGENTA_ACCESS_DEFAULT_PLAN` | `agenta.access.default_plan` | `agenta.access.defaultPlan` |
 | `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` | `agenta.access.default_plan_overlay` | `agenta.access.defaultPlanOverlay` |
 | `AGENTA_ACCESS_EMAIL_DISABLED` | `agenta.access.email_disabled` | `agenta.access.emailDisabled` |
@@ -637,7 +638,7 @@ provider.
 |---|---|---|---|---|
 | `AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS` | Hard deadline for one run, measured from the first message | `2700000` (45 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS` |
 | `AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS` | Longest gap between two progress events before the run is abandoned | `1800000` (30 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS` |
-| `AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` | Longest wait for the first response after the run starts | `120000` (2 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` |
+| `AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` | Longest wait for the first response after the run starts | `480000` (8 minutes) | no | `agentRunner.env.AGENTA_RUNNER_RUN_TTFB_TIMEOUT_MS` |
 | `AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` | Longest a single tool call may take. Also the longest a shell command may run | `1800000` (30 minutes) | no | `agentRunner.env.AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS` |
 
 Four rules govern how they interact:
@@ -867,6 +868,12 @@ note below): bundled SeaweedFS uses `AssumeRoleWithWebIdentity`; a remote S3 sto
 | `AGENTA_STORE_JWT_PRIVATE_KEY` | `store.jwt_private_key` | `store.jwtPrivateKey` |
 | n/a | n/a | `store.seaweedfs.enabled` |
 
+`AGENTA_MOUNTS_MAX_UPLOAD_BYTES` (env.py path `mounts.max_upload_bytes`, read by the `api` service)
+caps one file upload or write to the drive. The default is `104857600` (100 MB). The API answers a
+larger request with `413`. When the request declares its size in `Content-Length`, the API
+answers before it reads the body. Otherwise it stops reading as soon as the body passes the cap. The chart has no dedicated values key for it;
+set it through `api.env.AGENTA_MOUNTS_MAX_UPLOAD_BYTES`.
+
 `store.seaweedfs.enabled=true` bundles a SeaweedFS StatefulSet and auto-populates
 `store.endpointUrl`. Set it to `false` and supply `store.endpointUrl` to use an external
 S3-compatible store. This toggle mirrors `postgresql.enabled`.
@@ -1067,7 +1074,7 @@ show the MCP settings tab, so set these in the file every container loads and re
 The LLM gateway can serve models from a Google Cloud Vertex AI account that your deployment
 owns, instead of from a key in the project's vault. An agent then picks them from the
 **Built-in: agenta** group in the model picker, and the call is made with your account's
-credential. Today these are Gemini 3.7 Flash and Gemini 3.8 Flash.
+credential. Today these are Gemini 3.7 Flash, Gemini 3.8 Flash, and Gemini 4 Argon.
 
 To turn this on, set both of these on the API container:
 
@@ -1075,7 +1082,7 @@ To turn this on, set both of these on the API container:
   (`base64 -w0 key.json`). The service account needs the Vertex AI User role on the project.
 - `AGENTA_LLM_GATEWAY_VERTEX_PROJECT`: the Google Cloud project id.
 
-The models are called on the Vertex AI `global` location, where both are available. If
+The models are called on the Vertex AI `global` location, where all three are available. If
 either variable is not set, the models are not offered. The LLM gateway must also be on
 (`AGENTA_LLM_GATEWAY_ENABLED=true`).
 
@@ -1184,7 +1191,7 @@ it, so set it in the env file the services and runner containers load, and recre
 
 ## Channels
 
-Channels connect an agent to Slack, Telegram, or WhatsApp. They need no environment variable: users can connect their own Slack app or Telegram bot. The variables below are optional and turn on the hosted integrations, where one app or bot owned by the deployment serves every project. Each hosted integration stays off until all three of its variables are set.
+Channels connect an agent to Slack, Telegram, WhatsApp, or a chat widget embedded in a website. They need no environment variable: users can connect their own Slack app or Telegram bot. The variables below are optional and turn on the hosted integrations, where one app or bot owned by the deployment serves every project. Each hosted integration stays off until all three of its variables are set.
 
 Set them on the `api`, `worker-queues` and `worker-streams` containers. The Helm chart has no keys for them; add them with `api.extraEnv`, `workerQueues.extraEnv` and `workerStreams.extraEnv`.
 
@@ -1206,6 +1213,24 @@ WhatsApp has no hosted integration. Each connection brings its own Meta app, so 
 | `WHATSAPP_GRAPH_API_URL` | `channels.whatsapp.graph_api_url` | _(not mapped)_   | `https://graph.facebook.com/v24.0` |
 
 Change it only to route the calls through a proxy or to a test double. For the setup, see [Connect a WhatsApp number to an agent](/guides/connect-whatsapp).
+
+The embedded chat widget needs no variable to work. The optional variables below change its limits. Its routes need no Agenta login, so they limit their own request rate per embed and per visitor key. Set them on the `api` container. For the rest of the widget setup, see [Embed the chat widget](/self-host/channels/embed-widget).
+
+| Env var                                                    | env.py path                                               | values.yaml path | Default            |
+| ---------------------------------------------------------- | --------------------------------------------------------- | ---------------- | ------------------ |
+| `AGENTA_CHANNELS_EMBED_REQUESTS_PER_MINUTE_PER_EMBED`      | `channels.embed.requests_per_minute_per_embed`            | _(not mapped)_   | `600`              |
+| `AGENTA_CHANNELS_EMBED_REQUESTS_PER_MINUTE_PER_KEY`        | `channels.embed.requests_per_minute_per_key`              | _(not mapped)_   | `30`               |
+| `AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_EMBED` | `channels.embed.read_requests_per_minute_per_embed`       | _(not mapped)_   | `6000`             |
+| `AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_KEY`   | `channels.embed.read_requests_per_minute_per_key`         | _(not mapped)_   | `240`              |
+| `AGENTA_CHANNELS_EMBED_MAX_LIVE_STREAMS_PER_EMBED`         | `channels.embed.max_live_streams_per_embed`               | _(not mapped)_   | `200`              |
+| `AGENTA_CHANNELS_EMBED_MAX_MESSAGE_CHARS`                  | `channels.embed.max_message_chars`                        | _(not mapped)_   | `10000`            |
+| `AGENTA_CHANNELS_EMBED_MAX_FILE_BYTES`                     | `channels.embed.max_file_bytes`                           | _(not mapped)_   | `5242880` (5 MB)   |
+
+- The `REQUESTS` limits count posts to the embed's events route: messages, approval answers and commands. The `READ_REQUESTS` limits count the routes that list conversations, read one, follow its live stream and download a file.
+- `MAX_LIVE_STREAMS_PER_EMBED` caps the live streams that one `api` process keeps open for one embed. Each open conversation in a widget holds one stream. Over the cap the widget gets a 429 and tries again.
+- `MAX_MESSAGE_CHARS` applies to the message text and, separately, to the page context serialized as JSON.
+- `MAX_FILE_BYTES` applies to all the files of one message together. One message carries at most 10 files.
+- `MAX_FILE_BYTES` also applies when the `worker-queues` container stores each uploaded file. Set it to the same value on `api` and `worker-queues`.
 
 :::warning One replica for channel replies
 The `sessions` loop of `worker-streams` sends channel replies. Run it in exactly one replica. With two or more, a progress update can overwrite a final reply, and a Telegram reply can arrive twice. With the default `AGENTA_WORKER_STREAMS` (empty, which runs every loop), that means one `worker-streams` replica. On Helm, a rolling update briefly runs two pods; set `workerStreams.strategy.type: Recreate` to avoid the overlap.
@@ -1326,12 +1351,6 @@ own `AGENTA_RUNNER_DAYTONA_SNAPSHOT`; see the [runner Daytona section](#daytona)
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `LOOPS_API_KEY` | `loops.api_key` | `loops.apiKey` |
-
-## newrelic
-
-| Env var | env.py path | values.yaml path |
-|---|---|---|
-| `NEWRELIC_LICENSE_KEY` | `newrelic.license_key` | `newrelic.licenseKey` |
 
 ## postgres
 
@@ -1489,8 +1508,6 @@ future major release.
 | `ACTIVE_DIRECTORY_OAUTH_CLIENT_ID` | `AZURE_AD_OAUTH_CLIENT_ID` |
 | `ACTIVE_DIRECTORY_OAUTH_CLIENT_SECRET` | `AZURE_AD_OAUTH_CLIENT_SECRET` |
 | `ACTIVE_DIRECTORY_DIRECTORY_ID` | `AZURE_AD_DIRECTORY_ID` |
-| `NEW_RELIC_LICENSE_KEY` | `NEWRELIC_LICENSE_KEY` |
-| `NRIA_LICENSE_KEY` | `NEWRELIC_LICENSE_KEY` |
 | `POSTHOG_HOST` | `POSTHOG_API_URL` |
 | `AGENTA_AUTHN_EMAIL_FROM` | `SMTP_FROM_EMAIL` (preferred) or `SENDGRID_FROM_EMAIL` fallback |
 | `AGENTA_SEND_EMAIL_FROM_ADDRESS` | `SMTP_FROM_EMAIL` (preferred) or `SENDGRID_FROM_EMAIL` fallback |
@@ -1500,3 +1517,7 @@ future major release.
 ## Removed environment variables
 
 Some variables were removed without a replacement. Agenta ignores them, and the behavior they used to switch is always on. For the list removed in 0.121.0 and what each one did, see [Upgrading to 0.121.0](/self-host/upgrading#upgrading-to-01210).
+
+From 0.122.6 the images no longer include the New Relic agent. Agenta ignores `NEWRELIC_LICENSE_KEY`, `NEW_RELIC_LICENSE_KEY` and `NRIA_LICENSE_KEY`, and the Helm chart ignores `newrelic.licenseKey` and `observability.newRelic.licenseKey`. You can delete them.
+
+The `newrelic-admin` command is gone from the images too. If your own Compose file or Kubernetes manifest starts the api, services or worker containers with `newrelic-admin run-program`, remove that prefix before you upgrade, or those containers fail to start. Keep the rest of the command as it is. The Compose files and the Helm chart in this repository already start the processes without it.

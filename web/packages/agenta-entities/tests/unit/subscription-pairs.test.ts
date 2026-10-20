@@ -23,9 +23,32 @@ describe("subscriptionPairsFrom", () => {
         })
 
         expect(pairs.map((pair) => `${pair.name} · ${pair.harness}`)).toEqual([
-            "Claude (deployment login) · claude",
-            "ChatGPT (deployment login) · codex",
-            "ChatGPT (deployment login) · pi_core",
+            "Claude · claude",
+            "ChatGPT · codex",
+            "ChatGPT · pi_core",
+        ])
+    })
+
+    it("names a pair by its plan alone when no hosted subscription shares the plan", () => {
+        const pairs = subscriptionPairsFrom({codex: {state: "ready"}}, new Set(["anthropic"]))
+
+        expect(pairs?.map((pair) => pair.name)).toEqual(["ChatGPT"])
+    })
+
+    it("says where a pair comes from when a hosted subscription shares its plan", () => {
+        // A project with a hosted Claude subscription AND a Claude login set up on the server
+        // lists both; only the Claude pair takes the long name.
+        const pairs = subscriptionPairsFrom(
+            {
+                claude: {state: "ready"},
+                codex: {state: "ready"},
+            },
+            new Set(["anthropic"]),
+        )
+
+        expect(pairs?.map((pair) => pair.name)).toEqual([
+            "Claude (set up on the server)",
+            "ChatGPT",
         ])
     })
 
@@ -38,12 +61,12 @@ describe("subscriptionPairsFrom", () => {
         // A deployment can mount a ChatGPT login AND hold a hosted ChatGPT subscription. Both are
         // subscription rows to the same plan with different model lists, so the plain plan name
         // on both left the user choosing between two identical rows.
-        expect(mountedSubscriptionName("openai")).toBe("ChatGPT (deployment login)")
-        expect(mountedSubscriptionName("anthropic")).toBe("Claude (deployment login)")
+        expect(mountedSubscriptionName("openai")).toBe("ChatGPT (set up on the server)")
+        expect(mountedSubscriptionName("anthropic")).toBe("Claude (set up on the server)")
     })
 
     it("qualifies an unknown family too, rather than falling back to a bare id", () => {
-        expect(mountedSubscriptionName("acme")).toBe("acme (deployment login)")
+        expect(mountedSubscriptionName("acme")).toBe("acme (set up on the server)")
     })
 
     it("lists only the logins that work — a setup state is not a row", () => {
@@ -77,8 +100,8 @@ describe("subscriptionPairsFrom", () => {
         })
 
         expect(pairs.map((pair) => `${pair.name} · ${pair.harness}`)).toEqual([
-            "Claude (deployment login) · pi_core",
-            "ChatGPT (deployment login) · pi_core",
+            "Claude · pi_core",
+            "ChatGPT · pi_core",
         ])
         expect(new Set(pairs.map((pair) => pair.key)).size).toBe(2)
     })

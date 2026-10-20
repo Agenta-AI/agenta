@@ -8,6 +8,7 @@ export interface McpOauthCompletionMessage {
     success: boolean
     error?: string
     endpoint_id?: string
+    attempt_id?: string
 }
 
 export function buildTrustedOrigins(urls: (string | undefined)[]): Set<string> {

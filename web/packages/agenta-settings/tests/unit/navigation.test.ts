@@ -104,10 +104,12 @@ describe("settings tab descriptions", () => {
     })
 
     it("varies the billing description with the billing entitlement", () => {
-        expect(getSettingsTabDescription("billing", baseAccess)).toContain("subscription")
-        expect(
-            getSettingsTabDescription("billing", {...baseAccess, billingEnabled: false}),
-        ).not.toContain("subscription")
+        expect(getSettingsTabDescription("billing", baseAccess)).toBe(
+            "Your plan, its limits, and payment details.",
+        )
+        expect(getSettingsTabDescription("billing", {...baseAccess, billingEnabled: false})).toBe(
+            "Track how much of your plan you have used.",
+        )
     })
 })
 
@@ -130,30 +132,15 @@ describe("settings sidebar scopes", () => {
             "analytics",
         ])
         expect(keysForScope("organization")).toEqual([
+            "credits",
             "billing",
             "workspace",
             "organizationGeneral",
             "projects",
             "organization",
             "auditLog",
-            "credits",
-            "walletUsage",
         ])
         expect(keysForScope("personal")).toEqual(["account", "preferences"])
-    })
-
-    it("shows the wallet debug view only while the wallet is on, in a development build", () => {
-        expect(isSettingsTabVisible("walletUsage", baseAccess)).toBe(false)
-        expect(isSettingsTabVisible("walletUsage", {...baseAccess, walletsEnabled: true})).toBe(
-            false,
-        )
-        expect(
-            isSettingsTabVisible("walletUsage", {
-                ...baseAccess,
-                walletsEnabled: true,
-                walletDebug: true,
-            }),
-        ).toBe(true)
     })
 
     it("shows the credits view only where the organization's wallet is enforced", () => {

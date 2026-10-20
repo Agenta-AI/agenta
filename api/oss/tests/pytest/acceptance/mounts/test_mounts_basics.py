@@ -572,3 +572,71 @@ class TestMountArchiveExport:
         )
         assert resp.status_code == 200, resp.text
         assert "custom.zip" in resp.headers.get("content-disposition", "")
+
+
+# ---------------------------------------------------------------------------
+# Session working-directory upload (composer files over the attachment cap)
+# ---------------------------------------------------------------------------
+
+
+class TestSessionCwdUpload:
+    def test_upload_creates_cwd_mount_for_a_session_that_never_ran(self, authed_api):
+        session_id = f"session-{uuid4().hex[:8]}"
+        content = b"x" * (11 * 1024 * 1024)
+
+        response = authed_api(
+            "POST",
+            "/sessions/mounts/files/upload",
+            params={"session_id": session_id, "path": "uploads/large.bin"},
+            files={"file": ("large.bin", content, "application/octet-stream")},
+        )
+        skip_if_mount_storage_unavailable(response)
+        assert response.status_code == 200, response.text
+        assert response.json()["path"] == "uploads/large.bin"
+        assert response.json()["size"] == len(content)
+
+        query = authed_api(
+            "POST",
+            f"/sessions/mounts/query?session_id={session_id}",
+            json={},
+        )
+        assert query.status_code == 200, query.text
+        cwd = [m for m in query.json()["mounts"] if m["name"] == "cwd"]
+        assert len(cwd) == 1
+
+        download = authed_api(
+            "GET",
+            f"/sessions/mounts/{cwd[0]['id']}/files/download",
+            params={"path": "uploads/large.bin"},
+        )
+        assert download.status_code == 200, download.text
+        assert download.content == content
+
+    def test_upload_reuses_the_existing_cwd_mount(self, authed_api):
+        session_id = f"session-{uuid4().hex[:8]}"
+        for name in ("a.txt", "b.txt"):
+            response = authed_api(
+                "POST",
+                "/sessions/mounts/files/upload",
+                params={"session_id": session_id, "path": f"uploads/{name}"},
+                files={"file": (name, b"hello", "text/plain")},
+            )
+            skip_if_mount_storage_unavailable(response)
+            assert response.status_code == 200, response.text
+
+        query = authed_api(
+            "POST",
+            f"/sessions/mounts/query?session_id={session_id}",
+            json={},
+        )
+        assert query.status_code == 200, query.text
+        assert [m["name"] for m in query.json()["mounts"]].count("cwd") == 1
+
+    def test_upload_rejects_an_invalid_session_id(self, authed_api):
+        response = authed_api(
+            "POST",
+            "/sessions/mounts/files/upload",
+            params={"session_id": "bad id/../x", "path": "uploads/a.txt"},
+            files={"file": ("a.txt", b"hello", "text/plain")},
+        )
+        assert response.status_code == 400, response.text

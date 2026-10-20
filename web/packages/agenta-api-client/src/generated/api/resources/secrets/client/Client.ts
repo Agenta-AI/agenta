@@ -367,6 +367,84 @@ export class SecretsClient {
     }
 
     /**
+     * @param {AgentaApi.SubscriptionTokenRequest} request
+     * @param {SecretsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.secrets.setSubscriptionToken({
+     *         secret_id: "secret_id",
+     *         token: "token"
+     *     })
+     */
+    public setSubscriptionToken(
+        request: AgentaApi.SubscriptionTokenRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.PublicSecretResponseDto> {
+        return core.HttpResponsePromise.fromPromise(this.__setSubscriptionToken(request, requestOptions));
+    }
+
+    private async __setSubscriptionToken(
+        request: AgentaApi.SubscriptionTokenRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.PublicSecretResponseDto>> {
+        const { secret_id: secretId, ..._body } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `secrets/${core.url.encodePathParam(secretId)}/subscription-token`,
+            ),
+            method: "PUT",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.PublicSecretResponseDto, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "PUT",
+            "/secrets/{secret_id}/subscription-token",
+        );
+    }
+
+    /**
      * @param {AgentaApi.StartSubscriptionLoginRequest} request
      * @param {SecretsClient.RequestOptions} requestOptions - Request-specific configuration.
      *

@@ -26,32 +26,34 @@
  * that can lead to consent — Connect on the OAuth screen, Try again on a refusal — opens it
  * first and then starts the work.
  *
- * The scope step is gone from the screens and kept in the machine. The server still tells us
- * what it offers and the authorize call still takes a list; what has gone is asking a person
- * to narrow it, because the scopes are the server's business and nobody could answer.
+ * The scopes are a checklist under Advanced on the OAuth screen, all checked, filled from what
+ * the probe found. There is no separate scope step: Connect asks for whatever is checked.
  */
-import {
-    cloneElement,
-    useCallback,
-    useEffect,
-    useId,
-    useMemo,
-    useRef,
-    useState,
-    type ReactElement,
-    type ReactNode,
-} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     connectionNameProblem,
+    credentialBindingComplete,
+    detectedAuthMode,
+    hasUrlSecretPlaceholder,
     isBusy,
-    mcpChallengeSchemeToShow,
-    mcpDefaultKeyHeader,
+    MCP_URL_CREDENTIAL_BINDING,
+    MCP_URL_SECRET_PLACEHOLDER,
+    mcpChallengeScheme,
+    DEFAULT_OAUTH_CLIENT_AUTH_METHOD,
+    mcpDefaultCredentialBinding,
+    needsOwnOauthApp,
+    oauthConfigReady,
+    urlMatchesCredentialBinding,
+    urlSecretProblem,
     readMcpProbeResponse,
     toolPrefixFromName,
     useMcpConnectJourney,
+    type MCPAuthMode,
+    type MCPCredentialBinding,
     type McpConnectJourney as McpConnectJourneyApi,
     type McpJourneyState,
+    type McpReconnectTarget,
 } from "@agenta/entities/mcpEndpoint"
 import {customNamedSecretsAtom} from "@agenta/entities/secret"
 import {EnhancedModal, ModalContent} from "@agenta/ui"
@@ -75,8 +77,19 @@ import {ArrowSquareOut, CircleNotch, Plus, WarningCircle} from "@phosphor-icons/
 import {useAtomValue} from "jotai"
 
 import {CreateSecretDrawer} from "../secret"
+import {consentPopupFeatures} from "../shared/consentPopupFeatures"
 
-import {NoticeBox, ProbeResultCard, ShowResponsePanel, type ProbeResultMode} from "./components"
+import {
+    AuthModeSelector,
+    BasicCredentialHelper,
+    CredentialBindingFields,
+    headerSchemeHint,
+    HintedField,
+    NoticeBox,
+    OAuthAdvancedFields,
+    ProbeResultCard,
+    ShowResponsePanel,
+} from "./components"
 
 export interface McpConnectJourneyProps {
     open: boolean
@@ -84,16 +97,7 @@ export interface McpConnectJourneyProps {
     /** Existing display names in the project, for the suggestion and the collision check. */
     existingNames?: (string | null | undefined)[]
     /** Reconnect an endpoint that already exists instead of adding one. */
-    reconnect?: {
-        id: string
-        slug: string
-        name: string
-        url: string
-        /** How the connection authorizes, so a reconnect repairs the right thing. */
-        authMode?: "oauth" | "api_key" | "none"
-        /** The header its credential is already sent under, which a repair keeps. */
-        credentialHeader?: string | null
-    } | null
+    reconnect?: McpReconnectTarget | null
     /** The connection, once it is real. Agents reference it by `slug`. */
     onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
     /** A drawer panel to open inside, masking only that drawer. Absent = the page. */
@@ -126,26 +130,42 @@ const KEY_PROBLEM_ID = "mcp-key-problem"
 const NAME_HELP =
     "What the model sees on this server's tools. Frozen when the connection was chosen, so renaming the connection does not rename tools here."
 
-const HEADER_HELP = "The HTTP header this server expects, for example x-api-key"
+const SECRET_HELP_DELIVERY: Record<MCPCredentialBinding["kind"], string> = {
+    header: "is sent as this header",
+    query: "is sent as this query parameter",
+    url: "is put into the address",
+}
+const secretHelpFor = (kind: MCPCredentialBinding["kind"]): string =>
+    `Pick a project secret or create one. The value ${SECRET_HELP_DELIVERY[kind]} when the agent runs and is never shown again.`
 
-/**
- * What this particular server asked for, under the Header field.
- *
- * A help line rather than a change of value, because a scheme is not a header name: `Bearer`
- * means `Authorization: Bearer <token>`, which is what an endpoint with no registered header
- * already sends. So the challenge cannot fill the field, and the reader is the only one who
- * can say which header this server wants the scheme's value in. Rendered only where there is
- * something to say (`mcpChallengeSchemeToShow`), so the pair of fields keeps its shape on
- * every other server.
- */
-const headerSchemeHint = (scheme: string): string => `This server asked for the ${scheme} scheme.`
-
-const SECRET_HELP =
-    "Pick a project secret or create one. The value is sent as this header when the agent runs and is never shown again."
+/** Under the address on the key screen, by whether the binding fills its `{secret}`. */
+const urlSecretHint = (binding: MCPCredentialBinding) => {
+    const placeholder = <span className="font-mono">{MCP_URL_SECRET_PLACEHOLDER}</span>
+    return binding.kind === "url" ? (
+        <>
+            The secret replaces {placeholder} when Agenta calls the server. It is never stored in
+            the URL.
+        </>
+    ) : (
+        <>This URL contains {placeholder}. Set Send as to In the URL so the secret replaces it.</>
+    )
+}
 
 /** What a failed check is told, by what the probe found rather than by what it returned. */
 const UNREACHABLE_HEADLINE = "Couldn't reach this server."
 const NOT_AN_MCP_SERVER_HEADLINE = "Reached the address, but it isn't an MCP server."
+const FAILURE_HEADLINES: Record<string, string> = {
+    not_an_mcp_server: NOT_AN_MCP_SERVER_HEADLINE,
+    unsupported_transport:
+        "This address uses the older SSE transport, which Agenta does not support.",
+}
+/**
+ * Where to look instead of a computed address. A rewrite of the path was right for some
+ * providers and wrong for others, and only the provider knows its newer address.
+ */
+const NEWER_TRANSPORT_ADVICE =
+    "Many providers serve the newer transport at an address ending in /mcp. Check the provider's docs."
+const LEGACY_TRANSPORT_WARNING = `This address may use the older SSE transport, which Agenta does not support. ${NEWER_TRANSPORT_ADVICE}`
 const UNREACHABLE_ADVICE =
     "Check the address and that the server speaks HTTP transport. Private-network servers must be reachable from Agenta."
 
@@ -170,6 +190,9 @@ const KEY_REJECTED_HEADLINE = "The server rejected this key."
 const keyRejectedHeadlineFor = (status: number | null): string =>
     status ? `The server rejected this key (${status}).` : KEY_REJECTED_HEADLINE
 const KEY_REJECTED_ADVICE = "Check the header the server expects, or pick another secret."
+const URL_KEY_REJECTED_ADVICE = "Check where {secret} sits in the URL, or pick another secret."
+const QUERY_KEY_REJECTED_ADVICE =
+    "Check the query parameter the server expects, or pick another secret."
 /**
  * The same advice, preceded by what the server asked for where it said so.
  *
@@ -179,53 +202,48 @@ const KEY_REJECTED_ADVICE = "Check the header the server expects, or pick anothe
  *
  * What the challenge names is a scheme, not a header: `Bearer` means `Authorization: Bearer
  * <token>`. Reading it into "the header the server expects" told the reader to type `Bearer`
- * into the Header field, which is the one thing that cannot be right. The sentence the Header
+ * into the Header field, which is the one thing that cannot be right. The sentence the Prefix
  * field's own hint already uses says the same fact correctly, so it says it here too.
  */
-const keyRejectedAdviceFor = (scheme: string | null): string =>
-    scheme ? `${headerSchemeHint(scheme)} ${KEY_REJECTED_ADVICE}` : KEY_REJECTED_ADVICE
+const keyRejectedAdviceFor = (scheme: string | null, binding: MCPCredentialBinding): string => {
+    // A key in the address has no header to check and no scheme to name.
+    if (binding.kind === "url") return URL_KEY_REJECTED_ADVICE
+    // A key in the query has no header and no scheme either; naming the header sent the
+    // reader to a field this binding does not have.
+    if (binding.kind === "query") return QUERY_KEY_REJECTED_ADVICE
+    return scheme ? `${headerSchemeHint(scheme)} ${KEY_REJECTED_ADVICE}` : KEY_REJECTED_ADVICE
+}
+
+/** None was chosen over what the server or the saved row suggested, and the server refused. */
+const keyRefusedWithoutKeyFor = (status: number | null): string =>
+    status
+        ? `The server refused a connection without a key (${status}).`
+        : "The server refused a connection without a key."
+const NO_KEY_REFUSED_ADVICE = "Pick another authentication mode above."
 
 const WAITING_BODY =
-    "Finish signing in in the window that opened. This closes on its own when you're done."
+    "Finish in the window that opened. Sign in to the provider if it asks, then approve Agenta. This closes on its own when you're done."
+
+/** A reconnect could not read back the OAuth settings its connection is saved with. */
+const SAVED_OAUTH_UNREADABLE = "The saved OAuth settings could not be read. Try again."
 
 /** The existing sentence for the window between a granted consent and a refreshed list. */
 const SAVING_BODY = "Setting up the connection…"
 
-const CONSENT_POPUP_FEATURES = "width=600,height=700,popup=yes"
-
 /** The six screens the statuses render as. */
 type Screen = "url" | "url_failed" | "oauth" | "api_key" | "no_auth" | "waiting"
 
-/**
- * How the server authorizes, from whichever of the two sources knows.
- *
- * A first connect learns it from the probe. A reconnect never probes — the address and the
- * identity are already the connection's — and carries it on the row instead.
- */
-type AuthPath = ProbeResultMode
-
-const authPathFor = (
-    state: McpJourneyState,
-    reconnect: McpConnectJourneyProps["reconnect"],
-): AuthPath => {
-    if (reconnect)
-        return reconnect.authMode === "oauth" ? "oauth" : (reconnect.authMode ?? "api_key")
-    const mode = state.probe?.auth.mode
-    if (mode === "oauth") return "oauth"
-    if (mode === "none") return "none"
-    // Discovery was inconclusive, which in practice is a server holding its tools behind a
-    // key it would not describe. The person is asked for one; the screen still offers the
-    // other answer, because "we could not tell" is not "a key is required".
-    return "api_key"
-}
-
-const SCREEN_FOR_AUTH_PATH: Record<AuthPath, Screen> = {
+const SCREEN_FOR_AUTH_PATH: Record<MCPAuthMode, Screen> = {
     oauth: "oauth",
     api_key: "api_key",
     none: "no_auth",
 }
 
-const screenFor = (state: McpJourneyState, path: AuthPath, consentRequested: boolean): Screen => {
+const screenFor = (
+    state: McpJourneyState,
+    path: MCPAuthMode,
+    consentRequested: boolean,
+): Screen => {
     switch (state.status) {
         case "url_entry":
         case "checking_url":
@@ -374,29 +392,72 @@ export function McpConnectSheet({
     const namedSecrets = useAtomValue(customNamedSecretsAtom)
 
     /**
-     * What the person typed in Header, or null while they have typed nothing.
+     * Where the key goes, as the person set it, or null while they have changed nothing.
      *
-     * Null rather than a seeded string, because the probe answers after this mounts and the
+     * Null rather than a seeded binding, because the probe answers after this mounts and the
      * prefill depends on what it found. Seeding at mount would have to be corrected later,
      * which means deciding whether a correction is allowed to overwrite a typed value; not
      * seeding at all makes that question disappear.
      */
-    const [headerName, setHeaderName] = useState<string | null>(null)
+    const [bindingDraft, setBindingDraft] = useState<MCPCredentialBinding | null>(null)
     /**
-     * The header the screen shows: what was typed, or the spec's C5 prefill.
+     * The binding the screen shows: what was set, or the spec's C5 prefill.
      *
-     * The scheme the challenge named picks `Authorization`, because a scheme travels in that
-     * header; a challenge that named none picks `x-api-key`. Editable either way.
+     * The scheme the challenge named picks `Authorization` with `Bearer`, because a scheme
+     * travels in that header; a challenge that named none picks a bare `x-api-key`. Editable
+     * either way.
      *
-     * A reconnect starts from the header the connection is already saved with, because it
+     * A reconnect starts from the binding the connection is already saved with, because it
      * repairs a credential and changes nothing else (decisions 10 and 34). Offering the
      * probe's default there put `Authorization` over a saved `X-Api-Key`, so accepting what
      * was on screen broke a working connection.
+     *
+     * An address with `{secret}` starts on "In the URL", the only binding that fills it.
      */
-    const headerValue =
-        headerName ?? reconnect?.credentialHeader?.trim() ?? mcpDefaultKeyHeader(state.probe)
-    const [secretSlug, setSecretSlug] = useState("")
+    const binding =
+        bindingDraft ??
+        reconnect?.credentialBinding ??
+        (hasUrlSecretPlaceholder(state.url)
+            ? MCP_URL_CREDENTIAL_BINDING
+            : mcpDefaultCredentialBinding(state.probe))
+    /** The secret as the person picked it, or null while they have picked none. */
+    const [pickedSecretSlug, setSecretSlug] = useState<string | null>(null)
+    // A reconnect starts on the secret the connection is saved with, for the same reason
+    // its binding does.
+    const savedSecretId = reconnect?.secretId
+    const secretSlug =
+        pickedSecretSlug ??
+        (savedSecretId
+            ? namedSecrets.find((secret) => secret.id === savedSecretId)?.slug
+            : undefined) ??
+        ""
     const [creatingSecret, setCreatingSecret] = useState(false)
+    /** The Basic helper's encoded value, which the create drawer opens with. */
+    const [secretSeed, setSecretSeed] = useState<string | undefined>(undefined)
+    /** Which field a secret created in the drawer fills: the key, or the OAuth app's. */
+    const [secretFor, setSecretFor] = useState<"key" | "oauth_client">("key")
+    const openSecretDrawer = useCallback(
+        (seed?: string, target: "key" | "oauth_client" = "key") => {
+            setSecretSeed(seed)
+            setSecretFor(target)
+            setSecretDrawerMounted(true)
+            setCreatingSecret(true)
+        },
+        [],
+    )
+    /**
+     * A secret just created for the OAuth app. The drawer hands back its slug, and the row
+     * stores the id, which is known once the project's secrets have reloaded.
+     */
+    const [createdClientSecretSlug, setCreatedClientSecretSlug] = useState<string | null>(null)
+    const {setOauthClient} = journey
+    useEffect(() => {
+        if (!createdClientSecretSlug) return
+        const id = namedSecrets.find((secret) => secret.slug === createdClientSecretSlug)?.id
+        if (!id) return
+        setOauthClient({clientSecretId: id})
+        setCreatedClientSecretSlug(null)
+    }, [createdClientSecretSlug, namedSecrets, setOauthClient])
     // Latches on first open so the create drawer's hooks stay unmounted until needed.
     const [secretDrawerMounted, setSecretDrawerMounted] = useState(false)
 
@@ -424,7 +485,15 @@ export function McpConnectSheet({
      */
     const [afterCreate, setAfterCreate] = useState<"credential" | null>(null)
 
-    const path = authPathFor(state, reconnect)
+    /** How the connection authenticates: the person's choice, which the probe only suggested. */
+    const path = state.authMode
+    /**
+     * What the probe found, which the card reports and the selector marks. A reconnect reads
+     * its check of the saved address, so a server that answers without a key says so; until
+     * that check answers, its card reports how the connection was saved.
+     */
+    const serverProbe = state.probe ?? state.savedUrlProbe
+    const detected = serverProbe ? detectedAuthMode(serverProbe) : null
     const screen = screenFor(state, path, consentRequested)
     /**
      * Whether something is in flight: the machine's answer, corrected for the one status that
@@ -459,17 +528,25 @@ export function McpConnectSheet({
      * way, because it is the request and not the window that the chain below waits on.
      */
     const requestConsent = useCallback(() => {
-        consentPopupRef.current = window.open("", journey.popupName, CONSENT_POPUP_FEATURES)
+        const popup = window.open("", journey.popupName, consentPopupFeatures(window))
+        try {
+            const body = popup?.document.body
+            if (body) body.textContent = `Opening ${state.name}…`
+        } catch {
+            // A window reused from an earlier attempt can already be on the provider's
+            // origin, and reading a cross-origin document throws.
+        }
+        consentPopupRef.current = popup
         consentSteps.current = {discovery: false, scopes: false}
         setConsentRequested(true)
-    }, [journey.popupName])
+    }, [journey.popupName, state.name])
 
     // The consent popup reports back through the journey's watch, which outlives this
     // component's render; unmounting with the popup still open has to release it.
     // Not just the watch: work already in flight has to be disowned too, or a create or a
     // begin that resolves after this unmount installs itself on an attempt nobody is waiting
     // for (D34).
-    useEffect(() => journey.abandonAttempt, [journey.abandonAttempt])
+    useEffect(() => () => void journey.abandonAttempt(), [journey.abandonAttempt])
 
     // `saving` means credentials are persisted and only the local bookkeeping is left.
     useEffect(() => {
@@ -524,8 +601,8 @@ export function McpConnectSheet({
         if (state.status !== "manual_auth" || !afterCreate) return
         const secretId = namedSecrets.find((secret) => secret.slug === secretSlug)?.id
         if (!secretId) return
-        void journey.submitManualCredential({headerName: headerValue, secretId})
-    }, [afterCreate, headerValue, journey, namedSecrets, secretSlug, state.status])
+        void journey.submitManualCredential({binding, secretId})
+    }, [afterCreate, binding, journey, namedSecrets, secretSlug, state.status])
 
     const nameProblem =
         state.status === "naming"
@@ -560,10 +637,17 @@ export function McpConnectSheet({
     const submitCredential = useCallback(() => {
         const secretId = selectedSecretId()
         if (!secretId) return
-        void journey.submitManualCredential({headerName: headerValue, secretId})
-    }, [headerValue, journey, selectedSecretId])
+        void journey.submitManualCredential({binding, secretId})
+    }, [binding, journey, selectedSecretId])
 
     const confirm = useCallback(() => {
+        if (screen === "oauth" && state.savedOauthConfig === "failed") {
+            journey.reloadSavedOauthConfig()
+            return
+        }
+        const keyBinding = path === "api_key" ? binding : undefined
+        // `submitName` checks a `{secret}` address with it before the row is made.
+        const keySecretId = keyBinding ? selectedSecretId() : undefined
         switch (state.status) {
             case "url_entry":
             case "check_failed":
@@ -573,13 +657,13 @@ export function McpConnectSheet({
                 if (nameProblem) return
                 if (path === "oauth") requestConsent()
                 if (path === "api_key") setAfterCreate("credential")
-                void journey.submitName()
+                void journey.submitName(keyBinding, keySecretId)
                 return
             case "create_failed":
                 // The window opened for the first attempt was closed when this screen
                 // replaced the wait, so the retry needs one of its own, opened in this tap.
                 if (path === "oauth") requestConsent()
-                void journey.submitName()
+                void journey.submitName(keyBinding, keySecretId)
                 return
             case "scopes_failed":
             case "consent_cancelled":
@@ -592,18 +676,18 @@ export function McpConnectSheet({
                 return
             case "manual_auth":
             case "verify_failed":
+                // A refusal took its row with it, so trying again makes one, and the
+                // credential follows as soon as it exists — the same two steps this
+                // screen's first press takes.
+                if (!state.endpointId) {
+                    if (path === "api_key") setAfterCreate("credential")
+                    void journey.submitName(keyBinding, keySecretId)
+                    return
+                }
                 // A connection that authorizes with nothing is repaired by saying so; there
                 // is no credential on this screen to submit.
                 if (path === "none") {
-                    journey.skipAuthentication()
-                    return
-                }
-                // A refused credential took its row with it, so trying again makes one, and
-                // the credential follows as soon as it exists — the same two steps this
-                // screen's first press takes.
-                if (!state.endpointId) {
-                    setAfterCreate("credential")
-                    void journey.submitName()
+                    void journey.skipAuthentication()
                     return
                 }
                 submitCredential()
@@ -614,13 +698,17 @@ export function McpConnectSheet({
                 onClose()
         }
     }, [
+        binding,
         journey,
         nameProblem,
         onClose,
         path,
         requestConsent,
         retryConsent,
+        screen,
+        selectedSecretId,
         state.endpointId,
+        state.savedOauthConfig,
         state.status,
         state.url,
         submitCredential,
@@ -632,11 +720,31 @@ export function McpConnectSheet({
     const secretChosen = screen === "api_key" && !!selectedSecretId()
     const host = hostOf(state.url)
     const probeResponse = readMcpProbeResponse(state.probe?.problem)
-    // What the server named when it refused the anonymous handshake, where that is anything
-    // the Authorization default does not already cover.
-    const challengeScheme = mcpChallengeSchemeToShow(state.probe)
+    const failureCause = state.probe?.problem?.cause
+    const failureHeadline =
+        (failureCause && FAILURE_HEADLINES[failureCause]) || UNREACHABLE_HEADLINE
+    // The probe's sentence repeats the SSE headline, so only the advice goes under it.
+    // Reachability advice is wrong wherever the address answered.
+    const failureBody =
+        failureCause === "unsupported_transport" ? (
+            NEWER_TRANSPORT_ADVICE
+        ) : (
+            <>
+                {state.error ? withMonoHost(state.error, host) : null}{" "}
+                {failureCause === "not_an_mcp_server" ? null : UNREACHABLE_ADVICE}
+            </>
+        )
+    // What the server named when it refused the anonymous handshake. Named on a refusal even
+    // when it is Bearer, because the key it was sent is the thing in question.
+    const challengeScheme = mcpChallengeScheme(serverProbe)
     // The status of the request that carried the key, not the one that carried nothing.
     const refusedStatus = state.failureStatus
+
+    // A server that registers no clients signs in only an app the person brings.
+    const needsOwnApp = needsOwnOauthApp(serverProbe)
+
+    // Why Connect is held for a `{secret}` address, said rather than only greyed out.
+    const urlProblem = urlSecretProblem(state.url, path, binding)
 
     /** The one error that belongs to a field rather than to the screen. */
     const nameError = state.status === "naming" ? (nameProblem ?? state.error) : null
@@ -687,25 +795,24 @@ export function McpConnectSheet({
                                 }
                                 aria-invalid={screen === "url_failed" || undefined}
                                 onChange={(event) => journey.setUrl(event.target.value)}
+                                // Enter runs the same check as the button, and only while the
+                                // button would be enabled. A key press that composes text in an
+                                // input method is not a submit.
+                                onKeyDown={(event) => {
+                                    if (event.key !== "Enter" || event.nativeEvent.isComposing)
+                                        return
+                                    event.preventDefault()
+                                    if (!busy && isProbeableUrl(state.url)) confirm()
+                                }}
                             />
                         </HintedField>
                     ) : null}
 
                     {screen === "url_failed" ? (
-                        <InlineError
-                            id={URL_PROBLEM_ID}
-                            headline={
-                                state.probe?.problem?.cause === "not_an_mcp_server"
-                                    ? NOT_AN_MCP_SERVER_HEADLINE
-                                    : UNREACHABLE_HEADLINE
-                            }
-                        >
-                            {state.error ? withMonoHost(state.error, host) : null}{" "}
-                            {state.probe?.problem?.cause === "not_an_mcp_server"
-                                ? null
-                                : UNREACHABLE_ADVICE}{" "}
-                            {/* Only where the check carried an answer to show, which the
-                                probe does not do today. See `readMcpProbeResponse`. */}
+                        <InlineError id={URL_PROBLEM_ID} headline={failureHeadline}>
+                            {failureBody}{" "}
+                            {/* Only where the check carried an answer to show. See
+                                `readMcpProbeResponse`. */}
                             {probeResponse ? (
                                 <ShowResponsePanel
                                     statusLine={probeResponse.status}
@@ -716,12 +823,43 @@ export function McpConnectSheet({
                     ) : null}
 
                     {screen === "oauth" || screen === "api_key" || screen === "no_auth" ? (
-                        <ProbeResultCard
-                            url={reconnect?.url ?? state.url}
-                            mode={path}
-                            // A reconnect is repairing one address. Offering to change it
-                            // would offer to point a saved connection somewhere else.
-                            onChange={reconnect ? undefined : () => journey.setUrl(state.url)}
+                        <>
+                            {/* A `{secret}` address is checked only with its key, so on a
+                                first connect there is no finding to report yet, and the
+                                address is on the key screen instead. */}
+                            {state.probe || reconnect ? (
+                                <ProbeResultCard
+                                    url={reconnect?.url ?? state.url}
+                                    mode={detected ?? reconnect?.authMode ?? path}
+                                    // A reconnect is repairing one address. Offering to change it
+                                    // would offer to point a saved connection somewhere else.
+                                    onChange={
+                                        reconnect ? undefined : () => journey.setUrl(state.url)
+                                    }
+                                />
+                            ) : null}
+                            <AuthModeSelector
+                                value={path}
+                                detected={detected}
+                                oauthSelectable={state.oauthOffered}
+                                disabled={busy || sealed}
+                                onChange={journey.selectAuthMode}
+                            />
+                        </>
+                    ) : null}
+
+                    {(screen === "oauth" || screen === "api_key") &&
+                    state.probe?.legacy_transport_suspected ? (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            icon={<WarningCircle size={15} weight="regular" />}
+                            className="items-start border-colorWarningBorder bg-colorWarningBg px-3 py-2.5"
+                            message={
+                                <span className="text-xs font-normal leading-normal text-colorText">
+                                    {LEGACY_TRANSPORT_WARNING}
+                                </span>
+                            }
                         />
                     ) : null}
 
@@ -751,6 +889,10 @@ export function McpConnectSheet({
                         </HintedField>
                     ) : null}
 
+                    {(screen === "oauth" || screen === "no_auth") && urlProblem ? (
+                        <InlineError headline={null}>{urlProblem}</InlineError>
+                    ) : null}
+
                     {screen === "oauth" ? (
                         <NoticeBox>
                             Connect opens {state.name || "the server"}&apos;s authorization page in
@@ -760,38 +902,88 @@ export function McpConnectSheet({
                         </NoticeBox>
                     ) : null}
 
+                    {screen === "oauth" ? (
+                        <OAuthAdvancedFields
+                            clientId={state.oauthClientId}
+                            onClientIdChange={(clientId) => journey.setOauthClient({clientId})}
+                            clientSecret={
+                                <SecretSelect
+                                    label="Client secret"
+                                    value={
+                                        namedSecrets.find(
+                                            (secret) => secret.id === state.oauthClientSecretId,
+                                        )?.slug ?? ""
+                                    }
+                                    onChange={(slug) =>
+                                        journey.setOauthClient({
+                                            clientSecretId:
+                                                namedSecrets.find((secret) => secret.slug === slug)
+                                                    ?.id ?? null,
+                                        })
+                                    }
+                                    secrets={namedSecrets}
+                                    disabled={busy}
+                                    canCreate
+                                    onCreate={() => openSecretDrawer(undefined, "oauth_client")}
+                                />
+                            }
+                            authMethod={
+                                state.oauthClientAuthMethod ?? DEFAULT_OAUTH_CLIENT_AUTH_METHOD
+                            }
+                            onAuthMethodChange={(authMethod) =>
+                                journey.setOauthClient({authMethod})
+                            }
+                            redirectUri={serverProbe?.auth.redirect_uri ?? null}
+                            scopesOffered={state.scopesOffered}
+                            scopesSelected={state.scopesSelected}
+                            onToggleScope={journey.toggleScope}
+                            needsOwnApp={needsOwnApp}
+                            // Until the saved settings arrive, what is typed would be
+                            // replaced by them.
+                            disabled={busy || state.savedOauthConfig === "loading"}
+                        />
+                    ) : null}
+
                     {screen === "api_key" ? (
                         <>
                             <div className="flex flex-col gap-3">
-                                <HintedField
-                                    label="Header"
-                                    // Dropped once the server has refused a key: the glyph
-                                    // explains what a header is, and by now the question is
-                                    // which one this server wants.
-                                    tooltip={
-                                        state.status === "verify_failed" ? undefined : HEADER_HELP
-                                    }
+                                <CredentialBindingFields
+                                    value={binding}
+                                    onChange={setBindingDraft}
+                                    probe={state.probe}
+                                    disabled={busy}
                                     invalid={state.status === "verify_failed"}
-                                    hint={
-                                        challengeScheme ? headerSchemeHint(challengeScheme) : null
+                                    aria-describedby={
+                                        state.status === "verify_failed"
+                                            ? KEY_PROBLEM_ID
+                                            : undefined
                                     }
-                                >
-                                    <Input
-                                        className="font-mono text-[13px]"
-                                        placeholder="Authorization"
-                                        value={headerValue}
+                                />
+                                {binding.kind === "url" || hasUrlSecretPlaceholder(state.url) ? (
+                                    <HintedField
+                                        label="Server URL"
+                                        hint={urlSecretHint(binding)}
+                                        error={urlProblem ?? undefined}
+                                    >
+                                        <Input
+                                            className="font-mono text-[13px]"
+                                            value={state.url}
+                                            // A reconnect repairs one address and never
+                                            // points a saved connection somewhere else.
+                                            disabled={!!reconnect || busy}
+                                            aria-label="Server URL"
+                                            onChange={(event) =>
+                                                journey.editUrl(event.target.value)
+                                            }
+                                        />
+                                    </HintedField>
+                                ) : null}
+                                {binding.prefix === "Basic" ? (
+                                    <BasicCredentialHelper
                                         disabled={busy}
-                                        aria-label="Header"
-                                        aria-describedby={
-                                            state.status === "verify_failed"
-                                                ? KEY_PROBLEM_ID
-                                                : undefined
-                                        }
-                                        onChange={(event) =>
-                                            setHeaderName(event.target.value.trim())
-                                        }
+                                        onCreateSecret={openSecretDrawer}
                                     />
-                                </HintedField>
+                                ) : null}
                                 <Field
                                     label="Project secret"
                                     invalid={state.status === "verify_failed"}
@@ -807,16 +999,13 @@ export function McpConnectSheet({
                                                 ? KEY_PROBLEM_ID
                                                 : undefined
                                         }
-                                        canCreate={!!headerValue}
-                                        onCreate={() => {
-                                            setSecretDrawerMounted(true)
-                                            setCreatingSecret(true)
-                                        }}
+                                        canCreate={credentialBindingComplete(binding)}
+                                        onCreate={() => openSecretDrawer()}
                                     />
                                 </Field>
                             </div>
                             <span className="-mt-2 block text-xs leading-normal text-colorTextTertiary">
-                                {SECRET_HELP}
+                                {secretHelpFor(binding.kind)}
                             </span>
                         </>
                     ) : null}
@@ -833,7 +1022,13 @@ export function McpConnectSheet({
                                 that made deleting them look right was our own client's "did
                                 not answer initialize", and that failure no longer reaches
                                 this screen at all (round 4, D133 reopened). */}
-                            {state.error} {keyRejectedAdviceFor(challengeScheme)}
+                            {state.error} {keyRejectedAdviceFor(challengeScheme, binding)}
+                        </InlineError>
+                    ) : null}
+
+                    {screen === "no_auth" && state.status === "verify_failed" ? (
+                        <InlineError headline={keyRefusedWithoutKeyFor(refusedStatus)}>
+                            {state.error} {NO_KEY_REFUSED_ADVICE}
                         </InlineError>
                     ) : null}
 
@@ -878,6 +1073,10 @@ export function McpConnectSheet({
                         </WaitingCard>
                     ) : null}
 
+                    {screen === "oauth" && state.savedOauthConfig === "failed" ? (
+                        <InlineError headline={null}>{SAVED_OAUTH_UNREADABLE}</InlineError>
+                    ) : null}
+
                     {screen === "oauth" && isConsentRefusal(state.status) ? (
                         <InlineError headline={null}>
                             {state.status === "consent_cancelled"
@@ -893,10 +1092,23 @@ export function McpConnectSheet({
                     {secretDrawerMounted ? (
                         <CreateSecretDrawer
                             open={creatingSecret}
-                            onClose={() => setCreatingSecret(false)}
-                            headerName={headerValue}
+                            onClose={() => {
+                                setCreatingSecret(false)
+                                setSecretSeed(undefined)
+                            }}
+                            headerName={
+                                secretFor === "key" ? (binding.name ?? undefined) : undefined
+                            }
                             serverName={state.name}
-                            onCreated={(row) => setSecretSlug(row.slug)}
+                            nameSuffix={
+                                secretFor === "oauth_client" ? "OAUTH_CLIENT_SECRET" : "API_KEY"
+                            }
+                            initialValue={secretSeed}
+                            onCreated={(row) =>
+                                secretFor === "oauth_client"
+                                    ? setCreatedClientSecretSlug(row.slug)
+                                    : setSecretSlug(row.slug)
+                            }
                         />
                     ) : null}
                 </div>
@@ -916,6 +1128,14 @@ export function McpConnectSheet({
                                         state,
                                         nameProblem,
                                         secretChosen,
+                                        oauthClientReady:
+                                            screen !== "oauth" ||
+                                            state.savedOauthConfig === "failed" ||
+                                            (state.savedOauthConfig !== "loading" &&
+                                                oauthConfigReady(state)),
+                                        bindingReady:
+                                            credentialBindingComplete(binding) &&
+                                            urlMatchesCredentialBinding(state.url, binding),
                                         busy,
                                     })
                                 }
@@ -940,6 +1160,7 @@ const isConsentRefusal = (status: McpJourneyState["status"]) =>
 /** What the trailing button says, by screen and by whether it is a second attempt. */
 const confirmLabel = (screen: Screen, state: McpJourneyState): string => {
     if (screen === "url") return "Continue"
+    if (screen === "oauth" && state.savedOauthConfig === "failed") return "Try again"
     if (screen === "url_failed") return "Try again"
     if (isConsentRefusal(state.status)) return "Try again"
     if (state.status === "verify_failed" || state.status === "create_failed") return "Try again"
@@ -951,62 +1172,28 @@ const canConfirm = ({
     state,
     nameProblem,
     secretChosen,
+    oauthClientReady,
+    bindingReady,
     busy,
 }: {
     screen: Screen
     state: McpJourneyState
     nameProblem: string | null
     secretChosen: boolean
+    /** The OAuth settings on screen can be saved. See `oauthConfigReady`. */
+    oauthClientReady: boolean
+    /** Says where the key goes, and agrees with the address about `{secret}`. */
+    bindingReady: boolean
     busy: boolean
 }): boolean => {
     if (busy && screen !== "waiting") return false
     if (screen === "url" || screen === "url_failed") return isProbeableUrl(state.url)
     if (nameProblem) return false
-    if (screen === "api_key") return !!state.name.trim() && secretChosen
+    if (screen === "api_key") return !!state.name.trim() && secretChosen && bindingReady
+    if (!oauthClientReady) return false
+    // Only a key sent in the URL can fill `{secret}`, so no other mode can connect it.
+    if (hasUrlSecretPlaceholder(state.url)) return false
     return !!state.name.trim()
-}
-
-/**
- * A label, a control, and a line of help under the control.
- *
- * `Field` puts its description above the control and its error below it, which is right for
- * a form row and wrong for these: the help here describes what the value does once it is
- * saved, and it is read after the value, not before it. The control keeps `Field`'s
- * announcement wiring by naming the help line itself.
- */
-const HintedField = ({
-    hint,
-    children,
-    ...field
-}: {
-    label: string
-    tooltip?: string
-    error?: string
-    invalid?: boolean
-    hint?: ReactNode
-    children: ReactElement<{"aria-describedby"?: string}>
-}) => {
-    // Generated here, and named only while the line it names is on screen. The ids used to be
-    // written by hand at each call site and set on the control unconditionally, so every
-    // screen that drew no hint left the control pointing at an element that was not in the
-    // document: four of them on the name field alone (round 4, D127). A field cannot forget
-    // an id it never writes.
-    const hintId = useId()
-    const own = children.props["aria-describedby"]
-    const describedBy = [own, hint ? hintId : null].filter(Boolean).join(" ") || undefined
-
-    return (
-        <div className="flex flex-col gap-1.5">
-            <Field {...field} className="gap-1.5">
-                {cloneElement(children, {"aria-describedby": describedBy})}
-            </Field>
-            {hint ? (
-                <p id={hintId} className="m-0 text-xs leading-normal text-colorTextTertiary">
-                    {hint}
-                </p>
-            ) : null}
-        </div>
-    )
 }
 
 /**
@@ -1026,21 +1213,38 @@ const InlineError = ({
     className?: string
     /** Set where a field points `aria-describedby` at this box. */
     id?: string
-}) => (
-    <Alert
-        id={id}
-        type="error"
-        showIcon
-        icon={<WarningCircle size={15} weight="regular" />}
-        className={`items-start border-colorErrorBorder bg-colorErrorBg px-3 py-2.5 ${className ?? ""}`}
-        message={
-            <span className="text-xs font-normal leading-normal text-colorTextSecondary">
-                {headline ? <span className="font-medium text-colorText">{headline} </span> : null}
-                {children}
-            </span>
-        }
-    />
-)
+}) => {
+    // A browser leaves a text node that holds only a space out of the accessible description,
+    // which then read the headline and the body as one word ("(401).This server"). So the
+    // body's leading text is written as one string that carries the spaces around it.
+    const nodes = Array.isArray(children) ? children : [children]
+    const textEnd = nodes.findIndex((node) => typeof node !== "string")
+    const leading = nodes
+        .slice(0, textEnd === -1 ? undefined : textEnd)
+        .join("")
+        .replace(/\s+/g, " ")
+        .trim()
+    const rest = textEnd === -1 ? [] : nodes.slice(textEnd)
+    const text = `${headline ? " " : ""}${leading}${rest.length ? " " : ""}`
+    return (
+        <Alert
+            id={id}
+            type="error"
+            showIcon
+            icon={<WarningCircle size={15} weight="regular" />}
+            className={`items-start border-colorErrorBorder bg-colorErrorBg px-3 py-2.5 ${className ?? ""}`}
+            message={
+                <span className="text-xs font-normal leading-normal text-colorTextSecondary">
+                    {headline ? (
+                        <span className="font-medium text-colorText">{headline}</span>
+                    ) : null}
+                    {text}
+                    {rest}
+                </span>
+            }
+        />
+    )
+}
 
 const WaitingCard = ({
     title,
@@ -1071,6 +1275,7 @@ const WaitingCard = ({
  * finish this screen.
  */
 const SecretSelect = ({
+    label = "Project secret",
     value,
     onChange,
     secrets,
@@ -1081,6 +1286,8 @@ const SecretSelect = ({
     id,
     "aria-describedby": describedBy,
 }: {
+    /** The accessible name, which is the field's. */
+    label?: string
     value: string
     onChange: (slug: string) => void
     secrets: {id?: string | null; slug?: string | null; name?: string | null}[]
@@ -1112,7 +1319,7 @@ const SecretSelect = ({
                 id={id}
                 className="w-full"
                 disabled={disabled}
-                aria-label="Project secret"
+                aria-label={label}
                 aria-describedby={describedBy}
                 aria-invalid={invalid || undefined}
             >

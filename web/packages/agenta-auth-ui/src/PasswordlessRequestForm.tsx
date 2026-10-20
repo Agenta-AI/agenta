@@ -1,8 +1,10 @@
-import {useState, type FormEvent} from "react"
+import {useEffect, useRef, useState, type FormEvent} from "react"
 
 import {requestEmailCode} from "@agenta/auth"
-import clsx from "clsx"
+import {Input, LoadingButton} from "@agenta/ui/ui"
+import {EnvelopeSimple} from "@phosphor-icons/react"
 
+import {FIELD_CLASS, KEYCAP_CLASS} from "./classes"
 import {ShowErrorMessage} from "./ShowErrorMessage"
 import type {AuthMessage, AuthSecurityAdapter} from "./types"
 
@@ -17,6 +19,8 @@ export interface PasswordlessRequestFormProps {
     disabled?: boolean
     lockEmail?: boolean
     security?: AuthSecurityAdapter
+    /** Send the code on mount (once the security check passes); the button stays for a retry. */
+    autoSend?: boolean
 }
 
 /** The request step of the OTP flow: confirm the email, send the code. */
@@ -30,14 +34,14 @@ export const PasswordlessRequestForm = ({
     disabled,
     lockEmail = false,
     security,
+    autoSend = false,
 }: PasswordlessRequestFormProps) => {
     const [isLoading, setIsLoading] = useState(false)
 
-    const submit = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault()
+    const send = async () => {
         if (isLoading) return
         if (!email.trim()) {
-            setMessage({message: "Please input your email!", type: "error"})
+            setMessage({message: "Please add your email.", type: "error"})
             return
         }
         const token = security ? security.ensureToken() : null
@@ -47,7 +51,7 @@ export const PasswordlessRequestForm = ({
             security?.stampToken(token)
             const outcome = await requestEmailCode(email.trim())
             if (outcome.kind === "ok") {
-                setMessage({message: "Check your inbox for the OTP to continue!", type: "success"})
+                setMessage({message: "Code sent. Not there? Check spam.", type: "info"})
                 onCodeSent()
             } else {
                 setMessage({message: outcome.message, type: "error"})
@@ -60,23 +64,50 @@ export const PasswordlessRequestForm = ({
         }
     }
 
+    const submit = (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault()
+        void send()
+    }
+
+    // Once per mount: a StrictMode remount or a token refresh must not send a second code.
+    // `send` is a new function each render, so the effect re-runs often; the ref makes it a no-op.
+    const autoSentRef = useRef(false)
+    const securityReady = !security || security.hasToken
+    useEffect(() => {
+        if (!autoSend || !securityReady || autoSentRef.current) return
+        autoSentRef.current = true
+        void send()
+    }, [autoSend, securityReady, send])
+
     return (
-        <form className="w-full space-y-2" onSubmit={submit} noValidate>
-            {message.type === "error" && <ShowErrorMessage info={message} />}
-            <input
-                type="email"
-                autoComplete="email"
-                aria-label="Email address"
-                placeholder="Enter valid email address"
-                value={email}
-                disabled={lockEmail}
-                className={clsx("auth-input", lockEmail && "auth-locked-input")}
-                onChange={(event) => setEmail(event.target.value)}
-            />
+        <form className="flex w-full flex-col gap-[10px]" onSubmit={submit} noValidate>
+            {lockEmail ? null : (
+                <Input
+                    type="email"
+                    autoComplete="email"
+                    aria-label="Email address"
+                    aria-invalid={message.type === "error" || undefined}
+                    placeholder="Enter your email address"
+                    value={email}
+                    size="lg"
+                    className={FIELD_CLASS}
+                    onChange={(event) => setEmail(event.target.value)}
+                />
+            )}
             {security?.widget}
-            <button type="submit" className="auth-btn-yellow" disabled={disabled || isLoading}>
-                {isLoading ? "Sending…" : "Continue with OTP"}
-            </button>
+            <LoadingButton
+                type="submit"
+                size="lg"
+                loading={isLoading}
+                disabled={disabled}
+                className={KEYCAP_CLASS}
+            >
+                <span key={isLoading ? "busy" : "idle"} className="auth-swap">
+                    {isLoading ? null : <EnvelopeSimple size={16} />}
+                    {isLoading ? "Sending code…" : "Email me a one-time code"}
+                </span>
+            </LoadingButton>
+            {message.type === "error" && <ShowErrorMessage info={message} />}
         </form>
     )
 }

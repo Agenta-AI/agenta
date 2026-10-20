@@ -48,6 +48,7 @@ const stateAt = (status: McpJourneyStatus): McpJourneyState => ({
     name: "Acme",
     nameTouched: false,
     probe: null,
+    savedUrlProbe: null,
     scopesOffered: [],
     scopesSelected: [],
     endpointId: "mcp-1",

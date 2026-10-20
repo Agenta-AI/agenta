@@ -18,6 +18,7 @@ import pytest
 
 from oss.src.core.secrets.dtos import CreateSecretDTO
 from oss.src.core.secrets.enums import SubscriptionLoginState
+from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.subscription_login import (
     RunnerLoginAttempt,
@@ -209,7 +210,11 @@ def _runner():
 
 @pytest.fixture(name="service")
 def _service(vault, runner):
-    return SubscriptionLoginService(vault_service=vault, runner_client=runner)
+    return SubscriptionLoginService(
+        vault_service=vault,
+        runner_client=runner,
+        claude_token_client=ClaudeTokenClient(),
+    )
 
 
 async def _make_secret(vault: VaultService, data: dict | None = None):

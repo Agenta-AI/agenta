@@ -17,6 +17,7 @@ from opentelemetry import trace as otel_trace
 
 from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.engines.tracing.propagation import inject
+from agenta.sdk.engines.tracing.server import current_product_span
 from agenta.sdk.utils.logging import get_module_logger
 
 from agenta.sdk.agents.dtos import (
@@ -172,7 +173,7 @@ def _run_context_trace() -> Optional[RunContextTrace]:
 
     These are the ids a self-targeting tool binds (``$ctx.trace.trace_id`` for "annotate my
     trace"). Best-effort: a missing/invalid span context returns ``None``."""
-    span_context = otel_trace.get_current_span().get_span_context()
+    span_context = current_product_span().get_span_context()
     if not span_context or not span_context.is_valid:
         return None
     return RunContextTrace(
@@ -224,7 +225,7 @@ def record_usage(usage: Optional[Dict[str, Any]]) -> None:
     if not usage:
         return
     try:
-        span = otel_trace.get_current_span()
+        span = current_product_span()
         span.set_attribute("ag.flags.aggregate_usage", True)
         input_tokens = usage.get("input")
         output_tokens = usage.get("output")
@@ -263,7 +264,7 @@ def record_sandbox(sandbox: Optional[str]) -> None:
     if not sandbox:
         return
     try:
-        otel_trace.get_current_span().set_attribute("ag.meta.agent.sandbox", sandbox)
+        current_product_span().set_attribute("ag.meta.agent.sandbox", sandbox)
     except Exception:  # pylint: disable=broad-except
         log.warning(
             "agent: failed to record the sandbox on workflow span", exc_info=True

@@ -1,21 +1,26 @@
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import delete, select
-from sqlalchemy.exc import IntegrityError
+from pydantic import BaseModel
+from sqlalchemy import delete, select, text
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
 from oss.src.core.gateways.mcps.dtos import (
+    MCPEndpointCheck,
     MCPOAuthData,
     MCPEndpoint,
     MCPEndpointCreate,
     MCPEndpointEdit,
     MCPEndpointQuery,
+    is_oauth_connection_at,
 )
 from oss.src.core.gateways.mcps.interfaces import (
     MCPEndpointsDAOInterface,
 )
+from oss.src.core.gateways.mcps.types import MCPConnectionBusyError
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.dbs.postgres.gateways.mcps.dbes import MCPEndpointDBE
@@ -30,11 +35,16 @@ from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
     get_transactions_engine,
 )
+from oss.src.dbs.postgres.shared.exceptions import is_lock_timeout
 from oss.src.dbs.postgres.shared.utils import apply_windowing
 from oss.src.utils.exceptions import suppress_exceptions
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+# How long a change waits for a connection's OAuth lock. Each waiter holds a pooled
+# connection while it waits, so an unbounded wait behind a stuck holder can drain the pool.
+_OAUTH_LOCK_TIMEOUT = "30s"
 
 
 class MCPEndpointsDAO(MCPEndpointsDAOInterface):
@@ -156,18 +166,14 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
         endpoint: MCPEndpointEdit,
     ) -> Optional[MCPEndpoint]:
         async with self.engine.session() as session:
-            stmt = (
-                select(self.MCPEndpointDBE)
-                .filter(self.MCPEndpointDBE.project_id == project_id)
-                .filter(self.MCPEndpointDBE.id == endpoint.id)
-                .limit(1)
+            # Locked, so the binding cleared below and the address that replaces it
+            # are published together.
+            dbe = await self._locked(
+                session, project_id=project_id, endpoint_id=endpoint.id
             )
-
-            result = await session.execute(stmt)
-            dbe = result.scalars().first()
-
             if not dbe:
                 return None
+            before = map_mcp_endpoint_dbe_to_dto(dbe=dbe)
 
             # Before the mapping, not after: this edit is a full PUT that assigns the
             # row's credential from the payload, and a query issued against a session
@@ -185,6 +191,15 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
                 #
                 dto=endpoint,
             )
+            # An OAuth grant was issued for the old mode and address. Kept on the row,
+            # a relay would send the old server's token to the new address.
+            old_url = before.data.route.base_url or ""
+            if (
+                is_oauth_connection_at(before, old_url)
+                and not is_oauth_connection_at(endpoint, old_url)
+                and dbe.secret_id == before.secret_id
+            ):
+                dbe.secret_id = None
             flag_modified(dbe, "data")
             flag_modified(dbe, "flags")
 
@@ -192,6 +207,29 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
             await session.refresh(dbe)
 
             return map_mcp_endpoint_dbe_to_dto(dbe=dbe)
+
+    @asynccontextmanager
+    async def oauth_lock(self, *, project_id: UUID, endpoint_id: UUID):
+        # A transaction-scoped advisory lock on its own connection, rather than the
+        # endpoint row's own lock. The block writes the row, the grant and the attempt
+        # through DAOs with their own sessions, and a row lock held on this connection
+        # would make every one of those writes wait for it forever, the grant delete
+        # included, because its foreign key updates the row. The price is a second
+        # pooled connection for as long as the block runs.
+        async with self.engine.transaction() as connection:
+            await connection.execute(
+                text(f"SET LOCAL lock_timeout = '{_OAUTH_LOCK_TIMEOUT}'")
+            )
+            try:
+                await connection.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+                    {"key": f"mcps_endpoint_oauth:{project_id}:{endpoint_id}"},
+                )
+            except DBAPIError as e:
+                if is_lock_timeout(e):
+                    raise MCPConnectionBusyError() from e
+                raise
+            yield
 
     # Excluded for the same reason `edit_endpoint` excludes it: this write refuses a
     # credential the project does not own, and a swallowed refusal returns `None`, which
@@ -284,6 +322,41 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
         endpoint_id: UUID,
         oauth: MCPOAuthData,
     ) -> Optional[MCPEndpoint]:
+        return await self._merge_data(
+            project_id=project_id,
+            user_id=user_id,
+            endpoint_id=endpoint_id,
+            key="oauth",
+            value=oauth,
+        )
+
+    @suppress_exceptions()
+    async def record_endpoint_check(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        endpoint_id: UUID,
+        check: MCPEndpointCheck,
+    ) -> Optional[MCPEndpoint]:
+        return await self._merge_data(
+            project_id=project_id,
+            user_id=user_id,
+            endpoint_id=endpoint_id,
+            key="check",
+            value=check,
+        )
+
+    async def _merge_data(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        endpoint_id: UUID,
+        key: str,
+        value: BaseModel,
+    ) -> Optional[MCPEndpoint]:
         async with self.engine.session() as session:
             dbe = await self._locked(
                 session, project_id=project_id, endpoint_id=endpoint_id
@@ -294,7 +367,7 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
             # One key of the stored data, merged into whatever the row holds now rather
             # than into the copy the caller read before it dialled out (D31).
             data = dict(dbe.data or {})
-            data["oauth"] = oauth.model_dump(mode="json", exclude_none=True)
+            data[key] = value.model_dump(mode="json", exclude_none=True)
             dbe.data = data
             flag_modified(dbe, "data")
             self._stamp(dbe, user_id)

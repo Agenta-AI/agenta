@@ -538,6 +538,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/scan-agent-template-source",
+          label: "Scan Template Source",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/load-agent-template",
           label: "Load Template",
           className: "api-method post",
@@ -3136,6 +3142,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/upload-session-cwd-file",
+          label: "Upload Session Cwd File",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/upload-session-mount-file",
           label: "Upload Session Mount File",
           className: "api-method post",
@@ -4108,6 +4120,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/record-mcp-endpoint-check",
+          label: "Record Endpoint Check",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/connect-mcp-endpoint",
           label: "Connect Endpoint",
           className: "api-method post",
@@ -4116,6 +4134,18 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/disconnect-mcp-endpoint",
           label: "Disconnect Endpoint",
+          className: "api-method delete",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-mcp-connect-attempt",
+          label: "Fetch Connect Attempt",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/cancel-mcp-connect-attempt",
+          label: "Cancel Connect Attempt",
           className: "api-method delete",
         },
       ],

@@ -33,73 +33,91 @@ export const sessionLiveEventsUrl = (
     return projectId ? `${url}&project_id=${encodeURIComponent(projectId)}` : url
 }
 
+export interface SessionLiveHandlers {
+    onFrame: (frame: SessionLiveFrame) => void
+    onEvent: (event: SessionDurableEvent) => void
+    onReady: (event: SessionLiveReady) => void
+    onDisconnect: (event: SessionLiveDisconnect) => void
+}
+
+/** Route one SSE message to its handler; false means the server asked not to reconnect. */
+export const dispatchSessionLiveMessage = (
+    {event, data}: {event: string; data: string},
+    {sessionId, after, ...handlers}: SessionLiveHandlers & {sessionId: string; after: number},
+): boolean => {
+    if (event === "ready") {
+        let watermark = after
+        try {
+            const parsed = JSON.parse(data) as Record<string, unknown>
+            if (
+                typeof parsed.watermark === "number" &&
+                Number.isInteger(parsed.watermark) &&
+                parsed.watermark >= 0
+            )
+                watermark = parsed.watermark
+        } catch {
+            // A malformed readiness detail must not move the reconnect cursor forward.
+        }
+        handlers.onReady({watermark})
+        return true
+    }
+    if (event === "relay-close") {
+        let detail: SessionLiveDisconnect = {reason: "relay_closed", reconnect: true}
+        try {
+            const parsed = JSON.parse(data) as Record<string, unknown>
+            detail = {
+                reason: typeof parsed.reason === "string" ? parsed.reason : detail.reason,
+                reconnect: parsed.reconnect !== false,
+            }
+        } catch {
+            // The close itself is authoritative even if its optional detail is malformed.
+        }
+        handlers.onDisconnect(detail)
+        return detail.reconnect
+    }
+    if (event !== "message") return true
+    try {
+        const parsed = safeParseWithLogging(
+            sessionLiveFrameSchema.or(sessionDurableEventSchema),
+            JSON.parse(data),
+            "[sessionLiveEvents]",
+        )
+        if (parsed?.session_id === sessionId) {
+            if (parsed.kind === "frame") handlers.onFrame(parsed)
+            else handlers.onEvent(parsed)
+        }
+    } catch {
+        // Ignore malformed JSON because live relay envelopes are display-only.
+    }
+    return true
+}
+
 /** Native EventSource transport for uncoalesced live frames. */
 export const connectSessionLiveEvents = ({
     sessionId,
     projectId,
     after,
-    onFrame,
-    onEvent,
-    onReady,
-    onDisconnect,
-}: {
+    ...handlers
+}: SessionLiveHandlers & {
     sessionId: string
     projectId?: string | null
     after: number
-    onFrame: (frame: SessionLiveFrame) => void
-    onEvent: (event: SessionDurableEvent) => void
-    onReady: (event: SessionLiveReady) => void
-    onDisconnect: (event: SessionLiveDisconnect) => void
 }): SessionLiveEventsConnection => {
     const source = new EventSource(sessionLiveEventsUrl(sessionId, after, projectId), {
         withCredentials: true,
     })
-
-    source.onmessage = (event) => {
-        try {
-            const parsed = safeParseWithLogging(
-                sessionLiveFrameSchema.or(sessionDurableEventSchema),
-                JSON.parse(event.data),
-                "[sessionLiveEvents]",
-            )
-            if (parsed?.session_id === sessionId) {
-                if (parsed.kind === "frame") onFrame(parsed)
-                else onEvent(parsed)
-            }
-        } catch {
-            // Ignore malformed JSON because live relay envelopes are display-only.
-        }
+    const dispatch = (event: string, message: Event) => {
+        const keepOpen = dispatchSessionLiveMessage(
+            {event, data: (message as MessageEvent<string>).data},
+            {sessionId, after, ...handlers},
+        )
+        if (!keepOpen) source.close()
     }
-    source.addEventListener("ready", (event) => {
-        let watermark = after
-        try {
-            const data = JSON.parse((event as MessageEvent<string>).data) as Record<string, unknown>
-            if (
-                typeof data.watermark === "number" &&
-                Number.isInteger(data.watermark) &&
-                data.watermark >= 0
-            )
-                watermark = data.watermark
-        } catch {
-            // A malformed readiness detail must not move the reconnect cursor forward.
-        }
-        onReady({watermark})
-    })
-    source.addEventListener("relay-close", (event) => {
-        let detail: SessionLiveDisconnect = {reason: "relay_closed", reconnect: true}
-        try {
-            const data = JSON.parse((event as MessageEvent<string>).data) as Record<string, unknown>
-            detail = {
-                reason: typeof data.reason === "string" ? data.reason : detail.reason,
-                reconnect: data.reconnect !== false,
-            }
-        } catch {
-            // The close itself is authoritative even if its optional detail is malformed.
-        }
-        onDisconnect(detail)
-        if (!detail.reconnect) source.close()
-    })
-    source.onerror = () => onDisconnect({reason: "connection_lost", reconnect: true})
+
+    source.onmessage = (event) => dispatch("message", event)
+    source.addEventListener("ready", (event) => dispatch("ready", event))
+    source.addEventListener("relay-close", (event) => dispatch("relay-close", event))
+    source.onerror = () => handlers.onDisconnect({reason: "connection_lost", reconnect: true})
 
     return {close: () => source.close()}
 }

@@ -100,11 +100,41 @@ def normalize_session_name(name: Optional[str]) -> Optional[str]:
     return trimmed[:SESSION_NAME_MAX_CHARS]
 
 
+# The line the composer appends for each file it saved to the session drive instead of
+# attaching (useComposerAttachments.ts `withDriveFileNote`). It is not the user's words,
+# so it never becomes the title.
+DRIVE_FILE_NOTE_PREFIX = "Uploaded to the session drive (too large to attach):"
+
+
+def _without_drive_file_notes(text: str) -> str:
+    return "\n".join(
+        line
+        for line in text.splitlines()
+        if not line.strip().startswith(DRIVE_FILE_NOTE_PREFIX)
+    )
+
+
+def _display_content(message: Dict[str, Any]) -> Optional[str]:
+    """The person's own words when the message carries them apart from what the model
+    reads (a command's expanded prompt, a channel's "From ..." line). Top level on a
+    chat message, under `metadata` on a UI message. None means use the content."""
+    display = message.get("display_content")
+    if isinstance(display, str):
+        return display
+    metadata = message.get("metadata")
+    if isinstance(metadata, dict) and isinstance(metadata.get("display_content"), str):
+        return metadata["display_content"]
+    return None
+
+
 def _first_user_message_text(messages: List[Any]) -> Optional[str]:
     """Text of the first user message, joining its text parts — the browser's rule."""
     for message in messages:
         if not isinstance(message, dict) or message.get("role") != "user":
             continue
+        display = _display_content(message)
+        if display is not None:
+            return display
         content = message.get("content")
         if content is None:
             content = message.get("parts")
@@ -138,7 +168,8 @@ def derive_session_name(inputs: Optional[Dict[str, Any]]) -> Optional[str]:
     messages = inputs.get("messages")
     if not isinstance(messages, list):
         return None
-    return normalize_session_name(_first_user_message_text(messages))
+    text = _first_user_message_text(messages)
+    return normalize_session_name(_without_drive_file_notes(text) if text else None)
 
 
 def derive_command_mode(request: SessionStreamCommandRequest) -> CommandMode:

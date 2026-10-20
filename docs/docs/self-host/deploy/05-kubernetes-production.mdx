@@ -72,7 +72,7 @@ zones.
 
 | Replicas | PodDisruptionBudget | topologySpreadConstraints |
 |---|---|---|
-| 1 | none, unless you set `<workload>.pdb.protectSingleton: true` | none |
+| 1 | `maxUnavailable: 1`, which permits the eviction | none |
 | 2 or more | `maxUnavailable: 1` | one pod per node (hard), even spread over zones (soft) |
 
 The generated constraints are scoped to one Deployment revision. A rolling update is therefore not
@@ -90,8 +90,9 @@ kubectl -n agenta get deployment agenta-api \
 
 Four limits apply:
 
-- A budget over a single pod does not keep that workload up. It defers the eviction of its node,
-  then the pod still moves.
+- A budget over a single pod does not keep that workload up. This is why a single replica gets
+  `maxUnavailable: 1` and not `minAvailable: 1`. A budget that permits no disruption at all stops
+  the platform from draining that node, and the pod still moves at the end of the grace period.
 - GKE Autopilot respects a budget for one hour during a node upgrade and then proceeds anyway.
 - No budget applies to a node that fails outright.
 - The bundled PostgreSQL gets a `maxUnavailable: 1` budget from the Bitnami subchart, over a single
@@ -116,13 +117,45 @@ redisVolatile:
   safeToEvict: true
 ```
 
-To defer the eviction of a single pod that has no replica, ask for a budget over it:
+To refuse every voluntary eviction of a single pod for the platform's grace period, ask for that
+budget by name. Read the limits above first. The node drain is deferred, not cancelled.
 
 ```yaml
 agentRunner:
   pdb:
-    protectSingleton: true
+    minAvailable: 1
 ```
+
+A system pod can also evict one of these pods. When a node is full, the scheduler makes room for
+a new pod by evicting pods with a lower priority. Your pods run at priority 0, system pods run at up
+to 2000001000, and a PriorityClass you create can be at most 1000000000. No priority you set can
+stop a system pod. What you can do is give the scheduler a cheaper pod to evict first.
+
+`spareCapacity` runs placeholder pods at priority -10 that only hold room. The scheduler evicts a
+placeholder before any real pod, and the evicted placeholder waits for a new node. A
+`priorityClassName` on a single-pod data store makes the scheduler pick your other pods before it
+when no placeholder is left. The placeholders cost what any pod with the same requests costs, and
+on GKE Autopilot you pay for their requests.
+
+```yaml
+spareCapacity:
+  enabled: true
+  replicas: 1
+  resources:
+    requests: {cpu: 500m, memory: 512Mi}   # fit the largest pod you want to start at once
+redisVolatile:
+  priorityClassName: agenta-stateful
+extraObjects:
+  - apiVersion: scheduling.k8s.io/v1
+    kind: PriorityClass
+    metadata:
+      name: agenta-stateful
+    value: 1000000
+    globalDefault: false
+```
+
+The chart creates the placeholder PriorityClass, which is a cluster-wide object, so the account
+that runs `helm` needs permission to create one.
 
 ### Step 4: override a budget or a constraint, if you need to
 

@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"properties":{"ok":{"type":"boolean","title":"Ok"},"reason":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Reason"}},"type":"object","required":["ok"],"title":"MCPEndpointCheckRequest","description":"The result of a check the connect sheet just ran against the connection."}}}}}

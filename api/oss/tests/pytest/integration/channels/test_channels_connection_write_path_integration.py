@@ -21,9 +21,11 @@ from oss.src.core.channels.dtos import (
     ChannelConnectionResponse,
 )
 from oss.src.core.channels.service import ChannelsService
-from oss.src.core.channels.types import ChannelConnectionVerificationFailed
+from oss.src.core.channels.types import (
+    ChannelConnectionIdentityConflict,
+    ChannelConnectionVerificationFailed,
+)
 from oss.src.core.secrets.services import VaultService
-from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 
@@ -55,7 +57,7 @@ class _ScriptedAdapter(ChannelAdapterInterface):
     async def verify_signature(self, *, request, connection):
         raise NotImplementedError
 
-    async def parse_event(self, *, body, connection=None):
+    async def parse_event(self, *, body, connection=None, request=None):
         raise NotImplementedError
 
     async def post_message(self, *, connection, locator, content, idempotency_key):
@@ -221,7 +223,7 @@ async def test_two_projects_one_installation_get_a_domain_error_not_a_500(
             credentials={"bot_token": "x2", "signing_secret": "y2"},
         )
 
-        with pytest.raises(EntityCreationConflict):
+        with pytest.raises(ChannelConnectionIdentityConflict):
             await service.create_connection(
                 project_id=other_project_id, user_id=user_id, connection=second
             )

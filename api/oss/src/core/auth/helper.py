@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass
 from typing import Any, Optional, Set
 
@@ -69,7 +70,9 @@ async def _get_posthog_string_entries(feature_flag: str) -> Set[str]:
         return set()
 
     try:
-        flag_entries = posthog.get_feature_flag_payload(
+        # The PostHog client is synchronous; a thread keeps a slow lookup off the event loop.
+        flag_entries = await asyncio.to_thread(
+            posthog.get_feature_flag_payload,
             feature_flag,
             "user distinct id",
         )

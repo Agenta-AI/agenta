@@ -135,6 +135,7 @@ export {invalidateSessionListQueries, invalidateSessionLivenessQueries} from "./
 export {shouldAdoptServerTranscript, type TranscriptAdoptionInput} from "./core/transcriptAdoption"
 export {deriveMountRows, mountBreadcrumbs, type MountRow} from "./core/mountBrowser"
 export {pickCwdMount} from "./core/mountSelection"
+export {listedEntryAt, parentFolderOf} from "./core/pathUtils"
 export {
     sessionRecordsQueryFamily,
     sessionRecordFileRecencyAtomFamily,
@@ -175,11 +176,14 @@ export {
     mountRootQueryFamily,
     mountDirQueryFamily,
     mountFileContentQueryFamily,
+    mountFolderListingQueryFamily,
+    mountFileExistsAtomFamily,
     revalidateSessionMountsAtom,
     sessionMountsQueryKey,
     mountFilesQueryKey,
     latestMountFilesQueryKey,
     mountFileContentQueryKey,
+    mountFolderListingQueryKey,
 } from "./state/mounts"
 export {
     detectFileActivity,

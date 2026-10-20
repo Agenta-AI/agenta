@@ -46,7 +46,11 @@ const recognise = (
             remedy: "Wait a moment, then try again.",
         }
     }
-    if ((status && status >= 500) || /overloaded|unavailable|timed? ?out/.test(lower)) {
+    if (
+        status === 408 ||
+        (status && status >= 500) ||
+        /overloaded|unavailable|timed? ?out/.test(lower)
+    ) {
         return {
             headline: "The model provider isn't responding.",
             remedy: "Try again in a moment.",

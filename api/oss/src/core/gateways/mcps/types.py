@@ -55,9 +55,14 @@ class MCPToolNotAllowedError(GatewaysError):
 class MCPAuthRequiredError(GatewaysError):
     """No usable OAuth grant is available for the endpoint."""
 
-    def __init__(self, *, requirement: GatewayConnectionRequirement):
+    def __init__(
+        self,
+        *,
+        requirement: GatewayConnectionRequirement,
+        message: Optional[str] = None,
+    ):
         self.requirement = requirement
-        super().__init__(f"Authorization required for {requirement.target}")
+        super().__init__(message or f"Authorization required for {requirement.target}")
 
 
 class MCPScopeInsufficientError(GatewaysError):
@@ -69,11 +74,13 @@ class MCPScopeInsufficientError(GatewaysError):
         target: str,
         scopes: List[str],
         endpoint_id: Optional[UUID] = None,
+        detail: Optional[str] = None,
     ):
         self.target = target
         self.scopes = scopes
         self.endpoint_id = endpoint_id
-        super().__init__(f"Additional scopes required for {target}: {scopes}")
+        message = f"Additional scopes required for {target}: {scopes}"
+        super().__init__(f"{message}. The server said: {detail}" if detail else message)
 
 
 class MCPUpstreamError(GatewaysError):
@@ -103,6 +110,22 @@ class MCPAgentaToolNotEntitledError(GatewaysError):
         super().__init__(
             "Agenta MCP credential requested tools outside the entitled set: "
             + ", ".join(tools)
+        )
+
+
+class MCPConnectionBusyError(GatewaysError):
+    """Another change to this connection held its lock for longer than a change waits."""
+
+    def __init__(self):
+        super().__init__("Another change to this connection is in progress.")
+
+
+class MCPConnectionChangedError(GatewaysError):
+    """A delete meant for an untouched pending connection found one that changed."""
+
+    def __init__(self):
+        super().__init__(
+            "This connection changed after it was created here, so it was kept."
         )
 
 

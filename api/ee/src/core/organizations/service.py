@@ -1,3 +1,4 @@
+import asyncio
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
@@ -29,7 +30,6 @@ from oss.src.core.secrets.dtos import (
     SSOProviderDTO,
     SSOProviderSettingsDTO,
 )
-from oss.src.core.secrets.redaction import redact_secret_response
 from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.core.shared.dtos import Header
@@ -639,7 +639,7 @@ class OrganizationProvidersService:
                         )
                     ),
                 ),
-                write_only=False,
+                write_only=True,
             )
 
             secret_dto = await self._vault_service().create_secret(
@@ -693,7 +693,12 @@ class OrganizationProvidersService:
             settings_changed = False
 
             if payload.settings is not None:
-                settings.update(payload.settings)
+                # The client secret is never sent back to the browser, so an edit that
+                # leaves it blank means "keep the stored one".
+                incoming = dict(payload.settings)
+                if not incoming.get("client_secret"):
+                    incoming.pop("client_secret", None)
+                settings.update(incoming)
                 settings_changed = True
 
             flags = provider.flags.copy() if provider.flags else {}
@@ -907,7 +912,7 @@ class OrganizationProvidersService:
     ) -> dict:
         """The provider's settings as a USER response may carry them.
 
-        Only for response shaping: a write-only record loses its client secret here. The
+        Only for response shaping: the client secret never leaves here. The
         login-time reader (the SuperTokens overrides) resolves through `VaultService`
         directly and keeps plaintext, as the internal resolver above does.
         """
@@ -918,15 +923,16 @@ class OrganizationProvidersService:
         if not secret:
             raise HTTPException(status_code=404, detail="Provider secret not found")
 
-        write_only = bool(getattr(secret, "write_only", False))
-        settings = self._provider_settings_of(redact_secret_response(secret))
+        settings = self._provider_settings_of(secret)
 
-        if write_only:
-            # The dict-shaped branch has no typed container for the redaction helper to
-            # reach into, so the field is dropped here instead.
-            settings = {
-                key: value for key, value in settings.items() if key != "client_secret"
-            }
+        # Always dropped, whatever `write_only` says: rows written before the secret was
+        # created write-only still hold a readable one. The flag tells the caller whether
+        # a secret is stored.
+        has_client_secret = bool(settings.get("client_secret"))
+        settings = {
+            key: value for key, value in settings.items() if key != "client_secret"
+        }
+        settings["has_client_secret"] = has_client_secret
 
         return settings
 
@@ -963,6 +969,7 @@ from ee.src.core.access.entitlements.service import (  # noqa: E402
     scope_from,
     Gauge,
 )
+from ee.src.core.starter_credits_bridge import service as _mint_policy  # noqa: E402
 from ee.src.core.starter_credits_bridge.service import (  # noqa: E402
     seed_starter_credits_bridge_safely,
 )
@@ -991,10 +998,53 @@ def _get_wallets_service() -> WalletsService:
     return _wallets_service
 
 
+# The floor given to a new organization whose email the mint policy refuses: 100
+# credits, above the daily 75, so the daily free credits can never be spent.
+REFUSED_EMAIL_FLOOR_MUSD = 1_000_000
+
+
+async def _free_credits_check(organization_email: str) -> tuple[bool, bool]:
+    """Apply the mint policy to a new organization's owner email, and return
+    (award the signup grant, raise the wallet floor). An email rule refusal does both;
+    a velocity cap, a missing policy or any error skips only the grant."""
+    try:
+        async with asyncio.timeout(5):
+            policy = await _mint_policy._resolve_mint_policy()
+            if policy is None:
+                return False, False
+            if not _mint_policy.email_rules_allow(organization_email, policy):
+                return False, True
+            return await _mint_policy._mint_policy_allows(
+                organization_email,
+                policy,
+                counter_prefix=_mint_policy.SIGNUP_GRANT_COUNTER_PREFIX,
+            ), False
+    except Exception:
+        log.warning(
+            "[wallets] free credits check failed; no signup grant", exc_info=True
+        )
+        return False, False
+
+
+async def _email_rules_refuse(organization_email: str) -> bool:
+    """True when the mint policy's email rules refuse the owner email. A missing policy
+    or any error refuses nothing, as on the signup path."""
+    try:
+        async with asyncio.timeout(5):
+            policy = await _mint_policy._resolve_mint_policy()
+            return policy is not None and not _mint_policy.email_rules_allow(
+                organization_email, policy
+            )
+    except Exception:
+        log.warning("[wallets] email rules check failed; normal floor", exc_info=True)
+        return False
+
+
 async def _provision_wallet_general_balance(
     *,
     organization_id: UUID,
     plan: str,
+    floor_musd: Optional[int] = None,
 ) -> None:
     """Idempotent. Runs after the organization and subscription have committed, in its
     own transaction, so a failure here leaves them in place and can be retried alone."""
@@ -1002,6 +1052,7 @@ async def _provision_wallet_general_balance(
         await _get_wallets_service().provision_general_balance(
             organization_id=organization_id,
             plan=plan,
+            floor_musd=floor_musd,
         )
     except Exception as exc:
         log.error(
@@ -1081,13 +1132,21 @@ async def provision_signup_subscription(
                 organization_id=str(organization.id)
             )
         plan = subscription.plan if subscription is not None else get_default_plan()
+        award_grant, raise_floor = await _free_credits_check(organization_email)
         await _provision_wallet_general_balance(
-            organization_id=organization.id, plan=plan
+            organization_id=organization.id,
+            plan=plan,
+            floor_musd=REFUSED_EMAIL_FLOOR_MUSD if raise_floor else None,
         )
-        await _award_signup_grant(organization_id=organization.id)
+        if award_grant:
+            await _award_signup_grant(organization_id=organization.id)
 
 
-async def provision_user_subscription(organization: OrganizationDB) -> None:
+async def provision_user_subscription(
+    organization: OrganizationDB,
+    *,
+    organization_email: str,
+) -> None:
     """Start the default plan + seed the user gauge for an explicitly-created org.
 
     Entry point for `POST /organizations/`. Called from OSS via the `is_ee()` seam.
@@ -1115,6 +1174,10 @@ async def provision_user_subscription(organization: OrganizationDB) -> None:
     )
 
     if env.wallets.enabled:
+        # Without this, each extra organization of a refused email collects daily credits.
+        refused = await _email_rules_refuse(organization_email)
         await _provision_wallet_general_balance(
-            organization_id=organization.id, plan=plan
+            organization_id=organization.id,
+            plan=plan,
+            floor_musd=REFUSED_EMAIL_FLOOR_MUSD if refused else None,
         )

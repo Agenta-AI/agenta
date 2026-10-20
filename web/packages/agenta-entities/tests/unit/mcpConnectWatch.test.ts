@@ -13,6 +13,7 @@ import {
     watchOauthConsent,
     type OauthConsentTarget,
     type OauthConsentTimers,
+    type WatchOauthConsentOptions,
 } from "../../src/mcpEndpoint/core"
 
 const TRUSTED = "https://api.example.test"
@@ -59,20 +60,34 @@ const makeTimers = () => {
     return {timers, intervals, timeouts, tickPoll, fireTimeout}
 }
 
-const setup = (overrides: {popup?: {closed: boolean}; endpointId?: string} = {}) => {
+type Outcome = Awaited<ReturnType<WatchOauthConsentOptions["checkOutcome"]>>
+
+const setup = (
+    overrides: {
+        popup?: {closed: boolean}
+        attemptId?: string
+        checkOutcome?: () => Promise<Outcome>
+    } = {},
+) => {
     const {target, listeners, post} = makeTarget()
     const {timers, intervals, timeouts, tickPoll, fireTimeout} = makeTimers()
     const onConnected = vi.fn()
     const onFailed = vi.fn()
     const popup = overrides.popup ?? {closed: false}
+    // By default the server knows nothing more than the window does.
+    const checkOutcome = vi.fn(
+        overrides.checkOutcome ?? (async (): Promise<Outcome> => ({status: "pending"})),
+    )
 
     const stop = watchOauthConsent({
         popup,
-        endpointId: overrides.endpointId ?? "mcp-1",
+        attemptId: overrides.attemptId ?? "attempt-1",
         trustedOrigins,
         target,
         onConnected,
         onFailed,
+        checkOutcome,
+        timeoutMs: 600_000,
         timers,
     })
 
@@ -87,7 +102,13 @@ const setup = (overrides: {popup?: {closed: boolean}; endpointId?: string} = {})
         fireTimeout,
         onConnected,
         onFailed,
+        checkOutcome,
     }
+}
+
+/** Let the completion check's promise chain run. */
+const flush = async () => {
+    for (let i = 0; i < 4; i++) await Promise.resolve()
 }
 
 const attached = (w: ReturnType<typeof setup>) => ({
@@ -115,7 +136,7 @@ describe("watchOauthConsent teardown", () => {
     it("leaves nothing attached after a successful completion", () => {
         const watch = setup()
 
-        watch.post({type: "mcp:oauth:connected", success: true, endpoint_id: "mcp-1"})
+        watch.post({type: "mcp:oauth:connected", success: true, attempt_id: "attempt-1"})
 
         expect(watch.onConnected).toHaveBeenCalledOnce()
         expect(attached(watch)).toEqual({listeners: 0, intervals: 0, timeouts: 0})
@@ -124,7 +145,7 @@ describe("watchOauthConsent teardown", () => {
     it("is idempotent, so stopping after an outcome does not report a second one", () => {
         const watch = setup()
 
-        watch.post({type: "mcp:oauth:connected", success: true, endpoint_id: "mcp-1"})
+        watch.post({type: "mcp:oauth:connected", success: true, attempt_id: "attempt-1"})
         watch.stop()
         watch.stop()
 
@@ -136,7 +157,7 @@ describe("watchOauthConsent teardown", () => {
         const watch = setup()
 
         watch.stop()
-        watch.post({type: "mcp:oauth:connected", success: true, endpoint_id: "mcp-1"})
+        watch.post({type: "mcp:oauth:connected", success: true, attempt_id: "attempt-1"})
         watch.tickPoll()
         watch.fireTimeout()
 
@@ -153,7 +174,7 @@ describe("watchOauthConsent outcomes", () => {
             type: "mcp:oauth:connected",
             success: false,
             error: "User declined",
-            endpoint_id: "mcp-1",
+            attempt_id: "attempt-1",
         })
 
         expect(watch.onFailed).toHaveBeenCalledWith("User declined")
@@ -162,26 +183,28 @@ describe("watchOauthConsent outcomes", () => {
     it("falls back to a sentence when a failed completion carries no error", () => {
         const watch = setup()
 
-        watch.post({type: "mcp:oauth:connected", success: false, endpoint_id: "mcp-1"})
+        watch.post({type: "mcp:oauth:connected", success: false, attempt_id: "attempt-1"})
 
         expect(watch.onFailed).toHaveBeenCalledWith(CONSENT_FAILED_MESSAGE)
     })
 
-    it("treats a closed popup as a failure, not as success", () => {
+    it("treats a closed popup as a failure, not as success", async () => {
         const popup = {closed: false}
         const watch = setup({popup})
 
         popup.closed = true
         watch.tickPoll()
+        await flush()
 
         expect(watch.onConnected).not.toHaveBeenCalled()
         expect(watch.onFailed).toHaveBeenCalledWith(CONSENT_CLOSED_MESSAGE)
     })
 
-    it("terminates an attempt nobody ever finished", () => {
+    it("terminates an attempt nobody ever finished", async () => {
         const watch = setup()
 
         watch.fireTimeout()
+        await flush()
 
         expect(watch.onFailed).toHaveBeenCalledWith(CONSENT_TIMEOUT_MESSAGE)
         expect(attached(watch)).toEqual({listeners: 0, intervals: 0, timeouts: 0})
@@ -204,7 +227,7 @@ describe("watchOauthConsent trust", () => {
         const watch = setup()
 
         watch.post(
-            {type: "mcp:oauth:connected", success: true, endpoint_id: "mcp-1"},
+            {type: "mcp:oauth:connected", success: true, attempt_id: "attempt-1"},
             "https://evil.test",
         )
 
@@ -212,43 +235,151 @@ describe("watchOauthConsent trust", () => {
         expect(attached(watch).listeners).toBe(1)
     })
 
-    it("ignores a completion that names a different endpoint", () => {
-        const watch = setup({endpointId: "mcp-1"})
+    it("ignores a completion that names a different attempt", () => {
+        const watch = setup({attemptId: "attempt-1"})
 
-        watch.post({type: "mcp:oauth:connected", success: true, endpoint_id: "mcp-2"})
-
-        expect(watch.onConnected).not.toHaveBeenCalled()
-        expect(attached(watch).listeners).toBe(1)
-    })
-
-    it("ignores a completion that names no endpoint at all", () => {
-        // It cannot be shown to belong to this attempt, and a watch that accepts it settles
-        // on whatever consent finished last (M14).
-        const watch = setup({endpointId: "mcp-1"})
-
-        watch.post({type: "mcp:oauth:connected", success: true})
+        watch.post({type: "mcp:oauth:connected", success: true, attempt_id: "attempt-2"})
 
         expect(watch.onConnected).not.toHaveBeenCalled()
         expect(attached(watch).listeners).toBe(1)
     })
 
-    it("still ends an unidentifiable attempt when the window closes", () => {
+    it("ignores a completion that names only the endpoint", () => {
+        // Two attempts on one connection share the endpoint. Only the attempt tells them
+        // apart, so a retry cannot settle on the window it replaced.
+        const watch = setup({attemptId: "attempt-1"})
+
+        watch.post({type: "mcp:oauth:connected", success: true, endpoint_id: "mcp-1"})
+
+        expect(watch.onConnected).not.toHaveBeenCalled()
+        expect(attached(watch).listeners).toBe(1)
+    })
+
+    it("still ends an unidentifiable attempt when the window closes", async () => {
         // Requiring the id must not leave a watch running forever.
         const popup = {closed: false}
-        const watch = setup({popup, endpointId: "mcp-1"})
+        const watch = setup({popup, attemptId: "attempt-1"})
 
         watch.post({type: "mcp:oauth:connected", success: true})
         popup.closed = true
         watch.tickPoll()
+        await flush()
 
         expect(watch.onFailed).toHaveBeenCalledWith(CONSENT_CLOSED_MESSAGE)
     })
 
-    it("accepts a completion that names this endpoint", () => {
-        const watch = setup({endpointId: "mcp-1"})
+    it("accepts a completion that names this attempt", () => {
+        const watch = setup({attemptId: "attempt-1"})
 
-        watch.post({type: "mcp:oauth:connected", success: true, endpoint_id: "mcp-1"})
+        watch.post({type: "mcp:oauth:connected", success: true, attempt_id: "attempt-1"})
 
         expect(watch.onConnected).toHaveBeenCalledOnce()
+    })
+
+    it("carries a provider's failure through to the sheet", () => {
+        const watch = setup({attemptId: "attempt-1"})
+
+        watch.post({
+            type: "mcp:oauth:connected",
+            success: false,
+            error: "The user denied access",
+            attempt_id: "attempt-1",
+        })
+
+        expect(watch.onFailed).toHaveBeenCalledWith("The user denied access")
+    })
+})
+
+describe("watchOauthConsent completion check", () => {
+    const closeAndCheck = async (checkOutcome: () => Promise<Outcome>) => {
+        const popup = {closed: false}
+        const watch = setup({popup, checkOutcome})
+        popup.closed = true
+        watch.tickPoll()
+        await flush()
+        return watch
+    }
+
+    it("reports a success the message never delivered", async () => {
+        const watch = await closeAndCheck(async () => ({status: "connected"}))
+
+        expect(watch.checkOutcome).toHaveBeenCalledOnce()
+        expect(watch.onConnected).toHaveBeenCalledOnce()
+        expect(watch.onFailed).not.toHaveBeenCalled()
+    })
+
+    it("reports the failure the callback recorded, in its own words", async () => {
+        const watch = await closeAndCheck(async () => ({
+            status: "failed",
+            error: "User declined",
+        }))
+
+        expect(watch.onFailed).toHaveBeenCalledWith("User declined")
+    })
+
+    it("falls back to the window's own reading when the check fails", async () => {
+        const watch = await closeAndCheck(async () => {
+            throw new Error("network down")
+        })
+
+        expect(watch.onFailed).toHaveBeenCalledWith(CONSENT_CLOSED_MESSAGE)
+    })
+
+    it("asks the server when the wait runs out too", async () => {
+        const watch = setup({checkOutcome: async () => ({status: "connected"})})
+
+        watch.fireTimeout()
+        await flush()
+
+        expect(watch.onConnected).toHaveBeenCalledOnce()
+    })
+
+    it("asks once, however many polls follow", async () => {
+        const popup = {closed: false}
+        const watch = setup({popup})
+
+        popup.closed = true
+        watch.tickPoll()
+        watch.tickPoll()
+        watch.fireTimeout()
+        await flush()
+
+        expect(watch.checkOutcome).toHaveBeenCalledOnce()
+        expect(watch.onFailed).toHaveBeenCalledOnce()
+    })
+
+    it("reports the window's own reading when the check never answers", async () => {
+        const popup = {closed: false}
+        const watch = setup({popup, checkOutcome: () => new Promise<Outcome>(() => undefined)})
+
+        popup.closed = true
+        watch.tickPoll()
+        await flush()
+        expect(watch.onFailed).not.toHaveBeenCalled()
+
+        // The check's own bound, the only timer left once the window has closed.
+        expect(attached(watch)).toEqual({listeners: 0, intervals: 0, timeouts: 1})
+        watch.fireTimeout()
+
+        expect(watch.onFailed).toHaveBeenCalledWith(CONSENT_CLOSED_MESSAGE)
+        expect(attached(watch)).toEqual({listeners: 0, intervals: 0, timeouts: 0})
+    })
+
+    it("delivers nothing when stopped while the server is being asked", async () => {
+        let answer!: (outcome: Outcome) => void
+        const popup = {closed: false}
+        const watch = setup({
+            popup,
+            checkOutcome: () => new Promise<Outcome>((resolve) => (answer = resolve)),
+        })
+
+        popup.closed = true
+        watch.tickPoll()
+        watch.stop()
+        answer({status: "connected"})
+        await flush()
+
+        expect(watch.onConnected).not.toHaveBeenCalled()
+        expect(watch.onFailed).not.toHaveBeenCalled()
     })
 })

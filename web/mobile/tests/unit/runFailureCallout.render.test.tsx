@@ -27,6 +27,7 @@ import {
 import {
     buildTurnViewModels,
     createExecutedToolIdentityCache,
+    SESSION_ADMISSION_REJECTED_CODE,
     SESSION_TURN_IN_USE_CODE,
 } from "@agenta/chat/model"
 import type {UIMessage} from "ai"
@@ -148,14 +149,17 @@ describe("mobile TurnRow: a run that failed", () => {
         expect(renderTurn(failedTurn("model authentication failed"))).not.toContain("Try again")
     })
 
-    it("says the message was not sent, with no retry, when the session refused it", () => {
-        // An admission refusal is not a run that failed, and replaying it would refuse again.
-        const shown = renderTurn(failedTurn("That session is busy.", SESSION_TURN_IN_USE_CODE))
+    it.each([SESSION_TURN_IN_USE_CODE, SESSION_ADMISSION_REJECTED_CODE])(
+        "says the message was not sent, with no retry, for %s",
+        (code) => {
+            // An admission refusal is not a run that failed, and replaying it would refuse again.
+            const shown = renderTurn(failedTurn("That session is busy.", code))
 
-        expect(shown).toContain("Message not sent")
-        expect(shown).not.toContain("The agent run failed")
-        expect(shown).not.toContain("Try again")
-    })
+            expect(shown).toContain("Message not sent")
+            expect(shown).not.toContain("The agent run failed")
+            expect(shown).not.toContain("Try again")
+        },
+    )
 
     it.each([...OWN_KEY_CODES])(
         "offers the key escape for %s, and takes the reader there",
@@ -173,13 +177,13 @@ describe("mobile TurnRow: a run that failed", () => {
 
     it.each([...SUBSCRIPTION_LOGIN_CODES])("offers the sign-in escape for %s", (code) => {
         // A dead subscription sign-in is not fixed by a key, but it is fixed on the same page: the
-        // AI providers page is where a new device login happens. One destination, as on the desktop.
+        // AI providers page is where a new sign-in or token goes. One destination, as on the desktop.
         const shown = renderTurn(failedTurn("Your Claude sign-in expired.", code))
 
-        expect(shown).toContain("Sign in again")
+        expect(shown).toContain("Open AI providers")
         expect(shown).not.toContain("Add your key")
 
-        press("Sign in again")
+        press("Open AI providers")
 
         expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=llms")
     })

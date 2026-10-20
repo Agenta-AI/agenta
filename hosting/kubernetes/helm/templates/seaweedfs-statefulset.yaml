@@ -119,6 +119,9 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      {{- with $seaweedfs.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with $seaweedfs.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

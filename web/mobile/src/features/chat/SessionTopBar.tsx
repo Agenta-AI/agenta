@@ -8,6 +8,7 @@ import {useAtomValue} from "jotai"
 
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {heldCommitAtomFamily} from "./selectedRevision"
 import {ShareMenu} from "./ShareMenu"
 
 /**
@@ -41,6 +42,9 @@ export const SessionTopBar = ({
 }) => {
     // artifactName resolves from a revision id or a workflow id, so either handle names the agent.
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? agentId ?? ""))
+    // A commit the session held back (unsaved config edits) is a reason to check for a newer
+    // version now, so the pill offers it at once.
+    const heldCommit = useAtomValue(heldCommitAtomFamily(sessionId))
     // No header button for the shortcuts sheet; `?` still opens it.
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
     useShortcutsSheetHotkey(useCallback(() => setShortcutsOpen(true), []))
@@ -61,7 +65,7 @@ export const SessionTopBar = ({
                         revisionId={entityId}
                         historyWorkflowId={agentId}
                         onUpdate={onUpdate}
-                        checkKey={sessionId}
+                        checkKey={heldCommit ? `${sessionId}:${heldCommit}` : sessionId}
                     />
                 ) : undefined
             }

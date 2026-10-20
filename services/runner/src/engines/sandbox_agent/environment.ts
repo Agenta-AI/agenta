@@ -144,7 +144,7 @@ import {
   type ClaudeSystemPromptMeta,
 } from "./system-prompt-appendix.ts";
 import { platformGuidanceAppendix } from "./platform-guidance.ts";
-import { claudeThinkingMeta } from "./claude-thinking.ts";
+import { claudeSessionOptionsMeta } from "./claude-session-options.ts";
 import {
   describeCodexSubscriptionAuthFault,
   isSubscriptionCodexRun,
@@ -882,6 +882,7 @@ async function acquireEnvironmentOnce(
         harnessEnv: env,
         extensionEnv: piExtEnv,
         modelEnvironment: plan.credentials.modelEnvironment,
+        throughGateway: plan.credentials.throughGateway,
         ...(customProvider ? { customProvider } : {}),
         ...(usage ? { usage } : {}),
       };
@@ -1472,16 +1473,15 @@ async function acquireEnvironmentOnce(
         : undefined;
     const claudeAppendixMeta: ClaudeSystemPromptMeta | undefined =
       claudeAppendix ? claudeSystemPromptMeta(claudeAppendix) : undefined;
-    // Claude-only: request visible ("summarized") extended-thinking display so the model's
-    // reasoning reaches the runner (and the playground). Without it, recent Claude models
-    // return signature-only thinking and no reasoning surfaces. See `claude-thinking.ts`.
-    const claudeThinking =
-      plan.acpAgent === "claude" ? claudeThinkingMeta() : undefined;
+    // Claude-only SDK options: visible ("summarized") extended thinking, the built-in tools an
+    // Agenta run turns off, and no claude.ai connectors. See `claude-session-options.ts`.
+    const claudeOptions =
+      plan.acpAgent === "claude" ? claudeSessionOptionsMeta() : undefined;
     // Disjoint `_meta` keys (`systemPrompt` vs `claudeCode`), so a shallow merge keeps both.
-    // A future second `claudeCode` producer would need a deep merge here.
+    // `claudeSessionOptionsMeta` is the one `claudeCode` producer; add new options there.
     const claudeMeta =
-      claudeAppendixMeta || claudeThinking
-        ? { ...(claudeAppendixMeta ?? {}), ...(claudeThinking ?? {}) }
+      claudeAppendixMeta || claudeOptions
+        ? { ...(claudeAppendixMeta ?? {}), ...(claudeOptions ?? {}) }
         : undefined;
     const sessionInit = {
       cwd: plan.workspace.cwd,
@@ -1692,7 +1692,11 @@ async function acquireEnvironmentOnce(
       err,
       plan.harness,
       request.modelConnection?.provider,
-      { authFault: () => describeCodexSubscriptionAuthFault(plan), unknownText: plan.unknownErrorText },
+      {
+        authFault: () => describeCodexSubscriptionAuthFault(plan),
+        modelConnection: request.modelConnection,
+        unknownText: plan.unknownErrorText,
+      },
     );
     // Same substitution as the turn path: a hosted subscription run must never be told to add a
     // vault key. Acquire itself makes no model call, but the harness starts here and a dead login

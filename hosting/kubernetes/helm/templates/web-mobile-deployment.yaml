@@ -74,6 +74,11 @@ spec:
               value: {{ include "agenta.servicesUrlEffective" . | quote }}
             - name: AGENTA_API_URL
               value: {{ include "agenta.apiUrlEffective" . | quote }}
+            {{- /* The embed widget page fetches its config server side; this skips the public URL. */}}
+            {{- if $agenta.apiInternalUrl }}
+            - name: AGENTA_API_INTERNAL_URL
+              value: {{ $agenta.apiInternalUrl | quote }}
+            {{- end }}
             - name: AGENTA_AUTH_KEY
               valueFrom:
                 secretKeyRef:
@@ -145,6 +150,9 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      {{- with $webMobile.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with $webMobile.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

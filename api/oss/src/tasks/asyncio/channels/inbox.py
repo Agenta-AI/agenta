@@ -14,7 +14,7 @@ import asyncio
 from datetime import datetime, timezone
 from functools import partial
 import mimetypes
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4, uuid5
 
 from oss.src.core.channels.commands import (
@@ -29,6 +29,7 @@ from oss.src.core.channels.commands import (
 )
 from oss.src.core.channels.dtos import (
     CHANNEL_TRIGGER_NEVER_SENT,
+    CHANNEL_TRIGGER_START_REJECTED,
     ChannelCapabilities,
     ChannelConnection,
     ChannelDeliveryState,
@@ -62,6 +63,7 @@ from oss.src.core.workflows.dtos import (
 from oss.src.core.workflows.types import (
     WorkflowDetachedStartFailed,
     WorkflowDetachedStartNeverSent,
+    WorkflowDetachedStartRejected,
 )
 from oss.src.core.channels.fill import run_backfill
 from oss.src.core.channels.service import ChannelsService
@@ -353,6 +355,7 @@ class InboxDispatcher:
         else:
             ack = await self._command_ack(
                 project_id=project_id,
+                user_id=user_id,
                 resolution=resolution,
                 command=parsed.command,
                 result=result,
@@ -377,6 +380,7 @@ class InboxDispatcher:
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         resolution: ChannelResolution,
         command: str,
         result,
@@ -413,11 +417,51 @@ class InboxDispatcher:
         if command == COMMAND_STOP:
             return "Stopping the current run."
         if command == COMMAND_SESSIONS:
-            count = len(result or [])
+            # `!use` adds a row that reuses a session, so count sessions, not rows.
+            count = len({thread.session_id for thread in result or []})
             noun = "session" if count == 1 else "sessions"
             return f"This conversation has {count} {noun}."
         if command == COMMAND_USE:
-            return "Switching to an earlier session is not available yet."
+            # `result` is the validated target row. The newest row is the current
+            # thread, so a new row that reuses the target's session switches to it.
+            # Closed first: `create_thread` returns the current row while it is active.
+            current = resolution.thread
+            if result.session_id == current.session_id:
+                return "You are already in that conversation."
+            try:
+                await self.channels_service.close_thread(
+                    project_id=project_id,
+                    user_id=user_id,
+                    thread_id=current.id,
+                )
+                switched = await self.channels_service.channels_dao.create_thread(
+                    project_id=project_id,
+                    user_id=None,
+                    thread=ChannelThreadCreate(
+                        space_id=current.space_id,
+                        agent_id=current.agent_id,
+                        external_key=current.external_key,
+                        session_id=result.session_id,
+                        # An open approval travels with the session it parks.
+                        data=ChannelThreadData(
+                            external_locator=current.data.external_locator,
+                            pending_choice=result.data.pending_choice,
+                        ),
+                    ),
+                )
+                # A message that opened a row between the close and the create wins.
+                if switched.session_id != result.session_id:
+                    raise RuntimeError("another conversation opened first")
+            except Exception:
+                # The next message then opens a fresh conversation, as after !new.
+                log.error(
+                    "[INBOX DISPATCHER] could not switch thread=%s to session=%s",
+                    current.id,
+                    result.session_id,
+                    exc_info=True,
+                )
+                return "Could not switch to that conversation. Try again."
+            return "Switched to that conversation."
         return "Done."
 
     async def _run_backfill(
@@ -595,7 +639,7 @@ class InboxDispatcher:
             event=event,
             resolution=resolution,
         )
-        turn_input.content = await self._attach_media(
+        turn_input.content, notes = await self._attach_media(
             project_id=project_id,
             connection=connection,
             resolution=resolution,
@@ -603,6 +647,11 @@ class InboxDispatcher:
             user_id=user_id or resolution.agent.created_by_id,
             content=turn_input.content,
         )
+        if notes and turn_input.display_content is not None:
+            # a file that could not be read must stay visible in the chat too
+            turn_input.display_content = "\n".join(
+                filter(None, [turn_input.display_content, *notes])
+            )
 
         turn_id = str(uuid4())
 
@@ -712,27 +761,31 @@ class InboxDispatcher:
         sent_at: Optional[datetime],
         user_id: Optional[UUID],
         content: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+    ) -> Tuple[List[Dict[str, Any]], List[str]]:
         """Replace each `media` part (an inbound image or document, named by
         the platform's media id) with a session attachment the agent can
         open. A file that cannot be stored becomes a short note, so the agent
-        still knows one was sent."""
+        still knows one was sent. Returns the parts and those notes."""
 
         if not any(part.get("type") == "media" for part in content):
-            return content
+            return content, []
 
         adapter = self.channels_service.adapter_registry.get(connection.channel)
         session_id = resolution.thread.session_id
         attached: List[Dict[str, Any]] = []
+        notes: List[str] = []
+
+        def note(text: str) -> None:
+            notes.append(text)
+            attached.append({"type": "text", "text": text})
+
         for part in content:
             if part.get("type") != "media":
                 attached.append(part)
                 continue
             label = f"[{part.get('kind') or 'file'}]"
             if self.attachments_service is None or not session_id or user_id is None:
-                attached.append(
-                    {"type": "text", "text": f"{label} (files cannot be read here)"}
-                )
+                note(f"{label} (files cannot be read here)")
                 continue
             try:
                 limits = getattr(self.attachments_service, "limits", None)
@@ -765,9 +818,7 @@ class InboxDispatcher:
                     attachment_ids=[attachment.id],
                 )
             except AttachmentTooLarge:
-                attached.append(
-                    {"type": "text", "text": f"{label} (too large to read)"}
-                )
+                note(f"{label} (too large to read)")
                 continue
             except Exception as exc:  # noqa: BLE001 - the text still reaches the agent
                 log.warning(
@@ -775,9 +826,7 @@ class InboxDispatcher:
                     part.get("media_id"),
                     str(exc)[:200],
                 )
-                attached.append(
-                    {"type": "text", "text": f"{label} (could not be read)"}
-                )
+                note(f"{label} (could not be read)")
                 continue
             attached.append(
                 {
@@ -788,7 +837,7 @@ class InboxDispatcher:
                     "size": attachment.size,
                 }
             )
-        return attached
+        return attached, notes
 
     async def _queue_behind_running_turn(
         self,
@@ -933,14 +982,17 @@ class InboxDispatcher:
                 # lost after the POST landed) may have run: replaying its
                 # input could repeat what the agent already did.
                 never_sent = isinstance(e, WorkflowDetachedStartNeverSent)
+                if never_sent:
+                    code = CHANNEL_TRIGGER_NEVER_SENT
+                elif isinstance(e, WorkflowDetachedStartRejected):
+                    code = CHANNEL_TRIGGER_START_REJECTED
+                else:
+                    code = "500"
                 await self.channels_service.settle_turn(
                     project_id=project_id,
                     trigger_id=trigger_id,
                     state=ChannelTriggerState.FAILED,
-                    status=Status(
-                        code=CHANNEL_TRIGGER_NEVER_SENT if never_sent else "500",
-                        message=str(e),
-                    ),
+                    status=Status(code=code, message=str(e)),
                 )
                 if connection and connection.channel == "slack" and request_locator:
                     adapter = self.channels_service.adapter_registry.get(
@@ -1110,14 +1162,14 @@ class InboxDispatcher:
             for key, ref in resolution.agent.data.references.items()
         }
 
+        message = {"role": "user", "content": turn_input.content}
+        if turn_input.display_content is not None:
+            message["display_content"] = turn_input.display_content
+
         return WorkflowServiceRequest(
             references=references,
             session_id=resolution.thread.session_id,
-            data=WorkflowServiceRequestData(
-                inputs={
-                    "messages": [{"role": "user", "content": turn_input.content}],
-                }
-            ),
+            data=WorkflowServiceRequestData(inputs={"messages": [message]}),
         )
 
 

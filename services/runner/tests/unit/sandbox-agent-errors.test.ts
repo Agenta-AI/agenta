@@ -540,6 +540,19 @@ describe("provider errors never reach the chat raw (QA R3W-5)", () => {
     assert.doesNotMatch(classified.message, /invalid_request_error|\{/);
   });
 
+  it("reads the LLM gateway's own timeout (408) as a provider that did not answer, worth a retry", () => {
+    const raw =
+      'Internal error: 408: {"error":{"message":"The model provider did not answer in time.","type":"api_error","code":"upstream_timeout"}}';
+    const classified = classifyRunError(new Error(raw), "pi_core", "openai", {
+      unknownText: "hidden",
+    });
+    assert.equal(classified.code, "runner_error");
+    assert.equal(
+      classified.message,
+      "The model provider could not answer (HTTP 408): The model provider did not answer in time. Try again in a moment.",
+    );
+  });
+
   it("reads OpenAI's own `API error (NNN): {json}` form the same way, even when unknown text is hidden", () => {
     // Pi's OpenAI provider reports a refusal as `OpenAI API error (404): {...}`. `inprocess` hides
     // text it cannot classify behind a reference, so this form must be classified (staging, 2026-09-25).
@@ -640,6 +653,14 @@ describe("the public error contract (Codex R4 P1, decision 10)", () => {
       ),
     ).toBe(
       "provider failed: org-private123 sandbox sbx-123 at /home/sandbox/agenta/session",
+    );
+    expect(
+      sanitizeErrorText(
+        "Incorrect API key provided: sk-proj-********************abcd. See the docs.",
+      ),
+    ).toBe("Incorrect API key provided: [secret]. See the docs.");
+    expect(sanitizeErrorText("over budget (sk-....abcd)")).toBe(
+      "over budget ([secret])",
     );
     expect(sanitizeErrorText("test-reached-sandbox-start")).toBe(
       "test-reached-sandbox-start",

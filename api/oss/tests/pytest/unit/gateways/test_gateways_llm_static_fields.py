@@ -13,6 +13,7 @@ from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
     LLMStaticFieldRewrite,
     STATIC_FIELD_REWRITES,
     apply_static_fields,
+    encode_thought_signatures,
 )
 
 _LITERAL_TYPES = (str, int, float, bool, type(None))
@@ -173,7 +174,7 @@ def _chat_with_tool_calls(*calls) -> bytes:
             "messages": [
                 {"role": "user", "content": "run echo hi"},
                 {"role": "assistant", "content": None, "tool_calls": list(calls)},
-                {"role": "tool", "tool_call_id": "call_1", "content": "hi"},
+                {"role": "tool", "tool_call_id": calls[0]["id"], "content": "hi"},
             ],
         }
     ).encode()
@@ -188,24 +189,52 @@ def _call(call_id: str, **extra) -> dict:
     }
 
 
-def test_vertex_chat_gives_an_unsigned_tool_call_the_skip_signature():
-    """Gemini refuses a history whose tool call lost its thought signature (HTTP 400)."""
-    signed = _call(
-        "call_2", extra_content={"google": {"thought_signature": "real-signature"}}
-    )
+@pytest.mark.parametrize(
+    "deployment_kind, provider_key",
+    [(LLMDeploymentKind.VERTEX, None), (LLMDeploymentKind.DIRECT, "gemini")],
+)
+def test_gemini_chat_restores_the_thought_signature_from_the_id(
+    deployment_kind, provider_key
+):
+    """Google reads the signature from `extra_content` only, and wants its own id back."""
     result = apply_static_fields(
-        deployment_kind=LLMDeploymentKind.VERTEX,
+        deployment_kind=deployment_kind,
         protocol=LLMProtocol.CHAT_COMPLETIONS,
-        body=_chat_with_tool_calls(_call("call_1"), signed),
+        body=_chat_with_tool_calls(_call("call_1__thought__sig"), _call("call_2")),
+        provider_key=provider_key,
     )
 
-    calls = json.loads(result)["messages"][1]["tool_calls"]
-    assert calls[0]["extra_content"] == {
-        "google": {"thought_signature": "skip_thought_signature_validator"}
-    }
-    assert calls[1]["extra_content"] == {
-        "google": {"thought_signature": "real-signature"}
-    }
+    messages = json.loads(result)["messages"]
+    assert messages[1]["tool_calls"] == [
+        _call("call_1", extra_content={"google": {"thought_signature": "sig"}}),
+        _call("call_2"),
+    ]
+    assert messages[2]["tool_call_id"] == "call_1"
+
+
+def test_other_chat_routes_drop_the_thought_signature_from_the_id():
+    """A session that moves off Gemini must not send ids an OpenAI endpoint would cap."""
+    result = apply_static_fields(
+        deployment_kind=LLMDeploymentKind.DIRECT,
+        protocol=LLMProtocol.CHAT_COMPLETIONS,
+        body=_chat_with_tool_calls(_call("call_1__thought__sig")),
+        provider_key="openai",
+    )
+
+    messages = json.loads(result)["messages"]
+    assert messages[1]["tool_calls"] == [_call("call_1")]
+    assert messages[2]["tool_call_id"] == "call_1"
+
+
+@pytest.mark.parametrize("part", ["delta", "message"])
+def test_encode_thought_signatures_appends_the_signature_to_the_id(part):
+    signed = _call("call_1", extra_content={"google": {"thought_signature": "sig"}})
+    payload = {"choices": [{part: {"tool_calls": [signed, _call("call_2")]}}]}
+
+    assert encode_thought_signatures(payload)
+    calls = payload["choices"][0][part]["tool_calls"]
+    assert [call["id"] for call in calls] == ["call_1__thought__sig", "call_2"]
+    assert calls[0]["extra_content"] == {"google": {"thought_signature": "sig"}}
 
 
 def test_a_vertex_chat_without_tool_calls_relays_byte_for_byte():
@@ -238,22 +267,6 @@ def test_other_deployments_keep_unsigned_tool_calls_as_they_are():
         )
         is body
     )
-
-
-def test_google_openai_endpoint_gives_an_unsigned_tool_call_the_skip_signature():
-    """A Gemini provider key reaches Google's OpenAI-compatible endpoint, which refuses an
-    unsigned tool call in the history as Vertex does."""
-    result = apply_static_fields(
-        deployment_kind=LLMDeploymentKind.DIRECT,
-        protocol=LLMProtocol.CHAT_COMPLETIONS,
-        body=_chat_with_tool_calls(_call("call_1")),
-        provider_key="gemini",
-    )
-
-    calls = json.loads(result)["messages"][1]["tool_calls"]
-    assert calls[0]["extra_content"] == {
-        "google": {"thought_signature": "skip_thought_signature_validator"}
-    }
 
 
 def test_google_openai_endpoint_drops_the_store_field_it_refuses():

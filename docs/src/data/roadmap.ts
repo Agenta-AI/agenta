@@ -16,29 +16,47 @@ export type PlannedFeature = {
   id: string;
   title: string;
   description: string;
-  githubUrl: string; // issue or discussion URL
+  githubUrl?: string; // issue or discussion URL
   labels?: Label[];
 };
 
+// Recent product highlights, newest first. Match dates and links to the changelog.
 export const shippedFeatures: ShippedFeature[] = [
-  // Playground: BCFF78
-  // Observability: DE74FF
-  // Evaluation: 86B7FF
-  // Integration: FFA500
-  // Security: 000000
-  // Agent Builder: BCFF78
-  // Reliability: FF6B6B
-  // Approvals: FFC53D
-  // Multimodality: 5CC8FF
-  // Channels: 2DD4BF
-  // Mobile: F472B6
   {
-    id: "channels",
-    title: "Channels: Slack, Telegram and WhatsApp",
+    id: "agent-setup",
+    title: "Set up agents through chat",
     description:
-      "Connect an agent to the messaging surfaces people already use. A channel routes an incoming WhatsApp, Slack, or Telegram message to an agent session and delivers the agent's reply back to that same surface.",
-    changelogPath: "/docs/changelog/whatsapp-channel",
-    shippedAt: "2026-09-25",
+      "Ask your agent to configure integrations, skills and automations with Create with AI.",
+    changelogPath: "/docs/changelog/let-the-agent-set-itself-up",
+    shippedAt: "2026-09-30",
+    labels: [
+      {
+        name: "Agent Builder",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
+    id: "agent-templates",
+    title: "Agent templates and marketplace",
+    description:
+      "Start from an agent template, or save your own agent with its skills and files as a template to share.",
+    changelogPath: "/docs/changelog/agent-templates-and-marketplace",
+    shippedAt: "2026-09-28",
+    labels: [
+      {
+        name: "Agent Builder",
+        color: "BCFF78",
+      },
+    ],
+  },
+  {
+    id: "channel-actions",
+    title: "Agents can work in your channels",
+    description:
+      "Agents can post, read and search messages in connected Slack and Telegram channels, including from scheduled runs.",
+    changelogPath: "/docs/changelog/agents-work-with-your-channels",
+    shippedAt: "2026-09-26",
     labels: [
       {
         name: "Channels",
@@ -47,155 +65,72 @@ export const shippedFeatures: ShippedFeature[] = [
     ],
   },
   {
-    id: "mobile",
-    title: "Agenta on Mobile",
+    id: "clearer-chat",
+    title: "A clearer agent chat",
     description:
-      "Use Agenta from a phone to chat with agents, handle tool approvals, return to past sessions, and manage your workspace.",
-    changelogPath: "/docs/changelog/agenta-on-mobile",
-    shippedAt: "2026-08-22",
+      "Follow thinking, tool calls and generated files in one activity timeline. Answer agent questions directly in chat.",
+    changelogPath: "/docs/changelog/clearer-agent-chat",
+    shippedAt: "2026-09-24",
     labels: [
       {
-        name: "Mobile",
-        color: "F472B6",
-      },
-    ],
-  },
-  {
-    id: "durable-sessions",
-    title: "Durable Agent Sessions",
-    description:
-      "An agent keeps its conversation and its work folder when the process running it restarts. The runner rebuilds the session from stored records, so the agent picks up where it left off instead of losing earlier turns.",
-    changelogPath: "/docs/changelog/api-keys-hidden-from-agent-sandboxes",
-    shippedAt: "2026-08-04",
-    labels: [
-      {
-        name: "Reliability",
-        color: "FF6B6B",
-      },
-    ],
-  },
-  {
-    id: "sandbox-credential-hiding",
-    title: "API Keys Hidden from Agent Sandboxes",
-    description:
-      "An agent running in a cloud sandbox no longer sees its own provider API keys. Each model or MCP key becomes a Daytona Secret restricted to the one host it authenticates against, and the sandbox holds only a placeholder. On by default.",
-    changelogPath: "/docs/changelog/api-keys-hidden-from-agent-sandboxes",
-    shippedAt: "2026-08-04",
-    labels: [
-      {
-        name: "Security",
-        color: "000000",
-      },
-    ],
-  },
-  {
-    id: "codex-harness",
-    title: "Codex as an Agent Harness",
-    description:
-      "Run an agent on Codex, next to Claude Code and Pi. Five OpenAI models, the local or Daytona sandbox, image attachments, your own HTTP MCP servers, and the same tool approvals as the other harnesses.",
-    changelogPath: "/docs/changelog/codex-harness",
-    shippedAt: "2026-08-03",
-    labels: [
-      {
-        name: "Agent Builder",
-        color: "BCFF78",
-      },
-    ],
-  },
-  {
-    id: "work-folder",
-    title: "Shared Workspace Files",
-    description:
-      "One cloud folder for you, your team, and your agents. Upload images, PDFs, or a whole folder, and each agent keeps its own folder that survives between conversations, so it starts every session already knowing your material.",
-    changelogPath: "/docs/changelog/file-attachments-in-agent-chat",
-    shippedAt: "2026-08-02",
-    labels: [
-      {
-        name: "Multimodality",
+        name: "Chat",
         color: "5CC8FF",
       },
     ],
   },
   {
-    id: "batch-tool-approvals",
-    title: "Batch Tool Approvals",
+    id: "file-editor",
+    title: "Edit files with your agent",
     description:
-      "Approve or deny several tool calls together in one step, including a deny-all option, instead of answering one approval card at a time.",
-    changelogPath: "/docs/changelog/file-attachments-in-agent-chat",
-    shippedAt: "2026-07-30",
+      "Edit documents and code in the Files pane with autosave while your agent works on the same files.",
+    changelogPath: "/docs/changelog/edit-files-with-your-agent",
+    shippedAt: "2026-09-17",
     labels: [
       {
-        name: "Approvals",
-        color: "FFC53D",
+        name: "Files",
+        color: "5CC8FF",
       },
     ],
   },
   {
-    id: "agents-from-ui",
-    title: "Creating Agents from the UI",
+    id: "chatgpt-subscription",
+    title: "Connect your ChatGPT subscription",
     description:
-      "Build and configure AI agents directly from the Agenta UI. Define agent workflows, select tools, and set up orchestration logic without writing code. Test and iterate on agent behavior in the playground, then deploy to production with versioning and observability built in.",
-    changelogPath: "/docs/changelog/agenta-is-now-a-workspace-for-building-agents",
-    shippedAt: "2026-07-21",
+      "Sign in with your ChatGPT account and use your subscription to run agents in Agenta.",
+    changelogPath: "/docs/changelog/chatgpt-subscription-for-agents",
+    shippedAt: "2026-09-11",
     labels: [
       {
-        name: "Playground",
+        name: "Models",
         color: "BCFF78",
       },
     ],
   },
   {
-    id: "enterprise-compliance",
-    title: "Enterprise Compliance Features",
+    id: "skill-registry",
+    title: "Reusable skills",
     description:
-      "Multi-organization support, SSO with any OIDC provider, domain verification with auto-join, and a US region.",
-    changelogPath: "/docs/changelog/enterprise-compliance-features",
-    shippedAt: "2026-02-17",
+      "Publish a skill once and install it in multiple agents. Pin a version or follow the latest version.",
+    changelogPath: "/docs/changelog/reuse-skills-across-agents",
+    shippedAt: "2026-09-10",
     labels: [
       {
-        name: "Security",
-        color: "000000",
-      },
-    ],
-  },
-  {
-    id: "prompt-folders",
-    title: "Folders for Agent Organization",
-    description:
-      "Create folders and subfolders to organize your agents. Drag them between folders and search across everything.",
-    changelogPath: "/docs/changelog/prompt-folders",
-    shippedAt: "2026-02-04",
-    labels: [
-      {
-        name: "Playground",
+        name: "Agent Builder",
         color: "BCFF78",
-      },
-    ],
-  },
-];
-export const inProgressFeatures: PlannedFeature[] = [
-  {
-    id: "build-kit-context",
-    title: "A Build Kit That Manages Its Own Context",
-    description:
-      "Give agents with many tools and large tool results a reliable context. Tools are revealed to the model in stages as the toolset grows, and oversized tool outputs are capped so a single large result does not break a long conversation.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5341",
-    labels: [
-      {
-        name: "Build Kit",
-        color: "FFA500",
       },
     ],
   },
 ];
 
+export const inProgressFeatures: PlannedFeature[] = [];
+
 export const plannedFeatures: PlannedFeature[] = [
   {
-    id: "skill-registry",
-    title: "Skill Registry",
+    id: "agent-communication",
+    title: "Agent communication and subagents",
     description:
-      "Publish a skill once, then browse and install it into any agent, with versioning. Teams reuse skills instead of defining the same one by hand on every agent.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5512",
+      "Improve how agents delegate work to subagents and exchange information while working on a task.",
+    githubUrl: "https://github.com/Agenta-AI/agenta/issues/6053",
     labels: [
       {
         name: "Agent Builder",
@@ -204,23 +139,34 @@ export const plannedFeatures: PlannedFeature[] = [
     ],
   },
   {
-    id: "mcp-gateway",
-    title: "MCP Gateway",
+    id: "privacy-and-roles",
+    title: "Session and agent privacy",
     description:
-      "Reach MCP tools through one managed entry point. MCP servers are registered centrally, and an agent's tool calls route through the gateway with shared authentication and access policy, instead of configuring each server on every agent.",
-    githubUrl: "https://github.com/Agenta-AI/agenta/issues/5513",
+      "Improve control over who can access sessions and agents, with roles that define what each person can see and do.",
     labels: [
       {
-        name: "Tools & Triggers",
-        color: "FFA500",
+        name: "Privacy & Access",
+        color: "000000",
+      },
+    ],
+  },
+  {
+    id: "embedded-agents",
+    title: "Embed agents in your website",
+    description:
+      "Add an agent to your website or app, including through an iframe, so people can use it there.",
+    labels: [
+      {
+        name: "Channels",
+        color: "2DD4BF",
       },
     ],
   },
   {
     id: "custom-triggers",
-    title: "Custom Triggers",
+    title: "Custom triggers",
     description:
-      "Start an agent from sources beyond the Composio catalog, including direct webhooks and AI-configured or user-defined events. Triggers today are limited to Composio events; this opens them to custom sources.",
+      "Start agents from custom event sources, including direct webhooks and user-defined events beyond the Composio catalog.",
     githubUrl: "https://github.com/Agenta-AI/agenta/issues/5514",
     labels: [
       {

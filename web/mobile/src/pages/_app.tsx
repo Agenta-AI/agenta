@@ -6,8 +6,11 @@ import type {AppProps} from "next/app"
 import Head from "next/head"
 
 import {AppProviders} from "@/features/app/AppProviders"
+import {BareProviders} from "@/features/app/BareProviders"
 import {GlobalDrawers} from "@/features/app/GlobalDrawers"
+import {TabRunFavicon} from "@/features/app/TabRunFavicon"
 import {DriveMarkdownRenderer} from "@/features/chat/DriveMarkdownRenderer"
+import {isEmbedPath} from "@/features/embed/embedRoute"
 import {MaintenanceNoticeBar} from "@/features/maintenance/MaintenanceNoticeBar"
 
 // Side effect: binds projectIdAtom from the URL before React renders. See the module.
@@ -23,12 +26,21 @@ registerDriveMarkdown(DriveMarkdownRenderer)
 // are the reason this app exists as a separate bundle). AppProviders holds
 // only what the data layer needs: query client + jotai default store + SDK
 // host pin + route→project sync.
-export default function App({Component, pageProps}: AppProps) {
+export default function App({Component, pageProps, router}: AppProps) {
     // iOS Safari ignores `interactive-widget`, so on that browser the keyboard still opens over the
     // page and every `dvh` frame keeps its full height. This publishes the visible height as
     // `--ag-viewport-height`, which ScreenScaffold, AppShell and SessionWorkspace read with a
     // `100dvh` fallback. One mount here covers every screen. Idle when no keyboard is open.
     useVisualViewportHeight()
+
+    // The embed widget runs inside other websites without an Agenta login: the data layer only.
+    if (isEmbedPath(router.pathname)) {
+        return (
+            <BareProviders>
+                <Component {...pageProps} />
+            </BareProviders>
+        )
+    }
 
     return (
         <>
@@ -54,6 +66,7 @@ export default function App({Component, pageProps}: AppProps) {
                     reimplementation of that API, not antd's App context. */}
                 <AppMessageContext />
                 <GlobalDrawers />
+                <TabRunFavicon />
             </AppProviders>
         </>
     )

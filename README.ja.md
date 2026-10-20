@@ -15,8 +15,8 @@
 <a href="https://youtu.be/7Wfvtv428Fs?si=bTBUoS9JJC2Crkxs">
   <img
     width="900"
-    alt="Agenta プラットフォームのデモを見る"
-    src="https://github.com/user-attachments/assets/b7d7ff89-2653-4883-9141-fe400d42d5ef"
+    alt="2 分間の Agenta プロダクトツアーを見る"
+    src="./.github/images/readme/agenta-product-tour.png"
   />
 </a>
 
@@ -95,6 +95,32 @@ Agenta は、あなたの作業を自動化・強化する専用エージェン�
 エージェントとは Web アプリでやり取りできるほか、普段使っている場所（**Slack**、**Telegram**、**WhatsApp Business**）から直接話しかけることもできます。
 
 繰り返し発生する作業には、自動化を作成できます。エージェントはスケジュールに沿って、または連携アプリでイベントが発生したときに実行され、各実行で何をしたかを確認できます。
+
+## チュートリアル
+
+ステップごとの動画です。どれもチャットだけで、実際に使えるエージェントをゼロから作ります。
+
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <a href="https://youtu.be/TFsEXgdNowY"><img src="./.github/images/readme/tutorial-first-ai-coworker.png" alt="チュートリアル：初めての AI 同僚を作る" width="100%"></a>
+      <br><b><a href="https://youtu.be/TFsEXgdNowY">初めての AI 同僚を作る</a></b> · 10 分
+      <br>ツールを接続し、エージェントに役割を与え、スキルを保存して、商談準備を自動化します。
+    </td>
+    <td width="33%" valign="top">
+      <a href="https://youtu.be/c3iVw0MBZTE"><img src="./.github/images/readme/tutorial-competitor-tracker.png" alt="チュートリアル：競合を追跡するエージェントを作る" width="100%"></a>
+      <br><b><a href="https://youtu.be/c3iVw0MBZTE">寝ている間に競合を追跡する</a></b> · 7 分
+      <br>エージェントに Web 検索を持たせ、毎週月曜に実行し、ダイジェストを Gmail で受け取ります。
+    </td>
+    <td width="33%" valign="top">
+      <a href="https://youtu.be/hk8TMNTCZvU"><img src="./.github/images/readme/tutorial-inbound-outreach.png" alt="チュートリアル：ノーコードでインバウンド対応エージェントを作る" width="100%"></a>
+      <br><b><a href="https://youtu.be/hk8TMNTCZvU">ノーコードでインバウンド対応エージェントを作る</a></b> · 17 分
+      <br>新しいリードを調べて見極め、パーソナライズした返信を送ります。
+    </td>
+  </tr>
+</table>
+
+その他のチュートリアルは [YouTube チャンネル](https://www.youtube.com/@agentaAI) で公開しています。
 
 ## なぜ Agenta を使うのか？
 

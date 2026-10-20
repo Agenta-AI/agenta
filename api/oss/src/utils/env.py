@@ -173,6 +173,10 @@ class AccessConfig(BaseModel):
         "AGENTA_ACCESS_BLOCKED_EMAILS",
         "AGENTA_BLOCKED_EMAILS",
     )
+    # Unset means no limit. Counts the organizations a user owns now, so deleting one frees a slot.
+    max_owned_organizations: int | None = _parse_optional_positive_int_env(
+        "AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS"
+    )
 
     default_plan: str | None = (
         os.getenv("AGENTA_ACCESS_DEFAULT_PLAN")
@@ -393,6 +397,11 @@ class LoggingConfig(BaseModel):
         or "INFO"
     ).upper()
 
+    # "text" (colored, the default) or "json" (one object per line)
+    format: str = (os.getenv("AGENTA_LOG_FORMAT") or "text").strip().lower()
+    # Prefixes trace ids in JSON logs for Google Cloud Logging
+    google_cloud_project: str | None = os.getenv("GOOGLE_CLOUD_PROJECT") or None
+
     model_config = ConfigDict(extra="ignore")
 
 
@@ -416,6 +425,21 @@ class OTLPConfig(BaseModel):
         ge=1,
         validate_default=True,
     )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# agenta.server_tracing — spans about the Agenta servers themselves, sent to an
+# OTLP collector. Separate from product tracing, which goes to Agenta.
+# ---------------------------------------------------------------------------
+
+
+class ServerTracingConfig(BaseModel):
+    # OTLP/HTTP base URL, e.g. http://collector:4318. Unset turns server tracing off.
+    endpoint: str | None = os.getenv("AGENTA_SERVER_TRACING_ENDPOINT") or None
+    # A ratio from 0 to 1, parsed and checked when tracing starts (default 0.1).
+    sample_ratio: str | None = os.getenv("AGENTA_SERVER_TRACING_SAMPLE_RATIO") or None
 
     model_config = ConfigDict(extra="ignore")
 
@@ -826,6 +850,7 @@ class AgentaConfig(BaseModel):
     logging: LoggingConfig = LoggingConfig()
     otlp: OTLPConfig = OTLPConfig()
     redaction: RedactionConfig = RedactionConfig()
+    server_tracing: ServerTracingConfig = ServerTracingConfig()
     services: ServicesConfig = ServicesConfig()
     sessions: SessionsConfig = SessionsConfig()
     webhooks: WebhooksConfig = WebhooksConfig()
@@ -918,10 +943,80 @@ class ChannelsWhatsAppConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+# ---------------------------------------------------------------------------
+# channels.embed — the public chat widget. Its ingress has no Agenta login,
+# so it limits itself: per embed, per visitor key, and per request size.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsEmbedConfig(BaseModel):
+    requests_per_minute_per_embed: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_REQUESTS_PER_MINUTE_PER_EMBED"
+            )
+            or 600
+        )
+    )
+    requests_per_minute_per_key: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_REQUESTS_PER_MINUTE_PER_KEY"
+            )
+            or 30
+        )
+    )
+    # The four visitor read routes. Larger than the ingress buckets: the
+    # widget polls the list after a first message and reconnects the stream.
+    read_requests_per_minute_per_embed: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_EMBED"
+            )
+            or 6000
+        )
+    )
+    read_requests_per_minute_per_key: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_KEY"
+            )
+            or 240
+        )
+    )
+    # Open live streams per embed in one API process (each holds a Redis
+    # connection). Over the cap the widget gets a 429 and retries.
+    max_live_streams_per_embed: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_MAX_LIVE_STREAMS_PER_EMBED"
+            )
+            or 200
+        )
+    )
+    # Applies to the message text and to the serialized host context.
+    max_message_chars: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_CHANNELS_EMBED_MAX_MESSAGE_CHARS")
+            or 10000
+        )
+    )
+    # Uploads ride in the request body as base64 and stay in the inbox row.
+    max_file_bytes: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_CHANNELS_EMBED_MAX_FILE_BYTES")
+            or 5 * 1024 * 1024
+        )
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class ChannelsConfig(BaseModel):
     slack: ChannelsSlackConfig = ChannelsSlackConfig()
     telegram: ChannelsTelegramConfig = ChannelsTelegramConfig()
     whatsapp: ChannelsWhatsAppConfig = ChannelsWhatsAppConfig()
+    embed: ChannelsEmbedConfig = ChannelsEmbedConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -1065,9 +1160,9 @@ class MockGatewaysConfig(BaseModel):
     # answers with.
     #
     # Both halves are configurable so a stack can move them, and both have defaults so the
-    # QA runbook can name one pair. The name is what an endpoint registers as its
-    # `credential_header`; an endpoint that registers none sends the same value as
-    # `Authorization: Bearer <value>`, and the surface accepts that form too.
+    # QA runbook can name one pair. The name is what an endpoint's credential binding
+    # names, as a header or a query parameter; the surface also accepts the value as
+    # `Authorization: Bearer <value>` and as the password of `Authorization: Basic`.
     mcp_key_header: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_KEY_HEADER", "X-Api-Key")
     mcp_key_value: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_KEY", "agenta-mock-mcp-key")
 
@@ -1727,29 +1822,18 @@ class MountsConfig(BaseModel):
         )
     )
 
-    model_config = ConfigDict(extra="ignore")
-
-
-# ---------------------------------------------------------------------------
-# newrelic
-# ---------------------------------------------------------------------------
-
-
-class NewRelicConfig(BaseModel):
-    """New Relic monitoring configuration"""
-
-    license_key: str | None = (
-        os.getenv("NEWRELIC_LICENSE_KEY")
-        or os.getenv("NEW_RELIC_LICENSE_KEY")
-        or os.getenv("NRIA_LICENSE_KEY")
+    # Largest request body the drive upload and write routes accept, in bytes. The API holds
+    # the whole file in memory while it writes it to the store, so this bounds the memory one
+    # request can take. A larger request gets 413: before its body is read when it declares
+    # Content-Length, and as soon as it passes the limit when it does not.
+    max_upload_bytes: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_MOUNTS_MAX_UPLOAD_BYTES")
+            or 100 * 1024 * 1024
+        )
     )
 
     model_config = ConfigDict(extra="ignore")
-
-    @property
-    def enabled(self) -> bool:
-        """New Relic enabled if license key present"""
-        return bool(self.license_key)
 
 
 # ---------------------------------------------------------------------------
@@ -2370,7 +2454,6 @@ class EnvironSettings(BaseModel):
     mcp_gateway: MCPGatewayConfig = MCPGatewayConfig()
     mock_gateways: MockGatewaysConfig = MockGatewaysConfig()
     mounts: MountsConfig = MountsConfig()
-    newrelic: NewRelicConfig = NewRelicConfig()
     postgres: PostgresConfig = PostgresConfig()
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()

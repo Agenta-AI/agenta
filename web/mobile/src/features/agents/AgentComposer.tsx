@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
+import {stagedFilesToOutbound, useComposerAttachments} from "@agenta/chat/hooks"
 import {HomeTaskComposer} from "@agenta/home-ui"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -29,11 +29,11 @@ export const AgentComposer = ({
     const stash = useSetAtom(stashPendingTaskAtom)
     const dropPendingTask = useSetAtom(takePendingTaskAtom)
     const [sessionId] = useState(() => newId())
-    const attachments = useComposerAttachments({sessionId})
+    const attachments = useComposerAttachments({sessionId, largeFilesToDrive: true})
 
-    const start = async ({text}: {agentId: string; text: string}) => {
+    const start = async ({text: typed}: {agentId: string; text: string}) => {
         const staged = attachments.files
-        const parts = staged.length > 0 ? stagedFilesToParts(staged, sessionId) : undefined
+        const {text, parts} = stagedFilesToOutbound(typed, staged, sessionId)
         stash({sessionId, task: {agentId, text, parts}})
         // Cleared BEFORE the navigation — the chat route seeds its own tray from the per-session
         // store on mount, which `router.push` resolves after (see [[useHomeHandoff]], #6777).

@@ -7,8 +7,8 @@
  * them.
  *
  * Connected is one row per stored connection, folded into a single subtitle. The lower section
- * holds the project's hosted ChatGPT sign-in, a Claude self-hosting link, then one row per
- * DEPLOYMENT-mounted subscription and harness pair.
+ * holds the project's hosted ChatGPT and Claude cards, then one row per DEPLOYMENT-mounted
+ * subscription and harness pair.
  *
  * Design: providers-drawer-final/README.md §3 ("Connected"), §5 ("Subscriptions").
  */
@@ -27,7 +27,6 @@ import {
     SUBSCRIPTION_STATUS_QUERY_HARNESS,
     subscriptionStatusQueryAtomFamily,
 } from "@agenta/entities/workflow"
-import {Button} from "@agenta/ui/ui"
 import {CaretRight} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
@@ -106,23 +105,6 @@ const SubscriptionRow = ({pair, onSelect}: {pair: SubscriptionPair; onSelect: ()
     </button>
 )
 
-/** Claude uses the same card treatment as ChatGPT, but setup still happens on the deployment. */
-const ClaudeSubscriptionCard = ({docsUrl}: {docsUrl: string}) => (
-    <section className="flex flex-col gap-3 rounded-md border border-solid border-colorBorderSecondary p-4 text-xs">
-        <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-sm font-medium text-colorText">Claude</span>
-                <span className="text-colorTextSecondary">Self-hosted deployments only.</span>
-            </div>
-            <Button size="sm" asChild>
-                <a href={docsUrl} target="_blank" rel="noreferrer" className="no-underline">
-                    Connect Claude
-                </a>
-            </Button>
-        </div>
-    </section>
-)
-
 export interface PlaygroundConnectedSectionProps {
     connections: ProviderConnection[]
     onSelect: (connection: ProviderConnection) => void
@@ -177,15 +159,17 @@ export const PlaygroundConnectedSection = ({
  */
 const MountedSubscriptionRows = ({
     onSelectPair,
+    hostedFamilies,
 }: {
     onSelectPair: (pair: SubscriptionPair) => void
+    hostedFamilies?: ReadonlySet<string>
 }) => {
     // One poll for the whole deployment: the runner answers for EVERY harness in a single call, and
     // the shared key keeps this surface and the pickers on one TanStack query rather than three.
     const query = useAtomValue(subscriptionStatusQueryAtomFamily(SUBSCRIPTION_STATUS_QUERY_HARNESS))
     const pairs = useMemo(
-        () => subscriptionPairsFrom(query.data?.harnesses),
-        [query.data?.harnesses],
+        () => subscriptionPairsFrom(query.data?.harnesses, hostedFamilies),
+        [query.data?.harnesses, hostedFamilies],
     )
 
     if (!pairs?.length) return null
@@ -196,30 +180,33 @@ const MountedSubscriptionRows = ({
 }
 
 export interface PlaygroundSubscriptionsSectionProps {
-    subscriptionDocsUrl: string
     onSelectPair: (pair: SubscriptionPair) => void
     /**
-     * The hosted sign-in card. Both sources are subscriptions, so they share one section and one
-     * label; only this one is connected from the drawer, so it comes first. Required: it is what
-     * keeps the section from rendering a border and a label over nothing when nothing is mounted.
+     * The hosted subscription cards. Both sources are subscriptions, so they share one section;
+     * only these are connected from the drawer, so they come first. Required: they keep the
+     * section from rendering a border over nothing when nothing is mounted.
      */
-    hostedCard: ReactNode
+    hostedCards: ReactNode
     /** Whether this deployment can mount an operator login at all. */
     showMounted?: boolean
+    /**
+     * The provider families the project holds a hosted subscription for. A mounted row of one of
+     * them says where it comes from in its name; every other mounted row is the plan name alone.
+     */
+    hostedFamilies?: ReadonlySet<string>
 }
 
 /** Below the catalog: nothing here is added from the drawer, so it closes the list. */
 export const PlaygroundSubscriptionsSection = ({
-    subscriptionDocsUrl,
     onSelectPair,
-    hostedCard,
+    hostedCards,
     showMounted = true,
+    hostedFamilies,
 }: PlaygroundSubscriptionsSectionProps) => (
     <div className="shrink-0 border-0 border-t border-solid border-colorSplit">
-        <div className="flex flex-col gap-3 px-6 py-4">
-            {hostedCard}
-            <ClaudeSubscriptionCard docsUrl={subscriptionDocsUrl} />
-        </div>
-        {showMounted ? <MountedSubscriptionRows onSelectPair={onSelectPair} /> : null}
+        <div className="flex flex-col gap-3 px-6 py-4">{hostedCards}</div>
+        {showMounted ? (
+            <MountedSubscriptionRows onSelectPair={onSelectPair} hostedFamilies={hostedFamilies} />
+        ) : null}
     </div>
 )

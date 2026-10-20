@@ -130,6 +130,7 @@ function fakeSandbox(sandboxId: string | undefined, opts: FakeOpts = {}) {
         turnIndex,
         sandboxId: turn.sandboxId,
       });
+      return true;
     },
     startSandboxAgent: (async (startOpts: any) => {
       calls.starts.push({ sandboxId: startOpts.sandboxId });

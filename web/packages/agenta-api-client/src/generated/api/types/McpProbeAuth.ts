@@ -9,4 +9,5 @@ export interface McpProbeAuth {
     registration?: (AgentaApi.McpProbeRegistration | null) | undefined;
     challenge_status?: (number | null) | undefined;
     challenge_schemes?: string[] | undefined;
+    redirect_uri?: (string | null) | undefined;
 }

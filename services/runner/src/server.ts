@@ -19,7 +19,7 @@
  * engine runner so the HTTP behavior can be tested with a fake engine (no live harness).
  */
 import { join } from "node:path";
-import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
+import { apiBase, envApiUrl, runWithRequestApiBase } from "./apiBase.ts";
 import { runWithStallRetry } from "./lifecycle/stall-retry.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
 import {
@@ -103,11 +103,7 @@ import {
 import { applyDaytonaSdkEnv } from "./engines/sandbox_agent/daytona-provider.ts";
 import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
-import {
-  SESSION_TURN_IN_USE_CODE,
-  SESSION_TURN_IN_USE_MESSAGE,
-  SESSION_ADMISSION_UNCONFIRMED_MESSAGE,
-} from "./sessions/admission.ts";
+import { admissionRefusal } from "./sessions/admission.ts";
 import {
   REPLICA_ADDRESS,
   REPLICA_ID,
@@ -163,6 +159,7 @@ import type { InProcessProvider } from "./engines/inprocess/index.ts";
 import { endActiveTurns, registerActiveTurn } from "./sessions/active-turns.ts";
 import { DAYTONA_DURABLE_MOUNT_ROOT, resolveSandboxProviderId, runnerStateDir } from "./engines/sandbox_agent/run-plan.ts";
 import { applySandboxRouting } from "./engines/sandbox_agent/sandbox-routing.ts";
+import { routeGatewayInNetwork } from "./engines/sandbox_agent/gateway-in-network.ts";
 import { startSubscriptionHomeSweeper } from "./engines/sandbox_agent/subscription-login/retention.ts";
 import {
   KILL_DEADLINE_MS,
@@ -776,6 +773,7 @@ async function runAndStreamWithApiBaseResolved(
         firstBeatOwned: boolean;
         admitted: boolean;
         admissionUnconfirmed?: boolean;
+        admissionRejectedStatus?: number;
       }
     | undefined;
   if (!sessionOwned && !detached) {
@@ -984,12 +982,20 @@ async function runAndStreamWithApiBaseResolved(
       // which is the path every runner failure already takes to the browser. Nothing is persisted,
       // so the refused message never appears in the session's history — the client keeps the text.
       if (!watchdog.admitted) {
-        const refusal = watchdog.admissionUnconfirmed ? SESSION_ADMISSION_UNCONFIRMED_MESSAGE : SESSION_TURN_IN_USE_MESSAGE;
+        const refusal = admissionRefusal(
+          watchdog.admissionRejectedStatus !== undefined
+            ? { kind: "rejected", status: watchdog.admissionRejectedStatus }
+            : watchdog.admissionUnconfirmed
+              ? { kind: "unconfirmed" }
+              : { kind: "in_use" },
+        );
         process.stderr.write(
           `[sessions] admission REFUSED session=${sessionId} turn=${turnId}; ` +
-            (watchdog.admissionUnconfirmed
-              ? "the platform did not answer the admission beat. "
-              : "another turn owns this session. ") +
+            (watchdog.admissionRejectedStatus !== undefined
+              ? `the platform rejected the admission beat with HTTP ${watchdog.admissionRejectedStatus}. `
+              : watchdog.admissionUnconfirmed
+                ? "the platform did not answer the admission beat. "
+                : "another turn owns this session. ") +
             `No pool resolve, no eviction.\n`,
         );
         // Stops the heartbeat interval and releases the credential lease. Its final
@@ -1000,12 +1006,17 @@ async function runAndStreamWithApiBaseResolved(
         unregisterExecution(sessionId, turnId);
         liveEmit({
           type: "error",
-          message: refusal,
-          code: SESSION_TURN_IN_USE_CODE,
+          message: refusal.message,
+          code: refusal.code,
         });
         writeRecord({
           kind: "result",
-          result: { ok: false, error: refusal, events: [] },
+          result: {
+            ok: false,
+            error: refusal.message,
+            errorDetail: refusal.detail,
+            events: [],
+          },
         });
         res.end();
         return;
@@ -1799,6 +1810,7 @@ export function createRequestListener(
           // Before anything reads `request.sandbox`: the session record, the keep-alive pool and
           // the run plan all see the provider that runs.
           applySandboxRouting(request, logSandboxRouting);
+          routeGatewayInNetwork(request, logSandboxRouting);
 
           const wantsStream = (req.headers["accept"] ?? "").includes(
             "application/x-ndjson",
@@ -2003,8 +2015,9 @@ if (isEntrypoint(import.meta.url)) {
         `[sandbox-agent] http server listening on ${runnerConfig.server.host}:${runnerConfig.server.port}\n`,
       );
       if (!publicApiBaseConfigured()) {
-        const internalApiHost = process.env.AGENTA_API_INTERNAL_URL
-          ? endpointHost(process.env.AGENTA_API_INTERNAL_URL)
+        const internalApiUrl = envApiUrl("AGENTA_API_INTERNAL_URL");
+        const internalApiHost = internalApiUrl
+          ? endpointHost(internalApiUrl)
           : "unset";
         process.stderr.write(
           "[sandbox-agent] WARNING: AGENTA_API_URL is not set. Dispatched runs carry this " +
@@ -2013,7 +2026,7 @@ if (isEntrypoint(import.meta.url)) {
             "credential. Set AGENTA_API_URL to the public api base (e.g. https://<host>/api); " +
             `AGENTA_API_INTERNAL_URL host (${internalApiHost}) is the ` +
             "in-network hop and does not substitute for it." +
-            (process.env.AGENTA_API_INTERNAL_URL
+            (internalApiUrl
               ? ""
               : " With neither set, the runner sends its runner token only to the default " +
                 "http://api:8000, never to an api base it infers from a run's trace endpoint.") +

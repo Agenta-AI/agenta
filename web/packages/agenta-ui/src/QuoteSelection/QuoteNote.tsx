@@ -76,7 +76,8 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onSend, onCancel}: Qu
             <p className="m-0 line-clamp-2 border-0 border-l-2 border-solid border-colorBorder pl-2.5 text-xs leading-5 text-colorTextSecondary">
                 {truncateQuoteText(quote.text, 220)}
             </p>
-            <div className="flex items-center gap-2">
+            {/* Bottom-aligned so the button stays put as the note grows. */}
+            <div className="flex items-end gap-2">
                 <textarea
                     ref={inputRef}
                     value={note}
@@ -89,7 +90,7 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onSend, onCancel}: Qu
                     }}
                     rows={1}
                     placeholder="Reply to the agent"
-                    className="max-h-24 min-h-0 flex-1 resize-none border-0 bg-transparent p-0 font-[inherit] text-xs leading-5 text-colorText outline-none [field-sizing:content] placeholder:text-colorTextPlaceholder"
+                    className="max-h-24 min-h-0 flex-1 resize-none border-0 bg-transparent px-0 py-0.5 font-[inherit] text-xs leading-5 text-colorText outline-none [field-sizing:content] placeholder:text-colorTextPlaceholder"
                 />
                 <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
                     <Tooltip>

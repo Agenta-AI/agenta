@@ -1,4 +1,10 @@
-export {fetchVaultSecret, createVaultSecret, updateVaultSecret, deleteVaultSecret} from "./api"
+export {
+    fetchVaultSecret,
+    createVaultSecret,
+    updateVaultSecret,
+    deleteVaultSecret,
+    setSubscriptionToken,
+} from "./api"
 export {
     CREDENTIAL_STATUSES,
     DISCOVERY_STATUSES,

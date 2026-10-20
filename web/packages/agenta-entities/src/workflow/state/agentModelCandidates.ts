@@ -150,6 +150,8 @@ export const builtinModelEndpointsQueryAtom = atomWithQuery<BuiltinModelEndpoint
         enabled: get(sessionAtom) && Boolean(projectId),
         staleTime: 5 * 60_000,
         refetchOnWindowFocus: false,
+        // Optional rows: a refusal (403 where built-ins are off) is final, as in the loader below.
+        retry: false,
     }
 })
 

@@ -1,6 +1,14 @@
 import { randomBytes } from "node:crypto";
-import { personFacingGatewayRefusal } from "../../gateway-error.ts";
-import { SubstitutionStuckError } from "./credential-preflight.ts";
+import {
+  isUpstreamFailure,
+  parseGatewayErrorDetail,
+  personFacingGatewayRefusal,
+} from "../../gateway-error.ts";
+import type { AgentErrorDetail, ModelConnection } from "../../protocol.ts";
+import {
+  CLAUDE_TOKEN_BINDING,
+  SubstitutionStuckError,
+} from "./credential-preflight.ts";
 
 /** Map a provider family to its human-facing vault key label, for the credit/auth hint. */
 const PROVIDER_KEY_LABELS: Record<string, string> = {
@@ -135,6 +143,10 @@ export type RunErrorCode =
   // Clients render it as a "not sent, try again" state and keep the text, never as a run error.
   // Produced by `sessions/admission.ts`, not by this module's classifier.
   | "session_turn_in_use"
+  // Not a failure of the run either: the platform answered the turn's admission beat with a
+  // request error (400, 401, 403, 404, 422), so the turn never started. Unlike
+  // `session_turn_in_use`, sending again fails the same way. Produced by `sessions/admission.ts`.
+  | "session_admission_rejected"
   // The sandbox died under a running turn: its liveness probe stopped answering, so the turn
   // was ended rather than left holding a machine that no longer exists. See
   // `sandbox-liveness.ts`.
@@ -159,6 +171,13 @@ export type RunErrorCode =
   // carries the provider's own sentence, redacted. Not retryable as is: the same request is
   // refused the same way. The failed turn leaves the conversation, so the next message is not.
   | "provider_error"
+  // The model failed and another attempt may work. Behind the gateway, the gateway wrote the
+  // sentence (`api/oss/src/core/gateways/llms/errors.py`); also Pi's
+  // `malformed_function_call` verdict on the model's output.
+  | "upstream_error"
+  // The same, for a failure that needs a change first: the endpoint's credits or key, or the
+  // request. Not retryable as is.
+  | "upstream_rejected"
   // A fresh prompt found its turn index already written by another runner, so this runner's view
   // of the conversation was stale. Nothing was sent to the model. Retryable: the next send
   // rebuilds from the latest turn.
@@ -177,6 +196,8 @@ export type RunErrorCode =
 export interface ClassifiedRunError {
   message: string;
   code: RunErrorCode;
+  /** The gateway's envelope, carried on because `message` no longer holds its marker. */
+  detail?: AgentErrorDetail;
 }
 
 /*
@@ -355,6 +376,13 @@ const RUNNER_INTERNAL_401 =
   /tool call .*failed: HTTP|attachment (?:fetch|claim) failed|session records (?:query|persist) failed/i;
 
 /**
+ * The harness adapter's own refusal of the model credential. `claude-agent-acp` answers Claude
+ * Code's "401 OAuth access token is invalid" with the ACP `authRequired()` error (JSON-RPC
+ * -32000, "Authentication required"), so a refused setup-token never shows a 401 at all.
+ */
+const HARNESS_AUTH_REQUIRED = /authentication required/i;
+
+/**
  * How long after a Daytona Secret is delivered a credential refusal is still better explained by
  * propagation than by the key.
  *
@@ -399,6 +427,10 @@ export function withinCredentialPropagationWindow(
   );
 }
 
+const MALFORMED_FUNCTION_CALL = /finish_reason: malformed_function_call/;
+const MALFORMED_FUNCTION_CALL_MESSAGE =
+  "The model sent a tool call that could not be read (malformed_function_call). Try again, or pick another model.";
+
 /** The proxy answered but cannot reach its own store, or was not reachable at all. */
 const PROXY_NO_DATABASE = /no_db_connection/i;
 const CONNECTION_FAILURE =
@@ -427,6 +459,11 @@ export interface ConciseErrorOptions {
    * Lazy so the check (a stat) only runs on the error path it explains.
    */
   authFault?: () => string | undefined;
+  /**
+   * The run's resolved model connection. A run whose credentials carry a Claude setup-token gets
+   * `claudeSubscriptionTokenRefusal` when the model credential itself was refused.
+   */
+  modelConnection?: ModelConnection;
   /**
    * The run's named connection (wire `connection.slug`) and resolved deployment
    * (`modelConnection.deployment`), when the caller knows them. A custom deployment carries the
@@ -471,6 +508,16 @@ export function classifyRunError(
   const refusal = personFacingGatewayRefusal(raw);
   if (refusal)
     return { message: refusal.message, code: refusal.code as RunErrorCode };
+  // A failed model call the gateway already put into words, before any rule below reads the
+  // provider's text. The retired starter-credits connection's errors carry no marker
+  // (`passthrough/adapter.py`), so its budget refusal still reaches the rules below.
+  const upstream = parseGatewayErrorDetail(raw);
+  if (isUpstreamFailure(upstream))
+    return {
+      message: sanitizeErrorText(upstream.message),
+      code: upstream.code as RunErrorCode,
+      detail: upstream,
+    };
   const msg = raw.split("\n")[0].trim();
   const keyHint = keyHintFor(provider, harness, options.connection);
   // FIRST, and matched on the ERROR CLASS rather than on any text. Every sandbox this run built
@@ -492,6 +539,9 @@ export function classifyRunError(
   if (raw.includes(ABANDONED_TURN_MARKER)) {
     return { message: EXECUTION_LOST_MESSAGE, code: "execution_lost" };
   }
+  // Pi's own verdict on a completion the gateway relayed as a success, so no marker.
+  if (MALFORMED_FUNCTION_CALL.test(raw))
+    return { message: MALFORMED_FUNCTION_CALL_MESSAGE, code: "upstream_error" };
   // A budget refusal is checked first: it is the most specific reading of a 429, and its body also
   // trips the rate-limit and quota matchers below.
   if (BUDGET_REFUSAL.test(raw)) {
@@ -583,6 +633,15 @@ export function classifyRunError(
     };
   }
   if (AUTH_REFUSAL.test(raw)) {
+    // The model credential itself was refused (a provider 401 or the harness's
+    // `HARNESS_AUTH_REQUIRED`), not a runner call or some unrelated "unauthorized".
+    const modelRefusal =
+      (PROVIDER_401.test(raw) || HARNESS_AUTH_REQUIRED.test(raw)) &&
+      !RUNNER_INTERNAL_401.test(raw);
+    const tokenRefusal = modelRefusal
+      ? claudeSubscriptionTokenRefusal(options.modelConnection)
+      : undefined;
+    if (tokenRefusal) return tokenRefusal;
     return {
       message:
         options.authFault?.() ??
@@ -687,8 +746,8 @@ function providerBodyReason(body: string): string | undefined {
 
 /**
  * A raw `NNN {json}` provider error as one sentence with the provider's own reason, redacted. A
- * 4xx is a refusal of this request (`provider_error`); a 429 or a 5xx is the provider busy or
- * failing, which a retry may fix.
+ * 4xx is a refusal of this request (`provider_error`); a 408 (the LLM gateway gave up waiting), a
+ * 429 or a 5xx is the provider slow, busy or failing, which a retry may fix.
  */
 function describeRawProviderError(
   line: string,
@@ -698,7 +757,7 @@ function describeRawProviderError(
   const status = match[1]!;
   const reason = providerBodyReason(line.slice(line.indexOf("{", match.index)));
   const said = reason === undefined ? undefined : providerSentence(reason);
-  if (status === "429" || status.startsWith("5")) {
+  if (status === "408" || status === "429" || status.startsWith("5")) {
     return {
       message: `The model provider could not answer (HTTP ${status})${said ? `: ${said}` : "."} Try again in a moment.`,
       code: "runner_error",
@@ -857,6 +916,11 @@ export function sanitizeErrorText(text: string): string {
         "$2=[secret]",
       )
       .replace(/\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9._-]+/g, "[secret]")
+      // A provider's own masked copy of the key ("sk-proj-****...abcd") still shows its ends.
+      .replace(
+        /\b(?:sk|pk|rk)-[A-Za-z0-9_-]{0,24}(?:\*{3,}|\.{3,})[A-Za-z0-9_-]*/g,
+        "[secret]",
+      )
       .replace(/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}/g, "[secret]")
       .trim()
   );
@@ -951,6 +1015,35 @@ export function subscriptionAuthFailureReason(err: unknown): string {
   }
   if (/authentication failed/i.test(raw)) return "auth_failed";
   return "unauthorized";
+}
+
+export const CLAUDE_SUBSCRIPTION_TOKEN_REFUSED_MESSAGE =
+  "The Claude subscription token was refused. Paste a new token from AI providers.";
+
+/**
+ * The result for a provider 401 on a run that authenticates with a Claude setup-token, or
+ * undefined for any other run. The token's binding name is the signal: a hosted Claude
+ * subscription and a self-hosted custom provider that carries the same variable get the same
+ * advice, which is true for both. `detail` carries the code to the final result, whose
+ * `errorDetail` is the only field a batch caller reads it from.
+ */
+function claudeSubscriptionTokenRefusal(
+  modelConnection: ModelConnection | undefined,
+): ClassifiedRunError | undefined {
+  const usesToken = modelConnection?.credentials.some(
+    (credential) => credential.binding.name === CLAUDE_TOKEN_BINDING,
+  );
+  if (!usesToken) return undefined;
+  return {
+    message: CLAUDE_SUBSCRIPTION_TOKEN_REFUSED_MESSAGE,
+    code: "subscription_login_required",
+    detail: {
+      code: "subscription_login_required",
+      message: CLAUDE_SUBSCRIPTION_TOKEN_REFUSED_MESSAGE,
+      retryable: false,
+      next_step: "Paste a new token from AI providers.",
+    },
+  };
 }
 
 /** The classified error for a subscription auth failure, given the API's `stale` answer. */
