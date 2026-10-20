@@ -62,6 +62,8 @@ interface CandidateSourceState {
     pairModelSelection?: Record<string, string[] | undefined> | null
     showSubscriptions: boolean
     builtinEndpoints?: BuiltinModelEndpoint[]
+    /** False while the built-in endpoints read is in flight; credits may be the only route. */
+    builtinSettled?: boolean
 }
 
 export const resolveAgentModelCandidateSources = ({
@@ -75,6 +77,7 @@ export const resolveAgentModelCandidateSources = ({
     pairModelSelection,
     showSubscriptions,
     builtinEndpoints,
+    builtinSettled = true,
 }: CandidateSourceState): AgentModelCandidatesState => {
     const connections = toProviderConnections(vaultRows ?? [])
     if (!vaultRows || !capabilities) {
@@ -89,6 +92,9 @@ export const resolveAgentModelCandidateSources = ({
     }
     // A failed check never blocks on itself: fall through and answer from the vault alone.
     if (showSubscriptions && !subscriptionSettled && !subscriptionError) {
+        return {status: "loading", candidates: [], connections, capabilities, error: null}
+    }
+    if (!builtinSettled) {
         return {status: "loading", candidates: [], connections, capabilities, error: null}
     }
 
@@ -181,6 +187,7 @@ export const agentModelCandidatesAtomFamily = atomFamily((showSubscriptions: boo
             pairModelSelection: showSubscriptions ? get(subscriptionPairModelsAtom) : null,
             showSubscriptions,
             builtinEndpoints: builtin.data,
+            builtinSettled: !builtin.isLoading,
         })
     }),
 )

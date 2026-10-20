@@ -1,8 +1,12 @@
 // Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
 import {useMemo} from "react"
 
-import {hasStoredKey, standardSecretsAtom} from "@agenta/entities/secret"
-import {agentModelCandidatesAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
+import {hasStoredKey, standardSecretsAtom, vaultSecretsQueryAtom} from "@agenta/entities/secret"
+import {
+    agentModelCandidatesAtomFamily,
+    builtinModelEndpointsQueryAtom,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
 import type {LlmProvider} from "@agenta/shared/types"
 import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
@@ -26,8 +30,8 @@ export interface AgentModelKeyStatus {
      */
     loading: boolean
     /**
-     * The connect-a-model gate. It becomes active only after vault connections, harness capabilities,
-     * and live subscription status resolve and together produce zero runnable model routes.
+     * The connect-a-model gate. Active only once every source has settled (no refetch in flight)
+     * with zero runnable routes and no credit-funded built-in models.
      * Banner and composer-block consumers should both key off this.
      */
     gateActive: boolean
@@ -50,10 +54,13 @@ interface HarnessRef {
 export const connectModelGate = ({
     loading,
     candidateCount,
+    hasBuiltinModels = false,
 }: {
     loading: boolean
     candidateCount: number
-}): boolean => !loading && candidateCount === 0
+    /** Platform-funded models the org can run on credits, even with no key in the vault. */
+    hasBuiltinModels?: boolean
+}): boolean => !loading && candidateCount === 0 && !hasBuiltinModels
 
 export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
     const config = useAtomValue(
@@ -61,7 +68,12 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
     )
     const standardSecrets = useAtomValue(standardSecretsAtom)
     const candidateState = useAtomValue(agentModelCandidatesAtomFamily(true))
-    const candidateSourcesLoading = candidateState.status !== "ready"
+    const vault = useAtomValue(vaultSecretsQueryAtom)
+    const builtin = useAtomValue(builtinModelEndpointsQueryAtom)
+    // A persisted vault or a cached 403 can be stale; never assert keyless mid-refetch.
+    const candidateSourcesLoading =
+        candidateState.status !== "ready" || vault.isFetching || builtin.isFetching
+    const hasBuiltinModels = (builtin.data ?? []).some((endpoint) => endpoint.models.length > 0)
 
     return useMemo(() => {
         const agent = (config as {agent?: {llm?: LlmRef; harness?: HarnessRef}} | null)?.agent
@@ -88,8 +100,9 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
             : null
 
         const gateActive = connectModelGate({
-            loading: candidateState.status !== "ready",
+            loading: candidateSourcesLoading,
             candidateCount: candidateState.candidates.length,
+            hasBuiltinModels,
         })
 
         return {
@@ -101,5 +114,5 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
             loading: candidateSourcesLoading,
             gateActive,
         }
-    }, [config, standardSecrets, candidateSourcesLoading, candidateState])
+    }, [config, standardSecrets, candidateSourcesLoading, candidateState, hasBuiltinModels])
 }
