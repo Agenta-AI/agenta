@@ -237,8 +237,7 @@ export const LiveConversation = ({
     // the strip below.
     const modelKey = useAgentModelKeyStatus(entityId)
     const wallet = useWalletSummary(projectId, {poll: false})
-    const hasCredits =
-        wallet.data?.mode === "enforce" && (wallet.data.spendable_musd ?? 0) > 0
+    const hasCredits = wallet.data?.mode === "enforce" && (wallet.data.spendable_musd ?? 0) > 0
     // Wallet credits fund runs without a key, and an unanswered wallet is not "no credits".
     const modelBlocked = modelKey.gateActive && !hasCredits && !wallet.isLoading
     // The strip stays hidden until the vault answers (`gateActive` is false while it loads), but
