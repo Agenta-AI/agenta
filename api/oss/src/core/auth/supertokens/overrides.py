@@ -57,6 +57,7 @@ from oss.src.core.auth.helper import (
 from oss.src.core.auth.service import AuthService
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 from oss.src.core.users.types import UserIdentityCreate
+from oss.src.core.auth.rate_limit import enforce_auth_code_rate_limit
 from oss.src.core.auth.turnstile import (
     get_client_ip,
     has_turnstile_token,
@@ -438,6 +439,10 @@ def override_emailpassword_apis(
             email=email,
             tenant_id=tenant_id,
         )
+        await enforce_auth_code_rate_limit(
+            request=api_options.request,
+            api_name="sign_up_post",
+        )
         await verify_turnstile(
             api_options=api_options,
             user_context=user_context,
@@ -530,6 +535,10 @@ def override_passwordless_apis(
             email=email,
             tenant_id=tenant_id,
         )
+        await enforce_auth_code_rate_limit(
+            request=api_options.request,
+            api_name="create_code_post",
+        )
         await verify_turnstile(
             api_options=api_options,
             user_context=user_context,
@@ -560,6 +569,10 @@ def override_passwordless_apis(
             api_name="resend_code_post",
             api_options=api_options,
             tenant_id=tenant_id,
+        )
+        await enforce_auth_code_rate_limit(
+            request=api_options.request,
+            api_name="resend_code_post",
         )
         # await verify_turnstile(
         #     api_options=api_options,

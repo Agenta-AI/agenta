@@ -101,12 +101,22 @@ for how they behave. The plan and role variables are Enterprise-only; see
 | `AGENTA_ACCESS_BLOCKED_DOMAINS` | `agenta.access.blocked_domains` | `agenta.access.blockedDomains` |
 | `AGENTA_ACCESS_BLOCKED_EMAILS` | `agenta.access.blocked_emails` | `agenta.access.blockedEmails` |
 | `AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS` | `agenta.access.max_owned_organizations` | `agenta.access.maxOwnedOrganizations` |
+| `AGENTA_ACCESS_TRUSTED_PROXY_HOPS` | `agenta.access.trusted_proxy_hops` | `agenta.access.trustedProxyHops` |
+| `AGENTA_ACCESS_TRUST_CLOUDFLARE_IP` | `agenta.access.trust_cloudflare_ip` | `agenta.access.trustCloudflareIp` |
 | `AGENTA_ACCESS_DEFAULT_PLAN` | `agenta.access.default_plan` | `agenta.access.defaultPlan` |
 | `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` | `agenta.access.default_plan_overlay` | `agenta.access.defaultPlanOverlay` |
 | `AGENTA_ACCESS_EMAIL_DISABLED` | `agenta.access.email_disabled` | `agenta.access.emailDisabled` |
 | `AGENTA_ACCESS_PLANS` | `agenta.access.plans` | `agenta.access.plans` |
 | `AGENTA_ACCESS_ROLES` | `agenta.access.roles` | `agenta.access.roles` |
 | `AGENTA_ACCESS_ROLES_OVERLAY` | `agenta.access.roles_overlay` | `agenta.access.rolesOverlay` |
+
+The API limits sign-in code and sign-up requests per client IP, and sends the client IP to
+Turnstile. Set `AGENTA_ACCESS_TRUSTED_PROXY_HOPS` to the number of proxies in front of the API
+that append to `X-Forwarded-For`, so the API reads the IP those proxies saw and ignores entries a
+client adds itself. The bundled Traefik and nginx setups need `1`. When it is unset, the API
+uses the first `X-Forwarded-For` entry, which a client can set. The API reads `CF-Connecting-IP`
+only when `AGENTA_ACCESS_TRUST_CLOUDFLARE_IP` is `true`. Turn it on only when Cloudflare proxies
+every request to the API.
 
 ## Agenta AI services
 

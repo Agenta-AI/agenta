@@ -159,6 +159,8 @@ export const OtpVerifyForm = ({
             setCode("")
             setResendIn(RESEND_COOLDOWN_S)
             inputRef.current?.focus()
+        } else if (outcome.kind === "failed") {
+            setMessage({message: outcome.message, type: "error"})
         } else {
             setMessage({message: "Could not send a new code. Please try again.", type: "error"})
             await restart()
