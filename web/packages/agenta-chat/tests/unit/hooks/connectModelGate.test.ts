@@ -7,17 +7,11 @@ describe("connectModelGate", () => {
         expect(connectModelGate({loading: true, candidateCount: 0})).toBe(false)
     })
 
-    it("stays down when credits fund built-in models", () => {
-        expect(connectModelGate({loading: false, candidateCount: 0, hasBuiltinModels: true})).toBe(
-            false,
-        )
-    })
-
-    it("stays down when a key gives a runnable route", () => {
+    it("stays down when a key or a built-in model gives a runnable route", () => {
         expect(connectModelGate({loading: false, candidateCount: 1})).toBe(false)
     })
 
-    it("opens only when everything settled with no route and no credits", () => {
+    it("opens only when everything settled with no runnable route", () => {
         expect(connectModelGate({loading: false, candidateCount: 0})).toBe(true)
     })
 })

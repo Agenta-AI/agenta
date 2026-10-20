@@ -239,10 +239,11 @@ export const LiveConversation = ({
     const wallet = useWalletSummary(projectId, {poll: false})
     const hasCredits = wallet.data?.mode === "enforce" && (wallet.data.spendable_musd ?? 0) > 0
     // Wallet credits fund runs without a key, and an unanswered wallet is not "no credits".
+    const walletPending = modelKey.gateActive && wallet.isLoading
     const modelBlocked = modelKey.gateActive && !hasCredits && !wallet.isLoading
-    // The strip stays hidden until the vault answers (`gateActive` is false while it loads), but
-    // the parked task must NOT go out on that same unknown — see `pendingTaskPolicy`.
-    const modelKeyLoading = modelKey.loading
+    // The strip stays hidden until the vault and wallet answer, but the parked task must NOT go
+    // out on that same unknown — see `pendingTaskPolicy`.
+    const modelKeyLoading = modelKey.loading || walletPending
 
     // The vault wait is bounded (`pendingTaskPolicy`). This stays 0 while the wait is on and
     // becomes the elapsed time when the deadline fires, which is the render that releases the task.
@@ -281,7 +282,7 @@ export const LiveConversation = ({
     // Landing on a session — a new one from `+` or the shortcut, or a switch to an existing one —
     // puts the caret in the composer, once it can take input. Not while the caret is already in
     // some other field: a self-commit remounts this screen mid-edit in the config pane.
-    const disabled = conversation.isHydrating || modelBlocked
+    const disabled = conversation.isHydrating || modelBlocked || walletPending
     useEffect(() => {
         if (disabled) return
         const frame = requestAnimationFrame(() => {

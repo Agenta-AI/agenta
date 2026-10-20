@@ -31,7 +31,7 @@ export interface AgentModelKeyStatus {
     loading: boolean
     /**
      * The connect-a-model gate. Active only once every source has settled (no refetch in flight)
-     * with zero runnable routes and no credit-funded built-in models.
+     * with zero runnable routes; credit-funded built-in models count as routes.
      * Banner and composer-block consumers should both key off this.
      */
     gateActive: boolean
@@ -54,13 +54,10 @@ interface HarnessRef {
 export const connectModelGate = ({
     loading,
     candidateCount,
-    hasBuiltinModels = false,
 }: {
     loading: boolean
     candidateCount: number
-    /** Platform-funded models the org can run on credits, even with no key in the vault. */
-    hasBuiltinModels?: boolean
-}): boolean => !loading && candidateCount === 0 && !hasBuiltinModels
+}): boolean => !loading && candidateCount === 0
 
 export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
     const config = useAtomValue(
@@ -73,7 +70,6 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
     // A persisted vault or a cached 403 can be stale; never assert keyless mid-refetch.
     const candidateSourcesLoading =
         candidateState.status !== "ready" || vault.isFetching || builtin.isFetching
-    const hasBuiltinModels = (builtin.data ?? []).some((endpoint) => endpoint.models.length > 0)
 
     return useMemo(() => {
         const agent = (config as {agent?: {llm?: LlmRef; harness?: HarnessRef}} | null)?.agent
@@ -102,7 +98,6 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
         const gateActive = connectModelGate({
             loading: candidateSourcesLoading,
             candidateCount: candidateState.candidates.length,
-            hasBuiltinModels,
         })
 
         return {
@@ -114,5 +109,5 @@ export function useAgentModelKeyStatus(entityId: string): AgentModelKeyStatus {
             loading: candidateSourcesLoading,
             gateActive,
         }
-    }, [config, standardSecrets, candidateSourcesLoading, candidateState, hasBuiltinModels])
+    }, [config, standardSecrets, candidateSourcesLoading, candidateState])
 }
