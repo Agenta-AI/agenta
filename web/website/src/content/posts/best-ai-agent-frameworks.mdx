@@ -1,0 +1,428 @@
+---
+slug: "best-ai-agent-frameworks"
+title: "9 Best AI Agent Frameworks in 2026 (Plus When to Use a Low-Code Alternative)"
+description: "Compare the 8 best Python and TypeScript AI agent frameworks in 2026, including LangGraph, CrewAI, OpenAI Agents SDK, and PydanticAI, plus when a low-code workspace like Agenta is the better choice."
+category: "Article"
+date: 2026-10-20
+readingTime: "16 min read"
+heroImage: "/blog/best-ai-agent-frameworks/hero.webp"
+ogImage: "/blog/best-ai-agent-frameworks/hero.webp"
+author: "mahmoud-mabrouk"
+featured: false
+tags:
+  ["AI agents", "AI coworkers", "comparisons", "open source", "developer tools"]
+faq:
+  - question: "What is an AI agent framework?"
+    answer: "An AI agent framework is a software library in Python, TypeScript, or .NET that gives developers the code primitives for a language model to call tools, keep state across multiple steps, validate structured outputs, and hand work off to other agents."
+  - question: "What is the best AI agent framework in 2026?"
+    answer: "LangGraph is the strongest choice when you need explicit stateful graphs, checkpointing, and human-in-the-loop interrupts inside a Python or TypeScript backend. PydanticAI is best for type-safe Python applications, OpenAI Agents SDK is the fastest path for lightweight handoffs on OpenAI models, CrewAI fits role-based multi-agent pipelines, and Mastra is the leading TypeScript-native framework for modern web stacks."
+  - question: "When should I use a low-code agent builder like Agenta instead of a code framework?"
+    answer: "Use a code framework when you are embedding custom agent logic directly inside your own SaaS product's backend microservice. Use an open-source, low-code workspace like Agenta when you want working AI coworkers and recurring automations with Slack collaboration, embeddable web chat widgets, cron schedules, webhooks, persistent shared agent files, versioned instructions and skills, and cost analytics without building and hosting your own infrastructure."
+  - question: "Are LangGraph, CrewAI, and PydanticAI truly open source?"
+    answer: "Yes. LangGraph, CrewAI, OpenAI Agents SDK, PydanticAI, Microsoft Agent Framework, and LlamaIndex Workflows release their core SDKs under the permissive MIT license. Smolagents and Mastra core use the Apache-2.0 license. Keep in mind that managed cloud deployment and observability layers such as LangSmith, CrewAI AMP, and LlamaCloud are commercial SaaS products with per-seat or usage fees."
+  - question: "Which AI agent framework is best for TypeScript and Next.js developers?"
+    answer: "Mastra is built specifically for TypeScript and Node.js teams, offering unified agent definitions, typed workflows, RAG helpers, and native integration with Next.js and Vercel AI SDK patterns. LangGraph.js, OpenAI Agents SDK for TypeScript, and LlamaIndex.TS are also strong options."
+  - question: "What hidden infrastructure do you have to build on top of an AI agent SDK?"
+    answer: "A code framework handles the in-memory agent loop, but production systems also require background worker hosting, a state database for thread history, a cron and webhook scheduler, a Slack or web chat interface, human approval cards, a non-developer UI for editing instructions and skills, and trace and cost analytics."
+  - question: "Can I self-host Agenta or use an existing ChatGPT subscription?"
+    answer: "Yes. Agenta is open source under the MIT license and can be self-hosted via Docker Compose or used on Agenta Cloud starting at $0/month (or $29/month on Starter with unlimited team seats). On local, self-hosted personal deployments, you can mount a personal coding harness login (such as Codex, Claude Code, or Pi) to use an existing personal ChatGPT or Claude subscription, while shared team and cloud workspaces run on included cloud credits or your own provider API keys."
+---
+
+An **AI agent framework** is a software library that gives developers the building blocks for a language model to call tools, keep state across multiple steps, validate structured outputs, and hand tasks to other agents. Instead of writing raw API loops from scratch, you import a Python or TypeScript package that structures how the agent plans, executes, retries, and stops.
+
+If you are choosing among the **best AI agent frameworks** in 2026, two things become clear quickly. First, code frameworks have split into distinct engineering styles: stateful graphs, role-based crews, type-safe functions, event-driven document pipelines, and code-executing loops. Second, many founders, automation agencies, and product teams start searching for an "AI agent framework" when what they actually need is not a Python library at all. They need a working agent that runs on a schedule, collaborates with the team in Slack, remembers shared files, and lets non-engineers refine instructions without a backend deployment.
+
+Below, we compare the 8 best code-first AI agent frameworks in Python, TypeScript, and .NET, and we explain when an open-source, low-code workspace like **Agenta** is a faster alternative to wiring and maintaining framework infrastructure yourself.
+
+## The Best AI Agent Frameworks at a Glance
+
+| Framework                                                                 | Best for                                                                   | Control model & stack                                                    | License & cloud pricing                                                                   |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| **[LangGraph](#1-langgraph)**                                             | Stateful, cyclic graph control with durable checkpointing and interrupts   | Directed state graphs, nodes, edges (Python, TypeScript)                 | MIT SDK; LangSmith Dev **$0/seat**, Plus **$39/seat/mo** + usage                          |
+| **[CrewAI](#2-crewai)**                                                   | Role-based multi-agent crews combined with deterministic event flows       | Crews (Agents, Tasks, Tools) + Flows (Python)                            | MIT SDK; CrewAI AMP Basic **$0/mo** (50 runs), Pro **$25/mo** (100 runs)                  |
+| **[OpenAI Agents SDK](#3-openai-agents-sdk)**                             | Lightweight handoffs, guardrails, and tracing on the OpenAI ecosystem      | Agents, Handoffs, Guardrails, Sessions (Python, TypeScript)              | MIT SDK; pay-as-you-go OpenAI API token usage                                             |
+| **[PydanticAI](#4-pydanticai)**                                           | Type-safe Python agents, structured validation, and dependency injection   | Typed agent functions & Pydantic schemas (Python)                        | MIT SDK; Logfire **$0/mo** (10M spans), Pro **$2/1M spans**                               |
+| **[Microsoft Agent Framework](#5-microsoft-agent-framework-and-autogen)** | Enterprise Python and .NET multi-agent systems on Azure                    | Unified AutoGen + Semantic Kernel graphs & actors (Python, .NET)         | MIT SDK; pay-as-you-go Azure AI Foundry consumption                                       |
+| **[LlamaIndex Workflows](#6-llamaindex-workflows)**                       | Event-driven document processing and retrieval-heavy (RAG) agents          | Async event-driven steps + document connectors (Python, TypeScript)      | MIT SDK; LlamaCloud Free **$0**, Starter **$50/mo**, Pro **$500/mo**                      |
+| **[Mastra](#7-mastra)**                                                   | TypeScript-first agents and workflows for modern web and Next.js teams     | Typed TypeScript agents, workflows, RAG, and memory (TypeScript)         | Apache-2.0 core; Mastra Cloud Free, Pro **$99/mo**, Business **$499/mo**                  |
+| **[Smolagents](#8-smolagents)**                                           | Minimalist agents that write and execute Python code instead of JSON calls | CodeAgent loop generating executable Python (Python)                     | Apache-2.0 library; 100% free open source by Hugging Face                                 |
+| **[Agenta (Low-Code Alternative)](#9-agenta-the-low-code-alternative)**   | Shipping AI coworkers and scheduled automations without framework code     | Low-code workspace: instructions, skills, Slack, embeds, cron, harnesses | MIT self-hosted; Cloud Free **$0**, Starter **$29/mo** (unlimited seats), Plus **$99/mo** |
+
+## How AI Agent Frameworks Work (And When a Low-Code Builder Is the Better Choice)
+
+Every code framework solves the same core problem: deciding what the model is allowed to do next and how state moves from one step to another. In 2026, the leading open-source SDKs fall into five architectural patterns:
+
+1. **Stateful graphs (LangGraph):** You define an explicit state object, processing nodes, and conditional edges. Because every node transition is checkpointed to a database, you can pause execution for days, inspect the state, and resume from the exact step where the agent stopped.
+2. **Role-based crews (CrewAI):** You divide a complex job across specialized personas (for example, a Researcher, an Analyst, and a Writer) and coordinate them inside a deterministic outer flow.
+3. **Typed functions and handoffs (PydanticAI, OpenAI Agents SDK, Mastra):** You treat an agent like a strongly typed function with input dependencies, schema-validated outputs, guardrails, and explicit handoffs to sibling agents.
+4. **Event-driven document workflows (LlamaIndex Workflows, Microsoft Agent Framework):** Steps emit and subscribe to typed events asynchronously, making it straightforward to fan out across dozens of PDFs, knowledge indexes, or enterprise microservices.
+5. **Code-executing agents (Smolagents):** Instead of emitting JSON tool calls one by one, the model writes a concise Python snippet to call tools, loop over results, and compute the answer inside a sandboxed interpreter.
+
+![The 5 architectural patterns of AI agent frameworks in 2026](/blog/best-ai-agent-frameworks/agent-framework-paradigms.webp)
+
+### What a Code Framework Leaves You to Build Yourself
+
+Importing `langgraph` or `pydantic-ai` into a Python script takes thirty seconds. Turning that script into a production agent that your team or agency clients rely on every morning requires six additional layers of software that a code library does not include:
+
+- **Execution runtime and sandboxes:** Background workers, queue retries, timeout handling, and isolated sandboxes when an agent needs to run shell commands, Python scripts, or headless browsers.
+- **Persistent files and memory:** A storage system that separates one-off files uploaded in a single conversation from durable reference documents, playbooks, and past reports shared across runs.
+- **Triggers and schedules:** Cron runners for daily or weekly jobs and webhook listeners that verify payloads from GitHub, HubSpot, Stripe, or Linear.
+- **Communication channels and UI:** A Slack bot that replies in threads, a Telegram integration, an embeddable web chat widget for internal dashboards or client portals, and interactive approval cards for sensitive actions.
+- **Non-developer configuration and versioning:** A workspace where founders, marketers, or client operators can edit instructions and skills and roll back to an earlier revision without opening a Git pull request.
+- **Trace and cost analytics:** Step-by-step execution traces, token counts, latency tracking, and spend dashboards without paying $39+ per seat every month for an external observability add-on.
+
+![Code framework stack versus an open-source low-code agent workspace](/blog/best-ai-agent-frameworks/code-framework-vs-low-code-workspace.webp)
+
+| Dimension                    | Code-First Agent Frameworks (LangGraph, CrewAI, PydanticAI, OpenAI SDK)              | Low-Code Agent Workspace Alternative (Agenta)                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| **What you write**           | Python, TypeScript, or .NET orchestration code, state schemas, and API endpoints     | Plain-language instructions, reusable skills, and tool connections in a shared workspace       |
+| **Included infrastructure**  | In-process SDK loop only; you host the server, queue, database, cron runner, and UI  | Built-in cloud or self-hosted runner, sandboxes, cron schedules, webhooks, and trace analytics |
+| **Channels & collaboration** | Custom engineering required for Slack bots, web chat widgets, and human approvals    | Native Slack and Telegram coworkers, `Publish > Embed` web widgets, and inline approval gates  |
+| **Best fit**                 | Engineering teams embedding custom agent microservices inside their own SaaS product | Startups, operations teams, and automation agencies shipping AI coworkers and automations fast |
+
+If you are building custom agent logic directly inside your own SaaS application's backend, pick one of the eight code frameworks below. If your goal is to deploy working [AI coworkers for business](/blog/ai-coworker-platforms-for-business) or client automations without maintaining custom backend glue, skip ahead to **[Agenta](#9-agenta-the-low-code-alternative)** or compare full [AI agent orchestration platforms](/blog/best-ai-agent-orchestration-platforms).
+
+## How to Choose an AI Agent Framework
+
+When comparing code frameworks, focus on four questions that affect day-two maintenance:
+
+- **How much control flow lives in code vs. prompts?** If your workflow has strict compliance rules, cyclic retries, and long pauses for human sign-off, a state graph (`LangGraph`) or event-driven workflow (`LlamaIndex Workflows`, `CrewAI Flows`) is safer than an open-ended multi-agent chat loop.
+- **What is your primary engineering language?** Python has the widest ecosystem (`LangGraph`, `CrewAI`, `PydanticAI`, `Smolagents`), TypeScript web teams get the cleanest developer experience with `Mastra`, `LangGraph.js`, or `OpenAI Agents SDK`, and enterprise C# shops standardize on `Microsoft Agent Framework`.
+- **Who needs to iterate on the agent after launch?** If only backend engineers will ever touch the prompts and tools, code-only configuration works well. If domain experts, GTM leads, or agency clients need to refine instructions and inspect runs, either build an admin UI on top of your SDK or use a low-code workspace.
+- **What does the commercial cloud and observability layer cost?** All eight code frameworks below are free to `pip install` or `npm install`, but managed hosting and tracing can add up quickly once you factor in per-seat observability fees, per-execution caps, or managed credit tiers.
+
+## The 9 Best AI Agent Frameworks (and Low-Code Alternative) in 2026
+
+### 1. LangGraph
+
+![LangGraph documentation and stateful graph architecture overview](/blog/best-ai-agent-frameworks/langgraph.webp)
+
+[LangGraph](https://www.langchain.com/langgraph) is the low-level orchestration framework from the LangChain team designed for stateful, long-running agents in Python and TypeScript. Instead of hiding control flow behind black-box prompt chains, LangGraph models your agent as a directed graph made of three parts: a shared **State** object, **Nodes** (Python or TypeScript functions that call an LLM or run a tool), and **Edges** (deterministic or conditional routing logic that decides which node runs next).
+
+What sets LangGraph apart in production is its persistence layer. By attaching a checkpointer (backed by Postgres, SQLite, or Redis), LangGraph saves the exact graph state after every node step. That architecture makes it straightforward to implement human-in-the-loop interrupts, inspect intermediate state, rewind an agent to an earlier checkpoint ("time-travel debugging"), and stream token-by-token or state-by-state updates to a custom frontend.
+
+**Best for:** Software engineering teams building complex, cyclic, or long-running agents inside a Python or TypeScript product where every state transition and human interrupt must be explicitly controlled in code.
+
+**Pricing:**
+
+- **Open-Source SDK:** Free under the MIT license (`langgraph` on PyPI and `@langchain/langgraph` on npm).
+- **LangSmith Developer:** $0/seat/month for a single user with 5,000 base traces/month ($0.50 per 1,000 additional traces).
+- **LangSmith Plus:** $39/seat/month with 10,000 base traces/month and access to managed LangSmith Deployment (billed via LangChain Standard Units at $1.00 per LSU based on active agent deployment uptime and trace volume).
+- **Enterprise:** Custom pricing for self-hosted/hybrid LangSmith, SSO, and dedicated support.
+
+**Pros:**
+
+- Fine-grained control over loops, branching, retries, and state mutations with no hidden prompt magic.
+- First-class durable checkpointing for pausing and resuming multi-day workflows across server restarts.
+- Does not require importing the rest of LangChain; you can use raw provider SDKs inside LangGraph nodes.
+- Strong visual debugging and trace inspection through LangGraph Studio and LangSmith.
+
+**Cons:**
+
+- Steeper learning curve and more boilerplate than lightweight libraries like OpenAI Agents SDK or PydanticAI for simple tool-calling agents.
+- Managed cloud deployment and team trace collaboration require LangSmith Plus at $39/seat/month plus LSU consumption charges.
+
+**Verdict:** Choose LangGraph when you are engineering a stateful backend agent with complex branching and human interrupts, and you want total control over the execution graph.
+
+---
+
+### 2. CrewAI
+
+![CrewAI open-source multi-agent framework and role-based orchestration interface](/blog/best-ai-agent-frameworks/crewai.webp)
+
+[CrewAI](https://www.crewai.com) is a Python framework built around collaborative multi-agent teams. Its mental model splits orchestration into two layers: **Crews** (autonomous teams of agents where each agent has a defined `role`, `goal`, `backstory`, and set of tools) and **Flows** (event-driven Python pipelines using `@start`, `@listen`, and `@router` decorators that coordinate when specific crews or single functions run).
+
+This dual structure solves a common frustration with early multi-agent libraries. You can keep data fetching, validation, and branching inside a predictable Python Flow while delegating open-ended research, synthesis, or drafting tasks to a specialized Crew. CrewAI is completely standalone and does not depend on LangChain.
+
+**Best for:** Python developers and automation builders who think in terms of specialized team roles (such as a Research Agent, Financial Analyst Agent, and Editor Agent) working together on structured deliverables.
+
+**Pricing:**
+
+- **Open-Source Framework:** Free under the MIT license (`crewai` on PyPI).
+- **CrewAI AMP Basic:** $0/month for up to 50 workflow executions/month, 1 live deployed crew, and 1 seat.
+- **CrewAI AMP Professional:** $25/month for 100 included executions ($0.25 per extra execution), 2 live deployed crews, and 50 studio hours.
+- **CrewAI AMP Enterprise:** Custom annual pricing for up to 30,000 executions, SSO/RBAC, dedicated cloud or on-prem deployment, and HIPAA/SOC 2 compliance.
+
+**Pros:**
+
+- Intuitive YAML and Python configuration for defining agent roles, goals, tasks, and tool permissions.
+- Combining CrewAI Flows with Crews lets you mix deterministic Python steps and autonomous multi-agent collaboration in one project.
+- Built-in short-term, long-term, and entity memory stores out of the box.
+
+**Cons:**
+
+- Python-only SDK with no official TypeScript library.
+- Role-based multi-agent conversations can consume significantly more tokens and latency than a single well-structured graph if task boundaries overlap.
+
+**Verdict:** CrewAI is the fastest way in Python to prototype and ship role-based multi-agent pipelines, especially when you wrap autonomous crews inside deterministic CrewAI Flows.
+
+---
+
+### 3. OpenAI Agents SDK
+
+![OpenAI Agents SDK documentation showing agents, handoffs, and guardrails](/blog/best-ai-agent-frameworks/openai-agents-sdk.webp)
+
+The [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/) is the production successor to OpenAI's experimental Swarm project, available for both Python (`openai-agents`) and TypeScript (`@openai/agents`). Rather than introducing heavy abstractions or custom DSLs, the SDK focuses on four minimal primitives: **Agents** (an LLM configured with instructions and tools), **Handoffs** (specialized tool calls that transfer control and conversation state from one agent to another), **Guardrails** (parallel input and output validation checks), and **Sessions** (automatic conversation history management).
+
+Because the SDK is intentionally small, most engineers can read its core concepts in an afternoon. Every run automatically emits structured traces to the OpenAI dashboard so you can inspect tool calls, guardrail trips, and handoff paths without configuring a separate observability vendor.
+
+**Best for:** Engineering teams building primarily on OpenAI models (or OpenAI-compatible endpoints) that want a lightweight, zero-bloat Python or TypeScript SDK for tool calling, guardrails, and multi-agent triage.
+
+**Pricing:**
+
+- **Open-Source SDK:** Free under the MIT license for Python and TypeScript.
+- **Platform Usage:** Standard pay-as-you-go OpenAI API token and tool usage rates; built-in trace viewing in the OpenAI platform dashboard is included at no extra per-seat cost.
+
+**Pros:**
+
+- Minimalist design with just four core primitives and almost no framework boilerplate.
+- Parallel input and output guardrails can halt execution immediately if a policy or safety check fails, saving downstream token spend.
+- First-class support for both Python and TypeScript, plus built-in Realtime voice agent capabilities.
+- Works with 100+ non-OpenAI models through LiteLLM integration or any Chat Completions-compatible endpoint.
+
+**Cons:**
+
+- Does not include built-in distributed durable checkpointing for multi-day paused workflows like LangGraph.
+- Trace analytics and evaluation dashboards are closely tied to the OpenAI developer platform.
+
+**Verdict:** If you want clean Python or TypeScript code for tool calling, guardrail checks, and agent-to-agent handoffs without learning a complex graph DSL, start with the OpenAI Agents SDK.
+
+---
+
+### 4. PydanticAI
+
+![PydanticAI type-safe Python agent framework interface and documentation](/blog/best-ai-agent-frameworks/pydantic-ai.webp)
+
+[PydanticAI](https://ai.pydantic.dev/) is an open-source Python agent framework built by the team behind Pydantic, the validation library used inside the OpenAI SDK, Anthropic SDK, FastAPI, and LangChain. Its goal is to bring the "FastAPI feeling" of standard Python type hints, IDE autocomplete, and strict runtime validation to generative AI agents.
+
+In PydanticAI, you define an `Agent` generic over a **dependency injection** type (`RunContext[Deps]`) and a structured **output type** (a Pydantic model or Python dataclass). When the LLM returns a response or calls a `@agent.tool` function, Pydantic validates the arguments and output schema automatically. If validation fails, PydanticAI sends the structured validation error back to the model so it can self-correct within the same run.
+
+**Best for:** Backend Python engineers who value static type checking (mypy/Pyright), clean dependency injection for database and API clients, and guaranteed structured outputs.
+
+**Pricing:**
+
+- **Open-Source Framework:** Free under the MIT license (`pydantic-ai` on PyPI).
+- **Pydantic Logfire (Observability):** Free Personal tier up to 10 million spans/month; Pro pay-as-you-go at $2.00 per million spans; Enterprise and self-hosted options from $500/month.
+
+**Pros:**
+
+- Type-safe from end to end: your IDE and type checker catch mismatched tool dependencies and return types before you ever run the agent.
+- Clean dependency injection (`RunContext`) makes unit testing agents with mocked databases or HTTP clients painless.
+- Model-agnostic support for OpenAI, Anthropic, Gemini, Groq, Mistral, Cohere, Bedrock, and Ollama, plus durable execution integrations with Temporal, DBOS, and Prefect.
+- Seamless OpenTelemetry instrumentation with Pydantic Logfire.
+
+**Cons:**
+
+- Python-only framework.
+- Designed as a developer code library; provides no low-code builder, Slack bot, or non-technical workspace UI.
+
+**Verdict:** For Python backend teams building production microservices with FastAPI and strict data schemas, PydanticAI offers the cleanest code ergonomics of any Python agent library.
+
+---
+
+### 5. Microsoft Agent Framework and AutoGen
+
+![Microsoft Agent Framework and AutoGen multi-agent architecture documentation](/blog/best-ai-agent-frameworks/microsoft-agent-framework.webp)
+
+[Microsoft Agent Framework](https://github.com/microsoft/agent-framework) is Microsoft's unified open-source SDK for Python and .NET, combining the multi-agent orchestration ideas pioneered in **AutoGen** with the enterprise plugin, telemetry, and type-safety foundations of **Semantic Kernel**. While AutoGen popularized multi-agent group chats and event-driven actor runtimes, teams previously had to choose between AutoGen for research-style multi-agent experiments and Semantic Kernel for enterprise production support.
+
+The unified framework brings both under a single MIT-licensed repository. Developers can build single agents, sequential pipelines, concurrent fan-out/fan-in patterns, handoffs, and graph-based workflows with built-in OpenTelemetry tracing, Model Context Protocol (MCP) client support, and Agent-to-Agent (A2A) messaging across Python and C#.
+
+**Best for:** Enterprise engineering teams operating in Python and .NET (C#) that want a unified multi-agent SDK with direct deployment paths into Azure AI Foundry and Microsoft 365 ecosystems.
+
+**Pricing:**
+
+- **Open-Source SDKs:** Free under the MIT license (`agent-framework` and `autogen` on PyPI and NuGet).
+- **Cloud Hosting:** Pay-as-you-go Azure AI Foundry and Azure compute consumption when deployed to managed Azure infrastructure.
+
+**Pros:**
+
+- First-class parity between Python and .NET (C#), making it the default choice for Microsoft-stack enterprises.
+- Combines deterministic graph workflows with dynamic multi-agent group chat and Magentic orchestration patterns.
+- Native OpenTelemetry instrumentation, MCP tool support, and enterprise Azure identity integration.
+
+**Cons:**
+
+- The transition from AutoGen v0.2 to AutoGen v0.4 and the unified Microsoft Agent Framework means community tutorials online span three different API generations.
+- Heavy enterprise surface area if all you need is a simple three-tool Python agent.
+
+**Verdict:** If your engineering organization writes C#/.NET or deploys on Azure AI Foundry, Microsoft Agent Framework gives you enterprise-grade multi-agent orchestration under an MIT license.
+
+---
+
+### 6. LlamaIndex Workflows
+
+![LlamaIndex Workflows event-driven agent and document processing architecture](/blog/best-ai-agent-frameworks/llamaindex-workflows.webp)
+
+[LlamaIndex Workflows](https://www.llamaindex.ai/) is an event-driven orchestration framework in Python and TypeScript built specifically around data-heavy and retrieval-augmented generation (RAG) agents. Instead of forcing every multi-step agent into a rigid directed acyclic graph (DAG), a Workflow is a class made of asynchronous `@step` functions that accept incoming `Event` objects and emit new `Event` objects.
+
+Because steps only care about the events they subscribe to, loops, parallel fan-out across hundreds of document chunks, and human-in-the-loop pauses read like standard async Python or TypeScript code. When paired with LlamaIndex's document parsers (LlamaParse) and vector index connectors, it excels at agents that must read complex PDFs, spreadsheets, and enterprise knowledge bases before taking action.
+
+**Best for:** Teams building document-centric agents, research synthesis pipelines, and complex RAG applications where retrieval quality and event-driven async control matter most.
+
+**Pricing:**
+
+- **Open-Source Framework:** Free under the MIT license (`llama-index-workflows` / `llama-index` in Python and `llamaindex` in TypeScript).
+- **LlamaCloud (Managed Parsing & Indexing):** Free plan ($0/month with 10,000 credits); Starter at $50/month (40,000 credits, up to 5 seats); Pro at $500/month (400,000 credits, up to 10 seats); Enterprise custom.
+
+**Pros:**
+
+- Event-driven `@step` architecture avoids deeply nested graph configuration files while supporting cycles, branching, and parallel execution.
+- Unmatched ecosystem of data loaders, chunking strategies, hybrid retrieval routers, and document parsing tools.
+- Available in both Python and TypeScript.
+
+**Cons:**
+
+- If your agent primarily calls REST APIs and executes code rather than searching or parsing documents, the broader LlamaIndex surface can feel heavier than PydanticAI or OpenAI Agents SDK.
+- High-volume managed document parsing on LlamaCloud scales from $50/month to $500/month quickly.
+
+**Verdict:** Choose LlamaIndex Workflows whenever your agent's hardest job is reading, indexing, and reasoning over messy documents and enterprise data sources.
+
+---
+
+### 7. Mastra
+
+![Mastra TypeScript AI agent framework and developer playground](/blog/best-ai-agent-frameworks/mastra.webp)
+
+[Mastra](https://mastra.ai/) is an open-source, TypeScript-first AI agent framework built by the team behind Gatsby. While many agent libraries treat TypeScript as a secondary port of a Python codebase, Mastra is designed from the ground up for modern JavaScript, Node.js, Next.js, and React engineering teams.
+
+Mastra provides a unified TypeScript API for defining agents with instructions and typed tools, chaining deterministic `.then()`, `.branch()`, and `.parallel()` workflow steps with suspend-and-resume support, managing conversational memory and RAG vectors, and running automated output evaluations (scorers). It also ships with a local development playground where engineers can test prompts, inspect tool payloads, and debug workflow graphs in the browser.
+
+**Best for:** Full-stack TypeScript and Next.js developers who want a native TypeScript agent, workflow, and memory toolkit without running a separate Python microservice.
+
+**Pricing:**
+
+- **Open-Source Core:** Free under the Apache-2.0 license (`@mastra/core` on npm; select enterprise packages under commercial terms).
+- **Mastra Cloud:** Free tier ($0/month for development); Pro at $99/month (100,000 events included); Business at $499/month (500,000 events included); Enterprise custom.
+
+**Pros:**
+
+- Purpose-built for TypeScript with strong Zod schema integration, autocomplete, and modern web framework ergonomics.
+- Local developer studio makes testing agent tool calls and suspend/resume workflows fast during development.
+- Bundles agents, deterministic step workflows, observational memory, RAG helpers, and evals in one coherent TypeScript stack.
+
+**Cons:**
+
+- TypeScript/Node.js only; not designed for Python data science teams.
+- Open-core repository structure means certain enterprise SSO and cloud management features require a commercial plan.
+
+**Verdict:** If your entire product stack is TypeScript and Next.js, Mastra is the most natural code framework for building and shipping agents without introducing Python infrastructure.
+
+---
+
+### 8. Smolagents
+
+![Hugging Face Smolagents code-executing Python agent framework documentation](/blog/best-ai-agent-frameworks/smolagents.webp)
+
+[Smolagents](https://huggingface.co/docs/smolagents/) is a minimalist open-source Python library from Hugging Face built around a simple insight: language models are already trained on millions of lines of Python code, so letting an agent write and execute Python directly is often more expressive and token-efficient than forcing it to emit one JSON tool call per turn.
+
+With Smolagents' flagship `CodeAgent`, the model generates a short Python block that can call tools, loop over lists, filter results, and compose intermediate variables in a single step. To keep code execution safe, Smolagents supports running generated snippets inside isolated sandboxes including E2B, Modal, Docker containers, or WebAssembly/Pyodide, while also offering a traditional JSON-based `ToolCallingAgent` when needed.
+
+**Best for:** Python developers and researchers who want a tiny, transparent library (~1,000 lines of core logic) where agents solve multi-step tasks by writing executable Python code.
+
+**Pricing:**
+
+- **Open-Source Library:** 100% free under the Apache-2.0 license (`smolagents` on PyPI). You pay only for your chosen model inference (or run local open-weight models for free) and any optional cloud sandbox provider.
+
+**Pros:**
+
+- Extremely lightweight and readable codebase with minimal abstraction between you and the prompt.
+- Writing actions as Python code naturally handles loops, variable passing, and multi-tool composition in fewer LLM turns than JSON tool calling.
+- Deep integration with the Hugging Face Hub for sharing tools and running open-weight models (`Qwen`, `Llama`, `DeepSeek`), plus OpenAI and Anthropic support via LiteLLM.
+
+**Cons:**
+
+- Executing LLM-generated Python in production requires setting up and securing a container or cloud sandbox (such as Docker, Modal, or E2B).
+- Does not include built-in multi-day state checkpointing, workflow graphs, or a team collaboration UI.
+
+**Verdict:** Smolagents is the best lightweight Python library when you want maximum transparency and the efficiency of code-generating agents paired with open-weight or frontier models.
+
+---
+
+### 9. Agenta (The Low-Code Alternative)
+
+![Agenta open-source low-code workspace for AI coworkers, skills, channels, and scheduled automations](/blog/best-ai-agent-frameworks/agenta.webp)
+
+[Agenta](https://agenta.ai) is **not** a Python or TypeScript code framework. It is an open-source, low-code workspace for building, running, and governing AI coworkers and recurring automations. We include it here because many founders, automation agencies, and product teams start evaluating LangGraph or CrewAI only to realize they do not want to spend weeks building a Slack bot, a cron scheduler, a sandboxed file workspace, an embeddable chat widget, and a non-engineer configuration UI around a code library.
+
+Instead of writing orchestration graphs in Python, you configure each coworker in Agenta using plain-language instructions, attach reusable skills, connect integrations (or custom MCP servers), and choose a **harness** (the coding agent that powers an Agenta agent, such as `Claude Code`, `Codex`, or `Pi`) running inside an isolated sandbox. Everything that a code framework leaves you to build yourself comes ready out of the box:
+
+- **Slack, Telegram, and embeddable web channels:** Your coworkers join `#team-marketing`, `#support`, or `#ops` in Slack, reply in threads, connect to Telegram, and pause with interactive approval cards before taking sensitive actions. You can also deploy any coworker as an [embeddable web chat widget](https://agenta.ai/docs/guides/embed-an-agent) (`Publish > Embed`) inside an external website, customer portal, or internal dashboard, complete with domain allowlists, per-visitor session keys, and host-page context.
+- **Persistent shared agent files and temporary session files:** Each coworker has [two built-in file scopes](https://agenta.ai/docs/concepts/files-and-knowledge) without you having to wire S3 buckets and vector stores by hand. **Temporary session files** hold one-off uploads and scratch work for a single conversation, while **persistent shared agent files** survive across every run so brand guidelines, playbooks, reference data, and past reports stay available to the agent and your whole team over time.
+- **Versioning of instructions, skills, and tools:** Non-engineers and engineers can edit an agent's plain-language instructions, modular skills, model selection, and tool permissions directly in the workspace. Every change creates an immutable revision with diff inspection and one-click rollback, plus a built-in headless test runner to verify changes before they go live. See our [prompt and agent versioning guide](/blog/prompt-versioning-guide) for how teams structure this workflow.
+- **Schedules and event subscriptions:** Turn any coworker into a recurring automation with built-in UTC cron schedules (like a 6:00 AM daily research and publishing pipeline) or provider webhook subscriptions without maintaining Celery workers or queue servers.
+- **Cost and trace analytics included:** Every chat turn and scheduled run logs a complete step-by-step trace with tool inputs, outputs, latency, token counts, and model cost, with no $39/seat observability add-on.
+- **Works with an existing ChatGPT subscription (personal local self-hosted use):** When running Agenta locally on your own machine for personal workflows, you can mount a personal harness login (`Codex`, `Claude Code`, or `Pi`) to use an existing personal ChatGPT or Claude subscription. On Agenta Cloud or shared multi-user team workspaces, runs use included cloud credits or your own provider API keys.
+- **MIT open-source self-hosting and vendor freedom:** Switch freely across OpenAI, Anthropic, Google, and open-weight models, and self-host the entire platform via Docker Compose (`Agenta-AI/agenta` on GitHub) on your own server or a client's VPC.
+
+**Best for:** Startup founders, SMBs, midmarket teams, and automation agencies that want the power of a tool-using, code-capable agent with persistent files, schedules, Slack collaboration, and web embeds, but want a low-code workspace (as approachable as Gumloop and simpler than maintaining raw n8n graphs or Python servers) that the whole team or client can operate.
+
+**Pricing:**
+
+- **Cloud Free:** $0/month with $10 in included credits and up to 3 team members.
+- **Cloud Starter:** $29/month with $30 in included credits and **unlimited team seats**.
+- **Cloud Plus:** $99/month with $110 in included credits and unlimited team seats.
+- **Self-Hosted Open Source:** Free under the MIT license via Docker Compose using your own API keys or a personal local harness login.
+
+**Pros:**
+
+- Saves weeks of backend boilerplate: Slack and Telegram bots, `Publish > Embed` web widgets, cron schedules, webhooks, sandboxes, shared files, and trace analytics are already built in.
+- Plain-language instructions and versioned skills let marketers, ops leads, and agency clients improve agents without waiting on an engineer to redeploy Python code.
+- Unlimited team seats on the $29/month Cloud Starter plan and MIT self-hosting make team rollouts and agency client handoffs simple.
+- Real coding harnesses (`Claude Code`, `Codex`, `Pi`) give coworkers a full sandboxed computer with bash, Python, git, and headless browser tools when tasks require real execution.
+
+**Cons:**
+
+- Not an importable Python or TypeScript library; if you need to embed low-level custom graph nodes inside your own application's compiled codebase, use LangGraph, PydanticAI, or Mastra instead.
+
+**Verdict:** When your goal is shipping dependable AI coworkers and recurring business automations rather than maintaining custom agent infrastructure in code, Agenta gives you an open-source, low-code workspace that ships in minutes instead of weeks.
+
+## Which AI Agent Framework Should You Choose?
+
+The right choice depends on your stack and whether you are building software internals or operational coworkers:
+
+- **Choose LangGraph** if you are a Python or TypeScript engineer building deeply customized, stateful, cyclic agent graphs with durable checkpointing inside your own product.
+- **Choose PydanticAI** if you are a Python backend team (especially FastAPI users) that prioritizes strict type safety, dependency injection, and validated structured outputs.
+- **Choose OpenAI Agents SDK** if you want the lightest possible Python or TypeScript library for tool calling, guardrails, and multi-agent handoffs on the OpenAI stack.
+- **Choose CrewAI** if you want to organize Python agents into specialized role-based crews coordinated by event-driven CrewAI Flows.
+- **Choose Microsoft Agent Framework** if you are an enterprise team standardizing on C#/.NET and Python with Azure AI Foundry.
+- **Choose LlamaIndex Workflows** if your agent centers on parsing complex documents and orchestrating multi-step RAG retrieval.
+- **Choose Mastra** if your engineering team works entirely in TypeScript, Node.js, and Next.js.
+- **Choose Smolagents** if you want a minimalist Python library where agents solve tasks by writing and running Python code directly.
+- **Choose Agenta instead of a code framework** if you are a startup, operations team, or automation agency that wants shared AI coworkers, Slack and web embeds, persistent shared agent files, cron schedules, versioned skills, and trace analytics without writing and hosting backend framework code. For more workspace comparisons, see our guides to the [best AI agent orchestration platforms](/blog/best-ai-agent-orchestration-platforms), [best ChatGPT Business alternatives](/blog/best-chatgpt-business-alternatives), [best Manus alternatives](/blog/best-manus-alternatives), [best Grok Bot alternatives](/blog/best-grok-bot-alternatives), and [open-source Claude Cowork alternatives](/blog/open-source-claude-cowork-alternative).
+
+## Frequently Asked Questions
+
+### What is an AI agent framework?
+
+An AI agent framework is a software library in Python, TypeScript, or .NET that gives developers the code primitives for a language model to call tools, keep state across multiple steps, validate structured outputs, and hand work off to other agents.
+
+### What is the best AI agent framework in 2026?
+
+LangGraph is the strongest choice when you need explicit stateful graphs, checkpointing, and human-in-the-loop interrupts inside a Python or TypeScript backend. PydanticAI is best for type-safe Python applications, OpenAI Agents SDK is the fastest path for lightweight handoffs on OpenAI models, CrewAI fits role-based multi-agent pipelines, and Mastra is the leading TypeScript-native framework for modern web stacks.
+
+### When should I use a low-code agent builder like Agenta instead of a code framework?
+
+Use a code framework when you are embedding custom agent logic directly inside your own SaaS product's backend microservice. Use an open-source, low-code workspace like Agenta when you want working AI coworkers and recurring automations with Slack collaboration, embeddable web chat widgets, cron schedules, webhooks, persistent shared agent files, versioned instructions and skills, and cost analytics without building and hosting your own infrastructure.
+
+### Are LangGraph, CrewAI, and PydanticAI truly open source?
+
+Yes. LangGraph, CrewAI, OpenAI Agents SDK, PydanticAI, Microsoft Agent Framework, and LlamaIndex Workflows release their core SDKs under the permissive MIT license. Smolagents and Mastra core use the Apache-2.0 license. Keep in mind that managed cloud deployment and observability layers such as LangSmith, CrewAI AMP, and LlamaCloud are commercial SaaS products with per-seat or usage fees.
+
+### Which AI agent framework is best for TypeScript and Next.js developers?
+
+Mastra is built specifically for TypeScript and Node.js teams, offering unified agent definitions, typed workflows, RAG helpers, and native integration with Next.js and Vercel AI SDK patterns. LangGraph.js, OpenAI Agents SDK for TypeScript, and LlamaIndex.TS are also strong options.
+
+### What hidden infrastructure do you have to build on top of an AI agent SDK?
+
+A code framework handles the in-memory agent loop, but production systems also require background worker hosting, a state database for thread history, a cron and webhook scheduler, a Slack or web chat interface, human approval cards, a non-developer UI for editing instructions and skills, and trace and cost analytics.
+
+### Can I self-host Agenta or use an existing ChatGPT subscription?
+
+Yes. Agenta is open source under the MIT license and can be self-hosted via Docker Compose or used on Agenta Cloud starting at $0/month (or $29/month on Starter with unlimited team seats). On local, self-hosted personal deployments, you can mount a personal coding harness login (such as Codex, Claude Code, or Pi) to use an existing personal ChatGPT or Claude subscription, while shared team and cloud workspaces run on included cloud credits or your own provider API keys.
+
+## Build AI Coworkers and Automations Without the Framework Boilerplate
+
+If you need low-level graph code inside your own application backend, pick the Python or TypeScript SDK above that matches your team's language and state model.
+
+If you want to ship working AI coworkers and scheduled automations that collaborate in Slack, embed on your website or internal tools, remember shared files across runs, and keep instructions and skills versioned for your whole team, you do not need to wire a custom framework stack from scratch. [Start free on Agenta Cloud](https://cloud.agenta.ai/) or [self-host Agenta with Docker Compose](https://agenta.ai/docs/self-host/overview).
