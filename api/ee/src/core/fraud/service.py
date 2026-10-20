@@ -4,6 +4,7 @@ Both check points fail open: a vendor timeout, a vendor error, a missing key or 
 bug here logs and allows. A real user is never blocked because the vendor is down.
 """
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
@@ -11,10 +12,12 @@ from uuid import UUID
 from oss.src.utils.logging import get_module_logger
 
 from ee.src.core.fraud.config import read_fraud_check_config
+from ee.src.core.subscriptions.settings import get_free_plan
 from ee.src.core.fraud.jev import ask_noul
 from ee.src.core.fraud.types import (
     API_KEY_QUESTION,
-    HOLD_FLOOR_MUSD,
+    DECISION_TIMEOUT_SECONDS,
+    PAID_CREDIT_KINDS,
     POLICY,
     SIGNUP_QUESTION,
     ApiKeySignals,
@@ -80,6 +83,36 @@ class FraudService:
         )
         return verdict
 
+    def _skip(self, *, email: str, threshold: float, reason: str) -> None:
+        log.info(
+            "[fraud] decision",
+            checkpoint=FraudCheckpoint.API_KEY.value,
+            domain=_domain(email),
+            score=None,
+            threshold=threshold,
+            action="skip",
+            reason=reason,
+        )
+
+    async def is_free_and_unpaid(self, *, organization_id: UUID) -> bool:
+        """True only for an organization on the free plan that has never paid: no Stripe
+        customer or subscription and no purchased or paid-plan credit. Only such an organization can
+        be held or lose its grants. Anything unknown counts as paid."""
+        facts = await self.fraud_dao.read_billing_facts(organization_id=organization_id)
+        return (
+            facts.plan is not None
+            and facts.plan == get_free_plan()
+            and not facts.has_stripe_ids
+            and not facts.has_paid_credit
+        )
+
+    async def grants_blocked(self, *, organization_id: UUID) -> bool:
+        """The daily grant's reader. The marker blocks grants only while the
+        organization is free and unpaid: after a payment or an upgrade it has no effect."""
+        if not await self.fraud_dao.grants_blocked(organization_id=organization_id):
+            return False
+        return await self.is_free_and_unpaid(organization_id=organization_id)
+
     async def check_signup(
         self,
         *,
@@ -88,21 +121,22 @@ class FraudService:
     ) -> FraudVerdict:
         """Judge a new account from its email alone. When flagged, mark the organization
         so that neither the signup grant nor the daily free grants are awarded."""
-        config = await read_fraud_check_config()
         checkpoint = FraudCheckpoint.SIGNUP
-        if config.mode == FraudCheckMode.OFF:
-            return FraudVerdict(
-                checkpoint=checkpoint,
-                domain=_domain(email),
-                threshold=config.signup_threshold,
-                flagged=False,
-                action="off",
-            )
+        async with asyncio.timeout(DECISION_TIMEOUT_SECONDS):
+            config = await read_fraud_check_config()
+            if config.mode == FraudCheckMode.OFF:
+                return FraudVerdict(
+                    checkpoint=checkpoint,
+                    domain=_domain(email),
+                    threshold=config.signup_threshold,
+                    flagged=False,
+                    action="off",
+                )
 
-        score = await ask_noul(
-            state={"policy": POLICY, "signup": {"email": email}},
-            question=SIGNUP_QUESTION,
-        )
+            score = await ask_noul(
+                state={"policy": POLICY, "signup": {"email": email}},
+                question=SIGNUP_QUESTION,
+            )
         verdict = self._decide(
             checkpoint=checkpoint,
             email=email,
@@ -126,55 +160,81 @@ class FraudService:
         project_id: UUID,
     ) -> Optional[FraudVerdict]:
         """Judge the account from its email plus behaviour facts. When flagged, hold the
-        organization's wallet (expire live credits, raise the floor) and mark it so no
-        grant is awarded. The key is created either way."""
-        config = await read_fraud_check_config()
-        if config.mode == FraudCheckMode.OFF:
-            return None
+        organization's wallet (expire its live credits) and mark it so no grant is
+        awarded. The key is created either way.
 
+        Only the owner of a free organization with no payment history is scored. A
+        paying customer, an organization on any other plan, and an invited member are
+        never scored, never sent to Jev and never held."""
         now = datetime.now(timezone.utc)
-        signals: Optional[ApiKeySignals] = await self.fraud_dao.read_api_key_signals(
-            user_id=user_id,
-            project_id=project_id,
-            now=now,
-        )
-        if signals is None:
-            return None
+        # Only the reads and the Jev call are bounded. The hold and the marker run after
+        # the budget, so a timeout can never cut them apart.
+        async with asyncio.timeout(DECISION_TIMEOUT_SECONDS):
+            config = await read_fraud_check_config()
+            if config.mode == FraudCheckMode.OFF:
+                return None
 
-        if await self.fraud_dao.grants_blocked(organization_id=signals.organization_id):
-            log.info(
-                "[fraud] decision",
-                checkpoint=FraudCheckpoint.API_KEY.value,
-                domain=_domain(signals.email),
-                score=None,
-                threshold=config.apikey_threshold,
-                action="already_held",
-                reason="marked",
+            signals: Optional[
+                ApiKeySignals
+            ] = await self.fraud_dao.read_api_key_signals(
+                user_id=user_id,
+                project_id=project_id,
+                now=now,
             )
-            return None
+            if signals is None:
+                return None
 
-        score = await ask_noul(
-            state={"policy": POLICY, "signup": signals.to_state()},
-            question=API_KEY_QUESTION,
-        )
+            threshold = config.apikey_threshold
+            if not signals.owns_organization:
+                self._skip(email=signals.email, threshold=threshold, reason="not_owner")
+                return None
+
+            if not await self.is_free_and_unpaid(
+                organization_id=signals.organization_id
+            ):
+                self._skip(email=signals.email, threshold=threshold, reason="paid")
+                return None
+
+            if await self.fraud_dao.grants_blocked(
+                organization_id=signals.organization_id
+            ):
+                log.info(
+                    "[fraud] decision",
+                    checkpoint=FraudCheckpoint.API_KEY.value,
+                    domain=_domain(signals.email),
+                    score=None,
+                    threshold=threshold,
+                    action="already_held",
+                    reason="marked",
+                )
+                return None
+
+            score = await ask_noul(
+                state={"policy": POLICY, "signup": signals.to_state()},
+                question=API_KEY_QUESTION,
+            )
         verdict = self._decide(
             checkpoint=FraudCheckpoint.API_KEY,
             email=signals.email,
             score=score,
-            threshold=config.apikey_threshold,
+            threshold=threshold,
             flagged_action="hold_wallet",
         )
         if verdict.flagged:
-            await self.wallets_service.hold(
-                organization_id=signals.organization_id,
-                floor_musd=HOLD_FLOOR_MUSD,
-                now=now,
-            )
+            # The marker first: an organization marked but not yet held is only
+            # refused its grants, which is the milder half.
             await self.fraud_dao.mark_no_grants(
                 organization_id=signals.organization_id,
                 checkpoint=FraudCheckpoint.API_KEY,
                 score=score,
                 now=now,
+            )
+            # Paid credits are never expired, even one bought in the moment since the
+            # eligibility read above.
+            await self.wallets_service.hold(
+                organization_id=signals.organization_id,
+                keep_credit_kinds=PAID_CREDIT_KINDS,
+                now=datetime.now(timezone.utc),
             )
         return verdict
 
@@ -204,8 +264,9 @@ async def signup_is_fraud(*, organization_id: UUID, email: str) -> bool:
             organization_id=organization_id, email=email
         )
         return verdict.flagged
-    except Exception:
-        log.warning("[fraud] signup check failed; allowing", exc_info=True)
+    except Exception as exc:
+        # The type only: an exception message can carry the email or other user data.
+        log.warning("[fraud] signup check failed; allowing", reason=type(exc).__name__)
         return False
 
 
@@ -216,5 +277,5 @@ async def check_api_key_creation(*, user_id: str, project_id: str) -> None:
             user_id=UUID(str(user_id)),
             project_id=UUID(str(project_id)),
         )
-    except Exception:
-        log.warning("[fraud] API key check failed; allowing", exc_info=True)
+    except Exception as exc:
+        log.warning("[fraud] API key check failed; allowing", reason=type(exc).__name__)

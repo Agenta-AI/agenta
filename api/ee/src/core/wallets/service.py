@@ -9,7 +9,7 @@ checks the wallet's committed balance against its floor.
 
 import asyncio
 from datetime import date, datetime, timedelta, timezone
-from typing import Awaitable, Callable, Optional, Set, Tuple
+from typing import Awaitable, Callable, FrozenSet, Optional, Set, Tuple
 from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
@@ -201,14 +201,15 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         self,
         *,
         organization_id: UUID,
-        floor_musd: int,
+        keep_credit_kinds: FrozenSet[str] = frozenset(),
         now: Optional[datetime] = None,
     ) -> int:
-        """Freeze the wallet so `check()` refuses: expire the live credits and raise the
-        floor above any balance. See `WalletsDAOInterface.hold_credits`."""
+        """Empty the wallet so `check()` refuses: expire the live credits. The floor is
+        left alone, so a later purchase or paid plan allowance is spendable at once.
+        See `WalletsDAOInterface.hold_credits`."""
         return await self.wallets_dao.hold_credits(
             organization_id=organization_id,
-            floor_musd=floor_musd,
+            keep_credit_kinds=keep_credit_kinds,
             now=now or datetime.now(timezone.utc),
         )
 

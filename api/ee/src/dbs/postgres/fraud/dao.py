@@ -12,10 +12,14 @@ from oss.src.models.db_models import APIKeyDB, OrganizationDB, ProjectDB, UserDB
 
 from ee.src.core.fraud.types import (
     NO_GRANTS_FLAG,
+    PAID_CREDIT_KINDS,
     ApiKeySignals,
+    BillingFacts,
     FraudCheckpoint,
     FraudDAOInterface,
 )
+from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
+from ee.src.dbs.postgres.wallets.dbes import WalletCreditDBE
 
 
 def _domain(email: str) -> Optional[str]:
@@ -47,6 +51,14 @@ class FraudDAO(FraudDAOInterface):
             ).scalar_one_or_none()
             if user is None or project is None or project.organization_id is None:
                 return None
+
+            owner_id = (
+                await session.execute(
+                    select(OrganizationDB.owner_id).where(
+                        OrganizationDB.id == project.organization_id
+                    )
+                )
+            ).scalar_one_or_none()
 
             signed_up_at = user.created_at or now
             # Hidden keys are minted by the backend for apps, not by the user.
@@ -86,6 +98,7 @@ class FraudDAO(FraudDAOInterface):
 
             return ApiKeySignals(
                 organization_id=project.organization_id,
+                owns_organization=owner_id is not None and owner_id == user_id,
                 email=user.email or "",
                 account_age_seconds=max(0, int((now - signed_up_at).total_seconds())),
                 first_api_key_seconds_after_signup=max(
@@ -132,3 +145,37 @@ class FraudDAO(FraudDAOInterface):
                 )
             ).scalar_one_or_none()
             return bool(isinstance(flags, dict) and flags.get(NO_GRANTS_FLAG))
+
+    async def read_billing_facts(self, *, organization_id: UUID) -> BillingFacts:
+        async with self.engine.session() as session:
+            subscription = (
+                await session.execute(
+                    select(
+                        SubscriptionDBE.plan,
+                        SubscriptionDBE.customer_id,
+                        SubscriptionDBE.subscription_id,
+                    ).where(SubscriptionDBE.organization_id == organization_id)
+                )
+            ).one_or_none()
+            # Deleted and expired credits count too: a payment in the past is still a
+            # payment.
+            paid_credit = (
+                await session.execute(
+                    select(WalletCreditDBE.id)
+                    .where(
+                        WalletCreditDBE.organization_id == organization_id,
+                        WalletCreditDBE.credit_kind.in_(PAID_CREDIT_KINDS),
+                        WalletCreditDBE.amount_musd > 0,
+                    )
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+
+        return BillingFacts(
+            plan=subscription.plan if subscription is not None else None,
+            has_stripe_ids=bool(
+                subscription is not None
+                and (subscription.customer_id or subscription.subscription_id)
+            ),
+            has_paid_credit=paid_credit is not None,
+        )

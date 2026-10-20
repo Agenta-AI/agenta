@@ -13,6 +13,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from ee.src.core.wallets.plans import PLAN_ALLOWANCE_CREDIT_KIND
+from ee.src.core.wallets.purchases import PURCHASE_CREDIT_KIND
+
 
 # The one PostHog flag that configures the check; see `FraudCheckConfig` for the payload.
 FRAUD_CHECK_FLAG = "fraud-check"
@@ -20,9 +23,13 @@ FRAUD_CHECK_FLAG = "fraud-check"
 # `organizations.flags` key: the grant code awards nothing to an organization carrying it.
 NO_GRANTS_FLAG = "fraud_no_grants"
 
-# A floor no balance reaches, so `WalletsService.check()` refuses every call of a held
-# organization even after a later grant or purchase.
-HOLD_FLOOR_MUSD = 1_000_000_000_000
+# The whole decision (flag read, database reads, Jev call) at one check point. Past it
+# the check allows. The Jev call has its own, shorter timeout inside this budget.
+DECISION_TIMEOUT_SECONDS = 3.0
+
+# Credit kinds that only exist after a payment: a purchase or top-up, and a paid plan's
+# period allowance. An organization with either is a paying customer and is never held.
+PAID_CREDIT_KINDS = frozenset({PURCHASE_CREDIT_KIND, PLAN_ALLOWANCE_CREDIT_KIND})
 
 POLICY = (
     "Agenta is a developer platform. New accounts get free credits. Fraud rings sign up "
@@ -69,6 +76,9 @@ class ApiKeySignals(BaseModel):
     """What the API key check point sends to Jev, plus the organization to hold."""
 
     organization_id: UUID
+    # Whether the user creating the key owns the project's organization. An invited
+    # member is never scored, so their key can never hold someone else's wallet.
+    owns_organization: bool
     email: str
     account_age_seconds: int
     first_api_key_seconds_after_signup: int
@@ -76,7 +86,21 @@ class ApiKeySignals(BaseModel):
     orgs_owned: int
 
     def to_state(self) -> dict:
-        return self.model_dump(mode="json", exclude={"organization_id"})
+        return self.model_dump(
+            mode="json", exclude={"organization_id", "owns_organization"}
+        )
+
+
+class BillingFacts(BaseModel):
+    """What the check needs to tell a free organization with no payment history from a
+    paying customer. Read fresh at each decision, never cached."""
+
+    # None when the organization has no subscription row.
+    plan: Optional[str] = None
+    # A Stripe customer or subscription: a checkout, a trial or a payment happened.
+    has_stripe_ids: bool = False
+    # Any credit of a `PAID_CREDIT_KINDS` kind with a positive amount, live or not.
+    has_paid_credit: bool = False
 
 
 class FraudDAOInterface(ABC):
@@ -106,4 +130,9 @@ class FraudDAOInterface(ABC):
 
     @abstractmethod
     async def grants_blocked(self, *, organization_id: UUID) -> bool:
+        """Whether the organization carries `NO_GRANTS_FLAG`."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def read_billing_facts(self, *, organization_id: UUID) -> BillingFacts:
         raise NotImplementedError

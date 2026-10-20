@@ -9,7 +9,7 @@ from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.lazy import _load_posthog
 from oss.src.utils.logging import get_module_logger
 
-from ee.src.core.fraud.types import FRAUD_CHECK_FLAG, FraudCheckConfig
+from ee.src.core.fraud.types import FRAUD_CHECK_FLAG, FraudCheckConfig, FraudCheckMode
 
 log = get_module_logger(__name__)
 
@@ -28,6 +28,12 @@ def _parse_payload(raw: Any) -> Optional[dict]:
     return None
 
 
+# A flag that exists but cannot be read or parsed turns the check off. Only a flag that
+# is missing gives the defaults, so a PostHog outage or a typo in an `off` payload never
+# switches enforcement on.
+_FAILED = FraudCheckConfig(mode=FraudCheckMode.OFF)
+
+
 def _config_from_payload(payload: Optional[dict]) -> FraudCheckConfig:
     if payload is None:
         return FraudCheckConfig()
@@ -35,11 +41,11 @@ def _config_from_payload(payload: Optional[dict]) -> FraudCheckConfig:
         return FraudCheckConfig(**payload)
     except Exception as exc:
         log.warning(
-            "[fraud] flag payload invalid; using defaults",
+            "[fraud] flag payload invalid; check off",
             feature_flag=FRAUD_CHECK_FLAG,
-            reason=str(exc),
+            reason=type(exc).__name__,
         )
-        return FraudCheckConfig()
+        return _FAILED
 
 
 async def read_fraud_check_config() -> FraudCheckConfig:
@@ -65,20 +71,25 @@ async def read_fraud_check_config() -> FraudCheckConfig:
         )
     except Exception as exc:
         log.warning(
-            "[fraud] PostHog feature flag lookup failed; using defaults",
+            "[fraud] PostHog feature flag lookup failed; check off",
             feature_flag=FRAUD_CHECK_FLAG,
-            reason=str(exc),
+            reason=type(exc).__name__,
         )
+        return _FAILED
+
+    if raw is None:
+        # The flag is missing. Cache the empty payload too, so that every signup and
+        # key creation does not ask PostHog again.
+        await set_cache(namespace=_CACHE_NAMESPACE, key=cache_key, value={})
         return FraudCheckConfig()
 
     payload = _parse_payload(raw)
     if payload is None:
-        if raw is not None:
-            log.warning(
-                "[fraud] flag payload malformed; using defaults",
-                feature_flag=FRAUD_CHECK_FLAG,
-            )
-        return FraudCheckConfig()
+        log.warning(
+            "[fraud] flag payload malformed; check off",
+            feature_flag=FRAUD_CHECK_FLAG,
+        )
+        return _FAILED
 
     config = _config_from_payload(payload)
     await set_cache(namespace=_CACHE_NAMESPACE, key=cache_key, value=payload)

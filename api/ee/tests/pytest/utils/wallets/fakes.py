@@ -7,7 +7,7 @@ isolation from `ee.src.dbs.postgres.wallets.dao.WalletsDAO`.
 """
 
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, FrozenSet, List, Optional, Tuple
 from uuid import UUID
 
 import uuid_utils.compat as uuid_utils
@@ -197,14 +197,14 @@ class FakeWalletsDAO(WalletsDAOInterface):
         self,
         *,
         organization_id: UUID,
-        floor_musd: int,
+        keep_credit_kinds: FrozenSet[str],
         now: datetime,
     ) -> int:
-        general = await self._lock_general_balance(organization_id=organization_id)
-        self.general_balance = general.model_copy(update={"floor_musd": floor_musd})
         expired = 0
         for credit_id, (candidate, balance) in list(self._credits.items()):
             if balance.organization_id != organization_id:
+                continue
+            if candidate.credit_kind in keep_credit_kinds:
                 continue
             if candidate.end_time is not None and candidate.end_time <= now:
                 continue

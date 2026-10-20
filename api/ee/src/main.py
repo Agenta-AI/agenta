@@ -120,7 +120,9 @@ fraud_dao = FraudDAO(engine=_transactions_engine)
 
 
 async def _grants_blocked(organization_id: UUID) -> bool:
-    return await fraud_dao.grants_blocked(organization_id=organization_id)
+    # `fraud_service` is built below, once `wallets_service` exists. The marker blocks
+    # the daily grant only while the organization is free and has never paid.
+    return await fraud_service.grants_blocked(organization_id=organization_id)
 
 
 wallets_service = WalletsService(
@@ -142,9 +144,8 @@ subscription_service = SubscriptionsService(
 
 # The signup and organization-creation hooks provision wallets through this instance.
 register_wallets_service(wallets_service=wallets_service)
-register_fraud_service(
-    fraud_service=FraudService(fraud_dao=fraud_dao, wallets_service=wallets_service)
-)
+fraud_service = FraudService(fraud_dao=fraud_dao, wallets_service=wallets_service)
+register_fraud_service(fraud_service=fraud_service)
 
 # Wire entitlements module against the freshly-built services so the
 # `BillingRouter` and the entitlements helper share one instance each.

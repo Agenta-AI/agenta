@@ -17,16 +17,16 @@ import ee.src.core.fraud.service as fraud_service_module
 import ee.src.core.organizations.service as organizations_service_module
 from ee.src.core.fraud.service import FraudService
 from ee.src.core.fraud.types import (
-    HOLD_FLOOR_MUSD,
     POLICY,
     ApiKeySignals,
+    BillingFacts,
     FraudCheckConfig,
     FraudCheckMode,
     FraudCheckpoint,
     FraudDAOInterface,
 )
 from ee.src.core.wallets.service import WalletsService
-from ee.src.core.wallets.types import WalletBalanceDTO
+from ee.src.core.wallets.types import CreditCandidateDTO, WalletBalanceDTO
 from oss.src.utils.env import env
 from ee.tests.pytest.utils.wallets.fakes import FakeWalletsDAO
 
@@ -65,7 +65,8 @@ def flag(monkeypatch):
 
 class _JevStub:
     """A mocked TypeSafe API behind `httpx.MockTransport`. `answer` is the noul
-    probability to return, an `httpx.HTTPError` to raise, or an int HTTP status."""
+    probability to return, an `httpx.HTTPError` to raise, or an int HTTP status (100 or
+    more)."""
 
     def __init__(self):
         self.answer = 0.0
@@ -75,7 +76,11 @@ class _JevStub:
         self.requests.append(json.loads(request.content))
         if isinstance(self.answer, Exception):
             raise self.answer
-        if isinstance(self.answer, int) and not isinstance(self.answer, bool):
+        if (
+            isinstance(self.answer, int)
+            and not isinstance(self.answer, bool)
+            and self.answer >= 100
+        ):
             return httpx.Response(self.answer, json={"detail": "boom"})
         return httpx.Response(
             200,
@@ -106,6 +111,7 @@ class FakeFraudDAO(FraudDAOInterface):
         self.signals = signals
         self.marks = []
         self.blocked = set()
+        self.billing = BillingFacts(plan="cloud_v0_hobby")
 
     async def read_api_key_signals(self, *, user_id, project_id, now):
         return self.signals
@@ -117,6 +123,9 @@ class FakeFraudDAO(FraudDAOInterface):
     async def grants_blocked(self, *, organization_id):
         return organization_id in self.blocked
 
+    async def read_billing_facts(self, *, organization_id):
+        return self.billing
+
 
 ORGANIZATION_ID = UUID("00000000-0000-0000-0000-00000000aaaa")
 
@@ -124,6 +133,7 @@ ORGANIZATION_ID = UUID("00000000-0000-0000-0000-00000000aaaa")
 def _signals() -> ApiKeySignals:
     return ApiKeySignals(
         organization_id=ORGANIZATION_ID,
+        owns_organization=True,
         email="qzxvbn@mail-drop.example",
         account_age_seconds=12,
         first_api_key_seconds_after_signup=12,
@@ -132,14 +142,44 @@ def _signals() -> ApiKeySignals:
     )
 
 
-def _wallets_service() -> WalletsService:
+def _credit(*, credit_kind: str, balance_musd: int, end_time: Optional[datetime]):
+    credit_id = uuid_utils.uuid7()
+    candidate = CreditCandidateDTO(
+        wallet_credit_id=credit_id,
+        credit_kind=credit_kind,
+        priority=1,
+        end_time=end_time,
+        balance_musd=balance_musd,
+    )
+    balance = WalletBalanceDTO(
+        id=uuid_utils.uuid7(),
+        organization_id=ORGANIZATION_ID,
+        wallet_credit_id=credit_id,
+        balance_musd=balance_musd,
+    )
+    return candidate, balance
+
+
+def _wallets_service(*credits) -> WalletsService:
+    """A wallet whose general balance is the sum of `credits`; one live signup grant of
+    500,000 musd by default."""
+    if not credits:
+        credits = (
+            _credit(
+                credit_kind="signup_grant",
+                balance_musd=500_000,
+                end_time=datetime.now(timezone.utc) + timedelta(days=300),
+            ),
+        )
     general = WalletBalanceDTO(
         id=uuid_utils.uuid7(),
         organization_id=ORGANIZATION_ID,
-        balance_musd=500_000,
+        balance_musd=sum(balance.balance_musd for _, balance in credits),
         floor_musd=0,
     )
-    return WalletsService(wallets_dao=FakeWalletsDAO(general_balance=general))
+    return WalletsService(
+        wallets_dao=FakeWalletsDAO(general_balance=general, credits=list(credits))
+    )
 
 
 @pytest.fixture
@@ -163,17 +203,21 @@ async def test_flag_missing_gives_enforce_defaults(flag):
 
 
 @pytest.mark.asyncio
-async def test_flag_lookup_failure_gives_defaults(flag):
+async def test_flag_lookup_failure_turns_the_check_off(flag):
     flag(RuntimeError("posthog down"))
-    assert (await fraud_config.read_fraud_check_config()) == FraudCheckConfig()
+    config = await fraud_config.read_fraud_check_config()
+    assert config.mode == FraudCheckMode.OFF
 
 
 @pytest.mark.asyncio
-async def test_flag_malformed_gives_defaults(flag):
+async def test_flag_malformed_turns_the_check_off(flag):
     flag("not json")
-    assert (await fraud_config.read_fraud_check_config()) == FraudCheckConfig()
+    assert (await fraud_config.read_fraud_check_config()).mode == FraudCheckMode.OFF
     flag({"mode": "enforce", "signup_threshold": "high"})
-    assert (await fraud_config.read_fraud_check_config()) == FraudCheckConfig()
+    assert (await fraud_config.read_fraud_check_config()).mode == FraudCheckMode.OFF
+    # A typo in an `off` payload must not switch enforcement on.
+    flag({"mode": "of"})
+    assert (await fraud_config.read_fraud_check_config()).mode == FraudCheckMode.OFF
 
 
 @pytest.mark.asyncio
@@ -240,11 +284,49 @@ async def test_ask_noul_sends_bearer_auth(monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "answer",
-    [httpx.ReadTimeout("slow"), httpx.ConnectError("down"), 500, 401, "not a number"],
+    [
+        httpx.ReadTimeout("slow"),
+        httpx.ConnectError("down"),
+        500,
+        401,
+        "not a number",
+        "0.95",
+        True,
+        2,
+        1.5,
+        -0.1,
+        float("inf"),
+        float("nan"),
+    ],
 )
-async def test_ask_noul_returns_none_on_any_failure(jev, answer):
+async def test_ask_noul_returns_none_on_any_failure_or_invalid_score(jev, answer):
     jev.answer = answer
     assert await fraud_jev.ask_noul(state="x", question="q") is None
+
+
+@pytest.mark.asyncio
+async def test_ask_noul_accepts_the_probability_bounds(jev):
+    for answer in (0, 1, 0.0, 1.0):
+        jev.answer = answer
+        assert await fraud_jev.ask_noul(state="x", question="q") == float(answer)
+
+
+@pytest.mark.asyncio
+async def test_ask_noul_refuses_a_plain_http_url(jev, monkeypatch):
+    monkeypatch.setattr(env.typesafe, "api_url", "http://jev.test")
+    assert await fraud_jev.ask_noul(state="x", question="q") is None
+    assert jev.requests == []
+
+
+@pytest.mark.asyncio
+async def test_ask_noul_failure_log_carries_no_response_text(jev, monkeypatch):
+    seen = []
+    monkeypatch.setattr(
+        fraud_jev.log, "warning", lambda *args, **kwargs: seen.append((args, kwargs))
+    )
+    jev.answer = "victim@example.com"
+    assert await fraud_jev.ask_noul(state="x", question="q") is None
+    assert "victim@example.com" not in repr(seen)
 
 
 @pytest.mark.asyncio
@@ -429,10 +511,11 @@ async def test_api_key_at_threshold_holds_wallet_and_marks_organization(
     assert verdict.threshold == 0.9
     assert service.fraud_dao.marks == [(ORGANIZATION_ID, FraudCheckpoint.API_KEY, 0.9)]
 
+    # The floor is left alone; the wallet is empty because its credits expired.
     balance = await service.wallets_service.wallets_dao.get_general_balance(
         organization_id=ORGANIZATION_ID
     )
-    assert balance.floor_musd == HOLD_FLOOR_MUSD
+    assert balance.floor_musd == 0
     assert not await service.wallets_service.check(organization_id=ORGANIZATION_ID)
 
     (request,) = jev.requests
@@ -515,6 +598,142 @@ async def test_api_key_seam_never_raises(monkeypatch, flag):
     )
 
 
+@pytest.mark.asyncio
+async def test_api_key_by_an_invited_member_is_never_scored(service, flag, jev):
+    service.fraud_dao.signals = _signals().model_copy(
+        update={"owns_organization": False}
+    )
+    jev.answer = 1.0
+    assert (
+        await service.check_api_key_creation(user_id=uuid4(), project_id=uuid4())
+        is None
+    )
+    assert jev.requests == []
+    assert service.fraud_dao.marks == []
+    assert await service.wallets_service.check(organization_id=ORGANIZATION_ID)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "billing",
+    [
+        BillingFacts(plan="cloud_v0_pro"),
+        BillingFacts(plan="cloud_v0_business"),
+        BillingFacts(plan="self_hosted_enterprise"),
+        BillingFacts(plan=None),
+        BillingFacts(plan="cloud_v0_hobby", has_stripe_ids=True),
+        BillingFacts(plan="cloud_v0_hobby", has_paid_credit=True),
+    ],
+    ids=["pro", "business", "self_hosted", "no_subscription", "stripe", "paid_credit"],
+)
+async def test_api_key_in_a_paying_or_unknown_organization_is_never_scored(
+    service, flag, jev, billing
+):
+    service.fraud_dao.billing = billing
+    jev.answer = 1.0
+    assert (
+        await service.check_api_key_creation(user_id=uuid4(), project_id=uuid4())
+        is None
+    )
+    assert jev.requests == []
+    assert service.fraud_dao.marks == []
+    assert await service.wallets_service.check(organization_id=ORGANIZATION_ID)
+
+
+@pytest.mark.asyncio
+async def test_api_key_check_is_bounded_and_fails_open_when_a_read_stalls(
+    flag, jev, monkeypatch
+):
+    import asyncio
+
+    class _Stalled(FakeFraudDAO):
+        async def read_api_key_signals(self, **kwargs):
+            await asyncio.sleep(60)
+
+    monkeypatch.setattr(fraud_service_module, "DECISION_TIMEOUT_SECONDS", 0.05)
+    svc = FraudService(fraud_dao=_Stalled(), wallets_service=_wallets_service())
+    monkeypatch.setattr(fraud_service_module, "_fraud_service", svc)
+    await asyncio.wait_for(
+        fraud_service_module.check_api_key_creation(
+            user_id=str(uuid4()), project_id=str(uuid4())
+        ),
+        timeout=1,
+    )
+    assert svc.fraud_dao.marks == []
+
+
+@pytest.mark.asyncio
+async def test_signup_check_is_bounded_and_fails_open_when_posthog_stalls(
+    jev, monkeypatch
+):
+    import asyncio
+
+    async def _stalled():
+        await asyncio.sleep(60)
+
+    monkeypatch.setattr(fraud_service_module, "DECISION_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(fraud_service_module, "read_fraud_check_config", _stalled)
+    dao = FakeFraudDAO()
+    svc = FraudService(fraud_dao=dao, wallets_service=_wallets_service())
+    monkeypatch.setattr(fraud_service_module, "_fraud_service", svc)
+    flagged = await asyncio.wait_for(
+        fraud_service_module.signup_is_fraud(
+            organization_id=ORGANIZATION_ID, email="a@b.example"
+        ),
+        timeout=1,
+    )
+    assert flagged is False
+    assert dao.marks == []
+
+
+@pytest.mark.asyncio
+async def test_api_key_hold_failure_after_the_marker_still_allows(
+    flag, jev, monkeypatch
+):
+    class _BrokenWallets(WalletsService):
+        async def hold(self, **kwargs):
+            raise RuntimeError("db down")
+
+    dao = FakeFraudDAO(signals=_signals())
+    svc = FraudService(
+        fraud_dao=dao,
+        wallets_service=_BrokenWallets(wallets_dao=FakeWalletsDAO()),
+    )
+    monkeypatch.setattr(fraud_service_module, "_fraud_service", svc)
+    jev.answer = 0.99
+    await fraud_service_module.check_api_key_creation(
+        user_id=str(uuid4()), project_id=str(uuid4())
+    )
+    # The marker is written first, so a failed hold leaves only the grant block.
+    assert dao.marks == [(ORGANIZATION_ID, FraudCheckpoint.API_KEY, 0.99)]
+
+
+@pytest.mark.asyncio
+async def test_api_key_hold_never_expires_paid_credits(flag, jev):
+    now = datetime.now(timezone.utc)
+    free = _credit(
+        credit_kind="signup_grant",
+        balance_musd=500_000,
+        end_time=now + timedelta(days=300),
+    )
+    purchase = _credit(
+        credit_kind="purchase",
+        balance_musd=1_000_000,
+        end_time=now + timedelta(days=300),
+    )
+    svc = FraudService(
+        fraud_dao=FakeFraudDAO(signals=_signals()),
+        wallets_service=_wallets_service(free, purchase),
+    )
+    jev.answer = 0.99
+    await svc.check_api_key_creation(user_id=uuid4(), project_id=uuid4())
+
+    credits = svc.wallets_service.wallets_dao._credits
+    assert credits[free[0].wallet_credit_id][0].end_time <= datetime.now(timezone.utc)
+    assert credits[purchase[0].wallet_credit_id][0].end_time == purchase[0].end_time
+    assert await svc.wallets_service.check(organization_id=ORGANIZATION_ID)
+
+
 # ---------------------------------------------------------------------------
 # the no-grant marker and the daily free credits
 # ---------------------------------------------------------------------------
@@ -555,42 +774,34 @@ async def test_daily_grant_honours_the_no_grant_marker():
 
 
 @pytest.mark.asyncio
-async def test_hold_expires_live_credits_and_keeps_expired_ones(monkeypatch):
-    from ee.src.core.wallets.types import CreditCandidateDTO
+async def test_marker_blocks_daily_grants_only_while_free_and_unpaid():
+    dao = FakeFraudDAO()
+    svc = FraudService(fraud_dao=dao, wallets_service=_wallets_service())
+    assert await svc.grants_blocked(organization_id=ORGANIZATION_ID) is False
 
+    dao.blocked.add(ORGANIZATION_ID)
+    assert await svc.grants_blocked(organization_id=ORGANIZATION_ID) is True
+
+    # After an upgrade or a top-up, the marker no longer blocks anything.
+    dao.billing = BillingFacts(plan="cloud_v0_pro")
+    assert await svc.grants_blocked(organization_id=ORGANIZATION_ID) is False
+    dao.billing = BillingFacts(plan="cloud_v0_hobby", has_paid_credit=True)
+    assert await svc.grants_blocked(organization_id=ORGANIZATION_ID) is False
+
+
+@pytest.mark.asyncio
+async def test_hold_expires_live_credits_and_keeps_expired_ones():
     now = datetime.now(timezone.utc)
-    general = WalletBalanceDTO(
-        id=uuid_utils.uuid7(),
-        organization_id=ORGANIZATION_ID,
-        balance_musd=100,
-        floor_musd=0,
+    live = _credit(
+        credit_kind="signup_grant", balance_musd=50, end_time=now + timedelta(days=10)
     )
-
-    def _credit(end_time):
-        credit_id = uuid_utils.uuid7()
-        candidate = CreditCandidateDTO(
-            wallet_credit_id=credit_id,
-            credit_kind="signup",
-            priority=1,
-            end_time=end_time,
-            balance_musd=50,
-        )
-        balance = WalletBalanceDTO(
-            id=uuid_utils.uuid7(),
-            organization_id=ORGANIZATION_ID,
-            wallet_credit_id=credit_id,
-            balance_musd=50,
-        )
-        return candidate, balance
-
-    live = _credit(now + timedelta(days=10))
-    already_expired = _credit(now - timedelta(days=1))
-    dao = FakeWalletsDAO(general_balance=general, credits=[live, already_expired])
-    svc = WalletsService(wallets_dao=dao)
-
-    expired = await svc.hold(
-        organization_id=ORGANIZATION_ID, floor_musd=HOLD_FLOOR_MUSD, now=now
+    already_expired = _credit(
+        credit_kind="signup_grant", balance_musd=50, end_time=now - timedelta(days=1)
     )
+    svc = _wallets_service(live, already_expired)
+    dao = svc.wallets_dao
+
+    expired = await svc.hold(organization_id=ORGANIZATION_ID, now=now)
     assert expired == 1
     assert dao._credits[live[0].wallet_credit_id][0].end_time == now
-    assert dao.general_balance.floor_musd == HOLD_FLOOR_MUSD
+    assert dao.general_balance.floor_musd == 0

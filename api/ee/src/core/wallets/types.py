@@ -6,7 +6,7 @@ do the locking, ordered reads, and writes around it.
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, FrozenSet, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -354,12 +354,16 @@ class WalletsDAOInterface(ABC):
         self,
         *,
         organization_id: UUID,
-        floor_musd: int,
+        keep_credit_kinds: FrozenSet[str],
         now: datetime,
     ) -> int:
-        """Freeze the organization's wallet: set the general row's `floor_musd` and
-        expire every live credit (`end_time = now`, the old value kept under
-        `data.revoked.previous_end_time`). Returns the number of credits expired."""
+        """Expire every live credit of the organization whose kind is not in
+        `keep_credit_kinds` (`end_time = now`, the old value kept under
+        `data.revoked.previous_end_time`; a credit already carrying `data.revoked` is left
+        as is). The floor is not changed. To release
+        a held organization, set each such credit's `end_time` back to
+        `data.revoked.previous_end_time` and drop `data.revoked`. Returns the number of
+        credits expired."""
         raise NotImplementedError
 
     @abstractmethod
