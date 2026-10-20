@@ -964,13 +964,18 @@ async def _mint_policy_refusal(
 
     engine = get_cache_engine()
     try:
-        for counter_key, cap, ttl, scope in _velocity_counters(
-            organization_email, policy, counter_prefix
-        ):
+        counters = _velocity_counters(organization_email, policy, counter_prefix)
+        for counter_key, cap, ttl, scope in counters:
             count = await engine.incr(counter_key)
             if count == 1:
                 await engine.expire(counter_key, ttl)
             if count > cap:
+                if scope != "work_domain_daily" and await _domain_cap_reached(
+                    engine, counters
+                ):
+                    # The global caps are checked first, so without this a domain
+                    # past its own cap would be named only by the global cap.
+                    scope = "work_domain_daily"
                 log.warning(
                     "[starter_credits_bridge] velocity cap reached; skipping seed",
                     rule=scope,
@@ -987,6 +992,18 @@ async def _mint_policy_refusal(
         return "velocity_counters_unavailable"
 
     return None
+
+
+async def _domain_cap_reached(
+    engine: Any, counters: list[tuple[str, int, int, str]]
+) -> bool:
+    """Whether the domain's daily counter is already at its cap. It reads the counter
+    and does not increment it, so a refusal by a global cap uses no domain slot."""
+    for counter_key, cap, _ttl, scope in counters:
+        if scope == "work_domain_daily":
+            raw = await engine.get(counter_key)
+            return raw is not None and int(raw) >= cap
+    return False
 
 
 async def _mint_policy_allows(

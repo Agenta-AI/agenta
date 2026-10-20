@@ -1028,8 +1028,8 @@ FLOOR_RAISING_REFUSALS = frozenset(
 async def _free_credits_check(organization_email: str) -> tuple[bool, bool]:
     """Apply the mint policy to a new organization's owner email, and return
     (award the signup grant, raise the wallet floor). A refusal in
-    FLOOR_RAISING_REFUSALS does both; any other refusal, a missing policy or any
-    error skips only the grant."""
+    FLOOR_RAISING_REFUSALS skips the grant and raises the floor. Any other refusal,
+    a missing policy or any error skips the grant and keeps the normal floor."""
     try:
         async with asyncio.timeout(5):
             policy = await _mint_policy._resolve_mint_policy()

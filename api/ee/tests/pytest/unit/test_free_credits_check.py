@@ -42,6 +42,12 @@ class FakeCacheEngine:
     async def expire(self, key, ttl):
         pass
 
+    async def get(self, key):
+        if self.error is not None:
+            raise self.error
+        value = self.counts.get(key)
+        return None if value is None else str(value).encode()
+
 
 @pytest.fixture
 def engine(monkeypatch):
@@ -107,6 +113,66 @@ class TestMintPolicyRefusal:
         assert (
             await mint_policy._mint_policy_refusal("b@freemail.test", policy)
             == "global_hourly"
+        )
+
+    async def test_a_domain_past_its_cap_is_named_when_a_global_cap_also_refuses(
+        self, engine
+    ):
+        policy = _policy(global_hourly=11)
+        for index in range(11):
+            await mint_policy._mint_policy_refusal(
+                f"user{chr(97 + index)}@acme.test",
+                policy,
+                counter_prefix=mint_policy.SIGNUP_GRANT_COUNTER_PREFIX,
+            )
+
+        assert (
+            await mint_policy._mint_policy_refusal(
+                "twelfth@acme.test",
+                policy,
+                counter_prefix=mint_policy.SIGNUP_GRANT_COUNTER_PREFIX,
+            )
+            == "work_domain_daily"
+        )
+
+    async def test_a_global_cap_refusal_uses_no_domain_slot(self, engine):
+        policy = _policy(global_hourly=1)
+        prefix = mint_policy.SIGNUP_GRANT_COUNTER_PREFIX
+
+        assert (
+            await mint_policy._mint_policy_refusal(
+                "a@acme.test", policy, counter_prefix=prefix
+            )
+            is None
+        )
+        assert (
+            await mint_policy._mint_policy_refusal(
+                "b@acme.test", policy, counter_prefix=prefix
+            )
+            == "global_hourly"
+        )
+        domain_counts = [
+            count for key, count in engine.counts.items() if ":domain:" in key
+        ]
+        assert domain_counts == [1]
+
+    async def test_a_global_cap_refusal_of_a_domain_under_its_cap_names_the_global_cap(
+        self, engine
+    ):
+        policy = _policy(global_daily=2)
+        prefix = mint_policy.SIGNUP_GRANT_COUNTER_PREFIX
+        await mint_policy._mint_policy_refusal(
+            "a@other.test", policy, counter_prefix=prefix
+        )
+        await mint_policy._mint_policy_refusal(
+            "b@other.test", policy, counter_prefix=prefix
+        )
+
+        assert (
+            await mint_policy._mint_policy_refusal(
+                "c@acme.test", policy, counter_prefix=prefix
+            )
+            == "global_daily"
         )
 
     @pytest.mark.parametrize(
