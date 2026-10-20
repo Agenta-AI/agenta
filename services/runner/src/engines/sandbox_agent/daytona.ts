@@ -7,6 +7,7 @@ import {
 } from "./acp-fetch.ts";
 import {
   resolvePiToolSpecsDelivery,
+  uploadGatewayPiRetryToSandbox,
   uploadPiExtensionToSandbox,
   uploadPiToolSpecsToSandbox,
   uploadSkillsToSandbox,
@@ -331,7 +332,10 @@ export async function removePiModelsConfigFromSandbox(
 export interface PrepareDaytonaPiAssetsInput {
   sandbox: any;
   plan: Pick<RunPlan, "isPi" | "isDaytona"> & {
-    credentials: Pick<RunPlanCredentials, "subscription" | "subscriptionHome">;
+    credentials: Pick<
+      RunPlanCredentials,
+      "subscription" | "subscriptionHome" | "throughGateway"
+    >;
     workspace: Pick<RunPlanWorkspace, "skillDirs" | "relayDir">;
     tools: Pick<RunPlanTools, "toolSpecs">;
     prompt: Pick<
@@ -398,6 +402,8 @@ export async function prepareDaytonaPiAssets({
     plan.workspace.relayDir,
   );
   if (toolSpecs) await uploadPiToolSpecsToSandbox(sandbox, toolSpecs, log);
+  if (plan.credentials.throughGateway)
+    await uploadGatewayPiRetryToSandbox(sandbox, agentDir, log);
   // A models.json plan (a custom provider, or a hand-entered model merged into a built-in one):
   // upload the exact file (overwriting stale) before the session starts. No plan: remove any stale
   // file so a reused sandbox keeps no earlier configuration. Upload failure THROWS here and is

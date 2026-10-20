@@ -26,6 +26,7 @@ import { PI_GATEWAY_MCP_SERVERS_ENV } from "../../src/extensions/pi-mcp.ts";
 import {
   buildPiExtensionEnv,
   configurePiSkillSnapshot,
+  GATEWAY_PI_RETRY,
   configurePiSessionWorkspace,
   materializeDaytonaPiSkillSnapshot,
   materializeLocalPiSkillSnapshot,
@@ -38,10 +39,12 @@ import {
   resolvePiSkillSnapshot,
   resolvePiToolSpecsDelivery,
   uploadDirToSandbox,
+  uploadGatewayPiRetryToSandbox,
   uploadPiToolSpecsToSandbox,
   uploadSystemPromptToSandbox,
   writePiModelsConfigLocal,
   writePiToolSpecsFileLocal,
+  withGatewayPiRetry,
   writeSystemPromptLocal,
 } from "../../src/engines/sandbox_agent/pi-assets.ts";
 import { PUBLIC_SPECS_FILE_ENV } from "../../src/tools/tool-mcp-env.ts";
@@ -1633,5 +1636,102 @@ describe("sandbox uploads", () => {
 
     await materializeDaytonaPiSkillSnapshot(sandbox, snapshot);
     assert.equal(moves.length, 1);
+  });
+});
+
+describe("Pi retries on a run through the LLM gateway", () => {
+  const plan = (throughGateway: boolean, sourcePiAgentDir = "/unused") => ({
+    isPi: true,
+    isDaytona: false,
+    credentials: { throughGateway },
+    workspace: { skillDirs: [], sourcePiAgentDir },
+    prompt: {
+      hasSystemPrompt: false,
+      systemPrompt: undefined,
+      appendSystemPrompt: undefined,
+    },
+  });
+
+  it("keeps the operator's settings and their other retry fields", () => {
+    const merged = JSON.parse(
+      withGatewayPiRetry('{"theme":"dark","retry":{"maxRetries":5,"baseDelayMs":10}}'),
+    );
+
+    assert.deepEqual(merged, {
+      theme: "dark",
+      retry: { maxRetries: 1, baseDelayMs: 10 },
+    });
+    assert.deepEqual(JSON.parse(withGatewayPiRetry(undefined)), {
+      retry: GATEWAY_PI_RETRY,
+    });
+    assert.deepEqual(JSON.parse(withGatewayPiRetry("not json")), {
+      retry: GATEWAY_PI_RETRY,
+    });
+  });
+
+  it("writes one retry into a local run's settings.json when the run goes through the gateway", () => {
+    const source = tempDir("agenta-pi-gateway-retry-source-");
+    writeFileSync(join(source, "settings.json"), '{"model":"x"}', "utf-8");
+
+    const { dir: runDir } = prepareLocalPiAssets({
+      plan: plan(true, source),
+      env: {},
+    });
+    dirs.push(runDir as string);
+
+    assert.deepEqual(
+      JSON.parse(readFileSync(join(runDir as string, "settings.json"), "utf-8")),
+      { model: "x", retry: { maxRetries: 1 } },
+    );
+  });
+
+  it("leaves Pi's own retries on a run that goes straight to the provider", () => {
+    const { dir: runDir } = prepareLocalPiAssets({ plan: plan(false), env: {} });
+    dirs.push(runDir as string);
+
+    assert.equal(existsSync(join(runDir as string, "settings.json")), false);
+  });
+
+  it("merges the retry into a Daytona sandbox's settings.json", async () => {
+    const written: Record<string, string> = {};
+    const sandbox = {
+      readFsFile: async () => new TextEncoder().encode('{"model":"y"}'),
+      mkdirFs: async () => {},
+      writeFsFile: async ({ path }: { path: string }, body: string) => {
+        written[path] = body;
+      },
+    };
+
+    await uploadGatewayPiRetryToSandbox(sandbox, "/home/sandbox/.pi/agent");
+
+    assert.deepEqual(JSON.parse(written["/home/sandbox/.pi/agent/settings.json"]), {
+      model: "y",
+      retry: { maxRetries: 1 },
+    });
+  });
+
+  it("gives an in-process session the retry it is handed", async () => {
+    const cwd = tempDir("pi-gateway-retry-inprocess-");
+    const opened = await openPiSession({
+      cwd,
+      sessionDir: join(cwd, "sessions"),
+      skillDir: undefined,
+      modelsPath: undefined,
+      modelEnv: {},
+      retry: GATEWAY_PI_RETRY,
+      credentials: new InMemoryCredentialStore(),
+      systemPrompt: undefined,
+      appendSystemPrompt: undefined,
+      tools: [],
+      extensionEnv: {},
+      uiContext: new ExtensionUiChannel(),
+      log: () => {},
+    });
+    try {
+      assert.equal(opened.session.settingsManager.getRetrySettings().maxRetries, 1);
+    } finally {
+      opened.session.dispose();
+      await opened.cleanup();
+    }
   });
 });

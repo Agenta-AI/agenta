@@ -317,11 +317,7 @@ const ProviderDrawer = ({
                             }
                         />
                     ) : null}
-                    <ProviderCatalogList
-                        onSelect={onPickProvider}
-                        label={isSettings ? undefined : "Add a provider"}
-                        hint={isSettings ? undefined : "several connections per provider are fine"}
-                    />
+                    <ProviderCatalogList onSelect={onPickProvider} />
                     {/* `showSubscriptions` gates the MOUNTED rows only: a deployment that mounts
                         nothing still runs a hosted subscription. */}
                     {isPlayground ? (

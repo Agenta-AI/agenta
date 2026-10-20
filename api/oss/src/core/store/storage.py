@@ -22,7 +22,7 @@ from miniopy_async.error import S3Error
 
 from oss.src.core.store import webidentity
 from oss.src.core.store.dtos import StoreObject, StorePutResult
-from oss.src.core.store.types import StorePreconditionFailed
+from oss.src.core.store.types import StoreObjectTooLarge, StorePreconditionFailed
 from oss.src.core.mounts.types import MountFileNotFound, MountStorageUnavailable
 
 # STS responses are SOAP-ish XML under the 2011-06-15 namespace; strip it for tag lookups.
@@ -51,6 +51,25 @@ def _normalize_etag(value: Optional[str]) -> Optional[str]:
     if etag.startswith("W/"):
         etag = etag[2:]
     return etag.strip('"') or None
+
+
+async def _read_bounded(resp, max_bytes: int) -> bytes:
+    """Read the body up to `max_bytes`, refusing a larger object before or while reading it."""
+    declared = resp.headers.get("Content-Length")
+    if declared is not None and declared.isdigit() and int(declared) > max_bytes:
+        raise StoreObjectTooLarge(max_bytes)
+    # One `read(n)` may return fewer than `n` bytes before EOF, so read until EOF or over limit.
+    chunks: List[bytes] = []
+    received = 0
+    while received <= max_bytes:
+        chunk = await resp.content.read(max_bytes + 1 - received)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        received += len(chunk)
+    if received > max_bytes:
+        raise StoreObjectTooLarge(max_bytes)
+    return b"".join(chunks)
 
 
 def _quote_etag(value: str) -> str:
@@ -547,8 +566,12 @@ class ObjectStore:
         *,
         bucket: str,
         key: str,
+        max_bytes: Optional[int] = None,
     ) -> Tuple[bytes, Optional[str]]:
-        """The object's bytes plus its etag, read off the GET response in one round trip."""
+        """The object's bytes plus its etag, read off the GET response in one round trip.
+
+        With `max_bytes`, an object larger than the limit raises `StoreObjectTooLarge` without
+        buffering more than `max_bytes + 1` bytes of it."""
         client = self._client()
         # get_object needs an explicit aiohttp session (miniopy-async 1.21 signature) and hands
         # back a streaming ClientResponse; own the session so it outlives the body read.
@@ -564,7 +587,10 @@ class ObjectStore:
                     raise MountFileNotFound() from e
                 raise
             try:
-                body = await resp.content.read()
+                if max_bytes is None:
+                    body = await resp.content.read()
+                else:
+                    body = await _read_bounded(resp, max_bytes)
             finally:
                 await resp.release()
             return body, _normalize_etag(resp.headers.get("ETag"))

@@ -159,8 +159,9 @@ class TestLLMGatewayProxyAcceptance:
         elapsed = time.monotonic() - started
 
         assert elapsed < 30, "the gateway's own request hung past the upstream's sleep"
-        assert response.status_code in (424, 502)
-        assert response.json()["error"]["code"] == "upstream_error"
+        # The gateway's own timeout answers 408, as LiteLLM does, not a provider 5xx.
+        assert response.status_code == 408
+        assert response.json()["error"]["code"] == "upstream_timeout"
 
     def test_unauthenticated_request_never_reaches_the_mock(
         self, unauthed_api, mock_llm_endpoint

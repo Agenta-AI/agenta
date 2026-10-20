@@ -8,6 +8,9 @@
  *
  * Renaming changes the label and nothing else. The slug agents resolve is frozen, so a
  * rename never repoints a configured agent, and it never resets a policy.
+ *
+ * Changing the authentication goes through the reconnect sheet, which holds the selector and
+ * the credential fields, and writes the mode onto this same row.
  */
 import {useCallback, useEffect, useRef, useState} from "react"
 
@@ -15,8 +18,9 @@ import {
     connectionNameProblem,
     editMcpEndpoint,
     filterMcpTools,
-    getMcpConnectionState,
-    getMcpConnectionStateLabel,
+    gatewayRefusalCode,
+    getMcpConnectionStatus,
+    getMcpConnectionStatusLabel,
     listMcpTools,
     type MCPEndpoint,
     type McpToolSummary,
@@ -25,12 +29,13 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {Button, Field, Input} from "@agenta/ui/ui"
+import {Button, cn, Field, Input, touchTargetExpansion} from "@agenta/ui/ui"
 import {ArrowClockwise, WarningCircle, Wrench} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {ToolsEmpty} from "../shared/ToolsEmpty"
 
+import {MCP_AUTH_MODE_LABEL} from "./components"
 import {ToolFilterInput} from "./ToolFilterInput"
 
 export interface McpConnectionDetailProps {
@@ -41,7 +46,14 @@ export interface McpConnectionDetailProps {
     onReconnect: (endpoint: MCPEndpoint) => void
     onDisconnect: (endpoint: MCPEndpoint) => void
     onChanged?: () => void
+    /** Hides Connect, Reconnect, Disconnect, Change and Save, and locks the name. */
+    readOnly?: boolean
+    /** Whether the member may read the tool list; when false the tools section is left out. */
+    canListTools?: boolean
 }
+
+/** An OAuth connection whose sign-in could not be renewed, in place of the gateway's words. */
+const SIGN_IN_AGAIN = "Sign in again to keep using this connection."
 
 type ToolsState =
     | {status: "idle"}
@@ -56,6 +68,8 @@ export default function McpConnectionDetail({
     onReconnect,
     onDisconnect,
     onChanged,
+    readOnly = false,
+    canListTools = true,
 }: McpConnectionDetailProps) {
     const projectId = useAtomValue(projectIdAtom) ?? undefined
     const [name, setName] = useState("")
@@ -63,8 +77,13 @@ export default function McpConnectionDetail({
     const [tools, setTools] = useState<ToolsState>({status: "idle"})
     const [filter, setFilter] = useState("")
 
-    const connectionState = endpoint ? getMcpConnectionState(endpoint) : null
-    const isReady = connectionState === "ready"
+    // The status the connection's row in the list reads, so one state has one label.
+    const status = endpoint ? getMcpConnectionStatus(endpoint) : null
+    const isReady = status === "connected"
+    const signInExpired =
+        endpoint?.auth_mode === "oauth" &&
+        !!endpoint.secret_id &&
+        endpoint.flags?.is_valid === false
 
     useEffect(() => {
         setName(endpoint?.name || endpoint?.slug || "")
@@ -81,7 +100,7 @@ export default function McpConnectionDetail({
 
     const loadTools = useCallback(async () => {
         const slug = endpoint?.slug
-        if (!slug || !isReady) return
+        if (!slug || !isReady || !canListTools) return
         shownFor.current = slug
         setTools({status: "loading"})
         try {
@@ -90,18 +109,24 @@ export default function McpConnectionDetail({
             setTools({status: "ready", tools})
         } catch (error) {
             if (shownFor.current !== slug) return
+            // The relay marked the connection, and the refreshed endpoint says so. Until it
+            // arrives, the gateway's words are not the person's sentence.
+            const signInLost = gatewayRefusalCode(error) === "auth_required"
+            if (signInLost) onChanged?.()
             setTools({
                 status: "failed",
-                error: (error as Error)?.message || "The tool list could not be read.",
+                error: signInLost
+                    ? SIGN_IN_AGAIN
+                    : (error as Error)?.message || "The tool list could not be read.",
             })
         }
-    }, [endpoint?.slug, isReady, projectId])
+    }, [canListTools, endpoint?.slug, isReady, onChanged, projectId])
 
     // Only a connected server has tools to report; an unauthorized one would just 409.
     useEffect(() => {
-        if (endpoint && isReady) void loadTools()
+        if (endpoint && isReady && canListTools) void loadTools()
         else setTools({status: "idle"})
-    }, [endpoint, isReady, loadTools])
+    }, [canListTools, endpoint, isReady, loadTools])
 
     const nameProblem = endpoint
         ? connectionNameProblem({name, existingNames, currentName: endpoint.name})
@@ -109,7 +134,7 @@ export default function McpConnectionDetail({
 
     const rename = useCallback(async () => {
         // Enter while a save is in flight would send the same rename twice.
-        if (!endpoint?.id || nameProblem || saving) return
+        if (readOnly || !endpoint?.id || nameProblem || saving) return
         setSaving(true)
         try {
             // A full replace: every field the row already has is sent back with it, because
@@ -133,17 +158,19 @@ export default function McpConnectionDetail({
         } finally {
             setSaving(false)
         }
-    }, [endpoint, name, nameProblem, onChanged, projectId, saving])
+    }, [endpoint, name, nameProblem, onChanged, projectId, readOnly, saving])
 
     const unchanged = !endpoint || name.trim() === (endpoint.name ?? "")
 
     const footer = endpoint ? (
         <div className="flex w-full flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={() => onReconnect(endpoint)}>
-                {isReady ? "Reconnect" : "Connect"}
-            </Button>
+            {readOnly ? null : (
+                <Button variant="outline" onClick={() => onReconnect(endpoint)}>
+                    {isReady ? "Reconnect" : "Connect"}
+                </Button>
+            )}
             {/* Only an OAuth connection holds a grant to revoke; the route refuses anything else. */}
-            {isReady && endpoint.auth_mode === "oauth" ? (
+            {!readOnly && isReady && endpoint.auth_mode === "oauth" ? (
                 <Button
                     variant="ghost"
                     className="text-colorError"
@@ -156,9 +183,11 @@ export default function McpConnectionDetail({
                 <Button variant="outline" onClick={onClose}>
                     Close
                 </Button>
-                <Button onClick={rename} disabled={saving || !!nameProblem || unchanged}>
-                    Save
-                </Button>
+                {readOnly ? null : (
+                    <Button onClick={rename} disabled={saving || !!nameProblem || unchanged}>
+                        Save
+                    </Button>
+                )}
             </div>
         </div>
     ) : null
@@ -178,7 +207,7 @@ export default function McpConnectionDetail({
                         <div className="flex min-w-0 items-center gap-2">
                             <StatusIndicator
                                 tone={isReady ? "success" : "warning"}
-                                label={getMcpConnectionStateLabel(connectionState ?? "needs_auth")}
+                                label={getMcpConnectionStatusLabel(status ?? "not_signed_in")}
                                 className="shrink-0 text-[13px]"
                             />
                             <span aria-hidden className="text-colorTextDescription">
@@ -201,33 +230,57 @@ export default function McpConnectionDetail({
                             <Input
                                 value={name}
                                 aria-label="Connection name"
+                                readOnly={readOnly}
                                 onChange={(event) => setName(event.target.value)}
                                 onKeyDown={(event) => {
-                                    if (event.key === "Enter" && !unchanged && !saving)
+                                    if (event.key === "Enter" && !readOnly && !unchanged && !saving)
                                         void rename()
                                 }}
                             />
                         </Field>
 
-                        <section className="flex flex-col gap-2">
-                            <div className="flex flex-col gap-0.5">
-                                <h4 className="m-0 text-sm font-medium text-colorText">Tools</h4>
-                                <p className="m-0 text-xs text-colorTextDescription">
-                                    Choose what this server may do in an agent&apos;s configuration.
-                                </p>
-                            </div>
-                            <ToolFilterInput
-                                total={tools.status === "ready" ? tools.tools.length : 0}
-                                value={filter}
-                                onChange={setFilter}
-                            />
-                            <ToolList
-                                state={tools}
-                                isReady={isReady}
-                                onRetry={loadTools}
-                                filter={filter}
-                            />
-                        </section>
+                        <div className="flex items-center gap-2 text-sm">
+                            <span className="font-medium text-colorText">Authentication</span>
+                            <span className="text-colorTextSecondary">
+                                {MCP_AUTH_MODE_LABEL[endpoint.auth_mode]}
+                            </span>
+                            {readOnly ? null : (
+                                <Button
+                                    variant="link"
+                                    size="xs"
+                                    className={cn("ml-auto px-0 text-xs", touchTargetExpansion(24))}
+                                    onClick={() => onReconnect(endpoint)}
+                                >
+                                    Change
+                                </Button>
+                            )}
+                        </div>
+
+                        {canListTools ? (
+                            <section className="flex flex-col gap-2">
+                                <div className="flex flex-col gap-0.5">
+                                    <h4 className="m-0 text-sm font-medium text-colorText">
+                                        Tools
+                                    </h4>
+                                    <p className="m-0 text-xs text-colorTextDescription">
+                                        Choose what this server may do in an agent&apos;s
+                                        configuration.
+                                    </p>
+                                </div>
+                                <ToolFilterInput
+                                    total={tools.status === "ready" ? tools.tools.length : 0}
+                                    value={filter}
+                                    onChange={setFilter}
+                                />
+                                <ToolList
+                                    state={tools}
+                                    isReady={isReady}
+                                    signInExpired={signInExpired}
+                                    onRetry={loadTools}
+                                    filter={filter}
+                                />
+                            </section>
+                        ) : null}
                     </div>
                 ) : null}
             </ModalContent>
@@ -238,18 +291,20 @@ export default function McpConnectionDetail({
 const ToolList = ({
     state,
     isReady,
+    signInExpired,
     onRetry,
     filter,
 }: {
     state: ToolsState
     isReady: boolean
+    signInExpired: boolean
     onRetry: () => void
     filter: string
 }) => {
     if (!isReady) {
         return (
             <p className="m-0 text-sm text-colorTextDescription">
-                Connect this server to see the tools it exposes.
+                {signInExpired ? SIGN_IN_AGAIN : "Connect this server to see the tools it exposes."}
             </p>
         )
     }
@@ -261,7 +316,8 @@ const ToolList = ({
         )
     }
     if (state.status === "failed") {
-        // Connected, with a tool problem. Nothing here suggests reauthorizing.
+        // Connected as far as the endpoint knows, with a tool problem. A lost sign-in shows
+        // here only until the refreshed endpoint says so.
         return (
             <ToolsEmpty
                 icon={<WarningCircle size={18} />}

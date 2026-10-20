@@ -983,10 +983,10 @@ index 0000000000000000000000000000000000000000..fa30e59696b3524fc28c0b2e1c3d28b5
 +export declare function toolResultToText(result: unknown): string;
 diff --git a/dist/session.js b/dist/session.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..757e135f49d3ea22f47477d65663f0b05529ab1f
+index 0000000000000000000000000000000000000000..6263eca5df404849f902f68e77dfc4fd4a1fa8b5
 --- /dev/null
 +++ b/dist/session.js
-@@ -0,0 +1,846 @@
+@@ -0,0 +1,851 @@
 +// src/acp/session-module.ts: the ACP session and its translation helpers, importable without
 +// starting the stdio agent in index.js. Moved verbatim; index.js imports them from here.
 +import { RequestError } from "@agentclientprotocol/sdk";
@@ -1499,9 +1499,14 @@ index 0000000000000000000000000000000000000000..757e135f49d3ea22f47477d65663f0b0
 +        });
 +        break;
 +      }
-+      // Recovery is operational state, never assistant conversation text.
++      // Recovery is operational state, never assistant conversation text. It is reported as
++      // session state so the runner can tell a retrying model call from a stuck harness.
 +      case "auto_retry_start":
 +      case "auto_retry_end": {
++        this.emit({
++          sessionUpdate: "session_info_update",
++          _meta: { piAcp: { retrying: ev.type === "auto_retry_start" } }
++        });
 +        break;
 +      }
 +      case "message_end": {

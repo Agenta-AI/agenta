@@ -342,10 +342,10 @@ api:
 ## Availability under disruption
 
 The chart renders a PodDisruptionBudget and topologySpreadConstraints per
-workload, both on by default. A workload with two or more replicas gets
-`maxUnavailable: 1` and a hard one-pod-per-node constraint plus a soft
-one-per-zone constraint. A workload with one replica gets neither, unless you
-ask for a budget with `<workload>.pdb.protectSingleton: true`.
+workload, both on by default. Every workload gets `maxUnavailable: 1`. A
+workload with two or more replicas also gets a hard one-pod-per-node constraint
+plus a soft one-per-zone constraint. A workload with one replica gets no
+constraints.
 
 ```yaml
 podDisruptionBudgets:
@@ -358,12 +358,14 @@ api:
     maxUnavailable: 1     # or minAvailable; replaces the default
 agentRunner:
   pdb:
-    protectSingleton: true
+    minAvailable: 1       # refuse every voluntary eviction, for the grace period
 ```
 
-Nothing here makes a single replica highly available. A budget over a single pod
-defers the eviction of its node; the pod still moves. Give any workload that
-must stay reachable `replicas: 2`.
+Nothing here makes a single replica highly available. This is why a single
+replica gets `maxUnavailable: 1`: `minAvailable: 1` over one pod permits no
+disruption at all, so the platform cannot drain that node, and it evicts the pod
+at the end of the grace period anyway. Give any workload that must stay
+reachable `replicas: 2`.
 
 An empty `<workload>.topologySpreadConstraints` list removes the constraints for
 that workload. `topologySpread.enabled: false` removes them for every workload.
@@ -371,6 +373,26 @@ that workload. `topologySpread.enabled: false` removes them for every workload.
 The block in `values.yaml` under "Availability under disruption" is the source of
 truth. The operator-facing guide is
 [Prepare a Kubernetes deployment for production](../../docs/docs/self-host/deploy/05-kubernetes-production.mdx).
+
+## Pod priority and spare capacity
+
+A system pod can evict one of your pods when a node is full. The scheduler makes room by evicting
+pods with a lower priority, and system pods run at up to 2000001000, above the 1000000000 limit on
+a PriorityClass you create. So a priority on your pod alone does not protect it. Two settings, both
+off by default, give the scheduler something cheaper to evict.
+
+```yaml
+spareCapacity:
+  enabled: true           # placeholder pods at priority -10 that only hold room
+  replicas: 1
+  resources:
+    requests: {cpu: 500m, memory: 512Mi}
+redisVolatile:
+  priorityClassName: agenta-stateful   # any workload takes this key
+```
+
+The placeholders cost what any pod with the same requests costs. The block in `values.yaml` under
+"Pod priority and spare capacity" explains each key.
 
 ## Restricting the bundled data stores
 

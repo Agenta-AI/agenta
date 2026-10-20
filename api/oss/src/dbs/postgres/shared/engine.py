@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import (
 
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.server_tracing import instrument_sqlalchemy
 
 
 log = get_module_logger(__name__)
@@ -191,6 +192,7 @@ class TransactionsEngine:
             max_overflow=sizing.max_overflow,
             pool_timeout=sizing.pool_timeout,
         )
+        instrument_sqlalchemy(self._engine)
         _session_maker = async_sessionmaker(
             autocommit=False,
             autoflush=False,
@@ -217,7 +219,7 @@ class TransactionsEngine:
             await session.rollback()
             raise e
         finally:
-            await session.close()
+            await self._session.remove()
 
     @asynccontextmanager
     async def transaction(self) -> AsyncGenerator[AsyncConnection, None]:
@@ -245,6 +247,7 @@ class AnalyticsEngine:
             max_overflow=sizing.max_overflow,
             pool_timeout=sizing.pool_timeout,
         )
+        instrument_sqlalchemy(self._engine)
         _session_maker = async_sessionmaker(
             autocommit=False,
             autoflush=False,
@@ -271,7 +274,7 @@ class AnalyticsEngine:
             await session.rollback()
             raise e
         finally:
-            await session.close()
+            await self._session.remove()
 
 
 def get_transactions_engine() -> TransactionsEngine:

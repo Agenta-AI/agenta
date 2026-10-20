@@ -78,6 +78,7 @@ from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.helpers import warn_deprecated_env_vars, validate_required_env_vars
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.server_tracing import setup_server_tracing
 
 # Guard EE imports so an OSS build needn't import the ee.* package.
 if is_ee():
@@ -91,6 +92,8 @@ if is_ee():
     from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 
 log = get_module_logger(__name__)
+
+setup_server_tracing("agenta-worker-streams")
 
 WALLET_STREAMS_ENABLED = is_ee() and env.wallets.enabled
 

@@ -205,6 +205,14 @@ describe("deriveTurnStatus", () => {
         expect(busy.errorText).toBe(
             "The model provider could not answer (HTTP 503): overloaded. Try again in a moment.",
         )
+        const slow = deriveTurnStatus(message, {
+            isUser: false,
+            isStreaming: false,
+            traceError: '408 {"message":"The model provider did not answer in time."}',
+        })
+        expect(slow.errorText).toBe(
+            "The model provider could not answer (HTTP 408): The model provider did not answer in time. Try again in a moment.",
+        )
     })
 
     it("ignores traceError once the turn produced an answer", () => {
@@ -329,6 +337,14 @@ describe("sanitizeErrorText", () => {
         expect(sanitizeErrorText("jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig rejected")).toBe(
             "jwt [secret] rejected",
         )
+    })
+
+    it("redacts a provider's masked copy of a key", () => {
+        expect(
+            sanitizeErrorText("Incorrect API key provided: sk-qa-re*********************0000."),
+        ).toBe("Incorrect API key provided: [secret].")
+        expect(sanitizeErrorText("over budget (sk-...3kKQ)")).toBe("over budget ([secret])")
+        expect(sanitizeErrorText("over budget (sk-....abcd)")).toBe("over budget ([secret])")
     })
 
     it("redacts anything shaped like a key", () => {

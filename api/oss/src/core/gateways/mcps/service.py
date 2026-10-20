@@ -3,6 +3,7 @@
 import json
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from time import monotonic
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from urllib.parse import urlparse
@@ -11,7 +12,11 @@ from uuid import UUID, uuid4
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateway.connections.dtos import Connection
 from oss.src.core.gateway.connections.service import ConnectionsService
-from oss.src.core.gateways.mcps.dtos import MCPAuthScheme
+from oss.src.core.gateways.mcps.dtos import (
+    MCPAuthScheme,
+    configured_oauth_client,
+    is_oauth_connection_at,
+)
 from oss.src.core.gateways.dtos import (
     GatewayConnectAffordance,
     GatewayConnectionRequirement,
@@ -27,6 +32,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPCallContext,
     MCPDirectAuth,
     MCPEndpoint,
+    MCPEndpointCheck,
     MCPEndpointCreate,
     MCPEndpointData,
     MCPEndpointRoute,
@@ -36,14 +42,18 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPRelayAuth,
     MCPResolvedRoute,
     MCPToolFilter,
+    api_key_value,
 )
 from oss.src.core.gateways.mcps.interfaces import (
     MCPEndpointsDAOInterface,
     MCPRelayResult,
 )
 from oss.src.core.gateways.mcps.oauth.interfaces import MCPOAuthRefresherInterface
-from oss.src.core.gateways.mcps.oauth.storage import grant_settings_expired
-from oss.src.core.gateways.mcps.oauth.types import MCPOAuthRefreshFailedError
+from oss.src.core.gateways.mcps.oauth.storage import grant_refresh_due
+from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthRefreshFailedError,
+    MCPOAuthRefreshUnavailableError,
+)
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.providers.managed.adapter import ManagedMCPAdapter
 from oss.src.core.gateways.run_claims import gateway_run_id, gateway_run_labels
@@ -51,6 +61,8 @@ from oss.src.core.managed_tools.dtos import ManagedActionContext
 from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
+    MCPConnectionBusyError,
+    MCPConnectionChangedError,
     MCPConnectionNameTakenError,
     MCPEndpointNotFoundError,
     MCPScopeInsufficientError,
@@ -129,17 +141,28 @@ _INSUFFICIENT_SCOPE_RE = re.compile(
     r"""\berror\s*=\s*"insufficient_scope"|\berror\s*=\s*insufficient_scope\b"""
 )
 _SCOPE_PARAM_RE = re.compile(r'\bscope\s*=\s*"([^"]*)"')
+_ERROR_DESCRIPTION_PARAM_RE = re.compile(r'\berror_description\s*=\s*"([^"]*)"')
+
+
+def _www_authenticate(headers: Dict[str, str]) -> Optional[str]:
+    return next(
+        (v for k, v in headers.items() if k.lower() == "www-authenticate"), None
+    )
 
 
 def _parse_scope_challenge(headers: Dict[str, str]) -> Optional[List[str]]:
     """Extract scopes from an RFC 6750 insufficient-scope challenge."""
-    header = next(
-        (v for k, v in headers.items() if k.lower() == "www-authenticate"), None
-    )
+    header = _www_authenticate(headers)
     if not header or not _INSUFFICIENT_SCOPE_RE.search(header):
         return None
     match = _SCOPE_PARAM_RE.search(header)
     return match.group(1).split() if match else []
+
+
+def _challenge_description(headers: Dict[str, str]) -> Optional[str]:
+    """The `error_description` of an RFC 6750 challenge: the server's own words."""
+    match = _ERROR_DESCRIPTION_PARAM_RE.search(_www_authenticate(headers) or "")
+    return match.group(1) if match else None
 
 
 def _elapsed_ms(started: float) -> int:
@@ -358,6 +381,29 @@ class MCPGatewayService:
             oauth=oauth,
         )
 
+    async def record_endpoint_check(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        endpoint_id: UUID,
+        ok: bool,
+        reason: Optional[str] = None,
+    ) -> Optional[MCPEndpoint]:
+        """Record an explicit check of a connection, stamped now. See the DAO."""
+        return await self.mcp_endpoints_dao.record_endpoint_check(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            endpoint_id=endpoint_id,
+            check=MCPEndpointCheck(
+                ok=ok,
+                reason=None if ok else reason,
+                checked_at=datetime.now(timezone.utc),
+            ),
+        )
+
     async def edit_endpoint(
         self,
         *,
@@ -366,24 +412,55 @@ class MCPGatewayService:
         #
         endpoint: MCPEndpointEdit,
     ) -> Optional[MCPEndpoint]:
-        # Only when the rendered prefix actually moves, and excluding itself, so
-        # re-saving a connection is never a collision with the name it already has. An edit that changes a URL, a
-        # tool filter or a description asked this question on every save and read every
-        # connection in the project to answer it, and the answer could not have changed
-        # (D12). One indexed read replaces that scan.
-        current = await self.mcp_endpoints_dao.fetch_endpoint(
+        # The connection's OAuth lock, which a completing consent also takes, so the
+        # change, the cleared binding, the cancelled consents and the deleted grant land
+        # as one step that no callback can interleave with.
+        async with self.mcp_endpoints_dao.oauth_lock(
             project_id=project_id, endpoint_id=endpoint.id
-        )
-        if current is None or tool_prefix(current.name) != tool_prefix(endpoint.name):
-            await self._check_name_is_free(
-                project_id=project_id, name=endpoint.name, excluding=endpoint.id
+        ):
+            current = await self.mcp_endpoints_dao.fetch_endpoint(
+                project_id=project_id, endpoint_id=endpoint.id
             )
-        return await self.mcp_endpoints_dao.edit_endpoint(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            endpoint=endpoint,
-        )
+            # Only when the rendered prefix actually moves, and excluding itself, so
+            # re-saving a connection is never a collision with the name it already has
+            # (D12).
+            if current is None or tool_prefix(current.name) != tool_prefix(
+                endpoint.name
+            ):
+                await self._check_name_is_free(
+                    project_id=project_id, name=endpoint.name, excluding=endpoint.id
+                )
+            # Clears the binding itself when the connection leaves OAuth at its address.
+            edited = await self.mcp_endpoints_dao.edit_endpoint(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                endpoint=endpoint,
+            )
+            if edited is None or current is None or self.oauth_refresher is None:
+                return edited
+            old_url = current.data.route.base_url
+            if (
+                old_url
+                and is_oauth_connection_at(current, old_url)
+                and not is_oauth_connection_at(edited, old_url)
+            ):
+                # The grant was issued for the old address; it goes with the consents.
+                await self.oauth_refresher.release_grant(
+                    project_id=project_id, endpoint_id=endpoint.id, server_url=old_url
+                )
+            elif (
+                current.auth_mode != edited.auth_mode
+                or old_url != edited.data.route.base_url
+                or configured_oauth_client(current) != configured_oauth_client(edited)
+            ):
+                # A consent begun for another mode, address or client must not finish
+                # on this one. The grant stays: it renews only as the client it was
+                # issued to.
+                await self.oauth_refresher.cancel_attempts(
+                    project_id=project_id, endpoint_id=endpoint.id
+                )
+            return edited
 
     async def delete_endpoint(
         self,
@@ -391,12 +468,53 @@ class MCPGatewayService:
         project_id: UUID,
         #
         endpoint_id: UUID,
+        pending_auth_mode: Optional[MCPAuthScheme] = None,
     ) -> bool:
-        return await self.mcp_endpoints_dao.delete_endpoint(
-            project_id=project_id,
-            #
-            endpoint_id=endpoint_id,
-        )
+        """Delete a connection, and its OAuth grant and consents with it.
+
+        A grant left behind would sit in the vault with nothing naming it, still holding
+        a live token. Under the connection's OAuth lock, so no consent binds a grant to
+        the row as it goes.
+
+        With `pending_auth_mode`, only a connection still in that mode with no credential
+        bound and no sign-in in flight is deleted: the pending row a connect sheet made
+        and is abandoning, after it cancelled its own sign-in. A row that another tab
+        moved on since, or is signing in on, raises `MCPConnectionChangedError` and stays.
+        """
+        async with self.mcp_endpoints_dao.oauth_lock(
+            project_id=project_id, endpoint_id=endpoint_id
+        ):
+            current = await self.mcp_endpoints_dao.fetch_endpoint(
+                project_id=project_id, endpoint_id=endpoint_id
+            )
+            if current is not None and pending_auth_mode is not None:
+                if (
+                    current.auth_mode != pending_auth_mode
+                    or current.secret_id is not None
+                    or (
+                        self.oauth_refresher is not None
+                        and await self.oauth_refresher.has_active_attempts(
+                            project_id=project_id, endpoint_id=endpoint_id
+                        )
+                    )
+                ):
+                    raise MCPConnectionChangedError()
+            server_url = current.data.route.base_url if current is not None else None
+            if (
+                server_url
+                and is_oauth_connection_at(current, server_url)
+                and self.oauth_refresher is not None
+            ):
+                await self.oauth_refresher.release_grant(
+                    project_id=project_id,
+                    endpoint_id=endpoint_id,
+                    server_url=server_url,
+                )
+            return await self.mcp_endpoints_dao.delete_endpoint(
+                project_id=project_id,
+                #
+                endpoint_id=endpoint_id,
+            )
 
     async def query_endpoints(
         self,
@@ -414,6 +532,21 @@ class MCPGatewayService:
             #
             windowing=windowing,
         )
+
+    async def probe_secret_value(
+        self, *, scope: AuthScope, secret_id: UUID
+    ) -> Optional[str]:
+        """The value of a project secret, for a probe that sends it as an API key.
+
+        Resolved the way an API-key endpoint's secret is, so the probe reads the same value
+        the relay will later put in the same place.
+        """
+        secret = await self.resolver.resolve(
+            scope=scope,
+            ref=BoundSecretRef(secret_id=secret_id),
+            mode=SecretMode.PROJECT_ONLY,
+        )
+        return api_key_value(secret.secret.data)
 
     # Endpoint listing
 
@@ -744,43 +877,58 @@ class MCPGatewayService:
             and route.url.rstrip("/") == env.mock_gateways.mcp_url.rstrip("/")
         ):
             adapter_key = "mock_http"
-        try:
-            result = await self.upstream_registry.get(adapter_key).relay(
-                route=route,
-                auth=auth,
-                context=context,
-                body=body,
-                headers=headers,
-            )
-        except MCPUpstreamError as exc:
-            await record(GatewayOutcome(status_code=exc.status_code))
-            raise
 
-        # A refused credential is a reconnect, not a relayed 401.
-        #
-        # `_renewed` above only renews a grant this deployment can see has expired. It
-        # cannot see a grant the provider retired early — someone removing the
-        # application at the provider, an administrator revoking the account's
-        # authorization, a server that expires a token sooner than it said it would. In
-        # every one of those the stored grant looks live, the relay sends it, and the
-        # upstream answers 401.
-        #
-        # That 401 used to travel back to the caller as the upstream's own response, so
-        # the connection went on reporting itself connected, the settings screen showed
-        # nothing wrong, and an agent saw an authentication error from a server it had
-        # no way to re-authorize. There is nothing the caller can retry: the credential
-        # is dead and only its owner can replace it. So the connection is marked invalid
-        # — which is what `_connection_state` reads — and the caller is handed the same
-        # reconnect affordance a never-connected connection gets.
-        #
-        # Scoped to a stored OAuth connection: a 401 from an unauthenticated or
-        # API-key connection is that server's own answer about that server's own
-        # credential, and neither has a consent flow to send anyone back through.
-        if (
+        async def dispatch(auth: MCPRelayAuth) -> MCPRelayResult:
+            try:
+                return await self.upstream_registry.get(adapter_key).relay(
+                    route=route,
+                    auth=auth,
+                    context=context,
+                    body=body,
+                    headers=headers,
+                )
+            except MCPUpstreamError as exc:
+                await record(GatewayOutcome(status_code=exc.status_code))
+                raise
+
+        result = await dispatch(auth)
+
+        oauth_connection = (
             namespace == GatewayEndpointNamespace.CUSTOM
             and target.endpoint.auth_mode == MCPAuthScheme.OAUTH
+        )
+
+        # A refused token is refreshed and the call made again, once. The provider can
+        # retire a token before the expiry it stated, and a grant with a refresh token
+        # recovers from that without the person. Only on a real HTTP 401: a timeout or a
+        # transport failure raised above and is never retried, a tool's own error is a
+        # 200, and a 403 is a refusal of the request, not of the token.
+        presented = _presented_access_token(auth)
+        if (
+            oauth_connection
             and result.status_code == 401
+            and isinstance(auth, MCPDirectAuth)
+            and auth.secret is not None
+            and presented is not None
+            and self.oauth_refresher is not None
         ):
+            try:
+                secret = await self._renewed(
+                    scope=scope,
+                    target=target,
+                    endpoint=target.endpoint,
+                    secret=auth.secret,
+                    failed_access_token=presented,
+                )
+            except (MCPAuthRequiredError, MCPUpstreamError):
+                await record(GatewayOutcome(status_code=401))
+                raise
+            auth = MCPDirectAuth(secret=secret)
+            result = await dispatch(auth)
+
+        # Still refused with a fresh token, so only the person can repair the grant: mark
+        # the connection and ask for a reconnect rather than relay the 401.
+        if oauth_connection and result.status_code == 401:
             await record(GatewayOutcome(status_code=401))
             await self._invalidate_endpoint(
                 scope=scope,
@@ -797,12 +945,10 @@ class MCPGatewayService:
                 ),
             )
 
-        # Convert OAuth insufficient-scope challenges into a reconnect interaction.
-        if (
-            namespace == GatewayEndpointNamespace.CUSTOM
-            and target.endpoint.auth_mode == MCPAuthScheme.OAUTH
-            and result.status_code == 403
-        ):
+        # Convert OAuth insufficient-scope challenges into a reconnect interaction, in the
+        # server's own words when it gave any. Any other 403 is the server's refusal of
+        # this request and is relayed as it came.
+        if oauth_connection and result.status_code == 403:
             challenged_scopes = _parse_scope_challenge(result.headers)
             if challenged_scopes is not None:
                 await record(GatewayOutcome(status_code=403))
@@ -815,6 +961,7 @@ class MCPGatewayService:
                     ),
                     scopes=challenged_scopes,
                     endpoint_id=target.endpoint.id,
+                    detail=_challenge_description(result.headers),
                 )
 
         # Record the relay and filter tool listings when configured.
@@ -1050,8 +1197,10 @@ class MCPGatewayService:
         target: _ResolvedTarget,
         endpoint: MCPEndpoint,
         secret: ResolvedSecret,
+        failed_access_token: Optional[str] = None,
     ) -> ResolvedSecret:
-        """Return a live grant for an OAuth endpoint, refreshing it if it has expired.
+        """Return a live grant for an OAuth endpoint, refreshing it if it is due, or if
+        the upstream just refused `failed_access_token`.
 
         Without this the relay sends an expired access token, the upstream answers 401,
         and the endpoint goes on reporting READY because a secret still exists (OR55).
@@ -1060,7 +1209,7 @@ class MCPGatewayService:
         caller gets the same reconnect affordance a never-connected endpoint gets.
         """
         grant = getattr(secret.secret.data, "grant", None)
-        if not grant_settings_expired(grant):
+        if failed_access_token is None and not grant_refresh_due(grant):
             return secret
 
         server_url = endpoint.data.route.base_url or ""
@@ -1079,14 +1228,29 @@ class MCPGatewayService:
                 project_id=scope.project_id,
                 endpoint_id=endpoint.id,
                 server_url=server_url,
+                failed_access_token=failed_access_token,
             )
+        except MCPOAuthRefreshUnavailableError as e:
+            raise MCPUpstreamError(
+                target=path,
+                status_code=503,
+                detail="The authorization server did not renew the sign-in. Try again.",
+            ) from e
+        except MCPConnectionBusyError as e:
+            # Another change held the connection's lock past the wait. Nothing about the
+            # grant is known, so the connection is left as it is.
+            raise MCPUpstreamError(
+                target=path, status_code=503, detail=f"{e.message} Try again."
+            ) from e
         except MCPOAuthRefreshFailedError as e:
             await self._invalidate_endpoint(
                 scope=scope,
                 endpoint=endpoint,
                 presented_access_token=getattr(grant, "access_token", None),
             )
-            raise self._reconnect_required(endpoint=endpoint, path=path) from e
+            raise self._reconnect_required(
+                endpoint=endpoint, path=path, message=e.reconnect_message
+            ) from e
 
         # The refresh rewrote the row this reference already names, so the same lookup
         # returns the new tokens.
@@ -1098,9 +1262,10 @@ class MCPGatewayService:
 
     @staticmethod
     def _reconnect_required(
-        *, endpoint: MCPEndpoint, path: str
+        *, endpoint: MCPEndpoint, path: str, message: Optional[str] = None
     ) -> MCPAuthRequiredError:
         return MCPAuthRequiredError(
+            message=message,
             requirement=GatewayConnectionRequirement(
                 target=path,
                 state=GatewayConnectionState.NEEDS_AUTH,
@@ -1108,7 +1273,7 @@ class MCPGatewayService:
                     endpoint=f"/gateways/mcps/endpoints/{endpoint.id}/connect",
                     body={},
                 ),
-            )
+            ),
         )
 
     async def _credential_was_replaced(
@@ -1201,7 +1366,7 @@ class MCPGatewayService:
             url=endpoint.data.route.base_url or "",
             headers=endpoint.data.route.headers or {},
             settings=endpoint.data.settings,
-            credential_header=endpoint.data.route.credential_header,
+            credential_binding=endpoint.data.route.credential_binding,
             project_id=(
                 project_id
                 if target.namespace == GatewayEndpointNamespace.STANDARD

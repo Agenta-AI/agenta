@@ -4,6 +4,7 @@ from opentelemetry.trace import SpanKind
 
 import agenta as ag
 
+from agenta.sdk.engines.tracing.server import product_context
 from agenta.sdk.engines.tracing.spans import CustomSpan
 from agenta.sdk.utils.logging import get_module_logger
 
@@ -109,7 +110,11 @@ def litellm_handler():
             kind = SpanKind.CLIENT
 
             self.span[litellm_call_id] = CustomSpan(
-                ag.tracer.start_span(name=f"litellm_{kind.name.lower()}", kind=kind)
+                ag.tracer.start_span(
+                    name=f"litellm_{kind.name.lower()}",
+                    kind=kind,
+                    context=product_context(),
+                )
             )
 
             span = self.span[litellm_call_id]

@@ -16,7 +16,10 @@ from ee.src.core.measurements.components import (
 )
 from ee.src.core.measurements.tools import unit_of_component
 from ee.src.core.wallets.errors import InvalidUsageWindowError
-from ee.src.core.wallets.types import WalletsDAOInterface
+from ee.src.core.wallets.types import (
+    WalletSpendableBalanceDTO,
+    WalletsDAOInterface,
+)
 from ee.src.core.wallets.usage.dtos import (
     MeasurementUsage,
     WalletUsage,
@@ -92,6 +95,17 @@ def _agent_id(measurement: Optional[MeasurementUsage]) -> Optional[UUID]:
     return measurement.agent_id if measurement else None
 
 
+def _spendable_above_floor(
+    spendable: Optional[WalletSpendableBalanceDTO],
+) -> Optional[int]:
+    """What admission lets the organization spend: admission refuses once the balance is at
+    or below the floor, so only the part above the floor is available."""
+    if spendable is None:
+        return None
+    floor = spendable.floor_musd if spendable.floor_musd is not None else 0
+    return max(0, spendable.spendable_musd - floor)
+
+
 class WalletUsageService:
     def __init__(
         self,
@@ -120,7 +134,7 @@ class WalletUsageService:
             and (credit.end_time is None or credit.end_time > now)
         ]
         return WalletUsageSummary(
-            spendable_musd=spendable.spendable_musd if spendable else None,
+            spendable_musd=_spendable_above_floor(spendable),
             general_balance_musd=general.balance_musd if general else None,
             floor_musd=general.floor_musd if general else None,
             active_credit_total_musd=sum(credit.amount_musd for credit in active),

@@ -1,8 +1,10 @@
 import {useState, type FormEvent} from "react"
 
 import {requestEmailCode} from "@agenta/auth"
-import clsx from "clsx"
+import {Input, LoadingButton} from "@agenta/ui/ui"
+import {EnvelopeSimple} from "@phosphor-icons/react"
 
+import {FIELD_CLASS, KEYCAP_CLASS} from "./classes"
 import {ShowErrorMessage} from "./ShowErrorMessage"
 import type {AuthMessage, AuthSecurityAdapter} from "./types"
 
@@ -37,7 +39,7 @@ export const PasswordlessRequestForm = ({
         event.preventDefault()
         if (isLoading) return
         if (!email.trim()) {
-            setMessage({message: "Please input your email!", type: "error"})
+            setMessage({message: "Please add your email.", type: "error"})
             return
         }
         const token = security ? security.ensureToken() : null
@@ -47,7 +49,7 @@ export const PasswordlessRequestForm = ({
             security?.stampToken(token)
             const outcome = await requestEmailCode(email.trim())
             if (outcome.kind === "ok") {
-                setMessage({message: "Check your inbox for the OTP to continue!", type: "success"})
+                setMessage({message: "Code sent. Not there? Check spam.", type: "info"})
                 onCodeSent()
             } else {
                 setMessage({message: outcome.message, type: "error"})
@@ -61,22 +63,34 @@ export const PasswordlessRequestForm = ({
     }
 
     return (
-        <form className="w-full space-y-2" onSubmit={submit} noValidate>
-            {message.type === "error" && <ShowErrorMessage info={message} />}
-            <input
-                type="email"
-                autoComplete="email"
-                aria-label="Email address"
-                placeholder="Enter valid email address"
-                value={email}
-                disabled={lockEmail}
-                className={clsx("auth-input", lockEmail && "auth-locked-input")}
-                onChange={(event) => setEmail(event.target.value)}
-            />
+        <form className="flex w-full flex-col gap-[10px]" onSubmit={submit} noValidate>
+            {lockEmail ? null : (
+                <Input
+                    type="email"
+                    autoComplete="email"
+                    aria-label="Email address"
+                    aria-invalid={message.type === "error" || undefined}
+                    placeholder="Enter your email address"
+                    value={email}
+                    size="lg"
+                    className={FIELD_CLASS}
+                    onChange={(event) => setEmail(event.target.value)}
+                />
+            )}
             {security?.widget}
-            <button type="submit" className="auth-btn-yellow" disabled={disabled || isLoading}>
-                {isLoading ? "Sending…" : "Continue with OTP"}
-            </button>
+            <LoadingButton
+                type="submit"
+                size="lg"
+                loading={isLoading}
+                disabled={disabled}
+                className={KEYCAP_CLASS}
+            >
+                <span key={isLoading ? "busy" : "idle"} className="auth-swap">
+                    {isLoading ? null : <EnvelopeSimple size={16} />}
+                    {isLoading ? "Sending code…" : "Email me a one-time code"}
+                </span>
+            </LoadingButton>
+            {message.type === "error" && <ShowErrorMessage info={message} />}
         </form>
     )
 }

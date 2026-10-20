@@ -1,8 +1,4 @@
-/**
- * @agenta/auth-ui is antd-FREE by contract: plain elements + semantic token classes, so the
- * mobile app (shadcn tokens) and the desktop (token bridge) both render it without pulling a
- * component library. Anything app-specific arrives as props.
- */
+/** @agenta/auth-ui is antd-free: the shadcn kit (`@agenta/ui/ui`) and semantic tokens only. */
 import base, {restrictedImportPaths} from "../eslint.config.mjs"
 
 export default [
@@ -15,15 +11,9 @@ export default [
                     paths: [...restrictedImportPaths],
                     patterns: [
                         {
-                            group: [
-                                "antd",
-                                "antd/*",
-                                "@ant-design/*",
-                                "@agenta/ui",
-                                "@agenta/ui/*",
-                            ],
+                            regex: "^(?:antd(?:/.*)?|@ant-design/.*|@agenta/ui(?:/(?!ui$).*)?)$",
                             message:
-                                "@agenta/auth-ui is antd-free and component-library-free — plain elements with semantic token classes only.",
+                                "@agenta/auth-ui is antd-free: use the shadcn kit (@agenta/ui/ui) and semantic token classes only.",
                         },
                     ],
                 },

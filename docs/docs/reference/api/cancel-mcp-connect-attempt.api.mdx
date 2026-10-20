@@ -1,0 +1,71 @@
+---
+id: cancel-mcp-connect-attempt
+title: "Cancel Connect Attempt"
+description: "Cancel one pending consent attempt. Its callback then writes nothing."
+sidebar_label: "Cancel Connect Attempt"
+hide_title: true
+hide_table_of_contents: true
+api: eJzNVcGO2zYQ/RViTg1AWJtFTjrV2BiNkQRdJNteHGPBpcYWE4pkyNFuXEH/Xgwl2fI621uL6iKJfJwh37w37IDUPkG5gd8U4ZM6lOLjzS1sJVSYdDSBjHdQwo1yGq3wDkVAVxm3F9q7hI6EIsIm0EKsKQmtrH1Q+pugGp14ioYwCeepNm6/+OK+uHWFTfCEjkqh3LRYKBtRVQeRkMhiJYXOCS1WwkeRnjCQMElY3JFQSRj+W4AEHzAq3uO6ghKGRfeNDvfaO4ea7scEICGoqBokjHzcDpxqEEpAVwVvHN2bCiQYPmtQVIOEiN9bE7GCkmKLEpKusVFQdkCHwEsTReP2IGHnY6MISmjbHIUMWQasxthiXUHfy2POcU//RsrlyGfOuOWIKXCdEge5vnrDr/PKfm61xpR2rRWfRjD0Et5cX19i/1TWVJlusYrRR5CgveNiMlaFYI3O08XXxAu62QlC5FqRGbZSISlj+csQNukSYL0+m1Xu8PsuF+6cCqZ1HDGOcI8R+m0vpzEVozrM+Pnghw3yEZu0/xm1E/QjpqT2mYwB8jI0kyHueLbnioY2EzJNr/NAL0HTj1kY//AVNc3C3DCXP4i1coE5SWOTuRm2P+K2pxinEg0VepmKt0MJfpZsgry7u7u9CMiPhAap9uy5Ci0SZn9RDSUU+6GRpKLRIRWTv1LRzazWF6M/i9ELqehOruhBQsL4OFm1jZYDq2ByuYffmiiksiiwXWjr22qh9uhILZQZgFuOodto6JCDLG/X7/HwDlWFEcrNdg74zCoddHcOO9ZKBfMemb3RwsuWah/NX4OYRhfXw6o+a2Dn5xJY5s2J5e0anrfWsym2k9JZPVOmPA3y2bFPpwUJ2GQzAaFqfj3OcO2ZwyHN1eL14oqHgk/UKDdLMTb3m6EkYnlsmWcb7U5e/99eB2O12EVFsMpkn2fiulGfG5j0yRbSgV9HjYKE8vxCGGUKcmraGTNr4FsJtU/EgbvuQSX8I9q+5+HvLUaW3lbCo4pGPbAQNh1UJvF3BeVO2YT/wPIvn0bTvxIvnW2Sp2NtPirb8h9I+IaHZ5cbO+c/TD2jKPfjejJeNwKWWmMW2bT04vpghx7bzNvVh9XdCvr+b/3v+80=
+sidebar_class_name: "delete api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Cancel Connect Attempt"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"delete"}
+  path={"/gateways/mcps/endpoints/{endpoint_id}/connect/attempts/{attempt_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Cancel one pending consent attempt. Its callback then writes nothing.
+
+Idempotent: an attempt already settled, cancelled or swept is left as it is.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./cancel-mcp-connect-attempt.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./cancel-mcp-connect-attempt.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./cancel-mcp-connect-attempt.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

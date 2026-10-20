@@ -54,6 +54,7 @@ supported_llm_models = {
         "gemini/gemini-pro-latest",
         "gemini/gemini-flash-latest",
         "gemini/gemini-flash-lite-latest",
+        "gemini/gemini-4-argon",
         "gemini/gemini-3.7-flash",
         "gemini/gemini-3.6-flash",
         "gemini/gemini-3.5-flash",

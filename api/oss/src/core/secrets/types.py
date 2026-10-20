@@ -32,7 +32,9 @@ class SecretSlugConflict(SecretsError):
 
     def __init__(self, *, slug: str):
         self.slug = slug
-        super().__init__(f"A secret already exists with the slug {slug}.")
+        super().__init__(
+            f"A secret already exists with the slug {slug}. Choose another slug."
+        )
 
 
 class SubscriptionSecretNotFound(SecretsError):

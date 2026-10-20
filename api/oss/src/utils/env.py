@@ -393,6 +393,11 @@ class LoggingConfig(BaseModel):
         or "INFO"
     ).upper()
 
+    # "text" (colored, the default) or "json" (one object per line)
+    format: str = (os.getenv("AGENTA_LOG_FORMAT") or "text").strip().lower()
+    # Prefixes trace ids in JSON logs for Google Cloud Logging
+    google_cloud_project: str | None = os.getenv("GOOGLE_CLOUD_PROJECT") or None
+
     model_config = ConfigDict(extra="ignore")
 
 
@@ -416,6 +421,21 @@ class OTLPConfig(BaseModel):
         ge=1,
         validate_default=True,
     )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# agenta.server_tracing — spans about the Agenta servers themselves, sent to an
+# OTLP collector. Separate from product tracing, which goes to Agenta.
+# ---------------------------------------------------------------------------
+
+
+class ServerTracingConfig(BaseModel):
+    # OTLP/HTTP base URL, e.g. http://collector:4318. Unset turns server tracing off.
+    endpoint: str | None = os.getenv("AGENTA_SERVER_TRACING_ENDPOINT") or None
+    # A ratio from 0 to 1, parsed and checked when tracing starts (default 0.1).
+    sample_ratio: str | None = os.getenv("AGENTA_SERVER_TRACING_SAMPLE_RATIO") or None
 
     model_config = ConfigDict(extra="ignore")
 
@@ -826,6 +846,7 @@ class AgentaConfig(BaseModel):
     logging: LoggingConfig = LoggingConfig()
     otlp: OTLPConfig = OTLPConfig()
     redaction: RedactionConfig = RedactionConfig()
+    server_tracing: ServerTracingConfig = ServerTracingConfig()
     services: ServicesConfig = ServicesConfig()
     sessions: SessionsConfig = SessionsConfig()
     webhooks: WebhooksConfig = WebhooksConfig()
@@ -1065,9 +1086,9 @@ class MockGatewaysConfig(BaseModel):
     # answers with.
     #
     # Both halves are configurable so a stack can move them, and both have defaults so the
-    # QA runbook can name one pair. The name is what an endpoint registers as its
-    # `credential_header`; an endpoint that registers none sends the same value as
-    # `Authorization: Bearer <value>`, and the surface accepts that form too.
+    # QA runbook can name one pair. The name is what an endpoint's credential binding
+    # names, as a header or a query parameter; the surface also accepts the value as
+    # `Authorization: Bearer <value>` and as the password of `Authorization: Basic`.
     mcp_key_header: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_KEY_HEADER", "X-Api-Key")
     mcp_key_value: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_KEY", "agenta-mock-mcp-key")
 
@@ -1727,29 +1748,18 @@ class MountsConfig(BaseModel):
         )
     )
 
-    model_config = ConfigDict(extra="ignore")
-
-
-# ---------------------------------------------------------------------------
-# newrelic
-# ---------------------------------------------------------------------------
-
-
-class NewRelicConfig(BaseModel):
-    """New Relic monitoring configuration"""
-
-    license_key: str | None = (
-        os.getenv("NEWRELIC_LICENSE_KEY")
-        or os.getenv("NEW_RELIC_LICENSE_KEY")
-        or os.getenv("NRIA_LICENSE_KEY")
+    # Largest request body the drive upload and write routes accept, in bytes. The API holds
+    # the whole file in memory while it writes it to the store, so this bounds the memory one
+    # request can take. A larger request gets 413: before its body is read when it declares
+    # Content-Length, and as soon as it passes the limit when it does not.
+    max_upload_bytes: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_MOUNTS_MAX_UPLOAD_BYTES")
+            or 100 * 1024 * 1024
+        )
     )
 
     model_config = ConfigDict(extra="ignore")
-
-    @property
-    def enabled(self) -> bool:
-        """New Relic enabled if license key present"""
-        return bool(self.license_key)
 
 
 # ---------------------------------------------------------------------------
@@ -2370,7 +2380,6 @@ class EnvironSettings(BaseModel):
     mcp_gateway: MCPGatewayConfig = MCPGatewayConfig()
     mock_gateways: MockGatewaysConfig = MockGatewaysConfig()
     mounts: MountsConfig = MountsConfig()
-    newrelic: NewRelicConfig = NewRelicConfig()
     postgres: PostgresConfig = PostgresConfig()
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()

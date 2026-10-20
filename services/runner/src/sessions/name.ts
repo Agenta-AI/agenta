@@ -12,6 +12,18 @@ import { type AgentRunRequest, messageText } from "../protocol.ts";
 /** Mirrors the browser auto-title's `AUTO_TITLE_MAX_CHARS` so both writers produce one string. */
 const NAME_MAX_CODE_POINTS = 60;
 
+/** The line the composer appends for each file it saved to the session drive instead of
+ * attaching (@agenta/chat `withDriveFileNote`). It is not the user's words, so it never names
+ * the session. */
+const DRIVE_FILE_NOTE_PREFIX =
+  "Uploaded to the session drive (too large to attach):";
+
+const withoutDriveFileNotes = (text: string): string =>
+  text
+    .split("\n")
+    .filter((line) => !line.trim().startsWith(DRIVE_FILE_NOTE_PREFIX))
+    .join("\n");
+
 /**
  * The first user message's text, trimmed and capped. Undefined when the request carries no
  * readable user text at all (an attachment- or image-only turn, or a resume whose tail is a
@@ -22,7 +34,7 @@ export function proposeSessionName(
 ): string | undefined {
   for (const message of request.messages ?? []) {
     if (message?.role !== "user") continue;
-    const text = messageText(message.content).trim();
+    const text = withoutDriveFileNotes(messageText(message.content)).trim();
     if (!text) continue;
     // Cut on code points, not UTF-16 units, so an emoji straddling the cap isn't halved.
     return Array.from(text).slice(0, NAME_MAX_CODE_POINTS).join("");

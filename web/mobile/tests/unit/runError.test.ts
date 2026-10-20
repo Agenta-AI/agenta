@@ -35,6 +35,12 @@ describe("describeRunError", () => {
         expect(describeRunError("503: overloaded").headline).toBe(
             "The model provider isn't responding.",
         )
+        // The LLM gateway's own timeout.
+        expect(
+            describeRunError(
+                '408: {"error":{"message":"The model provider did not answer in time.","code":"upstream_timeout"}}',
+            ).headline,
+        ).toBe("The model provider isn't responding.")
         // An unfamiliar failure keeps the provider's own sentence and offers no remedy.
         const other = describeRunError('400: {"message":"Unsupported parameter: tools."}')
         expect(other.headline).toBe("Unsupported parameter: tools.")

@@ -1,4 +1,4 @@
-import type {MCPEndpoint} from "./types"
+import type {MCPAuthMode, MCPCredentialBinding, MCPEndpoint} from "./types"
 
 // This is deliberately derived rather than persisted. `secret_id` names a vault
 // record, while `flags.is_valid` is the latest gateway health result; neither a
@@ -54,5 +54,46 @@ export const getMcpConnectionStateLabel = (state: McpConnectionState): string =>
             return "Needs authorization"
         case "needs_input":
             return "Needs input"
+    }
+}
+
+/** What a reconnect starts from: the saved connection, so a repair changes only the credential. */
+export interface McpReconnectTarget {
+    id: string
+    slug: string
+    name: string
+    url: string
+    /** The secret it is saved with, which the secret select starts on. */
+    secretId?: string | null
+    /** How the connection authorizes, so a reconnect repairs the right thing. */
+    authMode?: MCPAuthMode
+    /**
+     * Where this connection's credential is already sent.
+     *
+     * A key reconnect repairs a credential and changes nothing else (decisions 10 and 34), so
+     * the fields it asks about start where the connection left them. Prefilling the probe's
+     * default instead offered `Authorization` over a saved `X-Api-Key`, and a person who
+     * accepted what was on screen broke a working connection.
+     */
+    credentialBinding?: MCPCredentialBinding | null
+}
+
+/**
+ * The reconnect target for a saved connection, or null for a row that has no id or slug yet.
+ * Every Reconnect button builds it here, so a field the sheet needs cannot be left out at one
+ * of them.
+ */
+export const mcpReconnectTarget = (
+    endpoint: MCPEndpoint | null | undefined,
+): McpReconnectTarget | null => {
+    if (!endpoint?.id || !endpoint.slug) return null
+    return {
+        id: endpoint.id,
+        slug: endpoint.slug,
+        name: endpoint.name || endpoint.slug,
+        url: endpoint.data.route.base_url || "",
+        secretId: endpoint.secret_id,
+        authMode: endpoint.auth_mode,
+        credentialBinding: endpoint.data.route.credential_binding,
     }
 }

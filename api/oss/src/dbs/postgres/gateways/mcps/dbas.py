@@ -46,9 +46,9 @@ class MCPEndpointDBA(
 class MCPOAuthAttemptDBA(ProjectScopeDBA, UserScopeDBA, IdentifierDBA):
     """One in-flight OAuth authorization attempt.
 
-    Short-lived by construction: created by `begin()`, deleted by the callback that
-    consumes it or by the expiry sweep. Nothing ever edits or soft-deletes a row, so it
-    carries no `LifecycleDBA` columns at all; `expires_at` is the only time it has.
+    Short-lived by construction: created by `begin()`, settled by the callback or a
+    cancel, and deleted by the expiry sweep. It carries no `LifecycleDBA` columns at
+    all; `expires_at` is the only time it has.
     """
 
     __abstract__ = True
@@ -69,4 +69,10 @@ class MCPOAuthAttemptDBA(ProjectScopeDBA, UserScopeDBA, IdentifierDBA):
     code_verifier = Column(String, nullable=False)
     scopes = Column(JSONB, nullable=True)
     strategy = Column(String, nullable=False)
+    # The client the attempt signs in as. See `MCPOAuthAttemptCreate.client_id`.
+    client_id = Column(String, nullable=True)
     expires_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    # How the attempt ended, kept until the sweep so the browser can ask when the
+    # popup's message never arrives. See `MCPOAuthAttemptStatus`.
+    status = Column(String, nullable=False, server_default="pending")
+    error = Column(String, nullable=True)

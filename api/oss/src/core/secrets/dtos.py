@@ -323,6 +323,10 @@ class OAuthGrantSettingsDTO(BaseModel):
     # identity-document strategy, which persists no registration at all. Both fall back
     # to the issuer's registration, which is where they were already looking.
     client_registration_slug: Optional[str] = None
+    # The client id these tokens were issued to. A grant from a client the person
+    # registered by hand, or from the identity document, has no registration row to
+    # name, so this is what keeps its renewal on the same client.
+    client_id: Optional[str] = None
 
 
 class OAuthGrantDTO(BaseModel):

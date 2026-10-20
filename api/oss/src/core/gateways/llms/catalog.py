@@ -13,6 +13,7 @@ from oss.src.core.gateways.llms.dtos import (
     LLMEndpoint,
     LLMEndpointData,
     LLMEndpointRoute,
+    LLMEndpointSettings,
     LLMModelFilter,
 )
 from oss.src.core.gateways.llms.providers.passthrough.routing import DIRECT_BASE_URLS
@@ -35,7 +36,11 @@ AGENTA_PROVIDER = "agenta"
 
 # The models `builtin/agenta` serves, spelled as Vertex's OpenAI-compatible endpoint names
 # them, so a request body relays to Vertex unchanged.
-AGENTA_MODELS = ("google/gemini-3.7-flash", "google/gemini-3.8-flash")
+AGENTA_MODELS = (
+    "google/gemini-3.7-flash",
+    "google/gemini-3.8-flash",
+    "google/gemini-4-argon",
+)
 
 # The connection the starter-credits bridge seeded ("Agenta", slug `starter-credits`), and
 # each model id a saved revision can name on it, with the `builtin/agenta` model that
@@ -53,6 +58,10 @@ RETIRED_STARTER_CREDITS_MODEL_ALIASES = {
 # Fixed, not configurable: the rate card prices the `global` endpoint, and a regional one
 # lists 10% higher, so another location would be charged below its cost basis.
 AGENTA_VERTEX_LOCATION = "global"
+
+# Gemini Flash can think for minutes before its first chunk. Shorter than the 600 s default,
+# so a model that does not answer fails while the person is still waiting for it.
+AGENTA_TIMEOUT_SECONDS = 300.0
 
 # Every provider the `builtin` namespace can serve. A `builtin` call runs on the platform's
 # account, so the wallet's rate card must price each model these serve.
@@ -163,6 +172,7 @@ def _agenta_endpoint() -> Optional[LLMEndpoint]:
                 extras={"vertex_project": config.vertex_project},
             ),
             models=LLMModelFilter(allowlist=list(AGENTA_MODELS)),
+            settings=LLMEndpointSettings(timeout_seconds=AGENTA_TIMEOUT_SECONDS),
         ),
     )
 

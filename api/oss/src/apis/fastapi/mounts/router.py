@@ -32,6 +32,7 @@ from oss.src.core.mounts.types import (
     MountArtifactNotFound,
     MountDataInvalid,
     MountFileNotFound,
+    MountFileTooLarge,
     MountImmutableField,
     MountNameInvalid,
     MountNotFound,
@@ -62,7 +63,10 @@ from oss.src.apis.fastapi.mounts.models import (
 )
 from oss.src.apis.fastapi.mounts.utils import (
     BINARY_RESPONSE,
+    SizeCappedUploadRoute,
+    TEXT_READ_TOO_LARGE_RESPONSE,
     ZIP_RESPONSE,
+    check_upload_size,
     download_mount_file,
     merge_mount_query,
     sign_mount_credentials,
@@ -127,6 +131,11 @@ def handle_mount_exceptions():
             except MountFileNotFound as e:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
+                    detail=e.message,
+                ) from e
+            except MountFileTooLarge as e:
+                raise HTTPException(
+                    status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                     detail=e.message,
                 ) from e
             except MountProtected as e:
@@ -295,6 +304,7 @@ class MountsRouter:
         self.router.add_api_route(
             "/{mount_id}/files/upload",
             self.upload_mount_file,
+            route_class_override=SizeCappedUploadRoute,
             methods=["POST"],
             operation_id="upload_mount_file",
             response_model=MountFileWrittenResponse,
@@ -317,11 +327,13 @@ class MountsRouter:
             methods=["GET"],
             operation_id="get_mount_files",
             response_model=None,
+            responses=TEXT_READ_TOO_LARGE_RESPONSE,
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
             "/{mount_id}/files",
             self.write_mount_file,
+            route_class_override=SizeCappedUploadRoute,
             methods=["PUT"],
             operation_id="write_mount_file",
             response_model=MountFileWrittenResponse,
@@ -705,6 +717,7 @@ class MountsRouter:
 
         if_none_match_any = _if_none_match_any(if_none_match)
         content = await request.body()
+        check_upload_size(len(content))
 
         written = await self.mounts_service.write_file(
             project_id=UUID(request.state.project_id),

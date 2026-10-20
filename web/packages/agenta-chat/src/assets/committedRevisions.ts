@@ -42,13 +42,21 @@ export const liveCommittedRevisions = (
     afterSequence?: number,
 ): CommittedRevision[] => {
     if (afterSequence === undefined) return []
+    // Names first: the log can store a tool's result before its call.
     const names = new Map<string, string>()
+    for (const row of records) {
+        const payload = row.payload
+        if (
+            payload?.type === "tool_call" &&
+            typeof payload.id === "string" &&
+            typeof payload.name === "string"
+        )
+            names.set(payload.id, canonicalClientToolName(payload.name))
+    }
     const revisions = new Map<string, CommittedRevision>()
     for (const row of records) {
         const payload = row.payload
         if (!payload || typeof payload.id !== "string") continue
-        if (payload.type === "tool_call" && typeof payload.name === "string")
-            names.set(payload.id, canonicalClientToolName(payload.name))
         if (
             payload.type !== "tool_result" ||
             payload.isError ||

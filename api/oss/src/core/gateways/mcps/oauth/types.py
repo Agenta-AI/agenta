@@ -28,29 +28,56 @@ class MCPOAuthRegistrationError(GatewaysError):
 class MCPOAuthRegistrationUnavailableError(MCPOAuthRegistrationError):
     """The authorization server offers no way for this deployment to name itself.
 
-    It advertises no registration endpoint, and this deployment is not publicly
-    resolvable, so it cannot serve a client-id metadata document either. Nothing is
-    wrong with the request; there is simply no path, and the operator has to make the
-    deployment reachable or register a client by hand.
+    It advertises no registration endpoint, and it does not accept a client ID metadata
+    document from this deployment. Nothing is wrong with the request; the person has to
+    register an OAuth app with the provider and enter its client ID.
     """
 
     def __init__(self, *, authorization_server: str):
         super().__init__(
             authorization_server=authorization_server,
             detail=(
-                "it advertises no registration endpoint and this deployment is not "
-                "publicly reachable, so no client identity can be established"
+                "this server needs an OAuth app you register yourself. Add its client "
+                "ID and secret under Advanced"
             ),
         )
 
 
 class MCPOAuthTokenExchangeError(GatewaysError):
-    """The token endpoint refused the authorization-code exchange."""
+    """The token endpoint refused the authorization-code exchange.
 
-    def __init__(self, *, token_endpoint: str, detail: Optional[str] = None):
+    `temporary` when it did not answer, or answered 429 or 5xx: that says nothing about
+    the grant, and the same request can succeed later.
+    """
+
+    def __init__(
+        self,
+        *,
+        token_endpoint: str,
+        detail: Optional[str] = None,
+        temporary: bool = False,
+    ):
         self.token_endpoint = token_endpoint
         self.detail = detail
+        self.temporary = temporary
         super().__init__(f"Token exchange failed at {token_endpoint}: {detail}")
+
+
+class MCPOAuthRefreshUnavailableError(GatewaysError):
+    """The token endpoint could not be reached to renew a grant, or failed on its side.
+
+    Not a `MCPOAuthRefreshFailedError`: the grant may be fine, so the connection is not
+    marked invalid and nobody is asked to consent again. The call fails, and the next one
+    tries the refresh again.
+    """
+
+    def __init__(self, *, server_url: str, detail: Optional[str] = None):
+        self.server_url = server_url
+        self.detail = detail
+        super().__init__(
+            f"The authorization server for {server_url} did not renew the "
+            f"authorization: {detail}"
+        )
 
 
 class MCPOAuthRefreshFailedError(GatewaysError):
@@ -60,7 +87,12 @@ class MCPOAuthRefreshFailedError(GatewaysError):
     refused the one there is. Either way the grant is dead and only the person who
     granted it can replace it, so the data plane turns this into a reconnect refusal
     rather than relaying a call that would come back 401 forever.
+
+    `reconnect_message` is what that refusal tells the person, where a failure has
+    something to say they can act on. Most do not, and their detail stays internal.
     """
+
+    reconnect_message: Optional[str] = None
 
     def __init__(self, *, server_url: str, detail: Optional[str] = None):
         self.server_url = server_url
@@ -70,6 +102,19 @@ class MCPOAuthRefreshFailedError(GatewaysError):
             f"renewed: {detail}"
             if detail
             else f"The stored authorization for {server_url} expired and could not be renewed"
+        )
+
+
+class MCPOAuthNoRefreshTokenError(MCPOAuthRefreshFailedError):
+    """The grant expired, or its token was refused, and it carries no refresh token."""
+
+    reconnect_message = (
+        "No refresh token was issued for this connection. Reconnect to continue."
+    )
+
+    def __init__(self, *, server_url: str):
+        super().__init__(
+            server_url=server_url, detail="the stored grant carries no refresh token"
         )
 
 
@@ -87,7 +132,7 @@ class MCPOAuthRegistrationUnresolvablePinError(MCPOAuthRefreshFailedError):
     to again, which mints a fresh registration along with fresh tokens (N3).
     """
 
-    def __init__(self, *, server_url: str, registration_slug: str):
+    def __init__(self, *, server_url: str, registration_slug: Optional[str] = None):
         self.registration_slug = registration_slug
         super().__init__(
             server_url=server_url,
@@ -143,12 +188,21 @@ class MCPOAuthStateInvalidError(GatewaysError):
         super().__init__(message or "OAuth state is invalid or expired")
 
 
-class MCPOAuthStateExpiredError(MCPOAuthStateInvalidError):
-    """The attempt exists but its window has closed. Consumed all the same, so an
-    expired handle cannot be presented twice either."""
+class MCPOAuthAttemptCancelledError(MCPOAuthStateInvalidError):
+    """The attempt was cancelled, or the connection's mode or address changed under it.
+
+    Nothing is exchanged or written. A consent the person walked away from must not bind
+    a grant to a connection that has moved on.
+    """
 
     def __init__(self):
-        super().__init__("OAuth state has expired")
+        super().__init__("This sign-in was cancelled.")
+
+
+class MCPOAuthStateExpiredError(MCPOAuthAttemptCancelledError):
+    """The attempt exists but its window has closed. Consumed all the same, so an
+    expired handle cannot be presented twice either. The browser gave up at the same
+    moment, so the person reads it as the cancel it was."""
 
 
 class MCPOAuthCallerMismatchError(GatewaysError):
@@ -176,3 +230,14 @@ class MCPOAuthClientNotRegisteredError(GatewaysError):
     def __init__(self, *, server_url: str):
         self.server_url = server_url
         super().__init__(f"No OAuth client registration on file for {server_url}")
+
+
+class MCPOAuthBindFailedError(GatewaysError):
+    """The consent succeeded and the tokens were issued, but the connection could not be
+    pointed at them, because its row is gone or the write failed. The tokens are removed
+    rather than left in the vault with nothing naming them."""
+
+    def __init__(self):
+        super().__init__(
+            "The sign-in worked, but the connection could not be saved. Connect again."
+        )

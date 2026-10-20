@@ -47,4 +47,12 @@ export interface BillingPlanOption {
     plan: string
     /** `custom` is a contact-sales plan — no self-serve switching in or out of it. */
     type?: "standard" | "custom"
+    /** The plan the chooser points people to. */
+    recommended?: boolean
+    /** Credits the plan grants each month; absent where the catalog does not say. */
+    monthly_credits?: number
+    /** The card's credits line when it is not a monthly grant ("75 credits a day"). */
+    credits_label?: string
+    /** What every plan includes, listed once under the cards; carried on each entry. */
+    shared_features?: string[]
 }

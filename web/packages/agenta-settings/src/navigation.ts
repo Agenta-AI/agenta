@@ -16,7 +16,6 @@ export type SettingsTabKey =
     | "auditLog"
     | "billing"
     | "credits"
-    | "walletUsage"
     | "account"
     | "preferences"
 
@@ -35,8 +34,6 @@ export interface SettingsAccess {
     walletsEnabled?: boolean
     /** Whether credits stop this organization's work (its wallet is enforced). */
     walletEnforced?: boolean
-    /** Whether the wallet's raw debug view is offered (development builds only). */
-    walletDebug?: boolean
 }
 
 /** A tertiary docs link rendered at the far right of a settings page header. */
@@ -120,13 +117,18 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         description: "See what your agents cost, how often they run, and how reliably they finish.",
     },
     {
+        key: "credits",
+        scope: "organization",
+        description: "What your organization has left, where it went, and how to add more.",
+    },
+    {
         key: "billing",
         scope: "organization",
-        getLabel: ({billingEnabled}) => (billingEnabled ? "Usage & Billing" : "Usage"),
+        getLabel: ({billingEnabled}) => (billingEnabled ? "Plan & billing" : "Usage"),
         description: "Track how much of your plan you have used.",
         getDescription: ({billingEnabled}) =>
             billingEnabled
-                ? "Track how much of your plan you have used, and manage your subscription."
+                ? "Your plan, its limits, and payment details."
                 : "Track how much of your plan you have used.",
     },
     {
@@ -172,17 +174,6 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         description: "Review changes made across your organization.",
     },
     {
-        key: "credits",
-        scope: "organization",
-        description: "See the credits your organization has left and where they were used.",
-    },
-    {
-        key: "walletUsage",
-        scope: "organization",
-        description:
-            "Debug view of the wallet's raw data: balance, credits, and every charge by session.",
-    },
-    {
         key: "account",
         scope: "personal",
         description:
@@ -218,7 +209,6 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     organization: "Access & Security",
     auditLog: "Audit Log",
     credits: "Credits",
-    walletUsage: "Usage (debug)",
     account: "Account",
     preferences: "Preferences",
 }
@@ -259,8 +249,6 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
             return access.isEE && access.isOwner
         case "credits":
             return access.isEE && Boolean(access.walletsEnabled && access.walletEnforced)
-        case "walletUsage":
-            return access.isEE && Boolean(access.walletsEnabled && access.walletDebug)
         case "account":
             return access.isEE
         default:

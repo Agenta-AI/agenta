@@ -172,7 +172,9 @@ export async function startOidcSignIn(providerId: string): Promise<{kind: "error
     }
 }
 
-export type OidcCallbackOutcome = {kind: "ok"} | {kind: "failed"; message: string}
+export type OidcCallbackOutcome =
+    | {kind: "ok"; createdNewUser: boolean}
+    | {kind: "failed"; message: string}
 
 /** Finish the redirect flow: verify state, exchange the code, set the session. */
 export async function completeOidcSignIn(): Promise<OidcCallbackOutcome> {
@@ -180,7 +182,7 @@ export async function completeOidcSignIn(): Promise<OidcCallbackOutcome> {
     clearMobileAuthCallbackMark()
     try {
         const result = await ThirdParty.signInAndUp()
-        if (result.status === "OK") return {kind: "ok"}
+        if (result.status === "OK") return {kind: "ok", createdNewUser: result.createdNewRecipeUser}
         if (result.status === "SIGN_IN_UP_NOT_ALLOWED")
             return {kind: "failed", message: result.reason}
         return {

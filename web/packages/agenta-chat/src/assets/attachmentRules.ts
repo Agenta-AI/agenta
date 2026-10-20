@@ -116,6 +116,12 @@ export const validateIncoming = (
     incoming: File[],
     currentCount: number,
     limits: AttachmentLimits = DEFAULT_ATTACHMENT_LIMITS,
+    {
+        allowOversized = false,
+    }: {
+        /** Accept files over the per-kind cap. The host uploads them to the session drive. */
+        allowOversized?: boolean
+    } = {},
 ): AttachmentValidation => {
     const accepted: File[] = []
     const rejections: AttachmentRejection[] = []
@@ -130,7 +136,7 @@ export const validateIncoming = (
             continue
         }
         const maxBytes = limits.maxBytes[kind]
-        if (file.size > maxBytes) {
+        if (file.size > maxBytes && !allowOversized) {
             rejections.push({
                 name: file.name,
                 reason: `is too large, max ${formatBytes(maxBytes)} supported`,
@@ -147,6 +153,12 @@ export const validateIncoming = (
 
     return {accepted, rejections}
 }
+
+/** Whether a file is over its kind's attachment cap, so it goes to the session drive instead. */
+export const exceedsAttachmentLimit = (
+    file: Pick<File, "size" | "type">,
+    limits: AttachmentLimits = DEFAULT_ATTACHMENT_LIMITS,
+): boolean => file.size > limits.maxBytes[kindForType(file.type || "application/octet-stream")]
 
 /** Extensions worth spelling out on a card tile; anything else falls back to the real extension. */
 const BADGE_BY_TYPE: Record<string, string> = {

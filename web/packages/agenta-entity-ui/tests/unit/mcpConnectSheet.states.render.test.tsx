@@ -16,7 +16,11 @@
  */
 import {act, createElement} from "react"
 
-import type {McpJourneyState, McpJourneyStatus} from "@agenta/entities/mcpEndpoint"
+import {
+    detectedAuthMode,
+    type McpJourneyState,
+    type McpJourneyStatus,
+} from "@agenta/entities/mcpEndpoint"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -93,8 +97,18 @@ const state = (over: Partial<McpJourneyState> & {status: McpJourneyStatus}): Mcp
     name: "",
     nameTouched: false,
     probe: null,
+    savedUrlProbe: null,
+    // The probe sets the first value, as in the journey.
+    authMode: over.probe ? detectedAuthMode(over.probe) : "none",
+    authModeTouched: false,
+    oauthOffered: over.probe?.auth.mode === "oauth",
     scopesOffered: [],
     scopesSelected: [],
+    oauthClientId: "",
+    oauthClientSecretId: null,
+    oauthClientAuthMethod: null,
+    savedOauthConfig: null,
+    scopesSaved: null,
     endpointId: null,
     slug: null,
     createdHere: true,
@@ -111,6 +125,9 @@ const open = async (current: McpJourneyState, props: Partial<McpConnectJourneyPr
         setUrl: vi.fn(),
         cancelConsent: vi.fn(),
         onClose: vi.fn(),
+        selectAuthMode: vi.fn(),
+        setOauthClient: vi.fn(),
+        toggleScope: vi.fn(),
     }
     useMcpConnectJourney.mockReturnValue({
         state: current,
@@ -119,8 +136,10 @@ const open = async (current: McpJourneyState, props: Partial<McpConnectJourneyPr
         setUrl: asked.setUrl,
         submitUrl: vi.fn(),
         setName: vi.fn(),
+        selectAuthMode: asked.selectAuthMode,
         submitName: vi.fn(),
-        toggleScope: vi.fn(),
+        toggleScope: asked.toggleScope,
+        setOauthClient: asked.setOauthClient,
         submitScopes: vi.fn(),
         startScopeDiscovery: vi.fn(),
         submitManualCredential: vi.fn(),
@@ -272,9 +291,7 @@ describe("C2, the address refused", () => {
     })
 
     it("offers the raw answer only when the check carried one", async () => {
-        // The probe returns a cause and a sentence and no body, so the control is absent
-        // everywhere in the product today. It appears the moment a response is carried,
-        // which is the seam the data layer left for it.
+        // A server that never answered carries no response, so there is nothing to show.
         await open(failed("unreachable", "No MCP response from mcp.internal.acme.dev."))
         expect(button("Show response")).toBeUndefined()
 
@@ -287,8 +304,8 @@ describe("C2, the address refused", () => {
                     problem: {
                         cause: "unreachable",
                         message: "No MCP response.",
-                        response: {status: "502 Bad Gateway", body: "upstream refused"},
-                    } as NonNullable<NonNullable<McpJourneyState["probe"]>["problem"]>,
+                        response: {status: 502, body: "upstream refused"},
+                    },
                 },
             }),
         )
@@ -309,6 +326,75 @@ describe("C2, the address refused", () => {
             "Reached the address, but it isn't an MCP server. The address answered, but not with an MCP handshake (HTTP 200).",
         )
         expect(text()).not.toContain("Private-network servers must be reachable")
+    })
+
+    it("names the SSE transport and points at the provider's docs", async () => {
+        // #6915. The address answered, so reachability advice is wrong here too, and the
+        // probe's sentence is the headline already. No address is computed: a path rewrite
+        // was right for some providers and wrong for others.
+        await open(
+            failed(
+                "unsupported_transport",
+                "This address uses the older SSE transport, which Agenta does not support.",
+            ),
+        )
+
+        expect(text()).toContain(
+            "This address uses the older SSE transport, which Agenta does not support. Many providers serve the newer transport at an address ending in /mcp. Check the provider's docs.",
+        )
+        expect(text().match(/older SSE transport/g)).toHaveLength(1)
+        expect(text()).not.toContain("Try https://")
+        expect(text()).not.toContain("Private-network servers must be reachable")
+        expect(button("Try again")).toBeDefined()
+    })
+})
+
+describe("an address that may use the legacy SSE transport", () => {
+    const WARNING =
+        "This address may use the older SSE transport, which Agenta does not support. Many providers serve the newer transport at an address ending in /mcp. Check the provider's docs."
+
+    it("warns on the OAuth screen and still offers Connect", async () => {
+        await open(
+            state({
+                status: "naming",
+                url: "https://mcp.asana.com/sse",
+                name: "Asana",
+                probe: {...OAUTH_PROBE, legacy_transport_suspected: true},
+            }),
+        )
+
+        expect(text()).toContain("Reachable · signs in with OAuth")
+        expect(text()).toContain(WARNING)
+        expect(text()).not.toContain("Try https://")
+        expect(button("Connect")).toBeDefined()
+    })
+
+    it("warns on the key screen and still asks for the key", async () => {
+        await open(
+            state({
+                status: "naming",
+                url: "https://mcp.atlassian.com/v1/sse",
+                name: "Atlassian",
+                probe: {...KEY_PROBE, legacy_transport_suspected: true},
+            }),
+        )
+
+        expect(text()).toContain("Reachable · needs an API key")
+        expect(text()).toContain(WARNING)
+        expect(control("Project secret")).toBeTruthy()
+    })
+
+    it("says nothing where the address gives no reason to", async () => {
+        await open(
+            state({
+                status: "naming",
+                url: "https://mcp.linear.app/mcp",
+                name: "Linear",
+                probe: OAUTH_PROBE,
+            }),
+        )
+
+        expect(text()).not.toContain("older SSE transport")
     })
 })
 
@@ -409,12 +495,9 @@ describe("C3, the server signs in with OAuth", () => {
         expect(opened).toHaveBeenCalledOnce()
     })
 
-    it("asks nobody to choose scopes", async () => {
-        // They are the server's business, and the checklist this replaces asked a question
-        // whose answer nobody outside the provider's documentation could know. The status
-        // outlived the checklist, so the guarantee is that it renders the wait, and the
-        // scopes the server offered reach the provider without reaching the person. Opened
-        // on `naming` against the retired headline, this asserted nothing either way.
+    it("renders the wait, not a second scope step, once Connect is pressed", async () => {
+        // The checklist is under Advanced on the screen before the press. The status that
+        // carries the selection to the provider draws the wait.
         await open(
             state({
                 status: "choosing_scopes",
@@ -428,6 +511,175 @@ describe("C3, the server signs in with OAuth", () => {
 
         expect(text()).toContain("Waiting for Linear…")
         expect(document.querySelectorAll("input[type='checkbox']")).toHaveLength(0)
+    })
+})
+
+describe("the OAuth screen's Advanced section", () => {
+    const naming = (over: Partial<McpJourneyState> = {}) =>
+        state({
+            status: "naming",
+            url: "https://mcp.dataforseo.com/v3/mcp",
+            name: "mcp.dataforseo.com",
+            probe: OAUTH_PROBE,
+            scopesOffered: ["read", "write", "offline_access"],
+            scopesSelected: ["read", "write", "offline_access"],
+            ...over,
+        })
+    const checkboxes = () => [...document.querySelectorAll("[role='checkbox']")]
+
+    it("is collapsed, so the usual screen stays as it was", async () => {
+        await open(naming())
+
+        expect(button("Advanced")?.getAttribute("aria-expanded")).toBe("false")
+        expect(control("Client ID")).toBeNull()
+        expect(checkboxes()).toHaveLength(0)
+        expect(button("Connect")?.disabled).toBe(false)
+    })
+
+    it("opens on the client fields and the offered scopes, all checked", async () => {
+        await open(naming())
+        await press(button("Advanced"))
+
+        expect(control("Client ID")?.getAttribute("placeholder")).toBe("Optional")
+        expect(control("Client secret")).not.toBeNull()
+        expect(text()).toContain(
+            "Only for servers that do not register clients on their own. Most do, and these stay blank.",
+        )
+        expect(text()).toContain("read offered by the server")
+        expect(checkboxes().map((box) => box.getAttribute("aria-checked"))).toEqual([
+            "true",
+            "true",
+            "true",
+        ])
+        expect(text()).toContain(
+            "All scopes the server offers are checked. Uncheck one to ask for less. Servers that offer no scopes show nothing here.",
+        )
+    })
+
+    it("asks for less when a scope is unchecked", async () => {
+        await open(naming({scopesSelected: ["read", "offline_access"]}))
+        await press(button("Advanced"))
+
+        expect(checkboxes()[1]?.getAttribute("aria-checked")).toBe("false")
+        await press(checkboxes()[1])
+        expect(asked.toggleScope).toHaveBeenCalledWith("write")
+    })
+
+    it("shows no scope list for a server that offers none", async () => {
+        await open(naming({scopesOffered: [], scopesSelected: []}))
+        await press(button("Advanced"))
+
+        expect(control("Client ID")).not.toBeNull()
+        expect(text()).not.toContain("Scopes")
+    })
+
+    it("opens by itself and says why when the server registers no clients", async () => {
+        const probe = {
+            ...OAUTH_PROBE,
+            auth: {...OAUTH_PROBE.auth, registration: "unavailable" as const},
+        }
+        await open(naming({probe}))
+
+        expect(button("Advanced")?.getAttribute("aria-expanded")).toBe("true")
+        expect(text()).toContain(
+            "This server needs an OAuth app you register yourself. Paste its client ID and secret.",
+        )
+        // Nothing to sign in as until the app is entered.
+        expect(button("Connect")?.disabled).toBe(true)
+    })
+
+    it("lets Connect go once that server has an app with its secret", async () => {
+        const probe = {
+            ...OAUTH_PROBE,
+            auth: {...OAUTH_PROBE.auth, registration: "unavailable" as const},
+        }
+        await open(naming({probe, oauthClientId: "app-from-github"}))
+
+        expect((control("Client ID") as HTMLInputElement | null)?.value).toBe("app-from-github")
+        // The secret is sent in the request body by default, so it is needed first.
+        expect(control("Client authentication")?.textContent).toBe(
+            "Send the secret in the request body",
+        )
+        expect(button("Connect")?.disabled).toBe(true)
+
+        await open(
+            naming({
+                probe,
+                oauthClientId: "app-from-github",
+                oauthClientSecretId: "sec-1",
+            }),
+        )
+        expect(button("Connect")?.disabled).toBe(false)
+    })
+
+    it("asks for no secret for an app that sends none", async () => {
+        await open(
+            naming({
+                oauthClientId: "app-from-github",
+                oauthClientAuthMethod: "none",
+            }),
+        )
+        await press(button("Advanced"))
+
+        expect(control("Client authentication")?.textContent).toBe("No secret")
+        expect(control("Client secret")).toBeNull()
+        expect(button("Connect")?.disabled).toBe(false)
+    })
+
+    it("shows the method only once an app is entered", async () => {
+        await open(naming())
+        await press(button("Advanced"))
+
+        expect(control("Client authentication")).toBeNull()
+    })
+
+    it("shows the callback to register the app with, and copies it", async () => {
+        const writeText = vi.fn(async () => undefined)
+        vi.stubGlobal("navigator", {...navigator, clipboard: {writeText}})
+        const redirect = "https://api.example.test/gateways/mcps/connect/callback"
+        await open(
+            naming({
+                probe: {...OAUTH_PROBE, auth: {...OAUTH_PROBE.auth, redirect_uri: redirect}},
+            }),
+        )
+        await press(button("Advanced"))
+
+        expect(text()).toContain(redirect)
+        expect(text()).toContain("Register this callback URL in your OAuth app.")
+        await press(button("Copy"))
+        expect(writeText).toHaveBeenCalledWith(redirect)
+    })
+
+    it("selects the callback for a copy by hand where there is no clipboard", async () => {
+        // A deployment served over plain HTTP has no clipboard API at all.
+        vi.stubGlobal("navigator", {...navigator, clipboard: undefined})
+        const redirect = "http://api.example.test/gateways/mcps/connect/callback"
+        await open(
+            naming({
+                probe: {...OAUTH_PROBE, auth: {...OAUTH_PROBE.auth, redirect_uri: redirect}},
+            }),
+        )
+        await press(button("Advanced"))
+        await press(button("Copy"))
+
+        expect(text()).toContain("Select the URL and copy it.")
+        expect(window.getSelection()?.toString()).toBe(redirect)
+    })
+
+    it("hands the typed client ID to the journey", async () => {
+        await open(naming())
+        await press(button("Advanced"))
+        const input = control("Client ID") as HTMLInputElement
+        await act(async () => {
+            const setValue = Object.getOwnPropertyDescriptor(
+                HTMLInputElement.prototype,
+                "value",
+            )?.set
+            setValue?.call(input, "app-from-github")
+            input.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+
+        expect(asked.setOauthClient).toHaveBeenCalledWith({clientId: "app-from-github"})
     })
 })
 
@@ -447,7 +699,7 @@ describe("C4, the provider's window", () => {
         // the press that got here.
         expect(text()).toContain("Waiting for Linear…")
         expect(text()).toContain(
-            "Finish signing in in the window that opened. This closes on its own when you're done.",
+            "Finish in the window that opened. Sign in to the provider if it asks, then approve Agenta. This closes on its own when you're done.",
         )
         expect(button("Open the window again")).toBeDefined()
         expect(button("Connect")).toBeUndefined()
@@ -604,7 +856,7 @@ describe("every description a field points at is on screen", () => {
         it(`resolves every reference on ${name}`, async () => {
             await open(current, props)
 
-            for (const label of ["Server URL", "Name", "Header", "Project secret"]) {
+            for (const label of ["Server URL", "Name", "Header name", "Prefix", "Project secret"]) {
                 if (!control(label)) continue
                 expect({[label]: dangling(label)}).toEqual({[label]: []})
             }
@@ -675,7 +927,7 @@ describe("C5, the server wants a key", () => {
         await open({...keyScreen, probe: KEY_PROBE_BEARER})
 
         expect(text()).toContain("Reachable · needs an API key")
-        expect((control("Header") as HTMLInputElement).value).toBe("Authorization")
+        expect((control("Header name") as HTMLInputElement).value).toBe("Authorization")
         expect(control("Project secret")).toBeTruthy()
         expect(text()).toContain(
             "Pick a project secret or create one. The value is sent as this header when the agent runs and is never shown again.",
@@ -715,7 +967,7 @@ describe("C5, the server wants a key", () => {
         // Every other control on this screen is held while something is in flight: the
         // address, the name, and both buttons. These two were not, so the check could be
         // running against one header and secret while the reader edited them to another.
-        expect((control("Header") as HTMLInputElement).disabled).toBe(true)
+        expect((control("Header name") as HTMLInputElement).disabled).toBe(true)
         expect((control("Project secret") as HTMLButtonElement).disabled).toBe(true)
     })
 
@@ -725,7 +977,7 @@ describe("C5, the server wants a key", () => {
         // about a header nobody had been told.
         await open({...keyScreen, probe: KEY_PROBE_NO_SCHEME})
 
-        expect((control("Header") as HTMLInputElement).value).toBe("x-api-key")
+        expect((control("Header name") as HTMLInputElement).value).toBe("x-api-key")
     })
 
     it("keeps what was typed, whatever the probe says next", async () => {
@@ -733,9 +985,9 @@ describe("C5, the server wants a key", () => {
         // from a render, so a change making the value probe-derived passes the package while
         // silently overwriting a person's typing the moment a probe answers (round 5).
         await open({...keyScreen, probe: KEY_PROBE_NO_SCHEME})
-        expect((control("Header") as HTMLInputElement).value).toBe("x-api-key")
+        expect((control("Header name") as HTMLInputElement).value).toBe("x-api-key")
 
-        const field = control("Header") as HTMLInputElement
+        const field = control("Header name") as HTMLInputElement
         const setter = Object.getOwnPropertyDescriptor(
             Object.getPrototypeOf(field) as object,
             "value",
@@ -748,7 +1000,7 @@ describe("C5, the server wants a key", () => {
         // The same sheet, re-rendered with a probe whose prefill is the other one.
         await open({...keyScreen, probe: KEY_PROBE_BEARER})
 
-        expect((control("Header") as HTMLInputElement).value).toBe("X-Acme-Token")
+        expect((control("Header name") as HTMLInputElement).value).toBe("X-Acme-Token")
     })
 
     it("reconnects with the header the connection is already saved under", async () => {
@@ -761,6 +1013,7 @@ describe("C5, the server wants a key", () => {
                 status: "manual_auth",
                 url: "https://mcp.axiom.co/mcp",
                 name: "Axiom",
+                authMode: "api_key",
                 endpointId: "mcp-1",
                 slug: "axiom",
                 createdHere: false,
@@ -772,12 +1025,12 @@ describe("C5, the server wants a key", () => {
                     name: "Axiom",
                     url: "https://mcp.axiom.co/mcp",
                     authMode: "api_key" as const,
-                    credentialHeader: "X-Api-Key",
+                    credentialBinding: {kind: "header" as const, name: "X-Api-Key"},
                 },
             },
         )
 
-        expect((control("Header") as HTMLInputElement).value).toBe("X-Api-Key")
+        expect((control("Header name") as HTMLInputElement).value).toBe("X-Api-Key")
     })
 
     it("keeps Authorization on a reconnect that saved no header of its own", async () => {
@@ -786,6 +1039,7 @@ describe("C5, the server wants a key", () => {
                 status: "manual_auth",
                 url: "https://mcp.axiom.co/mcp",
                 name: "Axiom",
+                authMode: "api_key",
                 endpointId: "mcp-1",
                 slug: "axiom",
                 createdHere: false,
@@ -801,7 +1055,7 @@ describe("C5, the server wants a key", () => {
             },
         )
 
-        expect((control("Header") as HTMLInputElement).value).toBe("Authorization")
+        expect((control("Header name") as HTMLInputElement).value).toBe("Authorization")
     })
 
     it("names the scheme the server asked for, where it asked for one", async () => {
@@ -810,9 +1064,9 @@ describe("C5, the server wants a key", () => {
         // The field cannot be filled from a scheme, because a scheme is not a header name.
         // What the challenge can do is tell the reader what this server wants in it, and the
         // line saying so has to reach the field's own announcement.
-        expect((control("Header") as HTMLInputElement).value).toBe("Authorization")
+        expect((control("Header name") as HTMLInputElement).value).toBe("Authorization")
         expect(text()).toContain("This server asked for the DSN scheme.")
-        expect(describedText(control("Header"))).toContain("DSN")
+        expect(describedText(control("Prefix"))).toContain("DSN")
     })
 
     it("says nothing about a Bearer challenge, which Authorization already answers", async () => {
@@ -821,7 +1075,7 @@ describe("C5, the server wants a key", () => {
         // `Authorization: Bearer <token>` is what an endpoint with no registered header
         // already sends, so naming it would tell a reader to do what is being done for them.
         expect(text()).not.toContain("scheme.")
-        expect(control("Header")?.getAttribute("aria-describedby")).toBeNull()
+        expect(control("Header name")?.getAttribute("aria-describedby")).toBeNull()
     })
 
     it("shows a server that wants nothing only the card and the name", async () => {
@@ -835,7 +1089,7 @@ describe("C5, the server wants a key", () => {
         )
 
         expect(text()).toContain("Reachable · no sign-in needed")
-        expect(control("Header")).toBeNull()
+        expect(control("Header name")).toBeNull()
         expect(button("Connect")?.disabled).toBe(false)
     })
 })
@@ -857,7 +1111,7 @@ describe("C6, the key was refused", () => {
     it("flags both credential fields and relabels the action", async () => {
         await open(rejected)
 
-        expect(control("Header")?.getAttribute("aria-invalid")).toBe("true")
+        expect(control("Header name")?.getAttribute("aria-invalid")).toBe("true")
         expect(control("Project secret")?.getAttribute("aria-invalid")).toBe("true")
         expect(text()).toContain(
             "The server rejected this key (403). The server rejected the credential. " +
@@ -866,13 +1120,35 @@ describe("C6, the key was refused", () => {
         expect(button("Try again")).toBeDefined()
     })
 
+    it("names the query parameter when the key travels in the query", async () => {
+        // A query binding has no header to check; the advice names what it does have.
+        await open(
+            {...rejected, authMode: "api_key", createdHere: false},
+            {
+                reconnect: {
+                    id: "mcp-1",
+                    slug: "axiom",
+                    name: "Axiom",
+                    url: "https://mcp.axiom.co/mcp",
+                    authMode: "api_key" as const,
+                    credentialBinding: {kind: "query" as const, name: "api_key"},
+                },
+            },
+        )
+
+        expect(text()).toContain(
+            "Check the query parameter the server expects, or pick another secret.",
+        )
+        expect(text()).not.toContain("Check the header the server expects")
+    })
+
     it("tells both refused fields where the reason is", async () => {
         await open(rejected)
 
         // `Field` announces an error it was handed, and this one is a box below the pair
         // rather than either field's own, so nothing paired them: two controls saying they
         // were invalid and neither saying why (round 4, D106).
-        for (const label of ["Header", "Project secret"]) {
+        for (const label of ["Header name", "Project secret"]) {
             const described = describedText(control(label))
             expect(described).toContain("The server rejected this key (403).")
             expect(described).toContain("Check the header the server expects")
@@ -929,6 +1205,7 @@ describe("C6, the key was refused", () => {
                 status: "manual_auth",
                 url: "https://mcp.axiom.co/mcp",
                 name: "Axiom",
+                authMode: "api_key",
                 endpointId: "mcp-9",
                 slug: "axiom",
                 createdHere: false,
@@ -949,7 +1226,63 @@ describe("C6, the key was refused", () => {
         // would repoint or rename a server agents are pointing at.
         expect((control("Name") as HTMLInputElement).disabled).toBe(true)
         expect(button("Change")).toBeUndefined()
-        expect(control("Header")).toBeTruthy()
+        expect(control("Header name")).toBeTruthy()
+    })
+})
+
+describe("a reconnect, after its saved address was checked", () => {
+    const CONTEXT7 = {
+        id: "mcp-7",
+        slug: "context7",
+        name: "Context7",
+        url: "https://mcp.context7.test/mcp",
+        authMode: "api_key" as const,
+    }
+    const reconnecting = state({
+        status: "manual_auth",
+        url: CONTEXT7.url,
+        name: "Context7",
+        authMode: "api_key",
+        endpointId: "mcp-7",
+        slug: "context7",
+        createdHere: false,
+    })
+
+    it("labels the server by what the check found, not by the saved mode", async () => {
+        // Context7 was saved with a key, and answers without one.
+        await open({...reconnecting, savedUrlProbe: NO_AUTH_PROBE}, {reconnect: CONTEXT7})
+
+        expect(text()).toContain("Reachable · no sign-in needed")
+        expect(text()).not.toContain("Reachable · needs an API key")
+    })
+})
+
+describe("a key reconnect's secret", () => {
+    it("starts on the secret the connection is saved with", async () => {
+        await open(
+            state({
+                status: "manual_auth",
+                url: "https://mcp.axiom.co/mcp",
+                name: "Axiom",
+                authMode: "api_key",
+                endpointId: "mcp-9",
+                slug: "axiom",
+                createdHere: false,
+            }),
+            {
+                reconnect: {
+                    id: "mcp-9",
+                    slug: "axiom",
+                    name: "Axiom",
+                    url: "https://mcp.axiom.co/mcp",
+                    authMode: "api_key",
+                    secretId: "sec-1",
+                },
+            },
+        )
+
+        expect(control("Project secret")?.textContent).toBe("axiom_token")
+        expect(button("Connect")?.disabled).toBe(false)
     })
 })
 
@@ -974,5 +1307,141 @@ describe("success, which draws nothing", () => {
         expect(text()).not.toContain("Linear is connected.")
         expect(text()).not.toContain("tools available")
         expect(button("Done")).toBeUndefined()
+    })
+})
+
+describe("the Authentication selector", () => {
+    const radio = (label: string) =>
+        [...document.querySelectorAll<HTMLButtonElement>('[role="radio"]')].find((candidate) =>
+            candidate.textContent?.startsWith(label),
+        )
+    const GITHUB = {
+        status: "naming" as const,
+        url: "https://api.githubcopilot.com/mcp/",
+        name: "GitHub",
+        probe: OAUTH_PROBE,
+    }
+
+    it("marks what the probe found and starts there", async () => {
+        await open(state(GITHUB))
+
+        expect(radio("OAuth")?.getAttribute("aria-checked")).toBe("true")
+        expect(radio("OAuth")?.textContent).toBe("OAuthDetected")
+        expect(radio("API key")?.textContent).toBe("API key")
+        expect(text()).toContain("authorization page")
+        expect(control("Header name")).toBeNull()
+    })
+
+    it("hands the press to the journey", async () => {
+        await open(state(GITHUB))
+        await act(async () => {
+            radio("API key")?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+        })
+
+        expect(asked.selectAuthMode).toHaveBeenCalledWith("api_key")
+    })
+
+    it("switches the fields to the key's when API key is selected", async () => {
+        // GitHub publishes OAuth metadata and also takes a personal access token.
+        await open(state({...GITHUB, authMode: "api_key"}))
+
+        expect(radio("API key")?.getAttribute("aria-checked")).toBe("true")
+        // The card still reports what the probe found; the selection is the person's.
+        expect(text()).toContain("Reachable · signs in with OAuth")
+        expect(text()).toContain(
+            "The probe found OAuth. Pick API key if this server also accepts a key you already have.",
+        )
+        expect(control("Header name")).toBeTruthy()
+        expect(control("Project secret")).toBeTruthy()
+        expect(text()).not.toContain("authorization page")
+    })
+
+    it("shows only the name when None is selected", async () => {
+        await open(state({...GITHUB, authMode: "none"}))
+
+        expect(control("Header name")).toBeNull()
+        expect(text()).not.toContain("authorization page")
+        expect(button("Connect")?.disabled).toBe(false)
+    })
+
+    it("lets a server that answered without a key take one, and says why OAuth is off", async () => {
+        const context7 = {
+            status: "naming" as const,
+            url: "https://mcp.context7.com/mcp",
+            name: "Context7",
+            probe: {reachable: true, server_name: "Context7", auth: {mode: "none" as const}},
+        }
+        await open(state(context7))
+
+        expect(radio("None")?.textContent).toBe("NoneDetected")
+        expect(radio("OAuth")?.disabled).toBe(true)
+        expect(text()).toContain("OAuth is available when the server offers OAuth sign-in.")
+
+        await open(state({...context7, authMode: "api_key"}))
+        expect(text()).toContain("Reachable · no sign-in needed")
+        expect(text()).toContain(
+            "The server answered without a key. Add one if your plan gives you a key for higher limits.",
+        )
+        expect(control("Header name")).toBeTruthy()
+    })
+
+    it("keeps the sheet open with the refusal when None was wrong", async () => {
+        // None chosen over the probe's OAuth, and the server answered 401 without a key.
+        await open(
+            state({
+                ...GITHUB,
+                authMode: "none",
+                status: "verify_failed",
+                failureStatus: 401,
+                error: "The server requires authorization.",
+            }),
+        )
+
+        expect(text()).toContain(
+            "The server refused a connection without a key (401). The server requires authorization. Pick another authentication mode above.",
+        )
+        expect(button("Try again")?.disabled).toBe(false)
+        expect(radio("API key")?.disabled).toBe(false)
+    })
+
+    it("names the challenge's scheme when a key chosen over OAuth is refused", async () => {
+        // The probe keeps the OAuth server's challenge, so the key screen can still say
+        // what it asked for. DPoP is an OAuth scheme that Authorization does not carry.
+        await open(
+            state({
+                ...GITHUB,
+                probe: {
+                    ...OAUTH_PROBE,
+                    auth: {
+                        ...OAUTH_PROBE.auth,
+                        challenge_status: 401,
+                        challenge_schemes: ["DPoP"],
+                    },
+                },
+                authMode: "api_key",
+                status: "verify_failed",
+                endpointId: "mcp-1",
+                failureStatus: 401,
+                error: "",
+            }),
+        )
+
+        expect(text()).toContain(
+            "The server rejected this key (401). This server asked for the DPoP scheme. " +
+                "Check the header the server expects, or pick another secret.",
+        )
+    })
+
+    it("keeps the SSE warning on the screen it changes to", async () => {
+        await open(
+            state({
+                ...GITHUB,
+                authMode: "api_key",
+                probe: {...OAUTH_PROBE, legacy_transport_suspected: true},
+            }),
+        )
+
+        expect(text()).toContain("This address may use the older SSE transport")
+        expect(radio("API key")?.getAttribute("aria-checked")).toBe("true")
     })
 })

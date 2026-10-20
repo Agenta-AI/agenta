@@ -3,11 +3,14 @@
 Needs a live deployment_kind — write, do not run without one.
 """
 
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy import text
 
 from oss.src.core.gateways.mcps.dtos import MCPAuthScheme, GatewayEndpointNamespace
 from oss.src.core.gateways.mcps.dtos import (
+    MCPEndpointCheck,
     MCPEndpointSettings,
     MCPEndpointCreate,
     MCPEndpointData,
@@ -465,3 +468,33 @@ async def test_caching_discovery_keeps_the_credential_the_connection_holds(
     assert stored.data.tools.allowlist == ["search"]
     assert stored.data.settings.timeout_seconds == 10.0
     assert stored.name == "Acme Notion"
+
+
+async def test_a_recorded_check_keeps_the_rest_of_the_connection(seeded_project):
+    dao = MCPEndpointsDAO(engine=get_transactions_engine())
+    project_id = seeded_project["project_id"]
+    user_id = seeded_project["user_id"]
+    created = await dao.create_endpoint(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        endpoint=_create_dto(slug="acme-check"),
+    )
+    checked_at = datetime.now(timezone.utc)
+
+    await dao.record_endpoint_check(
+        project_id=project_id,
+        user_id=user_id,
+        #
+        endpoint_id=created.id,
+        check=MCPEndpointCheck(
+            ok=False, reason="The server did not answer.", checked_at=checked_at
+        ),
+    )
+
+    stored = await dao.fetch_endpoint(project_id=project_id, endpoint_id=created.id)
+    assert stored.data.check == MCPEndpointCheck(
+        ok=False, reason="The server did not answer.", checked_at=checked_at
+    )
+    assert stored.data.route.base_url == "https://mcp.acme.com"
+    assert stored.data.tools.allowlist == ["search"]

@@ -1,3 +1,4 @@
+import logging
 from os import getenv
 
 from fastapi import FastAPI, Request
@@ -6,7 +7,13 @@ from starlette.types import ASGIApp
 from starlette.middleware.base import BaseHTTPMiddleware
 
 import agenta as ag
-from agenta.sdk.utils.logging import get_module_logger
+from agenta.sdk.utils.logging import (
+    AGENTA_LOG_FORMAT,
+    GOOGLE_CLOUD_PROJECT,
+    JsonFormatter,
+    capture_warnings_as_json,
+    get_module_logger,
+)
 from agenta.sdk.decorators.routing import (
     create_app,
     apply_invoke_prelude,
@@ -19,6 +26,7 @@ from agenta.sdk.decorators.routing import (
 from agenta.sdk.decorators.running import invoke_workflow, inspect_workflow
 from agenta.sdk.models.workflows import WorkflowInvokeRequest, WorkflowInspectRequest
 from agenta.sdk.contexts.routing import RoutingContext, routing_context_manager
+from agenta.sdk.engines.tracing.server import instrument_fastapi, setup_server_tracing
 from agenta.sdk.litellm.mocks import MOCKS
 from oss.src.managed import (
     builtin_auto_ai_critique_app,
@@ -48,12 +56,24 @@ from oss.src.chat import chat_v0_app
 from oss.src.completion import completion_v0_app
 from oss.src.agent import agent_v0_app
 from entrypoints.legacy import register_legacy_routes
-from entrypoints.prefix import ServicesPrefixStripMiddleware
+from entrypoints.prefix import strip_prefix_outermost
 
 
 ag.init()
 
 log = get_module_logger(__name__)
+
+# gunicorn and uvicorn log through their own stdlib handlers, outside structlog
+if AGENTA_LOG_FORMAT == "json":
+    for name in (
+        "gunicorn.error",
+        "gunicorn.access",
+        "uvicorn.error",
+        "uvicorn.access",
+    ):
+        for handler in logging.getLogger(name).handlers:
+            handler.setFormatter(JsonFormatter(GOOGLE_CLOUD_PROJECT))
+    capture_warnings_as_json(GOOGLE_CLOUD_PROJECT)
 
 
 # ---------------------------------------------------------------------------
@@ -144,11 +164,6 @@ app.add_middleware(
 )
 
 
-# Added last => outermost: a managed ingress forwards the public `/services` prefix
-# verbatim, so normalize the path before anything else looks at it.
-app.add_middleware(ServicesPrefixStripMiddleware)
-
-
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -190,6 +205,20 @@ app.mount("/auto_semantic_similarity/v0", builtin_auto_semantic_similarity_app)
 #
 # Mount dispatch LAST so "/" only catches /invoke and /inspect after specific mounts
 app.mount("/", services_app)
+
+
+# Off unless AGENTA_SERVER_TRACING_ENDPOINT is set; separate from product tracing.
+if setup_server_tracing(
+    service_name="agenta-services",
+    endpoint=getenv("AGENTA_SERVER_TRACING_ENDPOINT"),
+    sample_ratio=getenv("AGENTA_SERVER_TRACING_SAMPLE_RATIO"),
+):
+    instrument_fastapi(app)
+
+# Outermost, after the instrumentation: a managed ingress forwards the public `/services`
+# prefix verbatim, so normalize the path before anything else looks at it, the request
+# span's route lookup included.
+strip_prefix_outermost(app)
 
 
 if __name__ == "__main__":

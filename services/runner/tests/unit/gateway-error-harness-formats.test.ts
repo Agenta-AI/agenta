@@ -2,7 +2,7 @@
  * Verifies whether a harness's SDK preserves the LLM
  * gateway's `{"error":{...}}` refusal body in the text `parseGatewayErrorDetail` scans, and —
  * when it does not — does the `⟦agenta_code:...⟧` marker the gateway now embeds in every typed
- * refusal's `message` (`gateways/utils.py::with_code_marker`, shared by both
+ * refusal's `message` (`core/gateways/dtos.py::with_code_marker`, shared by both
  * `gateways/llms/proxy.py` and `gateways/mcps/proxy.py`) survive instead?
  *
  * Pi (`utils/error-body.js`) and the Anthropic SDK (`core/error.js`'s `JSON.stringify`
@@ -145,7 +145,7 @@ describe("upstream_error: no marker, by design (D16 passthrough)", () => {
 });
 
 // The MCP plane (`gateways/mcps/proxy.py::_map_gateway_exception`) shares the same
-// `with_code_marker` helper (`gateways/utils.py`) but a DIFFERENT wire shape: a JSON-RPC
+// `with_code_marker` helper (`core/gateways/dtos.py`) but a DIFFERENT wire shape: a JSON-RPC
 // error result whose stable identifier is `error.data.cause` (a string) under a numeric
 // `error.code` (JSON-RPC's own reserved code, e.g. -32000) -- not the LLM plane's
 // `error.code` string `parseFromBody` looks for. So the body path never recognizes an MCP

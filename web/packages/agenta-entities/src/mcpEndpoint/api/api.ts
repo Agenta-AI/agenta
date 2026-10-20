@@ -13,7 +13,10 @@ import {
 } from "../core/mcpRpc"
 import {gatewayRefusalCode, gatewayRefusalMessage, gatewayRefusalStatus} from "../core/refusal"
 import type {
+    MCPAuthMode,
+    MCPConnectAttemptResponse,
     MCPConnectResponse,
+    MCPCredentialBinding,
     MCPEndpointCreate,
     MCPEndpointProbeResponse,
     MCPEndpointEdit,
@@ -54,25 +57,56 @@ export const editMcpEndpoint = async (
     return response.data
 }
 
-export const deleteMcpEndpoint = async (endpointId: string, projectId?: string): Promise<void> => {
+/**
+ * Delete a connection. A connect sheet abandoning the row it made passes the mode it made the
+ * row in, and the API then deletes the row only while it is still in that mode with no
+ * credential: another tab may have taken it over since, and that tab's work stays.
+ */
+export const deleteMcpEndpoint = async (
+    endpointId: string,
+    projectId?: string,
+    pendingAuthMode?: MCPAuthMode,
+): Promise<void> => {
     await axios.delete(`${getAgentaApiUrl()}${BASE}/${endpointId}`, {
-        params: projectId ? {project_id: projectId} : undefined,
+        params: {project_id: projectId, pending_auth_mode: pendingAuthMode},
     })
+}
+
+/**
+ * Record the result of a check the sheet just ran, so the connection's row can say when it was
+ * last checked. Best effort: the row is the only reader, and the journey must not fail on it.
+ */
+export const recordMcpEndpointCheck = async (
+    endpointId: string,
+    check: {ok: boolean; reason?: string},
+    projectId?: string,
+): Promise<void> => {
+    try {
+        await axios.post(`${getAgentaApiUrl()}${BASE}/${endpointId}/check`, check, {
+            params: projectId ? {project_id: projectId} : undefined,
+        })
+    } catch {
+        // Best effort, see above.
+    }
 }
 
 /**
  * Ask what a URL is, before any endpoint exists.
  *
- * Read-only: it creates nothing, and it takes no credential, because there is no endpoint
- * to carry one and a credential must never be sent to an origin nobody has chosen yet.
+ * Read-only: it creates nothing, and it takes no credential value. It can name a project
+ * secret instead, and the API reads the value from the vault and sends it the way `binding`
+ * says: an address with `{secret}` does not exist without its key, and a changed key is
+ * checked before a connection saves it. With no binding the secret fills `{secret}`.
  */
 export const probeMcpUrl = async (
     url: string,
     projectId?: string,
+    secretId?: string,
+    binding?: MCPCredentialBinding,
 ): Promise<MCPEndpointProbeResponse> => {
     const response = await axios.post(
         `${getAgentaApiUrl()}${BASE}/probe`,
-        {url},
+        secretId ? {url, secret_id: secretId, credential_binding: binding} : {url},
         {params: projectId ? {project_id: projectId} : undefined},
     )
     return response.data
@@ -122,6 +156,30 @@ export const beginMcpConnect = async (
         {params: projectId ? {project_id: projectId} : undefined},
     )
     return response.data
+}
+
+/** How one consent attempt stands, for when the callback's message never arrives. */
+export const fetchMcpConnectAttempt = async (
+    endpointId: string,
+    attemptId: string,
+    projectId?: string,
+): Promise<MCPConnectAttemptResponse> => {
+    const response = await axios.get(
+        `${getAgentaApiUrl()}${BASE}/${endpointId}/connect/attempts/${attemptId}`,
+        {params: projectId ? {project_id: projectId} : undefined},
+    )
+    return response.data
+}
+
+/** Cancel one pending consent attempt, so a late callback for it writes nothing. */
+export const cancelMcpConnectAttempt = async (
+    endpointId: string,
+    attemptId: string,
+    projectId?: string,
+): Promise<void> => {
+    await axios.delete(`${getAgentaApiUrl()}${BASE}/${endpointId}/connect/attempts/${attemptId}`, {
+        params: projectId ? {project_id: projectId} : undefined,
+    })
 }
 
 /**
