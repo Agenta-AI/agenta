@@ -182,6 +182,18 @@ class AccessConfig(BaseModel):
         "AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS"
     )
 
+    # How many proxies in front of the API append to X-Forwarded-For. Set to N, the client IP
+    # is the Nth entry from the right, so entries a client sends itself are ignored. Unset
+    # keeps the first entry, which a client can set. Read by the sign-in rate limit,
+    # Turnstile and the auth log.
+    trusted_proxy_hops: int | None = _parse_optional_positive_int_env(
+        "AGENTA_ACCESS_TRUSTED_PROXY_HOPS"
+    )
+    # Read CF-Connecting-IP only when Cloudflare proxies the API. Otherwise a client can set it.
+    trust_cloudflare_ip: bool = _parse_bool_env(
+        "AGENTA_ACCESS_TRUST_CLOUDFLARE_IP", False
+    )
+
     default_plan: str | None = (
         os.getenv("AGENTA_ACCESS_DEFAULT_PLAN")
         or os.getenv("AGENTA_DEFAULT_PLAN")

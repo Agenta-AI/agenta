@@ -90,6 +90,22 @@
               "pattern": "^[1-9][0-9]*$",
               "description": "AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS \u2014 most organizations one user can own; unset means no limit."
             },
+            "trustedProxyHops": {
+              "type": [
+                "integer",
+                "string"
+              ],
+              "minimum": 1,
+              "pattern": "^[1-9][0-9]*$",
+              "description": "AGENTA_ACCESS_TRUSTED_PROXY_HOPS. Number of proxies in front of the API that append to X-Forwarded-For; the client IP is that entry from the right. Unset uses the first entry."
+            },
+            "trustCloudflareIp": {
+              "type": [
+                "boolean",
+                "string"
+              ],
+              "description": "AGENTA_ACCESS_TRUST_CLOUDFLARE_IP. Read CF-Connecting-IP only when Cloudflare proxies the API."
+            },
             "emailDisabled": {
               "type": [
                 "boolean",
