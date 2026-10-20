@@ -30,6 +30,9 @@ FRAUD_FLAG_KEYS = frozenset({NO_GRANTS_FLAG, VERDICT_FLAG})
 # The whole decision (flag read, database reads, Jev call) at one check point. Past it
 # the check allows. The Jev call has its own, shorter timeout inside this budget.
 DECISION_TIMEOUT_SECONDS = 3.0
+# The writes after a flagged decision (the marker, then the hold). Past it the check
+# gives up, so a stuck row lock cannot stall signup or key creation either.
+ACTION_TIMEOUT_SECONDS = 2.0
 
 # Credit kinds that only exist after a payment: a purchase or top-up, and a paid plan's
 # period allowance. An organization with either is a paying customer and is never held.

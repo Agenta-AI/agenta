@@ -15,6 +15,7 @@ from ee.src.core.fraud.config import read_fraud_check_config
 from ee.src.core.subscriptions.settings import get_free_plan
 from ee.src.core.fraud.jev import ask_noul
 from ee.src.core.fraud.types import (
+    ACTION_TIMEOUT_SECONDS,
     API_KEY_QUESTION,
     DECISION_TIMEOUT_SECONDS,
     PAID_CREDIT_KINDS,
@@ -145,12 +146,13 @@ class FraudService:
             flagged_action="skip_grants",
         )
         if verdict.flagged:
-            await self.fraud_dao.mark_no_grants(
-                organization_id=organization_id,
-                checkpoint=checkpoint,
-                score=score,
-                now=datetime.now(timezone.utc),
-            )
+            async with asyncio.timeout(ACTION_TIMEOUT_SECONDS):
+                await self.fraud_dao.mark_no_grants(
+                    organization_id=organization_id,
+                    checkpoint=checkpoint,
+                    score=score,
+                    now=datetime.now(timezone.utc),
+                )
         return verdict
 
     async def check_api_key_creation(
@@ -220,7 +222,16 @@ class FraudService:
             threshold=threshold,
             flagged_action="hold_wallet",
         )
-        if verdict.flagged:
+        if not verdict.flagged:
+            return verdict
+
+        async with asyncio.timeout(ACTION_TIMEOUT_SECONDS):
+            # Read again: a payment or an upgrade can land while Jev answers.
+            if not await self.is_free_and_unpaid(
+                organization_id=signals.organization_id
+            ):
+                self._skip(email=signals.email, threshold=threshold, reason="paid")
+                return verdict
             # The marker first: an organization marked but not yet held is only
             # refused its grants, which is the milder half.
             await self.fraud_dao.mark_no_grants(
@@ -230,7 +241,7 @@ class FraudService:
                 now=now,
             )
             # Paid credits are never expired, even one bought in the moment since the
-            # eligibility read above.
+            # read above.
             await self.wallets_service.hold(
                 organization_id=signals.organization_id,
                 keep_credit_kinds=PAID_CREDIT_KINDS,

@@ -33,6 +33,10 @@ def _parse_payload(raw: Any) -> Optional[dict]:
 # switches enforcement on.
 _FAILED = FraudCheckConfig(mode=FraudCheckMode.OFF)
 
+# The last payload read with success, kept for a week.
+_LAST_KNOWN_KEY = {"ff": FRAUD_CHECK_FLAG, "last_known": True}
+_LAST_KNOWN_TTL_SECONDS = 7 * 24 * 3600
+
 
 def _config_from_payload(payload: Optional[dict]) -> FraudCheckConfig:
     if payload is None:
@@ -78,10 +82,16 @@ async def read_fraud_check_config() -> FraudCheckConfig:
         return _FAILED
 
     if raw is None:
-        # The flag is missing. Cache the empty payload too, so that every signup and
-        # key creation does not ask PostHog again.
-        await set_cache(namespace=_CACHE_NAMESPACE, key=cache_key, value={})
-        return FraudCheckConfig()
+        # The PostHog client also returns None when its request fails. The last payload
+        # read with success then wins over the defaults, so an outage keeps an `off`
+        # check off. Only a flag never seen gives the defaults.
+        last = await get_cache(
+            namespace=_CACHE_NAMESPACE, key=_LAST_KNOWN_KEY, retry=False
+        )
+        payload = last if isinstance(last, dict) else {}
+        # Cache it too, so that every signup and key creation does not ask PostHog again.
+        await set_cache(namespace=_CACHE_NAMESPACE, key=cache_key, value=payload)
+        return _config_from_payload(payload)
 
     payload = _parse_payload(raw)
     if payload is None:
@@ -93,4 +103,10 @@ async def read_fraud_check_config() -> FraudCheckConfig:
 
     config = _config_from_payload(payload)
     await set_cache(namespace=_CACHE_NAMESPACE, key=cache_key, value=payload)
+    await set_cache(
+        namespace=_CACHE_NAMESPACE,
+        key=_LAST_KNOWN_KEY,
+        value=payload,
+        ttl=_LAST_KNOWN_TTL_SECONDS,
+    )
     return config

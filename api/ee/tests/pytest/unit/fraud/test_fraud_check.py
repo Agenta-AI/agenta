@@ -234,6 +234,35 @@ async def test_flag_payload_is_honoured_as_dict_or_json_string(flag):
 
 
 @pytest.mark.asyncio
+async def test_flag_read_returning_none_keeps_the_last_known_payload(flag, monkeypatch):
+    """The PostHog client returns None both for a missing flag and for a failed
+    request. After one good read, a None keeps that payload instead of the defaults."""
+    store = {}
+
+    async def _get_cache(*, namespace, key, retry=True, **kwargs):
+        return store.get(json.dumps(key, sort_keys=True))
+
+    async def _set_cache(*, namespace, key, value, **kwargs):
+        store[json.dumps(key, sort_keys=True)] = value
+
+    monkeypatch.setattr(fraud_config, "get_cache", _get_cache)
+    monkeypatch.setattr(fraud_config, "set_cache", _set_cache)
+
+    # Never seen: defaults, and the empty payload is cached.
+    flag(None)
+    assert (await fraud_config.read_fraud_check_config()).mode == FraudCheckMode.ENFORCE
+
+    store.clear()
+    flag({"mode": "off"})
+    assert (await fraud_config.read_fraud_check_config()).mode == FraudCheckMode.OFF
+
+    # The short cache expires, then PostHog fails and the client returns None.
+    store.pop(json.dumps({"ff": "fraud-check"}, sort_keys=True))
+    flag(None)
+    assert (await fraud_config.read_fraud_check_config()).mode == FraudCheckMode.OFF
+
+
+@pytest.mark.asyncio
 async def test_posthog_unavailable_gives_defaults(monkeypatch):
     monkeypatch.setattr(fraud_config, "_load_posthog", lambda: None)
     assert (await fraud_config.read_fraud_check_config()) == FraudCheckConfig()
@@ -776,6 +805,26 @@ async def test_api_key_hold_failure_after_the_marker_still_allows(
     )
     # The marker is written first, so a failed hold leaves only the grant block.
     assert dao.marks == [(ORGANIZATION_ID, FraudCheckpoint.API_KEY, 0.99)]
+
+
+@pytest.mark.asyncio
+async def test_api_key_payment_during_the_jev_call_prevents_the_hold(
+    service, flag, jev
+):
+    real_handler = jev.handler
+
+    def _pay_then_answer(request):
+        service.fraud_dao.billing = BillingFacts(
+            plan="cloud_v0_pro", has_stripe_ids=True
+        )
+        return real_handler(request)
+
+    jev.handler = _pay_then_answer
+    jev.answer = 0.99
+    verdict = await service.check_api_key_creation(user_id=uuid4(), project_id=uuid4())
+    assert verdict.flagged is True
+    assert service.fraud_dao.marks == []
+    assert await service.wallets_service.check(organization_id=ORGANIZATION_ID)
 
 
 @pytest.mark.asyncio
