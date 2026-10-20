@@ -24,7 +24,13 @@ from oss.src.core.secrets.dtos import (
     UpdateSecretDTO,
     UpdateSecretPayloadDTO,
 )
-from oss.src.core.secrets.enums import SecretKind, SubscriptionLoginState
+from oss.src.core.secrets.claude_token import ClaudeTokenClient
+from oss.src.core.secrets.enums import (
+    SUBSCRIPTION_PROVIDER_DISPLAY_NAMES,
+    SecretKind,
+    SubscriptionLoginState,
+    SubscriptionProviderKind,
+)
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.subscription_login import (
     RunnerLoginAttempt,
@@ -41,7 +47,9 @@ from oss.src.core.secrets.subscription_rules import (
 )
 from oss.src.core.secrets.types import (
     SubscriptionLoginAttemptNotFound,
+    SubscriptionProviderMismatch,
     SubscriptionSecretNotFound,
+    SubscriptionTokenRejected,
 )
 from oss.src.utils.logging import get_module_logger
 
@@ -55,6 +63,9 @@ _SUCCEEDED = "succeeded"
 _MAX_LOGIN_ERROR_LENGTH = 200
 
 _INVALID_LOGIN_REASON = "invalid_login"
+
+# Every token `claude setup-token` prints starts with this.
+_CLAUDE_TOKEN_PREFIX = "sk-ant-oat"
 
 # The reason the runner gives when the provider's device-code window runs out.
 _TIMED_OUT_REASON = "timed_out"
@@ -260,17 +271,31 @@ class SubscriptionLoginService:
         *,
         vault_service: VaultService,
         runner_client: SubscriptionLoginRunnerClient,
+        claude_token_client: ClaudeTokenClient,
     ) -> None:
         self.vault_service = vault_service
         self.runner_client = runner_client
+        self.claude_token_client = claude_token_client
 
-    async def _load(self, *, project_id: UUID, secret_id: UUID) -> SecretResponseDTO:
+    async def _load(
+        self,
+        *,
+        project_id: UUID,
+        secret_id: UUID,
+        provider: SubscriptionProviderKind,
+    ) -> SecretResponseDTO:
+        """The project's subscription row, refused unless it belongs to `provider`."""
         secret = await self.vault_service.get_secret_by_id(
             secret_id=secret_id,
             project_id=project_id,
         )
         if secret is None or secret.kind != SecretKind.SUBSCRIPTION_PROVIDER:
             raise SubscriptionSecretNotFound()
+        stored_provider = _subscription_data(secret).provider
+        if stored_provider != provider:
+            raise SubscriptionProviderMismatch(
+                provider=SUBSCRIPTION_PROVIDER_DISPLAY_NAMES[stored_provider]
+            )
         return secret
 
     async def _apply(
@@ -326,7 +351,11 @@ class SubscriptionLoginService:
         is cancelled and both callers get the winner, so no browser is left showing a code
         that can never complete.
         """
-        secret = await self._load(project_id=project_id, secret_id=secret_id)
+        secret = await self._load(
+            project_id=project_id,
+            secret_id=secret_id,
+            provider=SubscriptionProviderKind.CHATGPT,
+        )
         data = _subscription_data(secret)
 
         stored = data.login_attempt
@@ -402,7 +431,11 @@ class SubscriptionLoginService:
         A poll that finds the attempt still pending writes nothing. A poll that finds it
         finished clears it, so the outcome is answered once and a new sign-in can start.
         """
-        secret = await self._load(project_id=project_id, secret_id=secret_id)
+        secret = await self._load(
+            project_id=project_id,
+            secret_id=secret_id,
+            provider=SubscriptionProviderKind.CHATGPT,
+        )
         stored = _subscription_data(secret).login_attempt
 
         if stored is None or stored.id != attempt_id:
@@ -453,7 +486,11 @@ class SubscriptionLoginService:
         attempt_id: str,
         user_id: Optional[UUID] = None,
     ) -> SubscriptionLoginAttemptView:
-        secret = await self._load(project_id=project_id, secret_id=secret_id)
+        secret = await self._load(
+            project_id=project_id,
+            secret_id=secret_id,
+            provider=SubscriptionProviderKind.CHATGPT,
+        )
         data = _subscription_data(secret)
 
         if data.login_attempt is None or data.login_attempt.id != attempt_id:
@@ -488,6 +525,60 @@ class SubscriptionLoginService:
 
         _log_attempt(secret_id, attempt_id, "cancelled", "ended")
         return SubscriptionLoginAttemptView(attempt_id=attempt_id, state="cancelled")
+
+    # -- browser-facing pasted token -------------------------------------------------
+
+    async def set_subscription_token(
+        self,
+        *,
+        project_id: UUID,
+        secret_id: UUID,
+        token: str,
+        user_id: Optional[UUID] = None,
+    ) -> SecretResponseDTO:
+        """Store a Claude setup-token, once Anthropic has accepted it.
+
+        The check runs before the row lock, so a slow Anthropic never holds the row. A
+        refused or unchecked token raises and changes nothing, so a failed replacement
+        leaves the old token in use.
+        """
+        await self._load(
+            project_id=project_id,
+            secret_id=secret_id,
+            provider=SubscriptionProviderKind.CLAUDE,
+        )
+
+        token = token.strip()
+        # Whitespace inside is a broken paste: no header can carry it, so no retry would help.
+        if not token.startswith(_CLAUDE_TOKEN_PREFIX) or any(
+            char.isspace() for char in token
+        ):
+            raise SubscriptionTokenRejected(message="This is not a Claude setup-token.")
+
+        await self.claude_token_client.check(token)
+
+        def build_changes(stored: SubscriptionProviderDTO) -> Dict[str, Any]:
+            # An update can change the provider while the check above is pending.
+            if stored.provider != SubscriptionProviderKind.CLAUDE:
+                raise SubscriptionProviderMismatch(
+                    provider=SUBSCRIPTION_PROVIDER_DISPLAY_NAMES[stored.provider]
+                )
+            return {
+                "login": {"type": "oauth_token", "access": token},
+                "login_version": stored.login_version + 1,
+                "login_generation": stored.login_generation + 1,
+                "login_state": SubscriptionLoginState.READY.value,
+                "login_error": None,
+            }
+
+        secret = await self._apply(
+            project_id=project_id,
+            secret_id=secret_id,
+            user_id=user_id,
+            build_changes=build_changes,
+        )
+        log.info("subscription.token", connection=str(secret_id), outcome="stored")
+        return secret
 
     # -- runner-facing device login outcome ------------------------------------------
 
@@ -554,7 +645,11 @@ class SubscriptionLoginService:
         A pushed login never bumps the generation: a refresh keeps warm sessions, only a
         new device login makes them start cold.
         """
-        secret = await self._load(project_id=project_id, secret_id=secret_id)
+        secret = await self._load(
+            project_id=project_id,
+            secret_id=secret_id,
+            provider=SubscriptionProviderKind.CHATGPT,
+        )
         data = _subscription_data(secret)
 
         # Most turns push a login the row already holds, so answer those without a write.
@@ -613,7 +708,11 @@ class SubscriptionLoginService:
         A stale answer carries the current login so the runner can rematerialize and retry
         the turn in one hop, which is the whole point of reporting the failure first.
         """
-        secret = await self._load(project_id=project_id, secret_id=secret_id)
+        secret = await self._load(
+            project_id=project_id,
+            secret_id=secret_id,
+            provider=SubscriptionProviderKind.CHATGPT,
+        )
         data = _subscription_data(secret)
 
         if failure_is_stale(stored=data, version=version, generation=generation):

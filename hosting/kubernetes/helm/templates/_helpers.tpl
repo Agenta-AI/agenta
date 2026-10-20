@@ -1336,6 +1336,10 @@ failureThreshold: 3
 - name: AGENTA_ACCESS_BLOCKED_EMAILS
   value: {{ $access.blockedEmails | quote }}
 {{- end }}
+{{- if $access.maxOwnedOrganizations }}
+- name: AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS
+  value: {{ $access.maxOwnedOrganizations | quote }}
+{{- end }}
 {{- if $access.allowedOwnerEmails }}
 - name: AGENTA_ACCESS_ALLOWED_OWNER_EMAILS
   value: {{ $access.allowedOwnerEmails | quote }}

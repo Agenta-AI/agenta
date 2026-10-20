@@ -2589,15 +2589,20 @@ def cell_duplicate_turn_id(ctx: Ctx) -> tuple[dict, dict]:
     ev["b_lines"] = lines[b.name][-20:]
     ev["a_beats_after_b"] = lines_matching(lines[a.name], needle, after=b_done)
     ev["a_interrupted"] = lines_matching(lines[a.name], "INTERRUPTED", s)
+
     # The admission beat AND the final `is_running: false` beat of B must both be refused. The
-    # api logs `extra={..., 'replica_id': '<beating pod>', 'bound_replica_id': '<holder>'}`;
-    # the leading quote keeps `'bound_replica_id'` from matching.
-    b_beat = f"'replica_id': '{b.replica_id}'"
-    a_bound = f"'bound_replica_id': '{a.replica_id}'"
+    # api logs `extra={..., 'replica_id': '<beating pod>', 'bound_replica_id': '<holder>'}` in
+    # the compose format (single quotes) and as JSON (double quotes) on GKE. The leading quote
+    # keeps `bound_replica_id` from matching `replica_id`.
+    def has_pair(ln: str, key: str, value: str) -> bool:
+        return any(f"{q}{key}{q}: {q}{value}{q}" in ln for q in ("'", '"'))
+
     ev["api_refused_beats"] = [
         ln
         for ln in stack.service_lines("api", since, s)
-        if "bound to another replica" in ln and b_beat in ln and a_bound in ln
+        if "bound to another replica" in ln
+        and has_pair(ln, "replica_id", b.replica_id)
+        and has_pair(ln, "bound_replica_id", a.replica_id)
     ]
     result_b = ev["b_run"]["result"] or {}
     result_a = ev["a_run"]["result"] or {}

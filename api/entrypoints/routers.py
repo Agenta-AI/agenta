@@ -44,6 +44,7 @@ from oss.databases.postgres.migrations.tracing.utils import (
 from oss.src.middlewares.auth import auth_middleware
 from oss.src.middlewares.analytics import analytics_middleware
 from oss.src.middlewares.prefix import ApiPrefixStripMiddleware
+from oss.src.middlewares.supertokens_errors import SuperTokensHTTPExceptionMiddleware
 
 from oss.src.core.auth.supertokens.config import init_supertokens
 
@@ -84,6 +85,7 @@ from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.core.webhooks.service import WebhooksService
@@ -635,6 +637,8 @@ app.middleware("http")(analytics_middleware)
 app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 
 app.add_middleware(get_supertokens_middleware())
+# Added right after SuperTokens => wraps it, inside CORS, so rejections keep CORS headers.
+app.add_middleware(SuperTokensHTTPExceptionMiddleware)
 
 
 def _cors_origins(web_url: str) -> list[str]:
@@ -683,6 +687,9 @@ app.add_middleware(
         "Content-Type",
         "Idempotency-Key",
         "X-Agenta-App-Scope",
+        # The embed widget's credential. Only the web origin passes CORS, so a
+        # request from another site carrying it still fails the preflight.
+        "X-Agenta-Visitor-Key",
         "If-Match",
         "If-None-Match",
     ]
@@ -787,6 +794,7 @@ vault_service = VaultService(
 subscription_login_service = SubscriptionLoginService(
     vault_service=vault_service,
     runner_client=SubscriptionLoginRunnerClient(),
+    claude_token_client=ClaudeTokenClient(),
 )
 
 provider_probe_service = ProviderProbeService()
@@ -1333,6 +1341,8 @@ channels_ingress = ChannelsIngressRouter(
     adapter_registry=channels_adapter_registry,
     dispatch_task=_channels_inbox_worker.dispatch_inbox_event,
     telegram_binding_service=_telegram_binding_service,
+    records_service=records_service,
+    attachments_service=session_attachments_service,
 )
 
 channels = ChannelsRouter(

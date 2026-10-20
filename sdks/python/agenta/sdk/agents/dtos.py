@@ -30,6 +30,7 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    ValidationError,
     field_validator,
     model_validator,
 )
@@ -905,20 +906,31 @@ class AgentTemplate(BaseModel):
         instructions, model, tools = _parse_agent_fields(params, base)
         harness, sandbox, permission_default = _parse_run_selection(params, base)
         harness_permissions, harness_extras = _parse_harness_slice(params, base)
-        return cls(
-            instructions=instructions,
-            model=model,
-            tools=_as_list(tools),
-            mcp_servers=_parse_mcp_servers_raw(params, base),
-            skills=_parse_skills_raw(params, base),
-            harness_permissions=harness_permissions,
-            harness_extras=harness_extras,
-            sandbox_permission=_parse_sandbox_permission(params, base),
-            sandbox_credentials=_parse_sandbox_credentials(params, base),
-            harness=harness,
-            sandbox=sandbox,
-            permission_default=permission_default,
-        )
+        try:
+            return cls(
+                instructions=instructions,
+                model=model,
+                tools=_as_list(tools),
+                mcp_servers=_parse_mcp_servers_raw(params, base),
+                skills=_parse_skills_raw(params, base),
+                harness_permissions=harness_permissions,
+                harness_extras=harness_extras,
+                sandbox_permission=_parse_sandbox_permission(params, base),
+                sandbox_credentials=_parse_sandbox_credentials(params, base),
+                harness=harness,
+                sandbox=sandbox,
+                permission_default=permission_default,
+            )
+        except ValidationError as error:
+            # A field value the template does not accept (a `connection.mode` it does not
+            # know, say) is the caller's configuration, not a server fault: answer 400. Name
+            # each field and the rule only; the raw input values may hold credentials.
+            raise AgentTemplateShapeError(
+                "; ".join(
+                    f"{'.'.join(str(part) for part in issue['loc'])}: {issue['msg']}"
+                    for issue in error.errors()
+                )
+            ) from error
 
 
 # ---------------------------------------------------------------------------

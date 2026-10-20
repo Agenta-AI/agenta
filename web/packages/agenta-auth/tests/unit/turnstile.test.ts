@@ -6,6 +6,7 @@ import {
     getTurnstileSiteKey,
     installTurnstileFetchPatch,
     isTurnstileEnabled,
+    readTurnstileRejection,
     setPendingTurnstileToken,
     TURNSTILE_HEADER,
 } from "../../src/turnstile"
@@ -96,5 +97,22 @@ describe("installTurnstileFetchPatch", () => {
         setPendingTurnstileToken("   ")
         await window.fetch("https://app.test/api/auth/signinup", {method: "POST"})
         expect(header(calls[0])).toBeNull()
+    })
+})
+
+describe("readTurnstileRejection", () => {
+    const json = (status: number, body: unknown) =>
+        new Response(JSON.stringify(body), {status, headers: {"Content-Type": "application/json"}})
+
+    it("reads the message from the API's 401 body", async () => {
+        const error = json(401, {detail: {message: "Please complete the security check."}})
+        expect(await readTurnstileRejection(error)).toBe("Please complete the security check.")
+    })
+
+    it("ignores other statuses, other shapes, and non-Response errors", async () => {
+        expect(await readTurnstileRejection(json(500, {detail: {message: "x"}}))).toBeNull()
+        expect(await readTurnstileRejection(json(401, {detail: "Unauthorized"}))).toBeNull()
+        expect(await readTurnstileRejection(new Response("not json", {status: 401}))).toBeNull()
+        expect(await readTurnstileRejection(new Error("network"))).toBeNull()
     })
 })

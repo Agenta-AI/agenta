@@ -1670,11 +1670,127 @@ async def test_subscription_with_an_unknown_slug_names_the_connection(
 
     assert raised.value.failure_code == "subscription_connection_missing"
     assert raised.value.status_code == 422
+    # Neutral: a row that does not exist has no provider to name.
     assert str(raised.value) == (
-        "No ChatGPT connection named 'chatgpt'. Check the agent's model connection."
+        "No subscription connection named 'chatgpt'. "
+        "Check the agent's model connection."
     )
     # Not the sign-in error: a client keys its "Sign in again" verb on that one.
     assert not isinstance(raised.value, SubscriptionLoginRequiredError)
+
+
+# Shaped like a `claude setup-token` value. Not a real credential.
+_CLAUDE_TOKEN = "sk-ant-oat01-test-token"
+
+
+def _claude_secret(*, state: str = "ready", provider: str = "claude") -> dict:
+    return {
+        "id": "0199-claude-id",
+        "slug": provider,
+        "kind": "subscription_provider",
+        "header": {"name": "Claude"},
+        "data": {
+            "provider": provider,
+            "harnesses": ["claude"],
+            "models": ["sonnet"],
+            "login": {"type": "oauth_token", "access": _CLAUDE_TOKEN},
+            "login_version": 1,
+            "login_generation": 1,
+            "login_state": state,
+        },
+    }
+
+
+def _claude_model(slug: str = "claude") -> ModelRef:
+    return ModelRef(
+        provider="anthropic",
+        model="sonnet",
+        connection={"mode": "self_managed", "slug": slug},
+    )
+
+
+async def test_a_claude_subscription_resolves_to_the_claude_code_token(
+    fake_http, connection
+):
+    fake_http(connections, payload=[_claude_secret()])
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_claude_model(),
+        context=RuntimeAuthContext(harness="claude", backend="local"),
+    )
+
+    # The token never refreshes, so it rides as an ordinary credential, not a login block.
+    assert resolved.credential_mode == "env"
+    assert resolved.subscription is None
+    assert resolved.provider == "anthropic"
+    assert resolved.model == "sonnet"
+    assert _credential_environment(resolved) == {
+        "CLAUDE_CODE_OAUTH_TOKEN": _CLAUDE_TOKEN
+    }
+    [credential] = resolved.credentials
+    assert credential.usage == "opaque_http"
+
+
+@pytest.mark.parametrize("harness", ["pi_core", "codex", None])
+async def test_a_claude_subscription_on_another_harness_names_claude_code(
+    fake_http, connection, harness
+):
+    fake_http(connections, payload=[_claude_secret()])
+
+    with pytest.raises(SubscriptionNotSupportedError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_claude_model(),
+            context=RuntimeAuthContext(harness=harness, backend="local"),
+        )
+
+    assert raised.value.status_code == 422
+    assert "A Claude subscription runs on the Claude Code harness only" in str(
+        raised.value
+    )
+    assert _CLAUDE_TOKEN not in str(raised.value)
+
+
+async def test_a_chatgpt_subscription_on_claude_code_names_pi(fake_http, connection):
+    fake_http(connections, payload=[_subscription_secret()])
+
+    with pytest.raises(SubscriptionNotSupportedError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_subscription_model(),
+            context=RuntimeAuthContext(harness="claude", backend="local"),
+        )
+
+    assert "A ChatGPT subscription runs on the Pi harness only" in str(raised.value)
+
+
+async def test_a_claude_subscription_without_a_token_names_claude(
+    fake_http, connection
+):
+    fake_http(connections, payload=[_claude_secret(state="pending_login")])
+
+    with pytest.raises(SubscriptionLoginRequiredError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_claude_model(),
+            context=RuntimeAuthContext(harness="claude", backend="local"),
+        )
+
+    assert str(raised.value) == (
+        "The Claude subscription is not connected. "
+        "Paste a token from `claude setup-token` in AI providers."
+    )
+
+
+async def test_a_subscription_provider_this_sdk_does_not_know_fails_loud(
+    fake_http, connection
+):
+    fake_http(connections, payload=[_claude_secret(provider="gemini")])
+
+    with pytest.raises(SubscriptionNotSupportedError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_claude_model(slug="gemini"),
+            context=RuntimeAuthContext(harness="claude", backend="local"),
+        )
+
+    assert "cannot run a gemini subscription" in str(raised.value)
 
 
 async def test_subscription_error_never_names_the_login(fake_http, connection):

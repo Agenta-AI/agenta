@@ -32,7 +32,10 @@ from oss.src.core.secrets.types import (
     SubscriptionLoginRunnerNotConfigured,
     SubscriptionLoginRunnerUnavailable,
     SubscriptionProviderConflict,
+    SubscriptionProviderMismatch,
     SubscriptionSecretNotFound,
+    SubscriptionTokenError,
+    SubscriptionTokenRejected,
 )
 
 from oss.src.apis.fastapi.vault.models import (
@@ -42,6 +45,7 @@ from oss.src.apis.fastapi.vault.models import (
     SubscriptionLoginOutcomeRequest,
     SubscriptionLoginPushRequest,
     SubscriptionLoginPushResponse,
+    SubscriptionTokenRequest,
 )
 from oss.src.apis.fastapi.shared.runner_auth import assert_runner_token
 
@@ -82,6 +86,25 @@ def handle_subscription_exceptions():
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=e.message,
+                ) from e
+            except SubscriptionProviderMismatch as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=e.message,
+                ) from e
+            except SubscriptionTokenError as e:
+                raise HTTPException(
+                    status_code=(
+                        status.HTTP_422_UNPROCESSABLE_ENTITY
+                        if isinstance(e, SubscriptionTokenRejected)
+                        else status.HTTP_502_BAD_GATEWAY
+                    ),
+                    detail={
+                        "code": e.code,
+                        "message": e.message,
+                        "retryable": e.retryable,
+                        "next_step": e.next_step,
+                    },
                 ) from e
             except SubscriptionLoginRunnerNotConfigured as e:
                 raise HTTPException(
@@ -184,6 +207,14 @@ class VaultRouter:
             self.update_secret,
             methods=["PUT"],
             operation_id="update_secret",
+            response_model_exclude_none=True,
+            response_model=PublicSecretResponseDTO,
+        )
+        self.router.add_api_route(
+            "/secrets/{secret_id}/subscription-token",
+            self.set_subscription_token,
+            methods=["PUT"],
+            operation_id="set_subscription_token",
             response_model_exclude_none=True,
             response_model=PublicSecretResponseDTO,
         )
@@ -485,6 +516,24 @@ class VaultRouter:
                         "your organization admin."
                     ),
                 )
+
+    @intercept_exceptions()
+    @handle_subscription_exceptions()
+    async def set_subscription_token(
+        self,
+        request: Request,
+        secret_id: UUID,
+        body: SubscriptionTokenRequest,
+    ):
+        await self._require(request, Permission.EDIT_SECRET)
+
+        secret = await self.subscription_login_service.set_subscription_token(
+            project_id=UUID(request.state.project_id),
+            secret_id=secret_id,
+            token=body.token,
+            user_id=UUID(str(request.state.user_id)),
+        )
+        return self._for_caller(request, secret)
 
     @intercept_exceptions()
     @handle_subscription_exceptions()

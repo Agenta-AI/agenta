@@ -12,9 +12,9 @@ import type * as AgentaApi from "../../../../index.js";
 export interface SessionHeartbeatRequest {
     session_id: string;
     replica_id: string;
+    replica_address?: string | null;
     turn_id?: string | null;
     is_running?: boolean;
     name?: string | null;
     references?: AgentaApi.SessionReference[] | null;
-    release_owner?: boolean;
 }

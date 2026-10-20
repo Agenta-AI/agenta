@@ -27,7 +27,11 @@ from oss.src.models.db_models import (
     WorkspaceDB,
     WorkspaceMemberDB,
 )
-from oss.src.core.organizations.exceptions import OrganizationCreationNotAllowedError
+from oss.src.core.auth.helper import is_auth_info_blocked, parse_auth_info
+from oss.src.core.organizations.exceptions import (
+    OrganizationCreationNotAllowedError,
+    OrganizationLimitReachedError,
+)
 
 log = get_module_logger(__name__)
 
@@ -284,6 +288,18 @@ async def create_organization_for_user(
     if not can_create_organization(user.email):
         raise OrganizationCreationNotAllowedError(email=user.email)
 
+    # A session issued before its domain was blocked still reaches this endpoint.
+    auth_info = parse_auth_info(user.email)
+    if auth_info is not None and await is_auth_info_blocked(auth_info):
+        raise OrganizationCreationNotAllowedError(email=user.email)
+
+    max_owned = env.agenta.access.max_owned_organizations
+    if (
+        max_owned is not None
+        and await db_manager.count_organizations_by_owner(str(user.id)) >= max_owned
+    ):
+        raise OrganizationLimitReachedError(email=user.email, limit=max_owned)
+
     organization = await create_organization(
         user=user,
         name=organization_name,
@@ -297,7 +313,7 @@ async def create_organization_for_user(
             provision_user_subscription,
         )
 
-        await provision_user_subscription(organization)
+        await provision_user_subscription(organization, organization_email=user.email)
 
     return organization
 

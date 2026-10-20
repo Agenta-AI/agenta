@@ -167,7 +167,8 @@ const TurnRowInner = ({
     if (turn.isStreamingTurn) streamedHereRef.current = true
     // `live`, as the fold's header reads it: a send can flip the local stream on and off and then
     // run on the shared reader, so a closed local stream is not a finished run.
-    const runOpen = live
+    // Parked on the reader is open too: the text before a question is not the answer.
+    const runOpen = live || (turn.isLast && (waitingOnUser || resuming))
     const activity = useMemo(
         () =>
             splitTurnActivity(turn.items, {

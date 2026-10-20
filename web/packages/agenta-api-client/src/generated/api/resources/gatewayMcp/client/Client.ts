@@ -563,9 +563,10 @@ export class GatewayMcpClient {
      * Delete a connection.
      *
      * A connect sheet abandoning the row it made sends `pending_auth_mode`, the mode it
-     * made the row in. The row is then deleted only while it is still in that mode with
-     * no credential bound, decided under the connection's lock. A row that another tab
-     * took over since is kept, and the answer is 409.
+     * made the row in, after it cancelled its own sign-in. The row is then deleted only
+     * while it is still in that mode with no credential bound and no sign-in in flight,
+     * decided under the connection's lock. A row that another tab took over since, or is
+     * signing in on, is kept, and the answer is 409.
      *
      * @param {AgentaApi.DeleteMcpEndpointRequest} request
      * @param {GatewayMcpClient.RequestOptions} requestOptions - Request-specific configuration.

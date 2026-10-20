@@ -33,6 +33,12 @@ export class GatewayClient {
      * for a plane that will refuse every request is worse than refusing here: the caller
      * still has a pre-gateway path at this point and none once the run is under way.
      *
+     * The LLM plane checks the master switch only, not the per-organization rollout. The
+     * SDK exchanges a credential only after `/resolve` admitted the organization, and two
+     * API processes may briefly hold different rollout payloads: refusing here then would
+     * fail the run instead of falling back to the vault. The relay still checks the
+     * rollout on every call.
+     *
      * @param {AgentaApi.GatewayCredentialsRequest | null} request
      * @param {GatewayClient.RequestOptions} requestOptions - Request-specific configuration.
      *
