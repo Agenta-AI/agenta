@@ -400,8 +400,12 @@ export const LiveConversation = ({
     // `sendInFlight` covers the gap the other two cannot: the message has left the composer, and
     // neither `useChat` (the server-owned path never moves its status) nor liveness (a poll away)
     // knows yet. Without it the pulse arrived a runner accept plus a poll after the send (#6778).
+    // `inputBusy`: the server's execution state, the same signal as the composer's ring.
     const showingTurnActivity =
-        streamingHere || conversation.sendInFlight || remoteTurn.showActivity
+        streamingHere ||
+        conversation.sendInFlight ||
+        conversation.inputBusy ||
+        remoteTurn.showActivity
     const streamingHereRef = useRef(streamingHere)
     streamingHereRef.current = streamingHere
     const hitlPendingRef = useRef(conversation.hitlPending)

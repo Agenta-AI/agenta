@@ -321,6 +321,9 @@ export const useServerSessionInputs = ({
     }>(() => ({scope, view: emptyView, seq: 0}))
     const current = viewState.scope === scope
     const view = current ? viewState.view : emptyView
+    // Runs admitted here, per scope, until the re-read after their stream ends reports them.
+    const [ownedRunsByScope, setOwnedRunsByScope] = useState<Record<string, number>>({})
+    const ownedRuns = ownedRunsByScope[scope] ?? 0
     const viewSeq = current ? viewState.seq : 0
     const messagesRef = useRef(messages)
     const entityIdRef = useRef(entityId)
@@ -405,7 +408,11 @@ export const useServerSessionInputs = ({
     // Only the conversation on screen polls: over HTTP/1.1 each hidden pane's poll queued for the
     // same six connections a send needs.
     const tracking =
-        locallyBusy || remotelyBusy || view.executionState !== "idle" || view.queued.length > 0
+        locallyBusy ||
+        remotelyBusy ||
+        ownedRuns > 0 ||
+        view.executionState !== "idle" ||
+        view.queued.length > 0
     useEffect(() => {
         if (!active) return
         const timer = setInterval(
@@ -502,6 +509,15 @@ export const useServerSessionInputs = ({
             // A 200 only proves the request was taken: the turn is accepted when the stream's
             // first frame names it, and a stream that ends without one never started a turn.
             trackOwnedRun({id: sessionId, open: true})
+            const countOwnedRun = (delta: number) =>
+                setOwnedRunsByScope((counts) => ({...counts, [scope]: (counts[scope] ?? 0) + delta}))
+            countOwnedRun(1)
+            let released = false
+            const release = () => {
+                if (released) return
+                released = true
+                countOwnedRun(-1)
+            }
             let refused = false
             void readRunAdmission(response, {
                 ...watcher,
@@ -529,7 +545,7 @@ export const useServerSessionInputs = ({
                 .then(async ({accepted, ended}) => {
                     watcher?.onTurnNamed?.()
                     if (!mount.isCurrent(generation)) return
-                    await refresh({fresh: true})
+                    await refresh({fresh: true}).finally(release)
                     if (!mount.isCurrent(generation)) return
                     // Settlement WAITS for the re-read it starts. The saved row that retires this
                     // send's echo arrives in that read; reporting before it landed flagged a
@@ -548,6 +564,7 @@ export const useServerSessionInputs = ({
                     if (accepted && ended && reconciled !== false) watcher?.onSettled?.()
                 })
                 .catch(() => watcher?.onTurnNamed?.())
+                .finally(release)
             return "running"
         },
         [mount, refresh, scope, sessionId, trackOwnedRun],
@@ -601,7 +618,7 @@ export const useServerSessionInputs = ({
     return {
         executionState: view.executionState,
         // `remotelyBusy` too: `executionState` learns of another browser's run only on the next poll.
-        busy: locallyBusy || remotelyBusy || view.executionState !== "idle",
+        busy: locallyBusy || remotelyBusy || ownedRuns > 0 || view.executionState !== "idle",
         queued: view.queued,
         viewSeq,
         submit,
