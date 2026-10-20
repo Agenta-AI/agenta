@@ -896,7 +896,7 @@ async def auto_ai_critique_v0(
 
     template_format = str(parameters.get("template_format") or default_format)
 
-    model = parameters.get("model") or "gpt-3.5-turbo"
+    model = parameters.get("model") or "gpt-5.6-terra"
 
     if not isinstance(model, str):
         raise InvalidConfigurationParameterV0Error(

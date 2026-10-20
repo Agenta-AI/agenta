@@ -11,6 +11,7 @@ Covers:
 - existing result normalization (numeric, boolean, dict, raw text) is unchanged.
 """
 
+import inspect
 from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
@@ -167,6 +168,39 @@ async def test_uses_workflow_secret_resolution_for_standard_model(
 
     # Dict-shaped LLM output passes through the result normalizer unchanged.
     assert result == {"score": 0.9}
+
+
+async def test_falls_back_to_the_current_default_judge_model(
+    mocked_secrets, mocked_llm_call
+):
+    mocked_secrets.get_settings.return_value = {
+        "model": "gpt-5.6-terra",
+        "api_key": "sk-resolved",
+    }
+    parameters = _base_parameters()
+    del parameters["model"]
+
+    await _auto_ai_critique_v0(
+        parameters=parameters,
+        inputs={"question": "What is 2+2?", "expected": "4"},
+        outputs="4",
+        trace=None,
+    )
+
+    mocked_secrets.get_settings.assert_called_once_with(
+        "gpt-5.6-terra", connection=None
+    )
+    kwargs = mocked_llm_call.captured["kwargs"]
+    assert kwargs["model"] == "gpt-5.6-terra"
+    assert "temperature" not in kwargs
+
+
+def test_builtin_auto_ai_critique_defaults_to_the_current_judge_model():
+    from agenta.sdk.engines.running.builtin import auto_ai_critique
+
+    model = inspect.signature(auto_ai_critique).parameters["model"]
+
+    assert model.default == "gpt-5.6-terra"
 
 
 async def test_resolves_custom_provider_model_settings(mocked_secrets, mocked_llm_call):

@@ -204,7 +204,7 @@ def auto_ai_critique(
     prompt_template: list[dict[str, str]],
     #
     correct_answer_key: Optional[str] = "correct_answer",
-    model: Optional[str] = "gpt-3.5-turbo",
+    model: Optional[str] = "gpt-5.6-terra",
 ) -> Workflow:
     parameters = dict(
         prompt_template=prompt_template,
