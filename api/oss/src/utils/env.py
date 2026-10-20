@@ -173,6 +173,10 @@ class AccessConfig(BaseModel):
         "AGENTA_ACCESS_BLOCKED_EMAILS",
         "AGENTA_BLOCKED_EMAILS",
     )
+    # Seconds the PostHog-backed blocklists are cached. Lower means a new entry blocks sign-ups sooner.
+    blocklist_cache_ttl: int = (
+        _parse_optional_positive_int_env("AGENTA_ACCESS_BLOCKLIST_CACHE_TTL") or 60
+    )
     # Unset means no limit. Counts the organizations a user owns now, so deleting one frees a slot.
     max_owned_organizations: int | None = _parse_optional_positive_int_env(
         "AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS"
