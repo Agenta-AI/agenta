@@ -510,7 +510,10 @@ export const useServerSessionInputs = ({
             // first frame names it, and a stream that ends without one never started a turn.
             trackOwnedRun({id: sessionId, open: true})
             const countOwnedRun = (delta: number) =>
-                setOwnedRunsByScope((counts) => ({...counts, [scope]: (counts[scope] ?? 0) + delta}))
+                setOwnedRunsByScope((counts) => ({
+                    ...counts,
+                    [scope]: (counts[scope] ?? 0) + delta,
+                }))
             countOwnedRun(1)
             let released = false
             const release = () => {
