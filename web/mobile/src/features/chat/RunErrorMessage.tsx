@@ -100,9 +100,9 @@ export const describeRunFailure = ({
         if (onSignIn && has(SUBSCRIPTION_LOGIN_CODES)) {
             return {
                 icon: SignIn,
-                title: "Sign in to your subscription",
-                description: "Your saved sign-in expired.",
-                cta: "Sign in",
+                title: "Reconnect your subscription",
+                description: "Sign in again or paste a new token.",
+                cta: "Open AI providers",
                 target: {kind: "route", onClick: onSignIn},
             }
         }

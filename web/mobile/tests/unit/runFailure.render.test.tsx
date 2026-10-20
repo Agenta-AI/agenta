@@ -179,15 +179,12 @@ describe("mobile TurnRow: a run that failed", () => {
         expect(shown()).toContain("[buy credits dialog]")
     })
 
-    it.each([...SUBSCRIPTION_LOGIN_CODES])(
-        "routes to the providers page to sign in for %s",
-        (code) => {
-            renderTurn(failedTurn("Your Claude sign-in expired.", code))
+    it.each([...SUBSCRIPTION_LOGIN_CODES])("routes to AI providers to reconnect for %s", (code) => {
+        renderTurn(failedTurn("Your Claude sign-in expired.", code))
 
-            press("Sign in")
-            expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=llms")
-        },
-    )
+        press("Open AI providers")
+        expect(routerPush).toHaveBeenCalledWith("/w/ws-1/p/proj-1/settings?tab=llms")
+    })
 
     describe("a plan limit", () => {
         const sentence =
