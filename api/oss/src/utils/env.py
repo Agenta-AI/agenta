@@ -814,6 +814,24 @@ def _services_internal_key_from_environment() -> str | None:
     return runtime_key
 
 
+class AuthCodeRateLimitConfig(BaseModel):
+    """Exact per-client-IP limit on the sign-in code and sign-up endpoints.
+
+    The edge rate limit counts per front-end server and approximately, so a slow bot
+    creating one account every 30 seconds passed it. One Redis counter per IP is exact.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_AUTH_CODE_RATE_LIMIT_ENABLED", True)
+    requests_per_window: int = (
+        _parse_optional_positive_int_env("AGENTA_AUTH_CODE_REQUESTS_PER_WINDOW") or 5
+    )
+    window_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_AUTH_CODE_WINDOW_SECONDS") or 600
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class AgentaConfig(BaseModel):
     """Agenta core configuration"""
 
@@ -849,6 +867,7 @@ class AgentaConfig(BaseModel):
     access: AccessConfig = AccessConfig()
     ai_services: AIServicesConfig = AIServicesConfig()
     api: ApiConfig = ApiConfig()
+    auth_code_rate_limit: AuthCodeRateLimitConfig = AuthCodeRateLimitConfig()
     billing: BillingConfig = BillingConfig()
     extras: ExtrasConfig = ExtrasConfig()
     logging: LoggingConfig = LoggingConfig()
