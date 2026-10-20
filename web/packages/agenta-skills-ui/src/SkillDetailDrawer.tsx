@@ -242,7 +242,12 @@ export function SkillDetailDrawer({
                 baseRevisionId: editBaseId ?? head.id,
             })
             invalidateSkillsListCache()
-            await revisionsQuery.refetch()
+            const refreshed = await revisionsQuery.refetch()
+            // A stale head would reseed the draft over the saved edit.
+            if (refreshed.isError) {
+                setError("Saved, but the latest version could not load. Reopen the skill.")
+                return
+            }
             // Clearing the base reseeds the draft from the head the refetch just brought.
             setEditBaseId(null)
         } catch (err) {
