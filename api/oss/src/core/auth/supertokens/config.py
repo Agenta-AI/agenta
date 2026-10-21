@@ -2,7 +2,6 @@ from typing import Dict, List, Any
 from urllib.parse import urlparse
 
 from supertokens_python import init, InputAppInfo, SupertokensConfig
-from supertokens_python.ingredients.emaildelivery.types import EmailDeliveryConfig
 from supertokens_python.recipe import (
     emailpassword,
     passwordless,
@@ -46,9 +45,6 @@ from oss.src.core.auth.supertokens.overrides import (
     override_passwordless_functions,
     override_passwordless_apis,
     override_session_functions,
-)
-from oss.src.core.auth.supertokens.otp_email import (
-    override_passwordless_email_delivery,
 )
 
 log = get_module_logger(__name__)
@@ -402,9 +398,6 @@ def init_supertokens():
             passwordless.init(
                 flow_type="USER_INPUT_CODE",
                 contact_config=ContactEmailOnlyConfig(),
-                email_delivery=EmailDeliveryConfig(
-                    override=override_passwordless_email_delivery,
-                ),
                 override=PasswordlessInputOverrideConfig(
                     apis=override_passwordless_apis,
                     functions=override_passwordless_functions,

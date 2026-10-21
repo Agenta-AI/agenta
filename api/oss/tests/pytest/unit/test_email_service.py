@@ -51,17 +51,20 @@ class FakeSmtp:
 
 
 @pytest.mark.asyncio
-async def test_send_html_email_uses_smtp_with_starttls(monkeypatch):
+async def test_send_email_uses_smtp_with_starttls(monkeypatch):
     _enable_smtp(monkeypatch, use_tls=True, use_ssl=False)
     _disable_sendgrid(monkeypatch)
     FakeSmtp.instances = []
     monkeypatch.setattr(emailing.smtplib, "SMTP", FakeSmtp)
 
-    assert await emailing.send_html_email(
+    assert await emailing.send_email(
         to_email="to@example.com",
         subject="Subject",
-        html_content="<p>Hello</p>",
         from_email="caller@example.com",
+        username="Caller",
+        action="sent you a message",
+        workspace="their workspace",
+        call_to_action="<p>Hello</p>",
     )
 
     smtp = FakeSmtp.instances[0]
@@ -76,7 +79,7 @@ async def test_send_html_email_uses_smtp_with_starttls(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_send_html_email_prefers_smtp_over_sendgrid(monkeypatch):
+async def test_send_email_prefers_smtp_over_sendgrid(monkeypatch):
     _enable_smtp(monkeypatch, use_tls=False, use_ssl=False)
     monkeypatch.setattr(env.sendgrid, "api_key", "sg-key")
     monkeypatch.setattr(env.sendgrid, "from_email", "sendgrid@example.com")
@@ -85,11 +88,14 @@ async def test_send_html_email_prefers_smtp_over_sendgrid(monkeypatch):
     FakeSmtp.instances = []
     monkeypatch.setattr(emailing.smtplib, "SMTP", FakeSmtp)
 
-    assert await emailing.send_html_email(
+    assert await emailing.send_email(
         to_email="to@example.com",
         subject="Subject",
-        html_content="<p>Hello</p>",
         from_email="caller@example.com",
+        username="Caller",
+        action="sent you a message",
+        workspace="their workspace",
+        call_to_action="<p>Hello</p>",
     )
 
     assert FakeSmtp.instances
@@ -97,17 +103,20 @@ async def test_send_html_email_prefers_smtp_over_sendgrid(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_send_html_email_uses_smtp_ssl_without_starttls(monkeypatch):
+async def test_send_email_uses_smtp_ssl_without_starttls(monkeypatch):
     _enable_smtp(monkeypatch, use_tls=False, use_ssl=True)
     _disable_sendgrid(monkeypatch)
     FakeSmtp.instances = []
     monkeypatch.setattr(emailing.smtplib, "SMTP_SSL", FakeSmtp)
 
-    assert await emailing.send_html_email(
+    assert await emailing.send_email(
         to_email="to@example.com",
         subject="Subject",
-        html_content="<p>Hello</p>",
         from_email="caller@example.com",
+        username="Caller",
+        action="sent you a message",
+        workspace="their workspace",
+        call_to_action="<p>Hello</p>",
     )
 
     smtp = FakeSmtp.instances[0]
@@ -141,55 +150,67 @@ def test_send_smtp_email_requires_username_and_password(
 
 
 @pytest.mark.asyncio
-async def test_send_html_email_falls_back_to_sendgrid(monkeypatch):
+async def test_send_email_falls_back_to_sendgrid(monkeypatch):
     _disable_smtp(monkeypatch)
     monkeypatch.setattr(env.sendgrid, "api_key", "sg-key")
     monkeypatch.setattr(env.sendgrid, "from_email", "sendgrid@example.com")
     fake_sendgrid = Mock()
     monkeypatch.setattr(emailing, "_load_sendgrid", Mock(return_value=fake_sendgrid))
 
-    assert await emailing.send_html_email(
+    assert await emailing.send_email(
         to_email="to@example.com",
         subject="Subject",
-        html_content="<p>Hello</p>",
         from_email="caller@example.com",
+        username="Caller",
+        action="sent you a message",
+        workspace="their workspace",
+        call_to_action="<p>Hello</p>",
     )
-    assert await emailing.send_html_email(
+    assert await emailing.send_email(
         to_email="to@example.com",
         subject="Subject",
-        html_content="<p>Hello again</p>",
         from_email="caller@example.com",
+        username="Caller",
+        action="sent you another message",
+        workspace="their workspace",
+        call_to_action="<p>Hello again</p>",
     )
 
     assert fake_sendgrid.send.call_count == 2
 
 
 @pytest.mark.asyncio
-async def test_send_html_email_noops_when_no_provider_is_configured(monkeypatch):
+async def test_send_email_noops_when_no_provider_is_configured(monkeypatch):
     _disable_smtp(monkeypatch)
     _disable_sendgrid(monkeypatch)
     monkeypatch.setattr(emailing, "_load_sendgrid", Mock(return_value=None))
 
-    assert await emailing.send_html_email(
+    assert await emailing.send_email(
         to_email="to@example.com",
         subject="Subject",
-        html_content="<p>Hello</p>",
         from_email="caller@example.com",
+        username="Caller",
+        action="sent you a message",
+        workspace="their workspace",
+        call_to_action="<p>Hello</p>",
     )
 
 
 @pytest.mark.asyncio
-async def test_send_html_email_noops_without_sender_when_no_provider_is_configured(
+async def test_send_email_noops_without_sender_when_no_provider_is_configured(
     monkeypatch,
 ):
     _disable_smtp(monkeypatch)
     _disable_sendgrid(monkeypatch)
 
-    assert await emailing.send_html_email(
+    assert await emailing.send_email(
         to_email="to@example.com",
         subject="Subject",
-        html_content="<p>Hello</p>",
         from_email="caller@example.com",
+        username="Caller",
+        action="sent you a message",
+        workspace="their workspace",
+        call_to_action="<p>Hello</p>",
     )
 
 
@@ -240,43 +261,3 @@ def test_get_sender_email_raises_when_unset(monkeypatch):
         ),
     ):
         emailing._get_sender_email()
-
-
-def test_smtp_quit_failure_after_send_still_counts_as_sent(monkeypatch):
-    _enable_smtp(monkeypatch, use_tls=False, use_ssl=False)
-
-    class QuitFailsSmtp(FakeSmtp):
-        def __exit__(self, *_args):
-            raise emailing.smtplib.SMTPServerDisconnected("QUIT failed")
-
-    FakeSmtp.instances = []
-    monkeypatch.setattr(emailing.smtplib, "SMTP", QuitFailsSmtp)
-
-    assert emailing._send_smtp_email_sync(
-        to_email="to@example.com",
-        subject="Subject",
-        html_content="<p>Hi</p>",
-        from_email="from@example.com",
-    )
-    FakeSmtp.instances[0].send_message.assert_called_once()
-
-
-def test_smtp_failure_before_send_raises(monkeypatch):
-    _enable_smtp(monkeypatch, use_tls=False, use_ssl=False)
-
-    class LoginFailsSmtp(FakeSmtp):
-        def __init__(self, host, port, **kwargs):
-            super().__init__(host, port, **kwargs)
-            self.login = Mock(
-                side_effect=emailing.smtplib.SMTPAuthenticationError(535, b"bad")
-            )
-
-    monkeypatch.setattr(emailing.smtplib, "SMTP", LoginFailsSmtp)
-
-    with pytest.raises(emailing.smtplib.SMTPAuthenticationError):
-        emailing._send_smtp_email_sync(
-            to_email="to@example.com",
-            subject="Subject",
-            html_content="<p>Hi</p>",
-            from_email="from@example.com",
-        )
