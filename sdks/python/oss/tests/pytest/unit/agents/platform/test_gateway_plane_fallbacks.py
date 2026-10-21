@@ -308,6 +308,26 @@ async def test_a_failing_vault_read_on_the_fallback_path_is_reported_as_itself(
         )
 
 
+async def test_a_refused_llm_credential_exchange_keeps_its_status_and_code(
+    platform, monkeypatch
+):
+    # Without the status and code, the invoke remap reads the refusal as an unknown 500.
+    _Routes(
+        {
+            RESOLVE_PATH: _Response(200, _vault()),
+            CREDENTIALS_PATH: _Response(403, _envelope("policy_denied", "denied")),
+        }
+    ).install(monkeypatch, connections, platform_connection)
+
+    with pytest.raises(ConnectionResolutionError) as raised:
+        await VaultConnectionResolver(platform).resolve(
+            model=_model(), context=_context()
+        )
+
+    assert raised.value.status_code == 403
+    assert raised.value.failure_code == "policy_denied"
+
+
 # ---------------------------------------------------------------------------
 # The MCP plane: back to the direct dial
 # ---------------------------------------------------------------------------

@@ -1067,7 +1067,14 @@ class VaultConnectionResolver:
                 agent_id=context.agent_id,
             )
         except GatewayCredentialsError as exc:
-            raise ConnectionResolutionError(str(exc)) from exc
+            # The invoke remap reads `status_code` and `failure_code` off the exception;
+            # without them a refusal fell through to an unknown 500.
+            error = ConnectionResolutionError(str(exc))
+            if exc.status_code is not None:
+                error.status_code = exc.status_code
+            if exc.failure_code:
+                error.failure_code = exc.failure_code
+            raise error from exc
 
     async def _resolve_from_vault(
         self,
