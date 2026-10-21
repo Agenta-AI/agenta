@@ -1816,6 +1816,11 @@ class SessionMountsRouter:
             response_model=MountFileWrittenResponse,
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
+            responses={
+                status.HTTP_400_BAD_REQUEST: {
+                    "description": "`session_id` is not a valid session id."
+                }
+            },
         )
         self.router.add_api_route(
             "/mounts/{mount_id}/files/upload",

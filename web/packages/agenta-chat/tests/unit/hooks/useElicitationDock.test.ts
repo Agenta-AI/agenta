@@ -308,20 +308,87 @@ describe("degradation settle guard", () => {
         expect(onOutput).not.toHaveBeenCalled()
     })
 
-    it("parks instead of settling once this turn already degraded", () => {
+    const priorDegradation = {
+        type: "tool-__ag__request_input",
+        toolCallId: "call_0",
+        state: "output-error",
+        errorText: "elicitation: unsupported payload — missing message",
+    }
+
+    it("cancels unseen, moving the question to chat, once this turn already degraded", () => {
+        const {result, onOutput} = setup(
+            turn(priorDegradation, toolPart({toolCallId: "call_1", input: {message: "hi"}})),
+        )
+
+        expect(result.current.open).toBe(false)
+        expect(onOutput).toHaveBeenCalledTimes(1)
+        expect(onOutput.mock.calls[0][0]).toMatchObject({
+            toolCallId: "call_1",
+            output: {action: "cancel", humanFriendlyMessage: expect.stringContaining("in chat")},
+        })
+        expect(onOutput.mock.calls[0][0].errorText).toBeUndefined()
+    })
+
+    it("never sends a repeat secret-shaped request to chat", () => {
         const {onOutput} = setup(
             turn(
-                {
-                    type: "tool-__ag__request_input",
-                    toolCallId: "call_0",
-                    state: "output-error",
-                    errorText: "elicitation: unsupported payload — missing message",
-                },
-                toolPart({toolCallId: "call_1", input: {message: "hi"}}),
+                priorDegradation,
+                toolPart({
+                    toolCallId: "call_1",
+                    input: {
+                        message: "Paste your key",
+                        requestedSchema: {type: "object", properties: {api_key: {type: "string"}}},
+                    },
+                }),
             ),
         )
 
-        expect(onOutput).not.toHaveBeenCalled()
+        const message = onOutput.mock.calls[0][0].output.humanFriendlyMessage
+        expect(message).toContain("request_secret")
+        expect(message).not.toContain("chat")
+    })
+
+    it("drops a pending retry when the dock unmounts", async () => {
+        vi.useFakeTimers()
+        try {
+            const onOutput = vi.fn().mockResolvedValue(false)
+            const {unmount} = renderHook(() =>
+                useElicitationDock({messages: turn(toolPart({input: {message: "hi"}})), onOutput}),
+            )
+            await act(async () => {
+                await Promise.resolve()
+            })
+            unmount()
+
+            await vi.advanceTimersByTimeAsync(10000)
+            expect(onOutput).toHaveBeenCalledTimes(1)
+            expect(vi.getTimerCount()).toBe(0)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("sends the settle again when the write fails", async () => {
+        vi.useFakeTimers()
+        try {
+            const onOutput = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true)
+            renderHook(() =>
+                useElicitationDock({messages: turn(toolPart({input: {message: "hi"}})), onOutput}),
+            )
+            expect(onOutput).toHaveBeenCalledTimes(1)
+
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(5000)
+            })
+            expect(onOutput).toHaveBeenCalledTimes(2)
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it("never opens on an unrenderable payload", () => {
+        const {result} = setup(turn(toolPart({input: {message: "hi", requestedSchema: {}}})))
+        expect(result.current.open).toBe(false)
     })
 
     it("leaves a renderable payload alone", () => {

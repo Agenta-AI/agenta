@@ -173,9 +173,25 @@ class AccessConfig(BaseModel):
         "AGENTA_ACCESS_BLOCKED_EMAILS",
         "AGENTA_BLOCKED_EMAILS",
     )
+    # Seconds the PostHog-backed blocklists are cached. Lower means a new entry blocks sign-ups sooner.
+    blocklist_cache_ttl: int = (
+        _parse_optional_positive_int_env("AGENTA_ACCESS_BLOCKLIST_CACHE_TTL") or 60
+    )
     # Unset means no limit. Counts the organizations a user owns now, so deleting one frees a slot.
     max_owned_organizations: int | None = _parse_optional_positive_int_env(
         "AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS"
+    )
+
+    # How many proxies in front of the API append to X-Forwarded-For. Set to N, the client IP
+    # is the Nth entry from the right, so entries a client sends itself are ignored. Unset
+    # keeps the first entry, which a client can set. Read by the sign-in rate limit,
+    # Turnstile and the auth log.
+    trusted_proxy_hops: int | None = _parse_optional_positive_int_env(
+        "AGENTA_ACCESS_TRUSTED_PROXY_HOPS"
+    )
+    # Read CF-Connecting-IP only when Cloudflare proxies the API. Otherwise a client can set it.
+    trust_cloudflare_ip: bool = _parse_bool_env(
+        "AGENTA_ACCESS_TRUST_CLOUDFLARE_IP", False
     )
 
     default_plan: str | None = (
@@ -810,6 +826,24 @@ def _services_internal_key_from_environment() -> str | None:
     return runtime_key
 
 
+class AuthCodeRateLimitConfig(BaseModel):
+    """Exact per-client-IP limit on the sign-in code and sign-up endpoints.
+
+    The edge rate limit counts per front-end server and approximately, so a slow bot
+    creating one account every 30 seconds passed it. One Redis counter per IP is exact.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_AUTH_CODE_RATE_LIMIT_ENABLED", True)
+    requests_per_window: int = (
+        _parse_optional_positive_int_env("AGENTA_AUTH_CODE_REQUESTS_PER_WINDOW") or 5
+    )
+    window_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_AUTH_CODE_WINDOW_SECONDS") or 600
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class AgentaConfig(BaseModel):
     """Agenta core configuration"""
 
@@ -845,6 +879,7 @@ class AgentaConfig(BaseModel):
     access: AccessConfig = AccessConfig()
     ai_services: AIServicesConfig = AIServicesConfig()
     api: ApiConfig = ApiConfig()
+    auth_code_rate_limit: AuthCodeRateLimitConfig = AuthCodeRateLimitConfig()
     billing: BillingConfig = BillingConfig()
     extras: ExtrasConfig = ExtrasConfig()
     logging: LoggingConfig = LoggingConfig()
@@ -1986,6 +2021,26 @@ class PostHogConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# typesafe
+# ---------------------------------------------------------------------------
+
+
+class TypeSafeConfig(BaseModel):
+    """TypeSafe judgment model (Jev), used by the EE fraud check at signup and at
+    API key creation. Without a key the check is skipped and every signup is allowed."""
+
+    api_url: str = os.getenv("TYPESAFE_API_URL") or "https://api.typesafe.ai"
+    api_key: str | None = os.getenv("TYPESAFE_API_KEY") or None
+    model: str = os.getenv("TYPESAFE_MODEL") or "jev-latest"
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.api_key)
+
+
+# ---------------------------------------------------------------------------
 # redis
 # ---------------------------------------------------------------------------
 
@@ -2466,6 +2521,7 @@ class EnvironSettings(BaseModel):
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
     triggers: TriggersConfig = TriggersConfig()
+    typesafe: TypeSafeConfig = TypeSafeConfig()
     wallets: WalletsConfig = WalletsConfig()
     rollout: RolloutConfig = RolloutConfig()
 

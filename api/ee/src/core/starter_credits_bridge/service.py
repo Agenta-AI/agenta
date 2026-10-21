@@ -911,8 +911,8 @@ def _email_domain(organization_email: str) -> str:
     return domain.lower() or "unknown"
 
 
-def email_rules_allow(organization_email: str, policy: MintPolicy) -> bool:
-    """The mint policy's email rules alone, without the Redis counters. A refusal logs
+def _email_rule_refusal(organization_email: str, policy: MintPolicy) -> Optional[str]:
+    """The name of the email rule that refuses the address, or None. A refusal logs
     the rule and the domain, never the address."""
     local_part, _, _ = organization_email.rpartition("@")
     domain = _email_domain(organization_email)
@@ -938,38 +938,50 @@ def email_rules_allow(organization_email: str, policy: MintPolicy) -> bool:
             # (which provider, which rule) without logging who signed up.
             domain=domain,
         )
-    return rule is None
+    return rule
 
 
-async def _mint_policy_allows(
+def email_rules_allow(organization_email: str, policy: MintPolicy) -> bool:
+    """The mint policy's email rules alone, without the Redis counters."""
+    return _email_rule_refusal(organization_email, policy) is None
+
+
+async def _mint_policy_refusal(
     organization_email: str,
     policy: MintPolicy,
     counter_prefix: str = BRIDGE_COUNTER_PREFIX,
-) -> bool:
+) -> Optional[str]:
     """Apply the mint policy: eligibility rules, then Redis counters (global
-    daily + hourly; per-domain daily on non-free-mail domains only). Fail closed
-    on Redis errors: an unverifiable mint is a skipped mint. Each caller passes its
-    own `counter_prefix`, so one signup checked by the bridge and by the signup
-    grant uses one slot in each, not two in one."""
+    daily + hourly; per-domain daily on non-free-mail domains only). Return the
+    name of the refusing rule or counter scope, or None when the mint is allowed.
+    Fail closed on Redis errors: an unverifiable mint is a skipped mint. Each caller
+    passes its own `counter_prefix`, so one signup checked by the bridge and by the
+    signup grant uses one slot in each, not two in one."""
     domain = _email_domain(organization_email)
-    if not email_rules_allow(organization_email, policy):
-        return False
+    rule = _email_rule_refusal(organization_email, policy)
+    if rule is not None:
+        return rule
 
     engine = get_cache_engine()
     try:
-        for counter_key, cap, ttl, scope in _velocity_counters(
-            organization_email, policy, counter_prefix
-        ):
+        counters = _velocity_counters(organization_email, policy, counter_prefix)
+        for counter_key, cap, ttl, scope in counters:
             count = await engine.incr(counter_key)
             if count == 1:
                 await engine.expire(counter_key, ttl)
             if count > cap:
+                if scope != "work_domain_daily" and await _domain_cap_reached(
+                    engine, counters
+                ):
+                    # The global caps are checked first, so without this a domain
+                    # past its own cap would be named only by the global cap.
+                    scope = "work_domain_daily"
                 log.warning(
                     "[starter_credits_bridge] velocity cap reached; skipping seed",
                     rule=scope,
                     domain=domain,
                 )
-                return False
+                return scope
     except Exception as exc:
         log.warning(
             "[starter_credits_bridge] velocity counters unavailable; skipping seed (fail closed)",
@@ -977,9 +989,31 @@ async def _mint_policy_allows(
             domain=domain,
             reason=str(exc),
         )
-        return False
+        return "velocity_counters_unavailable"
 
-    return True
+    return None
+
+
+async def _domain_cap_reached(
+    engine: Any, counters: list[tuple[str, int, int, str]]
+) -> bool:
+    """Whether the domain's daily counter is already at its cap. It reads the counter
+    and does not increment it, so a refusal by a global cap uses no domain slot."""
+    for counter_key, cap, _ttl, scope in counters:
+        if scope == "work_domain_daily":
+            raw = await engine.get(counter_key)
+            return raw is not None and int(raw) >= cap
+    return False
+
+
+async def _mint_policy_allows(
+    organization_email: str,
+    policy: MintPolicy,
+    counter_prefix: str = BRIDGE_COUNTER_PREFIX,
+) -> bool:
+    return (
+        await _mint_policy_refusal(organization_email, policy, counter_prefix) is None
+    )
 
 
 async def _release_velocity_slots(

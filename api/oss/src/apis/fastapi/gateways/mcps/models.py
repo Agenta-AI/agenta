@@ -48,7 +48,10 @@ class MCPEndpointCheckRequest(BaseModel):
     """The result of a check the connect sheet just ran against the connection."""
 
     ok: bool
-    reason: Optional[str] = None
+    reason: Optional[str] = Field(
+        default=None,
+        description="Why the check failed. Text past 300 characters is cut, not refused.",
+    )
 
     @field_validator("reason")
     @classmethod

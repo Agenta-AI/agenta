@@ -96,6 +96,7 @@ async def _get_posthog_string_entries(feature_flag: str) -> Set[str]:
         namespace="posthog:flags",
         key=cache_key,
         value=sorted(normalized_entries),
+        ttl=env.agenta.access.blocklist_cache_ttl,
     )
 
     return normalized_entries

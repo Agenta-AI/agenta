@@ -50,6 +50,7 @@ from ee.src.core.organizations.types import (
     OrganizationProviderUpdate,
 )
 from ee.src.core.organizations.exceptions import OrganizationSlugConflictError
+from ee.src.core.fraud.types import FRAUD_FLAG_KEYS
 
 
 log = get_module_logger(__name__)
@@ -93,6 +94,12 @@ async def update_organization(
         if "flags" in payload_dict:
             new_flags = payload_dict["flags"]
             if new_flags is not None:
+                # The fraud check owns its keys: a client cannot set or clear them.
+                new_flags = {
+                    key: value
+                    for key, value in new_flags.items()
+                    if key not in FRAUD_FLAG_KEYS
+                }
                 existing_flags = organization.flags or {}
 
                 default_flags = {
@@ -974,6 +981,7 @@ from ee.src.core.starter_credits_bridge.service import (  # noqa: E402
     seed_starter_credits_bridge_safely,
 )
 from ee.src.core.wallets.service import WalletsService  # noqa: E402
+from ee.src.core.fraud.service import signup_is_fraud  # noqa: E402
 
 
 _subscription_service = SubscriptionsService(
@@ -998,27 +1006,50 @@ def _get_wallets_service() -> WalletsService:
     return _wallets_service
 
 
-# The floor given to a new organization whose email the mint policy refuses: 100
-# credits, above the daily 75, so the daily free credits can never be spent.
+# The floor given to a new organization that the mint policy refuses with one of
+# FLOOR_RAISING_REFUSALS: 100 credits, above the daily 75, so the daily free credits
+# can never be spent.
 REFUSED_EMAIL_FLOOR_MUSD = 1_000_000
+
+# Refusals that also raise the wallet floor. The email rules, and the per-domain cap:
+# one domain past its daily signup grants can still create many accounts, and each
+# would collect the daily credits. The global caps do not raise the floor, so a real
+# user who signs up in a busy hour still gets the daily credits.
+FLOOR_RAISING_REFUSALS = frozenset(
+    {
+        "disposable_domain",
+        "plus_local_part",
+        "digit_local_part",
+        "work_domain_daily",
+    }
+)
 
 
 async def _free_credits_check(organization_email: str) -> tuple[bool, bool]:
     """Apply the mint policy to a new organization's owner email, and return
-    (award the signup grant, raise the wallet floor). An email rule refusal does both;
-    a velocity cap, a missing policy or any error skips only the grant."""
+    (award the signup grant, raise the wallet floor). A refusal in
+    FLOOR_RAISING_REFUSALS skips the grant and raises the floor. Any other refusal,
+    a missing policy or any error skips the grant and keeps the normal floor."""
     try:
         async with asyncio.timeout(5):
             policy = await _mint_policy._resolve_mint_policy()
             if policy is None:
                 return False, False
-            if not _mint_policy.email_rules_allow(organization_email, policy):
-                return False, True
-            return await _mint_policy._mint_policy_allows(
+            refusal = await _mint_policy._mint_policy_refusal(
                 organization_email,
                 policy,
                 counter_prefix=_mint_policy.SIGNUP_GRANT_COUNTER_PREFIX,
-            ), False
+            )
+            if refusal is None:
+                return True, False
+            raise_floor = refusal in FLOOR_RAISING_REFUSALS
+            log.info(
+                "[wallets] signup grant refused",
+                rule=refusal,
+                raise_floor=raise_floor,
+                domain=organization_email.rpartition("@")[2].lower(),
+            )
+            return False, raise_floor
     except Exception:
         log.warning(
             "[wallets] free credits check failed; no signup grant", exc_info=True
@@ -1111,13 +1142,21 @@ async def provision_signup_subscription(
         scope=scope_from(organization_id=organization.id),
     )
 
+    # Never raises; bounded to a few seconds. A flagged organization is created as
+    # normal but gets no free credits of any kind: no starter credits, no signup grant,
+    # and (through the marker) no daily grants.
+    flagged = await signup_is_fraud(
+        organization_id=organization.id, email=organization_email
+    )
+
     # Bounded (10s) and swallow-all: a failure degrades to "no starter credits"
     # and must never raise here — the signup path deletes the new user when
     # setup fails. Nothing retries a failed seed.
-    await seed_starter_credits_bridge_safely(
-        organization_id=str(organization.id),
-        organization_email=organization_email,
-    )
+    if not flagged:
+        await seed_starter_credits_bridge_safely(
+            organization_id=str(organization.id),
+            organization_email=organization_email,
+        )
 
     # Both helpers re-raise, and the signup path deletes the new user when this
     # coroutine fails, so an unfinished wallet must not run here.
@@ -1133,6 +1172,8 @@ async def provision_signup_subscription(
             )
         plan = subscription.plan if subscription is not None else get_default_plan()
         award_grant, raise_floor = await _free_credits_check(organization_email)
+        if flagged:
+            award_grant = False
         await _provision_wallet_general_balance(
             organization_id=organization.id,
             plan=plan,
