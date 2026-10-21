@@ -11,11 +11,7 @@ from oss.src.utils.caching import invalidate_cache
 from oss.src.utils.logging import get_module_logger
 from oss.src.models.db_models import UserDB, WorkspaceDB
 from oss.src.services import db_manager
-from oss.src.core.emails.branded import send_branded_email
-from oss.src.core.emails.templates import (
-    render_invitation_email,
-    render_member_joined_email,
-)
+from oss.src.utils import emailing
 from oss.src.models.api.workspace_models import (
     InviteRequest,
     ResendInviteRequest,
@@ -155,15 +151,18 @@ async def send_invitation_email(
     if not (env.smtp.enabled or env.sendgrid.enabled):
         return invite_link
 
-    organization = await db_manager.get_organization(str(organization_id))
-    return await send_branded_email(
+    await emailing.send_email(
         to_email=email,
-        email=render_invitation_email(
-            inviter=user.username,
-            organization=organization.name if organization else "their organization",
-            url=invite_link,
+        subject=f"{user.username} invited you to join their organization",
+        username=user.username,
+        action="invited you to join",
+        workspace="their organization",
+        call_to_action=(
+            "Click the link below to accept the invitation:</p><br>"
+            f'<a href="{invite_link}">Accept Invitation</a>'
         ),
     )
+    return True
 
 
 def resolve_workspace_invite_role(payload: InviteRequest) -> str:
@@ -491,17 +490,18 @@ async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> b
 
     workspace_admins = await db_manager.get_workspace_administrators(workspace)
 
-    member_joined_email = render_member_joined_email(
-        member_name=user.username,
-        member_email=user.email,
-        organization=organization.name if organization else "your organization",
-        url=f"{env.agenta.web_url}/w/{workspace.id}/p/{project.id}/settings?tab=workspace",
-    )
     for workspace_admin in workspace_admins:
-        await send_branded_email(
+        await emailing.send_email(
             from_email="account@hello.agenta.ai",
             to_email=workspace_admin.email,
-            email=member_joined_email,
+            subject=f"New Member Joined {organization.name}",
+            username=user.username,
+            action="joined your Workspace",
+            workspace=f'"{organization.name}"',
+            call_to_action=(
+                "Click the link below to view your Organization:</p><br>"
+                f'<a href="{env.agenta.web_url}/w/{workspace.id}/p/{project.id}/settings?tab=workspace">View Organization</a>'
+            ),
         )
 
     return True
