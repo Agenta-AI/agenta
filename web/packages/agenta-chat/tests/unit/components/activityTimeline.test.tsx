@@ -351,3 +351,30 @@ describe("ActivityTimeline", () => {
         expect(screen.getAllByRole("button")[0].getAttribute("aria-expanded")).toBe("false")
     })
 })
+
+describe("ActivityTimeline: a failed run", () => {
+    it("names the failure beside the work and keeps the raw text as the last step", () => {
+        mount({
+            steps: [toolStep("output-available")],
+            failure: {label: "Run stopped", detail: "raw server text"},
+        })
+        const line = screen.getAllByRole("button")[0]
+        expect(line.textContent).toContain("Run stopped")
+
+        act(() => line.click())
+        expect(screen.getByText("raw server text")).toBeTruthy()
+    })
+
+    it("is a plain line when the run failed before any step with nothing raw to show", () => {
+        mount({failure: {label: "Run stopped", detail: null}})
+        const line = screen.getByRole("button")
+        expect(line.textContent).toBe("Run stopped")
+        expect((line as HTMLButtonElement).disabled).toBe(true)
+        expect(line.getAttribute("aria-expanded")).toBeNull()
+    })
+
+    it("shows no failure while the run is still live", () => {
+        mount({streaming: true, failure: {label: "Run stopped"}})
+        expect(screen.queryByText("Run stopped")).toBeNull()
+    })
+})
