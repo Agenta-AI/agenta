@@ -9,6 +9,7 @@ import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
+import {useProjectPermission} from "../context/useProjectPermission"
 import {useWalletSummary} from "../wallet/useWalletSummary"
 import {dailyCredit, monthlyCredit} from "../wallet/walletCredits"
 import {formatCredits} from "../wallet/walletFormat"
@@ -30,6 +31,10 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
     const router = useRouter()
     const queryClient = useQueryClient()
     const billingEnabled = isBillingEnabled()
+    // The plan, cancel and portal routes all check `edit_billing`; without it each button
+    // would only lead to a refusal. Without roles every owner holds it, so nothing is hidden.
+    const canEditBilling = useProjectPermission(projectId, "edit_billing")
+    const canChangeBilling = billingEnabled && canEditBilling
 
     const [planChooserOpen, setPlanChooserOpen] = useState(false)
     const [cancelOpen, setCancelOpen] = useState(false)
@@ -51,11 +56,11 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
 
     // "See plans" elsewhere lands here with the chooser open.
     useEffect(() => {
-        if (router.query.plans !== "1" || !billingEnabled) return
+        if (router.query.plans !== "1" || !canChangeBilling) return
         setPlanChooserOpen(true)
         const {plans: _plans, ...rest} = router.query
         void router.replace({pathname: router.pathname, query: rest}, undefined, {shallow: true})
-    }, [router, billingEnabled])
+    }, [router, canChangeBilling])
 
     // A plan change moves the wallet's grants too.
     const refresh = () => {
@@ -114,9 +119,9 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
                                 isOnFreePlan={catalog.isOnFreePlan}
                                 isCustomPlan={catalog.isCustomPlan}
                                 onChangePlan={
-                                    billingEnabled ? () => setPlanChooserOpen(true) : undefined
+                                    canChangeBilling ? () => setPlanChooserOpen(true) : undefined
                                 }
-                                onCancel={billingEnabled ? () => setCancelOpen(true) : undefined}
+                                onCancel={canChangeBilling ? () => setCancelOpen(true) : undefined}
                             />
                         ) : null}
                         {enforced ? (
@@ -161,7 +166,7 @@ export const BillingTab = ({projectId}: SettingsTabProps) => {
                 ) : null}
             </div>
 
-            {billingEnabled ? (
+            {canChangeBilling ? (
                 <BillingPaymentsSection
                     onOpenPortal={portal.open}
                     opening={portal.opening}
