@@ -49,7 +49,12 @@ from oss.src.core.gateways.policy.types import (
     PolicyDeniedError,
     SpendRefusedError,
 )
-from oss.src.core.gateways.run_claims import gateway_run_id, gateway_run_labels
+from oss.src.core.gateways.run_claims import (
+    gateway_platform_run,
+    gateway_run_id,
+    gateway_run_labels,
+)
+from oss.src.middlewares.auth import GATEWAY_TOKEN_AUDIENCE, request_audience
 from oss.src.utils.context import get_auth_scope
 
 if TYPE_CHECKING:
@@ -104,6 +109,36 @@ def _openai_error(
 # SDKs retry by default, so Claude Code retried one for four minutes and the person saw only
 # "no first response"; both SDKs read this header before the status.
 _NOT_RETRYABLE = {"x-should-retry": "false"}
+
+
+BUILTIN_REQUIRES_AGENT_RUN = "builtin_requires_agent_run"
+
+
+def _refuse_builtin_outside_agent_run(
+    request: Optional[Request],
+) -> Optional[JSONResponse]:
+    """Built-in models are platform-funded, so only the platform's agent runs may call them.
+
+    Only a gateway token the exchange marked for the platform runtime passes. An API key,
+    a session, a general Secret token and every other gateway token are refused here,
+    before the body is read, so a refused call is never parsed, relayed or charged.
+    """
+    audience = request_audience(request) if request is not None else None
+    if audience == GATEWAY_TOKEN_AUDIENCE and gateway_platform_run(request):
+        return None
+
+    log.info(
+        "[gateways] built-in model call refused outside a platform agent run",
+        organization_id=str(get_auth_scope().organization_id),
+        audience=audience,
+    )
+    return _openai_error(
+        status_code=403,
+        message="Built-in models are only available to agent runs started by the platform.",
+        error_type="permission_error",
+        code=BUILTIN_REQUIRES_AGENT_RUN,
+        headers=_NOT_RETRYABLE,
+    )
 
 
 def _request_body_detail(exc: ValueError) -> str:
@@ -518,6 +553,11 @@ class LLMGatewayProxy:
         if not await llm_gateway_serves_caller():
             return _map_domain_exception(LLMGatewayDisabledError())
 
+        if namespace == GatewayEndpointNamespace.BUILTIN:
+            refusal = _refuse_builtin_outside_agent_run(request)
+            if refusal is not None:
+                return refusal
+
         scope = get_auth_scope()
 
         raw_body = await request.body()
@@ -567,9 +607,9 @@ class LLMGatewayProxy:
 
     # --- models ---------------------------------------------------------------- #
 
-    async def list_models_builtin(self, provider: str) -> Any:
+    async def list_models_builtin(self, request: Request, provider: str) -> Any:
         return await self._list_models(
-            namespace=GatewayEndpointNamespace.BUILTIN, name=provider
+            namespace=GatewayEndpointNamespace.BUILTIN, name=provider, request=request
         )
 
     async def list_models_standard(self, provider: str) -> Any:
@@ -583,13 +623,22 @@ class LLMGatewayProxy:
         )
 
     async def _list_models(
-        self, *, namespace: GatewayEndpointNamespace, name: str
+        self,
+        *,
+        namespace: GatewayEndpointNamespace,
+        name: str,
+        request: Optional[Request] = None,
     ) -> Any:
         # Any, not Dict[str, Any]: the success path returns the OpenAI list body,
         # the denial path returns a JSONResponse — FastAPI passes a Response
         # instance through unprocessed either way.
         if not await llm_gateway_serves_caller():
             return _map_domain_exception(LLMGatewayDisabledError())
+
+        if namespace == GatewayEndpointNamespace.BUILTIN:
+            refusal = _refuse_builtin_outside_agent_run(request)
+            if refusal is not None:
+                return refusal
 
         scope = get_auth_scope()
 
