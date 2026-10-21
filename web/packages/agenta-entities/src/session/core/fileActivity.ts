@@ -108,26 +108,11 @@ export interface DriveToolPath {
 /** The runner names the agent's durable mount as the cwd's sibling (`agentMountPath`). */
 const AGENT_MOUNT_SUFFIX = "-agent"
 
-/** The generated workspace directories the runner creates when a run has no durable mount to sign
- * (`defaultLocalCwd` / `defaultDaytonaCwd`), longest first so the more specific one wins. */
-const EPHEMERAL_ROOT_PREFIXES = ["agenta-sandbox-agent-", "agenta-"] as const
-
-/** Machine-generated id: letters and digits only. Distinguishes the runner's `agenta-<hex>` scratch
- * dir from a checkout that merely starts the same way (`agenta-open-source`). */
-const isGeneratedId = (s: string): boolean => s.length > 0 && /^[A-Za-z0-9]+$/.test(s)
-
-const isEphemeralRoot = (segment: string): boolean => {
-    const base = segment.endsWith(AGENT_MOUNT_SUFFIX)
-        ? segment.slice(0, -AGENT_MOUNT_SUFFIX.length)
-        : segment
-    for (const prefix of EPHEMERAL_ROOT_PREFIXES) {
-        if (base.startsWith(prefix)) return isGeneratedId(base.slice(prefix.length))
-    }
-    return false
-}
-
-/** Index one past the last segment of the sandbox workspace root, or -1 when these segments sit
- * under no root this build knows. */
+/** Index one past the last segment of the durable mount root, or -1 when these segments sit under
+ * no drive. Only the durable root counts: a run without one works in a throwaway dir
+ * (`agenta-sandbox-agent-<rand>`, `agenta-<hex>`) that no drive holds, so nothing in it can open.
+ * Matching those by name also matched a user's own folder (`agent-files/agenta-outreach-agent/`)
+ * and cut the path there (#7715). */
 function sandboxRootEnd(segments: readonly string[]): number {
     for (let i = 0; i < segments.length; i++) {
         const segment = segments[i]
@@ -141,7 +126,6 @@ function sandboxRootEnd(segments: readonly string[]): number {
                 segments[i + 1] === "mounts" ? i + 1 : segments[i + 2] === "mounts" ? i + 2 : -1
             return m !== -1 && m + 2 < segments.length ? m + 3 : -1
         }
-        if (isEphemeralRoot(segment)) return i + 1
     }
     return -1
 }
@@ -161,8 +145,6 @@ function sandboxRootEnd(segments: readonly string[]): number {
  *
  *     durable   local     /var/lib/agenta/mounts/<project_id>/<mount_id>
  *     durable   daytona   /home/sandbox/agenta/mounts/<project_id>/<mount_id>
- *     ephemeral local     /tmp/agenta-sandbox-agent-<rand>
- *     ephemeral daytona   /home/sandbox/agenta-<hex>
  *
  * The local durable root was `/tmp/agenta/mounts/…` before 2026-09. Sessions recorded then keep
  * those paths in the database forever, so the match below stays leading-directory-agnostic on
@@ -172,7 +154,8 @@ function sandboxRootEnd(segments: readonly string[]): number {
  * agent mount rather than the cwd — hence {@link DriveToolPath.origin} rather than a bare string.
  *
  * Returns null when an absolute path sits under NO such root (`/etc/hosts`, the runner's own
- * `/tmp/agenta/relay/…`) or names the workspace root itself: those correspond to nothing in the
+ * `/tmp/agenta/relay/…`, a throwaway run dir) or names the workspace root itself: those correspond
+ * to nothing in the
  * drive, and listing them as if they did is the bug this replaces.
  */
 export function drivePathFromToolPath(toolPath: string): DriveToolPath | null {
