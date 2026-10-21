@@ -19,7 +19,6 @@ from ee.src.core.fraud.types import (
     API_KEY_QUESTION,
     DECISION_TIMEOUT_SECONDS,
     PAID_CREDIT_KINDS,
-    POLICY,
     SIGNUP_QUESTION,
     ApiKeySignals,
     FraudCheckMode,
@@ -135,7 +134,7 @@ class FraudService:
                 )
 
             score = await ask_noul(
-                state={"policy": POLICY, "signup": {"email": email}},
+                state={"policy": config.policy, "signup": {"email": email}},
                 question=SIGNUP_QUESTION,
             )
         verdict = self._decide(
@@ -203,7 +202,7 @@ class FraudService:
             score = None
             if not marked:
                 score = await ask_noul(
-                    state={"policy": POLICY, "signup": signals.to_state()},
+                    state={"policy": config.policy, "signup": signals.to_state()},
                     question=API_KEY_QUESTION,
                 )
 

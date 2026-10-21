@@ -38,13 +38,15 @@ ACTION_TIMEOUT_SECONDS = 2.0
 # period allowance. An organization with either is a paying customer and is never held.
 PAID_CREDIT_KINDS = frozenset({PURCHASE_CREDIT_KIND, PLAN_ALLOWANCE_CREDIT_KIND})
 
-POLICY = (
-    "Agenta is a developer platform. New accounts get free credits. Fraud rings sign up "
-    "many accounts on throwaway or catch-all email domains, often with random-letter "
-    "local parts, and create an API key within seconds of signup to drain the credits "
-    "through the model gateway. Real developers usually sign up with a work or personal "
-    "mailbox and take minutes to create a key, if at all."
+# The policy and the thresholds that production uses live in the `fraud-check` flag
+# payload, not here. These defaults only keep the check on when the flag or a field is
+# missing or invalid. The default policy stays generic on purpose.
+DEFAULT_POLICY = (
+    "Agenta is a developer platform. New accounts get free credits. Judge whether the "
+    "account was created to abuse the free credits rather than to use the product."
 )
+DEFAULT_SIGNUP_THRESHOLD = 0.85
+DEFAULT_APIKEY_THRESHOLD = 0.85
 
 SIGNUP_QUESTION = "Is `signup` part of a credit-farming fraud ring? Judge from the email address alone."
 API_KEY_QUESTION = "Is `signup` part of a credit-farming fraud ring?"
@@ -56,12 +58,15 @@ class FraudCheckMode(str, Enum):
 
 
 class FraudCheckConfig(BaseModel):
-    """The `fraud-check` flag payload. The defaults apply when the flag is missing or
-    unreadable: the check is on from the first deploy."""
+    """The `fraud-check` flag payload. The defaults apply when the flag is missing: the
+    check is on from the first deploy. A `policy` that is not a non-empty string, or a
+    threshold that is not a number from 0 to 1, falls back to its default."""
 
     mode: FraudCheckMode = FraudCheckMode.ENFORCE
-    signup_threshold: float = Field(default=0.8, ge=0.0, le=1.0)
-    apikey_threshold: float = Field(default=0.9, ge=0.0, le=1.0)
+    signup_threshold: float = Field(default=DEFAULT_SIGNUP_THRESHOLD, ge=0.0, le=1.0)
+    apikey_threshold: float = Field(default=DEFAULT_APIKEY_THRESHOLD, ge=0.0, le=1.0)
+    # What Jev reads as `state.policy`. Kept out of the repr so it never reaches a log.
+    policy: str = Field(default=DEFAULT_POLICY, min_length=1, repr=False)
 
 
 class FraudCheckpoint(str, Enum):

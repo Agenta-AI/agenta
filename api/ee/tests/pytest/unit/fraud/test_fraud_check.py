@@ -17,7 +17,9 @@ import ee.src.core.fraud.service as fraud_service_module
 import ee.src.core.organizations.service as organizations_service_module
 from ee.src.core.fraud.service import FraudService
 from ee.src.core.fraud.types import (
-    POLICY,
+    DEFAULT_APIKEY_THRESHOLD,
+    DEFAULT_POLICY,
+    DEFAULT_SIGNUP_THRESHOLD,
     ApiKeySignals,
     BillingFacts,
     FraudCheckConfig,
@@ -198,7 +200,10 @@ def service():
 async def test_flag_missing_gives_enforce_defaults(flag):
     config = await fraud_config.read_fraud_check_config()
     assert config == FraudCheckConfig(
-        mode=FraudCheckMode.ENFORCE, signup_threshold=0.8, apikey_threshold=0.9
+        mode=FraudCheckMode.ENFORCE,
+        signup_threshold=DEFAULT_SIGNUP_THRESHOLD,
+        apikey_threshold=DEFAULT_APIKEY_THRESHOLD,
+        policy=DEFAULT_POLICY,
     )
 
 
@@ -212,8 +217,6 @@ async def test_flag_lookup_failure_turns_the_check_off(flag):
 @pytest.mark.asyncio
 async def test_flag_malformed_turns_the_check_off(flag):
     flag("not json")
-    assert (await fraud_config.read_fraud_check_config()).mode == FraudCheckMode.OFF
-    flag({"mode": "enforce", "signup_threshold": "high"})
     assert (await fraud_config.read_fraud_check_config()).mode == FraudCheckMode.OFF
     # A typo in an `off` payload must not switch enforcement on.
     flag({"mode": "of"})
@@ -230,7 +233,143 @@ async def test_flag_payload_is_honoured_as_dict_or_json_string(flag):
     flag(json.dumps({"signup_threshold": 0.7}))
     config = await fraud_config.read_fraud_check_config()
     assert config.mode == FraudCheckMode.ENFORCE
-    assert (config.signup_threshold, config.apikey_threshold) == (0.7, 0.9)
+    assert (config.signup_threshold, config.apikey_threshold) == (
+        0.7,
+        DEFAULT_APIKEY_THRESHOLD,
+    )
+
+
+class _LogStub:
+    def __init__(self):
+        self.warnings = []
+
+    def warning(self, message, **fields):
+        self.warnings.append((message, fields))
+
+
+@pytest.fixture
+def config_log(monkeypatch):
+    stub = _LogStub()
+    monkeypatch.setattr(fraud_config, "log", stub)
+    monkeypatch.setattr(fraud_config, "_last_invalid", None)
+    return stub
+
+
+@pytest.mark.asyncio
+async def test_flag_payload_policy_is_used(flag):
+    flag({"mode": "enforce", "policy": "A policy from the flag."})
+    config = await fraud_config.read_fraud_check_config()
+    assert config.mode == FraudCheckMode.ENFORCE
+    assert config.policy == "A policy from the flag."
+
+
+@pytest.mark.asyncio
+async def test_flag_payload_without_policy_gives_the_default_policy(flag, config_log):
+    flag({"mode": "enforce", "signup_threshold": 0.5})
+    config = await fraud_config.read_fraud_check_config()
+    assert config.mode == FraudCheckMode.ENFORCE
+    assert config.policy == DEFAULT_POLICY
+    assert config.signup_threshold == 0.5
+    assert config_log.warnings == []
+
+
+@pytest.mark.parametrize("policy", ["", "   ", 42, None, ["a"], {"text": "a"}, True])
+@pytest.mark.asyncio
+async def test_flag_payload_malformed_policy_gives_the_default_policy(
+    flag, config_log, policy
+):
+    flag({"mode": "enforce", "policy": policy, "apikey_threshold": 0.6})
+    config = await fraud_config.read_fraud_check_config()
+    # The check stays on, and the other fields are kept.
+    assert config.mode == FraudCheckMode.ENFORCE
+    assert config.policy == DEFAULT_POLICY
+    assert config.apikey_threshold == 0.6
+    (warning,) = config_log.warnings
+    assert warning[1]["fields"] == ["policy"]
+
+
+@pytest.mark.parametrize(
+    "threshold",
+    [
+        -0.1,
+        1.5,
+        "high",
+        "0.5",
+        True,
+        None,
+        float("nan"),
+        float("inf"),
+        10**400,
+        -(10**400),
+    ],
+)
+@pytest.mark.asyncio
+async def test_flag_payload_invalid_threshold_gives_the_default(
+    flag, config_log, threshold
+):
+    flag(
+        {
+            "mode": "enforce",
+            "signup_threshold": threshold,
+            "apikey_threshold": threshold,
+            "policy": "A policy from the flag.",
+        }
+    )
+    config = await fraud_config.read_fraud_check_config()
+    assert config.mode == FraudCheckMode.ENFORCE
+    assert config.signup_threshold == DEFAULT_SIGNUP_THRESHOLD
+    assert config.apikey_threshold == DEFAULT_APIKEY_THRESHOLD
+    assert config.policy == "A policy from the flag."
+    (warning,) = config_log.warnings
+    assert warning[1]["fields"] == ["signup_threshold", "apikey_threshold"]
+    assert "A policy from the flag." not in repr(warning)
+
+
+@pytest.mark.asyncio
+async def test_flag_payload_threshold_bounds_are_valid(flag, config_log):
+    flag({"signup_threshold": 0, "apikey_threshold": 1})
+    config = await fraud_config.read_fraud_check_config()
+    assert (config.signup_threshold, config.apikey_threshold) == (0.0, 1.0)
+    assert config_log.warnings == []
+
+
+@pytest.mark.asyncio
+async def test_flag_payload_invalid_fields_log_once_without_the_policy(
+    flag, config_log
+):
+    flag({"policy": "   ", "signup_threshold": 2})
+    for _ in range(3):
+        await fraud_config.read_fraud_check_config()
+    (warning,) = config_log.warnings
+    assert warning[1]["fields"] == ["policy", "signup_threshold"]
+
+    # A different bad payload logs again, even with the same invalid field.
+    flag({"policy": 7})
+    await fraud_config.read_fraud_check_config()
+    assert len(config_log.warnings) == 2
+    flag({"policy": 8})
+    await fraud_config.read_fraud_check_config()
+    assert len(config_log.warnings) == 3
+    # A valid payload resets the memory.
+    flag({"policy": "fine"})
+    await fraud_config.read_fraud_check_config()
+    flag({"policy": 7})
+    await fraud_config.read_fraud_check_config()
+    assert len(config_log.warnings) == 4
+
+
+@pytest.mark.asyncio
+async def test_flag_payload_invalid_policy_in_an_off_payload_keeps_the_check_off(
+    flag, config_log
+):
+    flag({"mode": "off", "policy": ""})
+    assert (await fraud_config.read_fraud_check_config()).mode == FraudCheckMode.OFF
+
+
+def test_config_repr_never_carries_the_policy():
+    config = FraudCheckConfig(policy="A policy that must stay out of logs.")
+    assert "must stay out of logs" not in repr(config)
+    assert "must stay out of logs" not in str(config)
 
 
 @pytest.mark.asyncio
@@ -374,18 +513,20 @@ async def test_ask_noul_without_api_key_makes_no_request(jev, monkeypatch):
 async def test_signup_at_threshold_skips_grants_and_marks_organization(
     service, flag, jev
 ):
-    jev.answer = 0.8
+    jev.answer = DEFAULT_SIGNUP_THRESHOLD
     verdict = await service.check_signup(
         organization_id=ORGANIZATION_ID, email="qzxvbn@mail-drop.example"
     )
     assert verdict.flagged is True
     assert verdict.action == "skip_grants"
     assert verdict.domain == "mail-drop.example"
-    assert verdict.threshold == 0.8
-    assert service.fraud_dao.marks == [(ORGANIZATION_ID, FraudCheckpoint.SIGNUP, 0.8)]
+    assert verdict.threshold == DEFAULT_SIGNUP_THRESHOLD
+    assert service.fraud_dao.marks == [
+        (ORGANIZATION_ID, FraudCheckpoint.SIGNUP, DEFAULT_SIGNUP_THRESHOLD)
+    ]
     (request,) = jev.requests
     assert request["state"] == {
-        "policy": POLICY,
+        "policy": DEFAULT_POLICY,
         "signup": {"email": "qzxvbn@mail-drop.example"},
     }
     assert request["questions"]["fraud"]["instructions"].endswith(
@@ -395,7 +536,7 @@ async def test_signup_at_threshold_skips_grants_and_marks_organization(
 
 @pytest.mark.asyncio
 async def test_signup_below_threshold_allows(service, flag, jev):
-    jev.answer = 0.79
+    jev.answer = DEFAULT_SIGNUP_THRESHOLD - 0.01
     verdict = await service.check_signup(
         organization_id=ORGANIZATION_ID, email="jane@company.example"
     )
@@ -435,6 +576,28 @@ async def test_signup_threshold_comes_from_the_flag(service, flag, jev):
     )
     assert verdict.flagged is False
     assert verdict.threshold == 0.95
+
+
+@pytest.mark.asyncio
+async def test_signup_sends_the_policy_from_the_flag(service, flag, jev):
+    flag({"policy": "A policy from the flag."})
+    await service.check_signup(
+        organization_id=ORGANIZATION_ID, email="jane@company.example"
+    )
+    (request,) = jev.requests
+    assert request["state"]["policy"] == "A policy from the flag."
+
+
+@pytest.mark.asyncio
+async def test_signup_sends_the_default_policy_when_the_flag_policy_is_malformed(
+    service, flag, jev
+):
+    flag({"policy": ""})
+    await service.check_signup(
+        organization_id=ORGANIZATION_ID, email="jane@company.example"
+    )
+    (request,) = jev.requests
+    assert request["state"]["policy"] == DEFAULT_POLICY
 
 
 @pytest.mark.asyncio
@@ -603,12 +766,14 @@ async def test_api_key_at_threshold_holds_wallet_and_marks_organization(
 ):
     assert await service.wallets_service.check(organization_id=ORGANIZATION_ID)
 
-    jev.answer = 0.9
+    jev.answer = DEFAULT_APIKEY_THRESHOLD
     verdict = await service.check_api_key_creation(user_id=uuid4(), project_id=uuid4())
     assert verdict.flagged is True
     assert verdict.action == "hold_wallet"
-    assert verdict.threshold == 0.9
-    assert service.fraud_dao.marks == [(ORGANIZATION_ID, FraudCheckpoint.API_KEY, 0.9)]
+    assert verdict.threshold == DEFAULT_APIKEY_THRESHOLD
+    assert service.fraud_dao.marks == [
+        (ORGANIZATION_ID, FraudCheckpoint.API_KEY, DEFAULT_APIKEY_THRESHOLD)
+    ]
 
     # The floor is left alone; the wallet is empty because its credits expired.
     balance = await service.wallets_service.wallets_dao.get_general_balance(
@@ -618,7 +783,7 @@ async def test_api_key_at_threshold_holds_wallet_and_marks_organization(
     assert not await service.wallets_service.check(organization_id=ORGANIZATION_ID)
 
     (request,) = jev.requests
-    assert request["state"]["policy"] == POLICY
+    assert request["state"]["policy"] == DEFAULT_POLICY
     assert request["state"]["signup"] == {
         "email": "qzxvbn@mail-drop.example",
         "account_age_seconds": 12,
@@ -633,8 +798,19 @@ async def test_api_key_at_threshold_holds_wallet_and_marks_organization(
 
 
 @pytest.mark.asyncio
+async def test_api_key_sends_the_policy_from_the_flag(service, flag, jev):
+    flag({"policy": "A policy from the flag.", "apikey_threshold": 0.5})
+    jev.answer = 0.5
+    verdict = await service.check_api_key_creation(user_id=uuid4(), project_id=uuid4())
+    assert verdict.flagged is True
+    assert verdict.threshold == 0.5
+    (request,) = jev.requests
+    assert request["state"]["policy"] == "A policy from the flag."
+
+
+@pytest.mark.asyncio
 async def test_api_key_below_threshold_leaves_wallet_alone(service, flag, jev):
-    jev.answer = 0.89
+    jev.answer = DEFAULT_APIKEY_THRESHOLD - 0.01
     verdict = await service.check_api_key_creation(user_id=uuid4(), project_id=uuid4())
     assert verdict.flagged is False
     assert service.fraud_dao.marks == []
