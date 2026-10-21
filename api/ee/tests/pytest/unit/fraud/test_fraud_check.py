@@ -251,7 +251,7 @@ class _LogStub:
 def config_log(monkeypatch):
     stub = _LogStub()
     monkeypatch.setattr(fraud_config, "log", stub)
-    monkeypatch.setattr(fraud_config, "_last_invalid_fields", ())
+    monkeypatch.setattr(fraud_config, "_last_invalid", None)
     return stub
 
 
@@ -289,7 +289,19 @@ async def test_flag_payload_malformed_policy_gives_the_default_policy(
 
 
 @pytest.mark.parametrize(
-    "threshold", [-0.1, 1.5, "high", "0.5", True, None, float("nan"), float("inf")]
+    "threshold",
+    [
+        -0.1,
+        1.5,
+        "high",
+        "0.5",
+        True,
+        None,
+        float("nan"),
+        float("inf"),
+        10**400,
+        -(10**400),
+    ],
 )
 @pytest.mark.asyncio
 async def test_flag_payload_invalid_threshold_gives_the_default(
@@ -331,15 +343,19 @@ async def test_flag_payload_invalid_fields_log_once_without_the_policy(
     (warning,) = config_log.warnings
     assert warning[1]["fields"] == ["policy", "signup_threshold"]
 
-    # A different bad payload logs again; a valid one resets the memory.
+    # A different bad payload logs again, even with the same invalid field.
     flag({"policy": 7})
     await fraud_config.read_fraud_check_config()
     assert len(config_log.warnings) == 2
+    flag({"policy": 8})
+    await fraud_config.read_fraud_check_config()
+    assert len(config_log.warnings) == 3
+    # A valid payload resets the memory.
     flag({"policy": "fine"})
     await fraud_config.read_fraud_check_config()
     flag({"policy": 7})
     await fraud_config.read_fraud_check_config()
-    assert len(config_log.warnings) == 3
+    assert len(config_log.warnings) == 4
 
 
 @pytest.mark.asyncio

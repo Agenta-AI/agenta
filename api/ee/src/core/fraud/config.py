@@ -45,17 +45,18 @@ _LAST_KNOWN_TTL_SECONDS = 7 * 24 * 3600
 
 _THRESHOLD_FIELDS = ("signup_threshold", "apikey_threshold")
 
-# The invalid fields of the last payload, so the same bad payload logs one warning and
-# not one per signup or key creation.
-_last_invalid_fields: tuple = ()
+# The invalid fields and values of the last payload, so the same bad payload logs one
+# warning per process and not one per signup or key creation.
+_last_invalid: Optional[str] = None
 
 
 def _is_threshold(value: Any) -> bool:
     return (
         isinstance(value, (int, float))
         and not isinstance(value, bool)
+        # The range first: `math.isfinite` raises on a huge integer.
+        and 0 <= value <= 1
         and math.isfinite(value)
-        and 0.0 <= value <= 1.0
     )
 
 
@@ -66,7 +67,7 @@ def _is_policy(value: Any) -> bool:
 def _drop_invalid_fields(payload: dict) -> dict:
     """The payload without an invalid `policy` or threshold, so that field takes its
     default. `mode` is left as is: an invalid mode turns the check off."""
-    global _last_invalid_fields
+    global _last_invalid
     invalid = tuple(
         field
         for field, valid in (
@@ -75,14 +76,19 @@ def _drop_invalid_fields(payload: dict) -> dict:
         )
         if field in payload and not valid(payload[field])
     )
-    if invalid and invalid != _last_invalid_fields:
+    fingerprint = (
+        json.dumps({field: payload[field] for field in invalid}, default=repr)
+        if invalid
+        else None
+    )
+    if fingerprint is not None and fingerprint != _last_invalid:
         # The field names only. The policy text is never logged.
         log.warning(
             "[fraud] flag payload fields invalid; using defaults",
             feature_flag=FRAUD_CHECK_FLAG,
             fields=list(invalid),
         )
-    _last_invalid_fields = invalid
+    _last_invalid = fingerprint
     return {key: value for key, value in payload.items() if key not in invalid}
 
 
