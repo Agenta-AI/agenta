@@ -487,6 +487,68 @@ describe("extractTemplateVariables — non-mustache regressions", () => {
         it("excludes mustache structural tags", () => {
             expect(extractTemplateVariables("{{#items}}", "jinja2")).toEqual([])
         })
+
+        it("extracts variables used only in control blocks", () => {
+            const template = [
+                "You are a support triage agent for {{ company }}.",
+                "{% if is_vip %}VIP{% else %}Standard{% endif %}",
+                "{% if tickets %}{% for ticket in tickets %}{{ ticket.id }}{% endfor %}{% endif %}",
+                "{{ customer_message }}",
+            ].join("\n")
+
+            expect(extractTemplateVariables(template, "jinja2")).toEqual([
+                "company",
+                "is_vip",
+                "tickets",
+                "customer_message",
+            ])
+        })
+
+        it("ignores constants, keywords, strings, filters, and tests", () => {
+            expect(
+                extractTemplateVariables(
+                    '{% if is_vip and status == "vip" and name|length > 0 and user is defined %}',
+                    "jinja2",
+                ),
+            ).toEqual(["is_vip", "status", "name", "user"])
+        })
+
+        it("excludes names the template binds itself", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% set label = first_name|upper %}{% for key, value in mapping.items() %}{{ label }}{{ key }}{{ value }}{% endfor %}",
+                    "jinja2",
+                ),
+            ).toEqual(["first_name", "mapping"])
+        })
+
+        it("keeps dotted access, but not for a loop target", () => {
+            expect(extractTemplateVariables("{{ ticket.id }}", "jinja2")).toEqual(["ticket.id"])
+            expect(
+                extractTemplateVariables(
+                    "{% for ticket in tickets %}{{ ticket.id }}{% endfor %}",
+                    "jinja2",
+                ),
+            ).toEqual(["tickets"])
+        })
+
+        it("extracts variables from set right-hand sides and with bindings", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% set total = count + 1 %}{% with owner = account.owner %}{{ owner.name }}{% endwith %}{{ total }}",
+                    "jinja2",
+                ),
+            ).toEqual(["count", "account.owner"])
+        })
+
+        it("ignores comments and raw blocks", () => {
+            expect(
+                extractTemplateVariables(
+                    "{# {% if hidden %} #}{% if visible %}{% raw %}{{ literal }}{% endraw %}{% endif %}",
+                    "jinja2",
+                ),
+            ).toEqual(["visible"])
+        })
     })
 
     describe("fstring", () => {
