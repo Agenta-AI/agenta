@@ -9,7 +9,7 @@
  * context — the sandbox the spec asks for); audio/video/PDF bytes come as cached blobs (see
  * driveMedia.ts for the signed-URL deviation).
  */
-import {useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "@agenta/entities/drive"
 import {humanSize} from "@agenta/entities/drive"
@@ -22,19 +22,27 @@ import {
     EmptyMedia,
     EmptyTitle,
     SkeletonBlock,
+    Tabs,
+    TabsList,
+    TabsTrigger,
 } from "@agenta/ui/ui"
 import {DownloadSimple, FileDashed} from "@phosphor-icons/react"
 
 import {
     useDriveDownload,
+    useDriveFileBlob,
     useDriveFileText,
+    useDriveFileVersion,
     useDriveMediaSrc,
     useDriveObjectUrl,
 } from "./driveFileSource"
 import {DriveCodeBlock, DriveMarkdown} from "./driveMarkdown"
 import {HtmlAppBody} from "./htmlApp"
+import {OfficeViewerFrame} from "./officeViewer/OfficeViewerFrame"
+import type {OfficeViewerKind} from "./officeViewer/protocol"
 import {useQuotableFile} from "./quotable"
 import {useDriveAnchorClickCapture} from "./useDriveLinkClick"
+import type {SheetCell, Workbook} from "./workbook"
 
 // The host's code viewer (see `registerDriveCodeBlock`). The desktop registers a Lexical +
 // lazy-Shiki block — an ~8.7 MB chunk it keeps out of first load — so the indirection is also
@@ -44,6 +52,11 @@ const LazyCodeBlock = DriveCodeBlock
 // Inline-render caps (bytes). Over-cap is a graceful card, never a frozen tab.
 export const PREVIEW_TEXT_CAP = 1.5 * 1024 * 1024
 const MEDIA_CAP = 25 * 1024 * 1024
+const OFFICE_CAPS: Partial<Record<DriveFileKind, number>> = {
+    spreadsheet: 10 * 1024 * 1024,
+    document: 10 * 1024 * 1024,
+    presentation: 25 * 1024 * 1024,
+}
 
 /** Quote-aware-enough CSV parse for previews (RFC 4180 essentials: quotes, escaped quotes,
  * newlines in quotes). Row-capped by the caller. */
@@ -241,36 +254,30 @@ const CodeBody = ({
 
 const CSV_ROW_CAP = 500
 
-const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
-    const contentQuery = useDriveFileText(mount, path)
-    const content = contentQuery.data
-    // +2 (header + CSV_ROW_CAP body + 1 probe): parse one row PAST the display cap so `capped` below
-    // can tell "exactly CSV_ROW_CAP body rows" from "more than that" and show the truncation banner.
-    const rows = useMemo(
-        () =>
-            typeof content === "string"
-                ? parseCsv(content, CSV_ROW_CAP + 2, /\.tsv$/i.test(path) ? "\t" : ",")
-                : [],
-        [content, path],
+const TableSkeleton = () => (
+    <Inset>
+        <div className="flex flex-col gap-2">
+            {Array.from({length: 6}).map((_, i) => (
+                <SkeletonBlock key={i} className="h-4 w-full" />
+            ))}
+        </div>
+    </Inset>
+)
+
+const PreviewCell = ({cell}: {cell: SheetCell}) =>
+    "formula" in cell ? (
+        <span className="italic text-colorTextTertiary" title="Formula with no stored value">
+            {cell.formula}
+        </span>
+    ) : (
+        <>{cell.value}</>
     )
 
-    if (contentQuery.isPending)
-        return (
-            <Inset>
-                <div className="flex flex-col gap-2">
-                    {Array.from({length: 6}).map((_, i) => (
-                        <SkeletonBlock key={i} className="h-4 w-full" />
-                    ))}
-                </div>
-            </Inset>
-        )
-    if (typeof content !== "string" || rows.length === 0)
-        return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
-
+/** A row-capped table whose first row is the header; CSV and spreadsheet previews share it. */
+const PreviewTable = ({rows, truncated}: {rows: SheetCell[][]; truncated: boolean}) => {
     const [header, ...body] = rows
-    const capped = body.length > CSV_ROW_CAP
     return (
-        <Inset flush>
+        <>
             <div className="min-h-0 flex-1 overflow-auto">
                 <table className="w-full border-collapse font-mono text-xs">
                     <thead>
@@ -280,20 +287,20 @@ const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
                                     key={i}
                                     className="sticky top-0 border-0 border-b border-solid border-colorBorderSecondary bg-colorFillTertiary px-2.5 py-1.5 text-left font-medium text-colorTextSecondary"
                                 >
-                                    {h}
+                                    <PreviewCell cell={h} />
                                 </th>
                             ))}
                         </tr>
                     </thead>
                     <tbody>
-                        {body.slice(0, CSV_ROW_CAP).map((r, i) => (
+                        {body.map((r, i) => (
                             <tr key={i}>
                                 {r.map((c, j) => (
                                     <td
                                         key={j}
                                         className="border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1 align-top"
                                     >
-                                        {c}
+                                        <PreviewCell cell={c} />
                                     </td>
                                 ))}
                             </tr>
@@ -301,11 +308,39 @@ const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
                     </tbody>
                 </table>
             </div>
-            {capped ? (
+            {truncated ? (
                 <div className="border-0 border-t border-solid border-colorBorderSecondary px-2.5 py-1 text-xs text-colorTextTertiary">
-                    Showing the first {CSV_ROW_CAP} rows — download for the full file.
+                    Showing the first {body.length} rows — download for the full file.
                 </div>
             ) : null}
+        </>
+    )
+}
+
+const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+    const contentQuery = useDriveFileText(mount, path)
+    const content = contentQuery.data
+    // +2 (header + CSV_ROW_CAP body + 1 probe): one row past the cap tells "exactly the cap" from "more".
+    const rows = useMemo(
+        () =>
+            typeof content === "string"
+                ? parseCsv(content, CSV_ROW_CAP + 2, /\.tsv$/i.test(path) ? "\t" : ",").map((r) =>
+                      r.map((value) => ({value})),
+                  )
+                : [],
+        [content, path],
+    )
+
+    if (contentQuery.isPending) return <TableSkeleton />
+    if (typeof content !== "string" || rows.length === 0)
+        return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
+
+    return (
+        <Inset flush>
+            <PreviewTable
+                rows={rows.slice(0, CSV_ROW_CAP + 1)}
+                truncated={rows.length > CSV_ROW_CAP + 1}
+            />
         </Inset>
     )
 }
@@ -451,6 +486,108 @@ const VideoBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     )
 }
 
+// ---- Office bodies (bytes keyed by the listing's file version) --------------------------------
+
+interface ParsedWorkbook {
+    blob: Blob
+    workbook: Workbook | null
+}
+
+/** Parses the blob with SheetJS, loaded on first use; null workbook means unreadable. */
+function useWorkbook(blob: Blob | null): Workbook | null | undefined {
+    const [parsed, setParsed] = useState<ParsedWorkbook | null>(null)
+    useEffect(() => {
+        if (!blob) return
+        let cancelled = false
+        Promise.all([import("./workbook"), blob.arrayBuffer()])
+            .then(([{parseWorkbook}, bytes]) => parseWorkbook(bytes))
+            .then(
+                (workbook) => !cancelled && setParsed({blob, workbook}),
+                () => !cancelled && setParsed({blob, workbook: null}),
+            )
+        return () => {
+            cancelled = true
+        }
+    }, [blob])
+    return parsed && parsed.blob === blob ? parsed.workbook : undefined
+}
+
+const SpreadsheetView = ({workbook}: {workbook: Workbook}) => {
+    const [active, setActive] = useState(0)
+    const sheet = workbook.sheets[Math.min(active, workbook.sheets.length - 1)]
+    return (
+        <Inset flush>
+            <Tabs value={String(active)} onValueChange={(v) => setActive(Number(v))}>
+                <TabsList aria-label="Sheets" className="shrink-0 overflow-x-auto px-2.5">
+                    {workbook.sheets.map((s, i) => (
+                        <TabsTrigger key={i} value={String(i)} className="text-xs">
+                            {s.name}
+                        </TabsTrigger>
+                    ))}
+                </TabsList>
+            </Tabs>
+            {sheet && sheet.rows.length > 0 ? (
+                <PreviewTable rows={sheet.rows} truncated={sheet.truncated} />
+            ) : (
+                <div className="p-3 text-xs text-colorTextTertiary">This sheet is empty.</div>
+            )}
+        </Inset>
+    )
+}
+
+const SpreadsheetBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+    const version = useDriveFileVersion(mount, path)
+    const {blob, isPending, failed} = useDriveFileBlob(mount, path, version)
+    const workbook = useWorkbook(blob)
+    if (failed)
+        return <DownloadCard mount={mount} path={path} title="Couldn't load this spreadsheet" />
+    if (isPending || workbook === undefined) return <TableSkeleton />
+    if (!workbook || workbook.sheets.length === 0)
+        return <DownloadCard mount={mount} path={path} title="Couldn't preview this spreadsheet" />
+    return <SpreadsheetView workbook={workbook} />
+}
+
+const blobIds = new WeakMap<Blob, number>()
+let lastBlobId = 0
+const blobKey = (blob: Blob): number => {
+    const known = blobIds.get(blob)
+    if (known !== undefined) return known
+    blobIds.set(blob, ++lastBlobId)
+    return lastBlobId
+}
+
+/** A DOCX or PPTX in the sandboxed viewer frame; a new file version mounts a fresh frame. */
+const OfficeFrameBody = ({
+    mount,
+    path,
+    kind,
+}: {
+    mount: Mount | null
+    path: string
+    kind: OfficeViewerKind
+}) => {
+    const version = useDriveFileVersion(mount, path)
+    const {blob, isPending, failed} = useDriveFileBlob(mount, path, version)
+    const [failedBlob, setFailedBlob] = useState<Blob | null>(null)
+    const onFailed = useCallback(() => setFailedBlob(blob), [blob])
+    if (isPending) return <MediaLoading />
+    if (failed || !blob)
+        return <DownloadCard mount={mount} path={path} title={`Couldn't load this ${kind}`} />
+    if (failedBlob === blob)
+        return <DownloadCard mount={mount} path={path} title={`Couldn't preview this ${kind}`} />
+    return (
+        <Inset flush>
+            <OfficeViewerFrame
+                key={blobKey(blob)}
+                kind={kind}
+                blob={blob}
+                onFailed={onFailed}
+                placeholder={<MediaLoading />}
+            />
+        </Inset>
+    )
+}
+
 // ---- Dispatch --------------------------------------------------------------------------------
 
 const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "code", "json", "html"])
@@ -492,7 +629,8 @@ export function DriveFileBody({
                     title={`Too large to preview (${humanSize(size)})`}
                 />
             )
-        if (MEDIA_KINDS.has(kind) && size > MEDIA_CAP)
+        const cap = MEDIA_KINDS.has(kind) ? MEDIA_CAP : OFFICE_CAPS[kind]
+        if (cap !== undefined && size > cap)
             return (
                 <DownloadCard
                     mount={mount}
@@ -530,6 +668,11 @@ export function DriveFileBody({
             return <AudioBody mount={mount} path={path} />
         case "video":
             return <VideoBody mount={mount} path={path} />
+        case "spreadsheet":
+            return <SpreadsheetBody mount={mount} path={path} />
+        case "document":
+        case "presentation":
+            return <OfficeFrameBody mount={mount} path={path} kind={kind} />
         default:
             return <DownloadCard mount={mount} path={path} />
     }
