@@ -1,6 +1,6 @@
 """Unit tests for the wallet's credit sources against the in-memory `FakeWalletsDAO`: the
-daily free credits granted on admission, a paid plan's monthly credits, purchased top-ups
-and the starter-credits transfer."""
+daily free credits granted on admission, a paid plan's monthly credits and purchased
+top-ups."""
 
 import asyncio
 from datetime import datetime, timedelta, timezone
@@ -427,7 +427,7 @@ async def test_period_allowance_skips_a_plan_without_monthly_credits():
 
 
 # ---------------------------------------------------------------------------
-# Purchases and the starter-credits transfer
+# Purchases
 # ---------------------------------------------------------------------------
 
 
@@ -509,22 +509,3 @@ async def test_a_purchase_is_read_back_by_its_checkout_session_only():
         )
         is None
     )
-
-
-@pytest.mark.asyncio
-async def test_starter_credits_transfer_once_per_organization():
-    dao = _dao()
-    organization_id = dao.general_balance.organization_id
-    service = WalletsService(wallets_dao=dao)
-
-    first = await service.grant_starter_credits(
-        organization_id=organization_id, amount_musd=3_210_000, now=NOW
-    )
-    replay = await service.grant_starter_credits(
-        organization_id=organization_id, amount_musd=4_000_000, now=NOW
-    )
-
-    assert replay.id == first.id
-    assert first.credit_kind == "starter_credits"
-    assert first.end_time == NOW + timedelta(days=365)
-    assert dao.general_balance.balance_musd == 3_210_000

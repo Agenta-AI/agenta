@@ -442,9 +442,6 @@ def signup(monkeypatch, daos):
     async def _award(*, organization_id):
         calls.append(("award", organization_id))
 
-    async def _seed(**kwargs):
-        calls.append(("seed",))
-
     async def _no_entitlements(*, key, delta, scope):
         return None
 
@@ -459,7 +456,6 @@ def signup(monkeypatch, daos):
     monkeypatch.setattr(m, "_award_signup_grant", _award)
     monkeypatch.setattr(m, "_subscription_service", _FakeSubscriptionService())
     monkeypatch.setattr(m, "check_entitlements", _no_entitlements)
-    monkeypatch.setattr(m, "seed_starter_credits_bridge_safely", _seed)
 
     async def _run(email=EMAIL):
         await m.provision_signup_subscription(
@@ -490,7 +486,7 @@ async def test_a_returning_email_outside_the_window_takes_the_normal_path(
 
     calls = await run()
 
-    assert calls == [("seed",), ("provision", None), ("award", NEW_ORG)]
+    assert calls == [("provision", None), ("award", NEW_ORG)]
     assert fraud.marks == []
 
 
@@ -501,7 +497,7 @@ async def test_the_window_comes_from_the_setting(signup, monkeypatch):
 
     calls = await run()
 
-    assert calls == [("seed",), ("provision", None), ("award", NEW_ORG)]
+    assert calls == [("provision", None), ("award", NEW_ORG)]
 
 
 async def test_a_new_email_takes_the_normal_path(signup):
@@ -510,7 +506,7 @@ async def test_a_new_email_takes_the_normal_path(signup):
 
     calls = await run("someone-else@example.test")
 
-    assert calls == [("seed",), ("provision", None), ("award", NEW_ORG)]
+    assert calls == [("provision", None), ("award", NEW_ORG)]
     assert fraud.marks == []
 
 
@@ -521,7 +517,7 @@ async def test_a_lookup_failure_fails_open(signup):
 
     calls = await run()
 
-    assert calls == [("seed",), ("provision", None), ("award", NEW_ORG)]
+    assert calls == [("provision", None), ("award", NEW_ORG)]
     assert fraud.marks == []
 
 
@@ -531,7 +527,7 @@ async def test_a_missing_service_fails_open(signup, monkeypatch):
 
     calls = await run()
 
-    assert calls == [("seed",), ("provision", None), ("award", NEW_ORG)]
+    assert calls == [("provision", None), ("award", NEW_ORG)]
 
 
 async def test_a_marker_write_is_retried_once(signup, monkeypatch):

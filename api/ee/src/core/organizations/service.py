@@ -976,10 +976,7 @@ from ee.src.core.access.entitlements.service import (  # noqa: E402
     scope_from,
     Gauge,
 )
-from ee.src.core.starter_credits_bridge import service as _mint_policy  # noqa: E402
-from ee.src.core.starter_credits_bridge.service import (  # noqa: E402
-    seed_starter_credits_bridge_safely,
-)
+from ee.src.core.wallets import signup_policy  # noqa: E402
 from ee.src.core.wallets.service import WalletsService  # noqa: E402
 from ee.src.core.fraud.service import (  # noqa: E402
     owner_organization_blocks_grants,
@@ -1038,13 +1035,11 @@ async def _free_credits_check(organization_email: str) -> tuple[bool, bool]:
     a missing policy or any error skips the grant and keeps the normal floor."""
     try:
         async with asyncio.timeout(5):
-            policy = await _mint_policy._resolve_mint_policy()
+            policy = await signup_policy.resolve_mint_policy()
             if policy is None:
                 return False, False
-            refusal = await _mint_policy._mint_policy_refusal(
-                organization_email,
-                policy,
-                counter_prefix=_mint_policy.SIGNUP_GRANT_COUNTER_PREFIX,
+            refusal = await signup_policy.mint_policy_refusal(
+                organization_email, policy
             )
             if refusal is None:
                 return True, False
@@ -1068,8 +1063,8 @@ async def _email_rules_refuse(organization_email: str) -> bool:
     or any error refuses nothing, as on the signup path."""
     try:
         async with asyncio.timeout(5):
-            policy = await _mint_policy._resolve_mint_policy()
-            return policy is not None and not _mint_policy.email_rules_allow(
+            policy = await signup_policy.resolve_mint_policy()
+            return policy is not None and not signup_policy.email_rules_allow(
                 organization_email, policy
             )
     except Exception:
@@ -1149,8 +1144,8 @@ async def provision_signup_subscription(
     )
 
     # Never raises; bounded to a few seconds. A flagged organization is created as
-    # normal but gets no free credits of any kind: no starter credits, no signup grant,
-    # and (through the marker) no daily grants.
+    # normal but gets no free credits of any kind: no signup grant and (through the
+    # marker) no daily grants.
     flagged = await signup_is_fraud(
         organization_id=organization.id, email=organization_email
     )
@@ -1161,15 +1156,6 @@ async def provision_signup_subscription(
     returning = not flagged and await returning_account_blocks_grants(
         organization_id=organization.id, email=organization_email
     )
-
-    # Bounded (10s) and swallow-all: a failure degrades to "no starter credits"
-    # and must never raise here — the signup path deletes the new user when
-    # setup fails. Nothing retries a failed seed.
-    if not flagged and not returning:
-        await seed_starter_credits_bridge_safely(
-            organization_id=str(organization.id),
-            organization_email=organization_email,
-        )
 
     # Both helpers re-raise, and the signup path deletes the new user when this
     # coroutine fails, so an unfinished wallet must not run here.

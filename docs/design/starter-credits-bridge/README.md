@@ -1,5 +1,9 @@
 # Starter-credits bridge
 
+> Status: removed. The bridge code is gone from the API. Its signup mint policy lives on
+> as the wallet signup grant policy in `api/ee/src/core/wallets/signup_policy.py`. This
+> page records the original design.
+
 A new organization signs up with no model provider key, so nothing runs until someone
 pastes one in. The starter-credits bridge closes that gap. At signup the platform mints a
 budget-capped key on a proxy the operator runs, and writes it into the new organization's

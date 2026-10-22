@@ -112,6 +112,9 @@ credited.
 
 ## Starter-credits transfer
 
+> Status: done and removed. The transfer ran, and the job and the bridge code are gone from
+> the API. This section records how it worked.
+
 `api/entrypoints/migrate_starter_credits_to_wallet.py` is a one-off job. It lists the
 starter-credits program team's keys on the proxy (`/key/list` with full objects) and keeps
 the keys whose metadata names the bridge origin. It runs in two stages, because a block stops

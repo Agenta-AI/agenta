@@ -667,9 +667,6 @@ async def test_provision_signup_subscription_skips_grant_when_flagged(monkeypatc
     async def _no_entitlements(*, key, delta, scope):
         return None
 
-    async def _seed(**kwargs):
-        calls.append(("seed",))
-
     m = organizations_service_module
     monkeypatch.setattr(m, "_free_credits_check", _allowed)
     monkeypatch.setattr(m, "signup_is_fraud", _fraud)
@@ -677,14 +674,13 @@ async def test_provision_signup_subscription_skips_grant_when_flagged(monkeypatc
     monkeypatch.setattr(m, "_award_signup_grant", _award)
     monkeypatch.setattr(m, "_subscription_service", _FakeSubscriptionService())
     monkeypatch.setattr(m, "check_entitlements", _no_entitlements)
-    monkeypatch.setattr(m, "seed_starter_credits_bridge_safely", _seed)
 
     organization = SimpleNamespace(id=ORGANIZATION_ID, name="acme")
     await m.provision_signup_subscription(
         organization, organization_email="qzxvbn@mail-drop.example"
     )
 
-    # No starter credits and no signup grant; the balance row is still created.
+    # No signup grant; the balance row is still created.
     assert calls == [
         ("fraud", ORGANIZATION_ID, "qzxvbn@mail-drop.example"),
         ("provision", None),
@@ -697,7 +693,6 @@ async def test_provision_signup_subscription_skips_grant_when_flagged(monkeypatc
     )
     assert calls == [
         ("fraud", ORGANIZATION_ID, "ada@work.example"),
-        ("seed",),
         ("provision", None),
         ("award", ORGANIZATION_ID),
     ]

@@ -1306,8 +1306,7 @@ class LLMGatewayConfig(BaseModel):
 
     # The platform's own Vertex AI account, which the `builtin/agenta` endpoint serves its
     # models from. The endpoint exists only when the service-account document and the project
-    # are both set. Gateway names rather than the starter-credits proxy's `LITELLM_VERTEX_*`
-    # inputs: the API does not run LiteLLM's proxy, and the cloud sets both from one secret.
+    # are both set.
     vertex_sa_json_b64: str | None = (
         os.getenv("AGENTA_LLM_GATEWAY_VERTEX_SA_JSON_B64") or None
     )
@@ -2235,82 +2234,34 @@ class SendgridConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# starter_credits_bridge — starter-credit seeding at signup (EE, temporary bridge).
+# signup_grant_policy — who gets the wallet signup grant (EE).
 # ---------------------------------------------------------------------------
 
 
-class StarterCreditsBridgeConfig(BaseModel):
-    """Starter-credits bridge (EE): mint a budget-capped proxy key at signup and
-    seed it into the new organization's vault as a ready-to-use connection.
+class SignupGrantPolicyConfig(BaseModel):
+    """Signup grant policy (EE): the velocity caps and email rules that decide whether a
+    new organization gets the wallet signup grant.
 
-    Inert unless `enabled` is true AND `proxy_admin_url` + `proxy_public_url` +
-    `master_key` + `team_id` are present (the team's budget ceiling is the
-    program's total-exposure bound, so seeding refuses to run without it). The
-    redeploy-free runtime switch is the PostHog policy payload: clearing or
-    emptying it leaves the policy unresolved, and seeding fails closed.
+    The policy itself ships as the payload of a PostHog flag, so no real value lives in
+    source. Without a resolvable payload the policy is unresolved and the signup grant
+    fails closed. Only the flag's NAME is configurable here. A deployment with NO PostHog
+    of its own runs on the built-in development policy in `wallets/signup_policy.py`.
+
+    The variable names come from the retired starter-credits program. They are kept so
+    deployments that set them need no change.
     """
 
-    enabled: bool = _parse_bool_env("AGENTA_STARTER_CREDITS_BRIDGE_ENABLED", False)
-
-    # Two base URLs for the same proxy, because it is reachable two ways. The
-    # public one is what the SEEDED CONNECTION stores, so a sandboxed run can
-    # reach the proxy's inference paths from outside; only those paths are
-    # publicly routed. The admin routes (/key/generate, /key/block, /team/info)
-    # are not, so the master-keyed admin client dials the proxy's internal
-    # address instead — and the master key never leaves the private network.
-    proxy_public_url: str | None = (
-        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_PROXY_PUBLIC_URL") or None
-    )
-    proxy_admin_url: str | None = (
-        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_PROXY_ADMIN_URL") or None
-    )
-    master_key: str | None = (
-        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY") or None
-    )
-    # Every minted key joins this team; its max_budget is the program ceiling.
-    team_id: str | None = os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_TEAM_ID") or None
-
-    model_id: str = (
-        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_MODEL_ID")
-        or "vertex_ai/gemini-3.7-flash"
-    )
-
-    # The mint policy (velocity caps, domain classification, eligibility rules,
-    # grant size, per-key limits) ships via the PostHog policy flag's payload:
-    # the payload is the only source, so no real value lives in source and no
-    # money value can be changed one field at a time on a single deployment.
-    # Without a resolvable payload the policy is unresolved and seeding fails
-    # closed. Only the flag's NAME is configurable here.
-    #
-    # One exception, for developer convenience: a deployment with NO PostHog
-    # configured at all (local dev, a QA stack) runs on the built-in development
-    # policy in `starter_credits_bridge/types.py` instead of being blocked, since
-    # it has no way to publish a payload. Cloud always has PostHog, so it always
-    # takes the payload path and still fails closed on a missing or bad one.
     policy_flag: str = (
         os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_POLICY_FLAG")
         or "starter-credits-bridge-policy"
     )
-    # Optional operator webhook ({"text": ...} POST) for refusals and failures.
+    # Optional operator webhook ({"text": ...} POST), called when the live payload is
+    # malformed.
     alert_webhook: str | None = (
         os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_ALERT_WEBHOOK") or None
     )
 
     model_config = ConfigDict(extra="ignore")
-
-    @property
-    def armed(self) -> bool:
-        """True when the deployment opted in and holds both proxy addresses and
-        the proxy credentials, plus the program team whose ceiling bounds total
-        exposure. Without the admin address every mint would dial a route that is
-        not publicly served, so a missing one keeps the bridge inert."""
-        return bool(
-            self.enabled
-            and self.proxy_public_url
-            and self.proxy_admin_url
-            and self.master_key
-            and self.team_id
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -2536,7 +2487,7 @@ class EnvironSettings(BaseModel):
     sessions: SessionsRedisConfig = SessionsRedisConfig()
     smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
-    starter_credits_bridge: StarterCreditsBridgeConfig = StarterCreditsBridgeConfig()
+    signup_grant_policy: SignupGrantPolicyConfig = SignupGrantPolicyConfig()
     store: StoreConfig = StoreConfig()
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
