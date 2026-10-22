@@ -111,4 +111,9 @@ describe("partToolName", () => {
         const part = {type: "dynamic-tool"} as unknown as ToolUIPart
         expect(partToolName(part)).toBe("tool")
     })
+
+    it("reads the placeholder title older runners stored for a Write as Write", () => {
+        const part = {type: "tool-Preparing file…"} as unknown as ToolUIPart
+        expect(partToolName(part)).toBe("Write")
+    })
 })

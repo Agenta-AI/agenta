@@ -32,16 +32,20 @@ export const isVisiblePart = (p: UIMessage["parts"][number]): boolean =>
 export const isEmptyAssistantTurn = (m: UIMessage): boolean =>
     m.role === "assistant" && !m.parts.some(isVisiblePart)
 
+/** Display titles older runners stored as tool names; the runner now records the real name. */
+const LEGACY_TOOL_NAMES: Record<string, string> = {"Preparing file…": "Write"}
+
 /** Wire name of a tool part. `dynamic-tool` carries it on `toolName`; typed parts encode it as
  * `tool-<name>`. */
 export const partToolName = (part: ToolUIPart): string => {
     // `dynamic-tool` parts reach here via the grouping cast in AgentMessage but sit outside
     // ToolUIPart's static union — read `type` as a string.
     const type = part.type as string
-    if (type === "dynamic-tool") {
-        return (part as {toolName?: string}).toolName || "tool"
-    }
-    return type.replace(/^tool-/, "")
+    const name =
+        type === "dynamic-tool"
+            ? (part as {toolName?: string}).toolName || "tool"
+            : type.replace(/^tool-/, "")
+    return LEGACY_TOOL_NAMES[name] ?? name
 }
 
 /** Assistant message id → its 1-based turn number (records/turns align 1:1 with the assistant

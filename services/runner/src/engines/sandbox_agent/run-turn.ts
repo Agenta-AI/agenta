@@ -1,3 +1,4 @@
+import { acpToolName } from "../../acp-tool-name.ts";
 import { apiBase } from "../../apiBase.ts";
 import {
   effectivePermission,
@@ -998,7 +999,7 @@ export async function runTurn(
             };
             const existing = approvedExecutionSeeds.get(frame.toolCallId);
             const toolName =
-              [announced.name, announced.title, announced.kind].find(
+              [acpToolName(announced), announced.title, announced.kind].find(
                 (value): value is string =>
                   typeof value === "string" && value.length > 0,
               ) ?? existing?.toolName;
@@ -1228,7 +1229,7 @@ export async function runTurn(
           undefined,
           {
             toolCallId,
-            name: frame.name,
+            name: acpToolName(frame),
             title: frame.title,
             kind: frame.kind,
             rawInput: frame.rawInput,

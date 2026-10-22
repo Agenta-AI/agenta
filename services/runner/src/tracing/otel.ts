@@ -62,6 +62,7 @@ import type {
   EmitEvent,
   ModelTokenUsage,
 } from "../protocol.ts";
+import { acpToolName } from "../acp-tool-name.ts";
 import type { Redactor } from "../redaction.ts";
 import { configuredApiBase, envApiUrl } from "../apiBase.ts";
 import { logExportProblem } from "./export-diagnostics.ts";
@@ -2375,7 +2376,8 @@ export function createSandboxAgentOtel(
       // clean across text -> tool -> text interleaving). No-op on the one-shot path.
       closeText();
       closeReasoning();
-      const name = update.title || update.kind || "tool";
+      const name =
+        acpToolName(update) || update.title || update.kind || "tool";
       let span: Span | undefined;
       if (emitSpans && turnCtx) {
         span = tracer.startSpan(`execute_tool ${name}`, undefined, turnCtx);
