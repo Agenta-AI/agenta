@@ -14,13 +14,7 @@ export default function AgentOverviewPage() {
     ) {
         return null
     }
-    // A typed URL (no `?open=`) still reaches the overview with the flag off.
-    if (open === OPEN_PLAYGROUND && !isAgentOverviewEnabled()) {
-        return (
-            <AgentPlaygroundRedirect base={`/w/${workspaceId}/p/${projectId}`} agentId={agentId} />
-        )
-    }
-    return (
+    const overview = (
         <AgentOverviewScreen
             key={agentId}
             workspaceId={workspaceId}
@@ -28,4 +22,15 @@ export default function AgentOverviewPage() {
             agentId={agentId}
         />
     )
+    // A typed URL (no `?open=`) still reaches the overview with the flag off.
+    if (open === OPEN_PLAYGROUND && !isAgentOverviewEnabled()) {
+        return (
+            <AgentPlaygroundRedirect
+                base={`/w/${workspaceId}/p/${projectId}`}
+                agentId={agentId}
+                fallback={overview}
+            />
+        )
+    }
+    return overview
 }
