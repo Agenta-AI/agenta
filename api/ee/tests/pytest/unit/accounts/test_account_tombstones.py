@@ -3,6 +3,7 @@
 read by the signup hook (``ee.src.core.organizations.service.provision_signup_subscription``)
 so a deleted email that returns gets no free credits."""
 
+import hashlib
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import List, Optional
@@ -29,6 +30,13 @@ from ee.src.core.fraud.types import (
     FraudDAOInterface,
 )
 from ee.src.core.organizations.service import REFUSED_EMAIL_FLOOR_MUSD
+from ee.src.core.wallets.grants import (
+    DAILY_FREE_ACTIVITY,
+    DAILY_FREE_CREDITS_MUSD,
+    daily_free_reference,
+)
+from ee.src.core.wallets.service import WalletsService
+from ee.tests.pytest.utils.wallets.fakes import FakeWalletsDAO
 from oss.src.core.accounts.dtos import AdminAccountsDelete, AdminAccountsDeleteTarget
 from oss.src.core.accounts.errors import AccountTombstoneError
 from oss.src.core.accounts.service import PlatformAdminAccountsService
@@ -59,6 +67,9 @@ class FakeTombstonesDAO(AccountTombstonesDAOInterface):
         row = AccountTombstone(id=uuid_utils.uuid7(), **tombstone.model_dump())
         self.rows.append(row)
         return row
+
+    async def delete(self, *, tombstone_ids):
+        self.rows = [row for row in self.rows if row.id not in tombstone_ids]
 
     async def find_newest(self, *, email_hash, deleted_since):
         if self.find_error is not None:
@@ -119,18 +130,35 @@ def test_email_hash_normalizes_case_and_whitespace():
 
 @pytest.mark.parametrize(
     "variant",
-    ["user+b@gmail.com", "us.er@gmail.com", "U.s.e.r+promo@GoogleMail.com"],
+    [
+        "user+b@gmail.com",
+        "us.er@gmail.com",
+        "U.s.e.r+promo@GoogleMail.com",
+        "user@googlemail.com",
+    ],
 )
 def test_email_hash_folds_provider_variants(variant):
     assert normalize_email("user+a@gmail.com") == "user@gmail.com"
-    assert normalize_email(variant) in {"user@gmail.com", "user@googlemail.com"}
-    assert email_hash(variant) == email_hash(normalize_email(variant))
+    assert normalize_email(variant) == "user@gmail.com"
+    assert email_hash(variant) == email_hash("user@gmail.com")
+
+
+def test_googlemail_and_dotted_plus_gmail_hash_the_same():
+    assert email_hash("user@googlemail.com") == email_hash("us.er+x@gmail.com")
 
 
 def test_email_hash_drops_the_plus_tag_for_every_domain_but_keeps_dots():
     assert normalize_email("first.last+tag@acme.test") == "first.last@acme.test"
     assert email_hash("first.last+tag@acme.test") == email_hash("first.last@acme.test")
     assert email_hash("firstlast@acme.test") != email_hash("first.last@acme.test")
+
+
+def test_email_hash_is_keyed_by_the_crypt_key(monkeypatch):
+    monkeypatch.setattr(env.agenta, "crypt_key", "key-one")
+    one = email_hash(EMAIL)
+    monkeypatch.setattr(env.agenta, "crypt_key", "key-two")
+    assert email_hash(EMAIL) != one
+    assert one != hashlib.sha256(normalize_email(EMAIL).encode()).hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +279,56 @@ async def test_admin_batch_deletion_writes_one_tombstone_per_user(deletion):
     assert len(tombstones.rows) == 1
     _assert_tombstone(tombstones.rows[0])
     assert calls == [("batch", [USER_ID])]
+
+
+async def test_batch_deletion_discards_the_tombstones_when_a_later_write_fails(
+    deletion,
+):
+    tombstones, calls = deletion
+    other = UUID("00000000-0000-0000-0000-0000000000a2")
+
+    async def _create(*, tombstone):
+        if len(tombstones.rows) == 1:
+            raise RuntimeError("database down")
+        row = AccountTombstone(id=uuid_utils.uuid7(), **tombstone.model_dump())
+        tombstones.rows.append(row)
+        return row
+
+    tombstones.create = _create
+
+    with pytest.raises(AccountTombstoneError):
+        await PlatformAdminAccountsService().delete_accounts(
+            dto=AdminAccountsDelete(
+                target=AdminAccountsDeleteTarget(user_ids=[str(USER_ID), str(other)]),
+                dry_run=False,
+            )
+        )
+
+    assert tombstones.rows == []
+    assert calls == []
+
+
+async def test_batch_deletion_discards_the_tombstones_when_the_batch_fails(
+    deletion, monkeypatch
+):
+    tombstones, calls = deletion
+
+    async def _broken_batch(**kwargs):
+        raise RuntimeError("database down")
+
+    monkeypatch.setattr(
+        accounts_service_module, "_db_delete_accounts_batch", _broken_batch
+    )
+
+    with pytest.raises(RuntimeError):
+        await PlatformAdminAccountsService().delete_accounts(
+            dto=AdminAccountsDelete(
+                target=AdminAccountsDeleteTarget(user_ids=[str(USER_ID)]),
+                dry_run=False,
+            )
+        )
+
+    assert tombstones.rows == []
 
 
 async def test_admin_deletion_aborts_when_the_tombstone_write_fails(deletion):
@@ -411,11 +489,34 @@ async def test_a_missing_service_fails_open(signup, monkeypatch):
     assert calls == [("seed",), ("provision", None), ("award", NEW_ORG)]
 
 
+async def test_a_marker_write_is_retried_once(signup, monkeypatch):
+    tombstones, fraud, run = signup
+    tombstones.rows.append(_tombstone(days_ago=1))
+    attempts = []
+    real_mark = fraud.mark_no_grants
+
+    async def _flaky(**kwargs):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise RuntimeError("row lock")
+        await real_mark(**kwargs)
+
+    monkeypatch.setattr(fraud, "mark_no_grants", _flaky)
+
+    calls = await run()
+
+    assert calls == [("provision", REFUSED_EMAIL_FLOOR_MUSD)]
+    assert len(attempts) == 2
+    assert fraud.marks == [(NEW_ORG, FraudCheckpoint.RETURNING_ACCOUNT, None)]
+
+
 async def test_a_marker_write_failure_still_withholds_the_credits(signup, monkeypatch):
     tombstones, fraud, run = signup
     tombstones.rows.append(_tombstone(days_ago=1))
+    attempts = []
 
     async def _broken(**kwargs):
+        attempts.append(1)
         raise RuntimeError("row lock")
 
     monkeypatch.setattr(fraud, "mark_no_grants", _broken)
@@ -423,6 +524,30 @@ async def test_a_marker_write_failure_still_withholds_the_credits(signup, monkey
     calls = await run()
 
     assert calls == [("provision", REFUSED_EMAIL_FLOOR_MUSD)]
+    assert len(attempts) == 2
+    assert fraud.marks == []
+
+
+async def test_a_returning_account_without_the_marker_still_cannot_spend():
+    """The floor is the real guard: with no marker the daily grant is minted, but it
+    sits below the raised floor and `check()` refuses."""
+    wallets = WalletsService(wallets_dao=FakeWalletsDAO())
+    await wallets.provision_general_balance(
+        organization_id=NEW_ORG,
+        plan="cloud_v0_hobby",
+        floor_musd=REFUSED_EMAIL_FLOOR_MUSD,
+    )
+    now = datetime.now(timezone.utc)
+    credit = await wallets.award(
+        organization_id=NEW_ORG,
+        activity_code=DAILY_FREE_ACTIVITY,
+        reference=daily_free_reference(day=now.date()),
+        now=now,
+    )
+
+    assert credit.amount_musd == DAILY_FREE_CREDITS_MUSD
+    assert DAILY_FREE_CREDITS_MUSD < REFUSED_EMAIL_FLOOR_MUSD
+    assert not await wallets.check(organization_id=NEW_ORG)
 
 
 async def test_a_flagged_signup_makes_no_tombstone_lookup(signup, monkeypatch):

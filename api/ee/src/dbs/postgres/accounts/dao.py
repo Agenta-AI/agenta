@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import List, Optional
 
 import uuid_utils.compat as uuid_utils
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from uuid import UUID
 
 from oss.src.dbs.postgres.shared.engine import (
@@ -62,6 +62,16 @@ class AccountTombstonesDAO(AccountTombstonesDAOInterface):
             await session.flush()
             await session.refresh(dbe)
             return map_tombstone_dbe_to_dto(dbe)
+
+    async def delete(self, *, tombstone_ids: List[UUID]) -> None:
+        if not tombstone_ids:
+            return
+        async with self.engine.session() as session:
+            await session.execute(
+                delete(AccountTombstoneDBE).where(
+                    AccountTombstoneDBE.id.in_(tombstone_ids)
+                )
+            )
 
     async def find_newest(
         self, *, email_hash: str, deleted_since: datetime

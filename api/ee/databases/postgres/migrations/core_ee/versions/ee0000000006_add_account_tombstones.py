@@ -6,9 +6,11 @@ same address and collect the signup grant and the daily free credits once more.
 
 `account_tombstones` keeps one row per deleted user (self-service and admin paths),
 written before the login and the rows go away. It never stores the plain email:
-`email_hash` is the hex SHA-256 of the provider-normalized address (lowercased and
-stripped, a `+tag` suffix dropped, and dots removed from the local part for Gmail; see
-`ee.src.core.accounts.types.normalize_email`), and the signup path compares hashes. The
+`email_hash` is the hex HMAC-SHA256, keyed by `AGENTA_CRYPT_KEY`, of the
+provider-normalized address (lowercased and stripped, a `+tag` suffix dropped, and for
+Gmail the dots removed from the local part and `googlemail.com` folded into
+`gmail.com`; see `ee.src.core.accounts.types.normalize_email`), and the signup path
+compares hashes. Rotating `AGENTA_CRYPT_KEY` orphans the older tombstones. The
 row also keeps the deleted organization ids and the credits granted and spent across
 them (in micro-dollars, from the wallet tables), for the audit a support request needs.
 

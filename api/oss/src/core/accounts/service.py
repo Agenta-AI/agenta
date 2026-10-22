@@ -79,6 +79,7 @@ try:
 
     from ee.src.core.accounts.service import (  # type: ignore[import]
         write_account_tombstone as _ee_write_account_tombstone,
+        discard_account_tombstones as _ee_discard_account_tombstones,
     )
 
     _ee_subscription_service = _EeSubscriptionsService(
@@ -956,23 +957,33 @@ class PlatformAdminAccountsService:
             deleted.users = [AdminDeletedEntity(id=str(uid)) for uid in user_ids]
             return AdminDeleteResponse(dry_run=True, deleted=deleted)
 
-        if is_ee():
-            for user_id in user_ids:
-                user = await _db_get_user_by_id(user_id)
-                if user is None:
-                    continue
-                owned = await _db_get_orgs_owned_by_user(user_id)
-                await self._write_account_tombstone(
-                    email=str(user.email),
-                    organization_ids=[org.id for org in owned],
-                )
+        # Each tombstone commits on its own (the scoped session commits on the first
+        # exit, so one outer transaction cannot hold them), so a failure anywhere
+        # before the batch lands discards the ones already written.
+        tombstone_ids: List[UUID] = []
+        try:
+            if is_ee():
+                for user_id in user_ids:
+                    user = await _db_get_user_by_id(user_id)
+                    if user is None:
+                        continue
+                    owned = await _db_get_orgs_owned_by_user(user_id)
+                    tombstone = await self._write_account_tombstone(
+                        email=str(user.email),
+                        organization_ids=[org.id for org in owned],
+                    )
+                    tombstone_ids.append(tombstone.id)
 
-        await _db_delete_accounts_batch(
-            org_ids=org_ids,
-            workspace_ids=workspace_ids,
-            project_ids=project_ids,
-            user_ids=user_ids,
-        )
+            await _db_delete_accounts_batch(
+                org_ids=org_ids,
+                workspace_ids=workspace_ids,
+                project_ids=project_ids,
+                user_ids=user_ids,
+            )
+        except Exception:
+            if tombstone_ids:
+                await _ee_discard_account_tombstones(tombstone_ids=tombstone_ids)
+            raise
 
         deleted.projects = [
             AdminDeletedEntity(id=str(pid)) for pid in project_ids
@@ -1539,10 +1550,10 @@ class PlatformAdminAccountsService:
 
     async def _write_account_tombstone(
         self, *, email: str, organization_ids: List[UUID]
-    ) -> None:
+    ):
         """Raises AccountTombstoneError on failure so the account is left intact."""
         try:
-            await _ee_write_account_tombstone(
+            return await _ee_write_account_tombstone(
                 email=email, organization_ids=organization_ids
             )
         except Exception as exc:  # noqa: BLE001

@@ -281,7 +281,9 @@ class AccountsConfig(BaseModel):
     again inside `tombstone_days` of its deletion gets no free credits.
     """
 
-    tombstone_days: int = int(os.getenv("AGENTA_ACCOUNT_TOMBSTONE_DAYS") or "365")
+    tombstone_days: int = (
+        _parse_optional_positive_int_env("AGENTA_ACCOUNT_TOMBSTONE_DAYS") or 365
+    )
 
     model_config = ConfigDict(extra="ignore")
 

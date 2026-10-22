@@ -38,6 +38,11 @@ class AccountTombstonesService:
     ):
         self.tombstones_dao = tombstones_dao
         self.fraud_dao = fraud_dao
+        if env.agenta.crypt_key == "replace-me":
+            log.warning(
+                "[accounts] AGENTA_CRYPT_KEY is the placeholder; account tombstone "
+                "hashes are keyed by a public value"
+            )
 
     async def record_deletion(
         self,
@@ -103,21 +108,37 @@ class AccountTombstonesService:
             tombstone_age_days=age_days,
             organization_id=str(organization_id),
         )
-        try:
-            await self.fraud_dao.mark_no_grants(
-                organization_id=organization_id,
-                checkpoint=FraudCheckpoint.RETURNING_ACCOUNT,
-                score=None,
-                now=now,
-            )
-        except Exception as exc:
-            # The signup grant and the floor do not depend on the marker.
-            log.warning(
-                "[accounts] no-grant marker write failed for returning account",
-                reason=type(exc).__name__,
-                organization_id=str(organization_id),
-            )
+        # The floor is the real guard: a daily credit minted without the marker sits
+        # below it and cannot be spent. The marker only saves minting it. One retry.
+        for attempt in (1, 2):
+            try:
+                await self.fraud_dao.mark_no_grants(
+                    organization_id=organization_id,
+                    checkpoint=FraudCheckpoint.RETURNING_ACCOUNT,
+                    score=None,
+                    now=now,
+                )
+                break
+            except Exception as exc:
+                emit = log.error if attempt == 2 else log.warning
+                emit(
+                    "[accounts] no-grant marker write failed for returning account",
+                    reason=type(exc).__name__,
+                    attempt=attempt,
+                    organization_id=str(organization_id),
+                )
         return True
+
+    async def discard(self, *, tombstone_ids: List[UUID]) -> None:
+        """Best effort: drop tombstones of a batch deletion that did not happen."""
+        try:
+            await self.tombstones_dao.delete(tombstone_ids=tombstone_ids)
+        except Exception as exc:
+            log.error(
+                "[accounts] could not discard tombstones of an aborted deletion",
+                reason=type(exc).__name__,
+                tombstone_ids=[str(tid) for tid in tombstone_ids],
+            )
 
 
 _account_tombstones_service: Optional[AccountTombstonesService] = None
@@ -148,6 +169,18 @@ async def write_account_tombstone(
     return await _get_account_tombstones_service().record_deletion(
         email=email, organization_ids=organization_ids
     )
+
+
+async def discard_account_tombstones(*, tombstone_ids: List[UUID]) -> None:
+    """The compensation seam: the batch deletion raised after tombstones were written.
+    Never raises."""
+    try:
+        await _get_account_tombstones_service().discard(tombstone_ids=tombstone_ids)
+    except Exception as exc:
+        log.error(
+            "[accounts] could not discard tombstones of an aborted deletion",
+            reason=type(exc).__name__,
+        )
 
 
 async def returning_account_blocks_grants(*, organization_id: UUID, email: str) -> bool:
