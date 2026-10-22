@@ -4,6 +4,7 @@ import {
     useCallback,
     useEffect,
     useImperativeHandle,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState,
@@ -33,6 +34,8 @@ import {
     defineExtension,
     type LexicalEditor,
 } from "lexical"
+
+import {Kbd, KbdGroup} from "../components/ui/kbd"
 
 import type {PaletteSpec} from "./assets/palette"
 import type {SlashCommandSection} from "./assets/slashCommands"
@@ -122,7 +125,7 @@ export interface RichChatInputProps {
     onStop?: () => void
     /** Submit choices displayed beside Stop while `streaming` (for example Queue and Steer). */
     busyActions?: {label: string; onSubmit: SubmitHandler}[]
-    /** Min-height class for the editor area (default `min-h-[72px]`). */
+    /** Min-height class for the editor area (default `min-h-[62px]`). */
     minHeightClassName?: string
     /** How far the editor may grow before it scrolls itself. A surface with a page behind it
      * wants a lower ceiling than a chat dock, which has nothing under it to push. */
@@ -165,9 +168,13 @@ const chatInputExtension = defineExtension({
 export function ShortcutHint({keys, label}: {keys: string; label: string}) {
     return (
         <span className="flex items-center gap-1 whitespace-nowrap text-[12px] text-[var(--ag-colorTextSecondary)]">
-            <kbd className="ag-surface-chip inline-flex items-center justify-center rounded px-1 py-0.5 font-[inherit] text-[12px] font-medium leading-none text-[var(--ag-colorTextSecondary)]">
-                {keys}
-            </kbd>
+            <KbdGroup>
+                {keys.split(" ").map((key) => (
+                    <Kbd key={key} size="md">
+                        {key}
+                    </Kbd>
+                ))}
+            </KbdGroup>
             {label}
         </span>
     )
@@ -196,7 +203,7 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
             stopping,
             onStop,
             busyActions,
-            minHeightClassName = "min-h-[72px]",
+            minHeightClassName = "min-h-[62px]",
             maxHeightClassName = "max-h-40",
             size = "compact",
             textSizeClassName = "text-xs",
@@ -214,6 +221,18 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
         const dictationRef = useRef<DictationSession | null>(null)
         // The palettes span this box and float above it.
         const boxRef = useRef<HTMLDivElement | null>(null)
+        // The editor's own height, mirrored onto a clip box so a new or removed line eases in.
+        // Keyed by node: the editor box can remount, and a stale one reads 0.
+        const [editorBox, setEditorBox] = useState<HTMLDivElement | null>(null)
+        const [editorHeight, setEditorHeight] = useState<number | null>(null)
+        useLayoutEffect(() => {
+            if (!editorBox || typeof ResizeObserver === "undefined") return
+            const observer = new ResizeObserver(() =>
+                setEditorHeight(editorBox.offsetHeight || null),
+            )
+            observer.observe(editorBox)
+            return () => observer.disconnect()
+        }, [editorBox])
         const [focused, setFocused] = useState(false)
         // Resolved after mount: SSR has no platform, and answering during render would mismatch on
         // hydration. `SubmitPlugin` accepts meta OR ctrl, so the binding matches the label on both.
@@ -354,32 +373,37 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                 >
                     {header}
 
-                    <div className="relative">
-                        <ContentEditable
-                            aria-label="Chat message"
-                            aria-placeholder={placeholder}
-                            className={clsx(
-                                "overflow-y-auto break-words leading-relaxed text-[var(--ag-colorText)] outline-none",
-                                maxHeightClassName,
-                                comfortable ? "px-5 py-4" : "px-3 py-2.5",
-                                textSizeClassName,
-                                minHeightClassName,
-                            )}
-                            placeholder={
-                                // Mirrors the editor's own box exactly — same padding, same
-                                // leading. A different line-height sits the placeholder off the
-                                // caret's baseline by a couple of pixels.
-                                <div
-                                    className={clsx(
-                                        "pointer-events-none absolute inset-0 select-none break-words leading-relaxed text-[var(--ag-composer-placeholder)]",
-                                        comfortable ? "px-5 py-4" : "px-3 py-2.5",
-                                        textSizeClassName,
-                                    )}
-                                >
-                                    {placeholder}
-                                </div>
-                            }
-                        />
+                    <div
+                        className="overflow-hidden transition-[height] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none"
+                        style={editorHeight === null ? undefined : {height: editorHeight}}
+                    >
+                        <div ref={setEditorBox} className="relative">
+                            <ContentEditable
+                                aria-label="Chat message"
+                                aria-placeholder={placeholder}
+                                className={clsx(
+                                    "overflow-y-auto break-words leading-relaxed text-[var(--ag-colorText)] outline-none",
+                                    maxHeightClassName,
+                                    comfortable ? "px-5 py-4" : "px-3 py-2.5",
+                                    textSizeClassName,
+                                    minHeightClassName,
+                                )}
+                                placeholder={
+                                    // Mirrors the editor's own box exactly — same padding, same
+                                    // leading. A different line-height sits the placeholder off the
+                                    // caret's baseline by a couple of pixels.
+                                    <div
+                                        className={clsx(
+                                            "pointer-events-none absolute inset-0 select-none break-words leading-relaxed text-[var(--ag-composer-placeholder)]",
+                                            comfortable ? "px-5 py-4" : "px-3 py-2.5",
+                                            textSizeClassName,
+                                        )}
+                                    >
+                                        {placeholder}
+                                    </div>
+                                }
+                            />
+                        </div>
                     </div>
 
                     <div
@@ -393,7 +417,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                             still hold their width, and the wave was left drawing in whatever was
                             left over instead of across the row. */}
                         {dictating && dictationWave ? (
-                            <div className="flex min-w-0 flex-1 items-center">{dictationWave}</div>
+                            <div className="flex min-w-0 flex-1 items-center px-2">
+                                {dictationWave}
+                            </div>
                         ) : null}
                         {hideShortcutHints || (dictating && dictationWave) ? null : (
                             // The format hints are a focus-only aid: kept mounted (so their space
@@ -413,6 +439,9 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                                 {/* Bold/Italic still work (Cmd/Ctrl+B/I) — they just no longer
                                     advertise themselves; the send/newline pair is the only pair
                                     you need told to you. */}
+                                {prefix ? (
+                                    <span aria-hidden className="h-4 w-px bg-border/60" />
+                                ) : null}
                                 <ShortcutHint keys="↵" label="Send" />
                                 <ShortcutHint keys={`${modKey} ↵`} label="Newline" />
                             </div>

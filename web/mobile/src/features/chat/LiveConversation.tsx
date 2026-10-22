@@ -1004,6 +1004,7 @@ export const LiveConversation = ({
                             placeholder={
                                 modelBlocked ? "Connect a model to start chatting…" : undefined
                             }
+                            hasTurns={!conversation.isEmpty}
                             waitingOnUser={parkedOnUser}
                             streaming={shouldShowStopControl({
                                 busy: streamingHere,

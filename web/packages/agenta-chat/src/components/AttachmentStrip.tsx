@@ -1,12 +1,20 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import {mediaViewerAtom, useRemoteObjectUrl, type MediaViewerItem} from "@agenta/entity-ui/drive"
+import {
+    DriveFileGlyph,
+    mediaViewerAtom,
+    useRemoteObjectUrl,
+    type MediaViewerItem,
+} from "@agenta/entity-ui/drive"
 import {useInView} from "@agenta/shared/hooks"
 import {ImageBroken, Pause, Play} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
-import {typeBadgeFor} from "../assets/attachmentRules"
-
+import {
+    ATTACHMENT_TILE,
+    ATTACHMENT_TILE_FACE,
+    AttachmentTileName as TileName,
+} from "./attachmentTile"
 import {useAudioPlayback} from "./useAudioPlayback"
 
 /** One file on a sent message. `src` is already resolved; the strip never fetches it itself. */
@@ -26,18 +34,10 @@ export interface AttachmentStripProps {
 }
 
 /** One square for every kind, so a mixed batch reads as one row; a step down on a phone. */
-const TILE =
-    "relative box-border size-20 shrink-0 overflow-hidden rounded-lg border border-solid border-border bg-muted sm:size-24"
+const TILE = `${ATTACHMENT_TILE} sm:size-24`
 
 /** The whole tile, as the control that opens the viewer. A sibling of any inner control. */
-const OPEN_BUTTON =
-    "absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-1 border-0 bg-transparent p-1.5 text-muted-foreground disabled:cursor-default"
-
-const TileName = ({name}: {name: string}) => (
-    <span className="line-clamp-2 w-full break-all text-center text-[10px] leading-3 text-muted-foreground">
-        {name}
-    </span>
-)
+const OPEN_BUTTON = `${ATTACHMENT_TILE_FACE} cursor-pointer disabled:cursor-default`
 
 const ImageTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => void}) => {
     // Keyed by source, so a fresh URL gets a fresh attempt without an effect racing its load event.
@@ -172,9 +172,7 @@ const DocumentTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () =>
         onClick={onOpen}
         className={OPEN_BUTTON}
     >
-        <span className="rounded-sm bg-background px-1.5 py-0.5 text-[10px] font-semibold uppercase leading-4 text-muted-foreground">
-            {typeBadgeFor(file.mediaType, file.name)}
-        </span>
+        <DriveFileGlyph path={file.name} />
         <TileName name={file.name} />
     </button>
 )
