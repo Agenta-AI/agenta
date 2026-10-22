@@ -566,8 +566,26 @@ describe("extractTemplateVariables — non-mustache regressions", () => {
             expect(extractTemplateVariables("{% set a b %}", "jinja2")).toEqual([])
             expect(extractTemplateVariables("{% set ns. %}", "jinja2")).toEqual([])
             expect(
-                extractTemplateVariables("{% set label | upper %}Hi{% endset %}", "jinja2"),
+                extractTemplateVariables(
+                    "{% set label | upper %}Hi{% endset %}{{ label }}",
+                    "jinja2",
+                ),
             ).toEqual([])
+        })
+
+        it("ignores constants in plain interpolations", () => {
+            expect(extractTemplateVariables("{{ true }}{{ none }}{{ name }}", "jinja2")).toEqual([
+                "name",
+            ])
+        })
+
+        it("scans with right-hand sides before binding targets", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% with a = {}, b = a.name %}{{ b }}{% endwith %}",
+                    "jinja2",
+                ),
+            ).toEqual(["a.name"])
         })
 
         it("does not leak bound names through filtered interpolations", () => {

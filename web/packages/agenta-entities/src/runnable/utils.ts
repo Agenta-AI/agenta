@@ -622,14 +622,9 @@ function extractJinja2Variables(input: string): string[] {
             const expression = trimJinjaContent(match[1])
             // A mustache-style marker here is an authoring error, not a variable.
             if (!expression || /^[#^&/!>.$<=]/.test(expression)) continue
-            if (/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(expression)) {
-                add(expression)
-            } else {
-                // Filters, operators, and subscripts need the same syntax-aware
-                // scan as control blocks, so bound roots and filter names do not
-                // become inputs.
-                addExpression(expression)
-            }
+            // Use the same syntax-aware scan as control blocks so filters,
+            // operators, subscripts, and constants do not become inputs.
+            addExpression(expression)
             continue
         }
 
@@ -666,7 +661,10 @@ function extractJinja2Variables(input: string): string[] {
         if (keyword === "set") {
             const equalsIndex = findJinjaTopLevelChar(rest, "=")
             if (equalsIndex === -1) {
-                bind(parseJinjaTargets(rest))
+                // A block assignment can carry a filter: `{% set label | upper %}`.
+                // The target is the part before the filter.
+                const filterIndex = findJinjaTopLevelChar(rest, "|")
+                bind(parseJinjaTargets(filterIndex === -1 ? rest : rest.slice(0, filterIndex)))
                 continue
             }
             const targets = parseJinjaTargets(rest.slice(0, equalsIndex))
@@ -676,16 +674,17 @@ function extractJinja2Variables(input: string): string[] {
         }
 
         if (keyword === "with") {
-            const withScope = new Set<string>()
-            scopes.push(withScope)
-            for (const assignment of splitJinjaTopLevel(rest, ",")) {
+            // Jinja2 evaluates every right-hand side in the outer context
+            // before it binds the new targets.
+            const assignments = splitJinjaTopLevel(rest, ",")
+            const targets: string[] = []
+            for (const assignment of assignments) {
                 const equalsIndex = findJinjaTopLevelChar(assignment, "=")
                 if (equalsIndex === -1) continue
                 addExpression(assignment.slice(equalsIndex + 1))
-                for (const target of parseJinjaTargets(assignment.slice(0, equalsIndex))) {
-                    withScope.add(target)
-                }
+                targets.push(...parseJinjaTargets(assignment.slice(0, equalsIndex)))
             }
+            scopes.push(new Set(targets))
             continue
         }
 
