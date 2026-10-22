@@ -189,5 +189,55 @@ async def test_legacy_shapes_decide_as_expected(edition, monkeypatch):
             for (shape, label, index), (oss, ee) in expected.items():
                 want = ee if edition == "ee" else oss
                 assert await allowed(shape, label, index) is want, (shape, edition)
+
+            # Membership, listing and role for the role-shaped shapes.
+            memberships = access.memberships
+
+            async def resolved(shape, label, project_index=0):
+                seeded = shapes[shape]
+                user = seeded.owner_id if label == "owner" else seeded.user_ids[label]
+                return await memberships.resolve(
+                    user_id=user, project_id=seeded.project_ids[project_index]
+                )
+
+            async def listed(shape, label):
+                seeded = shapes[shape]
+                user = seeded.owner_id if label == "owner" else seeded.user_ids[label]
+                return {
+                    listing.membership.project_id
+                    for listing in await memberships.list_for_user(user_id=user)
+                }
+
+            # P6: the organization role now equals the workspace role (editor).
+            p6 = await resolved("P6", "m")
+            assert p6.role == "editor"
+            # P7 (stale project row "viewer", organization "editor"): OSS reads the
+            # organization role, EE the project row.
+            assert (await resolved("P7", "m")).role == (
+                "viewer" if edition == "ee" else "editor"
+            )
+            # P8 (no row in the second project): OSS member, EE not a member.
+            p8 = await resolved("P8", "m", 1)
+            assert (p8 is not None) is (edition == "oss")
+            assert (shapes["P8"].project_ids[1] in await listed("P8", "m")) is (
+                edition == "oss"
+            )
+            # P12 (two organization rows, the oldest "editor"): the oldest wins.
+            if edition == "oss":
+                assert (await resolved("P12", "m")).role == "editor"
+            # A cross-organization workspace does not change the project's
+            # organization: the member of the project's organization resolves.
+            assert await resolved("cross_org_workspace", "m") is not None
+            # A null-role EE row: a listed member who passes no capability check.
+            null_role = await resolved("null_project_role", "m")
+            if edition == "ee":
+                assert null_role is not None and null_role.role is None
+                assert shapes["null_project_role"].project_ids[0] in await listed(
+                    "null_project_role", "m"
+                )
+                assert await allowed("null_project_role", "m") is False
+            else:
+                assert null_role.role == "editor"
+                assert await allowed("null_project_role", "m") is True
     finally:
         await delete_seeded_shapes(shapes)

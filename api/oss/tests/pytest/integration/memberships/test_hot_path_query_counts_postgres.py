@@ -75,21 +75,70 @@ async def test_project_list_is_one_statement(policy, member_of_three_organizatio
     assert len(listings) == 6
     assert len(statements) == 1
 
-    # Twelve projects: still one statement.
+    # Twelve projects, each with a project row: still one statement.
     for seeded in organizations:
         for name in ("extra-a", "extra-b"):
             await execute(
-                "INSERT INTO projects (id, project_name, is_default, organization_id, "
-                "workspace_id) VALUES (gen_random_uuid(), :n, false, :o, :w)",
+                "WITH p AS (INSERT INTO projects (id, project_name, is_default, "
+                "organization_id, workspace_id) VALUES (gen_random_uuid(), :n, false, "
+                ":o, :w) RETURNING id) "
+                "INSERT INTO project_members (id, user_id, project_id, role) "
+                "SELECT gen_random_uuid(), :u, p.id, 'editor' FROM p",
                 {
                     "n": name,
                     "o": seeded.organization_id,
                     "w": seeded.workspace_ids[0],
+                    "u": user,
                 },
             )
     with count_statements(get_transactions_engine()) as statements:
-        await service.list_for_user(user_id=user)
+        listings = await service.list_for_user(user_id=user)
+    assert len(listings) == 12
     assert len(statements) == 1
+
+
+@pytest.fixture
+def registered_memberships(monkeypatch):
+    import oss.src.core.memberships.service as memberships_module
+
+    def _register(policy):
+        service = _service(policy)
+        monkeypatch.setattr(memberships_module, "_memberships_service", service)
+        return service
+
+    return _register
+
+
+@pytest.mark.parametrize("policy", POLICIES)
+async def test_project_routes_make_one_statement(
+    policy, member_of_three_organizations, registered_memberships
+):
+    """The route handlers themselves, with the real resolver: GET /projects/,
+    GET /projects/{id} and GET /projects/current read nothing else."""
+
+    from types import SimpleNamespace
+
+    import oss.src.routers.projects_router as projects_router
+
+    user, organizations = member_of_three_organizations
+    registered_memberships(policy)
+    project = organizations[1].project_ids[0]
+    request = SimpleNamespace(
+        state=SimpleNamespace(user_id=str(user), project_id=str(project))
+    )
+
+    with count_statements(get_transactions_engine()) as statements:
+        listed = await projects_router.get_projects(request=request)
+    assert len(listed) == 6
+    assert len(statements) == 1
+
+    for project_id in (str(project), "current"):
+        with count_statements(get_transactions_engine()) as statements:
+            fetched = await projects_router.get_project(
+                project_id=project_id, request=request
+            )
+        assert fetched.project_id == project
+        assert len(statements) == 1
 
 
 @pytest.mark.parametrize("policy", POLICIES)
