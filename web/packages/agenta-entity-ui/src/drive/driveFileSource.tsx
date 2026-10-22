@@ -150,7 +150,7 @@ export function useDriveObjectUrl(
 }
 
 /** A listed file's version: its etag, else mtime, else size. */
-export const driveFileFingerprint = (file: MountFile & {etag?: string | null}): string =>
+export const driveFileFingerprint = (file: MountFile): string =>
     file.etag ?? (file.mtime != null ? `m${file.mtime}` : `s${file.size ?? ""}`)
 
 const parentDir = (path: string): string => {
