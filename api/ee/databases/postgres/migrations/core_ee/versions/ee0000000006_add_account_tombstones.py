@@ -14,7 +14,9 @@ compares hashes. Rotating `AGENTA_CRYPT_KEY` orphans the older tombstones. The
 row also keeps the deleted organization ids and the credits granted and spent across
 them (in micro-dollars, from the wallet tables), for the audit a support request needs.
 
-No foreign keys: every id here points at a row that no longer exists.
+No foreign keys: every id here points at a row that no longer exists. No lifecycle
+columns either: `account_deleted_at` is the event the row records, not a soft delete of
+the row, so the table is not a lifecycle table.
 
 Revision ID: ee0000000006
 Revises: ee0000000005
@@ -38,31 +40,25 @@ def upgrade() -> None:
         "account_tombstones",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
         sa.Column("email_hash", sa.String(length=64), nullable=False),
-        sa.Column("deleted_at", sa.TIMESTAMP(timezone=True), nullable=False),
+        sa.Column("account_deleted_at", sa.TIMESTAMP(timezone=True), nullable=False),
         sa.Column(
             "organization_ids", postgresql.JSONB(none_as_null=True), nullable=False
         ),
         sa.Column("credits_granted_musd", sa.BigInteger(), nullable=False),
         sa.Column("credits_spent_musd", sa.BigInteger(), nullable=False),
-        sa.Column(
-            "created_at",
-            sa.TIMESTAMP(timezone=True),
-            server_default=sa.func.current_timestamp(),
-            nullable=True,
-        ),
         sa.PrimaryKeyConstraint("id"),
     )
     # The signup path looks up the newest tombstone of an email hash.
     op.create_index(
-        "idx_account_tombstones_email_hash_deleted_at",
+        "idx_account_tombstones_email_hash_account_deleted_at",
         "account_tombstones",
-        ["email_hash", "deleted_at"],
+        ["email_hash", "account_deleted_at"],
     )
 
 
 def downgrade() -> None:
     op.drop_index(
-        "idx_account_tombstones_email_hash_deleted_at",
+        "idx_account_tombstones_email_hash_account_deleted_at",
         table_name="account_tombstones",
     )
     op.drop_table("account_tombstones")

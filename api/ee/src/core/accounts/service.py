@@ -59,7 +59,7 @@ class AccountTombstonesService:
         return await self.tombstones_dao.create(
             tombstone=AccountTombstoneCreate(
                 email_hash=email_hash(email),
-                deleted_at=now,
+                account_deleted_at=now,
                 organization_ids=list(organization_ids),
                 credits_granted_musd=totals.granted_musd,
                 credits_spent_musd=totals.spent_musd,
@@ -101,7 +101,7 @@ class AccountTombstonesService:
         if tombstone is None:
             return False
 
-        age_days = max(0, (now - tombstone.deleted_at).days)
+        age_days = max(0, (now - tombstone.account_deleted_at).days)
         log.info(
             "[accounts] returning deleted account; no free credits",
             domain=_domain(email),

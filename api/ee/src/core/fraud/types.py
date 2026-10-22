@@ -75,6 +75,9 @@ class FraudCheckpoint(str, Enum):
     # Not a Jev verdict: the email deleted an account inside the tombstone window
     # (`ee.src.core.accounts`). Shares the marker so the daily grant skips it too.
     RETURNING_ACCOUNT = "returning_account"
+    # Not a Jev verdict: another organization of the same owner carries the marker,
+    # so a second organization cannot collect what the first was refused.
+    OWNER_ORGANIZATION = "owner_organization"
 
 
 class FraudVerdict(BaseModel):
@@ -147,6 +150,11 @@ class FraudDAOInterface(ABC):
     @abstractmethod
     async def grants_blocked(self, *, organization_id: UUID) -> bool:
         """Whether the organization carries `NO_GRANTS_FLAG`."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def owner_grants_blocked(self, *, owner_id: UUID) -> bool:
+        """Whether any organization owned by `owner_id` carries `NO_GRANTS_FLAG`."""
         raise NotImplementedError
 
     @abstractmethod

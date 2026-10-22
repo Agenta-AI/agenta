@@ -220,6 +220,7 @@ async def test_provision_user_subscription_never_awards_signup_grant(monkeypatch
     class _FakeOrganization:
         id = uuid4()
         name = "acme"
+        owner_id = uuid4()
 
     monkeypatch.setattr(
         organizations_service_module,
@@ -435,6 +436,7 @@ async def _signup_with(monkeypatch, policy):
     class _Organization:
         id = uuid4()
         name = "acme"
+        owner_id = uuid4()
 
     m = organizations_service_module
     monkeypatch.setattr(m, "_free_credits_check", _REAL_FREE_CREDITS_CHECK)
@@ -499,6 +501,7 @@ async def _create_organization_with(monkeypatch, policy):
     class _Organization:
         id = uuid4()
         name = "acme"
+        owner_id = uuid4()
 
     m = organizations_service_module
     monkeypatch.setattr(m, "_email_rules_refuse", _REAL_EMAIL_RULES_REFUSE)

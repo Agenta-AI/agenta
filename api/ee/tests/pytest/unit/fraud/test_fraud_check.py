@@ -125,6 +125,9 @@ class FakeFraudDAO(FraudDAOInterface):
     async def grants_blocked(self, *, organization_id):
         return organization_id in self.blocked
 
+    async def owner_grants_blocked(self, *, owner_id):
+        return False
+
     async def read_billing_facts(self, *, organization_id):
         return self.billing
 

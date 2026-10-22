@@ -63,7 +63,7 @@ class WalletTotals(BaseModel):
 
 class AccountTombstoneCreate(BaseModel):
     email_hash: str
-    deleted_at: datetime
+    account_deleted_at: datetime
     organization_ids: List[UUID]
     credits_granted_musd: int
     credits_spent_musd: int
@@ -92,5 +92,6 @@ class AccountTombstonesDAOInterface(ABC):
     async def find_newest(
         self, *, email_hash: str, deleted_since: datetime
     ) -> Optional[AccountTombstone]:
-        """The newest tombstone of the hash deleted at or after `deleted_since`."""
+        """The newest tombstone of the hash whose account was deleted at or after
+        `deleted_since`."""
         raise NotImplementedError

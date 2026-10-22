@@ -113,6 +113,28 @@ class FraudService:
             return False
         return await self.is_free_and_unpaid(organization_id=organization_id)
 
+    async def inherit_no_grants(self, *, organization_id: UUID, owner_id: UUID) -> bool:
+        """A new organization of an owner whose other organization carries the marker
+        gets the marker too. Returns whether it did."""
+        if not await self.fraud_dao.owner_grants_blocked(owner_id=owner_id):
+            return False
+        log.info(
+            "[fraud] decision",
+            checkpoint=FraudCheckpoint.OWNER_ORGANIZATION.value,
+            score=None,
+            action="skip_grants",
+            reason="owner_marked",
+            organization_id=str(organization_id),
+        )
+        async with asyncio.timeout(ACTION_TIMEOUT_SECONDS):
+            await self.fraud_dao.mark_no_grants(
+                organization_id=organization_id,
+                checkpoint=FraudCheckpoint.OWNER_ORGANIZATION,
+                score=None,
+                now=datetime.now(timezone.utc),
+            )
+        return True
+
     async def check_signup(
         self,
         *,
@@ -288,6 +310,24 @@ async def signup_is_fraud(*, organization_id: UUID, email: str) -> bool:
     except Exception as exc:
         # The type only: an exception message can carry the email or other user data.
         log.warning("[fraud] signup check failed; allowing", reason=type(exc).__name__)
+        return False
+
+
+async def owner_organization_blocks_grants(
+    *, organization_id: UUID, owner_id: Optional[UUID]
+) -> bool:
+    """The second-organization seam. Never raises: any failure allows the grants."""
+    if owner_id is None:
+        return False
+    try:
+        return await _get_fraud_service().inherit_no_grants(
+            organization_id=organization_id, owner_id=owner_id
+        )
+    except Exception as exc:
+        log.warning(
+            "[fraud] owner organization check failed; allowing",
+            reason=type(exc).__name__,
+        )
         return False
 
 

@@ -13,9 +13,11 @@ import pytest
 import uuid_utils.compat as uuid_utils
 
 import ee.src.core.accounts.service as tombstones_module
+import ee.src.core.fraud.service as fraud_service_module
 import ee.src.core.organizations.service as organizations_service_module
 import oss.src.core.accounts.service as accounts_service_module
 from ee.src.core.accounts.service import AccountTombstonesService
+from ee.src.core.fraud.service import FraudService
 from ee.src.core.accounts.types import (
     AccountTombstone,
     AccountTombstoneCreate,
@@ -77,14 +79,15 @@ class FakeTombstonesDAO(AccountTombstonesDAOInterface):
         matches = [
             row
             for row in self.rows
-            if row.email_hash == email_hash and row.deleted_at >= deleted_since
+            if row.email_hash == email_hash and row.account_deleted_at >= deleted_since
         ]
-        return max(matches, key=lambda row: row.deleted_at, default=None)
+        return max(matches, key=lambda row: row.account_deleted_at, default=None)
 
 
 class FakeFraudDAO(FraudDAOInterface):
     def __init__(self):
         self.marks = []
+        self.marked_owners = set()
 
     async def read_api_key_signals(self, *, user_id, project_id, now):
         return None
@@ -94,6 +97,9 @@ class FakeFraudDAO(FraudDAOInterface):
 
     async def grants_blocked(self, *, organization_id):
         return any(mark[0] == organization_id for mark in self.marks)
+
+    async def owner_grants_blocked(self, *, owner_id):
+        return owner_id in self.marked_owners
 
     async def read_billing_facts(self, *, organization_id):
         return BillingFacts()
@@ -115,7 +121,7 @@ def _tombstone(days_ago: int) -> AccountTombstone:
     return AccountTombstone(
         id=uuid_utils.uuid7(),
         email_hash=email_hash(EMAIL),
-        deleted_at=datetime.now(timezone.utc) - timedelta(days=days_ago),
+        account_deleted_at=datetime.now(timezone.utc) - timedelta(days=days_ago),
         organization_ids=[ORG_A],
         credits_granted_musd=5_000_000,
         credits_spent_musd=4_990_000,
@@ -230,7 +236,7 @@ def _assert_tombstone(row: AccountTombstone) -> None:
     assert row.organization_ids == [ORG_A, ORG_B]
     assert row.credits_granted_musd == 5_750_000
     assert row.credits_spent_musd == 4_990_000
-    assert row.deleted_at <= datetime.now(timezone.utc)
+    assert row.account_deleted_at <= datetime.now(timezone.utc)
     assert EMAIL not in row.model_dump_json()
 
 
@@ -251,6 +257,45 @@ async def test_self_service_deletion_writes_the_tombstone_before_the_rows_go(
         "cascade",
         "loops",
     ]
+
+
+async def test_self_service_deletion_writes_the_tombstone_before_billing_and_login(
+    deletion,
+):
+    tombstones, calls = deletion
+    seen = []
+
+    async def _create(*, tombstone):
+        seen.append(list(calls))
+        row = AccountTombstone(id=uuid_utils.uuid7(), **tombstone.model_dump())
+        tombstones.rows.append(row)
+        return row
+
+    tombstones.create = _create
+
+    await PlatformAdminAccountsService().delete_own_account(user_id=str(USER_ID))
+
+    # Written exactly once, and before any destructive step ran.
+    assert seen == [[]]
+    assert len(tombstones.rows) == 1
+
+
+async def test_admin_deletion_discards_the_tombstone_when_the_cascade_fails(
+    deletion, monkeypatch
+):
+    tombstones, calls = deletion
+
+    async def _broken_cascade(uid):
+        raise RuntimeError("database down")
+
+    monkeypatch.setattr(
+        accounts_service_module, "_db_delete_user_with_cascade", _broken_cascade
+    )
+
+    with pytest.raises(RuntimeError):
+        await PlatformAdminAccountsService().delete_user(user_id=str(USER_ID))
+
+    assert tombstones.rows == []
 
 
 async def test_admin_deletion_writes_the_tombstone_before_the_cascade(deletion):
@@ -358,8 +403,8 @@ async def test_self_service_deletion_aborts_when_the_tombstone_write_fails(delet
 
     assert excinfo.value.code == "account_tombstone_failed"
     assert tombstones.rows == []
-    # The rows are untouched: the user still exists.
-    assert [call[0] for call in calls] == ["cancel", "cancel", "supertokens"]
+    # Billing, the login and the rows are untouched: the user still exists.
+    assert calls == []
 
 
 async def test_deletion_aborts_when_no_service_is_registered(deletion, monkeypatch):
@@ -369,7 +414,7 @@ async def test_deletion_aborts_when_no_service_is_registered(deletion, monkeypat
     with pytest.raises(AccountTombstoneError):
         await PlatformAdminAccountsService().delete_own_account(user_id=str(USER_ID))
 
-    assert [call[0] for call in calls] == ["cancel", "cancel", "supertokens"]
+    assert calls == []
 
 
 # ---------------------------------------------------------------------------
@@ -565,4 +610,89 @@ async def test_a_flagged_signup_makes_no_tombstone_lookup(signup, monkeypatch):
     calls = await run()
 
     assert calls == [("provision", None)]
+    assert fraud.marks == []
+
+
+# ---------------------------------------------------------------------------
+# A second organization of an existing user reads the tombstone and the marker
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def second_organization(monkeypatch, daos):
+    """`provision_user_subscription` (POST /organizations/) with the email rules
+    allowing and the floor recorded in `floors`."""
+    tombstones, fraud = daos
+    monkeypatch.setattr(env.wallets, "enabled", True)
+    monkeypatch.setattr(
+        fraud_service_module,
+        "_fraud_service",
+        FraudService(
+            fraud_dao=fraud,
+            wallets_service=WalletsService(wallets_dao=FakeWalletsDAO()),
+        ),
+    )
+    floors = []
+
+    async def _allowed(organization_email):
+        return False
+
+    async def _provision(*, organization_id, plan, floor_musd=None):
+        floors.append(floor_musd)
+
+    async def _no_entitlements(*, key, delta, scope):
+        return None
+
+    class _FakeSubscriptionService:
+        async def start_plan(self, **kwargs):
+            return None
+
+    m = organizations_service_module
+    monkeypatch.setattr(m, "_email_rules_refuse", _allowed)
+    monkeypatch.setattr(m, "_provision_wallet_general_balance", _provision)
+    monkeypatch.setattr(m, "_subscription_service", _FakeSubscriptionService())
+    monkeypatch.setattr(m, "check_entitlements", _no_entitlements)
+
+    async def _run():
+        await m.provision_user_subscription(
+            SimpleNamespace(id=NEW_ORG, name="second", owner_id=USER_ID),
+            organization_email=EMAIL,
+        )
+        return floors
+
+    return tombstones, fraud, _run
+
+
+async def test_a_second_organization_of_a_returning_email_gets_the_raised_floor(
+    second_organization,
+):
+    tombstones, fraud, run = second_organization
+    tombstones.rows.append(_tombstone(days_ago=1))
+
+    floors = await run()
+
+    assert floors == [REFUSED_EMAIL_FLOOR_MUSD]
+    assert fraud.marks == [(NEW_ORG, FraudCheckpoint.RETURNING_ACCOUNT, None)]
+
+
+async def test_a_second_organization_of_a_flagged_owner_inherits_the_marker(
+    second_organization,
+):
+    tombstones, fraud, run = second_organization
+    fraud.marked_owners.add(USER_ID)
+
+    floors = await run()
+
+    assert floors == [REFUSED_EMAIL_FLOOR_MUSD]
+    assert fraud.marks == [(NEW_ORG, FraudCheckpoint.OWNER_ORGANIZATION, None)]
+
+
+async def test_a_second_organization_of_a_clean_owner_gets_the_plan_floor(
+    second_organization,
+):
+    tombstones, fraud, run = second_organization
+
+    floors = await run()
+
+    assert floors == [None]
     assert fraud.marks == []

@@ -12,8 +12,8 @@ class AccountTombstoneDBE(Base, AccountTombstoneDBA):
         # The signup path reads the newest tombstone of a hash; see migration
         # `ee0000000006`.
         Index(
-            "idx_account_tombstones_email_hash_deleted_at",
+            "idx_account_tombstones_email_hash_account_deleted_at",
             "email_hash",
-            "deleted_at",
+            "account_deleted_at",
         ),
     )

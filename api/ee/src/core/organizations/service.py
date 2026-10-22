@@ -981,7 +981,10 @@ from ee.src.core.starter_credits_bridge.service import (  # noqa: E402
     seed_starter_credits_bridge_safely,
 )
 from ee.src.core.wallets.service import WalletsService  # noqa: E402
-from ee.src.core.fraud.service import signup_is_fraud  # noqa: E402
+from ee.src.core.fraud.service import (  # noqa: E402
+    owner_organization_blocks_grants,
+    signup_is_fraud,
+)
 from ee.src.core.accounts.service import (  # noqa: E402
     returning_account_blocks_grants,
 )
@@ -1227,10 +1230,22 @@ async def provision_user_subscription(
     )
 
     if env.wallets.enabled:
-        # Without this, each extra organization of a refused email collects daily credits.
+        # Without this, each extra organization of a refused email, of a returning
+        # deleted account, or of a flagged owner collects daily credits at a zero floor.
+        # The last two also inherit the no-grant marker. Each seam fails open.
         refused = await _email_rules_refuse(organization_email)
+        returning = await returning_account_blocks_grants(
+            organization_id=organization.id, email=organization_email
+        )
+        inherited = await owner_organization_blocks_grants(
+            organization_id=organization.id, owner_id=organization.owner_id
+        )
         await _provision_wallet_general_balance(
             organization_id=organization.id,
             plan=plan,
-            floor_musd=REFUSED_EMAIL_FLOOR_MUSD if refused else None,
+            floor_musd=(
+                REFUSED_EMAIL_FLOOR_MUSD
+                if (refused or returning or inherited)
+                else None
+            ),
         )

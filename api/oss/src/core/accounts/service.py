@@ -1451,7 +1451,10 @@ class PlatformAdminAccountsService:
         self,
         *,
         user_id: str,
+        write_tombstone: bool = True,
     ) -> AdminDeleteResponse:
+        """`write_tombstone=False` only when the caller wrote it already
+        (`delete_own_account`): exactly one tombstone per deletion."""
         uid = _parse_uuid(user_id, "user_id")
         user = await _db_get_user_by_id(uid)
         if not user:
@@ -1459,18 +1462,25 @@ class PlatformAdminAccountsService:
 
         # The tombstone first: without it the same email could sign up again and
         # collect the free credits once more, so no tombstone means no deletion.
-        if is_ee():
+        tombstone_ids: List[UUID] = []
+        if is_ee() and write_tombstone:
             owned = await _db_get_orgs_owned_by_user(uid)
-            await self._write_account_tombstone(
+            tombstone = await self._write_account_tombstone(
                 email=str(user.email),
                 organization_ids=[org.id for org in owned],
             )
+            tombstone_ids.append(tombstone.id)
 
-        # Remove EE membership records before deleting the user to avoid FK violations
-        if is_ee():
-            await _ee_delete_user_memberships(uid)
+        try:
+            # Remove EE membership records before deleting the user to avoid FK violations
+            if is_ee():
+                await _ee_delete_user_memberships(uid)
 
-        deleted_org_ids = await _db_delete_user_with_cascade(uid)
+            deleted_org_ids = await _db_delete_user_with_cascade(uid)
+        except Exception:
+            if tombstone_ids:
+                await _ee_discard_account_tombstones(tombstone_ids=tombstone_ids)
+            raise
         deleted = AdminDeletedEntities(
             organizations=[AdminDeletedEntity(id=str(oid)) for oid in deleted_org_ids]
             or None,
@@ -1496,6 +1506,7 @@ class PlatformAdminAccountsService:
 
         email = str(user.email)
         owned_orgs = await _db_get_orgs_owned_by_user(uid)
+        organization_ids = [org.id for org in owned_orgs]
 
         # Refuse to delete a shared organization out from under its members.
         if is_ee():
@@ -1506,6 +1517,13 @@ class PlatformAdminAccountsService:
             ]
             if shared:
                 raise AccountHasMembersError(shared)
+
+        # The tombstone before anything irreversible: a failed write returns an error
+        # while billing and the login are still intact.
+        if is_ee():
+            await self._write_account_tombstone(
+                email=email, organization_ids=organization_ids
+            )
 
         # Stop billing before the org rows disappear. Best effort.
         if is_ee():
@@ -1525,9 +1543,9 @@ class PlatformAdminAccountsService:
         # would otherwise recreate the account on the next sign-in.
         await self._delete_supertokens_user(uid=user.uid, email=email)
 
-        # Reuse the cascade delete (tombstone + memberships + user + owned orgs).
-        result = await self.delete_user(user_id=user_id)
-        organization_ids = [org.id for org in owned_orgs]
+        # Reuse the cascade delete (memberships + user + owned orgs); the tombstone is
+        # already written above.
+        result = await self.delete_user(user_id=user_id, write_tombstone=False)
 
         log.info(
             "[accounts] self-service account deleted",

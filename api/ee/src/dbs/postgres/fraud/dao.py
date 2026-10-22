@@ -147,6 +147,20 @@ class FraudDAO(FraudDAOInterface):
             ).scalar_one_or_none()
             return bool(isinstance(flags, dict) and flags.get(NO_GRANTS_FLAG))
 
+    async def owner_grants_blocked(self, *, owner_id: UUID) -> bool:
+        async with self.engine.session() as session:
+            marked = (
+                await session.execute(
+                    select(OrganizationDB.id)
+                    .where(
+                        OrganizationDB.owner_id == owner_id,
+                        OrganizationDB.flags[NO_GRANTS_FLAG].as_boolean().is_(True),
+                    )
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            return marked is not None
+
     async def read_billing_facts(self, *, organization_id: UUID) -> BillingFacts:
         async with self.engine.session() as session:
             subscription = (

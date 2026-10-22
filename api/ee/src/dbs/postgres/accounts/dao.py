@@ -52,7 +52,7 @@ class AccountTombstonesDAO(AccountTombstonesDAOInterface):
         dbe = AccountTombstoneDBE(
             id=uuid_utils.uuid7(),
             email_hash=tombstone.email_hash,
-            deleted_at=tombstone.deleted_at,
+            account_deleted_at=tombstone.account_deleted_at,
             organization_ids=[str(oid) for oid in tombstone.organization_ids],
             credits_granted_musd=tombstone.credits_granted_musd,
             credits_spent_musd=tombstone.credits_spent_musd,
@@ -82,9 +82,9 @@ class AccountTombstonesDAO(AccountTombstonesDAOInterface):
                     select(AccountTombstoneDBE)
                     .where(
                         AccountTombstoneDBE.email_hash == email_hash,
-                        AccountTombstoneDBE.deleted_at >= deleted_since,
+                        AccountTombstoneDBE.account_deleted_at >= deleted_since,
                     )
-                    .order_by(AccountTombstoneDBE.deleted_at.desc())
+                    .order_by(AccountTombstoneDBE.account_deleted_at.desc())
                     .limit(1)
                 )
             ).scalar_one_or_none()
