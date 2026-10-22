@@ -273,7 +273,6 @@ const PreviewCell = ({cell}: {cell: SheetCell}) =>
         <>{cell.value}</>
     )
 
-/** A row-capped table whose first row is the header; CSV and spreadsheet previews share it. */
 function truncationNote(
     truncated: Truncation,
     shownRows: number,
@@ -288,6 +287,7 @@ function truncationNote(
     return parts.length ? `Showing ${parts.join(" and ")} — download for the full file.` : null
 }
 
+/** A row-capped table whose first row is the header; CSV and spreadsheet previews share it. */
 const PreviewTable = ({rows, truncated}: {rows: SheetCell[][]; truncated: Truncation}) => {
     const [header, ...body] = rows
     const note = truncationNote(truncated, body.length, header.length)
@@ -529,10 +529,11 @@ function useWorkbook(blob: Blob | null): Workbook | null | undefined {
 
 const SpreadsheetView = ({workbook}: {workbook: Workbook}) => {
     const [active, setActive] = useState(0)
-    const sheet = workbook.sheets[Math.min(active, workbook.sheets.length - 1)]
+    const index = Math.min(active, workbook.sheets.length - 1)
+    const sheet = workbook.sheets[index]
     return (
         <Inset flush>
-            <Tabs value={String(active)} onValueChange={(v) => setActive(Number(v))}>
+            <Tabs value={String(index)} onValueChange={(v) => setActive(Number(v))}>
                 <TabsList aria-label="Sheets" className="shrink-0 overflow-x-auto px-2.5">
                     {workbook.sheets.map((s, i) => (
                         <TabsTrigger key={i} value={String(i)} className="text-xs">
@@ -550,25 +551,30 @@ const SpreadsheetView = ({workbook}: {workbook: Workbook}) => {
     )
 }
 
+// The blob's own size: a caller that passed no `size` (an attachment) must not skip the cap.
+const overCap = (kind: DriveFileKind, blob: Blob | null): boolean =>
+    blob !== null && blob.size > (OFFICE_CAPS[kind] ?? Infinity)
+
+const TooLargeCard = ({mount, path, blob}: {mount: Mount | null; path: string; blob: Blob}) => (
+    <DownloadCard
+        mount={mount}
+        path={path}
+        title={`Too large to preview (${humanSize(blob.size)})`}
+    />
+)
+
 const SpreadsheetBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     const version = useDriveFileVersion(mount, path)
     const {blob, isPending, failed} = useDriveFileBlob(mount, path, version)
-    const workbook = useWorkbook(blob)
+    const tooLarge = overCap("spreadsheet", blob)
+    const workbook = useWorkbook(tooLarge ? null : blob)
     if (failed)
         return <DownloadCard mount={mount} path={path} title="Couldn't load this spreadsheet" />
+    if (tooLarge && blob) return <TooLargeCard mount={mount} path={path} blob={blob} />
     if (isPending || workbook === undefined) return <TableSkeleton />
     if (!workbook || workbook.sheets.length === 0)
         return <DownloadCard mount={mount} path={path} title="Couldn't preview this spreadsheet" />
     return <SpreadsheetView workbook={workbook} />
-}
-
-const blobIds = new WeakMap<Blob, number>()
-let lastBlobId = 0
-const blobKey = (blob: Blob): number => {
-    const known = blobIds.get(blob)
-    if (known !== undefined) return known
-    blobIds.set(blob, ++lastBlobId)
-    return lastBlobId
 }
 
 /** A DOCX or PPTX in the sandboxed viewer frame; a new file version mounts a fresh frame. */
@@ -588,12 +594,13 @@ const OfficeFrameBody = ({
     if (isPending) return <MediaLoading />
     if (failed || !blob)
         return <DownloadCard mount={mount} path={path} title={`Couldn't load this ${kind}`} />
+    if (overCap(kind, blob)) return <TooLargeCard mount={mount} path={path} blob={blob} />
     if (failedBlob === blob)
         return <DownloadCard mount={mount} path={path} title={`Couldn't preview this ${kind}`} />
     return (
         <Inset flush>
             <OfficeViewerFrame
-                key={blobKey(blob)}
+                key={version}
                 kind={kind}
                 blob={blob}
                 onFailed={onFailed}

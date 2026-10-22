@@ -90,10 +90,7 @@ export function openViewerLink(url: string): boolean {
     return true
 }
 
-/**
- * Runs in the outer frame: holds the viewer in a nested frame whose navigations the outer
- * `frame-src 'none'` refuses, relays messages both ways, and reports a second load as `failed`.
- */
+/** Outer frame: nests the viewer under `frame-src 'none'` and relays messages both ways. */
 function relay(viewerDoc: string, flags: string): void {
     var loads = 0
     var queue: {data: unknown; transfer: Transferable[]}[] = []

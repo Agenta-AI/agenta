@@ -6,6 +6,11 @@ const style = document.createElement("style")
 // The page keeps its own white paper; the frame around it shows the app's theme.
 style.textContent =
     "body{overflow:auto}.docx-wrapper{background:transparent!important;padding:16px!important}"
+document.head.appendChild(style)
+
+// docx-preview empties its style container, so it gets its own instead of <head>.
+const docxStyles = document.createElement("div")
+document.body.appendChild(docxStyles)
 
 const PAGE_GUTTER = 32
 
@@ -22,13 +27,11 @@ function fitPages(root: HTMLElement): void {
 runViewer({
     kind: "document",
     render: async (bytes, root) => {
-        await renderAsync(bytes, root, document.head, {
+        await renderAsync(bytes, root, docxStyles, {
             renderAltChunks: false,
             useBase64URL: true,
             breakPages: true,
         })
-        // renderAsync empties its style container, so the override goes in after it.
-        document.head.appendChild(style)
         fitPages(root)
         window.addEventListener("resize", () => fitPages(root))
         return {slideCount: 0}

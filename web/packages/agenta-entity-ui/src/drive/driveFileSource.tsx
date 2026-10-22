@@ -187,10 +187,7 @@ const mountFileVersionBlobByKey = atomFamily((key: string) =>
     }),
 )
 
-/**
- * A file's bytes from any source: a local file, a remote attachment, or the mount at `version`.
- * `version` undefined holds the mount fetch until the listing says which version to load.
- */
+/** Bytes from a local file, a remote attachment, or the mount at `version` (undefined waits). */
 export function useDriveFileBlob(
     mount: Mount | null,
     path: string,
