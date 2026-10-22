@@ -72,6 +72,9 @@ class FraudCheckConfig(BaseModel):
 class FraudCheckpoint(str, Enum):
     SIGNUP = "signup"
     API_KEY = "api_key"
+    # Not a Jev verdict: the email deleted an account inside the tombstone window
+    # (`ee.src.core.accounts`). Shares the marker so the daily grant skips it too.
+    RETURNING_ACCOUNT = "returning_account"
 
 
 class FraudVerdict(BaseModel):
@@ -134,10 +137,11 @@ class FraudDAOInterface(ABC):
         *,
         organization_id: UUID,
         checkpoint: FraudCheckpoint,
-        score: float,
+        score: Optional[float],
         now: datetime,
     ) -> None:
-        """Set `NO_GRANTS_FLAG` on the organization, with the verdict that set it."""
+        """Set `NO_GRANTS_FLAG` on the organization, with the verdict that set it.
+        `score` is None when no model scored it (a returning deleted account)."""
         raise NotImplementedError
 
     @abstractmethod

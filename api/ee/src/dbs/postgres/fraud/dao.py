@@ -114,7 +114,7 @@ class FraudDAO(FraudDAOInterface):
         *,
         organization_id: UUID,
         checkpoint: FraudCheckpoint,
-        score: float,
+        score: Optional[float],
         now: datetime,
     ) -> None:
         async with self.engine.session() as session:

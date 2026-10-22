@@ -77,6 +77,10 @@ try:
         get_plans as _ee_get_plans,
     )
 
+    from ee.src.core.accounts.service import (  # type: ignore[import]
+        write_account_tombstone as _ee_write_account_tombstone,
+    )
+
     _ee_subscription_service = _EeSubscriptionsService(
         subscriptions_dao=_EeSubscriptionsDAO(),
     )
@@ -154,6 +158,7 @@ from oss.src.core.accounts.dtos import (
 from oss.src.core.accounts.errors import (
     AccountAuthDeletionError,
     AccountHasMembersError,
+    AccountTombstoneError,
     AdminApiKeyNotFoundError,
     AdminInvalidReferenceError,
     AdminMembershipNotFoundError,
@@ -1485,12 +1490,27 @@ class PlatformAdminAccountsService:
                         exc_info=True,
                     )
 
+        # The tombstone first: without it the same email could sign up again and
+        # collect the free credits once more, so no tombstone means no deletion.
+        organization_ids = [org.id for org in owned_orgs]
+        if is_ee():
+            await self._write_account_tombstone(
+                email=email, organization_ids=organization_ids
+            )
+
         # Remove the auth login first: the signup override is idempotent and
         # would otherwise recreate the account on the next sign-in.
         await self._delete_supertokens_user(uid=user.uid, email=email)
 
         # Reuse the cascade delete (memberships + user + owned orgs).
         result = await self.delete_user(user_id=user_id)
+
+        log.info(
+            "[accounts] self-service account deleted",
+            user_id=user_id,
+            domain=email.strip().lower().rpartition("@")[2],
+            organization_ids=[str(oid) for oid in organization_ids],
+        )
 
         # Drop them from the marketing email list. Best effort.
         if is_ee():
@@ -1503,6 +1523,21 @@ class PlatformAdminAccountsService:
                 )
 
         return result
+
+    async def _write_account_tombstone(
+        self, *, email: str, organization_ids: List[UUID]
+    ) -> None:
+        """Raises AccountTombstoneError on failure so the account is left intact."""
+        try:
+            await _ee_write_account_tombstone(
+                email=email, organization_ids=organization_ids
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.error(
+                "[accounts] tombstone write failed; account deletion aborted",
+                reason=type(exc).__name__,
+            )
+            raise AccountTombstoneError() from exc
 
     async def _delete_supertokens_user(self, *, uid: str | None, email: str) -> None:
         """Delete the SuperTokens login for a user, linked accounts included.
