@@ -35,6 +35,7 @@ from taskiq.receiver import Receiver
 
 from contextlib import suppress
 
+from entrypoints.access import bootstrap_access
 from oss.src.utils import heartbeat
 from taskiq.cli.worker.run import shutdown_broker
 
@@ -616,6 +617,8 @@ async def main_async() -> int:
 
         if is_ee():
             bootstrap_entitlements_services()
+
+        bootstrap_access()
 
         shutdown_event = asyncio.Event()
         loop = asyncio.get_running_loop()

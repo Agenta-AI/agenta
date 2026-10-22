@@ -8,16 +8,10 @@ from oss.src.services import db_manager, organization_service
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.workspace_models import Workspace, UserRole
 
-from oss.src.core.access.permissions.service import (
-    check_action_access,
-    check_rbac_permission,
-)
+from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission, RequiredRole
 from oss.src.core.access.controls import get_role, get_roles
-from oss.src.services.db_manager import (
-    get_user_org_and_workspace_id,
-    get_project_by_workspace,
-)
+from oss.src.services.db_manager import get_project_by_workspace
 
 if is_ee():
     from ee.src.core.access.entitlements.service import (
@@ -232,10 +226,9 @@ async def remove_user_from_workspace(
         workspace_id (str): The ID of the workspace.
     """
 
-    user_org_workspace_data = await get_user_org_and_workspace_id(request.state.user_id)
     project = await get_project_by_workspace(workspace_id)
-    has_permission = await check_rbac_permission(
-        user_org_workspace_data=user_org_workspace_data,
+    has_permission = await check_action_access(
+        user_uid=request.state.user_id,
         project_id=str(project.id),
         role=RequiredRole.ADMIN,
     )
