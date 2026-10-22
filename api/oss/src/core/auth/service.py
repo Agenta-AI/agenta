@@ -493,21 +493,26 @@ class AuthService:
                 is_member = any(org.id == org_id for org in user_orgs)
 
                 # An existing member keeps their role: a login by an admin of an
-                # auto-join organization must not demote them to viewer.
+                # auto-join organization must not demote them to viewer. The check
+                # above skips the write for most logins; `must_be_absent` repeats
+                # it under the organization lock, so an invitation accepted in
+                # between keeps its role.
                 if not is_member:
-                    await get_memberships_service().set_member_role(
+                    joined = await get_memberships_service().set_member_role(
                         organization_id=org_id,
                         user_id=user_id,
                         role="viewer",
                         join_all_projects=True,
+                        must_be_absent=True,
                         actor_user_id=user_id,
                     )
 
-                    log.info(
-                        "[AUTH] [AUTO-JOIN] user auto-joined organization",
-                        organization_id=str(org_id),
-                        user_id=str(user_id),
-                    )
+                    if joined:
+                        log.info(
+                            "[AUTH] [AUTO-JOIN] user auto-joined organization",
+                            organization_id=str(org_id),
+                            user_id=str(user_id),
+                        )
             except Exception:
                 log.error("[AUTH] [AUTO-JOIN]", exc_info=True)
 

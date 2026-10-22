@@ -10,7 +10,7 @@ reference-resolution logic.
 from __future__ import annotations
 
 import uuid as _uuid_mod
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
 from oss.src.utils.common import is_ee
@@ -49,6 +49,7 @@ from oss.src.services.db_manager import (
     admin_swap_org_memberships as _ee_swap_org_memberships,
     admin_swap_workspace_memberships as _ee_swap_workspace_memberships,
     admin_swap_project_memberships as _ee_swap_project_memberships,
+    admin_seed_owner_project_rows as _db_seed_owner_project_rows,
 )
 from oss.src.core.environments.defaults import (
     create_default_environments as _create_default_environments,
@@ -473,8 +474,12 @@ async def _create_org_membership_row(
     user_id: UUID,
     organization_id: UUID,
     role: str,
-) -> UUID:
-    """Create an org membership; role `owner` also flips organizations.owner_id."""
+) -> Tuple[UUID, Optional[UUID]]:
+    """Create an org membership; role `owner` also flips organizations.owner_id.
+
+    Returns the membership id and, for role `owner`, the former owner id: the former
+    owner's cached decisions came from the owner shortcut and must be cleared too.
+    """
     from sqlalchemy.future import select as _select
 
     from oss.src.dbs.postgres.shared.engine import get_transactions_engine
@@ -491,15 +496,17 @@ async def _create_org_membership_row(
         session.add(membership_db)
         await session.commit()
 
+        former_owner_id: Optional[UUID] = None
         if role == "owner":
             result = await session.execute(
                 _select(OrganizationDB).filter_by(id=organization_id)
             )
             organization_db = result.scalars().first()
+            former_owner_id = organization_db.owner_id
             organization_db.owner_id = user_id
             await session.commit()
 
-        return membership_db.id
+        return membership_db.id, former_owner_id
 
 
 async def _create_ws_membership_row(
@@ -919,12 +926,14 @@ class PlatformAdminAccountsService:
                 f"organization_memberships.{mem_ref}.user_ref",
                 tracker,
             )
-            membership_id = await _create_org_membership_row(
+            membership_id, former_owner_id = await _create_org_membership_row(
                 user_id=user_id,
                 organization_id=org_id,
                 role=mem_create.role,
             )
-            await _invalidate_memberships(user_ids=[user_id], organization_ids=[org_id])
+            await _invalidate_memberships(
+                user_ids=[user_id, former_owner_id], organization_ids=[org_id]
+            )
             tracker.organization_memberships[mem_ref] = membership_id
             account.organization_memberships[mem_ref] = AdminOrganizationMembershipRead(
                 id=str(membership_id),
@@ -2045,29 +2054,29 @@ class PlatformAdminAccountsService:
                     org_ids.append(oid)
 
         if org_ids:
-            # Pre-condition (EE): both source and target must be members.
-            # Drop orgs where target has no membership and emit a structured
-            # error so the caller knows those orgs were not transferred and
-            # would be lost if the source user is later deleted.
-            if is_ee():
-                target_member_org_ids = await _ee_get_member_org_ids(target_id, org_ids)
-                skipped = [oid for oid in org_ids if oid not in target_member_org_ids]
-                for oid in skipped:
-                    errors.append(
-                        AdminStructuredError(
-                            code="target_not_member",
-                            message=(
-                                f"Organization '{oid}' was not transferred: target "
-                                "user has no membership in this organization. "
-                                "Deleting the source user will cascade-delete it."
-                            ),
-                            details={
-                                "organization_id": str(oid),
-                                "target_user_id": str(target_id),
-                            },
-                        )
+            # Pre-condition: the target must be a member. Drop orgs where the
+            # target has no membership and emit a structured error so the caller
+            # knows those orgs were not transferred and would be lost if the
+            # source user is later deleted. Both editions: the membership
+            # resolver denies an owner without an organization row.
+            target_member_org_ids = await _ee_get_member_org_ids(target_id, org_ids)
+            skipped = [oid for oid in org_ids if oid not in target_member_org_ids]
+            for oid in skipped:
+                errors.append(
+                    AdminStructuredError(
+                        code="target_not_member",
+                        message=(
+                            f"Organization '{oid}' was not transferred: target "
+                            "user has no membership in this organization. "
+                            "Deleting the source user will cascade-delete it."
+                        ),
+                        details={
+                            "organization_id": str(oid),
+                            "target_user_id": str(target_id),
+                        },
                     )
-                org_ids = [oid for oid in org_ids if oid in target_member_org_ids]
+                )
+            org_ids = [oid for oid in org_ids if oid in target_member_org_ids]
 
         if org_ids:
             # 1. Transfer org ownership
@@ -2096,13 +2105,17 @@ class PlatformAdminAccountsService:
                 }
                 proj_scope = [pid for pid in all_proj_ids if pid in proj_filter]
 
-            # 3. Swap EE org/workspace/project membership roles
-            if is_ee():
-                await _ee_swap_org_memberships(org_ids, source_id, target_id)
-                if ws_scope:
-                    await _ee_swap_workspace_memberships(ws_scope, source_id, target_id)
-                if proj_scope:
-                    await _ee_swap_project_memberships(proj_scope, source_id, target_id)
+            # 3. Swap org/workspace/project membership roles. Both editions: OSS
+            # reads the organization role, so the source must not keep `owner`.
+            await _ee_swap_org_memberships(org_ids, source_id, target_id)
+            if ws_scope:
+                await _ee_swap_workspace_memberships(ws_scope, source_id, target_id)
+            if proj_scope:
+                await _ee_swap_project_memberships(proj_scope, source_id, target_id)
+
+            # 4. The new owner needs a row in every project (the resolver checks
+            # membership before the owner shortcut), as transfer_ownership does.
+            await _db_seed_owner_project_rows(org_ids, target_id)
 
             await invalidate_access_caches(
                 user_ids=[source_id, target_id],

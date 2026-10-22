@@ -163,3 +163,26 @@ async def test_a_failed_project_lookup_after_the_commit_does_not_fail_the_writer
 
     assert warnings == ["[memberships] cache invalidation failed"]
     assert dao.writes[0][0] == "set_member_role"
+
+
+async def test_set_member_role_skipped_by_must_be_absent_invalidates_nothing(recorded):
+    dao = InMemoryMembershipsDAO()
+    organization, _ = _organization(dao)
+    service = MembershipsService(
+        memberships_dao=dao, policy=MembershipPolicy.ORGANIZATION_WIDE
+    )
+    # The DAO found an existing member under the lock and wrote nothing.
+    dao.write_results["set_member_role"] = MembershipWriteResult(
+        user_id=None, previous_role="editor"
+    )
+
+    joined = await service.set_member_role(
+        organization_id=organization,
+        user_id=uuid4(),
+        role="viewer",
+        join_all_projects=True,
+        must_be_absent=True,
+    )
+
+    assert joined is False
+    assert recorded == []

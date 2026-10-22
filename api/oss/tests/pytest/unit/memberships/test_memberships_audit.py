@@ -71,3 +71,55 @@ async def test_remove_member_log_has_no_email(events):
     assert len(removed) == 1
     assert removed[0]["invitation_count"] == 1
     assert _no_email(removed[0])
+
+
+async def test_project_create_is_logged_with_ids_and_no_email(events):
+    dao = InMemoryMembershipsDAO()
+    organization, workspace, actor = uuid4(), uuid4(), uuid4()
+
+    scope = await MembershipsService(
+        memberships_dao=dao, policy=MembershipPolicy.PROJECT_ROWS
+    ).create_project(
+        organization_id=organization,
+        workspace_id=workspace,
+        name="New",
+        is_default=False,
+        actor_user_id=actor,
+    )
+
+    created = [f for e, f in events if e == "[memberships] project created"]
+    assert created == [
+        {
+            "organization_id": str(organization),
+            "workspace_id": str(workspace),
+            "project_id": str(scope.project_id),
+            "actor_user_id": str(actor),
+            "seeded_count": 0,
+        }
+    ]
+    assert _no_email(created[0])
+
+
+async def test_ownership_transfer_is_logged_with_ids_and_no_email(events):
+    dao = InMemoryMembershipsDAO()
+    organization = uuid4()
+    dao.add_project(make_summary(organization_id=organization))
+    dao.write_results["transfer_ownership"] = MembershipWriteResult(inserted_count=1)
+    current, new = uuid4(), uuid4()
+
+    await MembershipsService(
+        memberships_dao=dao, policy=MembershipPolicy.PROJECT_ROWS
+    ).transfer_ownership(
+        organization_id=organization, new_owner_id=new, current_owner_id=current
+    )
+
+    transferred = [f for e, f in events if e == "[memberships] ownership transferred"]
+    assert transferred == [
+        {
+            "organization_id": str(organization),
+            "previous_owner_id": str(current),
+            "new_owner_id": str(new),
+            "seeded_count": 1,
+        }
+    ]
+    assert _no_email(transferred[0])

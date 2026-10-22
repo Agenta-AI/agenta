@@ -62,8 +62,13 @@ class MembershipsDAOInterface(ABC):
         join_project_ids: Sequence[UUID] = (),
         join_all_projects: bool = False,
         must_exist: bool = False,
+        must_be_absent: bool = False,
     ) -> MembershipWriteResult:
-        """Raises OrganizationOwnerProtected, MemberNotFound."""
+        """Raises OrganizationOwnerProtected, MemberNotFound.
+
+        With `must_be_absent`, an existing organization row (checked under the
+        organization lock) leaves every row unchanged, and the result has
+        `user_id=None` (nothing was written)."""
 
     @abstractmethod
     async def remove_member(
