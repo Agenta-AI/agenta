@@ -66,17 +66,30 @@ async def test_remove_user_by_a_non_admin_answers_403(monkeypatch, project):
     assert removed == []
 
 
-async def test_update_workspace_checks_edit_workspace(monkeypatch, project):
+def _wire_update_workspace(monkeypatch, *, project, workspace_organization_id):
     access = _Recorder(result=False)
 
     async def _get_project_by_workspace(workspace_id):
         return project
+
+    async def _get_workspace(workspace_id):
+        return SimpleNamespace(
+            id=project.workspace_id, organization_id=workspace_organization_id
+        )
 
     monkeypatch.setattr(organization_router, "check_action_access", access)
     monkeypatch.setattr(
         organization_router.db_manager,
         "get_project_by_workspace",
         _get_project_by_workspace,
+    )
+    monkeypatch.setattr(organization_router.db_manager, "get_workspace", _get_workspace)
+    return access
+
+
+async def test_update_workspace_checks_edit_workspace(monkeypatch, project):
+    access = _wire_update_workspace(
+        monkeypatch, project=project, workspace_organization_id=project.organization_id
     )
 
     response = await organization_router.update_workspace(
@@ -89,6 +102,25 @@ async def test_update_workspace_checks_edit_workspace(monkeypatch, project):
     assert response.status_code == 403
     assert access.calls[0]["permission"] == Permission.EDIT_WORKSPACE
     assert access.calls[0]["project_id"] == str(project.id)
+
+
+async def test_update_workspace_of_another_organization_is_404(monkeypatch, project):
+    # A legacy project of organization A that points at a workspace of organization
+    # B: an admin of A must not reach B's workspace through it.
+    access = _wire_update_workspace(
+        monkeypatch, project=project, workspace_organization_id=uuid4()
+    )
+
+    for organization_id in (project.organization_id, uuid4()):
+        response = await organization_router.update_workspace(
+            request=_request(),
+            organization_id=str(organization_id),
+            workspace_id=str(project.workspace_id),
+            payload=SimpleNamespace(name="x", description=None),
+        )
+        assert response.status_code == 404
+
+    assert access.calls == []
 
 
 # -- writers through MembershipsService -----------------------------------------------
@@ -354,6 +386,7 @@ async def test_auto_join_adds_a_new_user_as_viewer_in_every_project(auto_join):
                 "user_id": user,
                 "role": "viewer",
                 "join_all_projects": True,
+                "must_be_absent": True,
                 "actor_user_id": user,
             },
         )

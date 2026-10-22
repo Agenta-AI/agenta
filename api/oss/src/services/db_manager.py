@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 from fastapi import HTTPException
 from sqlalchemy.future import select
-from sqlalchemy import delete, func, or_, update
+from sqlalchemy import delete, func, or_, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, load_only
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
@@ -2387,6 +2387,38 @@ async def admin_swap_project_memberships(
             )
 
         await session.commit()
+
+
+async def admin_seed_owner_project_rows(
+    org_ids: List[uuid.UUID],
+    owner_id: uuid.UUID,
+) -> int:
+    """Add an `owner` project row for `owner_id` in every project of `org_ids` where
+    the user has none; existing rows keep their roles.
+
+    The membership resolver checks membership before the organization owner
+    shortcut, so an EE owner without a project row would be denied in that project.
+    `MembershipsService.transfer_ownership` seeds the same rows.
+    """
+    if not org_ids:
+        return 0
+
+    engine = get_transactions_engine()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            text(
+                "INSERT INTO project_members "
+                "(id, user_id, project_id, role, created_at, updated_at) "
+                "SELECT gen_random_uuid(), :owner_id, p.id, 'owner', now(), now() "
+                "FROM projects p "
+                "WHERE p.organization_id = ANY(CAST(:org_ids AS uuid[])) "
+                "ON CONFLICT (project_id, user_id) DO NOTHING"
+            ),
+            {"owner_id": owner_id, "org_ids": list(org_ids)},
+        )
+        await session.commit()
+        return result.rowcount or 0
 
 
 async def admin_delete_user_memberships(user_id: uuid.UUID) -> None:

@@ -220,6 +220,7 @@ class MembershipsDAOInterface(ABC):
         join_project_ids: Sequence[UUID] = (),  # projects of organization_id only; other ids are ignored
         join_all_projects: bool = False,  # targets read inside the lock
         must_exist: bool = False,  # the role endpoint must not add a person
+        must_be_absent: bool = False,  # auto-join: an existing row (read under the lock) changes nothing; result user_id None
     ) -> MembershipWriteResult: ...  # raises OrganizationOwnerProtected, MemberNotFound
 
     @abstractmethod
@@ -257,7 +258,7 @@ Write semantics. Every writer runs in `get_transactions_engine().transaction()` 
 
 | Method | Steps inside the transaction |
 | --- | --- |
-| `set_member_role` | 1. `organizations.owner_id = user_id` → `OrganizationOwnerProtected`. 2. Read the oldest organization row; none and `must_exist` → `MemberNotFound`. 3. Update that row's role, or insert it. 4. Set `role` on the user's existing project rows in the organization's projects. 5. Targets = `join_project_ids`, or every project of the organization when `join_all_projects`; insert missing rows `ON CONFLICT (project_id, user_id) DO NOTHING`. A removed row comes back only when its project is a target. 6. Workspace mirror (until M4): update the role on the user's workspace rows in the organization; insert a row for each workspace of a target project when missing. |
+| `set_member_role` | 1. `organizations.owner_id = user_id` → `OrganizationOwnerProtected`. 2. Read the oldest organization row; none and `must_exist` → `MemberNotFound`; a row and `must_be_absent` → return with no write (`user_id` None). 3. Update that row's role, or insert it. 4. Set `role` on the user's existing project rows in the organization's projects. 5. Targets = `join_project_ids`, or every project of the organization when `join_all_projects`; insert missing rows `ON CONFLICT (project_id, user_id) DO NOTHING`. A removed row comes back only when its project is a target. 6. Workspace mirror (until M4): update the role on the user's workspace rows in the organization; insert a row for each workspace of a target project when missing. |
 | `remove_member` | 1. Find the user by `users.email`. 2. User is `organizations.owner_id` → `OrganizationOwnerProtected`, nothing written. 3. User exists: delete their project rows in the organization's projects, workspace rows in its workspaces, organization rows. 4. Delete `project_invitations` for that email in the organization's projects. |
 | `create_project` | 1. Workspace not in the organization → `WorkspaceNotFound`. 2. Default handling as today's `create_workspace_project`: `is_default`, or no default in the workspace, unsets other defaults in the workspace and sets this one. 3. Insert the project. 4. `INSERT INTO project_members (id, user_id, project_id, role, created_at, updated_at) SELECT gen_random_uuid(), user_id, :project_id, role, now(), now() FROM (SELECT DISTINCT ON (user_id) user_id, role FROM organization_members WHERE organization_id = :org ORDER BY user_id, created_at ASC NULLS LAST, id ASC) m`. One statement, whatever the member count (an organization can have tens of thousands of members). `project_members.id` has no database default, so every literal insert selects `gen_random_uuid()` per row; ORM inserts pass an explicit `uuid7()` per row. A failure in step 4 rolls back step 3. |
 | `transfer_ownership` | 1. Organization missing → `OrganizationNotFound`. 2. New owner has no organization row → `MemberNotFound`. 3. Swap the two users' organization roles, and their workspace roles in every workspace where both have a row (today's `db_manager.transfer_organization_ownership`). 4. Insert an `owner` project row for the new owner in every project of the organization `ON CONFLICT DO NOTHING`. The new owner's existing rows and the former owner's rows keep their roles, as today. 5. Set `owner_id`, `updated_at`, `updated_by_id`. |
@@ -292,8 +293,9 @@ class MembershipsService:
         join_project_ids: Sequence[UUID] = (),
         join_all_projects: bool = False,
         must_exist: bool = False,
+        must_be_absent: bool = False,
         actor_user_id: Optional[UUID] = None,
-    ) -> None: ...
+    ) -> bool: ...  # False: must_be_absent found a member; no write, no invalidation, no audit event
     async def remove_member(
         self,
         *,

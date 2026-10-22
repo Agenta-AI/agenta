@@ -331,6 +331,52 @@ async def test_role_change_refuses_the_owner_and_must_exist():
         await delete_seeded_organization(seeded)
 
 
+async def test_must_be_absent_keeps_a_member_written_in_between():
+    # Auto-join reads "not a member", then an invitation is accepted, then the
+    # auto-join write runs: the invitation's role and rows stay.
+    seeded = await seed_organization(
+        members={"owner": "owner"}, projects_per_workspace=2
+    )
+    user = await create_user(label="invited")
+    seeded.extra_user_ids.append(user)
+    try:
+        await _dao().set_member_role(
+            organization_id=seeded.organization_id,
+            user_id=user,
+            role="editor",
+            join_project_ids=[seeded.project_ids[0]],
+        )
+
+        result = await _dao().set_member_role(
+            organization_id=seeded.organization_id,
+            user_id=user,
+            role="viewer",
+            join_all_projects=True,
+            must_be_absent=True,
+        )
+
+        assert result.user_id is None and result.inserted_count == 0
+        assert await _organization_roles(seeded.organization_id, user) == ["editor"]
+        assert await _project_roles(seeded.project_ids, user) == {
+            seeded.project_ids[0]: ["editor"]
+        }
+
+        # A user who is still absent joins.
+        newcomer = await create_user(label="newcomer")
+        seeded.extra_user_ids.append(newcomer)
+        joined = await _dao().set_member_role(
+            organization_id=seeded.organization_id,
+            user_id=newcomer,
+            role="viewer",
+            join_all_projects=True,
+            must_be_absent=True,
+        )
+        assert joined.user_id == newcomer and joined.inserted_count == 2
+        assert await _organization_roles(seeded.organization_id, newcomer) == ["viewer"]
+    finally:
+        await delete_seeded_organization(seeded)
+
+
 async def test_concurrent_role_writes_leave_one_row_per_project():
     seeded = await seed_organization(
         members={"owner": "owner"}, projects_per_workspace=3

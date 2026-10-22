@@ -275,8 +275,11 @@ class MembershipsService:
         join_project_ids: Sequence[UUID] = (),
         join_all_projects: bool = False,
         must_exist: bool = False,
+        must_be_absent: bool = False,
         actor_user_id: Optional[UUID] = None,
-    ) -> None:
+    ) -> bool:
+        """Returns False when `must_be_absent` found a member and nothing changed."""
+
         result = await self._dao.set_member_role(
             organization_id=organization_id,
             user_id=user_id,
@@ -284,7 +287,10 @@ class MembershipsService:
             join_project_ids=join_project_ids,
             join_all_projects=join_all_projects,
             must_exist=must_exist,
+            must_be_absent=must_be_absent,
         )
+        if must_be_absent and result.user_id is None:
+            return False
 
         await self._invalidate_organization(
             organization_id=organization_id, user_ids=[user_id]
@@ -299,6 +305,7 @@ class MembershipsService:
             previous_role=result.previous_role,
             joined_project_count=result.inserted_count,
         )
+        return True
 
     async def remove_member(
         self,

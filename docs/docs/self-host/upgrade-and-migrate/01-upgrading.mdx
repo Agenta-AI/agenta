@@ -26,11 +26,11 @@ Every organization member is now a member of every project in the organization, 
 
 ### Project create, rename and delete need a permission
 
-Creating and renaming a project needs the owner or admin role. Deleting a project needs the owner role. A user without the permission gets `403` with `You do not have permission to perform this action. Please contact your Organization Owner`.
+Creating and renaming a project needs the owner or admin role. Deleting a project needs the owner role. A user without the permission gets `403` with `You do not have permission to perform this action. Please contact your Organization Owner`. In an Enterprise organization whose plan has no role-based access control, every member can still create, rename and delete projects, as before.
 
 ### `AGENTA_DEMOS` is removed
 
-`AGENTA_DEMOS` and `AGENTA_EXTRAS_DEMOS` no longer exist, and new signups are not added to demo projects. Delete them from your env file. In Helm values, delete `agenta.extras` (the chart schema no longer accepts it).
+`AGENTA_DEMOS` and `AGENTA_EXTRAS_DEMOS` no longer exist, and new signups are not added to demo projects. The upgrade deletes the existing demo project memberships. A user who joined an organization only through its demo projects also loses that organization and workspace membership. A user with any other project membership in the organization keeps it. Delete them from your env file. In Helm values, delete `agenta.extras` (the chart schema no longer accepts it).
 
 ### Enterprise: run the preflight before the upgrade
 

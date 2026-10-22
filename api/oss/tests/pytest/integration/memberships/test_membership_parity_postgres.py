@@ -130,7 +130,9 @@ async def test_legacy_shapes_decide_as_expected(edition, monkeypatch):
         else MembershipPolicy.ORGANIZATION_WIDE
     )
     try:
-        async with rolled_back_connection() as connection:
+        async with rolled_back_connection(
+            organizations=list(shapes.values())
+        ) as connection:
             # The release procedure: --apply before the upgrade, then the revision.
             await connection.execute(
                 text(
@@ -146,6 +148,7 @@ async def test_legacy_shapes_decide_as_expected(edition, monkeypatch):
                 connection=connection,
             )
             for name in (
+                "_DELETE_DEMO_ONLY_MEMBERSHIPS_SQL",
                 "_DELETE_DEMO_ROWS_SQL",
                 "_ADD_OWNER_ORGANIZATION_ROWS_SQL",
                 "_ADD_OWNER_PROJECT_ROWS_SQL",
@@ -183,7 +186,8 @@ async def test_legacy_shapes_decide_as_expected(edition, monkeypatch):
                 ("P2b", "m", 0): (True, True),
                 ("P3", "m", 0): (True, True),
                 ("P9", "m", 0): (False, False),
-                ("P11", "m", 0): (True, False),
+                # The demo-only user lost the organization row too.
+                ("P11", "m", 0): (False, False),
                 ("owner_without_rows", "owner", 1): (True, True),
             }
             for (shape, label, index), (oss, ee) in expected.items():

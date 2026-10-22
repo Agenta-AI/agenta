@@ -18,6 +18,8 @@ environment (`POSTGRES_URI_CORE`) and `AGENTA_LICENSE` set to the edition:
             members of an organization without the RBAC entitlement need (P2b),
             except for users with a demo row in that organization, and only while
             `oss000000044` has not run. Prints every deleted row with its role.
+            Works per batch of 500 organizations (duplicates) and per page of
+            1,000 members of an organization (P2b), one transaction each.
 --materialize
             EE only, after `ee0000000002` on an OSS to EE switch. Writes the
             effective OSS membership as project rows: a row for every (member,
@@ -30,6 +32,7 @@ Every step is idempotent: a second run changes nothing.
 
 import argparse
 import asyncio
+from contextlib import asynccontextmanager
 import json
 import sys
 from datetime import datetime, timezone
@@ -75,7 +78,8 @@ WHERE o.id = ANY(CAST(:orgs AS uuid[]))
 
 # The P2b candidates: workspace members with an organization row and no row in a
 # project of that workspace, without a demo row in the organization. The RBAC
-# entitlement filter runs in Python (a migration cannot read it).
+# entitlement filter runs in Python (a migration cannot read it). `:users` limits the
+# candidates to one page of organization members (NULL: every member, for --report).
 _P2B_CANDIDATES = """
 SELECT DISTINCT ON (wm.user_id, p.id)
        p.organization_id, wm.user_id, p.id AS project_id, wm.role
@@ -83,6 +87,7 @@ FROM projects p
 JOIN workspace_members wm ON wm.workspace_id = p.workspace_id
 WHERE p.organization_id = ANY(CAST(:orgs AS uuid[]))
   AND wm.user_id IS NOT NULL
+  AND (CAST(:users AS uuid[]) IS NULL OR wm.user_id = ANY(CAST(:users AS uuid[])))
   AND EXISTS (SELECT 1 FROM organization_members om
               WHERE om.organization_id = p.organization_id AND om.user_id = wm.user_id)
   AND NOT EXISTS (SELECT 1 FROM project_members pm
@@ -253,7 +258,7 @@ WHERE id IN (
         FROM project_members pm
         JOIN projects p ON p.id = pm.project_id
         WHERE pm.is_demo IS NOT TRUE
-          AND (CAST(:orgs AS uuid[]) IS NULL OR p.organization_id = ANY(CAST(:orgs AS uuid[])))
+          AND p.organization_id = ANY(CAST(:orgs AS uuid[]))
     ) ranked
     WHERE ranked.position > 1
 )
@@ -371,18 +376,31 @@ async def run_report(
             for check, sql, edition in CHECKS:
                 if not _applies(edition):
                     continue
-                orgs = batch
+                params: Dict[str, Any] = {"orgs": batch}
                 if check == "P2b":
-                    orgs = await _no_rbac_organizations(batch)
-                    if not orgs:
+                    params = {
+                        "orgs": await _no_rbac_organizations(batch),
+                        "users": None,
+                    }
+                    if not params["orgs"]:
                         continue
-                rows = await connection.execute(text(sql), {"orgs": orgs})
+                rows = await connection.execute(text(sql), params)
                 for organization_id, item in rows:
                     entry = report[check]
                     entry["count"] += 1
                     entry["organizations"].setdefault(str(organization_id), []).append(
                         _item(item)
                     )
+
+    # P5 lists every row of each duplicate group; its count is the number of groups.
+    if "P5" in report:
+        report["P5"]["count"] = len(
+            {
+                (row["project_id"], row["user_id"])
+                for rows in report["P5"]["organizations"].values()
+                for row in rows
+            }
+        )
 
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True))
@@ -409,11 +427,11 @@ async def _repair_revision_applied(connection: AsyncConnection) -> bool:
 
 async def _deduplicate(
     connection: AsyncConnection,
-    organization_ids: Optional[Sequence[UUID]],
+    organization_ids: Sequence[UUID],
 ) -> List[dict]:
     rows = await connection.execute(
         text(_DEDUPLICATE_SQL),
-        {"orgs": list(organization_ids) if organization_ids is not None else None},
+        {"orgs": list(organization_ids)},
     )
     return [
         {
@@ -426,14 +444,29 @@ async def _deduplicate(
     ]
 
 
-async def _add_p2b_rows(
-    connection: AsyncConnection, organization_ids: List[UUID]
-) -> int:
-    orgs = await _no_rbac_organizations(organization_ids)
-    if not orgs:
-        return 0
-    result = await connection.execute(text(_P2B_INSERT_SQL), {"orgs": orgs})
-    return result.rowcount or 0
+async def _add_p2b_page(
+    connection: AsyncConnection,
+    organization_id: UUID,
+    cursor: UUID,
+) -> tuple:
+    """Add the P2b rows of one page of organization members.
+
+    Returns (rows added, next cursor); the cursor is None after the last page.
+    """
+
+    users = [
+        row.user_id
+        for row in await connection.execute(
+            text(_MEMBER_PAGE_SQL),
+            {"org": organization_id, "cursor": cursor, "page": MEMBER_PAGE_SIZE},
+        )
+    ]
+    if not users:
+        return 0, None
+    result = await connection.execute(
+        text(_P2B_INSERT_SQL), {"orgs": [organization_id], "users": users}
+    )
+    return result.rowcount or 0, users[-1]
 
 
 async def run_apply(
@@ -443,40 +476,55 @@ async def run_apply(
 ) -> dict:
     """Deduplicate project rows (P5), then add the P2b rows (EE).
 
-    Without `connection`, the deduplication commits first, then each batch of 500
-    organizations adds its P2b rows in its own transaction, so no run holds row locks
-    across the whole database. `connection` is for tests only: every step then runs on
-    it, and the caller owns its transaction.
+    The deduplication runs per batch of 500 organizations, and P2b per page of 1,000
+    members of each organization without the RBAC entitlement. Without `connection`,
+    each batch and each page is its own transaction, so no run holds row locks across
+    the whole database and a large organization never holds one long transaction.
+    `connection` is for tests only: every step then runs on it, and the caller owns
+    its transaction.
     """
 
     engine = get_transactions_engine()
 
-    if connection is not None:
-        deleted = await _deduplicate(connection, organization_ids)
-    else:
-        async with engine.transaction() as own:
-            deleted = await _deduplicate(own, organization_ids)
-
-    added_p2b = 0
-    p2b_skipped = False
-
-    if is_ee():
+    @asynccontextmanager
+    async def _transaction():
         if connection is not None:
-            p2b_skipped = await _repair_revision_applied(connection)
-            if not p2b_skipped:
-                async for batch in _organization_batches(connection, organization_ids):
-                    added_p2b += await _add_p2b_rows(connection, batch)
+            yield connection
         else:
             async with engine.transaction() as own:
-                p2b_skipped = await _repair_revision_applied(own)
-                batches = (
-                    []
-                    if p2b_skipped
-                    else [b async for b in _organization_batches(own, organization_ids)]
-                )
-            for batch in batches:
-                async with engine.transaction() as own:
-                    added_p2b += await _add_p2b_rows(own, batch)
+                yield own
+
+    async with _transaction() as reader:
+        batches = [
+            batch async for batch in _organization_batches(reader, organization_ids)
+        ]
+        p2b_skipped = await _repair_revision_applied(reader) if is_ee() else False
+
+    deleted: List[dict] = []
+    for batch in batches:
+        async with _transaction() as writer:
+            batch_deleted = await _deduplicate(writer, batch)
+        for row in batch_deleted:
+            # Printed per batch, as soon as the batch commits.
+            print(
+                "deleted duplicate project row "
+                f"id={row['id']} project_id={row['project_id']} "
+                f"user_id={row['user_id']} role={row['role']}"
+            )
+        deleted.extend(batch_deleted)
+
+    added_p2b = 0
+
+    if is_ee() and not p2b_skipped:
+        for batch in batches:
+            for organization_id in await _no_rbac_organizations(batch):
+                cursor: Optional[UUID] = _ZERO_UUID
+                while cursor is not None:
+                    async with _transaction() as writer:
+                        added, cursor = await _add_p2b_page(
+                            writer, organization_id, cursor
+                        )
+                    added_p2b += added
 
     return {
         "deleted_duplicates": deleted,
@@ -594,12 +642,6 @@ async def _main(args) -> int:
 
         if args.apply:
             result = await run_apply()
-            for row in result["deleted_duplicates"]:
-                print(
-                    "deleted duplicate project row "
-                    f"id={row['id']} project_id={row['project_id']} "
-                    f"user_id={row['user_id']} role={row['role']}"
-                )
             print(f"deleted duplicates: {len(result['deleted_duplicates'])}")
             if result["p2b_skipped"]:
                 print(

@@ -14,7 +14,7 @@ P5 shape is seeded only on the index-free shadow table of the migration tests.
 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 from uuid import UUID, uuid4
 
 from sqlalchemy import text
@@ -61,12 +61,56 @@ async def create_user(*, label: str = "user") -> UUID:
     return user_id
 
 
+# Temp copies of the membership tables, restricted to the given organizations. `pg_temp`
+# comes first in the search path, so unqualified table names in the statements under
+# test read and write the copies. `LIKE ... INCLUDING DEFAULTS` copies no index.
+_SHADOW_TABLES_SQL = (
+    """CREATE TEMP TABLE organizations
+       (LIKE public.organizations INCLUDING DEFAULTS) ON COMMIT DROP""",
+    """INSERT INTO pg_temp.organizations
+       SELECT * FROM public.organizations WHERE id = ANY(CAST(:orgs AS uuid[]))""",
+    """CREATE TEMP TABLE projects
+       (LIKE public.projects INCLUDING DEFAULTS) ON COMMIT DROP""",
+    """INSERT INTO pg_temp.projects
+       SELECT * FROM public.projects WHERE organization_id = ANY(CAST(:orgs AS uuid[]))""",
+    """CREATE TEMP TABLE workspaces
+       (LIKE public.workspaces INCLUDING DEFAULTS) ON COMMIT DROP""",
+    """INSERT INTO pg_temp.workspaces
+       SELECT * FROM public.workspaces
+       WHERE organization_id = ANY(CAST(:orgs AS uuid[]))
+          OR id IN (SELECT workspace_id FROM pg_temp.projects)""",
+    """CREATE TEMP TABLE organization_members
+       (LIKE public.organization_members INCLUDING DEFAULTS) ON COMMIT DROP""",
+    """INSERT INTO pg_temp.organization_members
+       SELECT * FROM public.organization_members
+       WHERE organization_id = ANY(CAST(:orgs AS uuid[]))""",
+    """CREATE TEMP TABLE workspace_members
+       (LIKE public.workspace_members INCLUDING DEFAULTS) ON COMMIT DROP""",
+    """INSERT INTO pg_temp.workspace_members
+       SELECT * FROM public.workspace_members
+       WHERE workspace_id IN (SELECT id FROM pg_temp.workspaces)""",
+    """CREATE TEMP TABLE project_members
+       (LIKE public.project_members INCLUDING DEFAULTS) ON COMMIT DROP""",
+    """INSERT INTO pg_temp.project_members
+       SELECT * FROM public.project_members
+       WHERE project_id IN (SELECT id FROM pg_temp.projects)""",
+)
+
+
 @asynccontextmanager
-async def rolled_back_connection(*, isolation_level: Optional[str] = None):
+async def rolled_back_connection(
+    *,
+    isolation_level: Optional[str] = None,
+    organizations: Optional[Sequence["SeededOrganization"]] = None,
+):
     """A connection whose transaction is always rolled back.
 
     For the global repair statements: the test sees their effect on its own rows, and
-    the shared database never keeps it.
+    the shared database never keeps it. With `organizations`, the six membership tables
+    are first copied into temp tables that hold only those organizations (and their
+    extra organizations). The global statements then lock no row of the shared
+    database, so they cannot deadlock with tests that run in parallel, and they never
+    see an organization that another test deletes in the meantime.
     """
 
     engine = get_transactions_engine()._engine  # the SQLAlchemy AsyncEngine
@@ -77,6 +121,21 @@ async def rolled_back_connection(*, isolation_level: Optional[str] = None):
             )
         transaction = await connection.begin()
         try:
+            if organizations is not None:
+                organization_ids = sorted(
+                    {
+                        organization_id
+                        for seeded in organizations
+                        for organization_id in (
+                            seeded.organization_id,
+                            *seeded.extra_organization_ids,
+                        )
+                    }
+                )
+                for statement in _SHADOW_TABLES_SQL:
+                    await connection.execute(
+                        text(statement), {"orgs": organization_ids}
+                    )
             yield connection
         finally:
             await transaction.rollback()

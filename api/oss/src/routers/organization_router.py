@@ -633,7 +633,19 @@ async def update_workspace(
 ) -> WorkspaceResponse:
     """Update a workspace's details (requires EDIT_WORKSPACE permission)."""
     try:
+        workspace = await db_manager.get_workspace(workspace_id)
         project = await db_manager.get_project_by_workspace(workspace_id)
+        # The permission is checked on a project, and membership follows the
+        # project's organization. A legacy project can point at a workspace of
+        # another organization, so the workspace, the project and the URL must
+        # name one organization before that check means anything.
+        if (
+            workspace is None
+            or str(workspace.organization_id) != organization_id
+            or str(project.organization_id) != organization_id
+        ):
+            return JSONResponse({"detail": "Workspace not found"}, status_code=404)
+
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=str(project.id),

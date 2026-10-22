@@ -361,6 +361,7 @@ class MembershipsDAO(MembershipsDAOInterface):
         join_project_ids: Sequence[UUID] = (),
         join_all_projects: bool = False,
         must_exist: bool = False,
+        must_be_absent: bool = False,
     ) -> MembershipWriteResult:
         async with self.engine.transaction() as connection:
             await self._lock(connection, organization_id)
@@ -382,6 +383,12 @@ class MembershipsDAO(MembershipsDAOInterface):
             ).first()
             if existing is None and must_exist:
                 raise MemberNotFound(organization_id=organization_id, user_id=user_id)
+            if existing is not None and must_be_absent:
+                # Auto-join: a membership written since the caller's check (an
+                # accepted invitation, an admin write) keeps its role.
+                return MembershipWriteResult(
+                    user_id=None, previous_role=existing.role, inserted_count=0
+                )
 
             if existing is not None:
                 await connection.execute(

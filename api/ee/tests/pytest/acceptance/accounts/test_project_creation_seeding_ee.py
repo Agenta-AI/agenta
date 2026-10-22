@@ -78,3 +78,46 @@ def test_new_owner_can_edit_after_transfer(admin_api):
         assert resp.status_code == 200, resp.text
     finally:
         team.delete()
+
+
+def test_new_owner_can_edit_after_admin_transfer(admin_api):
+    team = Team(admin_api, members={})
+    try:
+        resp = admin_api(
+            "POST", "/projects/", headers=team.headers("owner"), json={"name": "P2"}
+        )
+        assert resp.status_code == 201, resp.text
+        p2 = resp.json()["project_id"]
+
+        # Added after P2 exists, through the admin API (no seeding): no row in P2.
+        team.add("successor", "admin")
+        resp = admin_api(
+            "PATCH",
+            f"/projects/{p2}",
+            headers=team.headers("successor"),
+            json={"name": "P2-before"},
+        )
+        assert resp.status_code == 404, resp.text
+
+        resp = admin_api(
+            "POST",
+            "/admin/simple/accounts/transfer-ownership",
+            json={
+                "organizations": {"org": {"id": team.organization_id}},
+                "users": {
+                    "source": {"email": team.emails["owner"]},
+                    "target": {"email": team.emails["successor"]},
+                },
+            },
+        )
+        assert resp.status_code in (200, 204), resp.text
+
+        resp = admin_api(
+            "PATCH",
+            f"/projects/{p2}",
+            headers=team.headers("successor"),
+            json={"name": "P2-after"},
+        )
+        assert resp.status_code == 200, resp.text
+    finally:
+        team.delete()
