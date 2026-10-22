@@ -5,8 +5,8 @@ Covers the API surface the runner calls to mount a durable cwd:
   - POST /mounts/{mount_id}/sign               → sign an existing mount
 
 Asserts the get-or-create upsert is idempotent (same session → same mount), the signed
-credentials are prefix-scoped (carry the mount's `<project_id>/<mount_id>` prefix, not the
-bucket root), and a durable file written through the mount's file API survives a re-bind
+credentials are prefix-scoped (carry the stored prefix, `mounts/<project_id>/<mount_id>` in
+this release, not the bucket root), and a durable file written through the mount's file API survives a re-bind
 (the cross-turn persistence contract, exercised at the store level).
 
 Requires a configured object store with a working STS endpoint (AGENTA_STORE_* →
@@ -45,8 +45,8 @@ class TestSessionMountSign:
         assert mount["session_id"] == session_id
 
         # Credentials are prefix-scoped to THIS mount, never the bucket root.
-        # The key layout is [<namespace>/]mounts/<project_id>/<mount_id>; assert the
-        # mount-scoped tail without coupling to the deployment namespace prefix.
+        # The key is [<namespace>/]<the stored prefix> (`mounts/<project_id>/<mount_id>` in
+        # this release); assert the tail without coupling to the deployment namespace prefix.
         assert creds["prefix"].endswith(f"mounts/{mount['project_id']}/{mount['id']}")
         assert creds["access_key"]
         assert creds["secret_key"]
