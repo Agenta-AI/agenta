@@ -82,6 +82,24 @@ async def rolled_back_connection(*, isolation_level: Optional[str] = None):
             await transaction.rollback()
 
 
+class ConnectionEngine:
+    """An engine double whose sessions run on one connection, inside its open
+    transaction. Lets the real DAO readers see a `rolled_back_connection()`'s rows."""
+
+    def __init__(self, connection):
+        self._connection = connection
+
+    @asynccontextmanager
+    async def session(self):
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        session = AsyncSession(bind=self._connection, expire_on_commit=False)
+        try:
+            yield session
+        finally:
+            await session.close()
+
+
 async def user_email(user_id: UUID) -> str:
     rows = await fetch_all("SELECT email FROM users WHERE id = :id", {"id": user_id})
     return rows[0]["email"]

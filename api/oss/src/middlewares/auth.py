@@ -35,6 +35,7 @@ from oss.src.utils.exceptions import (
 )
 
 from oss.src.core.auth.service import AuthService
+from oss.src.core.memberships.service import get_memberships_service
 
 log = get_module_logger(__name__)
 
@@ -909,9 +910,9 @@ async def verify_bearer_token(
         # outer except-handler that caches.
         if (query_project_id or query_workspace_id) and not is_invite_accept_route:
             if query_project_id:
-                is_member = await db_manager.project_member_exists(
-                    project_id=project_id,
-                    user_id=user_id,
+                is_member = await get_memberships_service().is_member(
+                    user_id=UUID(str(user_id)),
+                    project_id=UUID(project_id),
                 )
             else:
                 is_member = await db_manager.workspace_member_exists(

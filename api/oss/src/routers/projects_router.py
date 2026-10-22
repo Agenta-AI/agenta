@@ -8,6 +8,8 @@ from fastapi.responses import JSONResponse
 
 from oss.src.utils.common import is_ee, is_oss, APIRouter
 from oss.src.services import db_manager
+from oss.src.core.memberships.dtos import ProjectListing
+from oss.src.core.memberships.service import get_memberships_service
 
 from oss.src.utils.logging import get_module_logger
 
@@ -26,7 +28,6 @@ class ProjectsResponse(BaseModel):
     project_name: str
     is_default_project: bool = False
     user_role: Optional[str] = None
-    is_demo: Optional[bool] = None
 
 
 class CreateProjectRequest(BaseModel):
@@ -66,41 +67,24 @@ async def _assert_org_owner(request: Request):
     return organization
 
 
-async def _project_to_response(
-    project,
-    *,
-    user_role: Optional[str],
-    is_demo: Optional[bool],
-    workspace=None,
-    organization=None,
-) -> ProjectsResponse:
-    workspace_obj = workspace
-    if workspace_obj is None and project.workspace_id:
-        workspace_obj = await db_manager.fetch_workspace_by_id(
-            workspace_id=str(project.workspace_id)
-        )
-
-    organization_obj = organization
-    if organization_obj is None and project.organization_id:
-        organization_obj = await db_manager.fetch_organization_by_id(
-            organization_id=str(project.organization_id)
-        )
-
-    if workspace_obj is None or organization_obj is None:
-        raise HTTPException(
-            status_code=404, detail="Workspace or Organization not found"
-        )
-
+def _project_to_response(listing: ProjectListing) -> ProjectsResponse:
+    summary = listing.summary
     return ProjectsResponse(
-        organization_id=UUID(str(organization_obj.id)),
-        organization_name=str(organization_obj.name),
-        workspace_id=UUID(str(workspace_obj.id)),
-        workspace_name=str(workspace_obj.name),
-        project_id=UUID(str(project.id)),
-        project_name=str(project.project_name),
-        is_default_project=bool(project.is_default),
-        user_role=user_role,
-        is_demo=is_demo,
+        organization_id=summary.organization_id,
+        organization_name=summary.organization_name,
+        workspace_id=summary.workspace_id,
+        workspace_name=summary.workspace_name,
+        project_id=summary.project_id,
+        project_name=summary.project_name,
+        is_default_project=summary.is_default,
+        user_role=listing.membership.role,
+    )
+
+
+async def _fetch_listing(request: Request, project_id) -> Optional[ProjectListing]:
+    return await get_memberships_service().fetch_for_user(
+        user_id=UUID(str(request.state.user_id)),
+        project_id=UUID(str(project_id)),
     )
 
 
@@ -119,26 +103,19 @@ async def get_projects(
                 content={"message": "No projects found."},
             )
 
-        _project_memberships = await db_manager.fetch_project_memberships_by_user_id(
-            user_id=request.state.user_id
+        listings = await get_memberships_service().list_for_user(
+            user_id=UUID(str(request.state.user_id))
         )
 
-        if not _project_memberships:
+        if not listings:
             return JSONResponse(
                 status_code=404,
                 content={"message": "No projects found."},
             )
 
-        projects: List[ProjectsResponse] = []
-        for project_membership in _project_memberships:
-            project_response = await _project_to_response(
-                project_membership.project,
-                user_role=project_membership.role,
-                is_demo=project_membership.is_demo,
-                workspace=project_membership.project.workspace,
-                organization=project_membership.project.organization,
-            )
-            projects.append(project_response)
+        projects: List[ProjectsResponse] = [
+            _project_to_response(listing) for listing in listings
+        ]
 
         return projects
 
@@ -169,27 +146,14 @@ async def get_project(
                     status_code=400, detail="Active project context is missing"
                 )
 
-        memberships = await db_manager.fetch_project_memberships_by_user_id(
-            user_id=request.state.user_id
-        )
-        membership = next(
-            (
-                project_membership
-                for project_membership in memberships
-                if str(project_membership.project_id) == str(lookup_project_id)
-            ),
-            None,
-        )
-        if not membership:
+        try:
+            listing = await _fetch_listing(request, lookup_project_id)
+        except ValueError:
+            listing = None
+        if listing is None:
             raise HTTPException(status_code=404, detail="Project not found")
 
-        return await _project_to_response(
-            membership.project,
-            user_role=membership.role,
-            is_demo=membership.is_demo,
-            workspace=membership.project.workspace,
-            organization=membership.project.organization,
-        )
+        return _project_to_response(listing)
 
     except HTTPException:
         raise
@@ -248,19 +212,11 @@ async def create_project(
         user_id=UUID(request.state.user_id),
     )
 
-    memberships = await db_manager.fetch_project_memberships_by_user_id(
-        user_id=request.state.user_id
-    )
-    membership = next(
-        (m for m in memberships if str(m.project_id) == str(project.id)),
-        None,
-    )
+    listing = await _fetch_listing(request, project.id)
+    if listing is None:
+        raise HTTPException(status_code=404, detail="Project not found")
 
-    return await _project_to_response(
-        project,
-        user_role=membership.role if membership else None,
-        is_demo=membership.is_demo if membership else None,
-    )
+    return _project_to_response(listing)
 
 
 @router.delete(
@@ -303,28 +259,18 @@ async def update_project(
 ) -> ProjectsResponse:
     # await _assert_org_owner(request)
 
-    memberships = await db_manager.fetch_project_memberships_by_user_id(
-        user_id=request.state.user_id
-    )
-    membership = next(
-        (m for m in memberships if str(m.project_id) == str(project_id)),
-        None,
-    )
-    if not membership:
+    listing = await _fetch_listing(request, project_id)
+    if listing is None:
         raise HTTPException(status_code=404, detail="Project not found")
-
-    project = membership.project
 
     if payload.name is None and payload.make_default is None:
         raise HTTPException(
             status_code=400, detail="Provide a new name and/or set default flag"
         )
 
-    updated_project = project
-
     if payload.name is not None:
         try:
-            updated_project = await db_manager.update_project_name(
+            await db_manager.update_project_name(
                 str(project_id), project_name=payload.name
             )
         except ValueError as exc:
@@ -336,20 +282,10 @@ async def update_project(
                 status_code=400,
                 detail="make_default can only be set to true",
             )
-        updated_project = await db_manager.set_default_project(str(project_id))
+        await db_manager.set_default_project(str(project_id))
 
-    workspace = await db_manager.fetch_workspace_by_id(
-        workspace_id=str(updated_project.workspace_id)
-    )
+    listing = await _fetch_listing(request, project_id)
+    if listing is None:
+        raise HTTPException(status_code=404, detail="Project not found")
 
-    organization = await db_manager.fetch_organization_by_id(
-        organization_id=str(updated_project.organization_id)
-    )
-
-    return await _project_to_response(
-        updated_project,
-        user_role=membership.role,
-        is_demo=membership.is_demo,
-        workspace=workspace,
-        organization=organization,
-    )
+    return _project_to_response(listing)
