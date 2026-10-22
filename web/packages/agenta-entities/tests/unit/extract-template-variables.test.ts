@@ -555,6 +555,39 @@ describe("extractTemplateVariables — non-mustache regressions", () => {
                 extractTemplateVariables("{% for i in range(3) %}{{ i }}{% endfor %}", "jinja2"),
             ).toEqual([])
         })
+
+        it("handles attribute set targets and half-typed set tags", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% set ns = namespace(found=false) %}{% set ns.found = true %}{{ ns.found }}",
+                    "jinja2",
+                ),
+            ).toEqual([])
+            expect(extractTemplateVariables("{% set a b %}", "jinja2")).toEqual([])
+            expect(extractTemplateVariables("{% set ns. %}", "jinja2")).toEqual([])
+            expect(
+                extractTemplateVariables("{% set label | upper %}Hi{% endset %}", "jinja2"),
+            ).toEqual([])
+        })
+
+        it("does not leak bound names through filtered interpolations", () => {
+            expect(
+                extractTemplateVariables(
+                    "{% for t in tickets %}{{ t|upper }}{% endfor %}",
+                    "jinja2",
+                ),
+            ).toEqual(["tickets"])
+            expect(extractTemplateVariables("{{ name|upper }}", "jinja2")).toEqual(["name"])
+        })
+
+        it("treats attributes after a subscript as part of the root", () => {
+            expect(
+                extractTemplateVariables("{% if items[0].name %}yes{% endif %}", "jinja2"),
+            ).toEqual(["items"])
+            expect(
+                extractTemplateVariables('{% if user["profile"].email %}yes{% endif %}', "jinja2"),
+            ).toEqual(["user"])
+        })
     })
 
     describe("fstring", () => {

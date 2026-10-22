@@ -439,6 +439,13 @@ function collectJinjaExpressionPaths(expression: string): string[] {
             continue
         }
 
+        // An identifier after `.` is an attribute of what comes before it,
+        // including after a subscript: `items[0].name` reads only `items`.
+        if (previousSignificantChar(start) === ".") {
+            afterIs = false
+            continue
+        }
+
         // Keyword arguments are syntax: `attr="x"`, but `==` is a comparison.
         const nextIndex = nextSignificantIndex(i)
         if (expression[nextIndex] === "=" && expression[nextIndex + 1] !== "=") {
@@ -553,8 +560,13 @@ function parseJinjaTargets(source: string): string[] {
     for (const part of splitJinjaTopLevel(trimmed, ",")) {
         const value = part.trim()
         if (!value) continue
-        if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) targets.push(value)
-        else targets.push(...parseJinjaTargets(value))
+        if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+            targets.push(value)
+        } else if (value.startsWith("(") && value.endsWith(")")) {
+            // Only nested tuples bind names. Attribute targets (`ns.found`)
+            // and malformed / half-typed text bind nothing.
+            targets.push(...parseJinjaTargets(value))
+        }
     }
     return targets
 }
@@ -610,7 +622,14 @@ function extractJinja2Variables(input: string): string[] {
             const expression = trimJinjaContent(match[1])
             // A mustache-style marker here is an authoring error, not a variable.
             if (!expression || /^[#^&/!>.$<=]/.test(expression)) continue
-            add(expression)
+            if (/^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*$/.test(expression)) {
+                add(expression)
+            } else {
+                // Filters, operators, and subscripts need the same syntax-aware
+                // scan as control blocks, so bound roots and filter names do not
+                // become inputs.
+                addExpression(expression)
+            }
             continue
         }
 
