@@ -21,6 +21,7 @@ from ee.src.core.accounts.types import (
     AccountTombstonesDAOInterface,
     WalletTotals,
     email_hash,
+    normalize_email,
 )
 from ee.src.core.fraud.types import (
     BillingFacts,
@@ -28,6 +29,7 @@ from ee.src.core.fraud.types import (
     FraudDAOInterface,
 )
 from ee.src.core.organizations.service import REFUSED_EMAIL_FLOOR_MUSD
+from oss.src.core.accounts.dtos import AdminAccountsDelete, AdminAccountsDeleteTarget
 from oss.src.core.accounts.errors import AccountTombstoneError
 from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.utils.env import env
@@ -115,6 +117,22 @@ def test_email_hash_normalizes_case_and_whitespace():
     assert "person" not in email_hash(EMAIL)
 
 
+@pytest.mark.parametrize(
+    "variant",
+    ["user+b@gmail.com", "us.er@gmail.com", "U.s.e.r+promo@GoogleMail.com"],
+)
+def test_email_hash_folds_provider_variants(variant):
+    assert normalize_email("user+a@gmail.com") == "user@gmail.com"
+    assert normalize_email(variant) in {"user@gmail.com", "user@googlemail.com"}
+    assert email_hash(variant) == email_hash(normalize_email(variant))
+
+
+def test_email_hash_drops_the_plus_tag_for_every_domain_but_keeps_dots():
+    assert normalize_email("first.last+tag@acme.test") == "first.last@acme.test"
+    assert email_hash("first.last+tag@acme.test") == email_hash("first.last@acme.test")
+    assert email_hash("firstlast@acme.test") != email_hash("first.last@acme.test")
+
+
 # ---------------------------------------------------------------------------
 # Deletion writes the tombstone
 # ---------------------------------------------------------------------------
@@ -122,8 +140,8 @@ def test_email_hash_normalizes_case_and_whitespace():
 
 @pytest.fixture
 def deletion(monkeypatch, daos):
-    """`delete_own_account` with every collaborator stubbed. `calls` records the
-    destructive steps in order."""
+    """The accounts service with every collaborator below the tombstone stubbed.
+    `calls` records the destructive steps in order."""
     tombstones, fraud = daos
     tombstones.totals = {ORG_A: (5_000_000, 4_990_000), ORG_B: (750_000, 0)}
     calls = []
@@ -150,9 +168,15 @@ def deletion(monkeypatch, daos):
     async def _delete_supertokens_user(self, *, uid, email):
         calls.append(("supertokens", uid))
 
-    async def _delete_user(self, *, user_id):
-        calls.append(("cascade", user_id))
-        return SimpleNamespace(dry_run=False, deleted=None)
+    async def _memberships(uid):
+        calls.append(("memberships", uid))
+
+    async def _cascade(uid):
+        calls.append(("cascade", uid))
+        return [ORG_A, ORG_B]
+
+    async def _batch(*, org_ids, workspace_ids, project_ids, user_ids):
+        calls.append(("batch", list(user_ids)))
 
     monkeypatch.setattr(m, "is_ee", lambda: True)
     monkeypatch.setattr(m, "_db_get_user_by_id", _user)
@@ -162,38 +186,92 @@ def deletion(monkeypatch, daos):
         m, "_ee_subscription_service", SimpleNamespace(cancel_subscription=_cancel)
     )
     monkeypatch.setattr(m, "_delete_loops_contact", _loops)
+    monkeypatch.setattr(m, "_ee_delete_user_memberships", _memberships)
+    monkeypatch.setattr(m, "_db_delete_user_with_cascade", _cascade)
+    monkeypatch.setattr(m, "_db_delete_accounts_batch", _batch)
     monkeypatch.setattr(
         PlatformAdminAccountsService,
         "_delete_supertokens_user",
         _delete_supertokens_user,
     )
-    monkeypatch.setattr(PlatformAdminAccountsService, "delete_user", _delete_user)
     return tombstones, calls
 
 
-async def test_deletion_writes_the_tombstone_with_the_wallet_totals(deletion):
-    tombstones, calls = deletion
-
-    await PlatformAdminAccountsService().delete_own_account(user_id=str(USER_ID))
-
-    assert len(tombstones.rows) == 1
-    row = tombstones.rows[0]
+def _assert_tombstone(row: AccountTombstone) -> None:
     assert row.email_hash == email_hash("person@example.test")
     assert row.organization_ids == [ORG_A, ORG_B]
     assert row.credits_granted_musd == 5_750_000
     assert row.credits_spent_musd == 4_990_000
     assert row.deleted_at <= datetime.now(timezone.utc)
     assert EMAIL not in row.model_dump_json()
+
+
+async def test_self_service_deletion_writes_the_tombstone_before_the_rows_go(
+    deletion,
+):
+    tombstones, calls = deletion
+
+    await PlatformAdminAccountsService().delete_own_account(user_id=str(USER_ID))
+
+    assert len(tombstones.rows) == 1
+    _assert_tombstone(tombstones.rows[0])
     assert [call[0] for call in calls] == [
         "cancel",
         "cancel",
         "supertokens",
+        "memberships",
         "cascade",
         "loops",
     ]
 
 
-async def test_deletion_aborts_when_the_tombstone_write_fails(deletion):
+async def test_admin_deletion_writes_the_tombstone_before_the_cascade(deletion):
+    tombstones, calls = deletion
+
+    result = await PlatformAdminAccountsService().delete_user(user_id=str(USER_ID))
+
+    assert len(tombstones.rows) == 1
+    _assert_tombstone(tombstones.rows[0])
+    assert [call[0] for call in calls] == ["memberships", "cascade"]
+    assert [org.id for org in result.deleted.organizations] == [
+        str(ORG_A),
+        str(ORG_B),
+    ]
+
+
+async def test_admin_batch_deletion_writes_one_tombstone_per_user(deletion):
+    tombstones, calls = deletion
+
+    await PlatformAdminAccountsService().delete_accounts(
+        dto=AdminAccountsDelete(
+            target=AdminAccountsDeleteTarget(user_ids=[str(USER_ID)]), dry_run=False
+        )
+    )
+
+    assert len(tombstones.rows) == 1
+    _assert_tombstone(tombstones.rows[0])
+    assert calls == [("batch", [USER_ID])]
+
+
+async def test_admin_deletion_aborts_when_the_tombstone_write_fails(deletion):
+    tombstones, calls = deletion
+    tombstones.create_error = RuntimeError("database down")
+
+    with pytest.raises(AccountTombstoneError):
+        await PlatformAdminAccountsService().delete_user(user_id=str(USER_ID))
+    with pytest.raises(AccountTombstoneError):
+        await PlatformAdminAccountsService().delete_accounts(
+            dto=AdminAccountsDelete(
+                target=AdminAccountsDeleteTarget(user_ids=[str(USER_ID)]),
+                dry_run=False,
+            )
+        )
+
+    assert tombstones.rows == []
+    assert calls == []
+
+
+async def test_self_service_deletion_aborts_when_the_tombstone_write_fails(deletion):
     tombstones, calls = deletion
     tombstones.create_error = RuntimeError("database down")
 
@@ -202,8 +280,8 @@ async def test_deletion_aborts_when_the_tombstone_write_fails(deletion):
 
     assert excinfo.value.code == "account_tombstone_failed"
     assert tombstones.rows == []
-    # The login and the rows are untouched: the user still exists.
-    assert [call[0] for call in calls] == ["cancel", "cancel"]
+    # The rows are untouched: the user still exists.
+    assert [call[0] for call in calls] == ["cancel", "cancel", "supertokens"]
 
 
 async def test_deletion_aborts_when_no_service_is_registered(deletion, monkeypatch):
@@ -213,7 +291,7 @@ async def test_deletion_aborts_when_no_service_is_registered(deletion, monkeypat
     with pytest.raises(AccountTombstoneError):
         await PlatformAdminAccountsService().delete_own_account(user_id=str(USER_ID))
 
-    assert [call[0] for call in calls] == ["cancel", "cancel"]
+    assert [call[0] for call in calls] == ["cancel", "cancel", "supertokens"]
 
 
 # ---------------------------------------------------------------------------
@@ -347,11 +425,12 @@ async def test_a_marker_write_failure_still_withholds_the_credits(signup, monkey
     assert calls == [("provision", REFUSED_EMAIL_FLOOR_MUSD)]
 
 
-async def test_a_returning_email_that_is_also_flagged_gets_no_credits(
-    signup, monkeypatch
-):
+async def test_a_flagged_signup_makes_no_tombstone_lookup(signup, monkeypatch):
+    """The fraud check already marked the organization; a second mark would
+    overwrite the Jev verdict in the flags."""
     tombstones, fraud, run = signup
     tombstones.rows.append(_tombstone(days_ago=1))
+    tombstones.find_error = AssertionError("tombstone lookup must not run")
 
     async def _fraud(*, organization_id, email):
         return True
@@ -360,4 +439,5 @@ async def test_a_returning_email_that_is_also_flagged_gets_no_credits(
 
     calls = await run()
 
-    assert calls == [("provision", REFUSED_EMAIL_FLOOR_MUSD)]
+    assert calls == [("provision", None)]
+    assert fraud.marks == []

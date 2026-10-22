@@ -956,6 +956,17 @@ class PlatformAdminAccountsService:
             deleted.users = [AdminDeletedEntity(id=str(uid)) for uid in user_ids]
             return AdminDeleteResponse(dry_run=True, deleted=deleted)
 
+        if is_ee():
+            for user_id in user_ids:
+                user = await _db_get_user_by_id(user_id)
+                if user is None:
+                    continue
+                owned = await _db_get_orgs_owned_by_user(user_id)
+                await self._write_account_tombstone(
+                    email=str(user.email),
+                    organization_ids=[org.id for org in owned],
+                )
+
         await _db_delete_accounts_batch(
             org_ids=org_ids,
             workspace_ids=workspace_ids,
@@ -1435,6 +1446,15 @@ class PlatformAdminAccountsService:
         if not user:
             raise AdminUserNotFoundError(user_id)
 
+        # The tombstone first: without it the same email could sign up again and
+        # collect the free credits once more, so no tombstone means no deletion.
+        if is_ee():
+            owned = await _db_get_orgs_owned_by_user(uid)
+            await self._write_account_tombstone(
+                email=str(user.email),
+                organization_ids=[org.id for org in owned],
+            )
+
         # Remove EE membership records before deleting the user to avoid FK violations
         if is_ee():
             await _ee_delete_user_memberships(uid)
@@ -1490,20 +1510,13 @@ class PlatformAdminAccountsService:
                         exc_info=True,
                     )
 
-        # The tombstone first: without it the same email could sign up again and
-        # collect the free credits once more, so no tombstone means no deletion.
-        organization_ids = [org.id for org in owned_orgs]
-        if is_ee():
-            await self._write_account_tombstone(
-                email=email, organization_ids=organization_ids
-            )
-
         # Remove the auth login first: the signup override is idempotent and
         # would otherwise recreate the account on the next sign-in.
         await self._delete_supertokens_user(uid=user.uid, email=email)
 
-        # Reuse the cascade delete (memberships + user + owned orgs).
+        # Reuse the cascade delete (tombstone + memberships + user + owned orgs).
         result = await self.delete_user(user_id=user_id)
+        organization_ids = [org.id for org in owned_orgs]
 
         log.info(
             "[accounts] self-service account deleted",

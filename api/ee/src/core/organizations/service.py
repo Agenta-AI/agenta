@@ -1153,8 +1153,9 @@ async def provision_signup_subscription(
     )
     # Never raises; a lookup failure grants as normal. An email that deleted its
     # account inside the tombstone window gets no free credits either, and the
-    # raised floor keeps the daily credits unspendable.
-    returning = await returning_account_blocks_grants(
+    # raised floor keeps the daily credits unspendable. A flagged organization is
+    # already marked; checking it again would overwrite the Jev verdict.
+    returning = not flagged and await returning_account_blocks_grants(
         organization_id=organization.id, email=organization_email
     )
 

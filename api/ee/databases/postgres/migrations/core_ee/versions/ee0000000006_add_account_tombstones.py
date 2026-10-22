@@ -4,9 +4,11 @@ A self-service account deletion removes the user, the owned organizations and th
 login. Nothing remembered the email, so the same person could sign up again with the
 same address and collect the signup grant and the daily free credits once more.
 
-`account_tombstones` keeps one row per self-service deletion, written before the
-login and the rows go away. It never stores the plain email: `email_hash` is the hex
-SHA-256 of the lowercased, stripped address, and the signup path compares hashes. The
+`account_tombstones` keeps one row per deleted user (self-service and admin paths),
+written before the login and the rows go away. It never stores the plain email:
+`email_hash` is the hex SHA-256 of the provider-normalized address (lowercased and
+stripped, a `+tag` suffix dropped, and dots removed from the local part for Gmail; see
+`ee.src.core.accounts.types.normalize_email`), and the signup path compares hashes. The
 row also keeps the deleted organization ids and the credits granted and spent across
 them (in micro-dollars, from the wallet tables), for the audit a support request needs.
 
