@@ -1,10 +1,17 @@
 import {readFileSync} from "node:fs"
 import {join} from "node:path"
 
+import {zipSync} from "fflate"
 import {describe, expect, it} from "vitest"
 import {utils, write} from "xlsx"
 
-import {COL_CAP, parseWorkbook, ROW_CAP} from "../../src/drive/workbook"
+import {
+    COL_CAP,
+    parseWorkbook,
+    ROW_CAP,
+    UnpackTooLarge,
+    zipUnpackedSize,
+} from "../../src/drive/workbook"
 
 const fixture = (name: string) => readFileSync(join(__dirname, "../fixtures/office", name))
 
@@ -79,5 +86,33 @@ describe("parseWorkbook", () => {
         expect(() => parseWorkbook(new TextEncoder().encode("Region,Q1\nNorth,1\n"))).toThrow(
             "not a workbook",
         )
+    })
+})
+
+describe("zip bomb guard", () => {
+    it("reads the declared uncompressed size from the central directory", () => {
+        const zip = zipSync({"a.xml": new Uint8Array(1000), "b.xml": new Uint8Array(234)})
+        expect(zipUnpackedSize(zip)).toBe(1234)
+    })
+
+    it("refuses a workbook that unpacks over 100x its size before parsing", () => {
+        const bomb = zipSync({"xl/worksheets/sheet1.xml": new Uint8Array(5_000_000)})
+        let error: unknown
+        try {
+            parseWorkbook(bomb)
+        } catch (e) {
+            error = e
+        }
+        expect(error).toBeInstanceOf(UnpackTooLarge)
+        expect((error as UnpackTooLarge).unpackedBytes).toBe(5_000_000)
+    })
+
+    it("lets a real workbook through", () => {
+        expect(parseWorkbook(fixture("openpyxl-formulas.xlsx")).sheets.length).toBeGreaterThan(0)
+    })
+
+    it("treats an unreadable central directory as not a workbook", () => {
+        const truncated = zipSync({"a.xml": new Uint8Array(10)}).slice(0, 30)
+        expect(() => parseWorkbook(truncated)).toThrow("not a workbook")
     })
 })

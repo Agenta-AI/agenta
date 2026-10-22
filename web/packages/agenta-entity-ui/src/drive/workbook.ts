@@ -74,12 +74,52 @@ function readSheet(name: string, sheet: WorkSheet): Sheet {
     }
 }
 
+// A workbook may unpack to at most this much XML, and to at most this many times its own size.
+const MAX_UNPACKED_BYTES = 100 * 1024 * 1024
+const MAX_UNPACK_RATIO = 100
+
+/** Thrown before parsing when the ZIP would unpack past the limits (a zip bomb or a huge sheet). */
+export class UnpackTooLarge extends Error {
+    constructor(readonly unpackedBytes: number) {
+        super("workbook unpacks too large")
+    }
+}
+
+/** The entries' declared uncompressed sizes, read from the ZIP central directory; null if unreadable. */
+export function zipUnpackedSize(data: Uint8Array): number | null {
+    const view = new DataView(data.buffer, data.byteOffset, data.byteLength)
+    for (let eocd = data.length - 22; eocd >= Math.max(0, data.length - 65557); eocd--) {
+        if (view.getUint32(eocd, true) !== 0x06054b50) continue
+        let at = view.getUint32(eocd + 16, true)
+        let total = 0
+        for (let n = view.getUint16(eocd + 10, true); n > 0; n--) {
+            if (at + 46 > data.length || view.getUint32(at, true) !== 0x02014b50) return null
+            const size = view.getUint32(at + 24, true)
+            if (size === 0xffffffff) return Infinity
+            total += size
+            at +=
+                46 +
+                view.getUint16(at + 28, true) +
+                view.getUint16(at + 30, true) +
+                view.getUint16(at + 32, true)
+        }
+        return total
+    }
+    return null
+}
+
 /** Throws when the bytes are not a workbook, so the caller can fall back to download. */
 export function parseWorkbook(bytes: ArrayBuffer | Uint8Array): Workbook {
     const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)
     // SheetJS also reads plain text as a one-column sheet; a renamed text file is not a workbook.
     if (!startsWith(data, ZIP_MAGIC) && !startsWith(data, CFB_MAGIC))
         throw new Error("not a workbook")
+    if (startsWith(data, ZIP_MAGIC)) {
+        const unpacked = zipUnpackedSize(data)
+        if (unpacked === null) throw new Error("not a workbook")
+        if (unpacked > MAX_UNPACKED_BYTES || unpacked > MAX_UNPACK_RATIO * data.length)
+            throw new UnpackTooLarge(unpacked)
+    }
     const book = read(data, {
         type: "array",
         cellFormula: true,

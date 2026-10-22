@@ -16,6 +16,8 @@ runViewer({
             pdfjs: false,
             onSlideChange: (index) => window.parent.postMessage({type: "slide", index}, "*"),
         })
+        // A ZIP with no slides (a renamed archive) is not a presentation.
+        if (!viewer.slideCount) throw new Error("no slides")
         return {slideCount: viewer.slideCount}
     },
     goto: (index) => {

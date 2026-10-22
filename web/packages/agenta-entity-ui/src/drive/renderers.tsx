@@ -264,13 +264,18 @@ const TableSkeleton = () => (
     </Inset>
 )
 
+// One huge cell would otherwise widen its column past every other column.
+const CELL_CHAR_CAP = 500
+const capText = (text: string): string =>
+    text.length > CELL_CHAR_CAP ? `${text.slice(0, CELL_CHAR_CAP)}…` : text
+
 const PreviewCell = ({cell}: {cell: SheetCell}) =>
     "formula" in cell ? (
         <span className="italic text-colorTextTertiary" title="Formula with no stored value">
-            {cell.formula}
+            {capText(cell.formula)}
         </span>
     ) : (
-        <>{cell.value}</>
+        <>{capText(cell.value)}</>
     )
 
 function truncationNote(
@@ -300,7 +305,7 @@ const PreviewTable = ({rows, truncated}: {rows: SheetCell[][]; truncated: Trunca
                             {header.map((h, i) => (
                                 <th
                                     key={i}
-                                    className="sticky top-0 border-0 border-b border-solid border-colorBorderSecondary bg-colorFillTertiary px-2.5 py-1.5 text-left font-medium text-colorTextSecondary"
+                                    className="sticky top-0 max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary bg-colorFillTertiary px-2.5 py-1.5 text-left font-medium text-colorTextSecondary"
                                 >
                                     <PreviewCell cell={h} />
                                 </th>
@@ -313,7 +318,7 @@ const PreviewTable = ({rows, truncated}: {rows: SheetCell[][]; truncated: Trunca
                                 {r.map((c, j) => (
                                     <td
                                         key={j}
-                                        className="border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1 align-top"
+                                        className="max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1 align-top"
                                     >
                                         <PreviewCell cell={c} />
                                     </td>
@@ -503,28 +508,34 @@ const VideoBody = ({mount, path}: {mount: Mount | null; path: string}) => {
 
 // ---- Office bodies (bytes keyed by the listing's file version) --------------------------------
 
-interface ParsedWorkbook {
-    blob: Blob
-    workbook: Workbook | null
-}
+type WorkbookState =
+    | {status: "ready"; workbook: Workbook}
+    | {status: "unreadable"}
+    | {status: "too-large"; unpackedBytes: number}
 
-/** Parses the blob with SheetJS, loaded on first use; null workbook means unreadable. */
-function useWorkbook(blob: Blob | null): Workbook | null | undefined {
-    const [parsed, setParsed] = useState<ParsedWorkbook | null>(null)
+/** Parses the blob with SheetJS, loaded on first use; undefined while parsing. */
+function useWorkbook(blob: Blob | null): WorkbookState | undefined {
+    const [parsed, setParsed] = useState<{blob: Blob; state: WorkbookState} | null>(null)
     useEffect(() => {
         if (!blob) return
         let cancelled = false
         Promise.all([import("./workbook"), blob.arrayBuffer()])
-            .then(([{parseWorkbook}, bytes]) => parseWorkbook(bytes))
-            .then(
-                (workbook) => !cancelled && setParsed({blob, workbook}),
-                () => !cancelled && setParsed({blob, workbook: null}),
+            .then(([{parseWorkbook}, bytes]): WorkbookState => {
+                const workbook = parseWorkbook(bytes)
+                return workbook.sheets.length ? {status: "ready", workbook} : {status: "unreadable"}
+            })
+            .catch(
+                (error: unknown): WorkbookState =>
+                    error instanceof Error && "unpackedBytes" in error
+                        ? {status: "too-large", unpackedBytes: error.unpackedBytes as number}
+                        : {status: "unreadable"},
             )
+            .then((state) => !cancelled && setParsed({blob, state}))
         return () => {
             cancelled = true
         }
     }, [blob])
-    return parsed && parsed.blob === blob ? parsed.workbook : undefined
+    return parsed && parsed.blob === blob ? parsed.state : undefined
 }
 
 const SpreadsheetView = ({workbook}: {workbook: Workbook}) => {
@@ -555,26 +566,30 @@ const SpreadsheetView = ({workbook}: {workbook: Workbook}) => {
 const overCap = (kind: DriveFileKind, blob: Blob | null): boolean =>
     blob !== null && blob.size > (OFFICE_CAPS[kind] ?? Infinity)
 
-const TooLargeCard = ({mount, path, blob}: {mount: Mount | null; path: string; blob: Blob}) => (
-    <DownloadCard
-        mount={mount}
-        path={path}
-        title={`Too large to preview (${humanSize(blob.size)})`}
-    />
+const TooLargeCard = ({mount, path, bytes}: {mount: Mount | null; path: string; bytes: number}) => (
+    <DownloadCard mount={mount} path={path} title={`Too large to preview (${humanSize(bytes)})`} />
 )
 
 const SpreadsheetBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     const version = useDriveFileVersion(mount, path)
     const {blob, isPending, failed} = useDriveFileBlob(mount, path, version)
     const tooLarge = overCap("spreadsheet", blob)
-    const workbook = useWorkbook(tooLarge ? null : blob)
+    const parsed = useWorkbook(tooLarge ? null : blob)
     if (failed)
         return <DownloadCard mount={mount} path={path} title="Couldn't load this spreadsheet" />
-    if (tooLarge && blob) return <TooLargeCard mount={mount} path={path} blob={blob} />
-    if (isPending || workbook === undefined) return <TableSkeleton />
-    if (!workbook || workbook.sheets.length === 0)
+    if (tooLarge && blob) return <TooLargeCard mount={mount} path={path} bytes={blob.size} />
+    if (isPending || parsed === undefined) return <TableSkeleton />
+    if (parsed.status === "too-large")
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={`Too large to preview (unpacks to ${humanSize(parsed.unpackedBytes)})`}
+            />
+        )
+    if (parsed.status === "unreadable")
         return <DownloadCard mount={mount} path={path} title="Couldn't preview this spreadsheet" />
-    return <SpreadsheetView workbook={workbook} />
+    return <SpreadsheetView workbook={parsed.workbook} />
 }
 
 /** A DOCX or PPTX in the sandboxed viewer frame; a new file version mounts a fresh frame. */
@@ -594,7 +609,7 @@ const OfficeFrameBody = ({
     if (isPending) return <MediaLoading />
     if (failed || !blob)
         return <DownloadCard mount={mount} path={path} title={`Couldn't load this ${kind}`} />
-    if (overCap(kind, blob)) return <TooLargeCard mount={mount} path={path} blob={blob} />
+    if (overCap(kind, blob)) return <TooLargeCard mount={mount} path={path} bytes={blob.size} />
     if (failedBlob === blob)
         return <DownloadCard mount={mount} path={path} title={`Couldn't preview this ${kind}`} />
     return (

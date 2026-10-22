@@ -17,6 +17,8 @@ const loadViewerScript = (kind: OfficeViewerKind): Promise<string> =>
         ? import("./generated/docxViewer").then((m) => m.DOCX_VIEWER_SCRIPT)
         : import("./generated/pptxViewer").then((m) => m.PPTX_VIEWER_SCRIPT)
 
+const RENDER_TIMEOUT_MS = 60_000
+
 type ViewerState =
     | {status: "loading"}
     | {status: "rendered"; slideCount: number; index: number}
@@ -90,6 +92,17 @@ export function OfficeViewerFrame({
         window.addEventListener("message", onMessage)
         return () => window.removeEventListener("message", onMessage)
     }, [blob, kind, onFailed, send])
+
+    // A file that keeps the renderer busy falls back to download instead of loading forever.
+    const loading = state.status === "loading"
+    useEffect(() => {
+        if (!loading) return
+        const timer = setTimeout(() => {
+            setState({status: "failed"})
+            onFailed()
+        }, RENDER_TIMEOUT_MS)
+        return () => clearTimeout(timer)
+    }, [loading, onFailed])
 
     const slides = kind === "presentation" && state.status === "rendered" ? state : null
     const step = (delta: number) => {
