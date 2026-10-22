@@ -83,7 +83,7 @@ describe("parseViewerMessage picker messages", () => {
             rects: [
                 {id: "a", rect: RECT},
                 {id: "b", rect: null},
-                {id: "c", rect: null},
+                {id: "c", rect: {top: 900, left: 0, width: 10, height: 10}},
             ],
         })
     })

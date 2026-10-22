@@ -44,7 +44,7 @@ describe("parsePickerMessage", () => {
         })
     })
 
-    it("accepts pin-rects and nulls a rect outside the frame", () => {
+    it("keeps a pin rect scrolled outside the frame; null stays null", () => {
         expect(
             parsePickerMessage(
                 {
@@ -62,7 +62,7 @@ describe("parsePickerMessage", () => {
             rects: [
                 {id: "a", rect: {top: 10, left: 20, width: 100, height: 30}},
                 {id: "b", rect: null},
-                {id: "c", rect: null},
+                {id: "c", rect: {top: 900, left: 0, width: 10, height: 10}},
             ],
         })
     })

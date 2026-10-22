@@ -589,7 +589,7 @@ export const SpreadsheetView = ({
     const {enabled} = usePreviewCommentMode()
     const rootRef = useRef<HTMLDivElement>(null)
     const comments = usePreviewComments(sessionId, target)
-    const {selection, pick, onPickConsumed, pinRects} = useSheetComments({
+    const {selection, pick, onPickConsumed, onDraftClose, pinRects} = useSheetComments({
         rootRef,
         workbook,
         sheet,
@@ -627,6 +627,7 @@ export const SpreadsheetView = ({
                     target={target}
                     pick={pick}
                     onPickConsumed={onPickConsumed}
+                    onDraftClose={onDraftClose}
                     pinRects={pinRects}
                 />
             </div>

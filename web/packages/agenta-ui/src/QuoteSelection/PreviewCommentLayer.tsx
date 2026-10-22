@@ -1,5 +1,5 @@
 // Comments on a rendered preview: note box at a pick, numbered pins, pin card with Edit and Delete.
-import {useEffect, useMemo, useRef, useState, type RefObject} from "react"
+import {useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject} from "react"
 
 import {
     isPreviewQuote,
@@ -60,6 +60,8 @@ export interface PreviewCommentLayerProps {
     target: PreviewCommentTarget
     pick: PreviewPick | null
     onPickConsumed: () => void
+    /** The draft note closed (staged, sent or cancelled). */
+    onDraftClose?: () => void
     pinRects: PreviewPinRect[]
     touch?: boolean
 }
@@ -94,7 +96,9 @@ const noteAnchor = (rect: PreviewRect) => ({
 
 const pinPoint = (quote: PreviewQuote, rect: PreviewRect) => {
     const {anchor} = quote.source
-    if (anchor.type === "cells") return {top: rect.top, left: rect.left}
+    // Inside the cell's right edge: its left edge is the table's, which clips.
+    if (anchor.type === "cells")
+        return {top: rect.top + rect.height / 2, left: rect.left + rect.width - 10}
     return {
         top: rect.top + anchor.point.y * rect.height,
         left: rect.left + anchor.point.x * rect.width,
@@ -136,6 +140,7 @@ export const PreviewCommentLayer = ({
     target,
     pick,
     onPickConsumed,
+    onDraftClose,
     pinRects,
     touch,
 }: PreviewCommentLayerProps) => {
@@ -174,13 +179,27 @@ export const PreviewCommentLayer = ({
         }
     }, [sessionId, pinRects])
 
+    // QuoteNote focuses its field on mount; editing continues after the existing text.
+    const editingId = editor?.kind === "edit" ? editor.id : null
+    useLayoutEffect(() => {
+        if (!editingId) return
+        const field = rootRef.current?.querySelector<HTMLTextAreaElement>("[role=dialog] textarea")
+        field?.setSelectionRange(field.value.length, field.value.length)
+    }, [editingId, rootRef])
+
     if (!sessionId) return null
 
     const root = rootRef.current
     const bounds = {width: root?.clientWidth ?? 0, height: root?.clientHeight ?? 0}
     const isTouch = touch ?? hasCoarsePointer()
     const rectOf = (id: string) => pinRects.find((pin) => pin.id === id)?.rect ?? null
-    const close = () => setEditor(null)
+    const close = () => {
+        if (editor?.kind === "draft") onDraftClose?.()
+        setEditor(null)
+    }
+    // An element scrolled out of the preview keeps its comment but shows no pin.
+    const inView = ({top, left}: {top: number; left: number}) =>
+        top >= 0 && left >= 0 && top <= bounds.height && left <= bounds.width
 
     const editing = editor?.kind === "edit" ? comments.find((q) => q.id === editor.id) : null
     const editRect = editing ? rectOf(editing.id) : null
@@ -191,6 +210,7 @@ export const PreviewCommentLayer = ({
                 const rect = rectOf(quote.id)
                 if (!rect || quote.stale) return null
                 const {top, left} = pinPoint(quote, rect)
+                if (!inView({top, left})) return null
                 const card = (
                     <PinCard
                         quote={quote}

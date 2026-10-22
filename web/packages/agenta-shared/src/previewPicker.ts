@@ -487,7 +487,7 @@ const parsePickedElement = (value: unknown): PickedElement | null => {
     return element
 }
 
-/** Validate a picker message from a frame; out-of-frame pin rects become `null` (not visible). */
+/** Validate a picker message from a frame; a pin rect is `null` only when its element is gone. */
 export function parsePickerMessage(
     data: unknown,
     frame: {width: number; height: number},
@@ -514,7 +514,7 @@ export function parsePickerMessage(
             }
             const rect = parseRect(entry.rect)
             if (!rect) return null
-            rects.push({id, rect: insideFrame(rect, frame) ? rect : null})
+            rects.push({id, rect})
         }
         return {type: "pin-rects", rects}
     }

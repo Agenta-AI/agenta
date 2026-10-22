@@ -198,5 +198,7 @@ export function useSheetComments({
     const selection: CellSelection | undefined = enabled
         ? {box, onPointerDown, onPointerOver}
         : undefined
-    return {selection, pick, onPickConsumed: () => setPick(null), pinRects}
+    // The anchor stays, so Shift+click still extends from the last cell.
+    const onDraftClose = useCallback(() => setBox(null), [])
+    return {selection, pick, onPickConsumed: () => setPick(null), onDraftClose, pinRects}
 }
