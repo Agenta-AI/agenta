@@ -1140,7 +1140,6 @@ failureThreshold: 3
 {{- $aiServices := default dict $agenta.aiServices -}}
 {{- $agentaApi := default dict $agenta.api -}}
 {{- $apiCaching := default dict $agentaApi.caching -}}
-{{- $extras := default dict $agenta.extras -}}
 {{- $logging := default dict $agenta.logging -}}
 {{- $otlp := default dict $agenta.otlp -}}
 {{- $agentaServices := default dict $agenta.services -}}
@@ -1512,13 +1511,6 @@ failureThreshold: 3
 {{- if hasKey $svcMiddleware "cachingEnabled" }}
 - name: AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED
   value: {{ $svcMiddleware.cachingEnabled | quote }}
-{{- end }}
-{{- /* agenta.extras.demos — EE reads AGENTA_DEMOS for demo workspace seeding */}}
-{{- if $extras.demos }}
-- name: AGENTA_DEMOS
-  value: {{ $extras.demos | quote }}
-- name: AGENTA_EXTRAS_DEMOS
-  value: {{ $extras.demos | quote }}
 {{- end }}
 {{- /* crisp — surfaced as NEXT_PUBLIC_CRISP_WEBSITE_ID to the web container */}}
 {{- if $crisp.websiteId }}

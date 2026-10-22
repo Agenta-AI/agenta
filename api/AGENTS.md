@@ -46,12 +46,34 @@ RBAC / access enforcement:
   `api/oss/src/core/access/`. Handlers call `check_action_access(...)`
   unconditionally; there is no edition gate around the check itself.
 - The only edition difference is the EE plan gate: in EE, `check_entitlements(Flag.RBAC)`
-  can grant allow-all when a plan is not RBAC-entitled. This is layered into the OSS
-  enforcement service via a function-local `is_ee()`-guarded import — OSS never imports
+  can grant allow-all to members when a plan is not RBAC-entitled. It enters through
+  `RbacEnforcementInterface` (`oss/src/core/access/interfaces.py`); `entrypoints/access.py`
+  wires `EntitlementsRbacEnforcement` (EE) or `AlwaysEnforcedRbac` (OSS). OSS never imports
   `ee.*` at module top.
 - Custom roles are an EE feature: `AGENTA_ACCESS_ROLES` / `AGENTA_ACCESS_ROLES_OVERLAY`
   are parsed/applied in `api/ee/src/core/access/permissions/role_overrides.py` and
   ignored in OSS (which enforces the code-default catalog).
+
+Project membership and access:
+
+- Membership is decided only by `MembershipsService.resolve` (`oss/src/core/memberships/`).
+  OSS: every organization member is a member of every project, with the organization role.
+  EE: a member needs an organization row and a `project_members` row; the project row's
+  role applies. The edition policy is picked only in `entrypoints/access.py`.
+- Membership writes go only through the four `MembershipsService` writers:
+  `set_member_role`, `remove_member`, `create_project` (seeds every organization member in
+  the same transaction) and `transfer_ownership`. Each writer clears the access caches with
+  `invalidate_access_caches` after the commit. An admin tool that writes membership rows
+  directly must call `invalidate_access_caches` too.
+- `check_action_access` delegates to `AccessService.check_capability`. Every process that
+  checks access calls `bootstrap_access()` at startup (the API and both workers do).
+- No new code reads `workspace_members` or `project_members` to decide access.
+- A hot-path membership read is one SQL statement (`fetch_membership_row`,
+  `list_membership_rows`). `integration/memberships/test_hot_path_query_counts_postgres.py`
+  pins the counts.
+- Revocation takes effect at the next decision. It can take up to `AGENTA_CACHE_TTL`
+  (300 s) in two known cases: the Redis invalidation fails, or a read that started before
+  the mutation committed refills the old entry after the invalidation.
 
 Primary references:
 - `api/entrypoints/routers.py`
