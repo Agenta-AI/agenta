@@ -20,7 +20,41 @@ export interface FileQuoteSource {
     endLine?: number
 }
 
-export type QuoteSource = MessageQuoteSource | FileQuoteSource
+/** A picked element in a rendered HTML app, DOCX page or PPTX slide. */
+export interface ElementAnchor {
+    type: "element"
+    format: "html" | "document" | "presentation"
+    /** Search hint inside the rendered document. */
+    selector: string
+    tag: string
+    /** DOCX page or PPTX slide, 1-based. */
+    page?: number
+    /** HTML only: the element's opening tag with its attributes. */
+    openTag?: string
+    /** 0..1 inside the element; where the pin sits. */
+    point: {x: number; y: number}
+}
+
+/** A cell range in a spreadsheet preview, in the sheet's own A1 coordinates. */
+export interface CellAnchor {
+    type: "cells"
+    sheet: string
+    range: string
+}
+
+export type PreviewAnchor = ElementAnchor | CellAnchor
+
+/** A comment on a location in a rendered file preview. */
+export interface PreviewQuoteSource {
+    kind: "preview"
+    path: string
+    displayPath: string
+    fileName: string
+    mountId?: string
+    anchor: PreviewAnchor
+}
+
+export type QuoteSource = MessageQuoteSource | FileQuoteSource | PreviewQuoteSource
 
 export interface Quote {
     id: string
@@ -34,6 +68,11 @@ export interface Quote {
     stale: boolean
     source: QuoteSource
 }
+
+export type PreviewQuote = Quote & {source: PreviewQuoteSource}
+
+export const isPreviewQuote = (quote: Quote): quote is PreviewQuote =>
+    quote.source.kind === "preview"
 
 /** Excerpts go straight into the prompt, so an unbounded drag-select is a token-cost regression. */
 export const QUOTE_EXCERPT_CAP = 2000
@@ -237,6 +276,65 @@ export const formatLineRange = (start?: number, end?: number): string => {
     return `L${start}–L${end}`
 }
 
+/**
+ * A CommonMark code span that holds any text: the fence is one backtick longer than the
+ * longest run inside, padded when the content would otherwise merge with it or lose a space.
+ */
+export const inlineCode = (text: string): string => {
+    const flat = text.replace(/\r\n?|\n/g, " ")
+    const longest = (flat.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 0)
+    const fence = "`".repeat(longest + 1)
+    const pad =
+        flat.startsWith("`") ||
+        flat.endsWith("`") ||
+        (flat.startsWith(" ") && flat.endsWith(" ") && flat.trim() !== "")
+    return pad ? `${fence} ${flat} ${fence}` : `${fence}${flat}${fence}`
+}
+
+/** The location in a preview quote's head: what the agent searches the file for. */
+export const formatPreviewLocation = (anchor: PreviewAnchor): string => {
+    if (anchor.type === "cells") return `sheet ${inlineCode(anchor.sheet)}, ${anchor.range}`
+    if (anchor.format === "document" && anchor.page) return `page ${anchor.page}`
+    if (anchor.format === "presentation" && anchor.page) return `slide ${anchor.page}`
+    return `element ${inlineCode(anchor.selector)}`
+}
+
+/** The short location a composer chip shows. */
+export const formatPreviewChipLocation = (anchor: PreviewAnchor): string => {
+    if (anchor.type === "cells") return `${anchor.sheet}!${anchor.range}`
+    if (anchor.format === "document" && anchor.page) return `p. ${anchor.page}`
+    if (anchor.format === "presentation" && anchor.page) return `slide ${anchor.page}`
+    return `<${anchor.tag}>`
+}
+
+const tableCell = (value: string): string =>
+    value
+        .replace(/\r\n?|\n/g, " ")
+        .replace(/\|/g, "\\|")
+        .trim()
+
+/** Cells as a markdown pipe table; a null header makes the first row the header. */
+export const cellsToTable = (header: string[] | null, rows: string[][]): string => {
+    const head = header ?? rows[0]
+    const body = header ? rows : rows.slice(1)
+    if (!head) return ""
+    const width = Math.max(head.length, ...body.map((row) => row.length), 1)
+    const line = (row: string[]) =>
+        `| ${Array.from({length: width}, (_, i) => tableCell(row[i] ?? "")).join(" | ")} |`
+    return [line(head), `|${" --- |".repeat(width)}`, ...body.map(line)].join("\n")
+}
+
+const quoteHead = (source: QuoteSource): string => {
+    // The drive path, not the bare name: it is what the agent opens the file by.
+    if (source.kind === "preview")
+        return `**\`${source.displayPath || source.path}\`** (${formatPreviewLocation(source.anchor)})`
+    if (source.kind === "file") {
+        const range = formatLineRange(source.startLine, source.endLine)
+        return `**\`${source.displayPath || source.path}\`**${range ? ` (${range})` : ""}`
+    }
+    return "**Agent reply**"
+}
+
 const FENCE = /^ {0,3}(`{3,}|~{3,})/
 
 /** Close a code fence the selection (or the cap) cut open, so it cannot swallow what follows. */
@@ -262,23 +360,19 @@ const capExcerpt = (text: string): string => {
 export const quotesToMarkdown = (quotes: Quote[], text = ""): string => {
     if (quotes.length === 0) return text
     const blocks = quotes.map((quote) => {
-        const head =
-            quote.source.kind === "file"
-                ? // The drive path, not the bare name: it is what the agent opens the file by.
-                  `**\`${quote.source.displayPath || quote.source.path}\`**${
-                      formatLineRange(quote.source.startLine, quote.source.endLine)
-                          ? ` (${formatLineRange(quote.source.startLine, quote.source.endLine)})`
-                          : ""
-                  }`
-                : "**Agent reply**"
         // Every line, blank ones included, stays inside the blockquote.
-        const body = capExcerpt(quote.text)
-            .split("\n")
+        const lines = quote.text ? capExcerpt(quote.text).split("\n") : []
+        const {source} = quote
+        if (source.kind === "preview" && source.anchor.type === "element" && source.anchor.openTag)
+            lines.push(inlineCode(source.anchor.openTag))
+        const body = (lines.length ? lines : [""])
             .map((line) => (line ? `> ${line}` : ">"))
             .join("\n")
         const note = quote.note.trim()
         // Two trailing spaces: a hard break between the origin line and the excerpt.
-        return [`> ${head}  `, body, note ? `\n${note}` : ""].filter(Boolean).join("\n")
+        return [`> ${quoteHead(source)}  `, body, note ? `\n${note}` : ""]
+            .filter(Boolean)
+            .join("\n")
     })
     const trimmed = text.trim()
     return trimmed ? `${blocks.join("\n\n")}\n\n${trimmed}` : blocks.join("\n\n")
@@ -289,10 +383,14 @@ export interface QuotedExcerpt {
     /** The quote's origin: a drive path, or "Agent reply". */
     origin: string
     text: string
+    /** A preview comment's location, as `formatPreviewLocation` wrote it. */
+    location?: string
 }
 
 // The whole origin line `quotesToMarkdown` writes, so a hand-written blockquote is not taken for one.
-const QUOTE_HEAD = /^> \*\*(?:`([^`]+)`|(Agent reply))\*\*(?: \(L\d+(?:–L\d+)?\))? *$/
+// A preview location's greedy `.+` runs to the line's last `)`, so brackets inside it are safe.
+const QUOTE_HEAD =
+    /^> \*\*(?:`([^`]+)`|(Agent reply))\*\*(?: \((?:L\d+(?:–L\d+)?|((?:element|page|slide|sheet) .+))\))? *$/
 
 /** A sent message's leading quotes and the user's own words; inverts `quotesToMarkdown`. */
 export const splitQuotedMessage = (markdown: string): {quotes: QuotedExcerpt[]; text: string} => {
@@ -311,7 +409,11 @@ export const splitQuotedMessage = (markdown: string): {quotes: QuotedExcerpt[]; 
         const head = blockStart ? QUOTE_HEAD.exec(line) : null
         if (head) {
             current = []
-            quotes.push({origin: head[1] ?? head[2], text: ""})
+            quotes.push({
+                origin: head[1] ?? head[2],
+                text: "",
+                ...(head[3] ? {location: head[3]} : {}),
+            })
         } else {
             current = null
             rest.push(line)

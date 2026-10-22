@@ -22,12 +22,22 @@ export interface QuoteNoteProps {
     /** Send the reply now. */
     onSend: (note: string) => void
     onCancel: () => void
+    /** Prefilled text when editing a staged note. */
+    initialNote?: string
 }
 
-export const QuoteNote = ({quote, anchor, bounds, onStage, onSend, onCancel}: QuoteNoteProps) => {
+export const QuoteNote = ({
+    quote,
+    anchor,
+    bounds,
+    onStage,
+    onSend,
+    onCancel,
+    initialNote,
+}: QuoteNoteProps) => {
     const ref = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
-    const [note, setNote] = useState("")
+    const [note, setNote] = useState(initialNote ?? "")
     const [height, setHeight] = useState(0)
 
     const cancelRef = useRef(onCancel)
