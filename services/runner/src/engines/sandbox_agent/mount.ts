@@ -34,7 +34,7 @@ export interface MountCredentials {
   endpoint?: string;
   region: string;
   bucket: string;
-  /** geesefs key suffix: `<project_id>/<mount_id>` (the durable prefix, slug-independent). */
+  /** geesefs key suffix: the mount's stored prefix, `mounts/<scope_id>/<mount_id>` (slug-independent). */
   prefix: string;
   accessKey: string;
   secretKey: string;
