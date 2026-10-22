@@ -2,10 +2,11 @@
  * Row 2 of the Files pane, following the selection: a folder (grid / list · sort · ⋯), a markdown
  * file (formatting bar · save status · mode · ⋯) or any other file (name · save status · ⋯).
  */
-import {type ReactNode} from "react"
+import {useEffect, type ReactNode} from "react"
 
 import {
     type DriveEditorMode,
+    type DriveFileKind,
     type DriveSaveStatus,
     type DriveSortKey,
     type DriveViewMode,
@@ -18,12 +19,14 @@ import {
     DropdownMenuSeparator,
     DropdownMenuShortcut,
     DropdownMenuTrigger,
+    SimpleTooltip as Tooltip,
     Tabs,
     TabsList,
     TabsTrigger,
 } from "@agenta/ui/ui"
 import {
     CaretDown,
+    ChatCircleText,
     CircleNotch,
     Clock,
     Code,
@@ -44,9 +47,11 @@ import {
 } from "@phosphor-icons/react"
 
 import {type DriveFolderActions, driveFolderMenuEntries} from "./DriveFolderMenu"
-import {ROW_ICON_BTN} from "./DriveHeader"
+import {ROW_ICON_BTN, ROW_ICON_BTN_ON} from "./DriveHeader"
 import {DriveInlineName} from "./DriveInlineName"
 import {SelectedMark} from "./DriveMenuMark"
+import {useDriveSessionId} from "./driveSessionContext"
+import {isCommentableKind, usePreviewCommentMode} from "./previewCommentMode"
 
 /** Row 2's text buttons: the kit's ghost sm, muted until hover. */
 const ROW_TEXT_BTN = "h-[26px] gap-1 px-2 text-xs text-colorTextSecondary hover:text-colorText"
@@ -149,6 +154,8 @@ type DriveToolbarProps =
           appView?: DriveAppView
           /** Where a running app portals its controls (Refresh, errors), before the ⋯ menu. */
           controlsRef?: (el: HTMLDivElement | null) => void
+          /** The kind the preview shows; a commentable one gets the Comment toggle in a conversation. */
+          previewKind?: DriveFileKind
           onCopyPath?: () => void
           onDownload?: () => void
       }
@@ -247,6 +254,38 @@ const FileActionsMenu = ({
 )
 
 /** The 36px row frame with the hairline the rail's search header shares. */
+const isTyping = (target: EventTarget | null): boolean =>
+    target instanceof HTMLElement &&
+    (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+
+/** Turns comment mode on and off; Esc anywhere on the page outside a text field turns it off. */
+const CommentToggle = () => {
+    const {enabled, setEnabled} = usePreviewCommentMode()
+    useEffect(() => {
+        if (!enabled) return
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== "Escape" || e.defaultPrevented || isTyping(e.target)) return
+            setEnabled(false)
+        }
+        document.addEventListener("keydown", onKeyDown)
+        return () => document.removeEventListener("keydown", onKeyDown)
+    }, [enabled, setEnabled])
+    return (
+        <Tooltip title="Comment on the preview (Esc to stop)">
+            <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Comment"
+                aria-pressed={enabled}
+                onClick={() => setEnabled(!enabled)}
+                className={enabled ? ROW_ICON_BTN_ON : ROW_ICON_BTN}
+            >
+                <ChatCircleText size={16} weight={enabled ? "fill" : "regular"} />
+            </Button>
+        </Tooltip>
+    )
+}
+
 const Row = ({children}: {children: ReactNode}) => (
     <div className="flex h-9 shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2.5">
         {children}
@@ -254,6 +293,7 @@ const Row = ({children}: {children: ReactNode}) => (
 )
 
 export function DriveToolbar(props: DriveToolbarProps) {
+    const sessionId = useDriveSessionId()
     if (props.variant === "folder") {
         const {view, setView, sort, setSort, actions, onCopyPath, onDownloadAll, downloadingAll} =
             props
@@ -385,7 +425,8 @@ export function DriveToolbar(props: DriveToolbarProps) {
         )
     }
 
-    const {path, actions, draft, note, appView, controlsRef, onCopyPath, onDownload} = props
+    const {path, actions, draft, note, appView, controlsRef, previewKind, onCopyPath, onDownload} =
+        props
     return (
         <Row>
             <DriveInlineName
@@ -399,6 +440,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
             <span className="flex-1" />
             {draft ? <DraftStatus {...draft} /> : null}
             {controlsRef ? <div ref={controlsRef} className="flex items-center gap-1" /> : null}
+            {sessionId && isCommentableKind(previewKind) ? <CommentToggle /> : null}
             <FileActionsMenu
                 actions={actions}
                 appView={appView}

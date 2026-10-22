@@ -14,16 +14,24 @@ import {
 
 afterEach(() => vi.restoreAllMocks())
 
+const FRAME = {width: 800, height: 600}
+const RECT = {top: 10, left: 20, width: 100, height: 40}
+
 describe("parseViewerMessage", () => {
     it("accepts the five frame messages", () => {
-        expect(parseViewerMessage({type: "ready"})).toEqual({type: "ready"})
-        expect(parseViewerMessage({type: "failed", extra: 1})).toEqual({type: "failed"})
-        expect(parseViewerMessage({type: "rendered", slideCount: 3})).toEqual({
+        expect(parseViewerMessage({type: "ready"}, FRAME)).toEqual({type: "ready"})
+        expect(parseViewerMessage({type: "failed", extra: 1}, FRAME)).toEqual({type: "failed"})
+        expect(parseViewerMessage({type: "rendered", slideCount: 3}, FRAME)).toEqual({
             type: "rendered",
             slideCount: 3,
         })
-        expect(parseViewerMessage({type: "slide", index: 2})).toEqual({type: "slide", index: 2})
-        expect(parseViewerMessage({type: "open-link", url: "https://agenta.ai/docs"})).toEqual({
+        expect(parseViewerMessage({type: "slide", index: 2}, FRAME)).toEqual({
+            type: "slide",
+            index: 2,
+        })
+        expect(
+            parseViewerMessage({type: "open-link", url: "https://agenta.ai/docs"}, FRAME),
+        ).toEqual({
             type: "open-link",
             url: "https://agenta.ai/docs",
         })
@@ -42,11 +50,95 @@ describe("parseViewerMessage", () => {
         {type: "open-link", url: "javascript:alert(1)"},
         {type: "open-link", url: "data:text/html,<script>alert(1)</script>"},
     ])("rejects %j", (data) => {
-        expect(parseViewerMessage(data)).toBeNull()
+        expect(parseViewerMessage(data, FRAME)).toBeNull()
+    })
+})
+
+describe("parseViewerMessage picker messages", () => {
+    it("accepts picked, pick-cancel and pin-rects", () => {
+        const element = {
+            selector: ":scope > :nth-child(2)",
+            tag: "div",
+            page: 3,
+            point: {x: 0.5, y: 0.25},
+        }
+        expect(
+            parseViewerMessage({type: "picked", element, text: "Revenue", rect: RECT}, FRAME),
+        ).toEqual({type: "picked", element, text: "Revenue", rect: RECT})
+        expect(parseViewerMessage({type: "pick-cancel"}, FRAME)).toEqual({type: "pick-cancel"})
+        expect(
+            parseViewerMessage(
+                {
+                    type: "pin-rects",
+                    rects: [
+                        {id: "a", rect: RECT},
+                        {id: "b", rect: null},
+                        {id: "c", rect: {top: 900, left: 0, width: 10, height: 10}},
+                    ],
+                },
+                FRAME,
+            ),
+        ).toEqual({
+            type: "pin-rects",
+            rects: [
+                {id: "a", rect: RECT},
+                {id: "b", rect: null},
+                {id: "c", rect: null},
+            ],
+        })
+    })
+
+    it.each([
+        {type: "picked", text: "x", rect: RECT},
+        {
+            type: "picked",
+            element: {selector: "p", tag: "p", point: {x: 0, y: 0}},
+            text: "x",
+            rect: {top: 700, left: 0, width: 10, height: 10},
+        },
+        {
+            type: "picked",
+            element: {selector: "p", tag: "p", page: 0, point: {x: 0, y: 0}},
+            text: "x",
+            rect: RECT,
+        },
+        {type: "pin-rects", rects: "a"},
+    ])("rejects %j", (data) => {
+        expect(parseViewerMessage(data, FRAME)).toBeNull()
     })
 })
 
 describe("parseHostMessage", () => {
+    it("accepts the picker messages", () => {
+        expect(parseHostMessage({type: "pick-start", format: "presentation", page: 2})).toEqual({
+            type: "pick-start",
+            format: "presentation",
+            page: 2,
+        })
+        expect(parseHostMessage({type: "pick-start", format: "document"})).toEqual({
+            type: "pick-start",
+            format: "document",
+        })
+        expect(parseHostMessage({type: "pick-stop"})).toEqual({type: "pick-stop"})
+        const pins = [{id: "a", selector: "section.docx:nth-of-type(1) > p", text: "Hi"}]
+        expect(parseHostMessage({type: "pins", pins})).toEqual({type: "pins", pins})
+    })
+
+    it.each([
+        {type: "pick-start", format: "spreadsheet"},
+        {type: "pick-start", format: "presentation", page: 0},
+        {type: "pick-start", format: "presentation", page: 1.5},
+        {type: "pins", pins: "a"},
+        {type: "pins", pins: [{id: "a", selector: 1, text: "x"}]},
+        {type: "pins", pins: [{id: "a", selector: "p".repeat(501), text: "x"}]},
+        {
+            type: "pins",
+            pins: Array.from({length: 201}, (_, i) => ({id: `${i}`, selector: "p", text: ""})),
+        },
+    ])("rejects %j", (data) => {
+        expect(parseHostMessage(data)).toBeNull()
+    })
+
     it("accepts render with an ArrayBuffer and goto with an index", () => {
         const bytes = new ArrayBuffer(4)
         expect(parseHostMessage({type: "render", kind: "document", bytes})).toEqual({

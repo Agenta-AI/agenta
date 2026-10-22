@@ -9,11 +9,16 @@
  * context — the sandbox the spec asks for); audio/video/PDF bytes come as cached blobs (see
  * driveMedia.ts for the signed-URL deviation).
  */
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "@agenta/entities/drive"
 import {humanSize} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
+import {
+    PreviewCommentLayer,
+    usePreviewComments,
+    type PreviewCommentTarget,
+} from "@agenta/ui/quote-selection"
 import {
     Button,
     Empty,
@@ -37,10 +42,18 @@ import {
     useDriveObjectUrl,
 } from "./driveFileSource"
 import {DriveCodeBlock, DriveMarkdown} from "./driveMarkdown"
+import {useDriveSessionId} from "./driveSessionContext"
 import {HtmlAppBody} from "./htmlApp"
 import {OfficeViewerFrame} from "./officeViewer/OfficeViewerFrame"
 import type {OfficeViewerKind} from "./officeViewer/protocol"
+import {usePreviewCommentMode} from "./previewCommentMode"
 import {useQuotableFile} from "./quotable"
+import {
+    isInBox,
+    useSheetComments,
+    type CellAddressing,
+    type CellSelection,
+} from "./spreadsheetComments"
 import {useDriveAnchorClickCapture} from "./useDriveLinkClick"
 import type {SheetCell, Truncation, Workbook} from "./workbook"
 
@@ -293,19 +306,37 @@ function truncationNote(
 }
 
 /** A row-capped table whose first row is the header; CSV and spreadsheet previews share it. */
-const PreviewTable = ({rows, truncated}: {rows: SheetCell[][]; truncated: Truncation}) => {
+const PreviewTable = ({
+    rows,
+    truncated,
+    comments,
+}: {
+    rows: SheetCell[][]
+    truncated: Truncation
+    /** Comment mode: cells carry their `rows` index and select by pointer. */
+    comments?: CellSelection
+}) => {
     const [header, ...body] = rows
     const note = truncationNote(truncated, body.length, header.length)
+    const at = (row: number, col: number) =>
+        comments ? {"data-row": row, "data-col": col} : undefined
+    const selected = (row: number, col: number) =>
+        !!comments?.box && isInBox(comments.box, row, col)
     return (
         <>
             <div className="min-h-0 flex-1 overflow-auto">
-                <table className="w-full border-collapse font-mono text-xs">
+                <table
+                    className={`w-full border-collapse font-mono text-xs ${comments ? "cursor-cell select-none" : ""}`}
+                    onPointerDown={comments?.onPointerDown}
+                    onPointerOver={comments?.onPointerOver}
+                >
                     <thead>
                         <tr>
                             {header.map((h, i) => (
                                 <th
                                     key={i}
-                                    className="sticky top-0 max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary bg-colorFillTertiary px-2.5 py-1.5 text-left font-medium text-colorTextSecondary"
+                                    {...at(0, i)}
+                                    className={`sticky top-0 max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1.5 text-left font-medium text-colorTextSecondary ${selected(0, i) ? "bg-colorInfoBg" : "bg-colorFillTertiary"}`}
                                 >
                                     <PreviewCell cell={h} />
                                 </th>
@@ -318,7 +349,8 @@ const PreviewTable = ({rows, truncated}: {rows: SheetCell[][]; truncated: Trunca
                                 {r.map((c, j) => (
                                     <td
                                         key={j}
-                                        className="max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1 align-top"
+                                        {...at(i + 1, j)}
+                                        className={`max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1 align-top ${selected(i + 1, j) ? "bg-colorInfoBg" : ""}`}
                                     >
                                         <PreviewCell cell={c} />
                                     </td>
@@ -509,7 +541,7 @@ const VideoBody = ({mount, path}: {mount: Mount | null; path: string}) => {
 // ---- Office bodies (bytes keyed by the listing's file version) --------------------------------
 
 type WorkbookState =
-    | {status: "ready"; workbook: Workbook}
+    | {status: "ready"; workbook: Workbook; addressing: CellAddressing}
     | {status: "unreadable"}
     | {status: "too-large"; unpackedBytes: number}
 
@@ -520,9 +552,11 @@ function useWorkbook(blob: Blob | null): WorkbookState | undefined {
         if (!blob) return
         let cancelled = false
         Promise.all([import("./workbook"), blob.arrayBuffer()])
-            .then(([{parseWorkbook}, bytes]): WorkbookState => {
-                const workbook = parseWorkbook(bytes)
-                return workbook.sheets.length ? {status: "ready", workbook} : {status: "unreadable"}
+            .then(([addressing, bytes]): WorkbookState => {
+                const workbook = addressing.parseWorkbook(bytes)
+                return workbook.sheets.length
+                    ? {status: "ready", workbook, addressing}
+                    : {status: "unreadable"}
             })
             .catch(
                 (error: unknown): WorkbookState =>
@@ -538,10 +572,31 @@ function useWorkbook(blob: Blob | null): WorkbookState | undefined {
     return parsed && parsed.blob === blob ? parsed.state : undefined
 }
 
-const SpreadsheetView = ({workbook}: {workbook: Workbook}) => {
+export const SpreadsheetView = ({
+    workbook,
+    addressing,
+    target,
+}: {
+    workbook: Workbook
+    addressing: CellAddressing
+    /** The file comments attach to. */
+    target: PreviewCommentTarget
+}) => {
     const [active, setActive] = useState(0)
     const index = Math.min(active, workbook.sheets.length - 1)
     const sheet = workbook.sheets[index]
+    const sessionId = useDriveSessionId()
+    const {enabled} = usePreviewCommentMode()
+    const rootRef = useRef<HTMLDivElement>(null)
+    const comments = usePreviewComments(sessionId, target)
+    const {selection, pick, onPickConsumed, pinRects} = useSheetComments({
+        rootRef,
+        workbook,
+        sheet,
+        addressing,
+        comments,
+        enabled: enabled && !!sessionId,
+    })
     return (
         <Inset flush>
             <Tabs value={String(index)} onValueChange={(v) => setActive(Number(v))}>
@@ -556,11 +611,25 @@ const SpreadsheetView = ({workbook}: {workbook: Workbook}) => {
                     ))}
                 </TabsList>
             </Tabs>
-            {sheet && sheet.rows.length > 0 ? (
-                <PreviewTable rows={sheet.rows} truncated={sheet.truncated} />
-            ) : (
-                <div className="p-3 text-xs text-colorTextTertiary">This sheet is empty.</div>
-            )}
+            <div ref={rootRef} className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+                {sheet && sheet.rows.length > 0 ? (
+                    <PreviewTable
+                        rows={sheet.rows}
+                        truncated={sheet.truncated}
+                        comments={selection}
+                    />
+                ) : (
+                    <div className="p-3 text-xs text-colorTextTertiary">This sheet is empty.</div>
+                )}
+                <PreviewCommentLayer
+                    rootRef={rootRef}
+                    sessionId={sessionId}
+                    target={target}
+                    pick={pick}
+                    onPickConsumed={onPickConsumed}
+                    pinRects={pinRects}
+                />
+            </div>
         </Inset>
     )
 }
@@ -573,7 +642,15 @@ const TooLargeCard = ({mount, path, bytes}: {mount: Mount | null; path: string; 
     <DownloadCard mount={mount} path={path} title={`Too large to preview (${humanSize(bytes)})`} />
 )
 
-const SpreadsheetBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+const SpreadsheetBody = ({
+    mount,
+    path,
+    displayPath,
+}: {
+    mount: Mount | null
+    path: string
+    displayPath?: string
+}) => {
     const version = useDriveFileVersion(mount, path)
     const {blob, isPending, failed} = useDriveFileBlob(mount, path, version)
     const tooLarge = overCap("spreadsheet", blob)
@@ -592,7 +669,18 @@ const SpreadsheetBody = ({mount, path}: {mount: Mount | null; path: string}) => 
         )
     if (parsed.status === "unreadable")
         return <DownloadCard mount={mount} path={path} title="Couldn't preview this spreadsheet" />
-    return <SpreadsheetView workbook={parsed.workbook} />
+    return (
+        <SpreadsheetView
+            workbook={parsed.workbook}
+            addressing={parsed.addressing}
+            target={{
+                path,
+                displayPath: displayPath ?? path,
+                fileName: path.split("/").pop() ?? path,
+                mountId: mount?.id,
+            }}
+        />
+    )
 }
 
 /** A DOCX or PPTX in the sandboxed viewer frame; a new file version mounts a fresh frame. */
@@ -600,10 +688,12 @@ const OfficeFrameBody = ({
     mount,
     path,
     kind,
+    displayPath,
 }: {
     mount: Mount | null
     path: string
     kind: OfficeViewerKind
+    displayPath?: string
 }) => {
     const version = useDriveFileVersion(mount, path)
     const {blob, isPending, failed} = useDriveFileBlob(mount, path, version)
@@ -623,6 +713,12 @@ const OfficeFrameBody = ({
                 blob={blob}
                 onFailed={onFailed}
                 placeholder={<MediaLoading />}
+                target={{
+                    path,
+                    displayPath: displayPath ?? path,
+                    fileName: path.split("/").pop() ?? path,
+                    mountId: mount?.id,
+                }}
             />
         </Inset>
     )
@@ -709,10 +805,12 @@ export function DriveFileBody({
         case "video":
             return <VideoBody mount={mount} path={path} />
         case "spreadsheet":
-            return <SpreadsheetBody mount={mount} path={path} />
+            return <SpreadsheetBody mount={mount} path={path} displayPath={displayPath} />
         case "document":
         case "presentation":
-            return <OfficeFrameBody mount={mount} path={path} kind={kind} />
+            return (
+                <OfficeFrameBody mount={mount} path={path} kind={kind} displayPath={displayPath} />
+            )
         default:
             return <DownloadCard mount={mount} path={path} />
     }

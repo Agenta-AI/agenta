@@ -16,6 +16,8 @@ export interface Sheet {
     name: string
     rows: SheetCell[][]
     truncated: Truncation
+    /** Where `rows[0][0]` sits in the sheet, 0-based; the used range need not start at A1. */
+    origin: {r: number; c: number}
 }
 
 export interface Workbook {
@@ -45,8 +47,9 @@ const startsWith = (bytes: Uint8Array, magic: number[]): boolean =>
 
 function readSheet(name: string, sheet: WorkSheet): Sheet {
     const ref = sheet["!ref"]
-    if (!ref) return {name, rows: [], truncated: NOT_TRUNCATED}
+    if (!ref) return {name, rows: [], truncated: NOT_TRUNCATED, origin: {r: 0, c: 0}}
     const start = utils.decode_range(ref).s
+    const origin = {r: start.r, c: start.c}
     let lastRow = -1
     let lastCol = -1
     for (const address of Object.keys(sheet)) {
@@ -56,7 +59,8 @@ function readSheet(name: string, sheet: WorkSheet): Sheet {
         if (r > lastRow) lastRow = r
         if (c > lastCol) lastCol = c
     }
-    if (lastRow < start.r || lastCol < start.c) return {name, rows: [], truncated: NOT_TRUNCATED}
+    if (lastRow < start.r || lastCol < start.c)
+        return {name, rows: [], truncated: NOT_TRUNCATED, origin: {r: 0, c: 0}}
 
     const rowCount = lastRow - start.r + 1
     const colCount = lastCol - start.c + 1
@@ -71,7 +75,37 @@ function readSheet(name: string, sheet: WorkSheet): Sheet {
         name,
         rows,
         truncated: {rows: rowCount > ROW_CAP, totalColumns: colCount > COL_CAP ? colCount : null},
+        origin,
     }
+}
+
+/** A rectangle of `Sheet.rows` indices, inclusive. */
+export interface CellBox {
+    top: number
+    left: number
+    bottom: number
+    right: number
+}
+
+/** The box in the sheet's own A1 coordinates: `B4`, or `B4:C5` for more than one cell. */
+export function boxToRange(origin: Sheet["origin"], box: CellBox): string {
+    const start = utils.encode_cell({r: origin.r + box.top, c: origin.c + box.left})
+    const end = utils.encode_cell({r: origin.r + box.bottom, c: origin.c + box.right})
+    return start === end ? start : `${start}:${end}`
+}
+
+/** The inverse of {@link boxToRange}; null when the range starts before the origin. */
+export function rangeToBox(origin: Sheet["origin"], range: string): CellBox | null {
+    const {s, e} = utils.decode_range(range)
+    if (![s.r, s.c, e.r, e.c].every(Number.isInteger)) return null
+    const box = {
+        top: s.r - origin.r,
+        left: s.c - origin.c,
+        bottom: e.r - origin.r,
+        right: e.c - origin.c,
+    }
+    if (box.top < 0 || box.left < 0 || box.bottom < box.top || box.right < box.left) return null
+    return box
 }
 
 // A workbook may unpack to at most this much XML, and to at most this many times its own size.
