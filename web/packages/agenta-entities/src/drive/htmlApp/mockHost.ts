@@ -14,6 +14,7 @@
  */
 
 import {createAccessGate} from "./access"
+import {createPickBridge} from "./pickBridge"
 import {
     isFsRequest,
     isIframeToParent,
@@ -156,6 +157,8 @@ export function createMockHtmlAppHost(
     const post = (msg: ParentToIframe) => {
         channel?.port1.postMessage(msg)
     }
+
+    const picks = createPickBridge(post)
 
     const currentEtag = (path: string): string | null => {
         const text = files.get(path)
@@ -329,15 +332,18 @@ export function createMockHtmlAppHost(
             return
         }
         if (!isIframeToParent(data) || !("type" in data)) return
-        if (data.type === "nav") {
+        if (picks.receive(data)) return
+        if (data.type === "hello-ack") {
+            picks.acked()
+        } else if (data.type === "nav") {
             for (const cb of navCbs) cb(data.href)
         } else if (data.type === "error") {
             emitError({kind: "script", message: data.message, line: data.line})
         }
-        // `hello-ack` needs no reply.
     }
 
     const detach = () => {
+        picks.detached()
         if (!channel) return
         channel.port1.onmessage = null
         channel.port1.close()
@@ -350,6 +356,7 @@ export function createMockHtmlAppHost(
         const target = iframe.contentWindow
         if (!target) return
         channel = new MessageChannel()
+        picks.attached(iframe)
         channel.port1.onmessage = (event: MessageEvent) => {
             void onPortMessage(event.data)
         }
@@ -430,6 +437,12 @@ export function createMockHtmlAppHost(
             }
         },
         setAccess: gate.set,
+        startPick: picks.startPick,
+        stopPick: picks.stopPick,
+        setPins: picks.setPins,
+        onPicked: picks.onPicked,
+        onPinRects: picks.onPinRects,
+        onPickCancel: picks.onPickCancel,
     }
 
     return host

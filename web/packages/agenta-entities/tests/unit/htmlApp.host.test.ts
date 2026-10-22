@@ -883,3 +883,129 @@ describe("createHtmlAppHost.attach", () => {
         newPort.close()
     })
 })
+
+describe("createHtmlAppHost comment mode", () => {
+    const attachFrame = (host: ReturnType<typeof rw>["host"]) => {
+        let port: MessagePort | null = null
+        const iframe = {
+            clientWidth: 800,
+            clientHeight: 600,
+            contentWindow: {
+                postMessage(_msg: unknown, _origin: string, transfer: MessagePort[]) {
+                    port = transfer[0]
+                },
+            },
+        } as unknown as HTMLIFrameElement
+        host.attach(iframe)
+        const frame = port as unknown as MessagePort
+        const received: unknown[] = []
+        frame.onmessage = (event: MessageEvent) => received.push(event.data)
+        return {port: frame, received}
+    }
+
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 10))
+
+    const picked = {
+        v: 1,
+        type: "picked",
+        element: {selector: "h2:nth-of-type(1)", tag: "h2", point: {x: 0.5, y: 0.5}},
+        text: "Plan",
+        rect: {top: 10, left: 20, width: 100, height: 30},
+    }
+
+    it("drops picked while comment mode is off and delivers it while on", async () => {
+        const {host} = rw()
+        const frame = attachFrame(host)
+        const seen: unknown[] = []
+        host.onPicked((p) => seen.push(p))
+
+        frame.port.postMessage(picked)
+        await settle()
+        expect(seen).toEqual([])
+
+        frame.port.postMessage({v: 1, type: "hello-ack"})
+        host.startPick()
+        frame.port.postMessage(picked)
+        await settle()
+        expect(seen).toEqual([
+            {
+                element: {selector: "h2:nth-of-type(1)", tag: "h2", point: {x: 0.5, y: 0.5}},
+                text: "Plan",
+                rect: {top: 10, left: 20, width: 100, height: 30},
+            },
+        ])
+
+        host.stopPick()
+        frame.port.postMessage(picked)
+        await settle()
+        expect(seen).toHaveLength(1)
+        expect(frame.received).toEqual([
+            {v: 1, type: "pick-start", format: "html"},
+            {v: 1, type: "pick-stop"},
+        ])
+        host.detach()
+        frame.port.close()
+    })
+
+    it("delivers pin rects and cancel, and drops a picked rect outside the frame", async () => {
+        const {host} = rw()
+        const frame = attachFrame(host)
+        const rects: unknown[] = []
+        let cancels = 0
+        const picks: unknown[] = []
+        host.onPinRects((r) => rects.push(r))
+        host.onPickCancel(() => cancels++)
+        host.onPicked((p) => picks.push(p))
+        frame.port.postMessage({v: 1, type: "hello-ack"})
+        host.startPick()
+        frame.port.postMessage({...picked, rect: {top: 900, left: 20, width: 10, height: 10}})
+        frame.port.postMessage({
+            v: 1,
+            type: "pin-rects",
+            rects: [
+                {id: "q1", rect: {top: 1, left: 2, width: 3, height: 4}},
+                {id: "q2", rect: null},
+            ],
+        })
+        frame.port.postMessage({v: 1, type: "pick-cancel"})
+        await settle()
+        expect(picks).toEqual([])
+        expect(rects).toEqual([
+            [
+                {id: "q1", rect: {top: 1, left: 2, width: 3, height: 4}},
+                {id: "q2", rect: null},
+            ],
+        ])
+        expect(cancels).toBe(1)
+        host.detach()
+        frame.port.close()
+    })
+
+    it("re-sends pins and comment mode after the hello-ack of a re-attached frame", async () => {
+        const {host} = rw()
+        const pins = [{id: "q1", selector: "h2:nth-of-type(1)", text: "Plan"}]
+        host.setPins(pins)
+        host.startPick()
+
+        const first = attachFrame(host)
+        await settle()
+        expect(first.received).toEqual([])
+        first.port.postMessage({v: 1, type: "hello-ack"})
+        await settle()
+        expect(first.received).toEqual([
+            {v: 1, type: "pins", pins},
+            {v: 1, type: "pick-start", format: "html"},
+        ])
+
+        const second = attachFrame(host)
+        second.port.postMessage({v: 1, type: "hello-ack"})
+        await settle()
+        expect(second.received).toEqual([
+            {v: 1, type: "pins", pins},
+            {v: 1, type: "pick-start", format: "html"},
+        ])
+        host.detach()
+        first.port.close()
+        second.port.close()
+    })
+})
