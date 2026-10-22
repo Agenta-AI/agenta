@@ -1,4 +1,5 @@
 from typing import Optional
+from uuid import UUID
 
 # Mount naming vocabulary. It lives here, below the service, because the protected-mount
 # policy is enforced twice against the same rows — as a SQL predicate in the Postgres DAO
@@ -7,6 +8,21 @@ RESERVED_SLUG_PREFIX = "__ag__"
 SESSION_SLUG_PREFIX = f"{RESERVED_SLUG_PREFIX}session__"
 ATTACHMENTS_MOUNT_NAME = "attachments"
 ATTACHMENTS_MOUNT_PURPOSE = "session_attachment_originals"
+
+# Object-key root of every mount. A stored prefix is `mounts/<scope_id>/<mount_id>`, relative to
+# the store namespace. The DAO writes it from `project_storage_prefix`; the migration's SQL writes
+# the same layout as a literal. Tests pin both to `mounts/<project_id>/<mount_id>`.
+MOUNTS_KEY_ROOT = "mounts"
+
+
+def project_storage_prefix(
+    *,
+    project_id: UUID,
+    mount_id: UUID,
+) -> str:
+    """`mounts/<project_id>/<mount_id>`: namespace-relative, no trailing slash."""
+    return f"{MOUNTS_KEY_ROOT}/{project_id}/{mount_id}"
+
 
 # Backslash, so the escaped pattern below survives a `LIKE ... ESCAPE` round trip.
 PROTECTED_MOUNT_SLUG_LIKE_ESCAPE = "\\"
