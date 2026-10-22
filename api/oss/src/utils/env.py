@@ -270,6 +270,25 @@ class BillingConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# agenta.accounts — self-service account lifecycle.
+# ---------------------------------------------------------------------------
+
+
+class AccountsConfig(BaseModel):
+    """Self-service account deletion (EE).
+
+    A deletion leaves a tombstone keyed by the email hash. An email that signs up
+    again inside `tombstone_days` of its deletion gets no free credits.
+    """
+
+    tombstone_days: int = (
+        _parse_optional_positive_int_env("AGENTA_ACCOUNT_TOMBSTONE_DAYS") or 365
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # agenta.api — API-specific sub-namespace (caching, etc.)
 # ---------------------------------------------------------------------------
 
@@ -877,6 +896,7 @@ class AgentaConfig(BaseModel):
     services_internal_key: str | None = _services_internal_key_from_environment()
 
     access: AccessConfig = AccessConfig()
+    accounts: AccountsConfig = AccountsConfig()
     ai_services: AIServicesConfig = AIServicesConfig()
     api: ApiConfig = ApiConfig()
     auth_code_rate_limit: AuthCodeRateLimitConfig = AuthCodeRateLimitConfig()

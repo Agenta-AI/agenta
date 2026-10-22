@@ -981,7 +981,13 @@ from ee.src.core.starter_credits_bridge.service import (  # noqa: E402
     seed_starter_credits_bridge_safely,
 )
 from ee.src.core.wallets.service import WalletsService  # noqa: E402
-from ee.src.core.fraud.service import signup_is_fraud  # noqa: E402
+from ee.src.core.fraud.service import (  # noqa: E402
+    owner_organization_blocks_grants,
+    signup_is_fraud,
+)
+from ee.src.core.accounts.service import (  # noqa: E402
+    returning_account_blocks_grants,
+)
 
 
 _subscription_service = SubscriptionsService(
@@ -1148,11 +1154,18 @@ async def provision_signup_subscription(
     flagged = await signup_is_fraud(
         organization_id=organization.id, email=organization_email
     )
+    # Never raises; a lookup failure grants as normal. An email that deleted its
+    # account inside the tombstone window gets no free credits either, and the
+    # raised floor keeps the daily credits unspendable. A flagged organization is
+    # already marked; checking it again would overwrite the Jev verdict.
+    returning = not flagged and await returning_account_blocks_grants(
+        organization_id=organization.id, email=organization_email
+    )
 
     # Bounded (10s) and swallow-all: a failure degrades to "no starter credits"
     # and must never raise here — the signup path deletes the new user when
     # setup fails. Nothing retries a failed seed.
-    if not flagged:
+    if not flagged and not returning:
         await seed_starter_credits_bridge_safely(
             organization_id=str(organization.id),
             organization_email=organization_email,
@@ -1174,6 +1187,8 @@ async def provision_signup_subscription(
         award_grant, raise_floor = await _free_credits_check(organization_email)
         if flagged:
             award_grant = False
+        if returning:
+            award_grant, raise_floor = False, True
         await _provision_wallet_general_balance(
             organization_id=organization.id,
             plan=plan,
@@ -1215,10 +1230,22 @@ async def provision_user_subscription(
     )
 
     if env.wallets.enabled:
-        # Without this, each extra organization of a refused email collects daily credits.
+        # Without this, each extra organization of a refused email, of a returning
+        # deleted account, or of a flagged owner collects daily credits at a zero floor.
+        # The last two also inherit the no-grant marker. Each seam fails open.
         refused = await _email_rules_refuse(organization_email)
+        returning = await returning_account_blocks_grants(
+            organization_id=organization.id, email=organization_email
+        )
+        inherited = await owner_organization_blocks_grants(
+            organization_id=organization.id, owner_id=organization.owner_id
+        )
         await _provision_wallet_general_balance(
             organization_id=organization.id,
             plan=plan,
-            floor_musd=REFUSED_EMAIL_FLOOR_MUSD if refused else None,
+            floor_musd=(
+                REFUSED_EMAIL_FLOOR_MUSD
+                if (refused or returning or inherited)
+                else None
+            ),
         )

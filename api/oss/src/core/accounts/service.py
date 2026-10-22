@@ -77,6 +77,11 @@ try:
         get_plans as _ee_get_plans,
     )
 
+    from ee.src.core.accounts.service import (  # type: ignore[import]
+        write_account_tombstone as _ee_write_account_tombstone,
+        discard_account_tombstones as _ee_discard_account_tombstones,
+    )
+
     _ee_subscription_service = _EeSubscriptionsService(
         subscriptions_dao=_EeSubscriptionsDAO(),
     )
@@ -154,6 +159,7 @@ from oss.src.core.accounts.dtos import (
 from oss.src.core.accounts.errors import (
     AccountAuthDeletionError,
     AccountHasMembersError,
+    AccountTombstoneError,
     AdminApiKeyNotFoundError,
     AdminInvalidReferenceError,
     AdminMembershipNotFoundError,
@@ -951,12 +957,33 @@ class PlatformAdminAccountsService:
             deleted.users = [AdminDeletedEntity(id=str(uid)) for uid in user_ids]
             return AdminDeleteResponse(dry_run=True, deleted=deleted)
 
-        await _db_delete_accounts_batch(
-            org_ids=org_ids,
-            workspace_ids=workspace_ids,
-            project_ids=project_ids,
-            user_ids=user_ids,
-        )
+        # Each tombstone commits on its own (the scoped session commits on the first
+        # exit, so one outer transaction cannot hold them), so a failure anywhere
+        # before the batch lands discards the ones already written.
+        tombstone_ids: List[UUID] = []
+        try:
+            if is_ee():
+                for user_id in user_ids:
+                    user = await _db_get_user_by_id(user_id)
+                    if user is None:
+                        continue
+                    owned = await _db_get_orgs_owned_by_user(user_id)
+                    tombstone = await self._write_account_tombstone(
+                        email=str(user.email),
+                        organization_ids=[org.id for org in owned],
+                    )
+                    tombstone_ids.append(tombstone.id)
+
+            await _db_delete_accounts_batch(
+                org_ids=org_ids,
+                workspace_ids=workspace_ids,
+                project_ids=project_ids,
+                user_ids=user_ids,
+            )
+        except Exception:
+            if tombstone_ids:
+                await _ee_discard_account_tombstones(tombstone_ids=tombstone_ids)
+            raise
 
         deleted.projects = [
             AdminDeletedEntity(id=str(pid)) for pid in project_ids
@@ -1424,17 +1451,36 @@ class PlatformAdminAccountsService:
         self,
         *,
         user_id: str,
+        write_tombstone: bool = True,
     ) -> AdminDeleteResponse:
+        """`write_tombstone=False` only when the caller wrote it already
+        (`delete_own_account`): exactly one tombstone per deletion."""
         uid = _parse_uuid(user_id, "user_id")
         user = await _db_get_user_by_id(uid)
         if not user:
             raise AdminUserNotFoundError(user_id)
 
-        # Remove EE membership records before deleting the user to avoid FK violations
-        if is_ee():
-            await _ee_delete_user_memberships(uid)
+        # The tombstone first: without it the same email could sign up again and
+        # collect the free credits once more, so no tombstone means no deletion.
+        tombstone_ids: List[UUID] = []
+        if is_ee() and write_tombstone:
+            owned = await _db_get_orgs_owned_by_user(uid)
+            tombstone = await self._write_account_tombstone(
+                email=str(user.email),
+                organization_ids=[org.id for org in owned],
+            )
+            tombstone_ids.append(tombstone.id)
 
-        deleted_org_ids = await _db_delete_user_with_cascade(uid)
+        try:
+            # Remove EE membership records before deleting the user to avoid FK violations
+            if is_ee():
+                await _ee_delete_user_memberships(uid)
+
+            deleted_org_ids = await _db_delete_user_with_cascade(uid)
+        except Exception:
+            if tombstone_ids:
+                await _ee_discard_account_tombstones(tombstone_ids=tombstone_ids)
+            raise
         deleted = AdminDeletedEntities(
             organizations=[AdminDeletedEntity(id=str(oid)) for oid in deleted_org_ids]
             or None,
@@ -1460,6 +1506,7 @@ class PlatformAdminAccountsService:
 
         email = str(user.email)
         owned_orgs = await _db_get_orgs_owned_by_user(uid)
+        organization_ids = [org.id for org in owned_orgs]
 
         # Refuse to delete a shared organization out from under its members.
         if is_ee():
@@ -1470,6 +1517,13 @@ class PlatformAdminAccountsService:
             ]
             if shared:
                 raise AccountHasMembersError(shared)
+
+        # The tombstone before anything irreversible: a failed write returns an error
+        # while billing and the login are still intact.
+        if is_ee():
+            await self._write_account_tombstone(
+                email=email, organization_ids=organization_ids
+            )
 
         # Stop billing before the org rows disappear. Best effort.
         if is_ee():
@@ -1489,8 +1543,16 @@ class PlatformAdminAccountsService:
         # would otherwise recreate the account on the next sign-in.
         await self._delete_supertokens_user(uid=user.uid, email=email)
 
-        # Reuse the cascade delete (memberships + user + owned orgs).
-        result = await self.delete_user(user_id=user_id)
+        # Reuse the cascade delete (memberships + user + owned orgs); the tombstone is
+        # already written above.
+        result = await self.delete_user(user_id=user_id, write_tombstone=False)
+
+        log.info(
+            "[accounts] self-service account deleted",
+            user_id=user_id,
+            domain=email.strip().lower().rpartition("@")[2],
+            organization_ids=[str(oid) for oid in organization_ids],
+        )
 
         # Drop them from the marketing email list. Best effort.
         if is_ee():
@@ -1503,6 +1565,21 @@ class PlatformAdminAccountsService:
                 )
 
         return result
+
+    async def _write_account_tombstone(
+        self, *, email: str, organization_ids: List[UUID]
+    ):
+        """Raises AccountTombstoneError on failure so the account is left intact."""
+        try:
+            return await _ee_write_account_tombstone(
+                email=email, organization_ids=organization_ids
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.error(
+                "[accounts] tombstone write failed; account deletion aborted",
+                reason=type(exc).__name__,
+            )
+            raise AccountTombstoneError() from exc
 
     async def _delete_supertokens_user(self, *, uid: str | None, email: str) -> None:
         """Delete the SuperTokens login for a user, linked accounts included.
