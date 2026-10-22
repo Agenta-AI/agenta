@@ -3,6 +3,8 @@ import {useCallback, useEffect} from "react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
+import {selectedOrgAtom} from "@/oss/state/org/selectors/org"
+
 import {projectsQueryAtom} from "./selectors/project"
 import {
     cacheLastUsedProjectId,
@@ -20,12 +22,14 @@ export const useProjectData = () => {
     const isProjectId = !!projectId
     const queryClient = useQueryClient()
     const setLastNonDemoProject = useSetAtom(lastNonDemoProjectAtom)
+    // Projects carry no demo flag any more; the demo workspace is an organization flag.
+    const isDemoWorkspace = Boolean(useAtomValue(selectedOrgAtom)?.flags?.is_demo)
 
     useEffect(() => {
         if (!project?.project_id) return
         const workspaceKey = project.workspace_id || project.organization_id || null
         cacheLastUsedProjectId(workspaceKey, project.project_id)
-        if (workspaceKey) {
+        if (!isDemoWorkspace && workspaceKey) {
             setLastNonDemoProject({
                 workspaceId: workspaceKey,
                 projectId: project.project_id,
@@ -36,6 +40,7 @@ export const useProjectData = () => {
         project?.organization_id,
         project?.project_id,
         project?.workspace_id,
+        isDemoWorkspace,
         setLastNonDemoProject,
     ])
 

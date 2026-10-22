@@ -3,7 +3,7 @@
 import pytest
 
 from oss.src.utils.common import is_ee
-from oss.tests.pytest.utils.membership_accounts import Team
+from oss.tests.pytest.utils.membership_accounts import Team, add_project_member
 
 
 @pytest.fixture
@@ -28,6 +28,37 @@ def test_project_created_by_another_member_is_listed(admin_api, team):
     listed = {p["project_id"]: p for p in resp.json()}
     assert project_id in listed
     assert listed[project_id]["user_role"] == "viewer"
+
+
+def test_oss_member_without_a_project_row_has_the_organization_role(admin_api, team):
+    if is_ee():
+        pytest.skip("OSS policy: the organization row decides")
+
+    # An organization row only, and a member whose project row disagrees.
+    team.add("no_row", "editor", project_row=False)
+    team.add("stale", "editor", project_row=False)
+    add_project_member(
+        admin_api,
+        project_id=team.project_id,
+        user_id=team.user_ids["stale"],
+        role="viewer",
+    )
+
+    for label in ("no_row", "stale"):
+        resp = admin_api("GET", "/projects/", headers=team.headers(label))
+        assert resp.status_code == 200, resp.text
+        listed = {p["project_id"]: p for p in resp.json()}
+        assert listed[team.project_id]["user_role"] == "editor", label
+
+        # The organization row alone gives access to the project.
+        resp = admin_api(
+            "POST",
+            "/workflows/query",
+            params={"project_id": team.project_id},
+            headers=team.headers(label),
+            json={},
+        )
+        assert resp.status_code == 200, (label, resp.text)
 
 
 def test_viewer_member_is_denied_member_removal(admin_api, team):

@@ -598,6 +598,26 @@ async def _organization_of(*, table: str, entity_id: UUID) -> Optional[UUID]:
         ).scalar()
 
 
+async def _member_organization_ids(*, user_ids: List[UUID]) -> List[UUID]:
+    """Organizations where the users have an organization row, read before a delete."""
+    from sqlalchemy import text as _text
+
+    from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+
+    if not user_ids:
+        return []
+    async with get_transactions_engine().session() as session:
+        rows = await session.execute(
+            _text(
+                "SELECT DISTINCT organization_id FROM organization_members "
+                "WHERE user_id = ANY(CAST(:users AS uuid[])) "
+                "AND organization_id IS NOT NULL"
+            ),
+            {"users": list(user_ids)},
+        )
+        return [row[0] for row in rows]
+
+
 async def _invalidate_memberships(
     *,
     user_ids: List[UUID],
@@ -886,9 +906,6 @@ class PlatformAdminAccountsService:
         options: AdminAccountCreateOptions,
     ) -> None:
         """Create organization/workspace/project memberships."""
-        affected_users: List[UUID] = []
-        affected_organizations: List[UUID] = []
-
         for mem_ref, mem_create in (dto.organization_memberships or {}).items():
             org_id = await _resolve_entity_ref_to_uuid(
                 mem_create.organization_ref,
@@ -907,8 +924,7 @@ class PlatformAdminAccountsService:
                 organization_id=org_id,
                 role=mem_create.role,
             )
-            affected_users.append(user_id)
-            affected_organizations.append(org_id)
+            await _invalidate_memberships(user_ids=[user_id], organization_ids=[org_id])
             tracker.organization_memberships[mem_ref] = membership_id
             account.organization_memberships[mem_ref] = AdminOrganizationMembershipRead(
                 id=str(membership_id),
@@ -935,9 +951,11 @@ class PlatformAdminAccountsService:
                 workspace_id=ws_id,
                 role=mem_create.role,
             )
-            affected_users.append(user_id)
-            affected_organizations.append(
-                await _organization_of(table="workspaces", entity_id=ws_id)
+            await _invalidate_memberships(
+                user_ids=[user_id],
+                organization_ids=[
+                    await _organization_of(table="workspaces", entity_id=ws_id)
+                ],
             )
             tracker.workspace_memberships[mem_ref] = membership_id
             account.workspace_memberships[mem_ref] = AdminWorkspaceMembershipRead(
@@ -965,9 +983,11 @@ class PlatformAdminAccountsService:
                 project_id=proj_id,
                 role=mem_create.role,
             )
-            affected_users.append(user_id)
-            affected_organizations.append(
-                await _organization_of(table="projects", entity_id=proj_id)
+            await _invalidate_memberships(
+                user_ids=[user_id],
+                organization_ids=[
+                    await _organization_of(table="projects", entity_id=proj_id)
+                ],
             )
             tracker.project_memberships[mem_ref] = membership_id
             account.project_memberships[mem_ref] = AdminProjectMembershipRead(
@@ -976,11 +996,6 @@ class PlatformAdminAccountsService:
                 user_id=str(user_id),
                 role=mem_create.role,
             )
-
-        await _invalidate_memberships(
-            user_ids=affected_users,
-            organization_ids=affected_organizations,
-        )
 
     # -----------------------------------------------------------------------
     # Account Graph Delete
@@ -1061,11 +1076,20 @@ class PlatformAdminAccountsService:
                     )
                     tombstone_ids.append(tombstone.id)
 
+            member_organization_ids = await _member_organization_ids(user_ids=user_ids)
             await _db_delete_accounts_batch(
                 org_ids=org_ids,
                 workspace_ids=workspace_ids,
                 project_ids=project_ids,
                 user_ids=user_ids,
+            )
+            # Organizations that survive keep their projects: clear the deleted
+            # users' cached answers there.
+            await _invalidate_memberships(
+                user_ids=user_ids,
+                organization_ids=[
+                    o for o in member_organization_ids if o not in set(org_ids)
+                ],
             )
         except Exception:
             if tombstone_ids:
@@ -1560,10 +1584,17 @@ class PlatformAdminAccountsService:
 
         try:
             # Remove EE membership records before deleting the user to avoid FK violations
+            member_organization_ids = await _member_organization_ids(user_ids=[uid])
             if is_ee():
                 await _ee_delete_user_memberships(uid)
 
             deleted_org_ids = await _db_delete_user_with_cascade(uid)
+            await _invalidate_memberships(
+                user_ids=[uid],
+                organization_ids=[
+                    o for o in member_organization_ids if o not in set(deleted_org_ids)
+                ],
+            )
         except Exception:
             if tombstone_ids:
                 await _ee_discard_account_tombstones(tombstone_ids=tombstone_ids)
