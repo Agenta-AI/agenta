@@ -15,6 +15,7 @@ from uuid import UUID
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
+from oss.src.core.memberships.service import invalidate_access_caches
 from oss.src.services.api_key_service import create_api_key as _create_raw_api_key
 from oss.src.services.db_manager import (
     admin_get_user_by_id as _db_get_user_by_id,
@@ -485,6 +486,7 @@ async def _create_org_membership_row(
         membership_db = OrganizationMemberDB(
             user_id=user_id,
             organization_id=organization_id,
+            role=role,
         )
         session.add(membership_db)
         await session.commit()
@@ -544,6 +546,73 @@ async def _create_project_membership_row(
         await session.commit()
 
         return membership_db.id
+
+
+_MEMBERSHIP_SCOPE_SQL = {
+    "organization": (
+        "SELECT user_id, organization_id FROM organization_members WHERE id = :id"
+    ),
+    "workspace": (
+        "SELECT wm.user_id, w.organization_id FROM workspace_members wm "
+        "JOIN workspaces w ON w.id = wm.workspace_id WHERE wm.id = :id"
+    ),
+    "project": (
+        "SELECT pm.user_id, p.organization_id FROM project_members pm "
+        "JOIN projects p ON p.id = pm.project_id WHERE pm.id = :id"
+    ),
+}
+
+_ORGANIZATION_OF_SQL = {
+    "workspaces": "SELECT organization_id FROM workspaces WHERE id = :id",
+    "projects": "SELECT organization_id FROM projects WHERE id = :id",
+}
+
+
+async def _membership_scope(
+    *,
+    membership_id: UUID,
+    scope_type: str,
+) -> Optional[tuple]:
+    """(user_id, organization_id) of a membership row, read before it is deleted."""
+    from sqlalchemy import text as _text
+
+    from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+
+    async with get_transactions_engine().session() as session:
+        row = (
+            await session.execute(
+                _text(_MEMBERSHIP_SCOPE_SQL[scope_type]), {"id": membership_id}
+            )
+        ).first()
+    return (row[0], row[1]) if row is not None else None
+
+
+async def _organization_of(*, table: str, entity_id: UUID) -> Optional[UUID]:
+    from sqlalchemy import text as _text
+
+    from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+
+    async with get_transactions_engine().session() as session:
+        return (
+            await session.execute(_text(_ORGANIZATION_OF_SQL[table]), {"id": entity_id})
+        ).scalar()
+
+
+async def _invalidate_memberships(
+    *,
+    user_ids: List[UUID],
+    organization_ids: List[UUID],
+) -> None:
+    """Admin membership writes bypass MembershipsService, so they clear the access
+    caches themselves, after the commit: a cached denial would otherwise keep a new
+    member out for up to AGENTA_CACHE_TTL."""
+
+    user_ids = [u for u in dict.fromkeys(user_ids) if u is not None]
+    organization_ids = [o for o in dict.fromkeys(organization_ids) if o is not None]
+    if not user_ids or not organization_ids:
+        return
+    project_ids = await _db_get_project_ids_for_orgs(organization_ids)
+    await invalidate_access_caches(user_ids=user_ids, project_ids=project_ids)
 
 
 # ---------------------------------------------------------------------------
@@ -817,6 +886,9 @@ class PlatformAdminAccountsService:
         options: AdminAccountCreateOptions,
     ) -> None:
         """Create organization/workspace/project memberships."""
+        affected_users: List[UUID] = []
+        affected_organizations: List[UUID] = []
+
         for mem_ref, mem_create in (dto.organization_memberships or {}).items():
             org_id = await _resolve_entity_ref_to_uuid(
                 mem_create.organization_ref,
@@ -835,6 +907,8 @@ class PlatformAdminAccountsService:
                 organization_id=org_id,
                 role=mem_create.role,
             )
+            affected_users.append(user_id)
+            affected_organizations.append(org_id)
             tracker.organization_memberships[mem_ref] = membership_id
             account.organization_memberships[mem_ref] = AdminOrganizationMembershipRead(
                 id=str(membership_id),
@@ -860,6 +934,10 @@ class PlatformAdminAccountsService:
                 user_id=user_id,
                 workspace_id=ws_id,
                 role=mem_create.role,
+            )
+            affected_users.append(user_id)
+            affected_organizations.append(
+                await _organization_of(table="workspaces", entity_id=ws_id)
             )
             tracker.workspace_memberships[mem_ref] = membership_id
             account.workspace_memberships[mem_ref] = AdminWorkspaceMembershipRead(
@@ -887,6 +965,10 @@ class PlatformAdminAccountsService:
                 project_id=proj_id,
                 role=mem_create.role,
             )
+            affected_users.append(user_id)
+            affected_organizations.append(
+                await _organization_of(table="projects", entity_id=proj_id)
+            )
             tracker.project_memberships[mem_ref] = membership_id
             account.project_memberships[mem_ref] = AdminProjectMembershipRead(
                 id=str(membership_id),
@@ -894,6 +976,11 @@ class PlatformAdminAccountsService:
                 user_id=str(user_id),
                 role=mem_create.role,
             )
+
+        await _invalidate_memberships(
+            user_ids=affected_users,
+            organization_ids=affected_organizations,
+        )
 
     # -----------------------------------------------------------------------
     # Account Graph Delete
@@ -1986,6 +2073,11 @@ class PlatformAdminAccountsService:
                 if proj_scope:
                     await _ee_swap_project_memberships(proj_scope, source_id, target_id)
 
+            await invalidate_access_caches(
+                user_ids=[source_id, target_id],
+                project_ids=all_proj_ids,
+            )
+
             log.info(
                 "[admin] ownership transferred",
                 source_id=str(source_id),
@@ -2029,9 +2121,17 @@ class PlatformAdminAccountsService:
         if delete_fn is None:
             raise AdminNotImplementedError(f"delete_{scope_type}_membership")
 
+        scope = await _membership_scope(membership_id=mid, scope_type=scope_type)
+
         found = await delete_fn(mid)
         if not found:
             raise AdminMembershipNotFoundError(membership_id)
+
+        if scope is not None:
+            await _invalidate_memberships(
+                user_ids=[scope[0]],
+                organization_ids=[scope[1]],
+            )
 
         deleted = AdminDeletedEntities()
         setattr(

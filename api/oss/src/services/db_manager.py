@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, load_only
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 
+from oss.src.core.memberships.service import get_memberships_service
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
@@ -2792,18 +2793,16 @@ async def create_workspace_db_object(
         membership_id=workspace_member.id,
     )
 
-    project_db = await create_default_project(
-        organization_id=str(organization.id),
-        workspace_id=str(workspace.id),
-        session=session,
+    # The default project, seeded with every organization member, in one
+    # transaction (MembershipsService.create_project).
+    scope = await get_memberships_service().create_project(
+        organization_id=organization.id,
+        workspace_id=workspace.id,
+        name="Default",
+        is_default=True,
+        actor_user_id=user.id,
     )
-
-    await create_project_member(
-        user_id=str(user.id),
-        project_id=str(project_db.id),
-        role=workspace_member.role,
-        session=session,
-    )
+    project_db = await fetch_project_by_id(project_id=str(scope.project_id))
 
     await add_default_simple_testsets(
         project_id=str(project_db.id),
