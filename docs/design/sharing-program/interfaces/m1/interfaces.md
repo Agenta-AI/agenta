@@ -278,6 +278,7 @@ class MembershipsService:
     async def is_member(self, *, user_id: UUID, project_id: UUID) -> bool: ...  # resolve(...) is not None
     async def list_for_user(self, *, user_id: UUID) -> List[ProjectListing]: ...  # not cached
     async def fetch_for_user(self, *, user_id: UUID, project_id: UUID) -> Optional[ProjectListing]: ...
+    async def fetch_organization_member(self, *, organization_id: UUID, user_id: UUID) -> Optional[OrganizationMember]: ...  # invite accept "already accepted", the unassign-role endpoint
 
     # writers: DAO write, then invalidate_access_caches (section 6).
     # actor_user_id is used only for the audit log (technical design section 5).
@@ -454,6 +455,8 @@ async def invalidate_access_caches(*, user_ids: Sequence[UUID], project_ids: Seq
     #   invalidate_cache(namespace="resolve_membership", project_id=str(p), user_id=str(u))
     # for each user u, once: invalidate_cache(namespace="verify_bearer_token", user_id=str(u))
 ```
+
+The admin simple-accounts organization membership writer stores the role it is given (it used to store `viewer`), because OSS now reads the organization role.
 
 Called after the commit. Users: the changed user; for `transfer_ownership`, both users. Projects: every project of the organization, read after the commit. With an empty `user_ids`, the helper calls `invalidate_cache(namespace=<ns>, project_id=str(p))` for each namespace and project (user wildcard); `create_project` uses this for the new project. The admin tools in `oss/src/core/accounts/service.py` that create or delete a membership row, or transfer ownership, also call the helper after commit, with the affected user ids (captured before a delete) and the organization's project ids: today's `check_action_access` cache holds a cached `False`, and M2's cache holds an absence, so an admin add without invalidation stays denied for up to 300 s. Per-project calls are needed because `_pack` pads a missing `project_id` with `------------`, which is not a wildcard (`oss/src/utils/caching.py`).
 
