@@ -3,6 +3,7 @@
 from typing import Dict, List, Optional, Sequence, Tuple
 from uuid import UUID, uuid4
 
+from oss.src.core.access.interfaces import RbacEnforcementInterface
 from oss.src.core.memberships.dtos import (
     CreatedProject,
     MembershipRow,
@@ -170,3 +171,15 @@ class InMemoryMembershipsDAO(MembershipsDAOInterface):
     async def transfer_ownership(self, **kwargs) -> MembershipWriteResult:
         self.writes.append(("transfer_ownership", kwargs))
         return self.write_results.get("transfer_ownership", MembershipWriteResult())
+
+
+class RecordingRbac(RbacEnforcementInterface):
+    """Records the organization of each `is_enforced` call."""
+
+    def __init__(self, enforced: bool = True) -> None:
+        self.enforced = enforced
+        self.calls: List[UUID] = []
+
+    async def is_enforced(self, *, organization_id: UUID) -> bool:
+        self.calls.append(organization_id)
+        return self.enforced
