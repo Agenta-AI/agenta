@@ -270,3 +270,26 @@ async def test_admin_cannot_delete_a_project(routes):
     assert error.value.status_code == 403
     assert state.access.await_args.kwargs["permission"] == Permission.DELETE_WORKSPACE
     state.delete.assert_not_awaited()
+
+
+async def test_create_in_a_workspace_without_a_default_project_is_400(
+    routes, monkeypatch
+):
+    from sqlalchemy.exc import NoResultFound
+
+    routes()
+    monkeypatch.setattr(
+        projects_router.db_manager,
+        "get_default_project_id_from_workspace",
+        AsyncMock(side_effect=NoResultFound("no default")),
+    )
+
+    with pytest.raises(HTTPException) as error:
+        await projects_router.create_project(
+            request=_context(), payload=projects_router.CreateProjectRequest(name="New")
+        )
+
+    assert (error.value.status_code, error.value.detail) == (
+        400,
+        "Workspace and organization context are required",
+    )

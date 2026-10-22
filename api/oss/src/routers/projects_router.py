@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from fastapi import Request, HTTPException
+from sqlalchemy.exc import NoResultFound
 from fastapi.responses import JSONResponse
 
 from oss.src.utils.common import is_ee, is_oss, APIRouter
@@ -176,9 +177,12 @@ async def create_project(
 
     # Creating a project is an organization-level act: it authorizes on the
     # default project of the request's workspace, like the workspace endpoints.
-    default_project_id = await db_manager.get_default_project_id_from_workspace(
-        workspace_id=str(workspace_id)
-    )
+    try:
+        default_project_id = await db_manager.get_default_project_id_from_workspace(
+            workspace_id=str(workspace_id)
+        )
+    except NoResultFound as exc:
+        raise HTTPException(status_code=400, detail=_CONTEXT_REQUIRED) from exc
     await _require(request, default_project_id, Permission.CREATE_WORKSPACE)
 
     project_name = payload.name.strip()

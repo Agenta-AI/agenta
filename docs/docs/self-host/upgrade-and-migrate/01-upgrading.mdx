@@ -41,7 +41,7 @@ cd api
 AGENTA_LICENSE=ee uv run --no-sync python -m entrypoints.memberships_check --apply
 ```
 
-It deletes the newer row of each duplicate pair, keeps the oldest, and prints each deleted row with its role. It also adds the project rows that members of an organization without the RBAC entitlement need. To see what it would change first, run it with `--report` instead of `--apply`; that writes a `report.json` and changes nothing.
+It deletes the newer row of each duplicate pair, keeps the oldest, and prints each deleted row with its role. Demo rows (`is_demo`) are not part of this step; the upgrade deletes them. It also adds the project rows that members of an organization without the RBAC entitlement need. It adds these rows only before the upgrade: after the upgrade has run, `--apply` skips this step and says so. To see what it would change first, run it with `--report` instead of `--apply`; that writes a `report.json` and changes nothing.
 
 If the upgrade stops with `project_members has <n> duplicate (project_id, user_id) groups`, run the `--apply` command above, then run the upgrade again.
 
