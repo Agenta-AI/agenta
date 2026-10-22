@@ -38,6 +38,8 @@ export function OfficeViewerFrame({
     const frameRef = useRef<HTMLIFrameElement>(null)
     const [script, setScript] = useState<string | null>(null)
     const [state, setState] = useState<ViewerState>({status: "loading"})
+    // The slide last asked for; clicks step from it, not from the frame's slower echo.
+    const targetRef = useRef(0)
 
     useEffect(() => {
         let cancelled = false
@@ -69,9 +71,11 @@ export function OfficeViewerFrame({
                     )
                     return
                 case "rendered":
+                    targetRef.current = 0
                     setState({status: "rendered", slideCount: message.slideCount, index: 0})
                     return
                 case "slide":
+                    targetRef.current = message.index
                     setState((s) => (s.status === "rendered" ? {...s, index: message.index} : s))
                     return
                 case "failed":
@@ -87,8 +91,15 @@ export function OfficeViewerFrame({
         return () => window.removeEventListener("message", onMessage)
     }, [blob, kind, onFailed, send])
 
-    const goto = (index: number) => send({type: "goto", index})
     const slides = kind === "presentation" && state.status === "rendered" ? state : null
+    const step = (delta: number) => {
+        if (!slides) return
+        const index = Math.min(Math.max(targetRef.current + delta, 0), slides.slideCount - 1)
+        if (index === targetRef.current) return
+        targetRef.current = index
+        setState({...slides, index})
+        send({type: "goto", index})
+    }
 
     return (
         <div className="relative flex min-h-0 flex-1 flex-col">
@@ -114,7 +125,7 @@ export function OfficeViewerFrame({
                         size="icon-sm"
                         aria-label="Previous slide"
                         disabled={slides.index <= 0}
-                        onClick={() => goto(slides.index - 1)}
+                        onClick={() => step(-1)}
                     >
                         <CaretLeft />
                     </Button>
@@ -126,7 +137,7 @@ export function OfficeViewerFrame({
                         size="icon-sm"
                         aria-label="Next slide"
                         disabled={slides.index >= slides.slideCount - 1}
-                        onClick={() => goto(slides.index + 1)}
+                        onClick={() => step(1)}
                     >
                         <CaretRight />
                     </Button>
