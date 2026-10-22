@@ -238,8 +238,6 @@ export const ProjectsPage = ({
                                     label="Current"
                                     className="text-[13px]"
                                 />
-                            ) : record.is_demo ? (
-                                <Tag className="m-0" label="Demo" />
                             ) : (
                                 <span className="text-muted-foreground">—</span>
                             )}

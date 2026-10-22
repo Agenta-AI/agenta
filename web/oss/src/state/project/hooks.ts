@@ -14,7 +14,6 @@ import {
 
 export const useProjectData = () => {
     const [{isPending: _isPending, isLoading, refetch: _refetch}] = useAtom(projectsQueryAtom)
-    // Read via projectsAtom (not raw query data) so demo projects stay hidden
     const projects = useAtomValue(projectsAtom)
     const project = useAtomValue(projectAtom)
     const projectId = useAtomValue(projectIdAtom)
@@ -26,7 +25,7 @@ export const useProjectData = () => {
         if (!project?.project_id) return
         const workspaceKey = project.workspace_id || project.organization_id || null
         cacheLastUsedProjectId(workspaceKey, project.project_id)
-        if (!project.is_demo && workspaceKey) {
+        if (workspaceKey) {
             setLastNonDemoProject({
                 workspaceId: workspaceKey,
                 projectId: project.project_id,
@@ -37,7 +36,6 @@ export const useProjectData = () => {
         project?.organization_id,
         project?.project_id,
         project?.workspace_id,
-        project?.is_demo,
         setLastNonDemoProject,
     ])
 

@@ -71,7 +71,6 @@ const projects = [
         project_id: OWN_PROJECT_ID,
         project_name: "Default",
         is_default_project: false,
-        is_demo: null,
         user_role: "owner",
     },
     {
@@ -81,7 +80,6 @@ const projects = [
         project_id: DEMO_PROJECT_ID,
         project_name: "Default",
         is_default_project: true,
-        is_demo: true,
         user_role: "viewer",
     },
 ] as unknown as ProjectsResponse[]
@@ -94,19 +92,16 @@ describe("pickPreferredProject", () => {
         // projectAtom fallback accordingly.
         const result = pickPreferredProject(projects, null, null)
         expect(result?.project_id).toBe(DEMO_PROJECT_ID)
-        expect(result?.is_demo).toBe(true)
     })
 
     it("with workspaceId = own org UUID, scopes the pick to that org and returns the own project", () => {
         const result = pickPreferredProject(projects, OWN_ORG_UUID, null)
         expect(result?.project_id).toBe(OWN_PROJECT_ID)
-        expect(result?.is_demo).not.toBe(true)
     })
 
     it("with workspaceId = demo org UUID, returns the demo project (still scoped, not cross-org)", () => {
         const result = pickPreferredProject(projects, DEMO_ORG_UUID, null)
         expect(result?.project_id).toBe(DEMO_PROJECT_ID)
-        expect(result?.is_demo).toBe(true)
     })
 
     it("returns null when projects list is empty", () => {

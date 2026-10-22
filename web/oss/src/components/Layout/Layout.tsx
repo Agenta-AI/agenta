@@ -19,7 +19,7 @@ import {refreshSession} from "@/oss/lib/helpers/auth/refreshSession"
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
 import {appStateSnapshotAtom, requestNavigationAtom} from "@/oss/state/appState"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
-import {cacheWorkspaceOrgPair} from "@/oss/state/org/selectors/org"
+import {cacheWorkspaceOrgPair, selectedOrgAtom} from "@/oss/state/org/selectors/org"
 import {getProjectValues, routeContextAtom, useProjectData} from "@/oss/state/project"
 import {
     cacheLastUsedProjectId,
@@ -255,6 +255,9 @@ const AppWithVariants = memo(
         }, [activeSidebarView.id, sidebarLastPath])
 
         const {project} = useProjectData()
+        // Projects carry no demo flag any more; the demo workspace is an organization flag.
+        const selectedOrg = useAtomValue(selectedOrgAtom)
+        const isDemoWorkspace = Boolean(project && selectedOrg?.flags?.is_demo)
         const lastNonDemoProject = useAtomValue(lastNonDemoProjectAtom)
         const [demoReturnHintPending, setDemoReturnHintPending] = useAtom(demoReturnHintPendingAtom)
         const [demoReturnHintDismissed, setDemoReturnHintDismissed] = useAtom(
@@ -264,7 +267,7 @@ const AppWithVariants = memo(
         const navigate = useSetAtom(requestNavigationAtom)
 
         useEffect(() => {
-            if (project?.is_demo) return
+            if (isDemoWorkspace) return
             if (!demoReturnHintPending) return
             if (demoReturnHintDismissed) {
                 setDemoReturnHintPending(false)
@@ -275,7 +278,7 @@ const AppWithVariants = memo(
         }, [
             demoReturnHintDismissed,
             demoReturnHintPending,
-            project?.is_demo,
+            isDemoWorkspace,
             setDemoReturnHintPending,
         ])
 
@@ -290,7 +293,7 @@ const AppWithVariants = memo(
         const maintenanceNotice = useMaintenanceNotice()
         const [maintenanceDismissed, setMaintenanceDismissed] = useState(true)
         const topBarsHeight =
-            (project?.is_demo ? 38 : 0) + (maintenanceNotice && !maintenanceDismissed ? 38 : 0)
+            (isDemoWorkspace ? 38 : 0) + (maintenanceNotice && !maintenanceDismissed ? 38 : 0)
 
         // Stable theme object so antd cssinjs doesn't re-evaluate per parent render
         const contentThemeConfig = useMemo(
@@ -355,7 +358,7 @@ const AppWithVariants = memo(
                         onDismissedChange={setMaintenanceDismissed}
                     />
                 ) : null}
-                {project?.is_demo && (
+                {isDemoWorkspace && (
                     <>
                         <div
                             className={clsx([
