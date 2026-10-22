@@ -38,8 +38,7 @@ export const DriveFileGlyph = ({path}: {path: string}) => (
     </span>
 )
 
-/** The download control a file card puts above its open overlay. */
-export const DriveFileDownloadButton = ({
+const DownloadButton = ({
     name,
     target,
 }: {
@@ -63,7 +62,7 @@ export const DriveFileDownloadButton = ({
 }
 
 /** The whole card opens the file; the actions sit above it, so no button nests. */
-export const DriveFileOpenOverlay = ({path, name}: {path: string; name: string}) => {
+const OpenOverlay = ({path, name}: {path: string; name: string}) => {
     const openQuickLook = useSetAtom(driveQuickLookAtomFamily(useDriveSessionId() ?? ""))
     return (
         <button
@@ -97,11 +96,11 @@ export function DriveFileTile({
     return (
         <div
             className={cn(
-                "relative flex min-w-0 items-center gap-3 rounded-lg border border-solid border-border bg-background p-2.5 pl-3 transition-colors",
+                "relative flex min-w-0 items-center gap-3 rounded-lg border border-solid border-border/60 bg-background p-2.5 pl-3 transition-colors",
                 deleted ? "opacity-70" : "hover:bg-muted/50",
             )}
         >
-            {!deleted ? <DriveFileOpenOverlay path={path} name={name} /> : null}
+            {!deleted ? <OpenOverlay path={path} name={name} /> : null}
             <DriveFileGlyph path={path} />
             <span className="flex min-w-0 flex-1 flex-col">
                 <span
@@ -116,7 +115,7 @@ export function DriveFileTile({
                     {meta.join(" · ")}
                 </span>
             </span>
-            {!deleted && target ? <DriveFileDownloadButton name={name} target={target} /> : null}
+            {!deleted && target ? <DownloadButton name={name} target={target} /> : null}
         </div>
     )
 }

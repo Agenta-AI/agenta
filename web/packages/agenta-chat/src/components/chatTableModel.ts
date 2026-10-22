@@ -108,7 +108,14 @@ export const toMarkdown = (model: TableModel): string => {
     return [line(model.header), rule, ...model.rows.map(line)].join("\n")
 }
 
-const csvField = (text: string) => (/[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text)
+// A spreadsheet runs a cell that starts with = + - @ as a formula; a plain number is left alone.
+const defuse = (text: string) =>
+    /^[=+\-@\t\r]/.test(text) && !/^[-+]?[\d.,]*%?$/.test(text) ? `'${text}` : text
+
+const csvField = (raw: string) => {
+    const text = defuse(raw)
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
 
 /** RFC 4180: CRLF rows, a field with a comma, quote or line break quoted, quotes doubled. */
 export const toCsv = (model: TableModel): string =>

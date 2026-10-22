@@ -132,4 +132,13 @@ describe("toCsv", () => {
             'Name,Note\r\nplain,"say ""hi"", then go"\r\n"multi\nline","1,204"',
         )
     })
+
+    it("defuses formula cells but keeps signed numbers", () => {
+        const model = tableModel(
+            table(["Cell", "Delta"], [['=HYPERLINK("http://x")', "-5"], ["@SUM(A1)", "+1.5%"]]),
+        )
+        expect(toCsv(model)).toBe(
+            'Cell,Delta\r\n"\'=HYPERLINK(""http://x"")",-5\r\n\'@SUM(A1),+1.5%',
+        )
+    })
 })

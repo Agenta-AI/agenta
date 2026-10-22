@@ -5,7 +5,7 @@ const AGENT_REPLY = "Agent reply"
 
 /** One excerpt a sent message quoted, lifted out of the bubble into its own card above it. */
 export const UserQuoteCard = ({quote}: {quote: QuotedExcerpt}) => (
-    <div className="flex max-w-full gap-2.5 rounded-lg border border-border bg-background px-3.5 py-2.5">
+    <div className="flex max-w-full gap-2.5 rounded-lg border border-border/60 bg-background px-3.5 py-2.5">
         <Quotes size={14} className="mt-0.5 shrink-0 text-muted-foreground" />
         <div className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate text-[11.5px] font-medium text-muted-foreground">

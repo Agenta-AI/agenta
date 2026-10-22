@@ -25,8 +25,10 @@ const MAX_HEIGHT = 360
 const MIN_FRAME = 76
 
 /** Shown on hover or keyboard focus where hovering exists; always shown on touch. */
-const CORNER_ACTION =
-    "absolute right-2 top-2 flex gap-1 transition-opacity motion-reduce:transition-none [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/inline-image:opacity-100 [@media(hover:hover)]:group-has-[:focus-visible]/inline-image:opacity-100"
+const HOVER_REVEAL =
+    "transition-opacity motion-reduce:transition-none [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/inline-image:opacity-100 [@media(hover:hover)]:group-has-[:focus-visible]/inline-image:opacity-100"
+
+const CORNER_ACTION = `absolute right-2 top-2 flex gap-1 ${HOVER_REVEAL}`
 
 const CORNER_BUTTON =
     "flex size-7 cursor-pointer items-center justify-center rounded-md border-0 bg-background/90 p-0 text-foreground shadow-sm transition-colors hover:bg-background focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
@@ -118,56 +120,57 @@ function ChatInlineImageImpl({candidate}: {candidate: string}) {
     const width = Math.min(MAX_WIDTH, loaded.width, (MAX_HEIGHT * loaded.width) / loaded.height)
     const height = (width * loaded.height) / loaded.width
     return (
-        <figure className="group/inline-image m-0 flex max-w-full shrink-0 flex-col gap-2">
-            <div
-                className="relative flex max-w-full items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-muted"
-                style={{minWidth: MIN_FRAME, minHeight: MIN_FRAME}}
+        <figure
+            className="group/inline-image relative m-0 flex max-w-full shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border/60 bg-muted"
+            style={{minWidth: MIN_FRAME, minHeight: MIN_FRAME}}
+        >
+            <button
+                type="button"
+                aria-label={`Expand ${name}`}
+                onClick={expand}
+                className="flex min-w-0 max-w-full cursor-zoom-in border-0 bg-transparent p-0"
             >
+                {/* A data or object URL; next/image cannot optimize it. An SVG stays in `<img>`. */}
+                <img
+                    src={data.src}
+                    alt={name}
+                    draggable={false}
+                    onLoad={(e) =>
+                        setNatural({
+                            src: data.src,
+                            width: e.currentTarget.naturalWidth,
+                            height: e.currentTarget.naturalHeight,
+                        })
+                    }
+                    // A phone column is narrower than the cap: the ratio keeps the height honest.
+                    className="block h-auto max-w-full object-contain"
+                    style={{width, aspectRatio: `${width} / ${height}`}}
+                />
+            </button>
+            <div className={CORNER_ACTION}>
                 <button
                     type="button"
                     aria-label={`Expand ${name}`}
                     onClick={expand}
-                    className="flex min-w-0 max-w-full cursor-zoom-in border-0 bg-transparent p-0"
+                    className={CORNER_BUTTON}
                 >
-                    {/* A data or object URL; next/image cannot optimize it. An SVG stays in `<img>`. */}
-                    <img
-                        src={data.src}
-                        alt={name}
-                        draggable={false}
-                        onLoad={(e) =>
-                            setNatural({
-                                src: data.src,
-                                width: e.currentTarget.naturalWidth,
-                                height: e.currentTarget.naturalHeight,
-                            })
-                        }
-                        // A phone column is narrower than the cap: the ratio keeps the height honest.
-                        className="block h-auto max-w-full object-contain"
-                        style={{width, aspectRatio: `${width} / ${height}`}}
-                    />
+                    <ArrowsOutSimple size={14} />
                 </button>
-                <div className={CORNER_ACTION}>
-                    <button
-                        type="button"
-                        aria-label={`Expand ${name}`}
-                        onClick={expand}
-                        className={CORNER_BUTTON}
-                    >
-                        <ArrowsOutSimple size={14} />
-                    </button>
-                    <button
-                        type="button"
-                        aria-label={`Download ${name}`}
-                        onClick={() => void download(target.mount, target.path)}
-                        className={CORNER_BUTTON}
-                    >
-                        <DownloadSimple size={14} />
-                    </button>
-                </div>
+                <button
+                    type="button"
+                    aria-label={`Download ${name}`}
+                    onClick={() => void download(target.mount, target.path)}
+                    className={CORNER_BUTTON}
+                >
+                    <DownloadSimple size={14} />
+                </button>
             </div>
-            <figcaption className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            {/* The name shows with the actions; a soft scrim keeps it legible on any image. */}
+            <figcaption
+                className={`pointer-events-none absolute inset-x-0 bottom-0 flex min-w-0 items-center gap-1.5 bg-gradient-to-t from-black/60 to-transparent px-3 pb-2.5 pt-6 text-xs text-white ${HOVER_REVEAL}`}
+            >
                 <ImageIcon size={13} className="shrink-0" />
-                <span className="min-w-0 truncate font-medium text-foreground">{name}</span>
+                <span className="min-w-0 truncate font-medium">{name}</span>
             </figcaption>
         </figure>
     )

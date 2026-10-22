@@ -37,6 +37,11 @@ describe("turnFiles", () => {
         ])
     })
 
+    it("shows a created file as deleted when a later step deletes it", () => {
+        const removed: FileActivity = {op: "delete", path: "a.md", toolName: "bash"}
+        expect(turnFiles([tool("1", [write("a.md")]), tool("2", [removed])])).toEqual([removed])
+    })
+
     it("takes the last op for a file the turn only edited", () => {
         const second: FileActivity = {op: "edit", path: "a.md", toolName: "str_replace"}
         expect(turnFiles([tool("1", [edit("a.md")]), tool("2", [second])])).toEqual([second])

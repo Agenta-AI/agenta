@@ -10,12 +10,7 @@ import {useDriveSessionId} from "./driveSessionContext"
 import {driveQuickLookAtomFamily} from "./quickLook"
 import {useDriveFileLookup} from "./useDriveFileLookup"
 
-/**
- * Compact INLINE reference to a drive file — for a filename the agent names in prose. Reads as a
- * quiet inline link (icon + dotted-underlined name) that flows within the sentence and opens Quick Look on click.
- * The heavy block {@link DriveFileCard} is reserved for the files a turn actually wrote, so a
- * mention in the reply never breaks the paragraph with a full card.
- */
+/** A file named in prose, as a quiet inline link that opens Quick Look. */
 export function DriveFileInlineRef({path}: {path: string}) {
     const sessionId = useDriveSessionId()
     const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId ?? ""))
@@ -28,7 +23,7 @@ export function DriveFileInlineRef({path}: {path: string}) {
                     onClick={() => openQuickLook({path})}
                     className="group/file-ref inline-flex max-w-full cursor-pointer items-baseline gap-1 border-0 bg-transparent p-0 align-baseline font-mono text-[0.9em] text-foreground"
                 >
-                    <span className="flex shrink-0 self-center text-muted-foreground">
+                    <span className="flex shrink-0 self-center text-muted-foreground/70 group-hover/file-ref:text-muted-foreground">
                         {driveFileIcon(path, 12, "text-current")}
                     </span>
                     <span className="min-w-0 truncate underline decoration-muted-foreground/50 decoration-dotted underline-offset-[3px] group-hover/file-ref:decoration-foreground group-hover/file-ref:decoration-solid">
