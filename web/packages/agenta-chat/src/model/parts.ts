@@ -33,7 +33,7 @@ export const isEmptyAssistantTurn = (m: UIMessage): boolean =>
     m.role === "assistant" && !m.parts.some(isVisiblePart)
 
 /** Display titles older runners stored as tool names; the runner now records the real name. */
-const LEGACY_TOOL_NAMES: Record<string, string> = {"Preparing file…": "Write"}
+const LEGACY_TOOL_NAMES = new Map([["Preparing file…", "Write"]])
 
 /** Wire name of a tool part. `dynamic-tool` carries it on `toolName`; typed parts encode it as
  * `tool-<name>`. */
@@ -45,7 +45,7 @@ export const partToolName = (part: ToolUIPart): string => {
         type === "dynamic-tool"
             ? (part as {toolName?: string}).toolName || "tool"
             : type.replace(/^tool-/, "")
-    return LEGACY_TOOL_NAMES[name] ?? name
+    return LEGACY_TOOL_NAMES.get(name) ?? name
 }
 
 /** Assistant message id → its 1-based turn number (records/turns align 1:1 with the assistant

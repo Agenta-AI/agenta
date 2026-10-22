@@ -38,13 +38,7 @@ export const DriveFileGlyph = ({path}: {path: string}) => (
     </span>
 )
 
-const DownloadButton = ({
-    name,
-    target,
-}: {
-    name: string
-    target: ResolvedMountPath
-}) => {
+const DownloadButton = ({name, target}: {name: string; target: ResolvedMountPath}) => {
     const downloadFile = useDriveFileDownload()
     return (
         <Tooltip title="Download">

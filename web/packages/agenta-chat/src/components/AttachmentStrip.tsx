@@ -7,6 +7,7 @@ import {
     type MediaViewerItem,
 } from "@agenta/entity-ui/drive"
 import {useInView} from "@agenta/shared/hooks"
+import {cn} from "@agenta/ui/ui"
 import {ImageBroken, Pause, Play} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
@@ -212,7 +213,7 @@ const OverflowTile = ({
             aria-label={`View ${count} more files`}
             disabled={!onOpen}
             onClick={onOpen}
-            className={`${OPEN_BUTTON} bg-black/50 text-sm font-semibold text-white`}
+            className={cn(OPEN_BUTTON, "bg-black/50 text-sm font-semibold text-white")}
         >
             +{count}
         </button>

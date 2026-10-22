@@ -23,7 +23,7 @@ export const proseClassName = [
     "[&_h1]:text-base [&_:is(h2,h3)]:text-sm sm:[&_:is(h2,h3)]:text-[15px] [&_:is(h4,h5,h6)]:text-xs sm:[&_:is(h4,h5,h6)]:text-sm",
     // Lists: our own 5px dot, hung in the indent; a nested list is a ruled block, not more dots.
     "[&_:is(ul,ol)]:my-1 [&_li]:py-0.5 [&_li]:text-xs [&_li]:leading-5 sm:[&_li]:text-sm sm:[&_li]:leading-6",
-    "[&_ul]:list-none [&_ul]:pl-0 [&_ul>li]:relative [&_ul>li]:pl-4 [&_ul>li]:before:absolute [&_ul>li]:before:left-0.5 [&_ul>li]:before:top-[calc(0.125rem_+_0.5lh_-_2.5px)] [&_ul>li]:before:size-[5px] [&_ul>li]:before:rounded-full [&_ul>li]:before:bg-foreground",
+    "[&_ul]:list-none [&_ul]:pl-0 [&_ul>li]:relative [&_ul>li]:pl-4 [&_ul>li]:before:absolute [&_ul>li]:before:left-0.5 [&_ul>li]:before:top-[calc(0.125rem_+_0.5lh_-_2.5px)] [&_ul>li]:before:size-[5px] [&_ul>li]:before:rounded-full [&_ul>li]:before:bg-foreground [&_ul>li:has(>input)]:pl-0 [&_ul>li:has(>input)]:before:hidden",
     "[&_li_ul]:my-1 [&_li_ul]:border-l [&_li_ul]:border-border/60 [&_li_ul]:pl-3.5 [&_li_ul>li]:pl-0 [&_li_ul>li]:before:hidden",
     "[&_ol]:list-outside [&_ol]:pl-5 [&_ol>li]:marker:text-muted-foreground",
     "[&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-border/60 [&_blockquote]:pl-3 [&_blockquote]:not-italic [&_blockquote]:text-muted-foreground [&_blockquote]:text-xs [&_blockquote]:leading-5 sm:[&_blockquote]:text-sm sm:[&_blockquote]:leading-6 [&_blockquote_p]:text-muted-foreground",

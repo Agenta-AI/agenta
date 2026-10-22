@@ -115,6 +115,11 @@ describe("toMarkdown", () => {
         const model = tableModel(table(["Name", "Cost"], [["a | b", "$1"]]))
         expect(toMarkdown(model)).toBe("| Name | Cost |\n| --- | ---: |\n| a \\| b | $1 |")
     })
+
+    it("escapes a backslash before a pipe so the pipe stays in its cell", () => {
+        const model = tableModel(table(["Path"], [["C:\\ | D:"]]))
+        expect(toMarkdown(model)).toBe("| Path |\n| --- |\n| C:\\\\ \\| D: |")
+    })
 })
 
 describe("toCsv", () => {
@@ -135,7 +140,13 @@ describe("toCsv", () => {
 
     it("defuses formula cells but keeps signed numbers", () => {
         const model = tableModel(
-            table(["Cell", "Delta"], [['=HYPERLINK("http://x")', "-5"], ["@SUM(A1)", "+1.5%"]]),
+            table(
+                ["Cell", "Delta"],
+                [
+                    ['=HYPERLINK("http://x")', "-5"],
+                    ["@SUM(A1)", "+1.5%"],
+                ],
+            ),
         )
         expect(toCsv(model)).toBe(
             'Cell,Delta\r\n"\'=HYPERLINK(""http://x"")",-5\r\n\'@SUM(A1),+1.5%',

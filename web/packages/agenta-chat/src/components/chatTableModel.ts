@@ -100,7 +100,8 @@ export const cellLayouts = (node: HastNode, model: TableModel): Map<string, Cell
     return out
 }
 
-const markdownCell = (text: string) => text.replace(/\|/g, "\\|").replace(/\n/g, " ")
+const markdownCell = (text: string) =>
+    text.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\n/g, " ")
 
 export const toMarkdown = (model: TableModel): string => {
     const line = (cells: string[]) => `| ${cells.map(markdownCell).join(" | ")} |`

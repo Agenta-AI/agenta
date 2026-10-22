@@ -34,8 +34,14 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onSend, onCancel}: Qu
     cancelRef.current = onCancel
 
     useLayoutEffect(() => {
-        setHeight(ref.current?.offsetHeight ?? 0)
+        const box = ref.current
+        setHeight(box?.offsetHeight ?? 0)
         inputRef.current?.focus({preventScroll: true})
+        // The note grows with its text, so the flip and clamp must follow the new height.
+        if (!box || typeof ResizeObserver === "undefined") return
+        const observer = new ResizeObserver(() => setHeight(box.offsetHeight))
+        observer.observe(box)
+        return () => observer.disconnect()
     }, [])
 
     // Bound once: the box re-renders every scroll frame while it tracks its span.
