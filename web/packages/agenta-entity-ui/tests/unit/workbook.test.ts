@@ -38,7 +38,7 @@ describe("parseWorkbook", () => {
             {formula: "=B4+C4"},
         ])
         expect(sheets[0].rows[1][3]).toEqual({formula: "=B2+C2"})
-        expect(sheets[0].truncated).toBe(false)
+        expect(sheets[0].truncated).toEqual({rows: false, totalColumns: null})
         expect(sheets[1].rows).toEqual([[{value: "Written by an agent"}]])
     })
 
@@ -50,7 +50,7 @@ describe("parseWorkbook", () => {
                 [{value: "Name"}, {value: "Score"}],
                 [{value: "Ada"}, {value: "9"}],
             ],
-            truncated: false,
+            truncated: {rows: false, totalColumns: null},
         })
     })
 
@@ -62,17 +62,17 @@ describe("parseWorkbook", () => {
         )
         expect(sheets[0].rows).toHaveLength(ROW_CAP)
         expect(sheets[0].rows[ROW_CAP - 1]).toEqual([{value: `r${ROW_CAP - 1}`}])
-        expect(sheets[0].truncated).toBe(true)
+        expect(sheets[0].truncated).toEqual({rows: true, totalColumns: null})
         expect(sheets[1].rows[0]).toHaveLength(COL_CAP)
         expect(sheets[1].rows[0][COL_CAP - 1]).toEqual({value: `c${COL_CAP - 1}`})
-        expect(sheets[1].truncated).toBe(true)
+        expect(sheets[1].truncated).toEqual({rows: false, totalColumns: COL_CAP + 10})
     })
 
     it("keeps a sheet with exactly the row cap untruncated", () => {
         const exact = Array.from({length: ROW_CAP}, (_, i) => [i])
         const {sheets} = parseWorkbook(book({Exact: utils.aoa_to_sheet(exact)}))
         expect(sheets[0].rows).toHaveLength(ROW_CAP)
-        expect(sheets[0].truncated).toBe(false)
+        expect(sheets[0].truncated).toEqual({rows: false, totalColumns: null})
     })
 
     it("rejects bytes that are not a workbook", () => {

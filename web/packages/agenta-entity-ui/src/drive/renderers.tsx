@@ -42,7 +42,7 @@ import {OfficeViewerFrame} from "./officeViewer/OfficeViewerFrame"
 import type {OfficeViewerKind} from "./officeViewer/protocol"
 import {useQuotableFile} from "./quotable"
 import {useDriveAnchorClickCapture} from "./useDriveLinkClick"
-import type {SheetCell, Workbook} from "./workbook"
+import type {SheetCell, Truncation, Workbook} from "./workbook"
 
 // The host's code viewer (see `registerDriveCodeBlock`). The desktop registers a Lexical +
 // lazy-Shiki block — an ~8.7 MB chunk it keeps out of first load — so the indirection is also
@@ -274,8 +274,23 @@ const PreviewCell = ({cell}: {cell: SheetCell}) =>
     )
 
 /** A row-capped table whose first row is the header; CSV and spreadsheet previews share it. */
-const PreviewTable = ({rows, truncated}: {rows: SheetCell[][]; truncated: boolean}) => {
+function truncationNote(
+    truncated: Truncation,
+    shownRows: number,
+    shownColumns: number,
+): string | null {
+    const parts = [
+        truncated.rows ? `the first ${shownRows} rows` : null,
+        truncated.totalColumns !== null
+            ? `${shownColumns} of ${truncated.totalColumns} columns`
+            : null,
+    ].filter(Boolean)
+    return parts.length ? `Showing ${parts.join(" and ")} — download for the full file.` : null
+}
+
+const PreviewTable = ({rows, truncated}: {rows: SheetCell[][]; truncated: Truncation}) => {
     const [header, ...body] = rows
+    const note = truncationNote(truncated, body.length, header.length)
     return (
         <>
             <div className="min-h-0 flex-1 overflow-auto">
@@ -308,9 +323,9 @@ const PreviewTable = ({rows, truncated}: {rows: SheetCell[][]; truncated: boolea
                     </tbody>
                 </table>
             </div>
-            {truncated ? (
+            {note ? (
                 <div className="border-0 border-t border-solid border-colorBorderSecondary px-2.5 py-1 text-xs text-colorTextTertiary">
-                    Showing the first {body.length} rows — download for the full file.
+                    {note}
                 </div>
             ) : null}
         </>
@@ -339,7 +354,7 @@ const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
         <Inset flush>
             <PreviewTable
                 rows={rows.slice(0, CSV_ROW_CAP + 1)}
-                truncated={rows.length > CSV_ROW_CAP + 1}
+                truncated={{rows: rows.length > CSV_ROW_CAP + 1, totalColumns: null}}
             />
         </Inset>
     )

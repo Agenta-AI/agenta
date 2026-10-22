@@ -4,10 +4,18 @@ import {read, utils, type CellObject, type WorkSheet} from "xlsx"
 /** A stored value, or the formula text of a formula cell that has no stored value. */
 export type SheetCell = {value: string} | {formula: string}
 
+/** Which caps cut the sheet; `totalColumns` is set only when columns were cut. */
+export interface Truncation {
+    rows: boolean
+    totalColumns: number | null
+}
+
+export const NOT_TRUNCATED: Truncation = {rows: false, totalColumns: null}
+
 export interface Sheet {
     name: string
     rows: SheetCell[][]
-    truncated: boolean
+    truncated: Truncation
 }
 
 export interface Workbook {
@@ -37,7 +45,7 @@ const startsWith = (bytes: Uint8Array, magic: number[]): boolean =>
 
 function readSheet(name: string, sheet: WorkSheet): Sheet {
     const ref = sheet["!ref"]
-    if (!ref) return {name, rows: [], truncated: false}
+    if (!ref) return {name, rows: [], truncated: NOT_TRUNCATED}
     const start = utils.decode_range(ref).s
     let lastRow = -1
     let lastCol = -1
@@ -48,7 +56,7 @@ function readSheet(name: string, sheet: WorkSheet): Sheet {
         if (r > lastRow) lastRow = r
         if (c > lastCol) lastCol = c
     }
-    if (lastRow < start.r || lastCol < start.c) return {name, rows: [], truncated: false}
+    if (lastRow < start.r || lastCol < start.c) return {name, rows: [], truncated: NOT_TRUNCATED}
 
     const rowCount = lastRow - start.r + 1
     const colCount = lastCol - start.c + 1
@@ -59,7 +67,11 @@ function readSheet(name: string, sheet: WorkSheet): Sheet {
             row.push(toSheetCell(sheet[utils.encode_cell({r, c})] as CellObject | undefined))
         rows.push(row)
     }
-    return {name, rows, truncated: rowCount > ROW_CAP || colCount > COL_CAP}
+    return {
+        name,
+        rows,
+        truncated: {rows: rowCount > ROW_CAP, totalColumns: colCount > COL_CAP ? colCount : null},
+    }
 }
 
 /** Throws when the bytes are not a workbook, so the caller can fall back to download. */
