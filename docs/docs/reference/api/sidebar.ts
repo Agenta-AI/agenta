@@ -2304,6 +2304,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/set-subscription-token",
+          label: "Set Subscription Token",
+          className: "api-method put",
+        },
+        {
+          type: "doc",
           id: "reference/api/start-subscription-login",
           label: "Start Subscription Login",
           className: "api-method post",
@@ -2721,6 +2727,42 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/ingest-agenta-event",
           label: "Ingest Agenta Event",
           className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/ingest-embed-event",
+          label: "Ingest Embed Event",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-embed-config",
+          label: "Fetch Embed Config",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/list-embed-conversations",
+          label: "List Embed Conversations",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/read-embed-conversation",
+          label: "Read Embed Conversation",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/stream-embed-conversation",
+          label: "Stream Embed Conversation",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/download-embed-file",
+          label: "Download Embed File",
+          className: "api-method get",
         },
         {
           type: "doc",
