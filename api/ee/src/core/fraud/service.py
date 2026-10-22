@@ -126,12 +126,21 @@ class FraudService:
             reason="owner_marked",
             organization_id=str(organization_id),
         )
-        async with asyncio.timeout(ACTION_TIMEOUT_SECONDS):
-            await self.fraud_dao.mark_no_grants(
-                organization_id=organization_id,
-                checkpoint=FraudCheckpoint.OWNER_ORGANIZATION,
-                score=None,
-                now=datetime.now(timezone.utc),
+        # The raised floor is the real guard, so a failed marker write still returns
+        # True, the same rule as for a returning account.
+        try:
+            async with asyncio.timeout(ACTION_TIMEOUT_SECONDS):
+                await self.fraud_dao.mark_no_grants(
+                    organization_id=organization_id,
+                    checkpoint=FraudCheckpoint.OWNER_ORGANIZATION,
+                    score=None,
+                    now=datetime.now(timezone.utc),
+                )
+        except Exception as exc:
+            log.error(
+                "[fraud] no-grant marker write failed for owner organization",
+                reason=type(exc).__name__,
+                organization_id=str(organization_id),
             )
         return True
 
