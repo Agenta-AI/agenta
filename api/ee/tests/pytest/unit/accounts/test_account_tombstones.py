@@ -223,6 +223,16 @@ def deletion(monkeypatch, daos):
     monkeypatch.setattr(m, "_ee_delete_user_memberships", _memberships)
     monkeypatch.setattr(m, "_db_delete_user_with_cascade", _cascade)
     monkeypatch.setattr(m, "_db_delete_accounts_batch", _batch)
+
+    # The deletions clear the access caches of the deleted users; no database here.
+    async def _no_organizations(**kwargs):
+        return []
+
+    async def _no_invalidation(**kwargs):
+        return None
+
+    monkeypatch.setattr(m, "_member_organization_ids", _no_organizations)
+    monkeypatch.setattr(m, "_invalidate_memberships", _no_invalidation)
     monkeypatch.setattr(
         PlatformAdminAccountsService,
         "_delete_supertokens_user",
