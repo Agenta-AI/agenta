@@ -51,7 +51,21 @@ def _api_key(account):
     return account["api_keys"]["key"]
 
 
-def _add_project_member(admin_api, *, project_id, user_id, role):
+def _add_project_member(admin_api, *, organization_id, project_id, user_id, role):
+    # A member needs the organization row too, with the same role, so the test
+    # checks the role and not `not_member`.
+    resp = admin_api(
+        "POST",
+        "/admin/simple/accounts/organizations/memberships/",
+        json={
+            "membership": {
+                "organization_ref": {"id": organization_id},
+                "user_ref": {"id": user_id},
+                "role": role,
+            }
+        },
+    )
+    assert resp.status_code == 200, resp.text
     resp = admin_api(
         "POST",
         "/admin/simple/accounts/projects/memberships/",
@@ -112,6 +126,7 @@ class TestRbacEnforcementOss:
             # API key for them scoped to that project so enforcement runs there.
             _add_project_member(
                 admin_api,
+                organization_id=organization_id,
                 project_id=project_id,
                 user_id=viewer_user_id,
                 role="viewer",
@@ -174,6 +189,7 @@ class TestRbacEnforcementOss:
         try:
             _add_project_member(
                 admin_api,
+                organization_id=organization_id,
                 project_id=project_id,
                 user_id=viewer_user_id,
                 role="viewer",
