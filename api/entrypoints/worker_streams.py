@@ -31,6 +31,7 @@ from oss.src.tasks.taskiq.shared.broker import (
     prune_idle_consumers,
 )
 
+from entrypoints.access import bootstrap_access
 from entrypoints.channel_adapters import build_channel_adapter_registry
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.events.service import EventsService
@@ -274,6 +275,8 @@ async def main_async() -> int:
 
         if is_ee():
             bootstrap_entitlements_services()
+
+        bootstrap_access()
 
         # socket_timeout=None: XREADGROUP(block=5000ms) would otherwise trip the socket timeout.
         redis_client = Redis.from_url(

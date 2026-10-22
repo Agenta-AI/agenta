@@ -29,10 +29,7 @@ from oss.src.models.api.workspace_models import (
     UpdateWorkspace,
     WorkspaceResponse,
 )
-from oss.src.core.access.permissions.service import (
-    check_action_access,
-    check_rbac_permission,
-)
+from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.organizations.exceptions import (
     OrganizationCreationNotAllowedError,
@@ -634,12 +631,9 @@ async def update_workspace(
 ) -> WorkspaceResponse:
     """Update a workspace's details (requires EDIT_WORKSPACE permission)."""
     try:
-        user_org_workspace_data = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
         project = await db_manager.get_project_by_workspace(workspace_id)
-        has_permission = await check_rbac_permission(
-            user_org_workspace_data=user_org_workspace_data,
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
             project_id=str(project.id),
             permission=Permission.EDIT_WORKSPACE,
         )
