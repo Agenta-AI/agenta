@@ -37,7 +37,6 @@ const project = (over: Partial<ProjectsResponse>): ProjectsResponse =>
         workspace_id: "ws-1",
         user_role: "owner",
         is_default_project: false,
-        is_demo: false,
         ...over,
     }) as ProjectsResponse
 

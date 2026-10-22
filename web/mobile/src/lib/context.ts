@@ -1,4 +1,3 @@
-import {filterOutDemoProjects} from "@agenta/entities/project"
 import {safeParseWithLogging} from "@agenta/entities/shared"
 import {getProjectsClient} from "@agenta/sdk/resources"
 import {z} from "zod"
@@ -148,7 +147,6 @@ const projectRowSchema = z.object({
     // "Default" where the desktop showed the org.
     organization_id: z.string().nullish(),
     organization_name: z.string().nullish(),
-    is_demo: z.boolean().nullish(),
     // Only the settings list reads these two; every other consumer ignores them. They stay
     // optional because the schema is a drift check, not a contract we want to fail on.
     user_role: z.string().nullish(),
@@ -167,9 +165,7 @@ async function fetchProjectsOnce(): Promise<ProjectsResult> {
         const data = await getProjectsClient().getProjects()
         const projects = safeParseWithLogging(z.array(projectRowSchema), data, "[fetchProjects]")
         if (!projects) return {kind: "error"}
-        // Hide demo projects, exactly as the desktop's projectsAtom does. Without this a mobile
-        // sign-in could resolve into a demo org the desktop never offers, with no way back out.
-        return {kind: "ok", projects: filterOutDemoProjects(projects)}
+        return {kind: "ok", projects}
     } catch (error) {
         const status = (error as {statusCode?: number} | null)?.statusCode
         if (status === 401 || status === 403) return {kind: "unauthenticated"}
