@@ -168,7 +168,10 @@ _INSERT_WORKSPACE_ROWS_SQL = """
 INSERT INTO workspace_members (id, user_id, workspace_id, role, created_at, updated_at)
 SELECT gen_random_uuid(), :user_id, t.workspace_id, :role, now(), now()
 FROM (
+    -- The workspace must belong to the organization too: a legacy project can point
+    -- at a workspace of another organization, and that tenant must never gain a row.
     SELECT DISTINCT p.workspace_id FROM projects p
+    JOIN workspaces w ON w.id = p.workspace_id AND w.organization_id = p.organization_id
     WHERE p.organization_id = :organization_id
       AND (:all_projects OR p.id = ANY(CAST(:project_ids AS uuid[])))
 ) t
@@ -535,8 +538,15 @@ class MembershipsDAO(MembershipsDAOInterface):
         async with self.engine.transaction() as connection:
             await self._lock(connection, organization_id)
 
-            if await self._owner_id(connection, organization_id) is None:
+            owner_id = await self._owner_id(connection, organization_id)
+            if owner_id is None:
                 raise OrganizationNotFound(organization_id=organization_id)
+            if owner_id != current_owner_id:
+                # The router authorized a caller who was the owner when it checked;
+                # a transfer that committed since then makes this one stale.
+                raise MemberNotFound(
+                    organization_id=organization_id, user_id=current_owner_id
+                )
 
             new_row = (
                 await connection.execute(

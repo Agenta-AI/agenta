@@ -223,13 +223,32 @@ class MembershipsService:
 
     # -- writers: DAO write, then invalidation, then the audit event -------------------
 
-    async def _organization_project_ids(self, *, organization_id: UUID) -> List[UUID]:
-        return [
-            scope.project_id
-            for scope in await self._dao.list_projects(
-                organization_ids=[organization_id]
+    async def _invalidate_organization(
+        self,
+        *,
+        organization_id: UUID,
+        user_ids: Sequence[UUID],
+    ) -> None:
+        """Clear the users' entries in every project of the organization. Runs after
+        the commit, so a failure here is logged and never fails the writer."""
+
+        try:
+            project_ids = [
+                scope.project_id
+                for scope in await self._dao.list_projects(
+                    organization_ids=[organization_id]
+                )
+            ]
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.warning(
+                "[memberships] cache invalidation failed",
+                namespace="*",
+                user_id=",".join(str(u) for u in user_ids),
+                project_count=0,
             )
-        ]
+            return
+
+        await invalidate_access_caches(user_ids=user_ids, project_ids=project_ids)
 
     async def set_member_role(
         self,
@@ -252,11 +271,8 @@ class MembershipsService:
             must_exist=must_exist,
         )
 
-        await invalidate_access_caches(
-            user_ids=[user_id],
-            project_ids=await self._organization_project_ids(
-                organization_id=organization_id
-            ),
+        await self._invalidate_organization(
+            organization_id=organization_id, user_ids=[user_id]
         )
 
         log.info(
@@ -283,11 +299,8 @@ class MembershipsService:
         )
 
         if result.user_id is not None:
-            await invalidate_access_caches(
-                user_ids=[result.user_id],
-                project_ids=await self._organization_project_ids(
-                    organization_id=organization_id
-                ),
+            await self._invalidate_organization(
+                organization_id=organization_id, user_ids=[result.user_id]
             )
 
         log.info(
@@ -349,11 +362,9 @@ class MembershipsService:
             current_owner_id=current_owner_id,
         )
 
-        await invalidate_access_caches(
+        await self._invalidate_organization(
+            organization_id=organization_id,
             user_ids=[current_owner_id, new_owner_id],
-            project_ids=await self._organization_project_ids(
-                organization_id=organization_id
-            ),
         )
 
         log.info(

@@ -4,7 +4,7 @@ import asyncio
 from uuid import uuid4
 
 import pytest
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, ProgrammingError
 
 import oss.src.dbs.postgres.memberships.dao as dao_module
 from oss.src.core.memberships.dtos import MembershipPolicy
@@ -18,8 +18,10 @@ from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.tests.pytest.utils.membership_seed import (
     create_user,
     delete_seeded_organization,
+    delete_seeded_shapes,
     execute,
     fetch_all,
+    seed_legacy_shapes,
     seed_organization,
     seed_stress_organization,
     user_email,
@@ -142,23 +144,27 @@ async def test_create_project_seeds_every_organization_member():
 
 async def test_create_project_leaves_nothing_when_seeding_fails(monkeypatch):
     seeded = await seed_organization(members={"m": "editor"})
+    # The seeding statement is the last write; the earlier ones (unset the default,
+    # insert the project) must roll back with it.
     monkeypatch.setattr(
-        dao_module, "_SEED_PROJECT_MEMBERS_SQL", "SELECT no_such_column"
+        dao_module, "_SEED_PROJECT_MEMBERS_SQL", "SELECT no_such_column_for_seeding"
     )
     try:
-        with pytest.raises(Exception):
+        with pytest.raises(ProgrammingError, match="no_such_column_for_seeding"):
             await _dao().create_project(
                 organization_id=seeded.organization_id,
                 workspace_id=seeded.workspace_ids[0],
                 name="P-fail",
-                is_default=False,
+                is_default=True,
             )
 
         rows = await fetch_all(
-            "SELECT id FROM projects WHERE organization_id = :o AND project_name = 'P-fail'",
+            "SELECT project_name, is_default FROM projects WHERE organization_id = :o",
             {"o": seeded.organization_id},
         )
-        assert rows == []
+        assert [(r["project_name"], r["is_default"]) for r in rows] == [
+            ("project-0-0", True)
+        ]
     finally:
         await delete_seeded_organization(seeded)
 
@@ -475,11 +481,13 @@ async def test_transfer_ownership_leaves_nothing_when_a_step_fails(monkeypatch):
             "DELETE FROM project_members WHERE project_id = :p AND user_id = :u",
             {"p": seeded.project_ids[1], "u": new_owner},
         )
+        # The owner update is the last write; the role swaps and the seeded owner
+        # row must roll back with it.
         monkeypatch.setattr(
-            dao_module, "_SET_OWNER_SQL", "UPDATE no_such_table SET x = 1"
+            dao_module, "_SET_OWNER_SQL", "UPDATE no_such_table_for_transfer SET x = 1"
         )
 
-        with pytest.raises(Exception):
+        with pytest.raises(ProgrammingError, match="no_such_table_for_transfer"):
             await _dao().transfer_ownership(
                 organization_id=seeded.organization_id,
                 new_owner_id=new_owner,
@@ -498,8 +506,66 @@ async def test_transfer_ownership_leaves_nothing_when_a_step_fails(monkeypatch):
         assert await _project_roles(seeded.project_ids, new_owner) == {
             seeded.project_ids[0]: ["admin"]
         }
+        assert await _workspace_roles(seeded.workspace_ids, new_owner) == {
+            seeded.workspace_ids[0]: "admin"
+        }
+        assert await _workspace_roles(seeded.workspace_ids, seeded.owner_id) == {
+            seeded.workspace_ids[0]: "owner"
+        }
     finally:
         await delete_seeded_organization(seeded)
+
+
+async def test_transfer_ownership_refuses_a_stale_current_owner():
+    seeded = await seed_organization(members={"a": "admin", "b": "editor"})
+    try:
+        await _dao().transfer_ownership(
+            organization_id=seeded.organization_id,
+            new_owner_id=seeded.user_ids["a"],
+            current_owner_id=seeded.owner_id,
+        )
+
+        # A second transfer authorized for the former owner is stale now.
+        with pytest.raises(MemberNotFound):
+            await _dao().transfer_ownership(
+                organization_id=seeded.organization_id,
+                new_owner_id=seeded.user_ids["b"],
+                current_owner_id=seeded.owner_id,
+            )
+
+        owner = await fetch_all(
+            "SELECT owner_id FROM organizations WHERE id = :o",
+            {"o": seeded.organization_id},
+        )
+        assert owner[0]["owner_id"] == seeded.user_ids["a"]
+        assert await _organization_roles(
+            seeded.organization_id, seeded.user_ids["b"]
+        ) == ["editor"]
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_invite_accept_never_adds_a_row_in_another_organization_workspace():
+    shapes = await seed_legacy_shapes()
+    cross = shapes["cross_org_workspace"]
+    newcomer = await create_user(label="newcomer")
+    cross.extra_user_ids.append(newcomer)
+    try:
+        await _dao().set_member_role(
+            organization_id=cross.organization_id,
+            user_id=newcomer,
+            role="viewer",
+            join_all_projects=True,
+        )
+
+        rows = await fetch_all(
+            "SELECT w.organization_id FROM workspace_members wm "
+            "JOIN workspaces w ON w.id = wm.workspace_id WHERE wm.user_id = :u",
+            {"u": newcomer},
+        )
+        assert {r["organization_id"] for r in rows} <= {cross.organization_id}
+    finally:
+        await delete_seeded_shapes(shapes)
 
 
 # -- readers ------------------------------------------------------------------------------

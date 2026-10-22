@@ -132,3 +132,34 @@ async def test_invalidation_failure_does_not_fail_the_writer(monkeypatch):
     assert all(
         event == "[memberships] cache invalidation failed" for event, _ in warnings
     )
+
+
+async def test_a_failed_project_lookup_after_the_commit_does_not_fail_the_writer(
+    monkeypatch, recorded
+):
+    warnings = []
+
+    class _Log:
+        def warning(self, event, **fields):
+            warnings.append(event)
+
+        def info(self, *args, **kwargs):
+            pass
+
+    monkeypatch.setattr(service_module, "log", _Log())
+    dao = InMemoryMembershipsDAO()
+
+    async def _broken_list_projects(**kwargs):
+        raise RuntimeError("database gone")
+
+    monkeypatch.setattr(dao, "list_projects", _broken_list_projects)
+    service = MembershipsService(
+        memberships_dao=dao, policy=MembershipPolicy.ORGANIZATION_WIDE
+    )
+
+    await service.set_member_role(
+        organization_id=uuid4(), user_id=uuid4(), role="viewer"
+    )
+
+    assert warnings == ["[memberships] cache invalidation failed"]
+    assert dao.writes[0][0] == "set_member_role"
