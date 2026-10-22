@@ -99,7 +99,7 @@ SUBSCRIPTION SHAPES. `--subscription hosted` runs the six routing cells (`warm-h
 `approval-warm`, `stop-on-b`, `kill-from-non-holder`, `holder-killed-followup`,
 `kill-holder-parked-approval`) on Pi with the project's HOSTED ChatGPT connection: `pi_core`,
 provider `openai-codex`, `--pi-model` (default `gpt-5.6-luna`; a ChatGPT account refuses
-`gpt-5.5` and `gpt-5.4-mini`), `connection {"mode": "self_managed", "slug": <--subscription-slug>}`, on
+`gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini` and `gpt-5.3-codex-spark`), `connection {"mode": "self_managed", "slug": <--subscription-slug>}`, on
 `--subscription-sandbox daytona` (default) or `inprocess`. The slug must name a
 `subscription_provider` vault record in state `ready`; otherwise every cell SKIPs with the reason.
 `--subscription mounted` is the operator's Pi login mounted into the runner containers
@@ -4525,7 +4525,8 @@ def main() -> int:
     ap.add_argument(
         "--pi-model",
         default="gpt-5.6-luna",
-        help="the model of the --subscription shape (a ChatGPT account refuses gpt-5.5)",
+        help="the model of the --subscription shape (a ChatGPT account refuses "
+        "gpt-5.5, gpt-5.4, gpt-5.4-mini and gpt-5.3-codex-spark)",
     )
     ap.add_argument(
         "--redis-container",
