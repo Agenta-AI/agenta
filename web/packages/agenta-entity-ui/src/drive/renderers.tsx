@@ -545,9 +545,12 @@ const SpreadsheetView = ({workbook}: {workbook: Workbook}) => {
     return (
         <Inset flush>
             <Tabs value={String(index)} onValueChange={(v) => setActive(Number(v))}>
-                <TabsList aria-label="Sheets" className="shrink-0 overflow-x-auto px-2.5">
+                <TabsList
+                    aria-label="Sheets"
+                    className="w-full shrink-0 justify-start overflow-x-auto px-2.5"
+                >
                     {workbook.sheets.map((s, i) => (
-                        <TabsTrigger key={i} value={String(i)} className="text-xs">
+                        <TabsTrigger key={i} value={String(i)} className="flex-none text-xs">
                             {s.name}
                         </TabsTrigger>
                     ))}
