@@ -1,20 +1,5 @@
 # Tasks
 
-## 1. API: binary read and media types (`api/oss`)
-
-- [x] 1.1 Add `MountFileBinary` (a `MountError`) raised by `MountsService.read_file` when the first 8 KB hold a NUL byte, map it to 415 in `handle_mount_exceptions` with a message naming `/files/download`, and catch it at `core/apps/service.py:322` and `:460`; verify with unit tests modelled on `unit/mounts/test_bounded_text_read.py` (an `.xlsx` gives 415, a `.md` with one invalid UTF-8 byte gives 200, a 5 MiB binary gives 413), update `acceptance/mounts/test_mounts_basics.py:312-330` to expect 415, and check the read assertions in `unit/test_mounts_file_ops.py` near `:1150`
-- [ ] 1.2 Declare the 415 response beside `TEXT_READ_TOO_LARGE_RESPONSE`, regenerate the API reference under `docs/docs/reference/`, and map 415 to `bad_request` in `web/packages/agenta-entities/src/drive/htmlApp/fsClient.ts`; verify the regenerated `get-mount-files` status codes list 415 and an `fsClient` unit test asserts the mapping
-- [x] 1.3 Add the D10 media-type table to `download_mount_file` ahead of `guess_type`; verify with a unit test that asserts every D10 row, and that an `.xlsx` download returns `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` with byte-identical content on both the mounts and the session-mounts route
-- [x] 1.4 Run `ruff format` and `ruff check --fix` in `api/` and verify both exit clean
-
-## 2. Pi guard (`services/runner`)
-
-- [x] 2.1 Add pure `binaryReadNotice(path, text)` and `blockedWriteReason(path)` with the D10 table in a module with no runner-side imports; verify unit tests on literal inputs (every D10 row, an unknown binary, a NUL-free slice of a `.parquet` with many U+FFFD, a Markdown file with two bad bytes, CSV) pass
-- [x] 2.2 In `src/extensions/agenta.ts`, add `AGENTA_AGENT_FILE_GUARD` to the inert check, register the `write` `tool_call` block before `registerBuiltinGating`, and register the `read` `tool_result` handler; verify in `tests/unit/extension-tools.test.ts` with a fake `pi` that the replaced content and `isError` are correct, the block reason is returned, and a write block never reaches the gate
-- [x] 2.3 Set `AGENTA_AGENT_FILE_GUARD` for Pi runs in the in-process engine (`extensionEnv`) and the sandbox engine (`pi-assets.ts` env); verify with a unit test on each env builder
-- [x] 2.4 Run `pnpm run build:extension` and verify the bundle-safety gate passes
-- [ ] 2.5 Run a Pi agent against `agent-files/repro/repro-sales.xlsx` on the local sandbox (the only Pi path available locally; the in-process and Daytona paths are covered by the 2.2 and 2.3 unit tests, and the PR states their live check is still open); verify each gets the guidance error, that the chat tool card and the stored session transcript show the guidance (not the undecodable text), that the agent then answers with the correct cell values, and that a `write` to the `.xlsx` leaves it byte-identical
-
 ## 3. Drive kinds (`web/packages/agenta-entities`)
 
 - [x] 3.1 Add `spreadsheet`, `document` and `presentation` to `DriveFileKind`, `EXT_KINDS` and `driveKindTone`; verify in `tests/unit/driveKinds.test.ts` that every D10 row resolves to its web kind in any case and the tones are set
@@ -36,4 +21,4 @@
 
 ## 5. Integration
 
-- [ ] 5.1 Ask a Claude agent and a Pi agent to read a `.pptx` in `agent-files/`; verify both report the slide titles correctly
+- [ ] 5.1 Ask an agent to read a `.pptx` in `agent-files/`; verify it reports the slide titles correctly

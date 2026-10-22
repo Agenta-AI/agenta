@@ -20,68 +20,24 @@ shape the approach:
 - Quick Look renders through `DriveFilePreview` then `DriveFileContentViewer` then
   `DriveFileBody`. `MediaViewer` resolves an attachment's kind by name, then media type. The
   mobile app mounts the same `MediaViewerHost`.
-- The Claude harness already reads and edits office files through `bash` and Python; the sandbox
-  and runner images ship `openpyxl`, `python-docx`, `python-pptx` and `pandas`.
-- Pi's stock `read` tool decodes every non-image file as UTF-8, and its `write` tool writes any
-  string. Pi runs on three paths: in-process (a session with a run credential, routed from
-  Daytona), the sandbox engine on a local sandbox, and the sandbox engine on Daytona (sessionless
-  runs and evaluations). The Agenta Pi extension (`services/runner/src/extensions/agenta.ts`)
-  loads on all three: through `extensionFactories` in-process, and as a bundle installed into the
-  sandbox otherwise. It is inert unless one of its wiring env values is set (`agenta.ts:487-497`).
-- `MountsService.read_file` decodes with `errors="replace"` after a 4 MiB cap (413). It is called
-  by the mounts router (`?read=`) and by `core/apps/service.py` (`:322`, `:401`, `:460`, `:506`).
-  There is no session-scoped `?read=` route. The download helper (`download_mount_file`) is
-  shared by both routers and uses `mimetypes.guess_type`, which returned
-  `application/octet-stream` for `.xlsx` in the local stack.
+- Agents already read and edit office files through `bash` and Python; the sandbox and runner
+  images ship `openpyxl`, `python-docx`, `python-pptx` and `pandas`. The API and the runner do
+  not change.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- One rule for "binary" in each layer, applied at the boundary where bytes become text.
 - Preview libraries load only when a matching file opens.
 
 **Non-Goals:**
 - Manual editing (v2, below).
 - Recalculating formulas in the browser.
-- Changes to the Claude or Codex harness, the images, or the system prompt.
-- Guarding Pi `bash`, `grep` or `find` output, which can still print binary bytes.
+- Changes to the API, the runner, the harnesses, the images, or the system prompt. A Pi read
+  guard, a Pi write guard and a 415 on `?read=` were built and removed: the previews read bytes
+  from the existing download route, and agents reach these files through Python.
 - Previews for `.doc` and `.ppt`, and in the mobile `EmbedFile` widget (it stays download-only).
 
 ## Decisions
-
-### D1. Binary means a NUL character in the content
-The API treats a file as binary when its first 8 KB of bytes contain NUL, the heuristic `git`
-uses. The runner guard checks the whole text that `read` returned for `\u0000` (NUL survives
-UTF-8 decoding), because `read` can return a slice from an `offset`. Two backstops cover a
-slice that holds no NUL: a path in the D10 table, and a slice whose first 4,096 characters are
-more than 10% U+FFFD (undecodable bytes; real text with a few bad bytes stays far below). Office files always match: the ZIP local
-file header has NUL bytes within its first 8 bytes.
-Alternatives: an extension list alone (misses unknown binary formats); a U+FFFD ratio (fails on
-mixed text); a sniffing library (a dependency for no gain).
-
-### D2. The Pi guard lives in the Agenta Pi extension
-- A `tool_result` handler on `read` replaces binary text with a guidance error
-  (`ToolResultEventResult` replaces `content` and sets `isError`). Image results carry no text
-  part and pass through.
-- A `tool_call` handler on `write` blocks office-format paths with the existing `blockReason`
-  shape. It is registered **before** `registerBuiltinGating`, so the user is never asked to
-  approve a write that is then refused.
-- Both decisions are pure functions (`binaryReadNotice(path, text)`, `blockedWriteReason(path)`)
-  in a module with no runner-side imports, so they pass the bundle-safety gate in
-  `scripts/build-extension.mjs` and test without Pi.
-- The extension's inert check gains a dedicated flag, `AGENTA_AGENT_FILE_GUARD`, which both
-  engines set for every Pi run; the handlers register right after the check. A plain `pi`
-  session outside Agenta stays untouched.
-- If the bundle fails to install in a sandbox, the runner logs and continues today; the guard is
-  then off for that run, the same as built-in gating. This is accepted and logged, not changed.
-- `edit` needs no handler: it already fails safely on office files (verified).
-
-Alternative: wrap Pi's operations in `inprocess/tools/file-tools.ts`; rejected because it covers
-only the in-process path.
-
-### D3. No system-prompt change
-The guidance arrives in the tool error when it is needed. The Claude harness finds the Python
-path without prompting. A prompt line can follow if a Pi run shows the guidance is ignored.
 
 ### D4. Preview libraries, all in `agenta-entity-ui`
 | Kind | Library | License | Why |
@@ -169,16 +125,6 @@ Styling:
 10 MB for spreadsheets and documents, 25 MB for presentations (they embed images), as new
 branches beside the existing caps. Parsing runs on the main thread; the limit bounds the freeze.
 
-### D8. API read and media types
-- `read_file` checks the first 8 KB for NUL before decoding and raises a new `MountFileBinary`
-  (a `MountError`), mapped to 415 in `handle_mount_exceptions`. The 4 MiB cap still runs first, so
-  a large binary file gets 413.
-- `core/apps/service.py:322` and `:460` catch the new error the way they treat their other
-  cases; `:401` reads a manifest (text) and `:506` is already wrapped.
-- The route declares the 415 response next to `TEXT_READ_TOO_LARGE_RESPONSE`, the API reference
-  is regenerated, and the HTML-app `fsClient.ts` maps 415 to `bad_request`.
-- The download helper looks up an explicit OOXML and ODF table before `guess_type`.
-
 ### D9. One bytes hook for every source, keyed by file version
 `useDriveFileBlob(mount, path, version)` in `driveFileSource.tsx` mirrors `useDriveObjectUrl`'s
 three branches (local `File`, remote attachment blob, mount blob) and returns
@@ -192,30 +138,25 @@ office bodies therefore pass the file's version from the drive listing (`etag`, 
 file refetches once when the listing refreshes at turn end; an unchanged file never refetches.
 Media bodies keep their current key.
 
-### D10. One format table
-Every layer reads the same table. Each layer holds its own copy (TypeScript in the web and the
-runner, Python in the API), and each copy's unit test asserts the rows below, so a drift fails
-a test.
+### D10. Format table
+`driveKinds.ts` maps extensions to web kinds, and `MediaViewer.tsx` maps the media types for
+attachments; their unit tests assert the rows below.
 
-| Extension | Web kind | Media type | Pi write blocked |
-|---|---|---|---|
-| `.xlsx` | spreadsheet | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | yes |
-| `.xlsm` | spreadsheet | `application/vnd.ms-excel.sheet.macroEnabled.12` | yes |
-| `.xls` | spreadsheet | `application/vnd.ms-excel` | yes |
-| `.ods` | spreadsheet | `application/vnd.oasis.opendocument.spreadsheet` | yes |
-| `.docx` | document | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | yes |
-| `.doc` | other | `application/msword` | yes |
-| `.odt` | other | `application/vnd.oasis.opendocument.text` | yes |
-| `.pptx` | presentation | `application/vnd.openxmlformats-officedocument.presentationml.presentation` | yes |
-| `.ppt` | other | `application/vnd.ms-powerpoint` | yes |
-| `.odp` | other | `application/vnd.oasis.opendocument.presentation` | yes |
+| Extension | Web kind | Media type |
+|---|---|---|
+| `.xlsx` | spreadsheet | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` |
+| `.xlsm` | spreadsheet | `application/vnd.ms-excel.sheet.macroEnabled.12` |
+| `.xls` | spreadsheet | `application/vnd.ms-excel` |
+| `.ods` | spreadsheet | `application/vnd.oasis.opendocument.spreadsheet` |
+| `.docx` | document | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` |
+| `.doc` | other | `application/msword` |
+| `.odt` | other | `application/vnd.oasis.opendocument.text` |
+| `.pptx` | presentation | `application/vnd.openxmlformats-officedocument.presentationml.presentation` |
+| `.ppt` | other | `application/vnd.ms-powerpoint` |
+| `.odp` | other | `application/vnd.oasis.opendocument.presentation` |
 
 ## Risks / Trade-offs
 
-- [The 415 is a contract change] → Web `readMountFile` consumers are gated to text kinds and
-  treat an error as null; the HTML-app client maps 415 explicitly; the generated Fern clients
-  surface it as a generic `ApiError`. One acceptance test asserted 200 for NUL bytes and is
-  updated.
 - [Bundle weight] → pptx-renderer hard-depends on ECharts (renderer ES build about 1.3 MB plus
   ECharts). docx-preview is about 1 MB unpacked. Each viewer string is a lazy chunk; nothing
   loads until a matching file opens.
@@ -229,13 +170,10 @@ a test.
 - [Rendering fidelity] → Neither renderer is pixel-exact. The download action stays in the
   header.
 - [Main-thread parsing] → Size limits bound it. A worker can follow if real files stall.
-- [Mis-detection] → UTF-16 text contains NUL and is treated as binary, as `git` does.
-- [Guard missing after a failed bundle install] → Logged today; same exposure as built-in gating.
 
 ## Migration Plan
 
-Three independent PRs: API, Pi guard, preview. Each ships alone. Rollback is a revert; no data
-changes.
+One web PR. Rollback is a revert; no data changes.
 
 ## v2 (NOT IMPLEMENTED): manual editing
 

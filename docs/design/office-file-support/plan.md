@@ -33,7 +33,7 @@ People and agents put spreadsheets and Word documents in agent folders. Today:
 The sandbox and runner images already ship `openpyxl`, `python-docx`, `python-pptx`, `pypdf`
 and `pandas`. Nothing is missing in storage or in the images.
 
-## v1: preview, agent read, close the gaps
+## v1: preview
 
 Requirements agreed on 2026-10-22:
 
@@ -45,9 +45,9 @@ Requirements agreed on 2026-10-22:
 - Previews appear in the Files pane, in Quick Look and in chat attachments.
 - Agents can read all three types; chat attachments of these types work.
 
-Three independent PRs. None depends on another.
+One PR, web only.
 
-### PR A. Files pane preview (`web/packages`)
+### Files pane preview (`web/packages`)
 
 Data shape. A new parse result for workbooks:
 
@@ -95,41 +95,12 @@ Tests: `parseWorkbook` against two fixtures with literal expected cells: one sav
 (stored values) and one saved by `openpyxl` (formulas only). `resolveDriveFileKind` for each
 new extension.
 
-### PR B. Pi agents read office files safely (`services/runner`)
+### Not in v1: API and runner changes
 
-One seam covers both Pi engines: the Agenta Pi extension (`src/extensions/agenta.ts`) loads
-in the in-process engine (`pi-session-factory.ts`) and in the sandbox engine (`pi-assets.ts`).
-
-1. `tool_result` hook on `read`: when the returned text contains a NUL character, the file is
-   binary. Replace the content with an actionable error that names the file type and the way
-   to read it, for example: "`report.xlsx` is a binary Excel workbook. Read it with `python3`
-   and `openpyxl` through `bash`." Image results are untouched (Pi already returns them as
-   images).
-2. `tool_call` hook on `write`: block a write to an office-container extension
-   (`.xlsx .xlsm .xls .docx .doc .pptx .ppt .odt .ods`) with the same kind of guidance.
-3. `edit` needs no change: it already fails safely.
-
-Both rules are pure functions (`binaryReadNotice(path, text)`, `blockedWriteReason(path)`) with
-unit tests on literal inputs. Rerun the Pi probe from the verification step and assert the new
-messages.
-
-No system-prompt change. The guard gives the guidance at the moment the agent needs it, and the
-Claude harness already finds the Python path without help.
-
-### PR C. API gaps (`api/oss`)
-
-1. `GET /mounts/{id}/files?read=` (`core/mounts/service.py` `read_file`): when the first 8 KB
-   contain a NUL byte, raise a typed error that maps to HTTP 415 and names the download route,
-   instead of returning U+FFFD text. Text with a few bad bytes still decodes as today.
-   Callers: the Files pane text path (text kinds only) and the HTML-app `fs.read`; neither
-   expects binary.
-2. `GET /mounts/{id}/files/download` (`apis/fastapi/mounts/utils.py`): resolve the OOXML and
-   ODF media types from an explicit table before `guess_type`, so the result does not depend on
-   the container's mime database.
-
-Tests: an API test that uploads a real XLSX, asserts 415 on `?read=`, and asserts the download
-Content-Type is
-`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`.
+A Pi read guard, a Pi write guard, a 415 on `?read=` and an office media-type table on download
+were built and then removed. The previews read bytes from the existing download route and never
+use its Content-Type, and agents reach these files through Python. A model that writes text over
+a workbook with Pi's `write` tool can still destroy it; revisit if that shows up in real runs.
 
 ### v1 done when
 
@@ -137,10 +108,7 @@ Content-Type is
   formula shown muted; `repro-report.docx` shows its heading and paragraphs; a sample `.pptx`
   shows its slides.
 - The same previews open from a chat attachment.
-- A Claude agent and a Pi agent each read a `.pptx` correctly.
-- A Pi agent asked to read the same files ends with correct contents (through the guard and
-  Python), and a Pi `write` to `.xlsx` is refused.
-- The two API assertions above pass.
+- An agent reads a `.pptx` correctly.
 
 ## v2: manual editing in the Files pane (deferred)
 
