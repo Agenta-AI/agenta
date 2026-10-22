@@ -374,19 +374,6 @@ class ApiConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# agenta.extras
-# ---------------------------------------------------------------------------
-
-
-class ExtrasConfig(BaseModel):
-    """Extras and feature toggles (demos, etc.)."""
-
-    demos: str = os.getenv("AGENTA_EXTRAS_DEMOS") or os.getenv("AGENTA_DEMOS") or ""
-
-    model_config = ConfigDict(extra="ignore")
-
-
-# ---------------------------------------------------------------------------
 # agenta.logging
 # ---------------------------------------------------------------------------
 
@@ -901,7 +888,6 @@ class AgentaConfig(BaseModel):
     api: ApiConfig = ApiConfig()
     auth_code_rate_limit: AuthCodeRateLimitConfig = AuthCodeRateLimitConfig()
     billing: BillingConfig = BillingConfig()
-    extras: ExtrasConfig = ExtrasConfig()
     logging: LoggingConfig = LoggingConfig()
     otlp: OTLPConfig = OTLPConfig()
     redaction: RedactionConfig = RedactionConfig()

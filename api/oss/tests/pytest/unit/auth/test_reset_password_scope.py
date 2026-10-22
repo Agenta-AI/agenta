@@ -1,8 +1,8 @@
 """A password reset link is made only for a member of the caller's project."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+from unittest.mock import AsyncMock
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -36,17 +36,17 @@ def wiring(monkeypatch):
     return link
 
 
+def _members(monkeypatch, is_member):
+    """The membership resolver's answer for the target user in the caller's project."""
+    service = SimpleNamespace(is_member=is_member)
+    monkeypatch.setattr(user_profile, "get_memberships_service", lambda: service)
+    return service
+
+
 @pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "member",
-    [None, SimpleNamespace(deleted_at="2026-10-24T00:00:00Z")],
-)
-async def test_reset_is_refused_for_a_user_outside_the_project(
-    monkeypatch, wiring, member
-):
-    monkeypatch.setattr(
-        user_profile.db_manager, "get_project_member", AsyncMock(return_value=member)
-    )
+async def test_reset_is_refused_for_a_user_outside_the_project(monkeypatch, wiring):
+    # The resolver answers no for a user without a row and for a removed member.
+    _members(monkeypatch, AsyncMock(return_value=False))
 
     response = await user_profile.reset_user_password(_request(), user_id=str(uuid4()))
 
@@ -56,28 +56,26 @@ async def test_reset_is_refused_for_a_user_outside_the_project(
 
 @pytest.mark.asyncio
 async def test_reset_is_refused_for_a_malformed_user_id(monkeypatch, wiring):
-    monkeypatch.setattr(
-        user_profile.db_manager,
-        "get_project_member",
-        AsyncMock(side_effect=ValueError("badly formed hexadecimal UUID string")),
-    )
+    service = _members(monkeypatch, AsyncMock(return_value=True))
 
     response = await user_profile.reset_user_password(_request(), user_id="nope")
 
     assert response.status_code == 404
+    service.is_member.assert_not_awaited()
     wiring.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_reset_link_is_made_for_a_project_member(monkeypatch, wiring):
-    monkeypatch.setattr(
-        user_profile.db_manager,
-        "get_project_member",
-        AsyncMock(return_value=MagicMock(deleted_at=None)),
-    )
+    service = _members(monkeypatch, AsyncMock(return_value=True))
+    request = _request()
     user_id = str(uuid4())
 
-    result = await user_profile.reset_user_password(_request(), user_id=user_id)
+    result = await user_profile.reset_user_password(request, user_id=user_id)
 
     assert result == "https://example.test/reset"
     assert wiring.await_args.kwargs["user_id"] == user_id
+    assert service.is_member.await_args.kwargs == {
+        "user_id": UUID(user_id),
+        "project_id": UUID(request.state.project_id),
+    }
