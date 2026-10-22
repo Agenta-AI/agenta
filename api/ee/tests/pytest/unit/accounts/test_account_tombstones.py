@@ -298,6 +298,43 @@ async def test_admin_deletion_discards_the_tombstone_when_the_cascade_fails(
     assert tombstones.rows == []
 
 
+async def test_self_service_deletion_discards_the_tombstone_when_the_login_survives(
+    deletion, monkeypatch
+):
+    tombstones, calls = deletion
+
+    async def _broken_supertokens(self, *, uid, email):
+        raise RuntimeError("auth provider down")
+
+    monkeypatch.setattr(
+        PlatformAdminAccountsService, "_delete_supertokens_user", _broken_supertokens
+    )
+
+    with pytest.raises(RuntimeError):
+        await PlatformAdminAccountsService().delete_own_account(user_id=str(USER_ID))
+
+    # The user can still sign in, so the email must not count as deleted.
+    assert tombstones.rows == []
+
+
+async def test_self_service_deletion_keeps_the_tombstone_once_the_login_is_gone(
+    deletion, monkeypatch
+):
+    tombstones, calls = deletion
+
+    async def _broken_cascade(uid):
+        raise RuntimeError("database down")
+
+    monkeypatch.setattr(
+        accounts_service_module, "_db_delete_user_with_cascade", _broken_cascade
+    )
+
+    with pytest.raises(RuntimeError):
+        await PlatformAdminAccountsService().delete_own_account(user_id=str(USER_ID))
+
+    assert len(tombstones.rows) == 1
+
+
 async def test_admin_deletion_writes_the_tombstone_before_the_cascade(deletion):
     tombstones, calls = deletion
 
@@ -692,3 +729,32 @@ async def test_a_second_organization_of_a_clean_owner_gets_the_plan_floor(
 
     assert floors == [None]
     assert fraud.marks == []
+
+
+async def test_a_second_organization_of_a_returning_email_keeps_the_returning_cause(
+    second_organization,
+):
+    tombstones, fraud, run = second_organization
+    tombstones.rows.append(_tombstone(days_ago=1))
+    fraud.marked_owners.add(USER_ID)
+
+    floors = await run()
+
+    assert floors == [REFUSED_EMAIL_FLOOR_MUSD]
+    assert fraud.marks == [(NEW_ORG, FraudCheckpoint.RETURNING_ACCOUNT, None)]
+
+
+async def test_a_flagged_owner_marker_write_failure_still_raises_the_floor(
+    second_organization,
+):
+    tombstones, fraud, run = second_organization
+    fraud.marked_owners.add(USER_ID)
+
+    async def _broken_mark(**kwargs):
+        raise RuntimeError("database down")
+
+    fraud.mark_no_grants = _broken_mark
+
+    floors = await run()
+
+    assert floors == [REFUSED_EMAIL_FLOOR_MUSD]

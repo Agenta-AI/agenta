@@ -1520,10 +1520,12 @@ class PlatformAdminAccountsService:
 
         # The tombstone before anything irreversible: a failed write returns an error
         # while billing and the login are still intact.
+        tombstone_ids: List[UUID] = []
         if is_ee():
-            await self._write_account_tombstone(
+            tombstone = await self._write_account_tombstone(
                 email=email, organization_ids=organization_ids
             )
+            tombstone_ids.append(tombstone.id)
 
         # Stop billing before the org rows disappear. Best effort.
         if is_ee():
@@ -1541,7 +1543,15 @@ class PlatformAdminAccountsService:
 
         # Remove the auth login first: the signup override is idempotent and
         # would otherwise recreate the account on the next sign-in.
-        await self._delete_supertokens_user(uid=user.uid, email=email)
+        # If the login survives, so does the account: drop the tombstone so the user
+        # keeps their grants and a retry writes a fresh one. Once the login is gone
+        # the tombstone stays, even if the rows below fail.
+        try:
+            await self._delete_supertokens_user(uid=user.uid, email=email)
+        except Exception:
+            if tombstone_ids:
+                await _ee_discard_account_tombstones(tombstone_ids=tombstone_ids)
+            raise
 
         # Reuse the cascade delete (memberships + user + owned orgs); the tombstone is
         # already written above.

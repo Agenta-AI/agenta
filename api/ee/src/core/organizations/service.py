@@ -1223,7 +1223,9 @@ async def provision_user_subscription(
         returning = await returning_account_blocks_grants(
             organization_id=organization.id, email=organization_email
         )
-        inherited = await owner_organization_blocks_grants(
+        # A returning account's organization already carries its marker; checking
+        # the owner would find that marker and overwrite its cause.
+        inherited = not returning and await owner_organization_blocks_grants(
             organization_id=organization.id, owner_id=organization.owner_id
         )
         await _provision_wallet_general_balance(
