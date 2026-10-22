@@ -290,7 +290,6 @@ class SessionHeartbeatRequest(BaseModel):
     replica_address: Optional[str] = None
     turn_id: Optional[str] = None  # the current TURN (proves alive-lock ownership)
     is_running: bool = True
-    run_kind: str | None = None
     name: Optional[str] = None
     references: Optional[List[SessionReference]] = None
 

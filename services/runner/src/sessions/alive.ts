@@ -66,7 +66,6 @@ import type { TypedReference } from "./interactions.ts";
  * once, never change an existing one, and the "heartbeats don't churn headers" invariant holds.
  */
 export interface SessionProposal {
-  runKind?: string;
   /** A name for an otherwise-untitled session (see `sessions/name.ts`). */
   name?: string;
   /** The run's workflow references, so the stream row is openable without a turn append. */
@@ -128,7 +127,6 @@ async function sendHeartbeat(
             replica_address: REPLICA_ADDRESS,
             turn_id: turnId,
             is_running: isRunning,
-            ...(proposal?.runKind ? { run_kind: proposal.runKind } : {}),
             ...(proposal?.name ? { name: proposal.name } : {}),
             ...(proposal?.references?.length
               ? { references: proposal.references }

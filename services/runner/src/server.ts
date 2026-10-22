@@ -842,7 +842,6 @@ async function runAndStreamWithApiBaseResolved(
           controller.abort(USER_STOP_ABORT_REASON);
         },
         {
-          runKind: request.runContext?.run?.kind,
           name: proposeSessionName(request),
           references: buildWorkflowReferenceList(request.runContext?.workflow),
         },

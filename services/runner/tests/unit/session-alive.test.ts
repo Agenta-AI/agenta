@@ -45,22 +45,6 @@ afterEach(() => {
 });
 
 describe("startAliveWatchdog", () => {
-  it("carries the test run kind on admission and release", async () => {
-    const watchdog = await startAliveWatchdog(
-      "sess-test",
-      "turn-test",
-      "proj-1",
-      undefined,
-      { runKind: "test" },
-    );
-    await watchdog.release();
-    const beats = fetchCalls.filter((c) => c.url.includes("heartbeat"));
-    assert.equal(beats.length, 2);
-    for (const beat of beats) {
-      assert.equal((beat.body as Record<string, unknown>).run_kind, "test");
-    }
-  });
-
   it("sends an immediate heartbeat on start carrying turn_id and is_running=true", async () => {
     const watchdog = await startAliveWatchdog("sess-1", "turn-abc", "proj-1");
 
