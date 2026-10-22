@@ -1,72 +1,39 @@
-/**
- * DriveFileCard — the in-thread artifact card (build-spec v2, view E1): a file the agent
- * wrote/updated during a turn, rendered inside the message. Icon · name · Created/Updated tag ·
- * type/size meta · Download; click opens Quick Look. Jargon-free (no mount/cwd). Meta and
- * download enrich from the ambient conversation drive when the file resolves against the
- * listing; deletes render struck-through with no actions.
- */
-import {fileTypeLabel} from "@agenta/entities/drive"
-import {humanSize} from "@agenta/entities/drive"
-import {useSessionDrive} from "@agenta/entities/drive"
-import {mountPathMatchesToolPath, type FileActivityOp} from "@agenta/entities/session"
-import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
-import {Tag} from "@agenta/ui/components/presentational"
-import {
-    HoverCard,
-    HoverCardContent,
-    HoverCardTrigger,
-    SimpleTooltip as Tooltip,
-} from "@agenta/ui/ui"
-import {DownloadSimple} from "@phosphor-icons/react"
+/** DriveFileCard — a file the agent created or updated during a turn, under the answer. */
+import type {FileActivityOp} from "@agenta/entities/session"
+import {HoverCard, HoverCardContent, HoverCardTrigger} from "@agenta/ui/ui"
 import {useSetAtom} from "jotai"
 
 import {DriveFileHoverCard} from "./DriveFileHoverCard"
+import {DriveFileTile} from "./DriveFileTile"
 import {driveFileIcon} from "./driveIcons"
-import {useDriveArtifactId, useDriveSessionId} from "./driveSessionContext"
+import {useDriveSessionId} from "./driveSessionContext"
 import {driveQuickLookAtomFamily} from "./quickLook"
-import {useDriveFileDownload} from "./useDriveFileDownload"
-
-/** antd `Typography.Text` stand-in: the only prop this module used is `type="secondary"`. */
-const Text = ({
-    type: _type,
-    className,
-    children,
-    ...rest
-}: React.HTMLAttributes<HTMLSpanElement> & {type?: "secondary"}) => (
-    <span className={`text-colorTextSecondary ${className ?? ""}`} {...rest}>
-        {children}
-    </span>
-)
-
-const OP_META: Record<FileActivityOp, {label: string; color?: string}> = {
-    write: {label: "Created", color: "green"},
-    edit: {label: "Updated", color: "blue"},
-    delete: {label: "Deleted"},
-}
+import {useDriveFileLookup} from "./useDriveFileLookup"
 
 /**
  * Compact INLINE reference to a drive file — for a filename the agent names in prose. Reads as a
- * subtle inline chip (icon + name) that flows within the sentence and opens Quick Look on click.
- * The heavy block {@link DriveFileCard} is reserved for the tool step that actually wrote the file,
- * so a mention in the reply never breaks the paragraph with a full card.
+ * quiet inline link (icon + dotted-underlined name) that flows within the sentence and opens Quick Look on click.
+ * The heavy block {@link DriveFileCard} is reserved for the files a turn actually wrote, so a
+ * mention in the reply never breaks the paragraph with a full card.
  */
 export function DriveFileInlineRef({path}: {path: string}) {
     const sessionId = useDriveSessionId()
     const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId ?? ""))
     const name = path.split("/").pop() ?? path
-    // The card previews the file on hover; a click still opens Quick Look.
     return (
         <HoverCard openDelay={300} closeDelay={150}>
             <HoverCardTrigger asChild>
                 <button
                     type="button"
                     onClick={() => openQuickLook({path})}
-                    className="mx-px inline-flex max-w-full cursor-pointer items-center gap-1 rounded border border-solid border-colorBorderSecondary bg-colorFillTertiary px-1 py-0 align-baseline font-mono text-[0.9em] leading-[1.4] text-colorText transition-colors hover:border-colorBorder hover:bg-colorFillSecondary"
+                    className="group/file-ref inline-flex max-w-full cursor-pointer items-baseline gap-1 border-0 bg-transparent p-0 align-baseline font-mono text-[0.9em] text-foreground"
                 >
-                    <span className="flex shrink-0 items-center">
-                        {driveFileIcon(path, 11, "text-current")}
+                    <span className="flex shrink-0 self-center text-muted-foreground">
+                        {driveFileIcon(path, 12, "text-current")}
                     </span>
-                    <span className="min-w-0 truncate">{name}</span>
+                    <span className="min-w-0 truncate underline decoration-muted-foreground/50 decoration-dotted underline-offset-[3px] group-hover/file-ref:decoration-foreground group-hover/file-ref:decoration-solid">
+                        {name}
+                    </span>
                 </button>
             </HoverCardTrigger>
             <HoverCardContent
@@ -82,80 +49,8 @@ export function DriveFileInlineRef({path}: {path: string}) {
     )
 }
 
+/** A file a turn wrote, as a tile; it reads only the drive listing, never the file. */
 export function DriveFileCard({path, op}: {path: string; op?: FileActivityOp}) {
-    const downloadFile = useDriveFileDownload()
-    const sessionId = useDriveSessionId()
-    const artifactId = useDriveArtifactId()
-    const openQuickLook = useSetAtom(driveQuickLookAtomFamily(sessionId ?? ""))
-    const drive = useSessionDrive(sessionId ?? "", artifactId ?? undefined)
-
-    const resolved = drive.files.find((f) => mountPathMatchesToolPath(f.path, path)) ?? null
-    const name = path.split("/").pop() ?? path
-    const deleted = op === "delete"
-    // No op (a prose mention rather than a detected write) → no status tag; just the file card.
-    const meta = op ? OP_META[op] : null
-
-    const download = () => {
-        if (!resolved) return
-        // The file may live in the cwd mount or the nested agent-files mount — route to whichever.
-        const target = drive.resolveMount(resolved.path)
-        if (!target) return
-        void downloadFile(target.mount, target.path)
-    }
-
-    // A <span> root (inline-flex) so the card is valid inline — it's rendered both standalone in a
-    // flex row (tool activity) AND inside a markdown paragraph (a prose file mention).
-    return (
-        <span
-            className={`my-0.5 inline-flex w-fit max-w-full items-center gap-2.5 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary py-1.5 pl-2 pr-1 align-middle ${
-                deleted ? "opacity-70" : ""
-            }`}
-        >
-            <button
-                type="button"
-                disabled={deleted}
-                onClick={() => openQuickLook({path})}
-                className={`flex min-w-0 items-center gap-2.5 border-0 bg-transparent p-0 text-left ${
-                    deleted ? "cursor-default" : "cursor-pointer"
-                }`}
-            >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-colorFillTertiary">
-                    {driveFileIcon(path, 16)}
-                </span>
-                <span className="flex min-w-0 flex-col">
-                    <span className="flex min-w-0 items-center gap-1.5">
-                        <span
-                            className={`min-w-0 truncate font-mono text-xs font-medium ${
-                                deleted ? "line-through" : ""
-                            }`}
-                        >
-                            {name}
-                        </span>
-                        {meta ? (
-                            <Tag
-                                color={meta.color}
-                                className="m-0 shrink-0 !text-[12px] leading-[16px]"
-                            >
-                                {meta.label}
-                            </Tag>
-                        ) : null}
-                    </span>
-                    <Text type="secondary" className="!text-xs">
-                        {fileTypeLabel(path)}
-                        {resolved?.size != null ? <> · {humanSize(resolved.size)}</> : null}
-                    </Text>
-                </span>
-            </button>
-            {!deleted && resolved ? (
-                <Tooltip title="Download">
-                    <Button
-                        type="text"
-                        icon={<DownloadSimple size={14} />}
-                        onClick={download}
-                        aria-label={`Download ${name}`}
-                    />
-                </Tooltip>
-            ) : null}
-        </span>
-    )
+    const {entry, target} = useDriveFileLookup()(path)
+    return <DriveFileTile path={path} op={op} size={entry?.size} target={target} />
 }

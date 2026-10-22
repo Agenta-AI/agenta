@@ -27,14 +27,14 @@ export interface AttachmentStripProps {
 
 /** One square for every kind, so a mixed batch reads as one row; a step down on a phone. */
 const TILE =
-    "relative box-border size-16 shrink-0 overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary sm:size-[72px]"
+    "relative box-border size-20 shrink-0 overflow-hidden rounded-lg border border-solid border-border bg-muted sm:size-24"
 
 /** The whole tile, as the control that opens the viewer. A sibling of any inner control. */
 const OPEN_BUTTON =
-    "absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-1 border-0 bg-transparent p-1.5 text-colorTextSecondary disabled:cursor-default"
+    "absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-1 border-0 bg-transparent p-1.5 text-muted-foreground disabled:cursor-default"
 
 const TileName = ({name}: {name: string}) => (
-    <span className="line-clamp-2 w-full break-all text-center text-[10px] leading-3 text-colorTextSecondary">
+    <span className="line-clamp-2 w-full break-all text-center text-[10px] leading-3 text-muted-foreground">
         {name}
     </span>
 )
@@ -54,13 +54,13 @@ const ImageTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => vo
         >
             {state === "failed" || !file.src ? (
                 <>
-                    <ImageBroken size={18} className="shrink-0 text-colorTextTertiary" />
+                    <ImageBroken size={18} className="shrink-0 text-muted-foreground" />
                     <TileName name={file.name} />
                 </>
             ) : (
                 <>
                     {state === "loading" ? (
-                        <span className="absolute inset-0 bg-colorFillTertiary motion-safe:animate-pulse" />
+                        <span className="absolute inset-0 bg-accent motion-safe:animate-pulse" />
                     ) : null}
                     {/* A cookie-authenticated URL; next/image cannot optimize it. */}
                     <img
@@ -153,7 +153,7 @@ const AudioTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () => vo
                 aria-label={`${playing ? "Pause" : "Play"} ${file.name}`}
                 aria-busy={isPending}
                 onClick={onPlay}
-                className={`absolute left-1/2 top-2 flex size-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-colorFillSecondary p-0 text-colorText transition-colors hover:bg-colorFill disabled:cursor-default disabled:opacity-50 ${
+                className={`absolute left-1/2 top-2 flex size-8 -translate-x-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-background p-0 text-foreground shadow-sm transition-colors hover:bg-accent disabled:cursor-default disabled:opacity-50 ${
                     isPending ? "motion-safe:animate-pulse" : ""
                 }`}
             >
@@ -172,7 +172,7 @@ const DocumentTile = ({file, onOpen}: {file: AttachmentStripFile; onOpen?: () =>
         onClick={onOpen}
         className={OPEN_BUTTON}
     >
-        <span className="rounded bg-colorFillTertiary px-1.5 py-0.5 text-[10px] font-semibold uppercase leading-4 text-colorTextSecondary">
+        <span className="rounded-sm bg-background px-1.5 py-0.5 text-[10px] font-semibold uppercase leading-4 text-muted-foreground">
             {typeBadgeFor(file.mediaType, file.name)}
         </span>
         <TileName name={file.name} />

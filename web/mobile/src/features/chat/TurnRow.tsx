@@ -26,6 +26,7 @@ import {messageBodyKey} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground/agent-chat"
+import {splitQuotedMessage} from "@agenta/shared/quotes"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {hasPriorElicitationDegradation} from "@agenta/shared/utils"
 import {
@@ -37,8 +38,6 @@ import {
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {cn} from "@/lib/utils"
-
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
 import {isLiveTextItem} from "./markdownStream"
@@ -46,8 +45,13 @@ import {useBillingRoute, useCanBuyCredits, useProviderRecovery} from "./provider
 import {describeRunFailure, RunErrorMessage} from "./RunErrorMessage"
 import {RunErrorRecovery} from "./RunErrorRecovery"
 import {runRetryAction} from "./runRetry"
+import {turnFiles} from "./turnFileList"
+import {TurnFiles} from "./TurnFiles"
 import {mobileTurnRowClass} from "./turnRowClass"
+import {UserQuoteCard} from "./UserQuoteCard"
 import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
+
+import {cn} from "@/lib/utils"
 
 /** The byte size the transcript replay records on an attachment part, when it has one. */
 const attachmentSize = (metadata: unknown): number | undefined => {
@@ -214,14 +218,26 @@ const TurnRowInner = ({
         [onClientToolOutput, renderMap, degradedEarlierInTurn],
     )
 
+    // A sent message's quotes lead its text; they render as cards above the bubble, not in it.
+    const userTexts = useMemo(
+        () =>
+            turn.isUser
+                ? turn.items.flatMap((item) =>
+                      item.kind === "part" && item.part.type === "text"
+                          ? [{index: item.index, ...splitQuotedMessage(item.part.text ?? "")}]
+                          : [],
+                  )
+                : [],
+        [turn.isUser, turn.items],
+    )
+    const writtenFiles = useMemo(() => turnFiles(activity.steps), [activity.steps])
+
     const body = turn.isUser ? (
         <div className="flex min-w-0 max-w-full flex-col gap-2">
-            {turn.items.map((item) => {
-                if (item.kind !== "part" || item.part.type !== "text") return null
-                if (!(item.part.text ?? "").trim()) return null
+            {userTexts.map(({index, text}) =>
                 // Markdown, as the desktop bubble renders it: the composer's export is markdown.
-                return <UserMarkdown key={item.index} text={item.part.text ?? ""} />
-            })}
+                text.trim() ? <UserMarkdown key={index} text={text} /> : null,
+            )}
         </div>
     ) : (
         <div className="flex min-w-0 max-w-full flex-col gap-3">
@@ -252,6 +268,7 @@ const TurnRowInner = ({
                     </AnswerReveal>
                 </div>
             ) : null}
+            {!live ? <TurnFiles files={writtenFiles} /> : null}
             {runError ? (
                 <>
                     <RunErrorMessage paragraphs={runError.paragraphs} quote={runError.quote} />
@@ -302,21 +319,25 @@ const TurnRowInner = ({
             ),
         [turn.items],
     )
-    const attachments = files.length ? (
-        <AttachmentStrip files={files} align={turn.isUser ? "end" : "start"} />
-    ) : null
-    // Attachments with no words paint no bubble; an assistant turn always paints its fold line.
+    const quotes = userTexts.flatMap(({index, quotes: excerpts}) =>
+        excerpts.map((quote, at) => <UserQuoteCard key={`${index}:${at}`} quote={quote} />),
+    )
+    const header =
+        files.length || quotes.length ? (
+            <div className={cn("flex flex-col gap-1.5", turn.isUser ? "items-end" : "items-start")}>
+                {files.length ? (
+                    <AttachmentStrip files={files} align={turn.isUser ? "end" : "start"} />
+                ) : null}
+                {quotes}
+            </div>
+        ) : null
+    // Attachments or quotes with no words paint no bubble; an assistant turn always has its fold.
     const hasBubbleContent =
         !turn.isUser ||
         turn.items.some(
-            (item) =>
-                item.kind !== "files" &&
-                !(
-                    item.kind === "part" &&
-                    item.part.type === "text" &&
-                    !(item.part.text ?? "").trim()
-                ),
+            (item) => item.kind !== "files" && !(item.kind === "part" && item.part.type === "text"),
         ) ||
+        userTexts.some(({text}) => text.trim()) ||
         turn.status.showError
 
     // Desktop parity: a long pasted message clamps behind "Show more" rather than burying its reply.
@@ -364,14 +385,17 @@ const TurnRowInner = ({
                 }
                 classNames={{
                     content: turn.isUser
-                        ? cn(userBubbleContentClass, "rounded-md text-xs")
+                        ? cn(
+                              userBubbleContentClass,
+                              "rounded-xl rounded-br-sm bg-muted text-xs sm:px-3.5 sm:py-2.5",
+                          )
                         : "min-w-0 max-w-full overflow-hidden text-xs",
                     body: "min-w-0 max-w-full overflow-hidden",
                 }}
                 // A refused file-only send has no words to paint, but its failure still has to be
                 // said, or the cards sit there looking like an upload that worked.
                 content={hasBubbleContent ? content : failureNote}
-                header={attachments}
+                header={header}
             />
             {/* A user turn's actions, revealed on hover or keyboard focus — the lane the desktop
                 transcript reserves. An assistant turn carries its meta line in flow instead. The

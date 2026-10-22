@@ -3,7 +3,7 @@ import {memo, useMemo, useState, type ReactNode} from "react"
 import {mountFileThumbnailQueryFamily} from "@agenta/entities/drive"
 import {mountFileContentQueryFamily, sessionMountsQueryFamily} from "@agenta/entities/session"
 import {useInView} from "@agenta/shared/hooks"
-import {DownloadSimple} from "@phosphor-icons/react"
+import {ArrowsOutSimple, DownloadSimple, Image as ImageIcon} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -19,17 +19,17 @@ import {SVG_PREVIEW_CAP, useSvgImage} from "./svgPreview"
 import {useDriveFileDownload} from "./useDriveFileDownload"
 
 /** The image: never wider than this, never taller than `MAX_HEIGHT`, never past its own size. */
-const MAX_WIDTH = 320
+const MAX_WIDTH = 520
 const MAX_HEIGHT = 360
-/** The smallest box that still holds the corner button; a tinier image centers inside it. */
-const MIN_FRAME = 40
+/** The smallest box that still holds the corner buttons; a tinier image centers inside it. */
+const MIN_FRAME = 76
 
 /** Shown on hover or keyboard focus where hovering exists; always shown on touch. */
 const CORNER_ACTION =
-    "absolute right-1.5 top-1.5 transition-opacity motion-reduce:transition-none [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/inline-image:opacity-100 [@media(hover:hover)]:group-has-[:focus-visible]/inline-image:opacity-100"
+    "absolute right-2 top-2 flex gap-1 transition-opacity motion-reduce:transition-none [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/inline-image:opacity-100 [@media(hover:hover)]:group-has-[:focus-visible]/inline-image:opacity-100"
 
 const CORNER_BUTTON =
-    "flex size-6 cursor-pointer items-center justify-center rounded-md border-0 bg-black/55 p-0 text-white transition-colors hover:bg-black/75 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+    "flex size-7 cursor-pointer items-center justify-center rounded-md border-0 bg-background/90 p-0 text-foreground shadow-sm transition-colors hover:bg-background focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
 
 /** The box an SVG holds until it loads, and keeps when it has no size of its own. */
 const SVG_FALLBACK_SIZE = {width: 320, height: 240}
@@ -90,7 +90,7 @@ function ChatInlineImageImpl({candidate}: {candidate: string}) {
                 data-holding={holding || undefined}
                 className={
                     holding
-                        ? "aspect-[4/3] w-[320px] max-w-full rounded-lg bg-colorFillTertiary motion-safe:animate-pulse"
+                        ? "aspect-[4/3] w-[320px] max-w-full rounded-lg bg-muted motion-safe:animate-pulse"
                         : "absolute h-0 w-0"
                 }
             />
@@ -118,42 +118,57 @@ function ChatInlineImageImpl({candidate}: {candidate: string}) {
     const width = Math.min(MAX_WIDTH, loaded.width, (MAX_HEIGHT * loaded.width) / loaded.height)
     const height = (width * loaded.height) / loaded.width
     return (
-        <figure
-            className="group/inline-image relative m-0 flex max-w-full shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-colorBorderSecondary bg-colorFillTertiary"
-            style={{minWidth: MIN_FRAME, minHeight: MIN_FRAME}}
-        >
-            <button
-                type="button"
-                aria-label={`Expand ${name}`}
-                onClick={expand}
-                className="flex cursor-zoom-in border-0 bg-transparent p-0"
+        <figure className="group/inline-image m-0 flex max-w-full shrink-0 flex-col gap-2">
+            <div
+                className="relative flex max-w-full items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-muted"
+                style={{minWidth: MIN_FRAME, minHeight: MIN_FRAME}}
             >
-                {/* A data or object URL; next/image cannot optimize it. An SVG stays in `<img>`. */}
-                <img
-                    src={data.src}
-                    alt={name}
-                    draggable={false}
-                    onLoad={(e) =>
-                        setNatural({
-                            src: data.src,
-                            width: e.currentTarget.naturalWidth,
-                            height: e.currentTarget.naturalHeight,
-                        })
-                    }
-                    className="block object-contain"
-                    style={{width, height}}
-                />
-            </button>
-            <div className={CORNER_ACTION}>
                 <button
                     type="button"
-                    aria-label={`Download ${name}`}
-                    onClick={() => void download(target.mount, target.path)}
-                    className={CORNER_BUTTON}
+                    aria-label={`Expand ${name}`}
+                    onClick={expand}
+                    className="flex min-w-0 max-w-full cursor-zoom-in border-0 bg-transparent p-0"
                 >
-                    <DownloadSimple size={14} />
+                    {/* A data or object URL; next/image cannot optimize it. An SVG stays in `<img>`. */}
+                    <img
+                        src={data.src}
+                        alt={name}
+                        draggable={false}
+                        onLoad={(e) =>
+                            setNatural({
+                                src: data.src,
+                                width: e.currentTarget.naturalWidth,
+                                height: e.currentTarget.naturalHeight,
+                            })
+                        }
+                        // A phone column is narrower than the cap: the ratio keeps the height honest.
+                        className="block h-auto max-w-full object-contain"
+                        style={{width, aspectRatio: `${width} / ${height}`}}
+                    />
                 </button>
+                <div className={CORNER_ACTION}>
+                    <button
+                        type="button"
+                        aria-label={`Expand ${name}`}
+                        onClick={expand}
+                        className={CORNER_BUTTON}
+                    >
+                        <ArrowsOutSimple size={14} />
+                    </button>
+                    <button
+                        type="button"
+                        aria-label={`Download ${name}`}
+                        onClick={() => void download(target.mount, target.path)}
+                        className={CORNER_BUTTON}
+                    >
+                        <DownloadSimple size={14} />
+                    </button>
+                </div>
             </div>
+            <figcaption className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                <ImageIcon size={13} className="shrink-0" />
+                <span className="min-w-0 truncate font-medium text-foreground">{name}</span>
+            </figcaption>
         </figure>
     )
 }
