@@ -487,7 +487,9 @@ persuades the agent to print its own environment prints your keys.
 
 The credential a run uses to call the Agenta model gateway is hidden the same way, restricted to
 the gateway's hostname. Two cases keep it a plain environment variable, as in earlier versions: a
-gateway URL that is not HTTPS on a DNS hostname with the default port, and a Daytona API key without
+gateway URL that cannot carry a single public hostname restriction (for example plain HTTP, an IP
+address, a port other than the default, or an internal hostname such as `localhost` or one ending in
+`.internal` or `.local`), and a Daytona API key without
 the Secrets permission on a run that has no other key to hide. The runner logs the second case.
 
 :::warning Upgrading from a version before v0.108.1 requires a key change
@@ -501,7 +503,7 @@ Grant the key in `AGENTA_RUNNER_DAYTONA_API_KEY` permission to manage Secrets, o
 that permission, before upgrading. The failure names this variable and the permission, so it is
 recognizable, but the runs still fail until the key is fixed.
 
-The runner never falls back to sending keys as plaintext on its own, because silently doing the
+The runner never falls back to sending model or MCP keys as plaintext on its own, because silently doing the
 unprotected thing is worse than stopping. If you would rather not grant the permission, set
 `AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=off` and keys go to the sandbox as plain environment
 variables, exactly as they did before v0.108.1.
