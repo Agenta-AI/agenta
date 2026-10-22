@@ -11,6 +11,7 @@ import {
   type DaytonaSecretCandidate,
   type DaytonaSecretPlan,
 } from "./daytona-secret-plan.ts";
+import { PI_GATEWAY_MCP_SERVERS_ENV } from "../../extensions/pi-mcp.ts";
 
 export interface DaytonaSecretRecord {
   id: string;
@@ -55,6 +56,11 @@ export interface DaytonaSecretAllocation {
    * so this map never leaves the provider layer and nothing in it is ever logged.
    */
   bySlot: ReadonlyMap<CredentialSlotKey, DaytonaSecretRecord>;
+  /**
+   * True when the plan's gateway credential got no Secret because the Daytona API key may not
+   * manage Secrets, so it stays a plain sandbox environment value. See the provider's `allocate`.
+   */
+  gatewayLeftPlain?: true;
 }
 
 /**
@@ -251,6 +257,99 @@ function assertCreatedSecret(
   return secret;
 }
 
+/**
+ * The sandbox variable the gateway credential's Secret is attached under.
+ *
+ * Daytona attaches a Secret only through a variable, and substitutes its placeholder wherever it
+ * appears in a request to the allowed host. The harness does not read this variable: it reads the
+ * placeholder from its own connection settings, which `swapGatewayCredentials` rewrites. The name
+ * only has to be stable and unclaimable by a request, which the `AGENTA_` prefix guarantees.
+ */
+export const GATEWAY_SECRET_ATTACHMENT = "AGENTA_GATEWAY_SECRET";
+
+/** What the sandbox environment's runner-built settings must carry instead of raw credentials. */
+export interface GatewayCredentialPlaceholders {
+  /** The model gateway credential and its placeholder, when the allocation hides it. */
+  gateway?: { value: string; placeholder: string };
+  /** Per MCP server, header name to placeholder: the same map MCP session config is built from. */
+  mcpHeaders: Record<string, Record<string, string>>;
+}
+
+/**
+ * The placeholders the sandbox environment needs, built at create time from the plan and the
+ * allocation and not retained, because the allocation deliberately holds no values.
+ *
+ * Empty when the allocation holds nothing, so a run whose Secrets were not created keeps its
+ * values where they were.
+ */
+export function gatewayCredentialPlaceholders(
+  plan: DaytonaSecretPlan,
+  allocation: DaytonaSecretAllocation,
+): GatewayCredentialPlaceholders {
+  const candidate = plan.candidates.find(
+    (entry) => entry.consumer.kind === "gateway",
+  );
+  const record = candidate
+    ? allocation.bySlot.get(slotKey(credentialSlotFor(candidate)))
+    : undefined;
+  return {
+    ...(candidate && record
+      ? { gateway: { value: candidate.value, placeholder: record.placeholder } }
+      : {}),
+    mcpHeaders: allocation.mcpHeaderPlaceholders,
+  };
+}
+
+/**
+ * Replace the gateway credentials in a sandbox environment with their placeholders.
+ *
+ * The runner builds the harness connection settings before any Secret exists, so they carry raw
+ * values. Two kinds are rewritten here:
+ *
+ *  - The model gateway credential, wherever it appears: the gateway variable itself, the Pi model
+ *    endpoint override, and Claude Code's custom headers. The value is the run's
+ *    `gatewayCredentials.value`, which the platform minted for this run, so any copy of it in the
+ *    environment is that credential. Plain and JSON-escaped copies are both replaced.
+ *  - The Pi extension's MCP config, field by field: each server's headers get the same
+ *    placeholders the MCP session config of the other harnesses gets (`materializeMcpServers`).
+ *    Structural rather than textual, because an MCP header value can be any short string.
+ */
+export function swapGatewayCredentials(
+  environment: Record<string, string>,
+  placeholders: GatewayCredentialPlaceholders,
+): Record<string, string> {
+  const swapped: Record<string, string> = { ...environment };
+  const gateway = placeholders.gateway;
+  if (gateway) {
+    const escaped = JSON.stringify(gateway.value).slice(1, -1);
+    for (const [name, value] of Object.entries(swapped)) {
+      swapped[name] = value
+        .replaceAll(gateway.value, gateway.placeholder)
+        .replaceAll(escaped, gateway.placeholder);
+    }
+  }
+  const mcpConfig = swapped[PI_GATEWAY_MCP_SERVERS_ENV];
+  if (mcpConfig && Object.keys(placeholders.mcpHeaders).length > 0) {
+    const config = JSON.parse(mcpConfig) as {
+      servers: Array<{ name: string; headers: Record<string, string> }>;
+    };
+    for (const server of config.servers) {
+      const serverPlaceholders = placeholders.mcpHeaders[server.name] ?? {};
+      for (const name of Object.keys(server.headers)) {
+        const placeholder = serverPlaceholders[name];
+        if (!placeholder) {
+          throw new Error(
+            `Daytona Secret allocation is missing MCP placeholder '${name}'.`,
+          );
+        }
+        server.headers[name] = placeholder;
+      }
+    }
+    swapped[PI_GATEWAY_MCP_SERVERS_ENV] = JSON.stringify(config);
+  }
+  return swapped;
+}
+
 function generatedName(candidate: DaytonaSecretCandidate): string {
   return `agenta_${randomBytes(18).toString("hex")}_${candidate.ordinal}`;
 }
@@ -303,6 +402,8 @@ export async function allocateDaytonaSecrets(
       bySlot.set(slotKey(credentialSlotFor(candidate)), secret);
       if (candidate.consumer.kind === "model") {
         attachments[candidate.binding.name] = secret.name;
+      } else if (candidate.consumer.kind === "gateway") {
+        attachments[GATEWAY_SECRET_ATTACHMENT] = secret.name;
       } else {
         attachments[`AGENTA_MCP_SECRET_${candidate.ordinal}`] = secret.name;
         (mcpHeaderPlaceholders[candidate.consumer.server] ??= {})[

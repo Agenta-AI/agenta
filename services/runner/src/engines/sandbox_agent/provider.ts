@@ -19,7 +19,11 @@ import {
   daytonaWithLifecycle,
 } from "./daytona-provider.ts";
 import { daytonaWithProcessLocalSecrets } from "./daytona-secret-provider.ts";
-import type { DaytonaSecretLease } from "./daytona-secrets.ts";
+import {
+  swapGatewayCredentials,
+  type DaytonaSecretLease,
+  type GatewayCredentialPlaceholders,
+} from "./daytona-secrets.ts";
 import {
   assertDaytonaOpaqueSecretsEnabled,
   type DaytonaSecretPlan,
@@ -225,13 +229,23 @@ export function buildSandboxProvider(
       {},
       options.sessionLabels,
     );
-    const buildDaytona = (secretAttachments: Record<string, string>) =>
+    // The fingerprint below hashes `createFields` as built, raw gateway credential included, so a
+    // new credential still reads as a new sandbox on reconnect exactly as before. Only the create
+    // request itself carries the placeholders.
+    const buildDaytona = (
+      secretAttachments: Record<string, string>,
+      gatewayPlaceholders: GatewayCredentialPlaceholders = { mcpHeaders: {} },
+    ) =>
       daytonaWithLifecycle(
         {
           ...(image ? { image } : {}),
           agentPort: DAYTONA_SANDBOX_AGENT_PORT,
           create: {
             ...createFields,
+            envVars: swapGatewayCredentials(
+              createFields.envVars as Record<string, string>,
+              gatewayPlaceholders,
+            ),
             ...(Object.keys(secretAttachments).length > 0
               ? { secrets: secretAttachments }
               : {}),

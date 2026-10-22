@@ -397,7 +397,7 @@ describe("the gateway relay URL a Daytona run is handed", () => {
 });
 
 describe("Daytona Secret plan for a gateway connection (WP13 Phase 3)", () => {
-  it("is empty: no provider credentials to hide, since none were sent", () => {
+  it("hides only the gateway credential: no provider credentials were sent", () => {
     const plan = buildDaytonaSecretPlan({
       modelConnection: {
         provider: "openai",
@@ -411,7 +411,20 @@ describe("Daytona Secret plan for a gateway connection (WP13 Phase 3)", () => {
         },
       },
     });
-    assert.deepEqual(plan.candidates, []);
+    assert.deepEqual(
+      plan.candidates.map(({ consumer, binding, allowedHost }) => ({
+        consumer,
+        binding,
+        allowedHost,
+      })),
+      [
+        {
+          consumer: { kind: "gateway" },
+          binding: { kind: "header", name: "X-AG-Credentials" },
+          allowedHost: "gateway.example.com",
+        },
+      ],
+    );
     assert.deepEqual(plan.environment, {});
   });
 });

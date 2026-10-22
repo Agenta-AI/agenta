@@ -485,6 +485,11 @@ other host carry only the placeholder.
 This matters because an agent writes and runs its own code. Without it, a prompt injection that
 persuades the agent to print its own environment prints your keys.
 
+The credential a run uses to call the Agenta model gateway is hidden the same way, restricted to
+the gateway's hostname. Two cases keep it a plain environment variable, as in earlier versions: a
+gateway URL that is not HTTPS on a DNS hostname with the default port, and a Daytona API key without
+the Secrets permission on a run that has no other key to hide. The runner logs the second case.
+
 :::warning Upgrading from a version before v0.108.1 requires a key change
 The permission this needs is new, and enabling it is not optional.
 
