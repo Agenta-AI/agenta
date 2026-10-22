@@ -891,8 +891,9 @@ S3-compatible store. This toggle mirrors `postgresql.enabled`.
 
 :::note `AGENTA_STORE_NAMESPACE`: sharing one bucket across environments
 The key layout treats the store as a small database: the **bucket** is the cluster, an optional
-**namespace** is the database, the entity prefix (`mounts/`) is the table, and `<project>/<mount>`
-is the row, so a full key is `<bucket>/[<namespace>/]mounts/<project_id>/<mount_id>/...`.
+**namespace** is the database, and the **row** is the mount's stored prefix,
+`mounts/<project_id>/<mount_id>`. Each mount records its prefix when it is created, so a full key
+is `<bucket>/[<namespace>/]<stored prefix>/...`.
 
 Leave `NAMESPACE` unset for a dedicated bucket; the key layout is then identical to a single-tenant
 store (no empty leading segment). Set it (typically to a deployment or environment id) when
