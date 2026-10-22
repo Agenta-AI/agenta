@@ -92,6 +92,7 @@ def map_mount_dbe_to_dto(
         deleted_by_id=mount_dbe.deleted_by_id,
         #
         project_id=mount_dbe.project_id,
+        storage_prefix=mount_dbe.storage_prefix,
         slug=mount_dbe.slug,
         session_id=mount_dbe.session_id,
         agent_id=mount_dbe.agent_id,
