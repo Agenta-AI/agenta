@@ -11,7 +11,11 @@ import uuid
 from pathlib import Path
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import event, text
+
+from oss.src.core.mounts.dtos import MountCreate
+from oss.src.core.mounts.types import project_storage_prefix
+from oss.src.dbs.postgres.mounts.dao import MountsDAO
 
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
@@ -266,3 +270,128 @@ async def test_column_is_not_null():
             )
         )
         assert result.scalar_one() == "NO"
+
+
+# --- DAO ------------------------------------------------------------------- #
+
+
+def _count_statements(engine):
+    """Record `(statement, parameters)` for every cursor execute on the engine."""
+    statements = []
+
+    def _record(conn, cursor, statement, parameters, context, executemany):
+        statements.append((statement, parameters))
+
+    sync_engine = engine._engine.sync_engine
+    event.listen(sync_engine, "before_cursor_execute", _record)
+    return statements, lambda: event.remove(
+        sync_engine, "before_cursor_execute", _record
+    )
+
+
+async def test_dao_reads_an_old_pod_row(mount_scope):
+    engine = mount_scope["engine"]
+    project_id = mount_scope["project_id"]
+    mount_id = uuid.uuid4()
+
+    await _insert_old_pod_row(
+        engine,
+        project_id=project_id,
+        user_id=mount_scope["user_id"],
+        slug=f"old-read-{mount_id.hex}",
+        mount_id=mount_id,
+    )
+
+    mount = await MountsDAO(engine=engine).fetch_mount(
+        project_id=project_id,
+        mount_id=mount_id,
+    )
+
+    assert mount.storage_prefix == f"mounts/{project_id}/{mount_id}"
+
+
+async def test_create_mount_writes_the_project_layout(mount_scope):
+    engine = mount_scope["engine"]
+    project_id = mount_scope["project_id"]
+
+    statements, stop = _count_statements(engine)
+    try:
+        mount = await MountsDAO(engine=engine).create_mount(
+            project_id=project_id,
+            user_id=mount_scope["user_id"],
+            mount_create=MountCreate(slug=f"create-{uuid.uuid4().hex}"),
+        )
+    finally:
+        stop()
+
+    assert mount.storage_prefix == project_storage_prefix(
+        project_id=project_id,
+        mount_id=mount.id,
+    )
+    assert await _stored_prefix(engine, mount_id=mount.id) == mount.storage_prefix
+    # The DAO sent the prefix itself; the legacy trigger did not fill it.
+    inserts = [
+        parameters
+        for statement, parameters in statements
+        if statement.lstrip().upper().startswith("INSERT")
+    ]
+    assert len(inserts) == 1
+    assert mount.storage_prefix in tuple(inserts[0])
+
+
+async def test_upsert_writes_the_prefix_once(mount_scope):
+    engine = mount_scope["engine"]
+    project_id = mount_scope["project_id"]
+    dao = MountsDAO(engine=engine)
+    slug = f"upsert-{uuid.uuid4().hex}"
+
+    first = await dao.upsert_mount(
+        project_id=project_id,
+        user_id=mount_scope["user_id"],
+        mount_create=MountCreate(slug=slug),
+    )
+    second = await dao.upsert_mount(
+        project_id=project_id,
+        user_id=mount_scope["user_id"],
+        mount_create=MountCreate(slug=slug),
+    )
+
+    expected = project_storage_prefix(project_id=project_id, mount_id=first.id)
+    assert second.id == first.id
+    assert first.storage_prefix == expected
+    assert second.storage_prefix == expected
+
+
+async def test_upsert_runs_one_statement_on_both_paths(mount_scope):
+    engine = mount_scope["engine"]
+    project_id = mount_scope["project_id"]
+    user_id = mount_scope["user_id"]
+    dao = MountsDAO(engine=engine)
+
+    # Warm up the pool and the dialect so only the upsert itself is counted.
+    await dao.upsert_mount(
+        project_id=project_id,
+        user_id=user_id,
+        mount_create=MountCreate(slug=f"warm-{uuid.uuid4().hex}"),
+    )
+
+    slug = f"count-{uuid.uuid4().hex}"
+    statements, stop = _count_statements(engine)
+    try:
+        await dao.upsert_mount(
+            project_id=project_id,
+            user_id=user_id,
+            mount_create=MountCreate(slug=slug),
+        )
+        inserted = len(statements)
+        await dao.upsert_mount(
+            project_id=project_id,
+            user_id=user_id,
+            mount_create=MountCreate(slug=slug),
+        )
+        conflicted = len(statements) - inserted
+    finally:
+        stop()
+
+    assert inserted == 1, statements
+    assert conflicted == 1, statements
