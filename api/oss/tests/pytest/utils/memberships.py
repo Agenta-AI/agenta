@@ -183,3 +183,69 @@ class RecordingRbac(RbacEnforcementInterface):
     async def is_enforced(self, *, organization_id: UUID) -> bool:
         self.calls.append(organization_id)
         return self.enforced
+
+
+class FakeAccessCache:
+    """A dict with the get/set/invalidate contract of `oss.src.utils.caching`, keyed by
+    the real `_pack` key and invalidated by the real `_pack` pattern (Redis `*` glob),
+    so a test proves that a writer's invalidation matches the keys a reader wrote.
+
+    `install` patches the readers (`check_action_access`) and the writers
+    (`invalidate_access_caches`) of the access caches.
+    """
+
+    def __init__(self) -> None:
+        self.store: Dict[str, object] = {}
+
+    async def get_cache(
+        self, *, namespace, key=None, project_id=None, user_id=None, **_
+    ):
+        from oss.src.utils.caching import _pack
+
+        return self.store.get(
+            _pack(namespace=namespace, key=key, project_id=project_id, user_id=user_id)
+        )
+
+    async def set_cache(
+        self, *, namespace, key=None, project_id=None, user_id=None, value=None, **_
+    ):
+        from oss.src.utils.caching import _pack
+
+        self.store[
+            _pack(namespace=namespace, key=key, project_id=project_id, user_id=user_id)
+        ] = value
+
+    async def invalidate_cache(
+        self, *, namespace=None, key=None, project_id=None, user_id=None
+    ):
+        from fnmatch import fnmatchcase
+
+        from oss.src.utils.caching import _pack
+
+        if key is not None and namespace is not None:
+            self.store.pop(
+                _pack(
+                    namespace=namespace, key=key, project_id=project_id, user_id=user_id
+                ),
+                None,
+            )
+            return True
+        pattern = _pack(
+            namespace=namespace, project_id=project_id, user_id=user_id, pattern=True
+        )
+        for cached in [k for k in self.store if fnmatchcase(k, pattern)]:
+            del self.store[cached]
+        return True
+
+    def install(self, monkeypatch) -> "FakeAccessCache":
+        import oss.src.core.access.permissions.service as wrapper_module
+        import oss.src.core.memberships.service as memberships_module
+        from oss.src.utils.env import env
+
+        monkeypatch.setattr(env.agenta.api.caching, "enabled", True, raising=False)
+        monkeypatch.setattr(wrapper_module, "get_cache", self.get_cache)
+        monkeypatch.setattr(wrapper_module, "set_cache", self.set_cache)
+        monkeypatch.setattr(
+            memberships_module, "invalidate_cache", self.invalidate_cache
+        )
+        return self

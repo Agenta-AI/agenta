@@ -1,4 +1,5 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
+from uuid import UUID
 
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -9,7 +10,13 @@ from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.workspace_models import Workspace, UserRole
 
 from oss.src.core.access.permissions.service import check_action_access
-from oss.src.core.access.permissions.types import Permission, RequiredRole
+from oss.src.core.access.permissions.types import (
+    DefaultRole,
+    Permission,
+    RequiredRole,
+)
+from oss.src.core.memberships.service import get_memberships_service
+from oss.src.core.memberships.types import MemberNotFound, OrganizationOwnerProtected
 from oss.src.core.access.controls import get_role, get_roles
 from oss.src.services.db_manager import get_project_by_workspace
 
@@ -24,6 +31,42 @@ if is_ee():
 router = APIRouter()
 
 log = get_module_logger(__name__)
+
+_PERMISSION_DENIED = (
+    "You do not have permission to perform this action. "
+    "Please contact your Organization Owner"
+)
+
+
+def _owner_protected() -> HTTPException:
+    # Today's owner-protection body shape, which the classic /w app reads.
+    return HTTPException(status_code=403, detail={"message": _PERMISSION_DENIED})
+
+
+def _actor(request: Request) -> Optional[UUID]:
+    user_id = getattr(request.state, "user_id", None)
+    return UUID(str(user_id)) if user_id else None
+
+
+async def _set_member_role(
+    *,
+    organization_id,
+    user_id,
+    role: str,
+    actor_user_id,
+) -> None:
+    try:
+        await get_memberships_service().set_member_role(
+            organization_id=UUID(str(organization_id)),
+            user_id=UUID(str(user_id)),
+            role=role,
+            must_exist=True,
+            actor_user_id=UUID(str(actor_user_id)) if actor_user_id else None,
+        )
+    except OrganizationOwnerProtected as exc:
+        raise _owner_protected() from exc
+    except MemberNotFound as exc:
+        raise HTTPException(status_code=404, detail="User not found.") from exc
 
 
 @router.get("/", operation_id="get_workspace", response_model=List[Workspace])
@@ -141,7 +184,17 @@ async def assign_role_to_user(
                 status_code=400, content={"detail": "Workspace role is invalid."}
             )
 
-        return await db_manager.update_user_roles(workspace_id, payload)
+        user = await db_manager.get_user_with_email(payload.email)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found.")
+
+        await _set_member_role(
+            organization_id=project.organization_id,
+            user_id=user.id,
+            role=payload.role,
+            actor_user_id=request.state.user_id,
+        )
+        return True
     except HTTPException as ex:
         raise ex
     except Exception:
@@ -195,13 +248,27 @@ async def unassign_role_from_user(
                 status_code=400, content={"detail": "Workspace role is invalid."}
             )
 
-        payload = UserRole(
-            email=email,
-            organization_id=organization_id,
-            role=role,
-        )
+        user = await db_manager.get_user_with_email(email)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found.")
 
-        return await db_manager.update_user_roles(workspace_id, payload, delete=True)
+        member = await get_memberships_service().fetch_organization_member(
+            organization_id=project.organization_id,
+            user_id=user.id,
+        )
+        if member is None:
+            raise HTTPException(status_code=404, detail="User not found.")
+
+        # Removing the active role reverts the member to the default floor role;
+        # removing any other role changes nothing.
+        if member.role == role:
+            await _set_member_role(
+                organization_id=project.organization_id,
+                user_id=user.id,
+                role=DefaultRole.VIEWER.value,
+                actor_user_id=request.state.user_id,
+            )
+        return True
     except HTTPException as ex:
         raise ex
     except Exception:
@@ -257,7 +324,13 @@ async def remove_user_from_workspace(
                 scope=scope_from(organization_id=project.organization_id),  # type: ignore
             )
 
-    return await db_manager.remove_user_from_workspace(
-        workspace_id=workspace_id,
-        email=email,
-    )
+    try:
+        await get_memberships_service().remove_member(
+            organization_id=project.organization_id,
+            email=email,
+            actor_user_id=_actor(request),
+        )
+    except OrganizationOwnerProtected as exc:
+        raise _owner_protected() from exc
+
+    return True

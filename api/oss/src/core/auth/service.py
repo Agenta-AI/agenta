@@ -6,7 +6,7 @@ from sqlalchemy import select
 from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import invalidate_cache
+from oss.src.core.memberships.service import get_memberships_service
 
 from oss.src.core.auth.dtos import DiscoverResponse
 
@@ -23,8 +23,6 @@ if is_ee():
     )
     from oss.src.models.db_models import (
         OrganizationMemberDB,
-        WorkspaceMemberDB,
-        ProjectMemberDB,
     )
 
 
@@ -494,87 +492,15 @@ class AuthService:
                 user_orgs = await db_manager.get_user_organizations(str(user_id))
                 is_member = any(org.id == org_id for org in user_orgs)
 
+                # An existing member keeps their role: a login by an admin of an
+                # auto-join organization must not demote them to viewer.
                 if not is_member:
-                    organization = await db_manager.get_organization_by_id(str(org_id))
-                    user = await db_manager.get_user_with_id(user_id=str(user_id))
-                    workspaces = await db_manager.get_organization_workspaces(
-                        str(org_id)
-                    )
-
-                    if not organization or not user or not workspaces:
-                        raise ValueError(
-                            "Auto-join requires organization, user, and at least one workspace"
-                        )
-
-                    engine = get_transactions_engine()
-
-                    async with engine.session() as session:
-                        existing_org_member = await session.execute(
-                            select(OrganizationMemberDB).filter_by(
-                                user_id=user.id, organization_id=organization.id
-                            )
-                        )
-                        if not existing_org_member.scalars().first():
-                            session.add(
-                                OrganizationMemberDB(
-                                    user_id=user.id,
-                                    organization_id=organization.id,
-                                    role="viewer",
-                                )
-                            )
-
-                        for workspace in workspaces:
-                            existing_workspace_member = await session.execute(
-                                select(WorkspaceMemberDB).filter_by(
-                                    user_id=user.id, workspace_id=workspace.id
-                                )
-                            )
-                            if not existing_workspace_member.scalars().first():
-                                session.add(
-                                    WorkspaceMemberDB(
-                                        user_id=user.id,
-                                        workspace_id=workspace.id,
-                                        role="viewer",
-                                    )
-                                )
-
-                            projects = await db_manager.fetch_projects_by_workspace(
-                                str(workspace.id)
-                            )
-                            if not projects:
-                                continue
-
-                            existing_project_members = await session.execute(
-                                select(ProjectMemberDB).filter(
-                                    ProjectMemberDB.project_id.in_(
-                                        [project.id for project in projects]
-                                    ),
-                                    ProjectMemberDB.user_id == user.id,
-                                )
-                            )
-                            existing_project_ids = {
-                                member.project_id
-                                for member in existing_project_members.scalars().all()
-                            }
-
-                            for project in projects:
-                                if project.id in existing_project_ids:
-                                    continue
-                                session.add(
-                                    ProjectMemberDB(
-                                        user_id=user.id,
-                                        project_id=project.id,
-                                        role="viewer",
-                                    )
-                                )
-
-                        await session.commit()
-
-                    # Invalidate any cached auth deny so the user can
-                    # access projects immediately after auto-join.
-                    await invalidate_cache(
-                        namespace="verify_bearer_token",
-                        user_id=str(user_id),
+                    await get_memberships_service().set_member_role(
+                        organization_id=org_id,
+                        user_id=user_id,
+                        role="viewer",
+                        join_all_projects=True,
+                        actor_user_id=user_id,
                     )
 
                     log.info(

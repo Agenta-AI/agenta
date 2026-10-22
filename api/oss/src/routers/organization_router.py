@@ -35,6 +35,8 @@ from oss.src.core.organizations.exceptions import (
     OrganizationCreationNotAllowedError,
 )
 from oss.src.services.db_manager import get_user_org_and_workspace_id
+from oss.src.core.memberships.service import get_memberships_service
+from oss.src.core.memberships.types import MemberNotFound, OrganizationNotFound
 
 
 if is_ee():
@@ -491,21 +493,21 @@ async def transfer_organization_ownership(
         )
 
     try:
-        organization = await db_manager.transfer_organization_ownership(
-            organization_id=organization_id,
-            new_owner_id=new_owner_id,
-            current_user_id=str(request.state.user_id),
+        await get_memberships_service().transfer_ownership(
+            organization_id=UUID(organization_id),
+            new_owner_id=UUID(new_owner_id),
+            current_owner_id=UUID(str(request.state.user_id)),
         )
 
         return JSONResponse(
             {
-                "organization_id": str(organization.id),
-                "owner_id": str(organization.owner_id),
+                "organization_id": organization_id,
+                "owner_id": new_owner_id,
             },
             status_code=200,
         )
 
-    except ValueError:
+    except (OrganizationNotFound, MemberNotFound, ValueError):
         log.warning(
             "Invalid organization ownership transfer request",
             exc_info=True,

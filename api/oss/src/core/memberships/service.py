@@ -20,6 +20,7 @@ from oss.src.core.memberships.dtos import (
     MembershipPolicy,
     MembershipRow,
     MembershipSource,
+    OrganizationMember,
     ProjectListing,
     ProjectMembership,
     ProjectScope,
@@ -220,6 +221,20 @@ class MembershipsService:
         if membership is None:
             return None
         return ProjectListing(membership=membership, summary=row.summary)
+
+    async def fetch_organization_member(
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+    ) -> Optional[OrganizationMember]:
+        """The user's oldest organization row: invite accept ("already accepted") and
+        the role endpoints (the current organization role)."""
+
+        return await self._dao.fetch_organization_member(
+            organization_id=organization_id,
+            user_id=user_id,
+        )
 
     # -- writers: DAO write, then invalidation, then the audit event -------------------
 
