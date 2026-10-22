@@ -12,6 +12,7 @@ counts. Duplicate project rows (P5) cannot exist once the unique index is in pla
 P5 shape is seeded only on the index-free shadow table of the migration tests.
 """
 
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 from uuid import UUID, uuid4
@@ -58,6 +59,27 @@ async def create_user(*, label: str = "user") -> UUID:
         },
     )
     return user_id
+
+
+@asynccontextmanager
+async def rolled_back_connection(*, isolation_level: Optional[str] = None):
+    """A connection whose transaction is always rolled back.
+
+    For the global repair statements: the test sees their effect on its own rows, and
+    the shared database never keeps it.
+    """
+
+    engine = get_transactions_engine()._engine  # the SQLAlchemy AsyncEngine
+    async with engine.connect() as connection:
+        if isolation_level:
+            connection = await connection.execution_options(
+                isolation_level=isolation_level
+            )
+        transaction = await connection.begin()
+        try:
+            yield connection
+        finally:
+            await transaction.rollback()
 
 
 async def user_email(user_id: UUID) -> str:

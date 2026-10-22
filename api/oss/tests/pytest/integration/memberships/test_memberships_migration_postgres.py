@@ -18,6 +18,7 @@ from oss.tests.pytest.utils.membership_seed import (
     fetch_all,
     load_revision_module,
     load_revision_sql,
+    rolled_back_connection,
     seed_legacy_shapes,
     seed_organization,
     seed_stress_organization,
@@ -41,25 +42,27 @@ _REPAIR_CONSTANTS = (
 )
 
 
-async def _run_repair(connection=None) -> list:
-    """Run the four repair statements in order; return their row counts."""
+async def _run_repair(connection) -> list:
+    """Run the four repair statements in order on `connection`; return their row
+    counts. Callers pass a `rolled_back_connection()`, so the global statements never
+    commit into the shared database."""
 
-    statements = [load_revision_sql(_REPAIR, name) for name in _REPAIR_CONSTANTS]
     counts = []
-    if connection is not None:
-        for statement in statements:
-            result = await connection.execute(text(statement))
-            counts.append(result.rowcount)
-        return counts
-    async with get_transactions_engine().transaction() as conn:
-        for statement in statements:
-            result = await conn.execute(text(statement))
-            counts.append(result.rowcount)
+    for name in _REPAIR_CONSTANTS:
+        result = await connection.execute(text(load_revision_sql(_REPAIR, name)))
+        counts.append(result.rowcount)
     return counts
 
 
-async def _organization_roles(organization_id) -> dict:
-    rows = await fetch_all(
+async def _rows(connection, sql: str, params: dict) -> list:
+    if connection is None:
+        return await fetch_all(sql, params)
+    return list((await connection.execute(text(sql), params)).mappings().all())
+
+
+async def _organization_roles(connection, organization_id) -> dict:
+    rows = await _rows(
+        connection,
         "SELECT user_id, role FROM organization_members WHERE organization_id = :org",
         {"org": organization_id},
     )
@@ -69,8 +72,9 @@ async def _organization_roles(organization_id) -> dict:
     return roles
 
 
-async def _project_rows(project_ids, user_id) -> dict:
-    rows = await fetch_all(
+async def _project_rows(connection, project_ids, user_id) -> dict:
+    rows = await _rows(
+        connection,
         "SELECT project_id, role FROM project_members "
         "WHERE project_id = ANY(CAST(:p AS uuid[])) AND user_id = :u",
         {"p": list(project_ids), "u": user_id},
@@ -94,12 +98,13 @@ async def test_repair_revision_adds_owner_rows():
             {"org": seeded.organization_id},
         )
 
-        await _run_repair()
+        async with rolled_back_connection() as conn:
+            await _run_repair(conn)
 
-        roles = await _organization_roles(seeded.organization_id)
-        assert roles == {seeded.owner_id: ["owner"]}
-        rows = await _project_rows(seeded.project_ids, seeded.owner_id)
-        assert rows == {p: ["owner"] for p in seeded.project_ids}
+            roles = await _organization_roles(conn, seeded.organization_id)
+            assert roles == {seeded.owner_id: ["owner"]}
+            rows = await _project_rows(conn, seeded.project_ids, seeded.owner_id)
+            assert rows == {p: ["owner"] for p in seeded.project_ids}
     finally:
         await delete_seeded_organization(seeded)
 
@@ -115,20 +120,22 @@ async def test_repair_revision_deletes_demo_rows():
             {"u": demo, "p": seeded.project_ids[0]},
         )
 
-        await _run_repair()
+        async with rolled_back_connection() as conn:
+            await _run_repair(conn)
 
-        demo_rows = await fetch_all(
-            "SELECT count(*) AS n FROM project_members "
-            "WHERE project_id = ANY(CAST(:p AS uuid[])) AND is_demo IS TRUE",
-            {"p": seeded.project_ids},
-        )
-        assert demo_rows[0]["n"] == 0
-        assert await _project_rows(seeded.project_ids, demo) == {
-            seeded.project_ids[1]: ["viewer"]
-        }
-        assert await _project_rows(seeded.project_ids, seeded.user_ids["real"]) == {
-            p: ["editor"] for p in seeded.project_ids
-        }
+            demo_rows = await _rows(
+                conn,
+                "SELECT count(*) AS n FROM project_members "
+                "WHERE project_id = ANY(CAST(:p AS uuid[])) AND is_demo IS TRUE",
+                {"p": seeded.project_ids},
+            )
+            assert demo_rows[0]["n"] == 0
+            assert await _project_rows(conn, seeded.project_ids, demo) == {
+                seeded.project_ids[1]: ["viewer"]
+            }
+            assert await _project_rows(
+                conn, seeded.project_ids, seeded.user_ids["real"]
+            ) == {p: ["editor"] for p in seeded.project_ids}
     finally:
         await delete_seeded_organization(seeded)
 
@@ -152,13 +159,14 @@ async def test_role_copy_skips_the_owner_and_multi_workspace_organizations():
             {"org": org_b.organization_id, "u": org_b.user_ids["eve"]},
         )
 
-        await _run_repair()
+        async with rolled_back_connection() as conn:
+            await _run_repair(conn)
 
-        roles_a = await _organization_roles(org_a.organization_id)
-        assert roles_a[org_a.user_ids["bob"]] == ["editor"]
-        assert roles_a[org_a.owner_id] == ["owner"]
-        roles_b = await _organization_roles(org_b.organization_id)
-        assert roles_b[org_b.user_ids["eve"]] == ["viewer"]
+            roles_a = await _organization_roles(conn, org_a.organization_id)
+            assert roles_a[org_a.user_ids["bob"]] == ["editor"]
+            assert roles_a[org_a.owner_id] == ["owner"]
+            roles_b = await _organization_roles(conn, org_b.organization_id)
+            assert roles_b[org_b.user_ids["eve"]] == ["viewer"]
     finally:
         await delete_seeded_organization(org_a)
         await delete_seeded_organization(org_b)
@@ -177,10 +185,14 @@ async def test_repair_revision_is_idempotent():
             {"org": seeded.organization_id, "u": seeded.user_ids["m"]},
         )
 
-        await _run_repair()
-        # Other tests and the stack's own data may be repaired by the first run;
-        # the second run must find nothing left anywhere.
-        assert await _run_repair() == [0, 0, 0, 0]
+        # One snapshot for both runs, so rows other tests commit in between are not
+        # seen: the second run must find nothing left anywhere.
+        async with rolled_back_connection(isolation_level="REPEATABLE READ") as conn:
+            first = await _run_repair(conn)
+            second = await _run_repair(conn)
+
+        assert first[1] >= 1 and first[3] >= 1
+        assert second == [0, 0, 0, 0]
     finally:
         await delete_seeded_organization(seeded)
 
@@ -188,41 +200,46 @@ async def test_repair_revision_is_idempotent():
 async def test_repair_revision_handles_production_shapes():
     shapes = await seed_legacy_shapes()
     try:
-        await _run_repair()
+        async with rolled_back_connection() as conn:
+            await _run_repair(conn)
 
-        s = shapes["owner_without_rows"]
-        assert (await _organization_roles(s.organization_id))[s.owner_id] == ["owner"]
-        assert await _project_rows(s.project_ids, s.owner_id) == {
-            p: ["owner"] for p in s.project_ids
-        }
+            s = shapes["owner_without_rows"]
+            assert (await _organization_roles(conn, s.organization_id))[s.owner_id] == [
+                "owner"
+            ]
+            assert await _project_rows(conn, s.project_ids, s.owner_id) == {
+                p: ["owner"] for p in s.project_ids
+            }
 
-        s = shapes["owner_row_not_owner"]
-        assert (await _organization_roles(s.organization_id))[s.owner_id] == ["admin"]
+            s = shapes["owner_row_not_owner"]
+            assert (await _organization_roles(conn, s.organization_id))[s.owner_id] == [
+                "admin"
+            ]
 
-        s = shapes["two_owner_rows"]
-        roles = await _organization_roles(s.organization_id)
-        assert roles == {s.owner_id: ["owner"], s.user_ids["m"]: ["owner"]}
-        assert await _project_rows(s.project_ids, s.owner_id) == {
-            s.project_ids[0]: ["owner"]
-        }
+            s = shapes["two_owner_rows"]
+            roles = await _organization_roles(conn, s.organization_id)
+            assert roles == {s.owner_id: ["owner"], s.user_ids["m"]: ["owner"]}
+            assert await _project_rows(conn, s.project_ids, s.owner_id) == {
+                s.project_ids[0]: ["owner"]
+            }
 
-        s = shapes["five_workspaces"]
-        assert (await _organization_roles(s.organization_id))[s.user_ids["m"]] == [
-            "editor"
-        ]
+            s = shapes["five_workspaces"]
+            assert (await _organization_roles(conn, s.organization_id))[
+                s.user_ids["m"]
+            ] == ["editor"]
 
-        s = shapes["null_project_role"]
-        assert await _project_rows(s.project_ids, s.owner_id) == {
-            s.project_ids[0]: [None]
-        }
-        assert await _project_rows(s.project_ids, s.user_ids["m"]) == {
-            s.project_ids[0]: [None]
-        }
+            s = shapes["null_project_role"]
+            assert await _project_rows(conn, s.project_ids, s.owner_id) == {
+                s.project_ids[0]: [None]
+            }
+            assert await _project_rows(conn, s.project_ids, s.user_ids["m"]) == {
+                s.project_ids[0]: [None]
+            }
 
-        s = shapes["role_differs"]
-        assert (await _organization_roles(s.organization_id))[s.user_ids["m"]] == [
-            "editor"
-        ]
+            s = shapes["role_differs"]
+            assert (await _organization_roles(conn, s.organization_id))[
+                s.user_ids["m"]
+            ] == ["editor"]
     finally:
         await delete_seeded_shapes(shapes)
 
@@ -282,12 +299,16 @@ async def test_unique_index_revision_refuses_duplicates():
 
 
 async def test_unique_index_exists_after_the_upgrade():
+    versions = await fetch_all("SELECT version_num FROM alembic_version_oss")
+    if not any(v["version_num"] >= "oss000000045" for v in versions):
+        pytest.skip("oss000000045 is not applied on this database")
+
+    # The revision is recorded, so its index must be there and valid.
     rows = await fetch_all(
         "SELECT indisvalid, indisunique FROM pg_catalog.pg_index "
         "WHERE indexrelid = pg_catalog.to_regclass('ux_project_members_project_id_user_id')"
     )
-    if not rows:
-        pytest.skip("oss000000045 is not applied on this database")
+    assert rows, "oss000000045 is recorded but its index is missing"
     assert rows[0]["indisvalid"] is True
     assert rows[0]["indisunique"] is True
 
@@ -325,21 +346,29 @@ async def _shadow_alembic_version(connection, version: str) -> None:
     )
 
 
-async def _membership_counts(seeded) -> dict:
+async def _membership_snapshot(organization_ids) -> list:
+    """Every membership row of these organizations, with the columns a writer would
+    change, so "writes nothing" is checked row by row."""
+
     rows = await fetch_all(
-        "SELECT "
-        "(SELECT count(*) FROM organization_members WHERE organization_id = :org) AS o, "
-        "(SELECT count(*) FROM workspace_members "
-        " WHERE workspace_id = ANY(CAST(:ws AS uuid[]))) AS w, "
-        "(SELECT count(*) FROM project_members "
-        " WHERE project_id = ANY(CAST(:p AS uuid[]))) AS p",
-        {
-            "org": seeded.organization_id,
-            "ws": seeded.workspace_ids,
-            "p": seeded.project_ids,
-        },
+        "SELECT 'o' AS t, om.id, om.user_id, om.role, om.deleted_at, NULL::boolean AS d "
+        "FROM organization_members om WHERE om.organization_id = ANY(CAST(:o AS uuid[])) "
+        "UNION ALL "
+        "SELECT 'w', wm.id, wm.user_id, wm.role, wm.deleted_at, NULL "
+        "FROM workspace_members wm JOIN workspaces w ON w.id = wm.workspace_id "
+        "WHERE w.organization_id = ANY(CAST(:o AS uuid[])) "
+        "UNION ALL "
+        "SELECT 'p', pm.id, pm.user_id, pm.role, pm.deleted_at, pm.is_demo "
+        "FROM project_members pm JOIN projects p ON p.id = pm.project_id "
+        "WHERE p.organization_id = ANY(CAST(:o AS uuid[])) "
+        "ORDER BY 1, 2",
+        {"o": list(organization_ids)},
     )
-    return dict(rows[0])
+    return [tuple(row.values()) for row in rows]
+
+
+def _organizations_of(report, check) -> set:
+    return set(report[check]["organizations"])
 
 
 async def test_report_lists_p3_and_p4_and_writes_nothing(
@@ -348,27 +377,84 @@ async def test_report_lists_p3_and_p4_and_writes_nothing(
     monkeypatch.setattr(check_module, "is_ee", lambda: True)
     shapes = await seed_legacy_shapes()
     try:
-        organizations = {s.organization_id: s for s in shapes.values()}
-        before = {o: await _membership_counts(s) for o, s in organizations.items()}
+        organizations = sorted({s.organization_id for s in shapes.values()})
+        before = await _membership_snapshot(organizations)
 
         report = await check_module.run_report(
-            out_dir=tmp_path, organization_ids=list(organizations)
+            out_dir=tmp_path, organization_ids=organizations
         )
 
         p3 = shapes["P3"]
         p3_items = report["P3"]["organizations"][str(p3.organization_id)]
         assert f"{p3.user_ids['m']}/{p3.project_ids[0]}" in p3_items
-        assert str(shapes["P4"].organization_id) in report["P4"]["organizations"]
-        assert str(shapes["P1"].organization_id) in report["P1"]["organizations"]
-        assert str(shapes["P9"].organization_id) in report["P9"]["organizations"]
-        assert str(shapes["P11"].organization_id) in report["P11"]["organizations"]
-        assert str(shapes["P12"].organization_id) in report["P12"]["organizations"]
+        p2b = shapes["P2b"]
+        assert report["P2b"]["organizations"][str(p2b.organization_id)] == [
+            f"{p2b.user_ids['m']}/{p2b.project_ids[0]}"
+        ]
+        expected = {
+            "P1": {"P1", "owner_without_rows"},
+            "P2a": {"P2a", "owner_without_rows"},
+            "P4": {"P4", "five_workspaces"},
+            "P6": {"P6", "P12"},  # P12: the newer admin row differs too
+            "P9": {"P9", "P1"},  # the P1 owner keeps a project row
+            "P10": {"P10"},
+            "P11": {"P11"},
+            "P12": {"P12"},
+        }
+        for check, keys in expected.items():
+            assert _organizations_of(report, check) == {
+                str(shapes[k].organization_id) for k in keys
+            }, check
+        assert report["P5"]["count"] == 0
+        assert "P7" not in report and "P8" not in report  # OSS-only checks
         assert (tmp_path / "report.json").exists()
 
-        after = {o: await _membership_counts(s) for o, s in organizations.items()}
-        assert after == before
+        assert await _membership_snapshot(organizations) == before
     finally:
         await delete_seeded_shapes(shapes)
+
+
+async def test_oss_report_lists_p7_and_p8(check_module, monkeypatch, tmp_path):
+    monkeypatch.setattr(check_module, "is_ee", lambda: False)
+    shapes = await seed_legacy_shapes()
+    try:
+        organizations = sorted({s.organization_id for s in shapes.values()})
+        before = await _membership_snapshot(organizations)
+
+        report = await check_module.run_report(
+            out_dir=tmp_path, organization_ids=organizations
+        )
+
+        p7, p8 = shapes["P7"], shapes["P8"]
+        assert report["P7"]["organizations"][str(p7.organization_id)] == [
+            f"{p7.user_ids['m']}/{p7.project_ids[0]}"
+        ]
+        assert report["P8"]["organizations"][str(p8.organization_id)] == [
+            f"{p8.user_ids['m']}/{p8.project_ids[1]}"
+        ]
+        assert "P2b" not in report and "P3" not in report and "P4" not in report
+        assert await _membership_snapshot(organizations) == before
+    finally:
+        await delete_seeded_shapes(shapes)
+
+
+async def test_report_handles_a_row_without_a_user(check_module, monkeypatch, tmp_path):
+    monkeypatch.setattr(check_module, "is_ee", lambda: False)
+    seeded = await seed_organization(members={"owner": "owner"})
+    try:
+        await execute(
+            "INSERT INTO project_members (id, user_id, project_id, role) "
+            "VALUES (gen_random_uuid(), NULL, :p, 'viewer')",
+            {"p": seeded.project_ids[0]},
+        )
+
+        report = await check_module.run_report(
+            out_dir=tmp_path, organization_ids=[seeded.organization_id]
+        )
+
+        assert report["P9"]["organizations"][str(seeded.organization_id)] == [None]
+    finally:
+        await delete_seeded_organization(seeded)
 
 
 async def test_apply_keeps_the_oldest_duplicate(check_module, monkeypatch):
@@ -428,7 +514,7 @@ async def test_apply_never_keeps_a_demo_row_over_a_real_row(
     seeded = await seed_organization(members={"owner": "owner"}, project_rows=False)
     project_id, user_id = seeded.project_ids[0], seeded.owner_id
     try:
-        async with get_transactions_engine().transaction() as connection:
+        async with rolled_back_connection() as connection:
             await _shadow_project_members(connection)
             demo_offset, real_offset = (0, 1) if demo_is_older else (1, 0)
             real_id = uuid4()
@@ -492,7 +578,7 @@ async def test_apply_twice_then_migration_never_restores_demo_access(
             {"m": member, "p": seeded.project_ids[1]},
         )
 
-        async with get_transactions_engine().transaction() as connection:
+        async with rolled_back_connection() as connection:
             await _shadow_alembic_version(connection, "oss000000043")
 
             first = await check_module.run_apply(
@@ -513,10 +599,10 @@ async def test_apply_twice_then_migration_never_restores_demo_access(
             )
             assert third["p2b_skipped"] is True
 
-        assert await _project_rows(seeded.project_ids, demo) == {}
-        assert await _project_rows(seeded.project_ids, member) == {
-            p: ["editor"] for p in seeded.project_ids
-        }
+            assert await _project_rows(connection, seeded.project_ids, demo) == {}
+            assert await _project_rows(connection, seeded.project_ids, member) == {
+                p: ["editor"] for p in seeded.project_ids
+            }
     finally:
         await delete_seeded_organization(seeded)
 
@@ -538,7 +624,7 @@ async def test_apply_adds_the_row_a_no_rbac_member_needs(check_module, monkeypat
             )
 
         assert (first["added_p2b"], second["added_p2b"]) == (1, 0)
-        assert await _project_rows(seeded.project_ids, member) == {
+        assert await _project_rows(None, seeded.project_ids, member) == {
             seeded.project_ids[0]: ["editor"]
         }
     finally:
@@ -585,7 +671,7 @@ async def test_materialize_corrects_a_stale_row(check_module, monkeypatch):
             organization_ids=[seeded.organization_id]
         )
         assert first == {"inserted": 1, "updated": 1}
-        assert await _project_rows(seeded.project_ids, member) == {
+        assert await _project_rows(None, seeded.project_ids, member) == {
             p: ["editor"] for p in seeded.project_ids
         }
 
