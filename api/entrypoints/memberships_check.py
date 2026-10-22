@@ -344,7 +344,10 @@ async def _no_rbac_organizations(organization_ids: Sequence[UUID]) -> List[UUID]
     return result
 
 
-def _item(value: str) -> Any:
+def _item(value: Optional[str]) -> Any:
+    # A membership row can have a NULL user_id; the item is then NULL too.
+    if value is None:
+        return None
     if value.startswith("{"):
         return json.loads(value)
     return value
@@ -404,42 +407,33 @@ async def _repair_revision_applied(connection: AsyncConnection) -> bool:
     return any(version >= REPAIR_REVISION for version in versions)
 
 
-async def _apply_on(
+async def _deduplicate(
     connection: AsyncConnection,
     organization_ids: Optional[Sequence[UUID]],
-) -> dict:
-    deleted = [
+) -> List[dict]:
+    rows = await connection.execute(
+        text(_DEDUPLICATE_SQL),
+        {"orgs": list(organization_ids) if organization_ids is not None else None},
+    )
+    return [
         {
             "id": str(row.id),
             "project_id": str(row.project_id),
             "user_id": str(row.user_id),
             "role": row.role,
         }
-        for row in await connection.execute(
-            text(_DEDUPLICATE_SQL),
-            {"orgs": list(organization_ids) if organization_ids is not None else None},
-        )
+        for row in rows
     ]
 
-    added_p2b = 0
-    p2b_skipped = False
 
-    if is_ee():
-        if await _repair_revision_applied(connection):
-            p2b_skipped = True
-        else:
-            async for batch in _organization_batches(connection, organization_ids):
-                orgs = await _no_rbac_organizations(batch)
-                if not orgs:
-                    continue
-                result = await connection.execute(text(_P2B_INSERT_SQL), {"orgs": orgs})
-                added_p2b += result.rowcount or 0
-
-    return {
-        "deleted_duplicates": deleted,
-        "added_p2b": added_p2b,
-        "p2b_skipped": p2b_skipped,
-    }
+async def _add_p2b_rows(
+    connection: AsyncConnection, organization_ids: List[UUID]
+) -> int:
+    orgs = await _no_rbac_organizations(organization_ids)
+    if not orgs:
+        return 0
+    result = await connection.execute(text(_P2B_INSERT_SQL), {"orgs": orgs})
+    return result.rowcount or 0
 
 
 async def run_apply(
@@ -449,14 +443,46 @@ async def run_apply(
 ) -> dict:
     """Deduplicate project rows (P5), then add the P2b rows (EE).
 
-    `connection` is for tests only: the caller owns its transaction.
+    Without `connection`, the deduplication commits first, then each batch of 500
+    organizations adds its P2b rows in its own transaction, so no run holds row locks
+    across the whole database. `connection` is for tests only: every step then runs on
+    it, and the caller owns its transaction.
     """
 
-    if connection is not None:
-        return await _apply_on(connection, organization_ids)
+    engine = get_transactions_engine()
 
-    async with get_transactions_engine().transaction() as own:
-        return await _apply_on(own, organization_ids)
+    if connection is not None:
+        deleted = await _deduplicate(connection, organization_ids)
+    else:
+        async with engine.transaction() as own:
+            deleted = await _deduplicate(own, organization_ids)
+
+    added_p2b = 0
+    p2b_skipped = False
+
+    if is_ee():
+        if connection is not None:
+            p2b_skipped = await _repair_revision_applied(connection)
+            if not p2b_skipped:
+                async for batch in _organization_batches(connection, organization_ids):
+                    added_p2b += await _add_p2b_rows(connection, batch)
+        else:
+            async with engine.transaction() as own:
+                p2b_skipped = await _repair_revision_applied(own)
+                batches = (
+                    []
+                    if p2b_skipped
+                    else [b async for b in _organization_batches(own, organization_ids)]
+                )
+            for batch in batches:
+                async with engine.transaction() as own:
+                    added_p2b += await _add_p2b_rows(own, batch)
+
+    return {
+        "deleted_duplicates": deleted,
+        "added_p2b": added_p2b,
+        "p2b_skipped": p2b_skipped,
+    }
 
 
 async def run_materialize(
