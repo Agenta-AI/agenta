@@ -662,8 +662,10 @@ function extractJinja2Variables(input: string): string[] {
             const equalsIndex = findJinjaTopLevelChar(rest, "=")
             if (equalsIndex === -1) {
                 // A block assignment can carry a filter: `{% set label | upper %}`.
-                // The target is the part before the filter.
+                // The target is the part before the filter. Scan from the pipe
+                // so filter arguments still count as inputs.
                 const filterIndex = findJinjaTopLevelChar(rest, "|")
+                if (filterIndex !== -1) addExpression(rest.slice(filterIndex))
                 bind(parseJinjaTargets(filterIndex === -1 ? rest : rest.slice(0, filterIndex)))
                 continue
             }

@@ -571,6 +571,12 @@ describe("extractTemplateVariables — non-mustache regressions", () => {
                     "jinja2",
                 ),
             ).toEqual([])
+            expect(
+                extractTemplateVariables(
+                    '{% set label | replace("x", replacement) %}Hi{% endset %}{{ label }}',
+                    "jinja2",
+                ),
+            ).toEqual(["replacement"])
         })
 
         it("ignores constants in plain interpolations", () => {
