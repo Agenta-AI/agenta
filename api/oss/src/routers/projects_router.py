@@ -10,6 +10,9 @@ from oss.src.utils.common import is_ee, is_oss, APIRouter
 from oss.src.services import db_manager
 from oss.src.core.memberships.dtos import ProjectListing
 from oss.src.core.memberships.service import get_memberships_service
+from oss.src.core.memberships.types import WorkspaceNotFound
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.permissions.types import Permission
 
 from oss.src.utils.logging import get_module_logger
 
@@ -43,28 +46,21 @@ class UpdateProjectRequest(BaseModel):
 router = APIRouter()
 
 
-async def _assert_org_owner(request: Request):
-    organization_id = getattr(request.state, "organization_id", None)
-    user_id = getattr(request.state, "user_id", None)
+_CONTEXT_REQUIRED = "Workspace and organization context are required"
+_PERMISSION_DENIED = (
+    "You do not have permission to perform this action. "
+    "Please contact your Organization Owner"
+)
 
-    if not organization_id or not user_id:
-        raise HTTPException(
-            status_code=400, detail="Missing organization context for request"
-        )
 
-    organization = await db_manager.fetch_organization_by_id(
-        organization_id=str(organization_id)
+async def _require(request: Request, project_id, permission: Permission) -> None:
+    allowed = await check_action_access(
+        user_uid=str(request.state.user_id),
+        project_id=str(project_id),
+        permission=permission,
     )
-    if not organization:
-        raise HTTPException(status_code=404, detail="Organization not found")
-
-    if str(organization.owner_id) != str(user_id):
-        raise HTTPException(
-            status_code=403,
-            detail="Only the organization owner can perform this action",
-        )
-
-    return organization
+    if not allowed:
+        raise HTTPException(status_code=403, detail=_PERMISSION_DENIED)
 
 
 def _project_to_response(listing: ProjectListing) -> ProjectsResponse:
@@ -172,15 +168,18 @@ async def create_project(
     request: Request,
     payload: CreateProjectRequest,
 ) -> ProjectsResponse:
-    # await _assert_org_owner(request)
-
     workspace_id = getattr(request.state, "workspace_id", None)
     organization_id = getattr(request.state, "organization_id", None)
 
     if not workspace_id or not organization_id:
-        raise HTTPException(
-            status_code=400, detail="Workspace and organization context are required"
-        )
+        raise HTTPException(status_code=400, detail=_CONTEXT_REQUIRED)
+
+    # Creating a project is an organization-level act: it authorizes on the
+    # default project of the request's workspace, like the workspace endpoints.
+    default_project_id = await db_manager.get_default_project_id_from_workspace(
+        workspace_id=str(workspace_id)
+    )
+    await _require(request, default_project_id, Permission.CREATE_WORKSPACE)
 
     project_name = payload.name.strip()
 
@@ -192,27 +191,31 @@ async def create_project(
         if refusal:
             raise HTTPException(status_code=403, detail=refusal)
 
-    project = await db_manager.create_workspace_project(
-        project_name=project_name,
-        workspace_id=str(workspace_id),
-        organization_id=str(organization_id),
-        set_default=payload.make_default,
-    )
+    try:
+        scope = await get_memberships_service().create_project(
+            organization_id=UUID(str(organization_id)),
+            workspace_id=UUID(str(workspace_id)),
+            name=project_name,
+            is_default=payload.make_default,
+            actor_user_id=UUID(str(request.state.user_id)),
+        )
+    except WorkspaceNotFound as exc:
+        raise HTTPException(status_code=400, detail=_CONTEXT_REQUIRED) from exc
 
     # Import here to avoid circular import at module load time
     from oss.src.core.evaluators.defaults import create_default_evaluators
     from oss.src.core.environments.defaults import create_default_environments
 
     await create_default_evaluators(
-        project_id=project.id,
+        project_id=scope.project_id,
         user_id=UUID(request.state.user_id),
     )
     await create_default_environments(
-        project_id=project.id,
+        project_id=scope.project_id,
         user_id=UUID(request.state.user_id),
     )
 
-    listing = await _fetch_listing(request, project.id)
+    listing = await _fetch_listing(request, scope.project_id)
     if listing is None:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -227,8 +230,6 @@ async def delete_project(
     project_id: UUID,
     request: Request,
 ):
-    # await _assert_org_owner(request)
-
     workspace_id = getattr(request.state, "workspace_id", None)
 
     if not workspace_id:
@@ -238,6 +239,11 @@ async def delete_project(
 
     if not project or str(project.workspace_id) != str(workspace_id):
         raise HTTPException(status_code=404, detail="Project not found")
+
+    if await _fetch_listing(request, project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    await _require(request, project_id, Permission.DELETE_WORKSPACE)
 
     try:
         await db_manager.delete_project(str(project_id))
@@ -257,11 +263,11 @@ async def update_project(
     payload: UpdateProjectRequest,
     request: Request,
 ) -> ProjectsResponse:
-    # await _assert_org_owner(request)
-
     listing = await _fetch_listing(request, project_id)
     if listing is None:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    await _require(request, project_id, Permission.EDIT_WORKSPACE)
 
     if payload.name is None and payload.make_default is None:
         raise HTTPException(
