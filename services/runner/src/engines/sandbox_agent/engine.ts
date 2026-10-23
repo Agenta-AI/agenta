@@ -110,6 +110,26 @@ export function turnTeardownReason(
 }
 
 /**
+ * Why the keep-alive engine's `runCold` tears its environment down. The coordinator calls
+ * `runCold` only for a run it cannot pool: one with no session id, or no project scope to key a
+ * pool entry on. Such a sandbox must never stop instead of delete. A stopped sandbox with no pool
+ * entry has no owner: the shutdown sweep does not see it, no later turn is keyed to it, and its
+ * Daytona Secrets live only as long as the process-local cleanup timer, which a restart drops.
+ *
+ * So every ending maps to a reason that deletes. An abort and a failure keep their names for the
+ * log, a turn another runner already wrote included; every other ending is `unpooled`.
+ */
+export function unpooledTeardownReason(
+  result: AgentRunResult | undefined,
+  signal: AbortSignal | undefined,
+  clientGone: (() => boolean) | undefined,
+): TeardownReason {
+  if (signal?.aborted || clientGone?.()) return "aborted";
+  if (result === undefined || !result.ok) return "failed-turn";
+  return "unpooled";
+}
+
+/**
  * The cold, one-turn-per-environment entry (also the flag-off path). Acquire an environment, run
  * one turn, then tear the environment down — exactly as the single `try/finally` did before the
  * split, so behavior here is byte-identical to pre-keep-alive.

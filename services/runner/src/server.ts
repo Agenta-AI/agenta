@@ -53,7 +53,7 @@ import {
   resolveKeepaliveMount,
   runSandboxAgent,
   runTurn,
-  turnTeardownReason,
+  unpooledTeardownReason,
   type ParkedApproval,
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
@@ -373,7 +373,8 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
     return read.ok ? { ok: true, turnIndex: read.turn?.turn_index } : read;
   },
   // Same acquire -> runTurn -> destroy composition as `runSandboxAgent`, with the presigned
-  // mount threaded through so an up-front keep-alive sign is never repeated.
+  // mount threaded through so an up-front keep-alive sign is never repeated. Unlike
+  // `runSandboxAgent`, it always deletes the sandbox (`unpooledTeardownReason`).
   runCold: async (
     request,
     emit,
@@ -404,13 +405,9 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
       });
       return result;
     } finally {
+      // Never parks: the coordinator sends a run here only when it cannot pool it.
       await acquired.env.destroy({
-        reason: turnTeardownReason(
-          result,
-          acquired.env.resumable,
-          signal,
-          clientGone,
-        ),
+        reason: unpooledTeardownReason(result, signal, clientGone),
       });
     }
   },
