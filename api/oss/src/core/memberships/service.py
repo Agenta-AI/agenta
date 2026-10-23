@@ -116,6 +116,10 @@ async def invalidate_access_caches(
     every user in the projects are cleared (a new project). A failure is logged and
     does not fail the writer.
     """
+    from oss.src.core.access.context import clear_request_memo  # noqa: PLC0415
+
+    # A write in this request: later decisions of the same request read again.
+    clear_request_memo()
 
     project_count = len(project_ids)
 
@@ -196,6 +200,19 @@ class MembershipsService:
             project_id=project_id,
         )
         return self._apply_policy(user_id=user_id, row=row)
+
+    @staticmethod
+    def cache_entry(*, user_id: UUID, project_id: UUID) -> dict:
+        """The `resolve_membership` cache entry (`get_cache_many` arguments). Its value
+        is a `CachedMembership`: a membership or its cached absence."""
+
+        return {
+            "namespace": RESOLVE_MEMBERSHIP_NAMESPACE,
+            "project_id": str(project_id),
+            "user_id": str(user_id),
+            "key": RESOLVE_MEMBERSHIP_KEY,
+            "model": CachedMembership,
+        }
 
     async def resolve(
         self,

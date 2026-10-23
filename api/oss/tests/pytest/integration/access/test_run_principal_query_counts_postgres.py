@@ -539,3 +539,72 @@ async def test_trigger_tick_runs_no_access_statement_and_unchanged_endpoint_stat
         assert baseline["endpoint"], "the tick must have reached Postgres"
     finally:
         await _delete_agent(project_id)
+
+
+# -- Redis round trips: no more than M1 on warm paths ---------------------------------
+#
+# M1's warm `check_action_access` read one cached boolean: one Redis round trip. M2
+# reads the principal record and the membership in one MGET, and a second decision in
+# the same request reads nothing (request memo). EE's RBAC entitlement is a 30 s
+# process memo, so it adds no round trip either.
+
+
+@pytest.mark.parametrize("edition", EDITIONS)
+@pytest.mark.parametrize("kind", ["human", "api_key"])
+async def test_a_warm_decision_is_one_redis_round_trip(
+    edition, kind, seeded, fake_cache, monkeypatch
+):
+    project_id = seeded.project_ids[0]
+    editor = seeded.user_ids["editor"]
+    service = _service(edition)
+    if kind == "api_key":
+        key_id = uuid4()
+        await execute(
+            "INSERT INTO api_keys (id, prefix, hashed_key, project_id, created_by_id, "
+            "rate_limit, hidden, created_at, updated_at) "
+            "VALUES (:id, :prefix, 'x', :p, :u, 0, false, now(), now())",
+            {
+                "id": key_id,
+                "prefix": f"m2rt{key_id.hex[:6]}",
+                "p": project_id,
+                "u": editor,
+            },
+        )
+        principal = PrincipalRef(kind=PrincipalKind.API_KEY, id=key_id)
+        credential_kind = "api_key"
+    else:
+        principal = _human(editor)
+        credential_kind = "bearer_session"
+    access = make_request_access(
+        envelope=make_envelope(
+            kind=kind,
+            principal_id=principal.id,
+            project_id=project_id,
+            organization_id=seeded.organization_id,
+            sender=None,
+        ),
+        credential_kind=credential_kind,
+        acting_user_id=editor,
+    )
+
+    async def _check():
+        token = set_request_access(access)
+        try:
+            first = await service.check_request(
+                access=access, action=Permission.VIEW_WORKFLOWS, project_id=project_id
+            )
+            trips_after_first = fake_cache.read_round_trips
+            second = await service.check_request(
+                access=access, action=Permission.EDIT_WORKFLOWS, project_id=project_id
+            )
+            return first, second, trips_after_first
+        finally:
+            reset_request_access(token)
+
+    await _check()  # warms principal, membership and the EE entitlement memo
+    fake_cache.reset_calls()
+    first, second, after_first = await _check()
+
+    assert first.allowed and second.allowed
+    assert after_first == 1  # one MGET: principal record + membership
+    assert fake_cache.read_round_trips == 1  # the second decision read nothing

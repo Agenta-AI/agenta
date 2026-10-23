@@ -108,6 +108,16 @@ class PrincipalsDAO(PrincipalsDAOInterface):
     def __init__(self, *, engine):
         self.engine = engine
 
+    def cache_entry(self, *, principal: PrincipalRef) -> Optional[dict]:
+        return {
+            "namespace": _NAMESPACE,
+            "key": _cache_key(principal),
+            "model": _CachedPrincipal,
+        }
+
+    def record_from_cache(self, value) -> Optional[PrincipalRecord]:
+        return value.record
+
     async def fetch_principal(
         self,
         *,
@@ -224,4 +234,7 @@ async def invalidate_principal_cache(*, principal: PrincipalRef) -> Optional[boo
     """A direct delete by key. Returns `None` when the delete failed (or caching is
     off)."""
 
+    from oss.src.core.access.context import clear_request_memo  # noqa: PLC0415
+
+    clear_request_memo()
     return await invalidate_cache(namespace=_NAMESPACE, key=_cache_key(principal))

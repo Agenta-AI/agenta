@@ -60,6 +60,18 @@ class PrincipalsDAOInterface(ABC):
 
         return None
 
+    def cache_entry(self, *, principal: PrincipalRef) -> Optional[dict]:
+        """The cache entry of a principal record (`get_cache_many` arguments), so a
+        decision reads it together with the membership in one round trip. `None`
+        when the DAO caches nothing."""
+
+        return None
+
+    def record_from_cache(self, value) -> Optional[PrincipalRecord]:
+        """The record held by a cache value read through `cache_entry`."""
+
+        return None
+
     async def invalidate_principal(self, *, principal: PrincipalRef) -> Optional[bool]:
         """Clear the cached record of a principal. Returns `None` when the delete
         failed. The default caches nothing."""

@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from typing import Optional, Sequence
 from uuid import UUID
 
-from oss.src.core.access.context import get_request_access
+from oss.src.core.access.context import get_request_access, get_request_memo
 from oss.src.core.access.controls import get_role, get_role_permissions
 from oss.src.core.access.dtos import (
     Action,
@@ -62,6 +62,7 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 _SCOPE = "project"
+_MISSING = object()
 _OWNER_ROLE = "owner"
 
 
@@ -379,7 +380,16 @@ class AccessService:
         principal = authority.principal
         # The record first, in the order `_eligibility` uses: an inactive or expired
         # principal has no acting user, also an installation with a linked user.
-        record = await self._principals.fetch_principal(principal=principal)
+        # The request memo: the invoke's own access decision read this record already.
+        memo = get_request_memo()
+        if memo is None:
+            memo = {}
+        record = await self._principal_record(
+            authority=authority,
+            principal=principal,
+            project_id=authority.project_id,
+            memo=memo,
+        )
         if record is None or not record.is_active:
             return None
         if record.expires_at is not None and record.expires_at <= _now():
@@ -412,7 +422,14 @@ class AccessService:
         """(membership, denial, role user). The role user is also returned on a
         denial, for the audit log."""
 
-        record = await self._principals.fetch_principal(principal=principal)
+        # Within a request: the request memo. Outside one (workers): this decision's
+        # own scratch, so the membership read with the record is still used.
+        memo = get_request_memo()
+        if memo is None:
+            memo = {}
+        record = await self._principal_record(
+            authority=authority, principal=principal, project_id=project_id, memo=memo
+        )
         if record is None or not record.is_active:
             return None, DecisionReason.PRINCIPAL_INACTIVE, None
         if record.expires_at is not None and record.expires_at <= _now():
@@ -431,13 +448,83 @@ class AccessService:
         if role_user_id is None:
             return None, DecisionReason.PRINCIPAL_INACTIVE, None
 
-        membership = await self._memberships.resolve(
-            user_id=role_user_id,
-            project_id=project_id,
+        membership = await self._membership(
+            user_id=role_user_id, project_id=project_id, memo=memo
         )
         if membership is None:
             return None, DecisionReason.NOT_MEMBER, role_user_id
         return membership, None, role_user_id
+
+    # -- reads: one Redis round trip per request on warm caches -------------------------
+
+    @staticmethod
+    def _role_user_hint(
+        *, authority: Optional[RunAuthority], principal: PrincipalRef
+    ) -> Optional[UUID]:
+        """The user whose membership this decision will most likely read, known before
+        the principal record: a human itself, an installation's linked user, or the
+        request's acting user when the request runs as this principal (an API key's
+        creator). Only a hint: the record decides, and a wrong hint costs one read."""
+
+        if principal.kind == PrincipalKind.HUMAN:
+            return principal.id
+        if (
+            authority is not None
+            and principal.kind == PrincipalKind.INSTALLATION
+            and authority.principal == principal
+            and authority.linked_user_id is not None
+        ):
+            return authority.linked_user_id
+        access = get_request_access()
+        if access is not None and access.principal == principal:
+            return access.acting_user_id
+        return None
+
+    async def _principal_record(
+        self,
+        *,
+        authority: Optional[RunAuthority],
+        principal: PrincipalRef,
+        project_id: UUID,
+        memo: dict,
+    ):
+        """The principal record. Within a request, read once (request memo); on a memo
+        miss, read together with the likely membership in ONE `MGET`, so a warm
+        decision costs one Redis round trip, as M1's cached decision did."""
+
+        from oss.src.utils.caching import get_cache_many  # noqa: PLC0415
+
+        if ("principal", principal) in memo:
+            return memo[("principal", principal)]
+
+        record_entry = self._principals.cache_entry(principal=principal)
+        hint = self._role_user_hint(authority=authority, principal=principal)
+        record = _MISSING
+        if record_entry is not None:
+            entries = [record_entry]
+            if hint is not None:
+                entries.append(
+                    self._memberships.cache_entry(user_id=hint, project_id=project_id)
+                )
+            values = await get_cache_many(entries)
+            if values[0] is not None:
+                record = self._principals.record_from_cache(values[0])
+            if hint is not None and values[1:] and values[1] is not None:
+                memo[("membership", hint, project_id)] = values[1].membership
+        if record is _MISSING:
+            record = await self._principals.fetch_principal(principal=principal)
+        memo[("principal", principal)] = record
+        return record
+
+    async def _membership(self, *, user_id: UUID, project_id: UUID, memo: dict):
+        key = ("membership", user_id, project_id)
+        if key in memo:
+            return memo[key]
+        membership = await self._memberships.resolve(
+            user_id=user_id, project_id=project_id
+        )
+        memo[key] = membership
+        return membership
 
     @staticmethod
     def _restrictions(
