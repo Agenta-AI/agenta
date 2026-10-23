@@ -8,7 +8,7 @@ The envelope has one JSON shape, used for the token claims and for the stored
       "restrictions": {"agent": null},
       "authority":    {"organization_id": "<uuid>", "project_id": "<uuid>", "linked_user_id": null},
       "run":          {"run_id": null, "parent_run_id": null, "origin": "api", "origin_id": "<key id>"},
-      "sender":       {"user_id": null, "external_key": null},
+      "sender":       {"user_id": "<uuid>", "external_key": null},
       "approved_by":  {"principal": {...}, "user_id": "<uuid>", "external_key": null}
     }
 

@@ -30,10 +30,8 @@ needs no schema change. Old pods do not select the new columns and keep working.
 
 from typing import Sequence, Union
 
-import sqlalchemy as sa
 from alembic import op
 from sqlalchemy import text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 revision: str = "oss000000046"
 down_revision: Union[str, None] = "oss000000045"
@@ -43,8 +41,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def _principal_columns():
     return (
-        ("principal_kind", sa.String()),
-        ("principal_id", UUID(as_uuid=True)),
+        ("principal_kind", "VARCHAR"),
+        ("principal_id", "UUID"),
     )
 
 
@@ -53,24 +51,24 @@ _COLUMNS = (
         "session_turns",
         (
             *_principal_columns(),
-            ("sender_user_id", UUID(as_uuid=True)),
-            ("sender_external_key", sa.String()),
-            ("origin", sa.String()),
-            ("origin_id", sa.String()),
-            ("parent_run_id", sa.String()),
-            ("approved_by", JSONB()),
+            ("sender_user_id", "UUID"),
+            ("sender_external_key", "VARCHAR"),
+            ("origin", "VARCHAR"),
+            ("origin_id", "VARCHAR"),
+            ("parent_run_id", "VARCHAR"),
+            ("approved_by", "JSONB"),
         ),
     ),
-    ("session_inputs", (("run_envelope", JSONB()),)),
-    ("session_commands", (("run_envelope", JSONB()),)),
-    ("session_interactions", (("run_envelope", JSONB()),)),
+    ("session_inputs", (("run_envelope", "JSONB"),)),
+    ("session_commands", (("run_envelope", "JSONB"),)),
+    ("session_interactions", (("run_envelope", "JSONB"),)),
     (
         "trigger_schedules",
-        (*_principal_columns(), ("artifact_id", UUID(as_uuid=True))),
+        (*_principal_columns(), ("artifact_id", "UUID")),
     ),
     (
         "trigger_subscriptions",
-        (*_principal_columns(), ("artifact_id", UUID(as_uuid=True))),
+        (*_principal_columns(), ("artifact_id", "UUID")),
     ),
     ("evaluation_runs", _principal_columns()),
 )
@@ -94,9 +92,11 @@ def upgrade() -> None:
     # Bounded wait for the ALTER TABLE locks; LOCAL ends with this transaction.
     op.execute("SET LOCAL lock_timeout = '5s'")
 
+    # IF NOT EXISTS: entering the autocommit block below commits the columns, so a
+    # rerun after an index failure finds them and must not fail on them.
     for table, columns in _COLUMNS:
         for name, type_ in columns:
-            op.add_column(table, sa.Column(name, type_, nullable=True))
+            op.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {name} {type_}")
 
     # CREATE INDEX CONCURRENTLY cannot run inside a transaction. Entering the block
     # commits the column changes above.
@@ -139,4 +139,4 @@ def downgrade() -> None:
 
     for table, columns in _COLUMNS:
         for name, _ in columns:
-            op.drop_column(table, name)
+            op.execute(f"ALTER TABLE {table} DROP COLUMN IF EXISTS {name}")
