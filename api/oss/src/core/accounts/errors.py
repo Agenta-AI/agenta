@@ -130,6 +130,14 @@ class AccountAuthDeletionError(AdminError):
         )
 
 
+class AccountTombstoneError(AdminError):
+    def __init__(self, message: str = "Could not record the account deletion."):
+        super().__init__(
+            code="account_tombstone_failed",
+            message=message,
+        )
+
+
 class AdminDryRunResult(Exception):
     """Raised to abort a dry-run after collecting what would be written."""
 

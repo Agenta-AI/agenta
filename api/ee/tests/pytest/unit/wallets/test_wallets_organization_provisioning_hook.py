@@ -220,6 +220,7 @@ async def test_provision_user_subscription_never_awards_signup_grant(monkeypatch
     class _FakeOrganization:
         id = uuid4()
         name = "acme"
+        owner_id = uuid4()
 
     monkeypatch.setattr(
         organizations_service_module,
@@ -388,23 +389,20 @@ async def test_retried_signup_sizes_the_wallet_from_the_stored_plan(monkeypatch)
 
 
 class _Policy:
-    """Stands in for the starter-credits mint policy module."""
-
-    SIGNUP_GRANT_COUNTER_PREFIX = "signup-grant-counters"
+    """Stands in for the signup grant policy module."""
 
     def __init__(self, *, email_allowed=True, caps_allow=True, policy=object()):
         self.email_allowed = email_allowed
         self.caps_allow = caps_allow
         self.policy = policy
 
-    async def _resolve_mint_policy(self):
+    async def resolve_mint_policy(self):
         return self.policy
 
     def email_rules_allow(self, organization_email, policy):
         return self.email_allowed
 
-    async def _mint_policy_refusal(self, organization_email, policy, counter_prefix):
-        assert counter_prefix == self.SIGNUP_GRANT_COUNTER_PREFIX
+    async def mint_policy_refusal(self, organization_email, policy):
         if not self.email_allowed:
             return "disposable_domain"
         if not self.caps_allow:
@@ -435,10 +433,11 @@ async def _signup_with(monkeypatch, policy):
     class _Organization:
         id = uuid4()
         name = "acme"
+        owner_id = uuid4()
 
     m = organizations_service_module
     monkeypatch.setattr(m, "_free_credits_check", _REAL_FREE_CREDITS_CHECK)
-    monkeypatch.setattr(m, "_mint_policy", policy)
+    monkeypatch.setattr(m, "signup_policy", policy)
     monkeypatch.setattr(m, "_provision_wallet_general_balance", _provision)
     monkeypatch.setattr(m, "_award_signup_grant", _award)
     monkeypatch.setattr(m, "_subscription_service", _Subscriptions())
@@ -499,10 +498,11 @@ async def _create_organization_with(monkeypatch, policy):
     class _Organization:
         id = uuid4()
         name = "acme"
+        owner_id = uuid4()
 
     m = organizations_service_module
     monkeypatch.setattr(m, "_email_rules_refuse", _REAL_EMAIL_RULES_REFUSE)
-    monkeypatch.setattr(m, "_mint_policy", policy)
+    monkeypatch.setattr(m, "signup_policy", policy)
     monkeypatch.setattr(m, "_provision_wallet_general_balance", _provision)
     monkeypatch.setattr(m, "_subscription_service", _Subscriptions())
     monkeypatch.setattr(m, "check_entitlements", _check_entitlements)

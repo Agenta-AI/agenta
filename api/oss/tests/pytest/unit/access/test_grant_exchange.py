@@ -72,6 +72,7 @@ def _exchange(monkeypatch):
         runtime_key=None,
         scope_type=None,
         scope_id=None,
+        without_grants=False,
     ):
         """Run the exchange as a principal whose credential carries ``carried_grants``.
 
@@ -116,6 +117,7 @@ def _exchange(monkeypatch):
                 scope_id=scope_id,
                 resource_type=resource_type,
                 resource_id=None,
+                without_grants=without_grants,
             )
         finally:
             reset_auth_context(token)
@@ -305,3 +307,60 @@ async def test_a_project_scope_must_match_the_authenticated_project(exchange):
     with pytest.raises(HTTPException) as denied:
         await run("edit_secret", scope_type="project", scope_id=uuid4())
     assert denied.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_without_grants_drops_a_carried_grant(exchange):
+    # The code evaluator sandbox runs user-written code. The service asks for the same
+    # credential with no grant, so that code cannot read write-only vault values or
+    # exchange it for a platform-run gateway token.
+    run, _ = exchange
+
+    body = _body(
+        await run(
+            "run_service",
+            carried_grants=(SECRET_RESOLVE_GRANT,),
+            without_grants=True,
+        )
+    )
+
+    assert body["effect"] == "allow"
+    claims = _claims(body["credentials"])
+    assert "grants" not in claims
+    assert claims["project_id"] == str(PROJECT_ID)
+    assert claims["user_id"] == str(USER_ID)
+
+
+@pytest.mark.asyncio
+async def test_without_grants_wins_over_the_runtime_key(exchange):
+    run, _ = exchange
+
+    body = _body(
+        await run(
+            "run_service",
+            carried_grants=(SECRET_RESOLVE_GRANT,),
+            runtime_key=RUNTIME_KEY,
+            without_grants=True,
+        )
+    )
+
+    assert "grants" not in _claims(body["credentials"])
+
+
+@pytest.mark.asyncio
+async def test_a_grant_free_credential_cannot_get_the_grant_back(exchange):
+    # What the sandbox holds, exchanged again without the runtime key, stays grant-free.
+    run, _ = exchange
+
+    narrowed = _body(
+        await run(
+            "run_service",
+            carried_grants=(SECRET_RESOLVE_GRANT,),
+            without_grants=True,
+        )
+    )["credentials"]
+    carried = tuple(_claims(narrowed).get("grants") or ())
+
+    body = _body(await run("run_service", carried_grants=carried))
+
+    assert "grants" not in _claims(body["credentials"])

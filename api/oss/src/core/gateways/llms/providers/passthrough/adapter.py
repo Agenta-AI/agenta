@@ -23,10 +23,7 @@ from oss.src.core.gateways.egress import (
     harden_pooled_client,
     open_egress,
 )
-from oss.src.core.gateways.llms.catalog import (
-    BUILTIN_LLM_PROVIDERS,
-    RETIRED_STARTER_CREDITS_SLUG,
-)
+from oss.src.core.gateways.llms.catalog import BUILTIN_LLM_PROVIDERS
 from oss.src.core.gateways.llms.dtos import (
     LLMCallContext,
     LLMProtocol,
@@ -458,10 +455,6 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         if response.status_code >= 400:
             # Whatever the upstream sent, the body becomes the protocol's JSON error.
             result.headers["content-type"] = "application/json"
-        # The retired starter-credits connection relays its credit proxy's own errors, which
-        # the runner reads by their text (a budget refusal is "your free credits are used up").
-        if route.label == RETIRED_STARTER_CREDITS_SLUG:
-            return result
         result.body = relay_upstream_errors(
             result.body,
             status_code=response.status_code,

@@ -45,13 +45,21 @@ export function selectionFromAgentCreationPrefs(
         modelId: prefs.model,
         provider: prefs.provider ?? null,
         mode,
-        slug: mode === "agenta" ? (prefs.connectionSlug ?? null) : null,
+        // Under `self_managed` a slug names a stored subscription sign-in; no slug means a
+        // login mounted on the runner. Both are real routes, so the slug is kept in either mode.
+        slug: prefs.connectionSlug ?? null,
         namespace: mode === "agenta" ? connectionNamespaceFrom(prefs.connectionNamespace) : null,
         harness: prefs.harness,
     }
 }
 
-/** Apply one resolved candidate without dropping unrelated harness or model settings. */
+/**
+ * Apply one resolved candidate without dropping unrelated harness or model settings.
+ *
+ * The slug is written in either mode. A hosted subscription candidate is `self_managed` with the
+ * slug of its stored sign-in, and without that slug the run falls back to a login mounted on the
+ * runner, which a Daytona sandbox refuses.
+ */
 export function applyAgentModelSelection(
     agentConfig: Record<string, unknown>,
     selection: AgentModelSelection,
@@ -63,7 +71,7 @@ export function applyAgentModelSelection(
         model: selection.modelId,
         connection: {
             mode: selection.mode,
-            ...(selection.mode === "agenta" && selection.slug ? {slug: selection.slug} : {}),
+            ...(selection.slug ? {slug: selection.slug} : {}),
             ...(selection.mode === "agenta" && selection.slug && selection.namespace
                 ? {namespace: selection.namespace}
                 : {}),

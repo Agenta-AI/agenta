@@ -60,9 +60,8 @@ log = get_module_logger(__name__)
 # Canonical map lives in capabilities.py; this alias keeps the local name callers already use.
 _PROVIDER_ENV_VARS: Dict[str, str] = PROVIDER_ENV_VARS
 
-# The slug of the Agenta-funded starter-credits connection. It is the one connection whose
-# model list the user does not choose: Agenta seeds it, and Agenta re-points it when the
-# funded model is cut over. The same literal is `STARTER_CREDITS_SLUG` on the API side.
+# The slug of the retired Agenta-funded starter-credits connection. A record under it was
+# Agenta's, not the user's own custom provider, so its spans keep public-list pricing.
 STARTER_CREDITS_SLUG = "starter-credits"
 
 # The Claude harness selects a model by a bare alias (``haiku``/``sonnet``/``opus`` + ``[1m]``)
@@ -335,8 +334,7 @@ class _ConnectionCandidate:
     # True when value_status says a credential exists but this caller's
     # credential received the redacted, value-less shape.
     write_only_redacted: bool = False
-    # True when the vault says Agenta manages this row rather than the user. Only a managed
-    # row's model list is Agenta's to re-point, so only a managed row may be substituted.
+    # True when the vault says Agenta manages this row rather than the user.
     managed: bool = False
 
     def matches_provider(self, provider: Optional[str]) -> bool:
@@ -395,8 +393,8 @@ class _ConnectionCandidate:
             # otherwise reach the upstream stale, having matched nothing this connection has.
             if stripped in self.model_slugs:
                 return stripped
-            return self._funded_starter_credits_model(model) or stripped
-        return self._funded_starter_credits_model(model) or model.model
+            return stripped
+        return model.model
 
     def serves_custom_connection(self) -> bool:
         """Whether spans served by this record skip public-list pricing.
@@ -405,35 +403,6 @@ class _ConnectionCandidate:
         starter-credits connection) serves a public model at a public price, so it does not.
         """
         return self.kind == "custom_provider" and not self.managed
-
-    def _funded_starter_credits_model(self, model: ModelRef) -> Optional[str]:
-        """The funded model, when a saved id names one this connection no longer offers.
-
-        The Agenta-funded starter-credits connection routes to a proxy that serves exactly one
-        model, and that model gets cut over. A revision saved before a cutover still names the
-        old id, so every turn fails upstream with an invalid-model error even though the
-        connection is healthy. The connection itself states what is funded now, so run that and
-        say so in the log.
-
-        Deliberately narrow. It applies to this one connection, only while Agenta manages it,
-        only when it offers exactly one model, and only after every match above missed. A user
-        may save their own connection under this slug, and their model list is theirs. Every
-        other connection keeps failing upstream, which is correct: silently running a model the
-        user did not pick would misreport what ran.
-        """
-        if self.slug != STARTER_CREDITS_SLUG or not self.managed:
-            return None
-        if len(self.model_slugs) != 1:
-            return None
-
-        funded = next(iter(self.model_slugs))
-        log.warning(
-            "starter credits: the saved model is not funded any more; using the funded one",
-            saved_model=model.model,
-            funded_model=funded,
-            slug=self.slug,
-        )
-        return funded
 
     def resolved_provider(self, model: ModelRef) -> str:
         if model.provider:
