@@ -23,7 +23,19 @@ const book = (sheets: Record<string, ReturnType<typeof utils.aoa_to_sheet>>): Ui
 }
 
 describe("parseWorkbook", () => {
-    it("shows the stored value of a formula cell saved by a spreadsheet app", () => {
+    it("keeps the stored number behind formatted text, but not behind a date", () => {
+        const sheet = utils.aoa_to_sheet([[0.256, 46317, 120]])
+        sheet.A1.z = "0.0%"
+        sheet.B1.z = "yyyy-mm-dd"
+        const [row] = parseWorkbook(book({Data: sheet})).sheets[0].rows
+        expect(row).toEqual([
+            {value: "25.6%", numeric: true, raw: "0.256"},
+            {value: "2026-10-22", numeric: true},
+            {value: "120", numeric: true},
+        ])
+    })
+
+    it("keeps a stored value with its formula, and marks numbers", () => {
         const sheet = utils.aoa_to_sheet([
             ["Region", "Q1", "Q2", "Total"],
             ["North", 120, 140],
@@ -32,7 +44,12 @@ describe("parseWorkbook", () => {
         const {sheets} = parseWorkbook(book({Sales: sheet}))
         expect(sheets[0].rows).toEqual([
             [{value: "Region"}, {value: "Q1"}, {value: "Q2"}, {value: "Total"}],
-            [{value: "North"}, {value: "120"}, {value: "140"}, {value: "260"}],
+            [
+                {value: "North"},
+                {value: "120", numeric: true},
+                {value: "140", numeric: true},
+                {value: "260", formula: "=B2+C2", numeric: true},
+            ],
         ])
     })
 
@@ -41,8 +58,8 @@ describe("parseWorkbook", () => {
         expect(sheets.map((s) => s.name)).toEqual(["Sales", "Notes"])
         expect(sheets[0].rows[3]).toEqual([
             {value: "West"},
-            {value: "75"},
-            {value: "80"},
+            {value: "75", numeric: true},
+            {value: "80", numeric: true},
             {formula: "=B4+C4"},
         ])
         expect(sheets[0].rows[1][3]).toEqual({formula: "=B2+C2"})
@@ -56,7 +73,7 @@ describe("parseWorkbook", () => {
             name: "Data",
             rows: [
                 [{value: "Name"}, {value: "Score"}],
-                [{value: "Ada"}, {value: "9"}],
+                [{value: "Ada"}, {value: "9", numeric: true}],
             ],
             truncated: {rows: false, totalColumns: null},
             origin: {r: 0, c: 0},
@@ -77,7 +94,7 @@ describe("parseWorkbook", () => {
         expect(sheets[0].origin).toEqual({r: 2, c: 1})
         expect(sheets[0].rows).toEqual([
             [{value: "Region"}, {value: "Q1"}],
-            [{value: "North"}, {value: "120"}],
+            [{value: "North"}, {value: "120", numeric: true}],
         ])
         expect(sheets[1].origin).toEqual({r: 0, c: 0})
     })

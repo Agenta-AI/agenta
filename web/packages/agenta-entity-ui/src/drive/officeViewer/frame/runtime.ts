@@ -10,7 +10,14 @@ import {
 
 export interface FrameRenderer {
     kind: OfficeViewerKind
-    render: (bytes: ArrayBuffer, root: HTMLElement) => Promise<{slideCount: number}>
+    /** Renders into `root`; runs again with the same bytes when the host switches the layout. */
+    render: (
+        bytes: ArrayBuffer,
+        root: HTMLElement,
+        layout: {reflow: boolean},
+    ) => Promise<{slideCount: number}>
+    /** Runs once, before the first render. */
+    setup?: (root: HTMLElement) => void
     goto?: (index: number) => void
 }
 
@@ -49,7 +56,19 @@ export function runViewer(renderer: FrameRenderer): void {
     document.body.appendChild(root)
     document.addEventListener("click", onClick, true)
     const picker = installPreviewPicker(post)
-    let started = false
+    let bytes: ArrayBuffer | null = null
+    // One render at a time, so a quick layout switch cannot interleave two renders in #root.
+    let drawing = Promise.resolve()
+
+    const draw = (file: ArrayBuffer, layout: {reflow: boolean}) => {
+        drawing = drawing
+            .then(() => renderer.render(file, root, layout))
+            .then(({slideCount}) => {
+                sanitizeLinks(root)
+                post({type: "rendered", slideCount})
+            })
+            .catch(() => post({type: "failed"}))
+    }
 
     window.addEventListener("message", (event) => {
         if (event.source !== window.parent) return
@@ -64,15 +83,14 @@ export function runViewer(renderer: FrameRenderer): void {
             renderer.goto?.(message.index)
             return
         }
-        if (started || message.kind !== renderer.kind) return
-        started = true
-        renderer
-            .render(message.bytes, root)
-            .then(({slideCount}) => {
-                sanitizeLinks(root)
-                post({type: "rendered", slideCount})
-            })
-            .catch(() => post({type: "failed"}))
+        if (message.type === "layout") {
+            if (bytes) draw(bytes, {reflow: message.reflow})
+            return
+        }
+        if (bytes || message.kind !== renderer.kind) return
+        bytes = message.bytes
+        renderer.setup?.(root)
+        draw(bytes, {reflow: message.reflow})
     })
 
     post({type: "ready"})

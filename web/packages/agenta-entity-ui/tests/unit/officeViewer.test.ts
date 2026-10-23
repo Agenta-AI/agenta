@@ -1,7 +1,7 @@
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {mediaViewerKind} from "../../src/drive/MediaViewer"
-import {sanitizeLinks} from "../../src/drive/officeViewer/frame/runtime"
+import {runViewer, sanitizeLinks} from "../../src/drive/officeViewer/frame/runtime"
 import {
     buildViewerSrcdoc,
     isOpenableLink,
@@ -109,14 +109,25 @@ describe("parseViewerMessage picker messages", () => {
 })
 
 describe("parseHostMessage", () => {
-    it("accepts render with an ArrayBuffer and goto with an index", () => {
+    it("accepts render with bytes and a layout, goto with an index, and layout", () => {
         const bytes = new ArrayBuffer(4)
-        expect(parseHostMessage({type: "render", kind: "document", bytes})).toEqual({
+        expect(parseHostMessage({type: "render", kind: "document", bytes, reflow: true})).toEqual({
             type: "render",
             kind: "document",
             bytes,
+            reflow: true,
         })
         expect(parseHostMessage({type: "goto", index: 0})).toEqual({type: "goto", index: 0})
+        expect(parseHostMessage({type: "layout", reflow: false})).toEqual({
+            type: "layout",
+            reflow: false,
+        })
+    })
+
+    it("rejects a render or layout without a boolean reflow", () => {
+        const bytes = new ArrayBuffer(4)
+        expect(parseHostMessage({type: "render", kind: "document", bytes})).toBeNull()
+        expect(parseHostMessage({type: "layout", reflow: "yes"})).toBeNull()
     })
 
     it("rejects render without bytes or with an unknown kind", () => {
@@ -165,6 +176,30 @@ describe("links", () => {
         expect(good.getAttribute("href")).toBe("https://example.com")
         expect(good.hasAttribute("target")).toBe(false)
         expect(anchor.getAttribute("href")).toBe("#toc")
+    })
+})
+
+describe("runViewer", () => {
+    it("runs a layout render only after the render before it finishes", async () => {
+        const calls: boolean[] = []
+        let finishFirst = () => {}
+        const render = vi.fn((_bytes: ArrayBuffer, _root: HTMLElement, {reflow}) => {
+            calls.push(reflow)
+            return calls.length === 1
+                ? new Promise<{slideCount: number}>((done) => {
+                      finishFirst = () => done({slideCount: 1})
+                  })
+                : Promise.resolve({slideCount: 1})
+        })
+        runViewer({kind: "document", render})
+        const send = (data: unknown) =>
+            window.dispatchEvent(new MessageEvent("message", {data, source: window}))
+        send({type: "render", kind: "document", bytes: new ArrayBuffer(1), reflow: true})
+        send({type: "layout", reflow: false})
+        await Promise.resolve()
+        expect(calls).toEqual([true])
+        finishFirst()
+        await vi.waitFor(() => expect(calls).toEqual([true, false]))
     })
 })
 

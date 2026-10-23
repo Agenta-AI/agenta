@@ -1,10 +1,15 @@
 // Workbook bytes → cell strings (design D5); only text leaves here, never SheetJS HTML.
-import {read, utils, type CellObject, type WorkSheet} from "xlsx"
+import {read, SSF, utils, type CellObject, type WorkSheet} from "xlsx"
 
 import type {CellOrigin} from "./cellAddress"
 
-/** A stored value, or the formula text of a formula cell that has no stored value. */
-export type SheetCell = {value: string} | {formula: string}
+/**
+ * A stored value with its formula if any, or the formula of a cell that has no stored value.
+ * `raw` is the stored number when the display text differs from it (`25.6%` stores `0.256`).
+ */
+export type SheetCell =
+    | {value: string; formula?: string; numeric?: true; raw?: string}
+    | {formula: string}
 
 /** Which caps cut the sheet; `totalColumns` is set only when columns were cut. */
 export interface Truncation {
@@ -26,8 +31,7 @@ export interface Workbook {
     sheets: Sheet[]
 }
 
-/** Header row plus 500 data rows. */
-export const ROW_CAP = 501
+export const ROW_CAP = 500
 export const COL_CAP = 50
 
 const EMPTY: SheetCell = {value: ""}
@@ -35,8 +39,18 @@ const EMPTY: SheetCell = {value: ""}
 /** The closed mapping table of D5. */
 export function toSheetCell(cell: CellObject | undefined): SheetCell {
     if (!cell) return EMPTY
-    if (cell.t === "z") return cell.f ? {formula: `=${cell.f}`} : EMPTY
-    return {value: cell.w ?? String(cell.v ?? "")}
+    const formula = cell.f ? `=${cell.f}` : undefined
+    if (cell.t === "z") return formula ? {formula} : EMPTY
+    const value = cell.w ?? String(cell.v ?? "")
+    // A date is a serial number underneath; its display text is the useful form.
+    const date = cell.t === "d" || (typeof cell.z === "string" && SSF.is_date(cell.z))
+    const raw = cell.t === "n" && !date ? String(cell.v) : value
+    return {
+        value,
+        ...(formula ? {formula} : {}),
+        ...(cell.t === "n" || cell.t === "d" ? {numeric: true as const} : {}),
+        ...(raw !== value ? {raw} : {}),
+    }
 }
 
 const isEmpty = (cell: SheetCell): boolean => "value" in cell && cell.value === ""
@@ -130,6 +144,7 @@ export function parseWorkbook(bytes: ArrayBuffer | Uint8Array): Workbook {
     const book = read(data, {
         type: "array",
         cellFormula: true,
+        cellNF: true,
         sheetStubs: true,
         sheetRows: ROW_CAP + 1,
     })
