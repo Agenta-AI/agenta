@@ -18,9 +18,11 @@ from pydantic import BaseModel
 
 from oss.src.core.access.dtos import (
     Action,
+    Decision,
     DecisionReason,
     PrincipalKind,
     PrincipalRef,
+    RequestAccess,
     ResourceKind,
     ResourceRef,
     RunOrigin,
@@ -30,23 +32,40 @@ from oss.src.core.access.interfaces import (
     ResourcePolicyInterface,
 )
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.types import AccessDenied
 from oss.src.core.memberships.service import MembershipsService
+from oss.src.core.sharing.audit import publish_sharing_event
 from oss.src.core.sharing.dtos import (
     OWNERLESS_PROJECT_POLICY,
     AccessPolicy,
+    AgentPolicyWriteResult,
     AgentReadScope,
+    AgentSharingState,
     CachedAgentAccess,
     CachedSessionAccess,
     CachedUserGrants,
+    EffectiveRole,
     SessionGrant,
+    SessionPolicyState,
     SessionReadScope,
     SessionRole,
+    SessionSharingChange,
+    SessionSharingState,
+    SessionSharingWriteResult,
     SharedItemKind,
     UserSessionGrant,
     Visibility,
 )
 from oss.src.core.sharing.interfaces import SharingDAOInterface
-from oss.src.core.sharing.types import SharingServiceNotRegistered
+from oss.src.core.sharing.types import (
+    InvalidGrantee,
+    InvalidTransferTarget,
+    OwnerStillActive,
+    SessionNotShareable,
+    SharedItemNotFound,
+    SharingConflict,
+    SharingServiceNotRegistered,
+)
 from oss.src.utils.caching import (
     AGENTA_CACHE_TTL,
     get_cache,
@@ -376,6 +395,467 @@ class SharingService(ResourcePolicyInterface):
         )
         return grants
 
+    # -- sharing state and writes (the sharing routes) ------------------------------------
+    #
+    # Every read here goes to the DAO, never the caches: `references` is filled by a
+    # later heartbeat, so a cached `shareable` would be stale (deviation 16). Each write
+    # reads `expected` from the DAO, decides, and hands both to the DAO's locked
+    # compare-and-write. On `SharingConflict` it decides once more on the committed
+    # policy and retries once; a second conflict propagates. After the commit: the
+    # cache invalidation, then the audit event. Neither can fail the write.
+
+    async def fetch_agent_sharing(
+        self,
+        *,
+        project_id: UUID,
+        principal: PrincipalRef,
+        artifact_id: UUID,
+    ) -> AgentSharingState:
+        """The agent's sharing state for this principal. Raises `SharedItemNotFound`
+        when the principal may not see the agent (A2). The caller checks that the
+        artifact exists (no access row reads as project-visible and ownerless)."""
+
+        policy = await self._dao.fetch_agent_policy(
+            project_id=project_id, artifact_id=artifact_id
+        )
+        _require_visible_agent(principal=principal, policy=policy)
+        return await self._agent_state(
+            project_id=project_id, principal=principal, policy=policy
+        )
+
+    async def set_agent_visibility(
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        access: RequestAccess,
+        #
+        artifact_id: UUID,
+        visibility: Visibility,
+    ) -> AgentSharingState:
+        """Only the active human owner changes the visibility."""
+
+        async def _decide(current: Optional[AccessPolicy]) -> AccessPolicy:
+            owner = await self._require_active_owner(
+                project_id=project_id, principal=access.principal, policy=current
+            )
+            return AccessPolicy(visibility=visibility, owner_user_id=owner)
+
+        return await self._write_agent(
+            organization_id=organization_id,
+            project_id=project_id,
+            access=access,
+            artifact_id=artifact_id,
+            decide=_decide,
+        )
+
+    async def transfer_agent(
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        access: RequestAccess,
+        #
+        artifact_id: UUID,
+        new_owner_user_id: UUID,
+    ) -> AgentSharingState:
+        """Only the active human owner transfers, to another active member. The
+        visibility does not change. Raises `InvalidTransferTarget` for a target that
+        is not an active member (an API key id, a departed user) or is the owner."""
+
+        async def _decide(current: Optional[AccessPolicy]) -> AccessPolicy:
+            owner = await self._require_active_owner(
+                project_id=project_id, principal=access.principal, policy=current
+            )
+            if new_owner_user_id == owner or not await self._is_active(
+                user_id=new_owner_user_id, project_id=project_id
+            ):
+                raise InvalidTransferTarget(user_id=new_owner_user_id)
+            return AccessPolicy(
+                visibility=current.visibility, owner_user_id=new_owner_user_id
+            )
+
+        return await self._write_agent(
+            organization_id=organization_id,
+            project_id=project_id,
+            access=access,
+            artifact_id=artifact_id,
+            decide=_decide,
+        )
+
+    async def take_agent_ownership(
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        access: RequestAccess,
+        #
+        artifact_id: UUID,
+    ) -> AgentSharingState:
+        """A human takes a project-visible agent that has no active owner; the
+        result is `(PROJECT, caller)`. A private agent of a departed owner stays
+        hidden (`SharedItemNotFound`); an active owner raises `OwnerStillActive`."""
+
+        principal = access.principal
+
+        async def _decide(current: Optional[AccessPolicy]) -> AccessPolicy:
+            _require_visible_agent(principal=principal, policy=current)
+            if principal.kind != PrincipalKind.HUMAN:
+                raise _resource_denied()
+            owner = current.owner_user_id if current is not None else None
+            if await self._is_active(user_id=owner, project_id=project_id):
+                raise OwnerStillActive()
+            return AccessPolicy(
+                visibility=Visibility.PROJECT, owner_user_id=principal.id
+            )
+
+        return await self._write_agent(
+            organization_id=organization_id,
+            project_id=project_id,
+            access=access,
+            artifact_id=artifact_id,
+            decide=_decide,
+        )
+
+    async def fetch_session_sharing(
+        self,
+        *,
+        project_id: UUID,
+        principal: PrincipalRef,
+        session_id: str,
+    ) -> SessionSharingState:
+        """The session's sharing state for this principal. `grants` only for the
+        owner; `can_send` from rule S2 only (the router ANDs it with the full
+        decision). Raises `SharedItemNotFound` for an unknown session or one the
+        principal may not read (S1)."""
+
+        state = await self._dao.fetch_session_policy(
+            project_id=project_id, session_id=session_id
+        )
+        if state is None:
+            raise SharedItemNotFound()
+        grants = await self._dao.list_session_grants(
+            project_id=project_id, stream_id=state.stream_id
+        )
+        return await self._visible_session_state(
+            project_id=project_id, principal=principal, state=state, grants=grants
+        )
+
+    async def set_session_sharing(
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        access: RequestAccess,
+        #
+        session_id: str,
+        change: SessionSharingChange,
+    ) -> SessionSharingState:
+        """Only the active human owner shares, and only a shareable session (not a
+        channel session, has an owner, runs an agent). Grantees are active human
+        members, not the owner, each named once in the change."""
+
+        principal = access.principal
+        state = await self._dao.fetch_session_policy(
+            project_id=project_id, session_id=session_id
+        )
+        if state is None:
+            raise SharedItemNotFound()
+        grants = await self._dao.list_session_grants(
+            project_id=project_id, stream_id=state.stream_id
+        )
+        await self._visible_session_state(
+            project_id=project_id, principal=principal, state=state, grants=grants
+        )
+        reason = _not_shareable_reason(state)
+        if reason is not None:
+            raise SessionNotShareable(reason=reason)
+
+        expected = state.policy
+        result: Optional[SessionSharingWriteResult] = None
+        for attempt in range(2):
+            owner = await self._require_active_owner(
+                project_id=project_id,
+                principal=principal,
+                policy=expected,
+                readable=True,
+            )
+            await self._check_grantees(
+                project_id=project_id, owner_user_id=owner, change=change
+            )
+            try:
+                result = await self._dao.set_session_sharing(
+                    project_id=project_id,
+                    session_id=session_id,
+                    expected=expected,
+                    change=change,
+                    user_id=principal.id,
+                )
+                break
+            except SharingConflict as conflict:
+                if attempt == 1 or conflict.current is None:
+                    raise
+                expected = conflict.current
+
+        changed = (
+            result.upserted
+            or result.removed_user_ids
+            or result.state.policy != result.before
+        )
+        if changed:
+            await invalidate_sharing_caches(
+                project_id=project_id,
+                session_ids=[session_id],
+                grant_user_ids=[
+                    *(grant.user_id for grant in result.upserted),
+                    *result.removed_user_ids,
+                ],
+            )
+            await publish_sharing_event(
+                organization_id=organization_id,
+                project_id=project_id,
+                access=access,
+                resource=ResourceRef(kind=ResourceKind.SESSION, id=session_id),
+                before=result.before,
+                after=result.state.policy,
+                grants_added=list(result.upserted),
+                grants_removed=list(result.removed_user_ids),
+            )
+
+        return await self._session_state(
+            project_id=project_id,
+            principal=principal,
+            state=result.state,
+            grants=result.grants,
+        )
+
+    # -- sharing helpers ------------------------------------------------------------------
+
+    async def _write_agent(
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        access: RequestAccess,
+        artifact_id: UUID,
+        decide,
+    ) -> AgentSharingState:
+        """Read `expected`, decide, write; on a conflict decide once more on the
+        committed policy and retry once. A decision equal to the current policy
+        writes nothing."""
+
+        principal = access.principal
+        current = await self._dao.fetch_agent_policy(
+            project_id=project_id, artifact_id=artifact_id
+        )
+        result: Optional[AgentPolicyWriteResult] = None
+        for attempt in range(2):
+            new = await decide(current)
+            if new == current:
+                return await self._agent_state(
+                    project_id=project_id, principal=principal, policy=current
+                )
+            try:
+                result = await self._dao.set_agent_policy(
+                    project_id=project_id,
+                    artifact_id=artifact_id,
+                    expected=current,
+                    policy=new,
+                    user_id=principal.id,
+                )
+                break
+            except SharingConflict as conflict:
+                if attempt == 1:
+                    raise
+                current = conflict.current
+
+        await invalidate_sharing_caches(
+            project_id=project_id, artifact_ids=[artifact_id]
+        )
+        await self._invalidate_installations(result.deactivated_channel_agent_ids)
+        await publish_sharing_event(
+            organization_id=organization_id,
+            project_id=project_id,
+            access=access,
+            resource=ResourceRef(kind=ResourceKind.AGENT, id=str(artifact_id)),
+            before=current,
+            after=result.policy,
+        )
+        return await self._agent_state(
+            project_id=project_id, principal=principal, policy=result.policy
+        )
+
+    async def _invalidate_installations(self, binding_ids: Sequence[UUID]) -> None:
+        """A make-private set these channel agents inactive: clear their cached
+        installation principals, so a warm decision cannot keep one active. A failure
+        is logged and never fails the write."""
+
+        for binding_id in binding_ids:
+            principal = PrincipalRef(kind=PrincipalKind.INSTALLATION, id=binding_id)
+            try:
+                cleared = await self._principals_dao.invalidate_principal(
+                    principal=principal
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                cleared = None
+            if cleared is None and env.agenta.api.caching.enabled:
+                log.warning(
+                    "[sharing] principal invalidation failed",
+                    principal_kind=principal.kind.value,
+                    principal_id=str(principal.id),
+                )
+
+    async def _require_active_owner(
+        self,
+        *,
+        project_id: UUID,
+        principal: PrincipalRef,
+        policy: Optional[AccessPolicy],
+        readable: bool = False,
+    ) -> UUID:
+        """The owner, when the principal is the active human owner. Otherwise an item
+        the principal may read is refused (`AccessDenied`, `resource_denied`) and a
+        private one it may not read is hidden (`SharedItemNotFound`). A private agent
+        is readable only by its owner; a session's readability is checked first by
+        the caller (`readable=True`)."""
+
+        owner = policy.owner_user_id if policy is not None else None
+        if _is_human(principal, owner) and await self._is_active(
+            user_id=owner, project_id=project_id
+        ):
+            return owner
+        if (
+            not readable
+            and policy is not None
+            and policy.visibility == Visibility.PRIVATE
+        ):
+            raise SharedItemNotFound()
+        raise _resource_denied()
+
+    async def _check_grantees(
+        self,
+        *,
+        project_id: UUID,
+        owner_user_id: UUID,
+        change: SessionSharingChange,
+    ) -> None:
+        seen = set()
+        for user_id in (
+            *(grant.user_id for grant in change.upsert_grants),
+            *change.remove_user_ids,
+        ):
+            if user_id in seen:
+                raise InvalidGrantee(user_id=user_id, reason="duplicate")
+            seen.add(user_id)
+        for grant in change.upsert_grants:
+            if grant.user_id == owner_user_id:
+                raise InvalidGrantee(user_id=grant.user_id, reason="owner")
+            # An API key or installation id is no member: only humans get grants.
+            if not await self._is_active(user_id=grant.user_id, project_id=project_id):
+                raise InvalidGrantee(user_id=grant.user_id, reason="not_member")
+
+    async def _agent_state(
+        self,
+        *,
+        project_id: UUID,
+        principal: PrincipalRef,
+        policy: Optional[AccessPolicy],
+    ) -> AgentSharingState:
+        effective = policy or OWNERLESS_PROJECT_POLICY
+        owner = effective.owner_user_id
+        owner_is_active = await self._is_active(user_id=owner, project_id=project_id)
+        if _is_human(principal, owner):
+            my_role = EffectiveRole.OWNER
+        elif effective.visibility == Visibility.PROJECT:
+            my_role = EffectiveRole.VIEWER
+        else:
+            my_role = EffectiveRole.NONE
+        return AgentSharingState(
+            policy=effective,
+            owner_is_active=owner_is_active,
+            my_role=my_role,
+            can_take_ownership=(
+                principal.kind == PrincipalKind.HUMAN
+                and effective.visibility == Visibility.PROJECT
+                and not owner_is_active
+            ),
+        )
+
+    async def _visible_session_state(
+        self,
+        *,
+        project_id: UUID,
+        principal: PrincipalRef,
+        state: SessionPolicyState,
+        grants: List[SessionGrant],
+    ) -> SessionSharingState:
+        """`_session_state`, or `SharedItemNotFound` when rule S1 hides the session
+        from the principal."""
+
+        sharing = await self._session_state(
+            project_id=project_id, principal=principal, state=state, grants=grants
+        )
+        if state.policy.visibility == Visibility.PRIVATE and not (
+            sharing.owner_is_active
+            and sharing.my_role
+            in (
+                EffectiveRole.OWNER,
+                EffectiveRole.PARTICIPANT,
+                EffectiveRole.VIEWER,
+            )
+        ):
+            raise SharedItemNotFound()
+        return sharing
+
+    async def _session_state(
+        self,
+        *,
+        project_id: UUID,
+        principal: PrincipalRef,
+        state: SessionPolicyState,
+        grants: List[SessionGrant],
+    ) -> SessionSharingState:
+        policy = state.policy
+        owner = policy.owner_user_id
+        owner_is_active = await self._is_active(user_id=owner, project_id=project_id)
+        is_owner = _is_human(principal, owner)
+        grant_role = next(
+            (
+                grant.role
+                for grant in grants
+                if principal.kind == PrincipalKind.HUMAN
+                and grant.user_id == principal.id
+            ),
+            None,
+        )
+
+        if is_owner:
+            my_role = EffectiveRole.OWNER
+        elif grant_role is not None and owner_is_active:
+            # A grant works only while its owner is an active member.
+            my_role = EffectiveRole(grant_role.value)
+        elif policy.visibility == Visibility.PROJECT:
+            my_role = EffectiveRole.VIEWER
+        else:
+            my_role = EffectiveRole.NONE
+
+        # Rule S2 (with S3): the router ANDs it with the full decision.
+        if owner is None:
+            can_send = principal.kind != PrincipalKind.HUMAN
+        else:
+            can_send = owner_is_active and (
+                is_owner or grant_role == SessionRole.PARTICIPANT
+            )
+
+        return SessionSharingState(
+            policy=policy,
+            owner_is_active=owner_is_active,
+            grants=list(grants) if is_owner else [],
+            my_role=my_role,
+            can_send=can_send,
+            shareable=_not_shareable_reason(state) is None,
+        )
+
     # -- ownership rule -------------------------------------------------------------------
 
     def initial_policy(
@@ -410,6 +890,37 @@ class SharingService(ResourcePolicyInterface):
             visibility=requested or Visibility.PRIVATE,
             owner_user_id=owner,
         )
+
+
+def _resource_denied() -> AccessDenied:
+    """The caller may read the item but not do this write: 403 `access_denied`."""
+
+    return AccessDenied(
+        decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED)
+    )
+
+
+def _require_visible_agent(
+    *, principal: PrincipalRef, policy: Optional[AccessPolicy]
+) -> None:
+    """Rules A1, A2: a private agent is hidden from all but its human owner."""
+
+    if (
+        policy is not None
+        and policy.visibility == Visibility.PRIVATE
+        and not _is_human(principal, policy.owner_user_id)
+    ):
+        raise SharedItemNotFound()
+
+
+def _not_shareable_reason(state: SessionPolicyState) -> Optional[str]:
+    if state.is_channel:
+        return "channel"
+    if state.policy.owner_user_id is None:
+        return "ownerless"
+    if not state.references_agent:
+        return "no_agent"
+    return None
 
 
 def _is_human(principal: PrincipalRef, user_id: Optional[UUID]) -> bool:

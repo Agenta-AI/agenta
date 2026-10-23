@@ -39,7 +39,10 @@ from oss.src.utils.env import env
 from oss.tests.pytest.utils.cache import FakeCache
 from oss.tests.pytest.utils.memberships import InMemoryMembershipsDAO, RecordingRbac
 from oss.tests.pytest.utils.principals import InMemoryPrincipalsDAO
-from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy
+from oss.tests.pytest.utils.sharing import (
+    AllowAllResourcePolicy,
+    ProjectAgentResolver,
+)
 
 
 class _Recorder:
@@ -263,7 +266,11 @@ async def test_binding_changes_invalidate_the_binding(method, recorded):
     dao.fetch_agent = AsyncMock(return_value=existing)
     dao.edit_agent = AsyncMock(return_value=existing)
     dao.delete_agent = AsyncMock(return_value=True)
-    service = ChannelsService(channels_dao=dao, adapter_registry=MagicMock())
+    service = ChannelsService(
+        channels_dao=dao,
+        adapter_registry=MagicMock(),
+        workflows_service=ProjectAgentResolver(),
+    )
 
     if method == "delete_agent":
         await service.delete_agent(project_id=uuid4(), agent_id=agent_id)

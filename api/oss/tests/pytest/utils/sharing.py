@@ -359,6 +359,21 @@ PROJECT_SESSION_SCOPE = SessionReadScope(
 )
 
 
+class ProjectAgentResolver:
+    """A `workflows_service` for `ChannelsService` in tests that are not about sharing:
+    every binding resolves to one agent (`artifact_id`). With no access row that agent
+    is project-visible, so the activation guard lets the write through. `calls` holds
+    the references of each resolution."""
+
+    def __init__(self, artifact_id: Optional[UUID] = None) -> None:
+        self.artifact_id = artifact_id or uuid4()
+        self.calls: List[list] = []
+
+    async def resolve_agent_artifact_id(self, *, project_id, references):
+        self.calls.append(list(references or []))
+        return self.artifact_id
+
+
 class NoopRunAdmission:
     """A `RunAdmission` that admits every run and records nothing, for tests that are
     not about admission."""

@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from oss.src.core.sessions.types import SessionReference
+from oss.src.core.sharing.types import SharedItemNotFound
 from oss.src.core.shared.dtos import (
     Header,
     Identifier,
@@ -390,6 +392,24 @@ RESOLVABLE_AGENT_REFERENCE_KEYS = frozenset(
         "application_revision",
     }
 )
+
+
+def channel_agent_references(
+    references: Dict[str, Reference],
+) -> List[SessionReference]:
+    """A binding's references as the flat, keyed list `resolve_agent_artifact_id`
+    reads, in both families (`workflow*` and `application*`). A binding that names no
+    agent key names no agent it may run: it is refused with `SharedItemNotFound`,
+    never read as "no agent"."""
+
+    keyed = [
+        SessionReference(key=key, id=ref.id, slug=ref.slug, version=ref.version)
+        for key, ref in references.items()
+        if key in RESOLVABLE_AGENT_REFERENCE_KEYS
+    ]
+    if not keyed:
+        raise SharedItemNotFound()
+    return keyed
 
 
 class ChannelAgentToolSettings(BaseModel):

@@ -527,6 +527,47 @@ class SharingDAO(SharingDAOInterface):
         )
 
 
+async def lock_agent_policy(
+    session,
+    *,
+    project_id: UUID,
+    artifact_id: UUID,
+) -> Optional[AccessPolicy]:
+    """Inside the caller's write transaction (`session` is an ORM session or a
+    connection): lock `workflow_artifacts (project_id, id)` FOR UPDATE, then read the
+    agent's policy, uncached. The lock is held until the caller commits, so a concurrent
+    `set_agent_policy` either committed before this read (and a PRIVATE policy is seen
+    here) or waits for the caller's commit (and then deactivates what it wrote). Same
+    lock order as `set_agent_policy`: the artifact first, then `channel_agents`.
+
+    None when the agent has no access row, or no artifact row (a static catalog agent,
+    which is never private)."""
+
+    params = {"project_id": project_id, "artifact_id": artifact_id}
+    locked = (await session.execute(text(_LOCK_ARTIFACT_SQL), params)).first()
+    if locked is None:
+        return None
+    row = (await session.execute(text(_FETCH_AGENT_POLICY_SQL), params)).first()
+    return map_agent_access_dbe_to_dto(row) if row is not None else None
+
+
+async def guard_agent_activation(
+    session,
+    *,
+    project_id: UUID,
+    artifact_id: UUID,
+) -> None:
+    """`lock_agent_policy`, then refuse a private agent with `SharedItemNotFound`
+    (what an unknown agent answers). A channel binding of a private agent is never
+    written active."""
+
+    policy = await lock_agent_policy(
+        session, project_id=project_id, artifact_id=artifact_id
+    )
+    if policy is not None and policy.visibility == Visibility.PRIVATE:
+        raise SharedItemNotFound()
+
+
 async def _assign_legacy(
     connection: AsyncConnection,
     *,

@@ -1296,6 +1296,9 @@ channels_service = ChannelsService(
     channels_dao=channels_dao,
     adapter_registry=channels_adapter_registry,
     vault_service=vault_service,
+    # Resolves the agent a binding runs, so an active binding never names a private
+    # agent.
+    workflows_service=workflows_service,
 )
 
 channels_identity_dao = ChannelIdentityDAO(engine=_transactions_engine)

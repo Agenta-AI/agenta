@@ -18,6 +18,10 @@ class EventType(str, Enum):
     # One event per allowed or denied gateway relay.
     GATEWAYS_CALLED = "gateways.called"
 
+    # One event per agent or session sharing change (M3).
+    AGENTS_SHARING_CHANGED = "agents.sharing.changed"
+    SESSIONS_SHARING_CHANGED = "sessions.sharing.changed"
+
     # Tracing reads
     TRACES_FETCHED = "traces.fetched"
     TRACES_QUERIED = "traces.queried"
