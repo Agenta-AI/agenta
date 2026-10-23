@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-10-07-more-reliable-agent-runs",
+        "title": "More reliable runs",
+        "description": "Stalled calls retry on their own, long runs hold up, and the queue responds instantly.",
+        "link": "https://agenta.ai/docs/changelog/more-reliable-agent-runs"
+    },
+    {
         "id": "changelog-2026-09-30-new-models-and-cost-tracking",
         "title": "Grok, Opus 5.5, Sonnet 5.5",
         "description": "New models to choose from, and cost tracking that accounts for caching.",
