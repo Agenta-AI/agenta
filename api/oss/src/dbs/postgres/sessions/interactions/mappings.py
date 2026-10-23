@@ -9,6 +9,7 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionKind,
     SessionInteractionStatus,
 )
+from oss.src.dbs.postgres.access.mappings import map_envelope_column
 from oss.src.dbs.postgres.sessions.interactions.dbes import SessionInteractionDBE
 
 
@@ -67,4 +68,6 @@ def map_interaction_dbe_to_dto(
         flags=SessionInteractionFlags(**(dbe.flags or {})),
         tags=dbe.tags,
         meta=dbe.meta,
+        #
+        run_envelope=map_envelope_column(data=dbe.run_envelope),
     )

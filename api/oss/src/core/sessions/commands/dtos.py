@@ -17,8 +17,9 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.shared.dtos import Identifier, Lifecycle
 
 
@@ -74,6 +75,10 @@ class SessionCommand(Identifier, Lifecycle):
 
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
+
+    # The run envelope this work continues under (M2). Internal: never in a response
+    # (`exclude=True`), and copied, never dumped, between services.
+    run_envelope: Optional[RunEnvelope] = Field(default=None, exclude=True)
 
 
 class SessionCommandCreate(BaseModel):

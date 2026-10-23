@@ -5,6 +5,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, field_validator, model_validator
 
+from oss.src.core.access.dtos import PrincipalRef
 from oss.src.core.tracing.dtos import (
     MetricSpec,
     TracingQuery,
@@ -304,6 +305,9 @@ class EvaluationRun(Version, Identifier, Lifecycle, Header, Metadata):
     status: Optional[EvaluationStatus] = EvaluationStatus.PENDING
 
     data: Optional[EvaluationRunData] = None
+
+    # Server-set, read-only: the principal the run executes as.
+    principal: Optional[PrincipalRef] = None
 
 
 class EvaluationRunCreate(Header, Metadata):

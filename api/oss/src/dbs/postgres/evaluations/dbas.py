@@ -35,6 +35,10 @@ class EvaluationRunDBA(
         nullable=True,
     )
 
+    # The principal the run executes as (M2): set at create, start and rerun.
+    principal_kind = Column(VARCHAR, nullable=True)
+    principal_id = Column(UUID(as_uuid=True), nullable=True)
+
 
 class EvaluationScenarioDBA(
     VersionDBA,
