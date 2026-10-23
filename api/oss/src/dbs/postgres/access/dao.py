@@ -6,7 +6,7 @@ one Redis read. Callers invalidate an entry with `invalidate_principal_cache` af
 key, binding, connection or user change.
 """
 
-from typing import Optional
+from typing import Optional, Sequence
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -16,6 +16,7 @@ from oss.src.core.access.dtos import (
     PrincipalKind,
     PrincipalRecord,
     PrincipalRef,
+    ScopePrincipals,
     UserPrincipals,
 )
 from oss.src.core.access.interfaces import PrincipalsDAOInterface
@@ -87,6 +88,22 @@ SELECT
 """
 
 
+_LIST_SCOPE_PRINCIPALS_SQL = """
+WITH scoped AS (
+    SELECT p.id FROM projects p
+    WHERE p.id = ANY(CAST(:projects AS uuid[]))
+       OR p.organization_id = ANY(CAST(:organizations AS uuid[]))
+       OR p.workspace_id = ANY(CAST(:workspaces AS uuid[]))
+)
+SELECT
+  ARRAY(SELECT id FROM scoped) AS project_ids,
+  ARRAY(SELECT k.id FROM api_keys k WHERE k.project_id IN (SELECT id FROM scoped))
+    AS api_key_ids,
+  ARRAY(SELECT a.id FROM channel_agents a WHERE a.project_id IN (SELECT id FROM scoped))
+    AS binding_ids
+"""
+
+
 class PrincipalsDAO(PrincipalsDAOInterface):
     def __init__(self, *, engine):
         self.engine = engine
@@ -124,6 +141,33 @@ class PrincipalsDAO(PrincipalsDAOInterface):
             binding_ids=list(row.binding_ids or []),
             project_ids=list(row.project_ids or []),
         )
+
+    async def list_scope_principals(
+        self,
+        *,
+        organization_ids: Sequence[UUID] = (),
+        workspace_ids: Sequence[UUID] = (),
+        project_ids: Sequence[UUID] = (),
+    ) -> ScopePrincipals:
+        async with self.engine.session() as session:
+            row = (
+                await session.execute(
+                    text(_LIST_SCOPE_PRINCIPALS_SQL),
+                    {
+                        "organizations": list(organization_ids),
+                        "workspaces": list(workspace_ids),
+                        "projects": list(project_ids),
+                    },
+                )
+            ).first()
+        return ScopePrincipals(
+            project_ids=list(row.project_ids or []),
+            api_key_ids=list(row.api_key_ids or []),
+            binding_ids=list(row.binding_ids or []),
+        )
+
+    async def invalidate_principal(self, *, principal: PrincipalRef) -> Optional[bool]:
+        return await invalidate_principal_cache(principal=principal)
 
     async def _read(self, *, principal: PrincipalRef) -> Optional[PrincipalRecord]:
         if principal.kind == PrincipalKind.HUMAN:

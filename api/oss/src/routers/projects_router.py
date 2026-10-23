@@ -7,6 +7,10 @@ from fastapi import Request, HTTPException
 from sqlalchemy.exc import NoResultFound
 from fastapi.responses import JSONResponse
 
+from oss.src.core.access.service import (
+    invalidate_scope_after_delete,
+    read_scope_principals_before_delete,
+)
 from oss.src.utils.common import is_ee, is_oss, APIRouter
 from oss.src.services import db_manager
 from oss.src.core.memberships.dtos import ProjectListing
@@ -249,10 +253,14 @@ async def delete_project(
 
     await _require(request, project_id, Permission.DELETE_WORKSPACE)
 
+    # The project's keys and bindings go with it; their cached principals and the
+    # members' cached access to it are cleared after the delete.
+    scope_snapshot = await read_scope_principals_before_delete(project_ids=[project_id])
     try:
         await db_manager.delete_project(str(project_id))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await invalidate_scope_after_delete(snapshot=scope_snapshot)
 
     return JSONResponse(status_code=200, content={"detail": "Project deleted"})
 

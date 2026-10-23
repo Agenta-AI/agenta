@@ -277,3 +277,31 @@ async def test_list_user_principals_reads_keys_bindings_and_projects(
 
     empty = await dao.list_user_principals(user_id=uuid4())
     assert (empty.api_key_ids, empty.binding_ids, empty.project_ids) == ([], [], [])
+
+
+async def test_list_scope_principals_reads_projects_keys_and_bindings(
+    seeded, fake_cache
+):
+    dao = PrincipalsDAO(engine=get_transactions_engine())
+    project_id = seeded.project_ids[0]
+    editor = seeded.user_ids["editor"]
+    key = await _api_key(project_id=project_id, created_by_id=editor)
+    connection = await _connection(project_id=project_id)
+    binding = await _binding(
+        project_id=project_id, connection_id=connection, created_by_id=editor
+    )
+
+    for kwargs in (
+        {"organization_ids": [seeded.organization_id]},
+        {"workspace_ids": seeded.workspace_ids},
+        {"project_ids": [project_id]},
+    ):
+        with count_statements(get_transactions_engine()) as statements:
+            snapshot = await dao.list_scope_principals(**kwargs)
+        assert len(statements) == 1
+        assert project_id in snapshot.project_ids
+        assert snapshot.api_key_ids == [key]
+        assert snapshot.binding_ids == [binding]
+
+    empty = await dao.list_scope_principals(project_ids=[uuid4()])
+    assert (empty.project_ids, empty.api_key_ids, empty.binding_ids) == ([], [], [])
