@@ -1,17 +1,27 @@
-"""`check_action_access` keeps its signature, messages and cache, and delegates."""
+"""`check_action_access` keeps its signature and messages, and decides for the request's
+principal only (M2, interfaces 3.3). It stores no decision in a cache."""
 
+from contextlib import contextmanager
 from uuid import uuid4
 
 import pytest
 
-import oss.src.core.access.permissions.service as wrapper_module
 import oss.src.core.access.service as access_module
-from oss.src.core.access.controls import get_controls_hash
-from oss.src.core.access.dtos import Decision, DecisionReason, RoleRequirement
+from oss.src.core.access.context import reset_request_access, set_request_access
+from oss.src.core.access.dtos import (
+    Decision,
+    DecisionReason,
+    RequestCredentialKind,
+    RoleRequirement,
+)
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission, RequiredRole
 from oss.src.core.access.service import AccessService, register_access_service
-from oss.src.core.access.types import AccessServiceNotRegistered
+from oss.src.core.access.types import (
+    AccessServiceNotRegistered,
+    RequestAccessMismatch,
+    RequestAccessMissing,
+)
 from oss.src.core.memberships.dtos import MembershipPolicy
 from oss.src.core.memberships.service import MembershipsService
 from oss.tests.pytest.utils.memberships import (
@@ -19,16 +29,25 @@ from oss.tests.pytest.utils.memberships import (
     RecordingRbac,
     make_summary,
 )
-from oss.tests.pytest.utils.principals import HumanPrincipalsDAO
+from oss.tests.pytest.utils.principals import (
+    HumanPrincipalsDAO,
+    make_envelope,
+    make_request_access,
+)
 
 
 class _RecordingAccess:
     def __init__(self, decision):
         self.decision = decision
         self.calls = []
+        self.human_calls = []
+
+    async def check_request(self, **kwargs):
+        self.calls.append(kwargs)
+        return self.decision
 
     async def check_human(self, **kwargs):
-        self.calls.append(kwargs)
+        self.human_calls.append(kwargs)
         return self.decision
 
 
@@ -39,87 +58,162 @@ def registered(monkeypatch):
     return recording
 
 
-async def test_role_check_passes_a_role_requirement(registered):
-    user, project = uuid4(), uuid4()
-
-    assert (
-        await check_action_access(
-            user_uid=str(user), project_id=str(project), role=RequiredRole.ADMIN
-        )
-        is True
+@contextmanager
+def request_access(*, kind="human", credential_kind="bearer_session", **kwargs):
+    access = make_request_access(
+        envelope=make_envelope(kind=kind, **kwargs), credential_kind=credential_kind
     )
+    token = set_request_access(access)
+    try:
+        yield access
+    finally:
+        reset_request_access(token)
+
+
+async def test_wrapper_under_run_credential_passes_the_request_access(registered):
+    project = uuid4()
+    with request_access(
+        kind="api_key", credential_kind="run_credential", project_id=project
+    ) as access:
+        assert (
+            await check_action_access(
+                user_uid=str(access.acting_user_id),
+                project_id=str(project),
+                permission=Permission.RUN_WORKFLOWS,
+            )
+            is True
+        )
     assert registered.calls == [
         {
-            "user_id": user,
+            "access": access,
+            "action": Permission.RUN_WORKFLOWS,
             "project_id": project,
-            "action": RoleRequirement(role="admin"),
         }
     ]
+    assert registered.calls[0]["access"].authority.project_id == project
+    assert registered.human_calls == []
 
 
-async def test_argument_validation_is_unchanged(registered):
-    with pytest.raises(Exception, match="Either permission or role must be provided"):
-        await check_action_access(user_uid=str(uuid4()), project_id=str(uuid4()))
-    with pytest.raises(
-        Exception, match="Only one of permission or role must be provided"
-    ):
+async def test_wrapper_bearer_passes_the_bearer_access(registered):
+    with request_access() as access:
+        await check_action_access(
+            user_uid=str(access.acting_user_id),
+            project_id=str(uuid4()),
+            permission=Permission.VIEW_APPLICATIONS,
+        )
+    assert (
+        registered.calls[0]["access"].credential_kind
+        == RequestCredentialKind.BEARER_SESSION
+    )
+
+
+async def test_wrapper_bearer_session_decides_without_authority(monkeypatch):
+    """Through the real service: a browser session checks another of the user's
+    projects, so `check_request` passes no authority to `decide`."""
+
+    seen = []
+
+    async def _decide(self, **kwargs):
+        seen.append(kwargs)
+        return Decision(allowed=True, reason=DecisionReason.ROLE)
+
+    service = AccessService.__new__(AccessService)
+    monkeypatch.setattr(AccessService, "decide", _decide)
+    monkeypatch.setattr(access_module, "_access_service", service)
+    with request_access() as access:
+        await check_action_access(
+            user_uid=str(access.acting_user_id),
+            project_id=str(uuid4()),
+            permission=Permission.VIEW_APPLICATIONS,
+        )
+    assert seen[0]["authority"] is None
+    assert seen[0]["principal"] == access.principal
+
+
+async def test_wrapper_without_request_access_raises(registered):
+    with pytest.raises(RequestAccessMissing):
         await check_action_access(
             user_uid=str(uuid4()),
             project_id=str(uuid4()),
             permission=Permission.VIEW_APPLICATIONS,
-            role=RequiredRole.ADMIN,
         )
+    assert registered.calls == []
 
 
-async def test_cache_key_is_unchanged(registered, monkeypatch):
-    gets, sets = [], []
+async def test_wrapper_with_other_user_raises(registered):
+    with request_access():
+        with pytest.raises(RequestAccessMismatch):
+            await check_action_access(
+                user_uid=str(uuid4()),
+                project_id=str(uuid4()),
+                permission=Permission.VIEW_APPLICATIONS,
+            )
+    assert registered.calls == []
 
-    async def _get_cache(**kwargs):
-        gets.append(kwargs)
-        return None
 
-    async def _set_cache(**kwargs):
-        sets.append(kwargs)
+async def test_role_check_passes_a_role_requirement(registered):
+    project = uuid4()
+    with request_access() as access:
+        assert (
+            await check_action_access(
+                user_uid=str(access.acting_user_id),
+                project_id=str(project),
+                role=RequiredRole.ADMIN,
+            )
+            is True
+        )
+    assert registered.calls[0]["action"] == RoleRequirement(role="admin")
 
-    monkeypatch.setattr(wrapper_module, "get_cache", _get_cache)
-    monkeypatch.setattr(wrapper_module, "set_cache", _set_cache)
-    user, project = uuid4(), uuid4()
 
-    await check_action_access(
-        user_uid=str(user),
-        project_id=str(project),
-        permission=Permission.VIEW_APPLICATIONS,
-    )
+async def test_wrapper_keeps_m1_argument_rules(registered):
+    with request_access() as access:
+        user = str(access.acting_user_id)
+        with pytest.raises(
+            Exception, match="Either permission or role must be provided"
+        ):
+            await check_action_access(user_uid=user, project_id=str(uuid4()))
+        with pytest.raises(
+            Exception, match="Only one of permission or role must be provided"
+        ):
+            await check_action_access(
+                user_uid=user,
+                project_id=str(uuid4()),
+                permission=Permission.VIEW_APPLICATIONS,
+                role=RequiredRole.ADMIN,
+            )
+        with pytest.raises(Exception, match="Project_ID is required"):
+            await check_action_access(
+                user_uid=user, permission=Permission.VIEW_APPLICATIONS
+            )
 
-    expected = {
-        "namespace": "check_action_access",
-        "project_id": str(project),
-        "user_id": str(user),
-        "key": {
-            "permission": "view_applications",
-            "role": None,
-            "controls": get_controls_hash(),
-        },
-    }
-    assert gets == [expected]
-    assert sets == [{**expected, "value": True}]
-    assert isinstance(sets[0]["value"], bool)
+
+async def test_wrapper_writes_no_cache(registered, monkeypatch):
+    import oss.src.utils.caching as caching  # noqa: PLC0415
+
+    async def _forbidden(**kwargs):
+        raise AssertionError("check_action_access must not use the cache")
+
+    monkeypatch.setattr(caching, "get_cache", _forbidden)
+    monkeypatch.setattr(caching, "set_cache", _forbidden)
+    with request_access() as access:
+        for _ in range(2):
+            await check_action_access(
+                user_uid=str(access.acting_user_id),
+                project_id=str(uuid4()),
+                permission=Permission.VIEW_APPLICATIONS,
+            )
+    assert len(registered.calls) == 2
 
 
 async def test_call_without_registration_raises(monkeypatch):
     monkeypatch.setattr(access_module, "_access_service", None)
-
-    async def _cached_allow(**kwargs):
-        return True
-
-    monkeypatch.setattr(wrapper_module, "get_cache", _cached_allow)
-
-    with pytest.raises(AccessServiceNotRegistered):
-        await check_action_access(
-            user_uid=str(uuid4()),
-            project_id=str(uuid4()),
-            permission=Permission.VIEW_APPLICATIONS,
-        )
+    with request_access() as access:
+        with pytest.raises(AccessServiceNotRegistered):
+            await check_action_access(
+                user_uid=str(access.acting_user_id),
+                project_id=str(uuid4()),
+                permission=Permission.VIEW_APPLICATIONS,
+            )
 
 
 async def test_malformed_or_unknown_project_id_denies(monkeypatch):
@@ -136,26 +230,42 @@ async def test_malformed_or_unknown_project_id_denies(monkeypatch):
             principals=HumanPrincipalsDAO(),
         )
     )
-    assert (
-        await check_action_access(
-            user_uid=str(uuid4()),
-            project_id="not-a-uuid",
-            permission=Permission.VIEW_APPLICATIONS,
+    with request_access() as access:
+        user = str(access.acting_user_id)
+        assert (
+            await check_action_access(
+                user_uid=user,
+                project_id="not-a-uuid",
+                permission=Permission.VIEW_APPLICATIONS,
+            )
+            is False
         )
-        is False
-    )
-    assert (
-        await check_action_access(
-            user_uid=str(uuid4()),
-            project_id=str(uuid4()),
-            permission=Permission.VIEW_APPLICATIONS,
+        assert (
+            await check_action_access(
+                user_uid=user,
+                project_id=str(uuid4()),
+                permission=Permission.VIEW_APPLICATIONS,
+            )
+            is False
         )
-        is False
-    )
 
 
-async def test_missing_project_id_raises(registered):
-    with pytest.raises(Exception, match="Project_ID is required"):
-        await check_action_access(
-            user_uid=str(uuid4()), permission=Permission.VIEW_APPLICATIONS
-        )
+async def test_check_human_is_explicit(monkeypatch):
+    """`check_human` needs no request access and names the human it checks."""
+
+    seen = []
+
+    async def _decide(self, **kwargs):
+        seen.append(kwargs)
+        return Decision(allowed=True, reason=DecisionReason.ROLE)
+
+    monkeypatch.setattr(AccessService, "decide", _decide)
+    service = AccessService.__new__(AccessService)
+    user, project = uuid4(), uuid4()
+    decision = await service.check_human(
+        user_id=user, project_id=project, action=Permission.EDIT_MCP_ENDPOINTS
+    )
+    assert decision.allowed
+    assert seen[0]["authority"] is None
+    assert seen[0]["principal"].id == user
+    assert seen[0]["project_id"] == project

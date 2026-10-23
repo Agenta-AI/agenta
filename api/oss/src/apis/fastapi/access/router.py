@@ -12,13 +12,13 @@ from oss.src.middlewares.auth import (
 )
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.context import get_auth_context, get_auth_scope
 from oss.src.utils.common import is_ee
 from oss.src.utils.exceptions import intercept_exceptions
 
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.context import get_request_access
+from oss.src.core.access.service import get_access_service
 from oss.src.core.access.permissions.controls import SCOPES
 from oss.src.core.access.controls import get_roles
 
@@ -196,7 +196,59 @@ class AccessRouter:
         project_id = str(ctx.scope.project_id)
         user_id = str(ctx.scope.user_id)
 
-        # Always re-mint a fresh ephemeral Secret token (same scope, new expiry) so the
+        # No cache stores the answer: every exchange decides again (F4), so a deleted
+        # key or a removed member is refused on its next exchange. The credential is
+        # minted only after the three checks allow.
+        try:
+            if not action or not resource_type:
+                log.warn("Missing required parameters: action, resource_type")
+                raise Deny()
+
+            # CHECK PERMISSION 1/3: SCOPE
+            allow_scope = await _check_scope_access(
+                scope_type=scope_type,
+                scope_id=scope_id,
+            )
+            if not allow_scope:
+                log.warn("Scope access denied")
+                raise Deny()
+
+            # CHECK PERMISSION 2/3: ACTION, for the request's principal
+            access = get_request_access()
+            if access is None:
+                raise Deny()
+            decision = await get_access_service().check_request(
+                access=access,
+                action=Permission(action),
+                project_id=ctx.scope.project_id,
+            )
+            if not decision.allowed:
+                log.warn("Action access denied")
+                raise Deny()
+
+            # CHECK PERMISSION 3/3: RESOURCE
+            allow_resource = await _check_resource_access(
+                resource_type=resource_type,
+            )
+            if isinstance(allow_resource, bool):
+                if allow_resource is not True:
+                    log.warn("Resource access denied")
+                    raise Deny()
+            elif isinstance(allow_resource, int):
+                if allow_resource <= 0:
+                    log.warn("Resource access denied")
+                    raise Deny()
+            else:
+                log.warn("Resource access denied")
+                raise Deny()
+
+        except Deny:
+            raise
+        except Exception as exc:  # pylint: disable=broad-except
+            log.warn(exc)
+            raise Deny() from exc
+
+        # Always mint a fresh ephemeral Secret token (same scope, new expiry) so the
         # returned credential is uniformly short-lived and renewable — never echoing an
         # ApiKey/Bearer. Callers (services, the runner) re-check periodically to refresh.
         #
@@ -227,127 +279,4 @@ class AccessRouter:
             grants=grants or None,
             envelope=envelope,
         )
-        credentials_header = f"Secret {secret_token}"
-
-        cache_key = {
-            "action": action,
-            "scope_type": scope_type,
-            "scope_id": scope_id,
-            "resource_type": resource_type,
-            "resource_id": resource_id,
-        }
-
-        try:
-            if not action or not resource_type:
-                log.warn("Missing required parameters: action, resource_type")
-                raise Deny()
-
-            allow = await get_cache(
-                project_id=project_id,
-                user_id=user_id,
-                namespace="check_permissions",
-                key=cache_key,
-            )
-
-            if allow == "allow":
-                return Allow(credentials_header)
-            if allow == "deny":
-                log.warn("Permission denied")
-                raise Deny()
-
-            # CHECK PERMISSION 1/3: SCOPE
-            allow_scope = await _check_scope_access(
-                scope_type=scope_type,
-                scope_id=scope_id,
-            )
-
-            if not allow_scope:
-                log.warn("Scope access denied")
-                await set_cache(
-                    project_id=project_id,
-                    user_id=user_id,
-                    namespace="check_permissions",
-                    key=cache_key,
-                    value="deny",
-                )
-                raise Deny()
-
-            # CHECK PERMISSION 2/3: ACTION
-            allow_action = await check_action_access(
-                project_id=project_id,
-                user_uid=user_id,
-                permission=Permission(action),
-            )
-
-            if not allow_action:
-                log.warn("Action access denied")
-                await set_cache(
-                    project_id=project_id,
-                    user_id=user_id,
-                    namespace="check_permissions",
-                    key=cache_key,
-                    value="deny",
-                )
-                raise Deny()
-
-            # CHECK PERMISSION 3/3: RESOURCE
-            allow_resource = await _check_resource_access(
-                resource_type=resource_type,
-            )
-
-            if isinstance(allow_resource, bool):
-                if allow_resource is False:
-                    log.warn("Resource access denied")
-                    await set_cache(
-                        project_id=project_id,
-                        user_id=user_id,
-                        namespace="check_permissions",
-                        key=cache_key,
-                        value="deny",
-                    )
-                    raise Deny()
-
-                if allow_resource is True:
-                    await set_cache(
-                        project_id=project_id,
-                        user_id=user_id,
-                        namespace="check_permissions",
-                        key=cache_key,
-                        value="allow",
-                    )
-                    return Allow(credentials_header)
-
-            elif isinstance(allow_resource, int):
-                if allow_resource <= 0:
-                    log.warn("Resource access denied")
-                    await set_cache(
-                        project_id=project_id,
-                        user_id=user_id,
-                        namespace="check_permissions",
-                        key=cache_key,
-                        value="deny",
-                    )
-                    raise Deny()
-                else:
-                    return Allow(credentials_header)
-
-            log.warn("Resource access denied")
-            await set_cache(
-                project_id=project_id,
-                user_id=user_id,
-                namespace="check_permissions",
-                key=cache_key,
-                value="deny",
-            )
-            raise Deny()
-
-        except Exception as exc:  # pylint: disable=broad-except
-            log.warn(exc)
-            await set_cache(
-                project_id=project_id,
-                user_id=user_id,
-                namespace="check_permissions",
-                key=cache_key,
-                value="deny",
-            )
-            raise Deny() from exc
+        return Allow(f"Secret {secret_token}")

@@ -10,6 +10,8 @@ from uuid import uuid4
 
 import pytest
 
+from oss.tests.pytest.utils.principals import HumanCheckFromWrapper
+
 from oss.tests.pytest.utils.principals import make_envelope
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
@@ -306,6 +308,11 @@ def allow(monkeypatch):
     monkeypatch.setattr(
         "oss.src.apis.fastapi.gateways.mcps.router.check_action_access", mock
     )
+    # The OAuth callback checks the attempt's user with `check_human`.
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.mcps.router.get_access_service",
+        lambda: HumanCheckFromWrapper(mock),
+    )
     return mock
 
 
@@ -314,6 +321,11 @@ def deny(monkeypatch):
     mock = AsyncMock(return_value=False)
     monkeypatch.setattr(
         "oss.src.apis.fastapi.gateways.mcps.router.check_action_access", mock
+    )
+    # The OAuth callback checks the attempt's user with `check_human`.
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.mcps.router.get_access_service",
+        lambda: HumanCheckFromWrapper(mock),
     )
     return mock
 

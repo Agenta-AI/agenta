@@ -30,6 +30,7 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.apis.fastapi.vault.router import SecretSafeRoute
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.service import get_access_service
 from oss.src.core.gateways.dtos import GatewayAuthScheme, GatewayEndpointNamespace
 from oss.src.core.gateways.egress import validate_egress_url_format
 from oss.src.core.gateways.mcps.dtos import (
@@ -808,12 +809,14 @@ class MCPGatewayRouter:
         # in the attempt's project, which they can have lost while consenting. Nothing
         # has been exchanged or written at this point, and nothing will be: the attempt
         # is spent, as any presented handle is, so the person reconnects from Agenta.
-        allowed = await check_action_access(
-            user_uid=str(attempt.user_id),
-            project_id=str(attempt.project_id),
-            permission=Permission.EDIT_MCP_ENDPOINTS,
+        # The callback runs without the auth middleware, so there is no request
+        # principal: check the attempt's user explicitly.
+        decision = await get_access_service().check_human(
+            user_id=UUID(str(attempt.user_id)),
+            project_id=UUID(str(attempt.project_id)),
+            action=Permission.EDIT_MCP_ENDPOINTS,
         )
-        if not allowed:
+        if not decision.allowed:
             return await fail(
                 403,
                 "You are no longer allowed to edit MCP endpoints in this project. "

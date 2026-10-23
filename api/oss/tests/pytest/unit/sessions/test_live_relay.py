@@ -6,6 +6,13 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
+
+from oss.tests.pytest.utils.principals import (
+    AllowingAccessService,
+    DenyingAccessService,
+    make_envelope,
+    make_request_access,
+)
 from fastapi import FastAPI, HTTPException, Request
 from orjson import dumps
 
@@ -424,12 +431,86 @@ async def test_events_route_disables_authenticated_response_storage():
     with (
         patch.object(env.sessions, "shared_reader", True),
         patch(
-            "oss.src.apis.fastapi.sessions.router.check_action_access",
-            new_callable=AsyncMock,
-            return_value=True,
+            "oss.src.apis.fastapi.sessions.router.get_request_access",
+            return_value=make_request_access(
+                envelope=make_envelope(), credential_kind="bearer_session"
+            ),
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.get_access_service",
+            return_value=AllowingAccessService(),
         ),
     ):
         response = await router.session_events(request=request, session_id="session-1")
 
     assert response.headers["cache-control"] == "no-store"
     await response.body_iterator.aclose()
+
+
+async def test_recheck_uses_captured_access_and_stops_after_removal():
+    """The live stream captures the request access at entry. Each recheck decides
+    for that access, also after the request's ContextVar is gone, and a removed
+    member's recheck is refused."""
+
+    from oss.src.apis.fastapi.sessions import router as router_module
+    from oss.src.core.access.context import reset_request_access, set_request_access
+
+    router = SessionStreamsRouter(
+        service=AsyncMock(),
+        interactions_service=AsyncMock(),
+        records_service=AsyncMock(),
+    )
+    project_id = uuid4()
+    access = make_request_access(
+        envelope=make_envelope(project_id=project_id), credential_kind="bearer_session"
+    )
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/sessions/session-1/events",
+            "headers": [],
+            "app": FastAPI(),
+        }
+    )
+    request.state.project_id = str(project_id)
+    request.state.user_id = str(access.acting_user_id)
+
+    services = {"now": AllowingAccessService()}
+    captured = {}
+
+    def _stream(**kwargs):
+        captured.update(kwargs)
+
+        async def _empty():
+            if False:
+                yield b""
+
+        return _empty()
+
+    token = set_request_access(access)
+    try:
+        with (
+            patch.object(env.sessions, "shared_reader", True),
+            patch.object(router_module, "live_event_stream", _stream),
+            patch.object(router_module, "get_access_service", lambda: _Proxy(services)),
+        ):
+            await router.session_events(request=request, session_id="session-1")
+    finally:
+        reset_request_access(token)
+
+    check = captured["authorization_check"]
+    assert await check() is True
+    services["now"] = DenyingAccessService()
+    assert await check() is False
+    seen = services["now"].decisions[-1]
+    assert seen["access"] == access
+    assert seen["project_id"] == project_id
+
+
+class _Proxy:
+    def __init__(self, services):
+        self._services = services
+
+    async def check_request(self, **kwargs):
+        return await self._services["now"].check_request(**kwargs)
