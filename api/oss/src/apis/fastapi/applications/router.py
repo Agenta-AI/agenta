@@ -93,6 +93,21 @@ from oss.src.resources.workflows.catalog import (
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.sharing.utils import (
+    allow_agent,
+    artifact_id_of,
+    visible_by_agent,
+)
+from oss.src.core.git.types import VariantForkError, VariantNotFound
+from oss.src.core.shared.exceptions import EntityCreationConflict
+
+
+def _variant_id_of(entity) -> Optional[UUID]:
+    return (
+        getattr(entity, "application_variant_id", None)
+        or getattr(entity, "workflow_variant_id", None)
+        or getattr(entity, "variant_id", None)
+    )
 
 
 log = get_module_logger(__name__)
@@ -416,6 +431,42 @@ class ApplicationsRouter:
 
     # APPLICATION CATALOG ------------------------------------------------------
 
+    async def _allow_variant_agent(
+        self,
+        request: Request,
+        *,
+        action: Permission,
+        application_variant_id: UUID,
+        unknown_allowed: bool = True,
+    ) -> bool:
+        """The policy of the agent a variant belongs to, read from the variant. An
+        unknown variant is allowed (the route's own not-found path answers), unless
+        `unknown_allowed` is False: a commit then answers `VariantNotFound` for an
+        unknown and a hidden variant alike."""
+        variant = await self.applications_service.fetch_application_variant(
+            project_id=UUID(request.state.project_id),
+            application_variant_ref=Reference(id=application_variant_id),
+        )
+        if variant is None:
+            return unknown_allowed
+        return await allow_agent(
+            request, action=action, artifact_id=artifact_id_of(variant)
+        )
+
+    async def _allow_revision_agent(
+        self, request: Request, *, action: Permission, application_revision_id: UUID
+    ) -> bool:
+        """The policy of the agent a revision belongs to, read from the revision."""
+        revision = await self.applications_service.fetch_application_revision(
+            project_id=UUID(request.state.project_id),
+            application_revision_ref=Reference(id=application_revision_id),
+        )
+        if revision is None:
+            return True
+        return await allow_agent(
+            request, action=action, artifact_id=artifact_id_of(revision)
+        )
+
     @intercept_exceptions()
     async def list_application_catalog_types(
         self,
@@ -623,6 +674,10 @@ class ApplicationsRouter:
             #
             application_ref=Reference(id=application_id),
         )
+        if application and not await allow_agent(
+            request, action=Permission.VIEW_APPLICATIONS, artifact_id=application.id
+        ):
+            application = None
 
         return ApplicationResponse(
             count=1 if application else 0,
@@ -658,6 +713,11 @@ class ApplicationsRouter:
                 detail="Application ID in path does not match application ID in request body.",
             )
 
+        if not await allow_agent(
+            request, action=Permission.EDIT_APPLICATIONS, artifact_id=application_id
+        ):
+            return ApplicationResponse(count=0, application=None)
+
         application = await self.applications_service.edit_application(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -692,6 +752,11 @@ class ApplicationsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if not await allow_agent(
+            request, action=Permission.EDIT_APPLICATIONS, artifact_id=application_id
+        ):
+            return ApplicationResponse(count=0, application=None)
+
         application = await self.applications_service.archive_application(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -723,6 +788,11 @@ class ApplicationsRouter:
             permission=Permission.EDIT_APPLICATIONS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if not await allow_agent(
+            request, action=Permission.EDIT_APPLICATIONS, artifact_id=application_id
+        ):
+            return ApplicationResponse(count=0, application=None)
 
         application = await self.applications_service.unarchive_application(
             project_id=UUID(request.state.project_id),
@@ -800,6 +870,15 @@ class ApplicationsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        artifact_id = artifact_id_of(
+            application_variant_create_request.application_variant
+        )
+        if not await allow_agent(
+            request, action=Permission.EDIT_APPLICATIONS, artifact_id=artifact_id
+        ):
+            # What a variant of an unknown application answers.
+            raise EntityCreationConflict(conflict={"artifact_id": str(artifact_id)})
+
         application_variant = await self.applications_service.create_application_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -839,6 +918,12 @@ class ApplicationsRouter:
             #
             application_variant_ref=Reference(id=application_variant_id),
         )
+        if application_variant and not await allow_agent(
+            request,
+            action=Permission.VIEW_APPLICATIONS,
+            artifact_id=artifact_id_of(application_variant),
+        ):
+            application_variant = None
 
         application_variant_response = ApplicationVariantResponse(
             count=1 if application_variant else 0,
@@ -877,6 +962,13 @@ class ApplicationsRouter:
                 detail="Application variant ID in path does not match application variant ID in request body.",
             )
 
+        if not await self._allow_variant_agent(
+            request,
+            action=Permission.EDIT_APPLICATIONS,
+            application_variant_id=application_variant_id,
+        ):
+            return ApplicationVariantResponse(count=0, application_variant=None)
+
         application_variant = await self.applications_service.edit_application_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -910,6 +1002,12 @@ class ApplicationsRouter:
             permission=Permission.EDIT_APPLICATIONS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await self._allow_variant_agent(
+            request,
+            action=Permission.EDIT_APPLICATIONS,
+            application_variant_id=application_variant_id,
+        ):
+            return ApplicationVariantResponse(count=0, application_variant=None)
 
         application_variant = (
             await self.applications_service.archive_application_variant(
@@ -941,6 +1039,12 @@ class ApplicationsRouter:
             permission=Permission.EDIT_APPLICATIONS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await self._allow_variant_agent(
+            request,
+            action=Permission.EDIT_APPLICATIONS,
+            application_variant_id=application_variant_id,
+        ):
+            return ApplicationVariantResponse(count=0, application_variant=None)
 
         application_variant = (
             await self.applications_service.unarchive_application_variant(
@@ -1064,6 +1168,19 @@ class ApplicationsRouter:
             if not application_variant_ref.id:
                 application_variant_ref = Reference(id=application_variant_id)
 
+        source = await self.applications_service.fetch_application_revision(
+            project_id=UUID(request.state.project_id),
+            application_variant_ref=application_variant_ref,
+            application_revision_ref=application_variant_fork_request.application_revision_ref,
+        )
+        if source and not await allow_agent(
+            request,
+            action=Permission.EDIT_APPLICATIONS,
+            artifact_id=artifact_id_of(source),
+        ):
+            # What a fork of an unknown source answers.
+            raise VariantForkError("Fork source variant could not be resolved.")
+
         application_variant = await self.applications_service.fork_application_variant(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -1142,6 +1259,12 @@ class ApplicationsRouter:
             application_variant_ref=application_deploy_request.application_variant_ref,
             application_revision_ref=application_deploy_request.application_revision_ref,
         )
+        if application_revision and not await allow_agent(
+            request,
+            action=Permission.EDIT_APPLICATIONS,
+            artifact_id=artifact_id_of(application_revision),
+        ):
+            application_revision = None
 
         if not application_revision:
             raise HTTPException(
@@ -1367,6 +1490,14 @@ class ApplicationsRouter:
             ),
         )
 
+        if application_revision and not await allow_agent(
+            request,
+            action=Permission.VIEW_APPLICATIONS,
+            artifact_id=artifact_id_of(application_revision),
+        ):
+            # What a retrieve of an unknown reference answers.
+            application_revision, resolution_info, retrieval_info = None, None, None
+
         if environment_lookup_requested and not application_revision:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1411,6 +1542,16 @@ class ApplicationsRouter:
             permission=Permission.EDIT_APPLICATIONS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
+        create_variant_id = _variant_id_of(
+            application_revision_create_request.application_revision
+        )
+        if create_variant_id and not await self._allow_variant_agent(
+            request,
+            action=Permission.EDIT_APPLICATIONS,
+            application_variant_id=create_variant_id,
+            unknown_allowed=False,
+        ):
+            raise VariantNotFound(variant_id=create_variant_id)
 
         application_revision = await self.applications_service.commit_application_revision(
             project_id=UUID(request.state.project_id),
@@ -1459,6 +1600,12 @@ class ApplicationsRouter:
                 application_revision_ref=Reference(id=application_revision_id),
             )
         )
+        if application_revision and not await allow_agent(
+            request,
+            action=Permission.VIEW_APPLICATIONS,
+            artifact_id=artifact_id_of(application_revision),
+        ):
+            application_revision = None
 
         response = ApplicationRevisionResponse(
             count=1 if application_revision else 0,
@@ -1506,6 +1653,13 @@ class ApplicationsRouter:
                 detail="Application revision ID in path does not match application revision ID in request body.",
             )
 
+        if not await self._allow_revision_agent(
+            request,
+            action=Permission.EDIT_APPLICATIONS,
+            application_revision_id=application_revision_id,
+        ):
+            return ApplicationRevisionResponse(count=0, application_revision=None)
+
         application_revision = await self.applications_service.edit_application_revision(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -1537,6 +1691,12 @@ class ApplicationsRouter:
             permission=Permission.EDIT_APPLICATIONS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await self._allow_revision_agent(
+            request,
+            action=Permission.EDIT_APPLICATIONS,
+            application_revision_id=application_revision_id,
+        ):
+            return ApplicationRevisionResponse(count=0, application_revision=None)
 
         application_revision = (
             await self.applications_service.archive_application_revision(
@@ -1566,6 +1726,12 @@ class ApplicationsRouter:
             permission=Permission.EDIT_APPLICATIONS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await self._allow_revision_agent(
+            request,
+            action=Permission.EDIT_APPLICATIONS,
+            application_revision_id=application_revision_id,
+        ):
+            return ApplicationRevisionResponse(count=0, application_revision=None)
 
         application_revision = (
             await self.applications_service.unarchive_application_revision(
@@ -1657,6 +1823,17 @@ class ApplicationsRouter:
             permission=Permission.EDIT_APPLICATIONS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
+        commit_variant_id = _variant_id_of(
+            application_revision_commit_request.application_revision
+        )
+        # The agent comes from the variant, never from the body's own application id.
+        if commit_variant_id and not await self._allow_variant_agent(
+            request,
+            action=Permission.EDIT_APPLICATIONS,
+            application_variant_id=commit_variant_id,
+            unknown_allowed=False,
+        ):
+            raise VariantNotFound(variant_id=commit_variant_id)
 
         application_revision = await self.applications_service.commit_application_revision(
             project_id=UUID(request.state.project_id),
@@ -1699,6 +1876,9 @@ class ApplicationsRouter:
             project_id=UUID(request.state.project_id),
             #
             application_revisions_log=application_revisions_log_request.application_revisions,
+        )
+        application_revisions = await visible_by_agent(
+            request, application_revisions, action=Permission.VIEW_APPLICATIONS
         )
 
         revisions_response = ApplicationRevisionsResponse(
@@ -1759,6 +1939,12 @@ class ApplicationsRouter:
             return ApplicationRevisionResolveResponse()
 
         application_revision, resolution_info = result
+        if application_revision and not await allow_agent(
+            request,
+            action=Permission.VIEW_APPLICATIONS,
+            artifact_id=artifact_id_of(application_revision),
+        ):
+            return ApplicationRevisionResolveResponse()
         retrieval_info = None
         if application_revision_resolve_request.application_revision is None:
             retrieval_info = build_retrieval_info(
@@ -1919,6 +2105,10 @@ class SimpleApplicationsRouter:
             #
             application_id=application_id,
         )
+        if simple_application and not await allow_agent(
+            request, action=Permission.VIEW_APPLICATIONS, artifact_id=application_id
+        ):
+            simple_application = None
 
         # Build the read-only playground overlay defensively: this handler returns a controlled
         # default on error (``@suppress_exceptions``), so letting overlay synthesis raise would
@@ -1979,6 +2169,11 @@ class SimpleApplicationsRouter:
                 detail="Application ID in path does not match application ID in request body.",
             )
 
+        if not await allow_agent(
+            request, action=Permission.EDIT_APPLICATIONS, artifact_id=application_id
+        ):
+            return SimpleApplicationResponse(count=0, application=None)
+
         # TEMPORARY: Disabling name editing
         simple_application = await self.simple_applications_service.edit(
             project_id=UUID(request.state.project_id),
@@ -2014,6 +2209,11 @@ class SimpleApplicationsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        if not await allow_agent(
+            request, action=Permission.EDIT_APPLICATIONS, artifact_id=application_id
+        ):
+            return SimpleApplicationResponse(count=0, application=None)
+
         simple_application = await self.simple_applications_service.archive(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -2046,6 +2246,11 @@ class SimpleApplicationsRouter:
             permission=Permission.EDIT_APPLICATIONS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
+
+        if not await allow_agent(
+            request, action=Permission.EDIT_APPLICATIONS, artifact_id=application_id
+        ):
+            return SimpleApplicationResponse(count=0, application=None)
 
         simple_application = await self.simple_applications_service.unarchive(
             project_id=UUID(request.state.project_id),

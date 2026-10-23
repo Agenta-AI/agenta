@@ -38,6 +38,7 @@ from oss.src.core.sharing.dtos import (
     CachedAgentAccess,
     CachedSessionAccess,
     CachedUserGrants,
+    SessionGrant,
     SessionReadScope,
     SessionRole,
     SharedItemKind,
@@ -254,6 +255,19 @@ class SharingService(ResourcePolicyInterface):
             granted_stream_ids=[
                 g.stream_id for g in grants if g.owner_user_id in active_owners
             ],
+        )
+
+    async def list_session_grants(
+        self,
+        *,
+        project_id: UUID,
+        stream_id: UUID,
+    ) -> List[SessionGrant]:
+        """The session's grants, from the DAO (uncached): what a session delete reads
+        before the delete, so it can clear the grantees' cache entries after it."""
+
+        return await self._dao.list_session_grants(
+            project_id=project_id, stream_id=stream_id
         )
 
     # -- cached readers -------------------------------------------------------------------

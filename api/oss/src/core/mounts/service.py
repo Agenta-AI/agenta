@@ -27,6 +27,7 @@ from oss.src.core.mounts.dtos import (
     MountFileWritten,
     MountFolderCreated,
     MountQuery,
+    MountScope,
 )
 from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.store.dtos import StoreObject
@@ -51,6 +52,7 @@ from oss.src.core.mounts.types import (
     MountStorageUnavailable,
 )
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -863,6 +865,43 @@ class MountsService:
         if mount and is_protected_mount(mount):
             return None
         return mount
+
+    async def fetch_mount_scope(
+        self,
+        *,
+        project_id: UUID,
+        #
+        mount_id: UUID,
+    ) -> Optional[MountScope]:
+        """The session and agent the mount belongs to, for the sharing check of a route
+        that names a mount by id. Both are set at creation and never change, so the
+        `mount_scope` cache needs no invalidation; a deleted mount is answered by the
+        route's own not-found path. None: no such mount (never cached)."""
+
+        key = {"m": str(mount_id)}
+        cached = await get_cache(
+            namespace="mount_scope",
+            project_id=str(project_id),
+            key=key,
+            model=MountScope,
+        )
+        if cached is not None:
+            return cached
+
+        mount = await self.mounts_dao.fetch_mount(
+            project_id=project_id,
+            mount_id=mount_id,
+        )
+        if mount is None:
+            return None
+        scope = MountScope(session_id=mount.session_id, agent_id=mount.agent_id)
+        await set_cache(
+            namespace="mount_scope",
+            project_id=str(project_id),
+            key=key,
+            value=scope,
+        )
+        return scope
 
     async def fetch_agent_mount(
         self,

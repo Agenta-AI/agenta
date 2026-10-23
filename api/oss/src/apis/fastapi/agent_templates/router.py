@@ -5,7 +5,9 @@ from fastapi.responses import JSONResponse
 
 from oss.src.apis.fastapi.sharing.utils import (
     agent_creation_failed_exception,
+    allow_resource,
     policy_for_request,
+    session_resource,
 )
 from oss.src.core.sharing.dtos import SharedItemKind
 from oss.src.core.sharing.types import AgentCreationFailed
@@ -37,7 +39,10 @@ from oss.src.core.agent_templates.dtos import (
     TemplateValidationResult,
     UploadTemplateSource,
 )
-from oss.src.core.agent_templates.exceptions import TemplateSourceNotFound
+from oss.src.core.agent_templates.exceptions import (
+    TemplatePackageInvalid,
+    TemplateSourceNotFound,
+)
 from oss.src.core.agent_templates.github import GitHubPackageFetcher
 from oss.src.core.agent_templates.loader import AgentTemplateLoader
 from oss.src.core.agent_templates.validation import AgentTemplateValidator
@@ -57,6 +62,28 @@ def _source_permissions(source: TemplateSource) -> list[Permission]:
     if isinstance(source, SessionFileTemplateSource):
         return [Permission.VIEW_SESSIONS, Permission.VIEW_MOUNTS]
     return []
+
+
+async def _hidden_source_error(
+    request: Request, source: TemplateSource
+) -> Exception | None:
+    """The error a session-backed source answers when its session is hidden from the
+    caller: the same `TemplateSourceNotFound` an unknown session gives."""
+    if isinstance(source, UploadTemplateSource):
+        if not await allow_resource(
+            request,
+            action=Permission.VIEW_SESSIONS,
+            resource=session_resource(source.staging_session_id),
+        ):
+            return TemplateSourceNotFound(f"upload:{source.attachment_id}")
+    if isinstance(source, SessionFileTemplateSource):
+        if not await allow_resource(
+            request,
+            action=Permission.VIEW_MOUNTS,
+            resource=session_resource(source.session_id),
+        ):
+            return TemplateSourceNotFound(f"session_file:{source.path}")
+    return None
 
 
 def _source_log(source: TemplateSource) -> dict[str, str]:
@@ -260,6 +287,9 @@ class AgentTemplatesRouter:
         if self._validator is None:
             raise RuntimeError("Template validation is not configured.")
         try:
+            hidden = await _hidden_source_error(request, payload.source)
+            if hidden is not None:
+                raise hidden
             result = await self._validator.validate(
                 project_id=project_id,
                 source=payload.source,
@@ -324,6 +354,23 @@ class AgentTemplatesRouter:
             request, kind=SharedItemKind.AGENT, requested=payload.visibility
         )
         try:
+            hidden = await _hidden_source_error(request, payload.source)
+            if hidden is not None:
+                raise hidden
+            if (
+                payload.attachment_ids
+                and payload.staging_session_id
+                and not await allow_resource(
+                    request,
+                    action=Permission.VIEW_SESSIONS,
+                    resource=session_resource(payload.staging_session_id),
+                )
+            ):
+                # What the loader answers for attachments of an unknown session.
+                raise TemplatePackageInvalid(
+                    "attachment_source_invalid",
+                    "A staged attachment is unavailable in this project and session.",
+                )
             result = await self._loader.load(
                 project_id=project_id,
                 user_id=user_id,

@@ -1,9 +1,24 @@
-from typing import Optional
+from enum import Enum
+from typing import Any, Optional, Union
 from uuid import UUID
 
 from fastapi import HTTPException, Request
 
-from oss.src.core.access.dtos import RunOrigin
+from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.core.access.context import get_request_access
+from oss.src.core.access.dtos import (
+    Decision,
+    DecisionReason,
+    RequestAccess,
+    ResourceKind,
+    ResourceRef,
+    RunOrigin,
+)
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.principals import access_denied_error
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import RequestAccessMissing
+from oss.src.core.mounts.dtos import MountScope
 from oss.src.core.sharing.dtos import (
     OWNERLESS_PROJECT_POLICY,
     AccessPolicy,
@@ -16,6 +31,219 @@ from oss.src.core.sharing.service import get_sharing_service
 from oss.src.core.sharing.types import AgentCreationFailed
 from oss.src.core.tools.dtos import AgentError
 from oss.src.middlewares.auth import request_run_envelope
+
+
+# The one answer of every hiding refusal on the new sharing routes and the heartbeat:
+# a private session or agent, and an unknown, archived or foreign-project reference.
+# Existing routes answer what they answer for an unknown id instead.
+NOT_FOUND_ERROR = AgentError(code="not_found", message="Not found.", retryable=False)
+
+
+def not_found_exception() -> HTTPException:
+    return HTTPException(
+        status_code=404,
+        detail=NOT_FOUND_ERROR.model_dump(exclude_none=True),
+    )
+
+
+class ResourceCheck(str, Enum):
+    """The outcome of one resource check at a route.
+
+    ALLOWED: go on. HIDDEN: the caller may not read the item; answer what the route
+    answers for an unknown id. FORBIDDEN: the caller may read the item but not do the
+    action; answer 403 `access_denied` (`resource_denied`). NO_CAPABILITY: the caller's
+    role does not allow the action at all; answer today's `FORBIDDEN_EXCEPTION`."""
+
+    ALLOWED = "allowed"
+    HIDDEN = "hidden"
+    FORBIDDEN = "forbidden"
+    NO_CAPABILITY = "no_capability"
+
+
+# The read action of each resource kind: a caller that fails it cannot know the item.
+_VIEW_ACTIONS = {
+    ResourceKind.SESSION: Permission.VIEW_SESSIONS,
+    ResourceKind.AGENT: Permission.VIEW_WORKFLOWS,
+}
+
+
+def session_resource(session_id: str) -> ResourceRef:
+    return ResourceRef(kind=ResourceKind.SESSION, id=str(session_id))
+
+
+def agent_resource(artifact_id: Union[UUID, str]) -> ResourceRef:
+    return ResourceRef(kind=ResourceKind.AGENT, id=str(artifact_id))
+
+
+async def check_resource_for(
+    *,
+    access: RequestAccess,
+    action: Permission,
+    project_id: UUID,
+    resource: ResourceRef,
+) -> ResourceCheck:
+    """`check_resource` for a request access captured earlier (the live stream
+    recheck runs outside the request's context)."""
+
+    access_service = get_access_service()
+    decision = await access_service.check_request(
+        access=access,
+        action=action,
+        project_id=project_id,
+        resource=resource,
+    )
+    if decision.allowed:
+        return ResourceCheck.ALLOWED
+    if decision.reason != DecisionReason.RESOURCE_DENIED:
+        return ResourceCheck.NO_CAPABILITY
+
+    view_action = _VIEW_ACTIONS[resource.kind]
+    if action == view_action:
+        return ResourceCheck.HIDDEN
+    view = await access_service.check_request(
+        access=access,
+        action=view_action,
+        project_id=project_id,
+        resource=resource,
+    )
+    return ResourceCheck.FORBIDDEN if view.allowed else ResourceCheck.HIDDEN
+
+
+async def check_resource(
+    request: Request,
+    *,
+    action: Permission,
+    resource: ResourceRef,
+) -> ResourceCheck:
+    """One decision for the request's principal on one agent or session. The project
+    is always the request's: a browser session (Bearer) has no authority, so the
+    decision cannot take the project from it. A missing row is ALLOWED (the route's
+    own not-found path answers)."""
+
+    access = get_request_access()
+    if access is None:
+        raise RequestAccessMissing()
+    return await check_resource_for(
+        access=access,
+        action=action,
+        project_id=UUID(str(request.state.project_id)),
+        resource=resource,
+    )
+
+
+def resource_denied_exception(request: Request) -> HTTPException:
+    """403 `access_denied` with `details.reason = "resource_denied"`: the caller may
+    read the item but not do this action on it."""
+
+    access = get_request_access()
+    return HTTPException(
+        status_code=403,
+        detail=access_denied_error(
+            decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
+            principal_kind=access.principal.kind,
+            project_id=UUID(str(request.state.project_id)),
+        ).model_dump(exclude_none=True),
+    )
+
+
+async def allow_resource(
+    request: Request,
+    *,
+    action: Permission,
+    resource: ResourceRef,
+) -> bool:
+    """True when the request may do `action` on the resource. False when the item is
+    hidden from the caller: the route then answers exactly what it answers for an
+    unknown id. Raises 403 `access_denied` (FORBIDDEN) or today's
+    `FORBIDDEN_EXCEPTION` (NO_CAPABILITY)."""
+
+    check = await check_resource(request, action=action, resource=resource)
+    if check == ResourceCheck.ALLOWED:
+        return True
+    if check == ResourceCheck.HIDDEN:
+        return False
+    if check == ResourceCheck.FORBIDDEN:
+        raise resource_denied_exception(request)
+    raise FORBIDDEN_EXCEPTION
+
+
+def artifact_id_of(entity: Any) -> Optional[UUID]:
+    """The agent (artifact) id a workflow, application or evaluator variant or
+    revision belongs to; the id itself for an artifact."""
+    for name in ("workflow_id", "application_id", "evaluator_id", "artifact_id"):
+        value = getattr(entity, name, None)
+        if value is not None:
+            return value
+    return None
+
+
+async def allow_agent(
+    request: Request,
+    *,
+    action: Permission,
+    artifact_id: Optional[Union[UUID, str]],
+) -> bool:
+    """`allow_resource` on an agent (rules A1, A2). The rules do not depend on the
+    action, so a route passes its own permission and its capability check is
+    unchanged; an agent is either visible or hidden, never FORBIDDEN. No artifact id
+    names no agent."""
+    if artifact_id is None:
+        return True
+    return await allow_resource(
+        request, action=action, resource=agent_resource(artifact_id)
+    )
+
+
+async def visible_by_agent(
+    request: Request, items: list, *, action: Permission
+) -> list:
+    """The items (variants or revisions) whose agent the caller may read, one
+    cached check per agent."""
+    visible: dict = {}
+    kept = []
+    for item in items:
+        artifact_id = artifact_id_of(item)
+        if artifact_id not in visible:
+            visible[artifact_id] = await allow_agent(
+                request, action=action, artifact_id=artifact_id
+            )
+        if visible[artifact_id]:
+            kept.append(item)
+    return kept
+
+
+async def allow_mount(
+    request: Request,
+    *,
+    scope: Optional[MountScope],
+    permission: Permission,
+) -> bool:
+    """`allow_resource` for a mount, with the route's mounts `permission`. A session
+    mount follows its session: reading (`VIEW_MOUNTS`) is rule S1, writing and signing
+    are rule S2 (`RUN_SESSIONS`). An agent mount follows its agent (rules A1, A2, which
+    do not depend on the action, so the route's own permission is the action). A
+    project mount, and an unknown mount (`scope` None: the route's own not-found path
+    answers), are allowed."""
+
+    if scope is None:
+        return True
+    if scope.session_id:
+        return await allow_resource(
+            request,
+            action=(
+                Permission.VIEW_MOUNTS
+                if permission == Permission.VIEW_MOUNTS
+                else Permission.RUN_SESSIONS
+            ),
+            resource=session_resource(scope.session_id),
+        )
+    if scope.agent_id:
+        return await allow_resource(
+            request,
+            action=permission,
+            resource=agent_resource(scope.agent_id),
+        )
+    return True
 
 
 def policy_for_request(

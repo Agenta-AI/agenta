@@ -69,3 +69,30 @@ def _stub_event_publishing(request, monkeypatch):
         _noop_publish,
         raising=False,
     )
+
+
+@pytest.fixture(autouse=True)
+def _allow_resource_checks(request, monkeypatch):
+    """Route tests that are not about sharing run with every agent and session
+    allowed: the routes' resource checks answer ALLOWED, and the capability checks
+    (`check_action_access`, which those tests stub) decide as before.
+
+    Tests of the resource checks themselves opt out with
+    `@pytest.mark.real_resource_checks`.
+    """
+    if request.node.get_closest_marker("real_resource_checks"):
+        return
+
+    from oss.src.apis.fastapi.sharing.utils import ResourceCheck  # noqa: PLC0415
+
+    async def _allowed(*_args, **_kwargs):
+        return ResourceCheck.ALLOWED
+
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.sharing.utils.check_resource", _allowed, raising=False
+    )
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.sessions.router.check_resource_for",
+        _allowed,
+        raising=False,
+    )

@@ -79,6 +79,10 @@ from oss.src.core.sessions.streams.runner_client import kill_runner_sandbox
 from oss.src.core.sessions.types import SessionReference
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.sharing.dtos import AccessPolicy, SessionReadScope
+from oss.src.core.sharing.service import (
+    get_sharing_service,
+    invalidate_sharing_caches,
+)
 
 log = get_module_logger(__name__)
 
@@ -1107,13 +1111,34 @@ class SessionStreamsService:
         session_id: str,
     ) -> bool:
         """Hard delete the merged stream row (S7 delete fan-out, WP5). Distinct
-        from `kill`, which only soft-deletes via `delete_by_session_id`."""
+        from `kill`, which only soft-deletes via `delete_by_session_id`.
+
+        The grants go with the row (foreign key cascade), so the grantees are read
+        first; after the delete the session's policy entry and the grantees' grant
+        entries are cleared, so the deleted session leaves every cached read."""
         _validate_session_id(session_id)
+        sharing = get_sharing_service()
+        stream = await self._dao.get_by_session_id_including_archived(
+            project_id=project_id,
+            session_id=session_id,
+        )
+        grants = (
+            await sharing.list_session_grants(
+                project_id=project_id, stream_id=stream.id
+            )
+            if stream is not None
+            else []
+        )
         deleted = await self._dao.hard_delete_by_session_id(
             project_id=project_id,
             session_id=session_id,
         )
         if deleted:
+            await invalidate_sharing_caches(
+                project_id=project_id,
+                session_ids=[session_id],
+                grant_user_ids=[grant.user_id for grant in grants],
+            )
             await self._publish_changed(project_id=project_id, session_id=session_id)
         return deleted
 
