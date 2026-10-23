@@ -1173,6 +1173,9 @@ class SessionCommandsService:
                 "continuation resume delivery failed command=%s: %s", command.id, error
             )
             receipt = None
+        if receipt is not None and receipt.status == "refused":
+            # Settled terminally (missing envelope or access refused): nothing resumed.
+            return None
         if receipt is None or receipt.status != "accepted":
             await self._mark_continuation_recoverable(admission, receipt)
         return execution_id

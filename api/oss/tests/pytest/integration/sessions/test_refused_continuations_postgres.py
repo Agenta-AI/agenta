@@ -346,3 +346,36 @@ async def test_api_key_run_approved_by_human_records_approver_kind(command_scope
     assert resumed.sender is None
     assert resumed.approved_by == approval
     assert resumed.context.run_id == admission.execution_id
+
+
+async def test_resume_of_a_refused_continuation_reports_not_resumed(
+    command_scope,  # noqa: F811
+):
+    """A continuation queued before M2 (no envelope), resumed by the user's next
+    action, is settled `missing_envelope` and the route reports `resumed: false`."""
+
+    command, execution_id, _, executions, commands = await _queued_input(
+        command_scope, envelope=None
+    )
+    await executions.set_state(
+        project_id=command_scope["project_id"],
+        session_id=command_scope["session_id"],
+        execution_id=execution_id,
+        state=SessionExecutionState.recoverable,
+    )
+
+    resumed = await _service(
+        command_scope, continue_input=_missing
+    ).resume_recoverable_continuation(
+        project_id=command_scope["project_id"],
+        session_id=command_scope["session_id"],
+    )
+
+    assert resumed is None
+    execution = await executions.fetch_execution(
+        project_id=command_scope["project_id"],
+        session_id=command_scope["session_id"],
+        execution_id=execution_id,
+    )
+    assert execution.state == SessionExecutionState.terminal
+    assert execution.error["code"] == "missing_envelope"
