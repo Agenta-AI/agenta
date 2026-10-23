@@ -35,9 +35,14 @@ from oss.src.utils.exceptions import (
 )
 
 from oss.src.core.auth.service import AuthService
-from oss.src.core.access.context import reset_request_access, set_request_access
+from oss.src.core.access.context import (
+    get_request_memo,
+    reset_request_access,
+    set_request_access,
+)
 from oss.src.core.access.dtos import (
     PrincipalKind,
+    PrincipalRecord,
     PrincipalRef,
     RequestAccess,
     RequestCredentialKind,
@@ -366,6 +371,10 @@ async def auth_middleware(request: Request, call_next):
             access = _build_request_access_from_state(request)
             if access is not None:
                 access_token = set_request_access(access)
+                record = getattr(request.state, "principal_record", None)
+                memo = get_request_memo()
+                if record is not None and memo is not None:
+                    memo[("principal", record.principal)] = record
 
         response = await call_next(request)
 
@@ -1325,6 +1334,16 @@ async def verify_apikey_token(
             request,
             principal=PrincipalRef(kind=PrincipalKind.API_KEY, id=UUID(api_key_id)),
             credential_kind=RequestCredentialKind.API_KEY,
+        )
+        # The key row was just read (with its creator): its principal record goes into
+        # the request memo, so a cold decision of this request does not read
+        # `api_keys` again. The same fields as `PrincipalsDAO` maps.
+        request.state.principal_record = PrincipalRecord(
+            principal=PrincipalRef(kind=PrincipalKind.API_KEY, id=UUID(api_key_id)),
+            project_id=api_key_obj.project_id,
+            acting_user_id=api_key_obj.created_by_id,
+            is_active=api_key_obj.created_by_id is not None,
+            expires_at=getattr(api_key_obj, "expiration_date", None),
         )
 
     except Exception as exc:

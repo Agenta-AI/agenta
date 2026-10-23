@@ -118,19 +118,42 @@ async def test_start_and_process_set_caller():
     )
     service = _simple(evaluations)
 
-    # An explicit start: the run executes as the caller from now on.
-    service.fetch = AsyncMock(return_value=None)
+    # An explicit start: the run executes as the caller from now on, set in the
+    # activation UPDATE (no separate principal write).
+    service.fetch = AsyncMock(
+        return_value=SimpleNamespace(
+            id=run.id,
+            flags=SimpleNamespace(is_live=False),
+            data=SimpleNamespace(query_steps=None),
+        )
+    )
+    service._activate_evaluation_run = AsyncMock(return_value=None)
+    await service.start(
+        project_id=uuid4(), user_id=caller.id, evaluation_id=run.id, principal=caller
+    )
+    assert service._activate_evaluation_run.await_args.kwargs["principal"] == caller
+    evaluations.set_run_principal.assert_not_awaited()
+
+    # A live start without query steps activates nothing: its own principal write.
+    service.fetch = AsyncMock(
+        return_value=SimpleNamespace(
+            id=run.id,
+            flags=SimpleNamespace(is_live=True),
+            data=SimpleNamespace(query_steps=None),
+        )
+    )
     await service.start(
         project_id=uuid4(), user_id=caller.id, evaluation_id=run.id, principal=caller
     )
     assert evaluations.set_run_principal.await_args.kwargs["principal"] == caller
 
-    # An explicit rerun (process): the same.
+    # An explicit rerun (process): the principal rides the re-activation UPDATE.
     evaluations.set_run_principal.reset_mock()
     await service.dispatch_run_slice(
         project_id=uuid4(), user_id=caller.id, run_id=run.id, principal=caller
     )
-    assert evaluations.set_run_principal.await_args.kwargs["principal"] == caller
+    assert evaluations.edit_run.await_args.kwargs["principal"] == caller
+    evaluations.set_run_principal.assert_not_awaited()
 
 
 async def test_edit_and_refresh_keep_principal():

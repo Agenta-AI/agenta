@@ -820,6 +820,7 @@ class EvaluationsService:
         user_id: UUID,
         #
         run: EvaluationRunEdit,
+        principal: Optional[PrincipalRef] = None,
     ) -> Optional[EvaluationRun]:
         run.version = CURRENT_VERSION
 
@@ -833,6 +834,7 @@ class EvaluationsService:
             user_id=user_id,
             #
             run=run,
+            **({"principal": principal} if principal is not None else {}),
         )
         if edited_run:
             edited_run = await self._reconcile_run(
@@ -2715,13 +2717,6 @@ class SimpleEvaluationsService:
         """`principal` is set by an explicit start (the route passes the caller); an
         edit's internal restart passes None, which keeps the stored principal."""
         try:
-            if principal is not None:
-                await self.evaluations_service.set_run_principal(
-                    project_id=project_id,
-                    run_id=evaluation_id,
-                    principal=principal,
-                    user_id=user_id,
-                )
             _evaluation = await self.fetch(
                 project_id=project_id,
                 #
@@ -2737,6 +2732,19 @@ class SimpleEvaluationsService:
             if not _evaluation.data:
                 _evaluation.data = SimpleEvaluationData()
 
+            # An explicit start sets the principal in the activation UPDATE below. A
+            # start that activates nothing (a live run without query steps) sets it
+            # with its own UPDATE.
+            if principal is not None and not (
+                not _evaluation.flags.is_live or _evaluation.data.query_steps
+            ):
+                await self.evaluations_service.set_run_principal(
+                    project_id=project_id,
+                    run_id=evaluation_id,
+                    principal=principal,
+                    user_id=user_id,
+                )
+
             if _evaluation.flags.is_live and _evaluation.data.query_steps:
                 run = await self._activate_evaluation_run(
                     project_id=project_id,
@@ -2745,6 +2753,7 @@ class SimpleEvaluationsService:
                     run_id=_evaluation.id,
                     #
                     just_created=just_created,
+                    principal=principal,
                 )
 
                 if not run or not run.id:
@@ -2763,6 +2772,7 @@ class SimpleEvaluationsService:
                     run_id=_evaluation.id,
                     #
                     just_created=just_created,
+                    principal=principal,
                 )
 
                 if not run or not run.id:
@@ -3010,13 +3020,6 @@ class SimpleEvaluationsService:
             )
             return False
 
-        await self.evaluations_service.set_run_principal(
-            project_id=project_id,
-            run_id=run_id,
-            principal=principal,
-            user_id=user_id,
-        )
-
         # Re-activate the run before dispatching: the slice re-executes scenarios
         # (e.g. a newly added evaluator over existing outputs), so the run is genuinely
         # running again. Set it synchronously here so the status is visible the moment the
@@ -3042,6 +3045,8 @@ class SimpleEvaluationsService:
                 #
                 data=run.data,
             ),
+            # The rerun's principal, in this same UPDATE.
+            principal=principal,
         )
 
         # Mirror the re-activation at the scenario level so per-scenario status indicators
@@ -4114,6 +4119,7 @@ class SimpleEvaluationsService:
         run_id: UUID,
         #
         just_created: Optional[bool] = None,
+        principal: Optional[PrincipalRef] = None,
     ) -> Optional[EvaluationRun]:
         run = await self.evaluations_service.fetch_run(
             project_id=project_id,
@@ -4153,6 +4159,7 @@ class SimpleEvaluationsService:
                 #
                 data=run.data,
             ),
+            **({"principal": principal} if principal is not None else {}),
         )
 
         return run

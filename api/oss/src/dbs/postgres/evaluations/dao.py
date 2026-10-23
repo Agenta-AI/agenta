@@ -346,6 +346,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         user_id: UUID,
         #
         run: EvaluationRunEdit,
+        principal: Optional[PrincipalRef] = None,
     ) -> Optional[EvaluationRun]:
         async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
@@ -396,6 +397,12 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             if run.data:
                 run_dbe.data = run.data.model_dump(mode="json")  # type: ignore
+
+            # An explicit start sets the principal in this same UPDATE.
+            if principal is not None:
+                run_dbe.principal_kind = principal.kind.value
+                run_dbe.principal_id = principal.id
+                run_dbe.principal_user_id = user_id
 
             await session.commit()
 
