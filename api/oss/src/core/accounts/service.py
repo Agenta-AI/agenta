@@ -16,6 +16,12 @@ from uuid import UUID
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.memberships.service import invalidate_access_caches
+from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
+from oss.src.core.access.service import (
+    invalidate_principals_after_write,
+    invalidate_user_after_delete,
+    read_user_principals_before_delete,
+)
 from oss.src.services.api_key_service import create_api_key as _create_raw_api_key
 from oss.src.services.db_manager import (
     admin_get_user_by_id as _db_get_user_by_id,
@@ -1093,6 +1099,10 @@ class PlatformAdminAccountsService:
                     tombstone_ids.append(tombstone.id)
 
             member_organization_ids = await _member_organization_ids(user_ids=user_ids)
+            principals_snapshots = [
+                await read_user_principals_before_delete(user_id=user_id)
+                for user_id in user_ids
+            ]
             await _db_delete_accounts_batch(
                 org_ids=org_ids,
                 workspace_ids=workspace_ids,
@@ -1107,6 +1117,8 @@ class PlatformAdminAccountsService:
                     o for o in member_organization_ids if o not in set(org_ids)
                 ],
             )
+            for snapshot in principals_snapshots:
+                await invalidate_user_after_delete(snapshot=snapshot)
         except Exception:
             if tombstone_ids:
                 await _ee_discard_account_tombstones(tombstone_ids=tombstone_ids)
@@ -1601,6 +1613,9 @@ class PlatformAdminAccountsService:
         try:
             # Remove EE membership records before deleting the user to avoid FK violations
             member_organization_ids = await _member_organization_ids(user_ids=[uid])
+            # Keys, bindings and projects of the user, read before the delete, so the
+            # cached principals of a deleted user stop working at the next decision.
+            principals_snapshot = await read_user_principals_before_delete(user_id=uid)
             if is_ee():
                 await _ee_delete_user_memberships(uid)
 
@@ -1611,6 +1626,7 @@ class PlatformAdminAccountsService:
                     o for o in member_organization_ids if o not in set(deleted_org_ids)
                 ],
             )
+            await invalidate_user_after_delete(snapshot=principals_snapshot)
         except Exception:
             if tombstone_ids:
                 await _ee_discard_account_tombstones(tombstone_ids=tombstone_ids)
@@ -1870,6 +1886,10 @@ class PlatformAdminAccountsService:
             raise AdminApiKeyNotFoundError(api_key_id)
 
         await _db_delete_api_key(kid)
+        await invalidate_principals_after_write(
+            principals=[PrincipalRef(kind=PrincipalKind.API_KEY, id=kid)],
+            source="accounts.delete_api_key",
+        )
         deleted = AdminDeletedEntities(api_keys=[AdminDeletedEntity(id=api_key_id)])
         return AdminDeleteResponse(dry_run=False, deleted=deleted)
 

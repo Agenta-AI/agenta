@@ -53,6 +53,8 @@ from oss.src.core.channels.dtos import (
     ChannelTriggerState,
     ChannelTurnInput,
 )
+from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
+from oss.src.core.access.service import invalidate_principals_after_write
 from oss.src.core.channels.fill import select_forwardfill_range
 from oss.src.core.channels.interfaces import ChannelsDAOInterface
 from oss.src.core.channels.types import (
@@ -104,6 +106,48 @@ class ChannelsService:
         # write path keeps constructing: only create/edit-with-credentials
         # and archive-cascade need it.
         self.vault_service = vault_service
+
+    # --- principal invalidation ------------------------------------------------ #
+    #
+    # A binding is an `installation` principal. `decide` reads it through the
+    # `fetch_principal` cache, so every write that can make a binding active or
+    # inactive clears the binding's entry after the write. Ids are read before it.
+
+    async def _connection_binding_ids(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+    ) -> List[UUID]:
+        try:
+            agents = await self.channels_dao.query_agents(
+                project_id=project_id,
+                agent=ChannelAgentQuery(
+                    connection_id=connection_id, include_archived=True
+                ),
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.warning(
+                "[channels] binding ids read failed",
+                project_id=str(project_id),
+                connection_id=str(connection_id),
+            )
+            return []
+        return [agent.id for agent in agents]
+
+    async def _invalidate_bindings(
+        self,
+        *,
+        binding_ids: List[UUID],
+        source: str,
+    ) -> None:
+        await invalidate_principals_after_write(
+            principals=[
+                PrincipalRef(kind=PrincipalKind.INSTALLATION, id=binding_id)
+                for binding_id in binding_ids
+            ],
+            source=source,
+        )
 
     # --- connections ---------------------------------------------------------- #
 
@@ -461,6 +505,9 @@ class ChannelsService:
             connection.credentials = None
 
             if existing_connection is not None:
+                binding_ids = await self._connection_binding_ids(
+                    project_id=project_id, connection_id=existing_connection.id
+                )
                 # A reinstall restores service -- is_active resets to true even
                 # if `app_uninstalled` had flipped it off since the last install.
                 edited = await self.channels_dao.edit_connection(
@@ -485,6 +532,9 @@ class ChannelsService:
                     raise ChannelConnectionNotFound(
                         connection_id=existing_connection.id
                     )
+                await self._invalidate_bindings(
+                    binding_ids=binding_ids, source="channels.install_connection"
+                )
                 if edited.deleted_at is not None:
                     restored = await self.unarchive_connection(
                         project_id=project_id,
@@ -537,7 +587,10 @@ class ChannelsService:
         if existing is None:
             return None
 
-        return await self.channels_dao.edit_connection(
+        binding_ids = await self._connection_binding_ids(
+            project_id=project_id, connection_id=connection_id
+        )
+        edited = await self.channels_dao.edit_connection(
             project_id=project_id,
             user_id=existing.updated_by_id or existing.created_by_id,
             connection=ChannelConnectionEdit(
@@ -551,6 +604,10 @@ class ChannelsService:
                 flags=existing.flags.model_copy(update={"is_active": False}),
             ),
         )
+        await self._invalidate_bindings(
+            binding_ids=binding_ids, source="channels.deactivate_connection"
+        )
+        return edited
 
     async def describe_connection_teardown(
         self,
@@ -725,6 +782,17 @@ class ChannelsService:
                 channel=existing.channel, slug=connection.slug, error=e
             ) from e
 
+        # Only a change of `flags.is_active` changes whether the bindings are active.
+        if edited is not None and bool(edited.flags.is_active) != bool(
+            existing.flags.is_active
+        ):
+            await self._invalidate_bindings(
+                binding_ids=await self._connection_binding_ids(
+                    project_id=project_id, connection_id=existing.id
+                ),
+                source="channels.edit_connection",
+            )
+
         # A credential rotation re-verifies and stores the new token, but the
         # platform still points at the old one until we re-register. Telegram's
         # setWebhook is the only WRITE-time platform call, so a rotated bot token
@@ -869,12 +937,19 @@ class ChannelsService:
         log untouched -- the transcript stays readable in web because
         sessions are never touched at all."""
 
-        return await self.channels_dao.archive_connection(
+        binding_ids = await self._connection_binding_ids(
+            project_id=project_id, connection_id=connection_id
+        )
+        archived = await self.channels_dao.archive_connection(
             project_id=project_id,
             user_id=user_id,
             #
             connection_id=connection_id,
         )
+        await self._invalidate_bindings(
+            binding_ids=binding_ids, source="channels.archive_connection"
+        )
+        return archived
 
     async def unarchive_connection(
         self,
@@ -884,12 +959,19 @@ class ChannelsService:
         #
         connection_id: UUID,
     ) -> Optional[ChannelConnection]:
-        return await self.channels_dao.unarchive_connection(
+        binding_ids = await self._connection_binding_ids(
+            project_id=project_id, connection_id=connection_id
+        )
+        restored = await self.channels_dao.unarchive_connection(
             project_id=project_id,
             user_id=user_id,
             #
             connection_id=connection_id,
         )
+        await self._invalidate_bindings(
+            binding_ids=binding_ids, source="channels.unarchive_connection"
+        )
+        return restored
 
     async def describe_connection_restore(
         self,
@@ -1203,12 +1285,16 @@ class ChannelsService:
         if existing is None:
             return None
 
-        return await self.channels_dao.edit_agent(
+        edited = await self.channels_dao.edit_agent(
             project_id=project_id,
             user_id=user_id,
             #
             agent=_layer_agent_edit(existing=existing, edit=agent),
         )
+        await self._invalidate_bindings(
+            binding_ids=[existing.id], source="channels.edit_agent"
+        )
+        return edited
 
     async def delete_agent(
         self,
@@ -1217,11 +1303,15 @@ class ChannelsService:
         #
         agent_id: UUID,
     ) -> bool:
-        return await self.channels_dao.delete_agent(
+        deleted = await self.channels_dao.delete_agent(
             project_id=project_id,
             #
             agent_id=agent_id,
         )
+        await self._invalidate_bindings(
+            binding_ids=[agent_id], source="channels.delete_agent"
+        )
+        return deleted
 
     async def query_agents(
         self,

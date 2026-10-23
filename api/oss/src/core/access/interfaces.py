@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from uuid import UUID
 
-from oss.src.core.access.dtos import PrincipalRecord, PrincipalRef
+from oss.src.core.access.dtos import PrincipalRecord, PrincipalRef, UserPrincipals
 
 
 class RbacEnforcementInterface(ABC):
@@ -24,3 +24,9 @@ class PrincipalsDAOInterface(ABC):
         *,
         principal: PrincipalRef,
     ) -> Optional[PrincipalRecord]: ...
+
+    async def list_user_principals(self, *, user_id: UUID) -> UserPrincipals:
+        """The keys, bindings and projects of a user, for the invalidation after a user
+        deletion. One statement in Postgres. The default knows none."""
+
+        return UserPrincipals(user_id=user_id)

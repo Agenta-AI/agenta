@@ -254,3 +254,26 @@ async def test_fetch_principal_is_one_statement_per_kind(seeded, fake_cache):
         with count_statements(get_transactions_engine()) as statements:
             await dao.fetch_principal(principal=ref)
         assert statements == []
+
+
+async def test_list_user_principals_reads_keys_bindings_and_projects(
+    seeded, fake_cache
+):
+    dao = PrincipalsDAO(engine=get_transactions_engine())
+    project_id = seeded.project_ids[0]
+    editor = seeded.user_ids["editor"]
+    key = await _api_key(project_id=project_id, created_by_id=editor)
+    connection = await _connection(project_id=project_id)
+    binding = await _binding(
+        project_id=project_id, connection_id=connection, created_by_id=editor
+    )
+
+    with count_statements(get_transactions_engine()) as statements:
+        snapshot = await dao.list_user_principals(user_id=editor)
+    assert len(statements) == 1
+    assert snapshot.api_key_ids == [key]
+    assert snapshot.binding_ids == [binding]
+    assert set(snapshot.project_ids) == set(seeded.project_ids)
+
+    empty = await dao.list_user_principals(user_id=uuid4())
+    assert (empty.api_key_ids, empty.binding_ids, empty.project_ids) == ([], [], [])

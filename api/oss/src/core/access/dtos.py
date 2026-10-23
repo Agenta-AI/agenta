@@ -184,3 +184,16 @@ class RequestAccess(BaseModel):
     credential_kind: RequestCredentialKind
     acting_user_id: UUID  # == request.state.user_id
     envelope: Optional[RunEnvelope] = None  # run_credential only
+
+
+class UserPrincipals(BaseModel):
+    """What a user deletion must invalidate, read before the delete: the user's API
+    keys, the channel bindings they created, and the projects where their membership
+    can be cached (member projects and the projects of their keys)."""
+
+    model_config = _FROZEN
+
+    user_id: UUID
+    api_key_ids: list[UUID] = []
+    binding_ids: list[UUID] = []
+    project_ids: list[UUID] = []
