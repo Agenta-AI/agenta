@@ -1886,9 +1886,15 @@ importers:
       jotai:
         specifier: ^2.15.0
         version: 2.20.0(@babel/core@7.29.7)(@babel/template@7.29.7)(@types/react@19.2.14)(react@19.2.6)
+      jsdom:
+        specifier: ^26.1.0
+        version: 26.1.0
       react:
         specifier: ^19.0.0
         version: 19.2.6
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.6(react@19.2.6)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
