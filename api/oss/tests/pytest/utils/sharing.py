@@ -1,4 +1,5 @@
-"""Test helpers for the sharing domain (M3): an in-memory `SharingDAOInterface`."""
+"""Test helpers for the sharing domain (M3): an in-memory `SharingDAOInterface` and a
+one-project `SharingWorld`."""
 
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple
@@ -11,12 +12,18 @@ from oss.src.core.sharing.dtos import (
     SessionGrantInput,
     SessionPolicyState,
     SessionSharingChange,
+    SessionRole,
     SessionSharingWriteResult,
     UserSessionGrant,
     Visibility,
 )
+from oss.src.core.memberships.dtos import MembershipPolicy
+from oss.src.core.memberships.service import MembershipsService
 from oss.src.core.sharing.interfaces import SharingDAOInterface
+from oss.src.core.sharing.service import SharingService
 from oss.src.core.sharing.types import SharedItemNotFound, SharingConflict
+from oss.tests.pytest.utils.memberships import InMemoryMembershipsDAO, make_summary
+from oss.tests.pytest.utils.principals import InMemoryPrincipalsDAO
 
 
 class InMemorySharingDAO(SharingDAOInterface):
@@ -248,3 +255,56 @@ def _write_result(
         ],
         removed_user_ids=[u for u in old if u not in new],
     )
+
+
+class SharingWorld:
+    """One project with a `SharingService` over `InMemorySharingDAO` and a real
+    `MembershipsService` over `InMemoryMembershipsDAO` (PROJECT_ROWS policy).
+    `add_member` and `remove_member` change who is an active member."""
+
+    def __init__(self) -> None:
+        self.organization_id = uuid4()
+        self.project_id = uuid4()
+        self.memberships_dao = InMemoryMembershipsDAO()
+        self.memberships_dao.add_project(
+            make_summary(
+                organization_id=self.organization_id, project_id=self.project_id
+            )
+        )
+        self.dao = InMemorySharingDAO()
+        self.service = SharingService(
+            sharing_dao=self.dao,
+            memberships_service=MembershipsService(
+                memberships_dao=self.memberships_dao,
+                policy=MembershipPolicy.PROJECT_ROWS,
+            ),
+            principals_dao=InMemoryPrincipalsDAO(),
+        )
+
+    def add_member(self, user_id: UUID, role: str = "editor") -> UUID:
+        self.memberships_dao.add_organization_member(
+            organization_id=self.organization_id, user_id=user_id, role=role
+        )
+        self.memberships_dao.add_project_member(
+            project_id=self.project_id, user_id=user_id, role=role
+        )
+        return user_id
+
+    def remove_member(self, user_id: UUID) -> None:
+        self.memberships_dao.organization_members = [
+            m for m in self.memberships_dao.organization_members if m.user_id != user_id
+        ]
+        self.memberships_dao.project_members = [
+            m for m in self.memberships_dao.project_members if m.user_id != user_id
+        ]
+
+    def add_session(self, *, policy: AccessPolicy, **kwargs) -> SessionPolicyState:
+        return self.dao.add_session(project_id=self.project_id, policy=policy, **kwargs)
+
+    def add_grant(
+        self, *, state: SessionPolicyState, user_id: UUID, role: SessionRole
+    ) -> SessionGrant:
+        return self.dao.add_grant(
+            project_id=self.project_id,
+            grant=SessionGrant(stream_id=state.stream_id, user_id=user_id, role=role),
+        )
