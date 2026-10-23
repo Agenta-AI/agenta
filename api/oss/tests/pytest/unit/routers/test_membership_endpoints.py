@@ -208,6 +208,32 @@ async def test_assign_role_calls_set_member_role_for_the_organization(wired, pro
     ]
 
 
+@pytest.mark.parametrize(
+    "role, current_role",
+    [("owner", "editor"), ("editor", "owner")],
+)
+async def test_assign_role_never_grants_or_changes_owner(
+    wired, project, role, current_role
+):
+    service = _MembershipsService(organization_role=current_role)
+    target = wired(service)
+
+    with pytest.raises(Exception) as error:
+        await workspace_router.assign_role_to_user(
+            payload=SimpleNamespace(
+                email=target.email,
+                organization_id=str(project.organization_id),
+                role=role,
+            ),
+            workspace_id=str(project.workspace_id),
+            request=_request(),
+        )
+
+    assert getattr(error.value, "status_code", None) == 403
+    assert error.value.detail == {"message": DENIED}
+    assert service.calls == []
+
+
 async def test_assign_role_for_an_unknown_email_is_404(wired, project):
     wired(_MembershipsService())
 

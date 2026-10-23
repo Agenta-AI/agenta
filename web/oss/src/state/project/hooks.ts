@@ -23,13 +23,18 @@ export const useProjectData = () => {
     const queryClient = useQueryClient()
     const setLastNonDemoProject = useSetAtom(lastNonDemoProjectAtom)
     // Projects carry no demo flag any more; the demo workspace is an organization flag.
-    const isDemoWorkspace = Boolean(useAtomValue(selectedOrgAtom)?.flags?.is_demo)
+    const selectedOrg = useAtomValue(selectedOrgAtom)
+    // Until the project's own organization has loaded, its demo flag is unknown, and a
+    // demo project must not be saved as the "return to your workspace" target.
+    const projectOrgLoaded =
+        Boolean(selectedOrg?.id) && selectedOrg?.id === project?.organization_id
+    const isDemoWorkspace = Boolean(selectedOrg?.flags?.is_demo)
 
     useEffect(() => {
         if (!project?.project_id) return
         const workspaceKey = project.workspace_id || project.organization_id || null
         cacheLastUsedProjectId(workspaceKey, project.project_id)
-        if (!isDemoWorkspace && workspaceKey) {
+        if (projectOrgLoaded && !isDemoWorkspace && workspaceKey) {
             setLastNonDemoProject({
                 workspaceId: workspaceKey,
                 projectId: project.project_id,
@@ -40,6 +45,7 @@ export const useProjectData = () => {
         project?.organization_id,
         project?.project_id,
         project?.workspace_id,
+        projectOrgLoaded,
         isDemoWorkspace,
         setLastNonDemoProject,
     ])

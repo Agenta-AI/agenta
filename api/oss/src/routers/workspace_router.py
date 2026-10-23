@@ -55,6 +55,16 @@ async def _set_member_role(
     role: str,
     actor_user_id,
 ) -> None:
+    # Ownership moves only through the transfer endpoint. As before M1, this endpoint
+    # neither grants `owner` nor changes a member who holds it (the owner role passes
+    # every check, including deleting the workspace).
+    if role == "owner":
+        raise _owner_protected()
+    member = await get_memberships_service().fetch_organization_member(
+        organization_id=UUID(str(organization_id)), user_id=UUID(str(user_id))
+    )
+    if member is not None and member.role == "owner":
+        raise _owner_protected()
     try:
         await get_memberships_service().set_member_role(
             organization_id=UUID(str(organization_id)),
