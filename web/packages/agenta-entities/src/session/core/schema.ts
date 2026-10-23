@@ -357,6 +357,8 @@ export const mountFileSchema = z.object({
     is_folder: z.boolean().nullish(),
     /** Object-store LastModified as epoch ms — the recency source for "newest first" ordering. */
     mtime: z.number().nullish(),
+    /** The object's store ETag; changes on every overwrite. */
+    etag: z.string().nullish(),
     /** Direct-child count — set only on a folder entry the recency view rolled a freshly-written
      * directory up into (so the row can read "N items" instead of a size). */
     item_count: z.number().nullish(),

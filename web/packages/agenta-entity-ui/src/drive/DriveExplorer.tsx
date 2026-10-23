@@ -727,7 +727,7 @@ export function DriveExplorer({
                     showOrigin={showOrigin}
                     rootLabel={rootLabel}
                     touchedAt={selected?.touchedAt}
-                    size={selected?.size ?? undefined}
+                    size={selectedFileSize}
                     hideHeader={chrome}
                     onSelect={select}
                     linkExists={linkExists}
