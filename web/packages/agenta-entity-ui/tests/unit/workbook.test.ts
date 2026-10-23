@@ -23,6 +23,18 @@ const book = (sheets: Record<string, ReturnType<typeof utils.aoa_to_sheet>>): Ui
 }
 
 describe("parseWorkbook", () => {
+    it("keeps the stored number behind formatted text, but not behind a date", () => {
+        const sheet = utils.aoa_to_sheet([[0.256, 46317, 120]])
+        sheet.A1.z = "0.0%"
+        sheet.B1.z = "yyyy-mm-dd"
+        const [row] = parseWorkbook(book({Data: sheet})).sheets[0].rows
+        expect(row).toEqual([
+            {value: "25.6%", numeric: true, raw: "0.256"},
+            {value: "2026-10-22", numeric: true},
+            {value: "120", numeric: true},
+        ])
+    })
+
     it("keeps a stored value with its formula, and marks numbers", () => {
         const sheet = utils.aoa_to_sheet([
             ["Region", "Q1", "Q2", "Total"],

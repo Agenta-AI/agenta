@@ -9,7 +9,7 @@ import {
     type PreviewPick,
     type PreviewPinRect,
 } from "@agenta/ui/quote-selection"
-import {Button} from "@agenta/ui/ui"
+import {Button, Segmented} from "@agenta/ui/ui"
 import {CaretLeft, CaretRight} from "@phosphor-icons/react"
 
 import {usePreviewCommentMode, usePreviewCommentSession} from "../previewCommentMode"
@@ -68,6 +68,8 @@ export function OfficeViewerFrame({
     const enabledRef = useRef(enabled)
     enabledRef.current = enabled
     const [reflow, setReflow] = useState(false)
+    // The layout last asked for; quick clicks compare against it, not a stale render's state.
+    const reflowRef = useRef(false)
     const format = kind === "document" ? "document" : "presentation"
 
     useEffect(() => {
@@ -103,6 +105,7 @@ export function OfficeViewerFrame({
                         kind === "document" &&
                         !enabledRef.current &&
                         (rootRef.current?.clientWidth ?? 0) < REFLOW_BELOW_PX
+                    reflowRef.current = narrow
                     setReflow(narrow)
                     blob.arrayBuffer().then(
                         (bytes) => send({type: "render", kind, bytes, reflow: narrow}, [bytes]),
@@ -198,6 +201,8 @@ export function OfficeViewerFrame({
 
     const layout = useCallback(
         (next: boolean) => {
+            if (next === reflowRef.current) return
+            reflowRef.current = next
             setReflow(next)
             send({type: "layout", reflow: next})
         },
@@ -278,32 +283,17 @@ export function OfficeViewerFrame({
                             ? ""
                             : `Page ${pages.index + 1} of ${pages.slideCount}`}
                     </span>
-                    <div
-                        role="group"
+                    <Segmented
+                        size="sm"
                         aria-label="Layout"
-                        className="flex rounded-md bg-colorFillTertiary p-0.5"
-                    >
-                        {(["Reflow", "Pages"] as const).map((label) => {
-                            const on = (label === "Reflow") === reflow
-                            return (
-                                <button
-                                    key={label}
-                                    type="button"
-                                    aria-pressed={on}
-                                    disabled={enabled && label === "Reflow"}
-                                    title={
-                                        enabled && label === "Reflow"
-                                            ? "Comments need the page layout"
-                                            : undefined
-                                    }
-                                    onClick={() => !on && layout(label === "Reflow")}
-                                    className={`cursor-pointer rounded border-0 px-2 py-0.5 text-xs disabled:cursor-not-allowed disabled:opacity-50 ${on ? "bg-colorBgContainer text-colorText shadow-sm" : "bg-transparent text-colorTextSecondary"}`}
-                                >
-                                    {label}
-                                </button>
-                            )
-                        })}
-                    </div>
+                        value={reflow ? "reflow" : "pages"}
+                        onChange={(v) => layout(v === "reflow")}
+                        options={[
+                            // Comments anchor to page layout, so reflow waits for comment mode to end.
+                            {value: "reflow", label: "Reflow", disabled: enabled},
+                            {value: "pages", label: "Pages"},
+                        ]}
+                    />
                 </div>
             ) : null}
         </div>

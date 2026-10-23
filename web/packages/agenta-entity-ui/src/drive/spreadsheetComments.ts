@@ -36,9 +36,6 @@ export function boxText(rows: SheetCell[][], box: CellBox): string {
     return cellsToTable(box.top > 0 ? columns(rows[0]) : null, body)
 }
 
-export const isInBox = (box: CellBox, row: number, col: number): boolean =>
-    row >= box.top && row <= box.bottom && col >= box.left && col <= box.right
-
 const boxOf = (a: CellPoint, b: CellPoint): CellBox => ({
     top: Math.min(a.r, b.r),
     left: Math.min(a.c, b.c),

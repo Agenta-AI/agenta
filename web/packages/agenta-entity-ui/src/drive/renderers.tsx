@@ -319,6 +319,7 @@ const CsvBody = ({
                 workbook={workbook}
                 sheet={workbook.sheets[0]}
                 target={previewTarget(path, displayPath, mount?.id)}
+                stickyFirstRow
             />
             <SheetFooter sheet={workbook.sheets[0]} />
         </Inset>
@@ -503,11 +504,13 @@ const CommentableTable = ({
     workbook,
     sheet,
     target,
+    stickyFirstRow,
 }: {
     workbook: Workbook
     sheet: Sheet
     /** The file comments attach to. */
     target: PreviewCommentTarget
+    stickyFirstRow?: boolean
 }) => {
     const sessionId = usePreviewCommentSession()
     const {enabled} = usePreviewCommentMode()
@@ -523,7 +526,12 @@ const CommentableTable = ({
     return (
         <div ref={rootRef} className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
             {sheet.rows.length > 0 ? (
-                <SheetGrid rows={sheet.rows} origin={sheet.origin} comments={selection} />
+                <SheetGrid
+                    rows={sheet.rows}
+                    origin={sheet.origin}
+                    comments={selection}
+                    stickyFirstRow={stickyFirstRow}
+                />
             ) : (
                 <div className="p-3 text-xs text-colorTextTertiary">This sheet is empty.</div>
             )}

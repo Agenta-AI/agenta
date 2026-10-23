@@ -57,15 +57,18 @@ export function runViewer(renderer: FrameRenderer): void {
     document.addEventListener("click", onClick, true)
     const picker = installPreviewPicker(post)
     let bytes: ArrayBuffer | null = null
+    // One render at a time, so a quick layout switch cannot interleave two renders in #root.
+    let drawing = Promise.resolve()
 
-    const draw = (layout: {reflow: boolean}) =>
-        renderer
-            .render(bytes as ArrayBuffer, root, layout)
+    const draw = (file: ArrayBuffer, layout: {reflow: boolean}) => {
+        drawing = drawing
+            .then(() => renderer.render(file, root, layout))
             .then(({slideCount}) => {
                 sanitizeLinks(root)
                 post({type: "rendered", slideCount})
             })
             .catch(() => post({type: "failed"}))
+    }
 
     window.addEventListener("message", (event) => {
         if (event.source !== window.parent) return
@@ -81,13 +84,13 @@ export function runViewer(renderer: FrameRenderer): void {
             return
         }
         if (message.type === "layout") {
-            if (bytes) void draw({reflow: message.reflow})
+            if (bytes) draw(bytes, {reflow: message.reflow})
             return
         }
         if (bytes || message.kind !== renderer.kind) return
         bytes = message.bytes
         renderer.setup?.(root)
-        void draw({reflow: message.reflow})
+        draw(bytes, {reflow: message.reflow})
     })
 
     post({type: "ready"})
