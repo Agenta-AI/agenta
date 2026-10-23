@@ -45,6 +45,17 @@ It deletes the newer row of each duplicate pair, keeps the oldest, and prints ea
 
 If the upgrade stops with `project_members has <n> duplicate (project_id, user_id) groups`, run the `--apply` command above, then run the upgrade again.
 
+### Open source: if the upgrade stops on duplicate memberships
+
+The same unique index is added on open source. If the upgrade stops with `project_members has <n> duplicate (project_id, user_id) groups`, run the preflight from a checkout of the new release, with `POSTGRES_URI_CORE` set to your core database, then run the upgrade again:
+
+```bash
+cd api
+AGENTA_LICENSE=oss uv run --no-sync python -m entrypoints.memberships_check --apply
+```
+
+It keeps the oldest row of each duplicate pair and prints each deleted row with its role. Use `--report` first to see what it would change.
+
 ## Upgrading to 0.121.0
 
 This release removes a set of environment variables and a Helm key, makes the mobile app (`/m`) part of every deployment, and changes three API behaviors. Read each subsection that matches your deployment. The standard upgrade process below still applies.

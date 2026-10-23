@@ -634,8 +634,19 @@ async def _invalidate_memberships(
     organization_ids = [o for o in dict.fromkeys(organization_ids) if o is not None]
     if not user_ids or not organization_ids:
         return
-    project_ids = await _db_get_project_ids_for_orgs(organization_ids)
-    await invalidate_access_caches(user_ids=user_ids, project_ids=project_ids)
+    # Best effort, like every cache invalidation: callers run it after their commit,
+    # sometimes inside a block whose failure path undoes other work (the deletion
+    # tombstones), so it must never raise.
+    try:
+        project_ids = await _db_get_project_ids_for_orgs(organization_ids)
+        await invalidate_access_caches(user_ids=user_ids, project_ids=project_ids)
+    except Exception:  # pylint: disable=broad-exception-caught
+        log.warning(
+            "[admin] access cache invalidation failed",
+            user_count=len(user_ids),
+            organization_count=len(organization_ids),
+            exc_info=True,
+        )
 
 
 # ---------------------------------------------------------------------------
