@@ -31,6 +31,7 @@ from oss.tests.pytest.utils.membership_seed import (
     execute,
     seed_organization,
 )
+from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy
 from oss.tests.pytest.utils.statements import (
     count_statements_by_phase,
     patch_access_phase,
@@ -94,6 +95,7 @@ def _service(edition: str) -> AccessService:
         ),
         rbac=rbac,
         principals=PrincipalsDAO(engine=engine),
+        resource_policy=AllowAllResourcePolicy(),
     )
 
 

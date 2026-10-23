@@ -33,6 +33,7 @@ from oss.tests.pytest.utils.principals import (
     HumanPrincipalsDAO,
     bearer_request_access,
 )
+from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy
 
 
 pytestmark = pytest.mark.integration
@@ -54,6 +55,7 @@ def cache(monkeypatch):
             ),
             rbac=AlwaysEnforcedRbac(),
             principals=HumanPrincipalsDAO(),
+            resource_policy=AllowAllResourcePolicy(),
         ),
     )
     return fake

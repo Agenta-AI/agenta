@@ -30,6 +30,7 @@ from oss.tests.pytest.utils.membership_seed import (
 )
 from oss.tests.pytest.utils.memberships import RecordingRbac
 from oss.tests.pytest.utils.principals import HumanPrincipalsDAO
+from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy
 
 
 pytestmark = [
@@ -73,6 +74,7 @@ async def test_bearer_list_and_capability_agree(policy):
             memberships=memberships,
             rbac=RecordingRbac(enforced=True),
             principals=HumanPrincipalsDAO(),
+            resource_policy=AllowAllResourcePolicy(),
         )
 
         users = {
@@ -172,6 +174,7 @@ async def test_legacy_shapes_decide_as_expected(edition, monkeypatch):
                 ),
                 rbac=_NoRbacFor([p2b_org]),
                 principals=HumanPrincipalsDAO(),
+                resource_policy=AllowAllResourcePolicy(),
             )
 
             async def allowed(shape, label, project_index=0):

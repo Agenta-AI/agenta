@@ -14,6 +14,7 @@ from oss.tests.pytest.utils.principals import (
     envelope_for_claims,
     make_request_access,
 )
+from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy
 from oss.src.core.access.context import reset_request_access, set_request_access
 from oss.src.core.access.dtos import Decision, DecisionReason
 from jwt import decode
@@ -473,6 +474,7 @@ async def test_exchange_denies_an_inactive_principal(exchange, monkeypatch):
         ),
         rbac=RecordingRbac(),
         principals=principals,
+        resource_policy=AllowAllResourcePolicy(),
     )
     monkeypatch.setattr(access_router_module, "get_access_service", lambda: service)
 

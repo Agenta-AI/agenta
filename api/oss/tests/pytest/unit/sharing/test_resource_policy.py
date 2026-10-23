@@ -19,7 +19,10 @@ from oss.src.core.sharing.dtos import (
     SessionRole,
     Visibility,
 )
-from oss.tests.pytest.utils.sharing import SharingWorld
+from oss.src.core.access.service import AccessService
+from oss.tests.pytest.utils.memberships import RecordingRbac
+from oss.tests.pytest.utils.principals import InMemoryPrincipalsDAO
+from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy, SharingWorld
 
 
 DENIED = DecisionReason.RESOURCE_DENIED
@@ -310,3 +313,165 @@ def test_registry(monkeypatch):
     service = SharingWorld().service
     service_module.register_sharing_service(sharing_service=service)
     assert service_module.get_sharing_service() is service
+
+
+# -- step 4 of decide -----------------------------------------------------------------
+
+
+class _RecordingPolicy(AllowAllResourcePolicy):
+    """Wraps the real `SharingService` and records each call."""
+
+    def __init__(self, service) -> None:
+        super().__init__()
+        self._service = service
+
+    async def evaluate(self, **kwargs):
+        await super().evaluate(**kwargs)
+        return await self._service.evaluate(**kwargs)
+
+
+class _DecideWorld:
+    """`AccessService` over the `SharingWorld` memberships, with the real
+    `SharingService` as its resource policy. The project's organization owner is
+    `owner`; Alice owns a private session; Bob is a member with `bob_role`."""
+
+    def __init__(self, *, enforced: bool = True, bob_role: str = "editor") -> None:
+        self.world = SharingWorld()
+        self.owner = uuid4()
+        summary = self.world.memberships_dao.projects[self.world.project_id]
+        self.world.memberships_dao.projects[self.world.project_id] = summary.model_copy(
+            update={"organization_owner_id": self.owner}
+        )
+        self.alice = self.world.add_member(uuid4())
+        self.bob = self.world.add_member(uuid4(), role=bob_role)
+        self.world.add_member(self.owner, role="viewer")
+        self.principals = InMemoryPrincipalsDAO()
+        for user in (self.alice, self.bob, self.owner):
+            self.principals.human(user)
+        self.policy = _RecordingPolicy(self.world.service)
+        self.service = AccessService(
+            memberships=self.world.service._memberships,
+            rbac=RecordingRbac(enforced=enforced),
+            principals=self.principals,
+            resource_policy=self.policy,
+        )
+        self.session = self.world.add_session(policy=_private(self.alice))
+
+    @property
+    def session_ref(self) -> ResourceRef:
+        return ResourceRef(kind=ResourceKind.SESSION, id=self.session.session_id)
+
+    async def decide(self, user, action, resource=None):
+        return await self.service.decide(
+            authority=None,
+            principal=_human(user),
+            action=action,
+            project_id=self.world.project_id,
+            resource=resource,
+        )
+
+
+async def test_shortcuts_do_not_open_private():
+    # The organization owner (ORGANIZATION_OWNER shortcut).
+    world = _DecideWorld()
+    decision = await world.decide(
+        world.owner, Permission.VIEW_SESSIONS, world.session_ref
+    )
+    assert (decision.allowed, decision.reason) == (False, DENIED)
+
+    # The project owner role (PROJECT_OWNER shortcut).
+    world = _DecideWorld(bob_role="owner")
+    decision = await world.decide(
+        world.bob, Permission.VIEW_SESSIONS, world.session_ref
+    )
+    assert (decision.allowed, decision.reason) == (False, DENIED)
+    unchecked = await world.decide(world.bob, Permission.VIEW_SESSIONS)
+    assert unchecked.reason == DecisionReason.PROJECT_OWNER
+
+    # The EE no-RBAC shortcut (RBAC_NOT_ENTITLED).
+    world = _DecideWorld(enforced=False)
+    for action in (Permission.VIEW_SESSIONS, Permission.RUN_SESSIONS):
+        decision = await world.decide(world.bob, action, world.session_ref)
+        assert (decision.allowed, decision.reason) == (False, DENIED)
+
+    # The owner herself passes.
+    decision = await world.decide(
+        world.alice, Permission.VIEW_SESSIONS, world.session_ref
+    )
+    assert decision.allowed
+
+
+async def test_step_four_runs_only_after_capability():
+    world = _DecideWorld(bob_role="viewer")
+    decision = await world.decide(
+        world.bob, Permission.EDIT_SESSIONS, world.session_ref
+    )
+    assert (decision.allowed, decision.reason) == (
+        False,
+        DecisionReason.MISSING_CAPABILITY,
+    )
+    assert world.policy.calls == []
+
+    # A principal that fails eligibility never reaches step 4 either.
+    stranger = uuid4()
+    decision = await world.decide(stranger, Permission.VIEW_SESSIONS, world.session_ref)
+    assert decision.reason == DecisionReason.PRINCIPAL_INACTIVE
+    assert world.policy.calls == []
+
+
+async def test_no_resource_skips_step_four():
+    world = _DecideWorld()
+    decision = await world.decide(world.bob, Permission.VIEW_SESSIONS)
+    assert (decision.allowed, decision.reason) == (True, DecisionReason.ROLE)
+    assert world.policy.calls == []
+
+
+async def test_resource_denied_is_logged_with_ids_and_kinds(monkeypatch):
+    import oss.src.core.access.service as access_module
+
+    logged = []
+    monkeypatch.setattr(
+        access_module.log,
+        "info",
+        lambda event, **fields: logged.append((event, fields)),
+    )
+    world = _DecideWorld()
+    decision = await world.decide(
+        world.bob, Permission.VIEW_SESSIONS, world.session_ref
+    )
+    assert decision.reason == DENIED
+    assert world.policy.calls[0]["resource"] == world.session_ref
+
+    events = [
+        fields for event, fields in logged if event == "[sharing] resource denied"
+    ]
+    assert len(events) == 1
+    fields = events[0]
+    assert fields["principal_kind"] == "human"
+    assert fields["principal_id"] == str(world.bob)
+    assert fields["acting_user_id"] == str(world.bob)
+    assert fields["project_id"] == str(world.world.project_id)
+    assert fields["action"] == "permission:view_sessions"
+    assert fields["resource_kind"] == "session"
+    assert fields["resource_id"] == world.session.session_id
+    assert fields["reason"] == "resource_denied"
+    assert set(fields) == {
+        "principal_kind",
+        "principal_id",
+        "acting_user_id",
+        "project_id",
+        "action",
+        "resource_kind",
+        "resource_id",
+        "reason",
+        "run_id",
+    }
+
+
+async def test_manage_agent_ownership_is_admin_only():
+    assert Permission.MANAGE_AGENT_OWNERSHIP.value == "manage_agent_ownership"
+    for role, allowed in (("admin", True), ("editor", False), ("developer", False)):
+        world = _DecideWorld(bob_role=role)
+        decision = await world.decide(world.bob, Permission.MANAGE_AGENT_OWNERSHIP)
+        expected = DecisionReason.ROLE if allowed else DecisionReason.MISSING_CAPABILITY
+        assert (decision.allowed, decision.reason) == (allowed, expected), role

@@ -20,6 +20,7 @@ from oss.tests.pytest.utils.memberships import (
     make_summary,
 )
 from oss.tests.pytest.utils.principals import HumanPrincipalsDAO
+from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy
 
 
 class _World:
@@ -35,6 +36,7 @@ class _World:
             memberships=MembershipsService(memberships_dao=self.dao, policy=policy),
             rbac=self.rbac,
             principals=HumanPrincipalsDAO(),
+            resource_policy=AllowAllResourcePolicy(),
         )
 
     def member(self, user, *, organization_role="viewer", project_role="__same__"):

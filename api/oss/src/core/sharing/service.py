@@ -25,7 +25,10 @@ from oss.src.core.access.dtos import (
     ResourceRef,
     RunOrigin,
 )
-from oss.src.core.access.interfaces import PrincipalsDAOInterface
+from oss.src.core.access.interfaces import (
+    PrincipalsDAOInterface,
+    ResourcePolicyInterface,
+)
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.memberships.service import MembershipsService
 from oss.src.core.sharing.dtos import (
@@ -75,7 +78,7 @@ _SENDER_OWNS_ORIGINS = (RunOrigin.WEB, RunOrigin.API)
 _HUMAN_OWNS_ORIGINS = (RunOrigin.WEB, RunOrigin.SCHEDULE)
 
 
-class SharingService:
+class SharingService(ResourcePolicyInterface):
     """The sharing domain: the ownership rule, the resource rules, the read scopes and
     the sharing writes. `bootstrap_access()` builds it before `WorkflowsService` exists,
     so it never reads revisions and never calls `AccessService` (it is the resource

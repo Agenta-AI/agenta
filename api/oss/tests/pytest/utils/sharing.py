@@ -1,10 +1,12 @@
-"""Test helpers for the sharing domain (M3): an in-memory `SharingDAOInterface` and a
-one-project `SharingWorld`."""
+"""Test helpers for the sharing domain (M3): an in-memory `SharingDAOInterface`, a
+one-project `SharingWorld` and `AllowAllResourcePolicy`."""
 
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple
 from uuid import UUID, uuid4
 
+from oss.src.core.access.dtos import Action, DecisionReason, PrincipalRef, ResourceRef
+from oss.src.core.access.interfaces import ResourcePolicyInterface
 from oss.src.core.sharing.dtos import (
     AccessPolicy,
     AgentPolicyWriteResult,
@@ -24,6 +26,33 @@ from oss.src.core.sharing.service import SharingService
 from oss.src.core.sharing.types import SharedItemNotFound, SharingConflict
 from oss.tests.pytest.utils.memberships import InMemoryMembershipsDAO, make_summary
 from oss.tests.pytest.utils.principals import InMemoryPrincipalsDAO
+
+
+class AllowAllResourcePolicy(ResourcePolicyInterface):
+    """A resource policy that allows every resource (step 4 of `decide` never denies),
+    for tests of `AccessService` that are not about sharing. `calls` records each
+    evaluation."""
+
+    def __init__(self) -> None:
+        self.calls: List[dict] = []
+
+    async def evaluate(
+        self,
+        *,
+        principal: PrincipalRef,
+        action: Action,
+        project_id: UUID,
+        resource: ResourceRef,
+    ) -> Optional[DecisionReason]:
+        self.calls.append(
+            {
+                "principal": principal,
+                "action": action,
+                "project_id": project_id,
+                "resource": resource,
+            }
+        )
+        return None
 
 
 class InMemorySharingDAO(SharingDAOInterface):

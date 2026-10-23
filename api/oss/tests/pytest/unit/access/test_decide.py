@@ -37,6 +37,7 @@ from oss.tests.pytest.utils.principals import (
     make_envelope,
     make_request_access,
 )
+from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy
 
 
 @pytest.fixture
@@ -64,6 +65,7 @@ class _World:
             ),
             rbac=self.rbac,
             principals=self.principals,
+            resource_policy=AllowAllResourcePolicy(),
         )
 
     @property
