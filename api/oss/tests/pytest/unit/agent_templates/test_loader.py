@@ -228,6 +228,7 @@ class _SimpleWorkflows:
         self.events = events
         self.records = {}
         self.create_calls = 0
+        self.access_calls = []
 
     async def fetch_idempotent_root(
         self, *, project_id, namespace, request_key, component
@@ -256,9 +257,12 @@ class _SimpleWorkflows:
         component,
         simple_workflow_create,
         trusted_meta=None,
+        access=None,
+        first_agent_owner_user_id=None,
     ):
         self.events.append("workflow")
         self.create_calls += 1
+        self.access_calls.append((access, first_agent_owner_user_id))
         workflow_id = resource_identity(project_id, namespace, request_key, component)
         replayed = workflow_id in self.records
         if not replayed:
@@ -995,3 +999,22 @@ async def test_interrupted_archive_load_recovers_only_with_the_stored_bytes():
     assert len(workflows.records) == 1
     assert len(skills.records) == 1
     assert len(starts.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_load_forwards_the_route_policy_to_the_agent_create():
+    from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+
+    loader, _, _, workflows, _, _, _ = _loader()
+    policy = AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=USER_ID)
+
+    await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_command(),
+        envelope=make_envelope(),
+        access=policy,
+        first_agent_owner_user_id=USER_ID,
+    )
+
+    assert workflows.access_calls == [(policy, USER_ID)]

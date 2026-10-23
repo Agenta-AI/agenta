@@ -5,18 +5,30 @@ Lock order (the same as `SharingDAO.set_agent_policy`): an agent access write lo
 `workflow_artifacts (project_id, id) FOR UPDATE` first.
 """
 
-from typing import Optional
+from typing import List, Literal, Optional
 from uuid import UUID
 
-from sqlalchemy import text
+from sqlalchemy import exists, select, text
 
-from oss.src.core.git.dtos import Artifact, ArtifactCreate
+from oss.src.core.git.dtos import (
+    Artifact,
+    ArtifactCreate,
+    ArtifactQuery,
+    Revision,
+    RevisionGrouping,
+    RevisionQuery,
+    Variant,
+    VariantQuery,
+)
+from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
-from oss.src.core.sharing.dtos import AccessPolicy
+from oss.src.core.sharing.dtos import AccessPolicy, AgentReadScope, Visibility
 from oss.src.core.sharing.types import AgentCreationFailed
 from oss.src.core.workflows.interfaces import WorkflowsDAOInterface
 from oss.src.dbs.postgres.git.dao import GitDAO
+from oss.src.dbs.postgres.sharing.dbes import AgentAccessDBE
 from oss.src.dbs.postgres.sharing.mappings import map_agent_access_dto_to_dbe
+from oss.src.utils.exceptions import suppress_exceptions
 from oss.src.utils.logging import get_module_logger
 
 
@@ -67,6 +79,204 @@ RETURNING artifact_id
 
 class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
     """The constructor is `GitDAO`'s."""
+
+    # -- agent read scope ---------------------------------------------------------------
+
+    def _agent_read_filter(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id_column,
+        read_scope: AgentReadScope,
+    ):
+        """Technical design 4.3: hide every private agent whose owner is not the
+        scope's owner. A `NOT EXISTS` on the `agent_access` primary key, inside the
+        query's own statement."""
+
+        return ~exists().where(
+            AgentAccessDBE.project_id == project_id,
+            AgentAccessDBE.artifact_id == artifact_id_column,
+            AgentAccessDBE.visibility == Visibility.PRIVATE.value,
+            AgentAccessDBE.owner_user_id.is_distinct_from(read_scope.owner_user_id),
+        )
+
+    @suppress_exceptions(default=[])
+    async def query_artifacts(
+        self,
+        *,
+        project_id: UUID,
+        #
+        artifact_query: ArtifactQuery,
+        #
+        artifact_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+        #
+        read_scope: AgentReadScope,
+    ) -> List[Artifact]:
+        return await self._query_artifacts(
+            project_id=project_id,
+            artifact_query=artifact_query,
+            artifact_refs=artifact_refs,
+            include_archived=include_archived,
+            windowing=windowing,
+            scope_filters=(
+                self._agent_read_filter(
+                    project_id=project_id,
+                    artifact_id_column=self.ArtifactDBE.id,
+                    read_scope=read_scope,
+                ),
+            ),
+        )
+
+    @suppress_exceptions(default=[])
+    async def query_variants(
+        self,
+        *,
+        project_id: UUID,
+        #
+        variant_query: VariantQuery,
+        #
+        artifact_refs: Optional[List[Reference]] = None,
+        variant_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+        #
+        read_scope: AgentReadScope,
+    ) -> List[Variant]:
+        return await self._query_variants(
+            project_id=project_id,
+            variant_query=variant_query,
+            artifact_refs=artifact_refs,
+            variant_refs=variant_refs,
+            include_archived=include_archived,
+            windowing=windowing,
+            scope_filters=(
+                self._agent_read_filter(
+                    project_id=project_id,
+                    artifact_id_column=self.VariantDBE.artifact_id,
+                    read_scope=read_scope,
+                ),
+            ),
+        )
+
+    @suppress_exceptions(default=[])
+    async def query_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        revision_query: RevisionQuery,
+        grouping: Optional[RevisionGrouping] = None,
+        #
+        artifact_refs: Optional[List[Reference]] = None,
+        variant_refs: Optional[List[Reference]] = None,
+        revision_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+        #
+        read_scope: AgentReadScope,
+    ) -> List[Revision]:
+        return await self._query_revisions(
+            project_id=project_id,
+            revision_query=revision_query,
+            grouping=grouping,
+            artifact_refs=artifact_refs,
+            variant_refs=variant_refs,
+            revision_refs=revision_refs,
+            include_archived=include_archived,
+            windowing=windowing,
+            scope_filters=(
+                self._agent_read_filter(
+                    project_id=project_id,
+                    artifact_id_column=self.RevisionDBE.artifact_id,
+                    read_scope=read_scope,
+                ),
+            ),
+        )
+
+    async def query_head_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        revision_query: RevisionQuery,
+        #
+        artifact_search: Optional[str] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+        #
+        read_scope: AgentReadScope,
+    ) -> List[Revision]:
+        return await self._query_head_revisions(
+            project_id=project_id,
+            revision_query=revision_query,
+            artifact_search=artifact_search,
+            include_archived=include_archived,
+            windowing=windowing,
+            scope_filters=(
+                self._agent_read_filter(
+                    project_id=project_id,
+                    artifact_id_column=self.RevisionDBE.artifact_id,
+                    read_scope=read_scope,
+                ),
+            ),
+        )
+
+    # -- reference resolution -----------------------------------------------------------
+
+    async def fetch_agent_artifact_id(
+        self,
+        *,
+        project_id: UUID,
+        level: Literal["artifact", "variant", "revision"],
+        reference: Reference,
+    ) -> Optional[UUID]:
+        if not reference.id and not reference.slug:
+            return None
+
+        artifacts = self.ArtifactDBE
+        if level == "artifact":
+            row_dbe = artifacts
+            stmt = select(artifacts.id)  # type: ignore
+        else:
+            row_dbe = self.VariantDBE if level == "variant" else self.RevisionDBE
+            stmt = select(row_dbe.artifact_id).join(  # type: ignore
+                artifacts,
+                (artifacts.project_id == row_dbe.project_id)  # type: ignore
+                & (artifacts.id == row_dbe.artifact_id),  # type: ignore
+            )
+            stmt = stmt.filter(row_dbe.deleted_at.is_(None))  # type: ignore
+            if level == "revision":
+                # An archived variant archives its revisions too.
+                variants = self.VariantDBE
+                stmt = stmt.join(
+                    variants,
+                    (variants.project_id == row_dbe.project_id)  # type: ignore
+                    & (variants.id == row_dbe.variant_id),  # type: ignore
+                ).filter(variants.deleted_at.is_(None))  # type: ignore
+
+        stmt = stmt.filter(
+            row_dbe.project_id == project_id,  # type: ignore
+            artifacts.deleted_at.is_(None),  # type: ignore
+        )
+        if reference.id:
+            stmt = stmt.filter(row_dbe.id == reference.id)  # type: ignore
+        else:
+            stmt = stmt.filter(row_dbe.slug == reference.slug)  # type: ignore
+
+        async with self.engine.session() as session:
+            return (await session.execute(stmt.limit(1))).scalar()
+
+    # -- agent access writes ------------------------------------------------------------
 
     async def create_agent_artifact(
         self,

@@ -1,4 +1,4 @@
-from typing import Callable, Optional, List, TypeVar, Type
+from typing import Any, Callable, Optional, List, Sequence, TypeVar, Type
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -389,9 +389,33 @@ class GitDAO(GitDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Artifact]:
+        return await self._query_artifacts(
+            project_id=project_id,
+            artifact_query=artifact_query,
+            artifact_refs=artifact_refs,
+            include_archived=include_archived,
+            windowing=windowing,
+        )
+
+    async def _query_artifacts(
+        self,
+        *,
+        project_id: UUID,
+        #
+        artifact_query: ArtifactQuery,
+        #
+        artifact_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+        #
+        scope_filters: Sequence[Any] = (),
+    ) -> List[Artifact]:
         async with self.engine.session() as session:
             stmt = select(self.ArtifactDBE).filter(
                 self.ArtifactDBE.project_id == project_id,  # type: ignore
+                *scope_filters,
             )
 
             if artifact_refs:
@@ -824,6 +848,31 @@ class GitDAO(GitDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Variant]:
+        return await self._query_variants(
+            project_id=project_id,
+            variant_query=variant_query,
+            artifact_refs=artifact_refs,
+            variant_refs=variant_refs,
+            include_archived=include_archived,
+            windowing=windowing,
+        )
+
+    async def _query_variants(
+        self,
+        *,
+        project_id: UUID,
+        #
+        variant_query: VariantQuery,
+        #
+        artifact_refs: Optional[List[Reference]] = None,
+        variant_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+        #
+        scope_filters: Sequence[Any] = (),
+    ) -> List[Variant]:
         async with self.engine.session() as session:
             stmt = (
                 select(self.VariantDBE)
@@ -832,6 +881,7 @@ class GitDAO(GitDAOInterface):
                 )
                 .filter(
                     self.VariantDBE.project_id == project_id,  # type: ignore
+                    *scope_filters,
                 )
             )
 
@@ -1399,9 +1449,42 @@ class GitDAO(GitDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Revision]:
+        return await self._query_revisions(
+            project_id=project_id,
+            revision_query=revision_query,
+            grouping=grouping,
+            artifact_refs=artifact_refs,
+            variant_refs=variant_refs,
+            revision_refs=revision_refs,
+            references=references,
+            include_archived=include_archived,
+            windowing=windowing,
+        )
+
+    async def _query_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        revision_query: RevisionQuery,
+        grouping: Optional[RevisionGrouping] = None,
+        #
+        artifact_refs: Optional[List[Reference]] = None,
+        variant_refs: Optional[List[Reference]] = None,
+        revision_refs: Optional[List[Reference]] = None,
+        #
+        references: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+        #
+        scope_filters: Sequence[Any] = (),
+    ) -> List[Revision]:
         async with self.engine.session() as session:
             stmt = select(self.RevisionDBE).filter(
                 self.RevisionDBE.project_id == project_id,  # type: ignore
+                *scope_filters,
             )
 
             if artifact_refs:
@@ -1688,6 +1771,29 @@ class GitDAO(GitDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Revision]:
+        return await self._query_head_revisions(
+            project_id=project_id,
+            revision_query=revision_query,
+            artifact_search=artifact_search,
+            include_archived=include_archived,
+            windowing=windowing,
+        )
+
+    async def _query_head_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        revision_query: RevisionQuery,
+        #
+        artifact_search: Optional[str] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+        #
+        scope_filters: Sequence[Any] = (),
+    ) -> List[Revision]:
         """One revision per variant — the head — with filters applied in SQL
         BEFORE pagination (unlike `query_revisions` + Python refiltering).
 
@@ -1719,6 +1825,7 @@ class GitDAO(GitDAOInterface):
                 .distinct(self.RevisionDBE.variant_id)  # type: ignore
                 .filter(
                     self.RevisionDBE.project_id == project_id,  # type: ignore
+                    *scope_filters,
                 )
                 .order_by(
                     self.RevisionDBE.variant_id,  # type: ignore

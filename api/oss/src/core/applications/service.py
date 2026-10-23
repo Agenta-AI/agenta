@@ -1,4 +1,5 @@
 from typing import Optional, List, TYPE_CHECKING
+from oss.src.core.sharing.dtos import AgentReadScope
 from oss.src.core.git.dtos import RevisionGrouping
 from uuid import UUID, uuid4
 
@@ -267,6 +268,7 @@ class ApplicationsService:
 
         workflows = await self.workflows_service.query_workflows(
             project_id=project_id,
+            read_scope=AgentReadScope(owner_user_id=None),
             #
             workflow_query=workflow_query,
             #
@@ -462,6 +464,7 @@ class ApplicationsService:
 
         workflow_variants = await self.workflows_service.query_workflow_variants(
             project_id=project_id,
+            read_scope=AgentReadScope(owner_user_id=None),
             #
             workflow_variant_query=workflow_variant_query,
             #
@@ -832,6 +835,7 @@ class ApplicationsService:
 
         workflow_revisions = await self.workflows_service.query_workflow_revisions(
             project_id=project_id,
+            read_scope=AgentReadScope(owner_user_id=None),
             #
             workflow_revision_query=workflow_revision_query,
             #

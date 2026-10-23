@@ -31,6 +31,7 @@ from oss.src.core.git.dtos import (
 )
 
 from oss.src.core.shared.dtos import sync_alias, AliasConfig
+from oss.src.core.sharing.dtos import AccessPolicy, Visibility
 from oss.src.core.shared.dtos import (  # noqa: F401
     Identifier,
     Slug,
@@ -213,9 +214,16 @@ class WorkflowCatalogFlags(WorkflowArtifactFlags):
 class Workflow(Artifact):
     flags: Optional[WorkflowArtifactFlags] = None
 
+    # The applied policy on create. Reads leave it unset.
+    access: Optional[AccessPolicy] = None
+
 
 class WorkflowCreate(ArtifactCreate):
     flags: Optional[WorkflowFlags] = None
+
+    # Requested visibility of a new agent. Omitted: private when the request has an
+    # owner, else project. A private request without an owner is dropped.
+    visibility: Optional[Visibility] = None
 
 
 class WorkflowEdit(ArtifactEdit):
@@ -482,6 +490,9 @@ class SimpleWorkflow(Identifier, Slug, Lifecycle, Header, Metadata):
     variant_id: Optional[UUID] = None
     revision_id: Optional[UUID] = None
 
+    # The applied policy on create. Reads leave it unset.
+    access: Optional[AccessPolicy] = None
+
 
 class SimpleWorkflowCreateResult(BaseModel):
     workflow: SimpleWorkflow
@@ -492,6 +503,9 @@ class SimpleWorkflowCreate(Slug, Header, Metadata):
     flags: Optional[SimpleWorkflowFlags] = None
 
     data: Optional[SimpleWorkflowData] = None
+
+    # See `WorkflowCreate.visibility`.
+    visibility: Optional[Visibility] = None
 
 
 class SimpleWorkflowEdit(Identifier, Header, Metadata):

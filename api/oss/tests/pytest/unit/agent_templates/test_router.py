@@ -746,3 +746,45 @@ async def test_template_start_denied_is_403_access_denied(monkeypatch):
     assert detail["code"] == "access_denied"
     assert detail["details"]["reason"] == "missing_capability"
     assert detail["next_step"] == "Ask a project admin for access."
+
+
+@pytest.mark.asyncio
+async def test_load_passes_the_ownership_policy_and_requested_visibility(monkeypatch):
+    loader = AsyncMock()
+    loader.load.return_value = _result()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader), body={**_body(), "visibility": "project"})
+
+    assert response.status_code == 201
+    kwargs = loader.load.await_args.kwargs
+    envelope_user = kwargs["envelope"].authority.principal.id
+    assert kwargs["access"].visibility.value == "project"
+    assert kwargs["access"].owner_user_id == envelope_user
+    assert kwargs["first_agent_owner_user_id"] == envelope_user
+    assert "visibility" not in kwargs["command"].model_dump()
+
+
+@pytest.mark.asyncio
+async def test_agent_creation_failed_is_the_envelope_not_a_generic_500(monkeypatch):
+    from oss.src.core.sharing.types import AgentCreationFailed
+
+    loader = AsyncMock()
+    loader.load.side_effect = AgentCreationFailed()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader))
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "detail": {
+            "code": "agent_creation_failed",
+            "message": "The agent was not created.",
+            "retryable": True,
+            "next_step": "Send the same request again.",
+        }
+    }

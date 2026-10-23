@@ -112,6 +112,11 @@ from oss.src.resources.workflows.catalog import (
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.sharing.utils import (
+    agent_read_scope_for_request,
+    policy_for_request,
+)
+from oss.src.core.sharing.dtos import SharedItemKind
 
 
 log = get_module_logger(__name__)
@@ -777,6 +782,12 @@ class WorkflowsRouter:
             user_id=UUID(request.state.user_id),
             #
             workflow_create=workflow_create_request.workflow,
+            #
+            access=policy_for_request(
+                request,
+                kind=SharedItemKind.AGENT,
+                requested=workflow_create_request.workflow.visibility,
+            ),
         )
 
         # Invalidate legacy caches so the registry/apps list reflects the new workflow
@@ -1013,6 +1024,7 @@ class WorkflowsRouter:
 
         workflows = await self.workflows_service.query_workflows(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             workflow_query=workflow_query_request.workflow,
             #
@@ -1283,6 +1295,7 @@ class WorkflowsRouter:
 
         workflow_variants = await self.workflows_service.query_workflow_variants(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             workflow_variant_query=workflow_variant_query_request.workflow_variant,
             #
@@ -1385,6 +1398,10 @@ class WorkflowsRouter:
             ),
             #
             initial=True,
+            #
+            first_agent_owner_user_id=policy_for_request(
+                request, kind=SharedItemKind.AGENT
+            ).owner_user_id,
         )
 
         # Invalidate legacy caches so the registry page reflects the new revision
@@ -1566,6 +1583,7 @@ class WorkflowsRouter:
 
         workflow_revisions = await self.workflows_service.query_workflow_revisions(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             workflow_revision_query=workflow_revision_query_request.workflow_revision,
             #
@@ -1739,6 +1757,10 @@ class WorkflowsRouter:
                 workflow_revision_commit=workflow_revision_commit_request.workflow_revision,
                 #
                 scope_policy=scope_policy,
+                #
+                first_agent_owner_user_id=policy_for_request(
+                    request, kind=SharedItemKind.AGENT
+                ).owner_user_id,
             )
         except RevisionConflictError as e:
             raise HTTPException(status_code=409, detail=e.to_detail()) from e
@@ -2328,6 +2350,11 @@ class SimpleWorkflowsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
+        access = policy_for_request(
+            request,
+            kind=SharedItemKind.AGENT,
+            requested=simple_workflow_create_request.workflow.visibility,
+        )
         simple_workflow = await self.simple_workflows_service.create(
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -2335,6 +2362,9 @@ class SimpleWorkflowsRouter:
             simple_workflow_create=simple_workflow_create_request.workflow,
             #
             workflow_id=workflow_id,
+            #
+            access=access,
+            first_agent_owner_user_id=access.owner_user_id,
         )
 
         await invalidate_cache(project_id=request.state.project_id)
@@ -2475,6 +2505,7 @@ class SimpleWorkflowsRouter:
 
         simple_workflows = await self.simple_workflows_service.query(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             simple_workflow_query=simple_workflow_query_request.workflow,
             #

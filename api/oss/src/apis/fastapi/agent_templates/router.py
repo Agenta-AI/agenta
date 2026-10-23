@@ -3,6 +3,12 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import JSONResponse
 
+from oss.src.apis.fastapi.sharing.utils import (
+    agent_creation_failed_exception,
+    policy_for_request,
+)
+from oss.src.core.sharing.dtos import SharedItemKind
+from oss.src.core.sharing.types import AgentCreationFailed
 from oss.src.core.access.principals import access_denied_error
 from oss.src.core.access.types import AccessDenied
 from oss.src.middlewares.auth import request_run_envelope
@@ -314,13 +320,20 @@ class AgentTemplatesRouter:
         envelope = request_run_envelope(request)
         if envelope is None:
             raise FORBIDDEN_EXCEPTION  # type: ignore
+        access = policy_for_request(
+            request, kind=SharedItemKind.AGENT, requested=payload.visibility
+        )
         try:
             result = await self._loader.load(
                 project_id=project_id,
                 user_id=user_id,
                 command=payload.to_domain(request_key=request_key),
                 envelope=envelope,
+                access=access,
+                first_agent_owner_user_id=access.owner_user_id,
             )
+        except AgentCreationFailed as exc:
+            raise agent_creation_failed_exception(exc) from exc
         except AccessDenied as exc:
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,

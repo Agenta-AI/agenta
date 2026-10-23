@@ -1,9 +1,10 @@
-from typing import Any
+from typing import Any, Optional
 from uuid import UUID
 
 from agenta.sdk.agents import ContentBlock, Message
 
 from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.sharing.dtos import AccessPolicy
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.compiler import TemplateCompiler
 from oss.src.core.agent_templates.dtos import (
@@ -279,7 +280,11 @@ class AgentTemplateLoader:
         project_id: UUID,
         user_id: UUID,
         command: TemplateLoadCommand,
+        access: Optional[AccessPolicy] = None,
+        first_agent_owner_user_id: Optional[UUID] = None,
     ) -> PreparedTemplateLoad:
+        """`access` and `first_agent_owner_user_id` come from the route's ownership
+        rule and are passed to the agent's create."""
         request_key = self._request_key(command)
         self._require_mutable_source_pin(command)
         fingerprint = template_request_fingerprint(command)
@@ -360,6 +365,8 @@ class AgentTemplateLoader:
                     ),
                 ),
                 trusted_meta=origin_meta,
+                access=access,
+                first_agent_owner_user_id=first_agent_owner_user_id,
             )
         except EntityCreationIdempotencyConflict as exc:
             raise TemplateCreateConflict() from exc
@@ -422,6 +429,8 @@ class AgentTemplateLoader:
         user_id: UUID,
         command: TemplateLoadCommand,
         envelope: RunEnvelope,
+        access: Optional[AccessPolicy] = None,
+        first_agent_owner_user_id: Optional[UUID] = None,
     ) -> TemplateLoadResult:
         """Create every declared resource before handing off the first turn."""
         if self._mounts_service is None or self._session_starts_service is None:
@@ -464,6 +473,8 @@ class AgentTemplateLoader:
             project_id=project_id,
             user_id=user_id,
             command=command,
+            access=access,
+            first_agent_owner_user_id=first_agent_owner_user_id,
         )
         await self._mounts_service.materialize_entries_if_absent(
             project_id=project_id,
