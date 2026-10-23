@@ -88,4 +88,13 @@ describe("useAutomationUrlSync", () => {
         renderScope("session-b", false)
         expect(replaceQueryParam).not.toHaveBeenCalled()
     })
+
+    it("does not write a drawer left open from the last session into the next one", () => {
+        drawer.schedule = {scheduleId: "auto-a"}
+        renderScope("session-a")
+        replaceQueryParam.mockClear()
+        renderScope("session-b", false)
+        renderScope("session-b", true)
+        expect(replaceQueryParam).not.toHaveBeenCalled()
+    })
 })

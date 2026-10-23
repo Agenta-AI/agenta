@@ -41,7 +41,8 @@ export const useAutomationUrlSync = ({
     const prevIdRef = useRef<string | null>(null)
     useEffect(() => {
         // Not before the read: a drawer closing meanwhile would erase the next session's link.
-        if (!enabled || !ready) return
+        // Only on a change: a drawer left open from the last session is not written to this one.
+        if (!enabled || !ready || openId === prevIdRef.current) return
         if (openId) replaceQueryParam(AUTOMATION_QUERY_PARAM, openId)
         else if (prevIdRef.current) replaceQueryParam(AUTOMATION_QUERY_PARAM, null)
         prevIdRef.current = openId
