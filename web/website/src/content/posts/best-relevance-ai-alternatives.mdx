@@ -21,13 +21,13 @@ faq:
   - question: "Did Relevance AI remove its free plan?"
     answer: "Yes. Relevance AI retired its legacy free plan for new sign-ups on September 29, 2025 and for existing accounts on October 20, 2025. New workspaces start on a 14-day trial or the paid Pro plan."
   - question: "How do Relevance AI Actions and Vendor Credits work?"
-    answer: "Relevance AI bills usage across two separate meters. Every tool step or agent step in a run consumes Actions, which are platform execution units. When you use Relevance AI's managed language models or third-party integrations without your own API keys, those calls also consume Vendor Credits."
+    answer: "Relevance AI bills usage across two separate meters. Each time an agent runs a tool, that tool run consumes one Action, even when the tool is a multi-step workflow. Actions are platform execution units. When you use Relevance AI's managed language models or third-party integrations without your own API keys, those calls also consume Vendor Credits."
   - question: "What is the best open-source alternative to Relevance AI?"
     answer: "Agenta and Dify both offer open-source self-hosting, and n8n provides a free self-hosted Community Edition under its Sustainable Use License. Agenta focuses on persistent team coworkers, Slack channels, and versioned agent configuration, while Dify focuses on RAG pipelines and app builders, and n8n focuses on node-based workflow automation."
   - question: "Which Relevance AI alternative works best for startups and automation agencies?"
     answer: "Agenta and Gumloop work well for startups and agencies that outgrow Relevance AI Pro's limit of 2 Build Users and 1 project. Agenta Cloud Starter costs $29 per month with unlimited team members and open-source self-hosting for client handoffs, while Gumloop Pro starts at $37 per month with unlimited seats."
   - question: "Can I use my own OpenAI or Anthropic API keys to avoid extra markup?"
-    answer: "Yes, though platform rules differ. In Relevance AI, bringing your own API keys skips Vendor Credits, but every step still consumes Actions. In Gumloop, bringing your own model API keys removes direct token credit charges and applies a 16% orchestration fee on the full list cost of the task (compared with its 8% orchestration fee on managed runs). In Agenta and self-hosted n8n or Dify, you can connect your own provider API keys directly."
+    answer: "Yes, though platform rules differ. In Relevance AI, bringing your own API keys skips Vendor Credits, but every tool run still consumes Actions. In Gumloop, bringing your own model API keys removes direct token credit charges and applies a 16% orchestration fee on the full list cost of the task (compared with its 8% orchestration fee on managed runs). In Agenta and self-hosted n8n or Dify, you can connect your own provider API keys directly."
   - question: "Can Agenta work with my ChatGPT subscription?"
     answer: "Yes, on a local, self-hosted personal deployment. Agenta can use your mounted ChatGPT-compatible harness login (such as Codex or Pi) rather than a billed API key. This option is for personal local deployments and does not apply to Agenta Cloud or shared team accounts."
   - question: "How do I migrate an agent workforce from Relevance AI?"
@@ -59,7 +59,7 @@ The right replacement depends on what your team is actually building:
 | **[Lindy](https://www.lindy.ai/)**        | Ready-made inbox, meeting, and sales assistants                   | Faster setup for non-technical operators through prebuilt business assistant templates                                                                       | 7-day free trial; Plus from $29.99/user/mo (3,000 credits)                                                |
 | **[Dify](https://dify.ai/)**              | RAG pipelines and developer-built LLM applications                | Built-in document ingestion, retrieval tuning, and open-source deployment                                                                                    | Free self-hosted Community Edition; Cloud Sandbox free; Professional $59/workspace/mo                     |
 | **[Dust](https://dust.tt/)**              | Internal knowledge assistants and team spaces                     | Deep connectors into Notion, Google Drive, GitHub, and Slack with per-seat governance                                                                        | Free tier; Pro €24/seat/mo billed annually (€30 monthly)                                                  |
-| **[Langdock](https://www.langdock.com/)** | EU-focused multi-model chat, agents, and workflows                | Combines company-wide multi-model chat with department agents and GDPR-focused hosting                                                                       | Business Standard €25/user/mo; Workflows package from €539/mo (40,000 runs)                               |
+| **[Langdock](https://www.langdock.com/)** | EU-focused multi-model chat, agents, and workflows                | Combines company-wide multi-model chat with department agents and GDPR-focused hosting                                                                       | Business €25/user/mo (2,500 workflow runs/mo included); €539/mo package for 40,000 runs                   |
 | **[Make](https://www.make.com/)**         | Visual multi-app SaaS routing across 3,000+ apps                  | Mature connector catalog and visual scenario mapping at a lower entry price                                                                                  | Free (1,000 credits/mo); Core from $9/mo billed annually (10,000 credits/mo)                              |
 
 ## What is Relevance AI?
@@ -83,14 +83,14 @@ Relevance AI works well when your use case matches its visual Workforce canvas a
 
 Relevance AI retired its legacy free plan in late 2025 (September 29, 2025 for new sign-ups and October 20, 2025 for existing users) and uses a two-meter billing model documented in its [pricing guide](https://relevanceai.com/docs/get-started/pricing):
 
-- **Actions** measure platform execution. Every time an agent runs a tool step or completes an agent step, it consumes Actions. Additional Action top-ups cost **$80 per 1,000 Actions**.
+- **Actions** measure platform execution. Every time an agent runs a tool, it consumes one Action, whether the tool sends one email or runs a workflow with many steps. Additional Action top-ups cost **$80 per 1,000 Actions**.
 - **Vendor Credits** cover the underlying cost of language models and third-party data providers when you use Relevance AI's managed credentials.
 
-You can bring your own API keys (BYOK) from OpenAI or Anthropic to avoid consuming Vendor Credits, but every step in a multi-agent run still consumes Actions. When a single research task triggers an orchestrator agent, three sub-agents, and eight tool steps, estimating monthly Action consumption becomes harder than tracking model token spend or full workflow runs.
+You can bring your own API keys (BYOK) from OpenAI or Anthropic to avoid consuming Vendor Credits, but every tool run in a multi-agent task still consumes Actions. When a single research task triggers an orchestrator agent, three sub-agents, and eight tool runs, estimating monthly Action consumption becomes harder than tracking model token spend or full workflow runs.
 
 ### 2. The pricing jump from Pro to Team for startups and agencies
 
-On [Relevance AI's pricing page](https://relevanceai.com/pricing), the entry **Pro** plan costs **$19 per month billed annually** ($29 billed monthly) and includes 7,000 Actions per month, **2 Build Users**, and **1 project**.
+On [Relevance AI's pricing page](https://relevanceai.com/pricing), the entry **Pro** plan costs **$19 per month billed annually** ($29 billed monthly) and includes 2,500 Actions per month, **2 Build Users**, and **1 project**.
 
 Once a startup needs a third teammate to edit prompts or tools, or an automation agency needs separate projects to isolate client workspaces, the next tier is **Team** at **$234 per month billed annually** ($349 billed monthly) for 5 Build Users, 45 End Users, and 5 shared projects. For bootstrapped teams and agencies delivering workflows to clients, jumping from $19 to $234 per month just to add a third builder or a second project is often the main reason to compare other platforms.
 
@@ -186,7 +186,7 @@ _Gumloop pairs a visual node canvas with built-in web scraping and AI enrichment
 
 ## 3. n8n: best for deterministic node-based workflow automation
 
-[n8n](https://n8n.io/) is a source-available workflow automation platform that blends deterministic app integrations, custom JavaScript and Python code nodes, and LangChain-based AI agent nodes. Where Relevance AI treats almost everything as an agent or tool step billed per Action, n8n treats AI as one node inside a predictable automation pipeline.
+[n8n](https://n8n.io/) is a source-available workflow automation platform that blends deterministic app integrations, custom JavaScript and Python code nodes, and LangChain-based AI agent nodes. Where Relevance AI treats almost everything as an agent tool run billed per Action, n8n treats AI as one node inside a predictable automation pipeline.
 
 That distinction matters for cost and reliability. On n8n, a 25-step workflow that fetches a webhook, queries Postgres, calls an AI agent node with three tools, and updates HubSpot counts as **one workflow execution**, regardless of how many internal steps run inside that execution.
 
@@ -195,7 +195,7 @@ _n8n lets technical teams combine deterministic workflow nodes, custom code, and
 
 **Best for:** Technical operators, developers, and automation agencies that want deterministic node-based workflows, custom code steps, per-execution billing, and full self-hosting.
 
-**Pricing:** Free self-hosted **Community Edition** (under the Sustainable Use License); [n8n Cloud](https://n8n.io/pricing/) **Starter** costs **€20 per month billed annually** (€24 monthly) for 2,500 workflow executions with unlimited steps and unlimited users; **Pro** costs **€50 per month billed annually** for 10,000 executions; and **Business** costs **€667 per month billed annually** for 40,000 executions. You connect your own LLM API keys directly with no n8n markup.
+**Pricing:** Free self-hosted **Community Edition** (under the Sustainable Use License); [n8n Cloud](https://n8n.io/pricing/) **Starter** costs **€20 per month billed annually** (€24 monthly) for 2,500 workflow executions with unlimited steps and unlimited users; **Pro** costs **€50 per month billed annually** for 10,000 executions; and the self-hosted-only **Business** plan costs **€667 per month billed annually** for 40,000 executions. You connect your own LLM API keys directly with no n8n markup.
 
 **Pros**
 
@@ -306,7 +306,7 @@ _Langdock combines multi-model chat, custom department agents, and workflows in 
 
 **Best for:** European organizations and compliance-conscious teams that want company-wide multi-model chat alongside custom agents and workflow automation.
 
-**Pricing:** [Langdock](https://www.langdock.com/pricing) bills **Business Standard** at **€25 per user per month** (up to €25 in model usage included per user) and **Business Pro** at **€55 per user per month**. Automated background workflows require the separate **Workflows** package starting at **€539 per month** for 40,000 workflow runs, plus underlying model token costs.
+**Pricing:** [Langdock](https://www.langdock.com/pricing) bills **Business Standard** at **€25 per user per month** (up to €25 in model usage included per user) and **Business Max** at **€99 per user per month** (5x the usage of a Standard seat). The Chat & Agents subscription includes **2,500 workflow runs per month**. Teams that need more buy the **Business** workflow package at **€539 per month** for 40,000 workflow runs, plus underlying model token costs.
 
 **Pros**
 
@@ -316,7 +316,7 @@ _Langdock combines multi-model chat, custom department agents, and workflows in 
 
 **Cons**
 
-- Adding background workflow automation requires a €539/month package on top of per-user seat fees, making it expensive for small startups.
+- Workflow volume above the included 2,500 runs per month requires a €539/month package on top of per-user seat fees, which is expensive for small startups.
 - Closed-source platform; dedicated deployment is reserved for enterprise contracts.
 
 **Verdict:** Choose Langdock when you are rolling out a governed, EU-hosted AI workspace across an entire company and have the budget for its dedicated workflow tier.
