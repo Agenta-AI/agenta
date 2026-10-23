@@ -24,6 +24,7 @@ const COMMENTABLE_KINDS: ReadonlySet<DriveFileKind> = new Set([
     "document",
     "presentation",
     "spreadsheet",
+    "csv",
 ])
 
 export const isCommentableKind = (kind: DriveFileKind | null | undefined): boolean =>

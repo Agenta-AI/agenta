@@ -12,11 +12,8 @@ import {
 import {cellsToTable, type PreviewQuote} from "@agenta/shared/quotes"
 import type {PreviewPick, PreviewPinRect, PreviewRect} from "@agenta/ui/quote-selection"
 
-import type * as WorkbookModule from "./workbook"
-import type {CellBox, Sheet, SheetCell, Workbook} from "./workbook"
-
-/** The A1 helpers, handed over by the lazy `./workbook` import so SheetJS stays out of this chunk. */
-export type CellAddressing = Pick<typeof WorkbookModule, "boxToRange" | "rangeToBox">
+import {boxToRange, rangeToBox, type CellBox} from "./cellAddress"
+import type {Sheet, SheetCell, Workbook} from "./workbook"
 
 /** What `PreviewTable` needs in comment mode. */
 export interface CellSelection {
@@ -80,17 +77,18 @@ function measurePins(
     workbook: Workbook,
     sheet: Sheet,
     comments: PreviewQuote[],
-    addressing: CellAddressing,
 ): PreviewPinRect[] {
     const width = sheet.rows[0]?.length ?? 0
     return comments.flatMap((quote): PreviewPinRect[] => {
         const anchor = quote.source.anchor
         if (anchor.type !== "cells") return []
-        if (anchor.sheet !== sheet.name) {
-            const exists = workbook.sheets.some((s) => s.name === anchor.sheet)
+        // A CSV is one unnamed sheet; its anchors carry no sheet.
+        const sheetName = anchor.sheet ?? ""
+        if (sheetName !== sheet.name) {
+            const exists = workbook.sheets.some((s) => s.name === sheetName)
             return exists ? [] : [{id: quote.id, rect: null}]
         }
-        const box = addressing.rangeToBox(sheet.origin, anchor.range)
+        const box = rangeToBox(sheet.origin, anchor.range)
         const fits = box && box.bottom < sheet.rows.length && box.right < width
         if (!fits || boxText(sheet.rows, box) !== quote.text) return [{id: quote.id, rect: null}]
         return [{id: quote.id, rect: boxRect(root, {...box, bottom: box.top, right: box.left})}]
@@ -101,14 +99,12 @@ export function useSheetComments({
     rootRef,
     workbook,
     sheet,
-    addressing,
     comments,
     enabled,
 }: {
     rootRef: RefObject<HTMLElement | null>
     workbook: Workbook
     sheet: Sheet
-    addressing: CellAddressing
     comments: PreviewQuote[]
     enabled: boolean
 }) {
@@ -117,8 +113,8 @@ export function useSheetComments({
     const [pick, setPick] = useState<PreviewPick | null>(null)
     const [pinRects, setPinRects] = useState<PreviewPinRect[]>([])
     const anchor = useRef<CellPoint | null>(null)
-    const latest = useRef({box, sheet, addressing})
-    latest.current = {box, sheet, addressing}
+    const latest = useRef({box, sheet})
+    latest.current = {box, sheet}
 
     useEffect(() => {
         anchor.current = null
@@ -130,14 +126,14 @@ export function useSheetComments({
         if (!dragging) return
         const up = () => {
             setDragging(false)
-            const {box: picked, sheet: current, addressing: a1} = latest.current
+            const {box: picked, sheet: current} = latest.current
             const rect = picked && rootRef.current ? boxRect(rootRef.current, picked) : null
             if (!picked || !rect) return
             setPick({
                 anchor: {
                     type: "cells",
-                    sheet: current.name,
-                    range: a1.boxToRange(current.origin, picked),
+                    ...(current.name ? {sheet: current.name} : {}),
+                    range: boxToRange(current.origin, picked),
                 },
                 text: boxText(current.rows, picked),
                 rect,
@@ -175,7 +171,7 @@ export function useSheetComments({
     useLayoutEffect(() => {
         const root = rootRef.current
         if (!root) return
-        const measure = () => setPinRects(measurePins(root, workbook, sheet, comments, addressing))
+        const measure = () => setPinRects(measurePins(root, workbook, sheet, comments))
         measure()
         let frame = 0
         const schedule = () => {
@@ -193,7 +189,7 @@ export function useSheetComments({
             root.removeEventListener("scroll", schedule, true)
             observer.disconnect()
         }
-    }, [rootRef, workbook, sheet, comments, addressing])
+    }, [rootRef, workbook, sheet, comments])
 
     const selection: CellSelection | undefined = enabled
         ? {box, onPointerDown, onPointerOver}

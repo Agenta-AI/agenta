@@ -39,7 +39,7 @@ const show = (previewKind: DriveFileKind, inConversation: boolean) => {
 const toggle = () => container.querySelector<HTMLButtonElement>('button[aria-label="Comment"]')
 
 describe("Comment toggle", () => {
-    it.each<DriveFileKind>(["spreadsheet", "html", "document", "presentation"])(
+    it.each<DriveFileKind>(["spreadsheet", "csv", "html", "document", "presentation"])(
         "shows for a %s in a conversation",
         (kind) => {
             show(kind, true)

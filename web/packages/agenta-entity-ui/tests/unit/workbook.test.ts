@@ -5,11 +5,10 @@ import {zipSync} from "fflate"
 import {describe, expect, it} from "vitest"
 import {utils, write} from "xlsx"
 
+import {boxToRange, rangeToBox} from "../../src/drive/cellAddress"
 import {
-    boxToRange,
     COL_CAP,
     parseWorkbook,
-    rangeToBox,
     ROW_CAP,
     UnpackTooLarge,
     zipUnpackedSize,
@@ -122,6 +121,17 @@ describe("A1 ranges", () => {
     it("decodes a range back to the box, or null before the origin", () => {
         expect(rangeToBox(origin, "B4:C5")).toEqual({top: 1, left: 0, bottom: 2, right: 1})
         expect(rangeToBox(origin, "A1")).toBeNull()
+    })
+
+    it("crosses the Z to AA column boundary both ways", () => {
+        const a1 = {r: 0, c: 0}
+        expect(boxToRange(a1, {top: 0, left: 25, bottom: 9, right: 27})).toBe("Z1:AB10")
+        expect(rangeToBox(a1, "Z1:AB10")).toEqual({top: 0, left: 25, bottom: 9, right: 27})
+    })
+
+    it("rejects a malformed range", () => {
+        expect(rangeToBox({r: 0, c: 0}, "B0")).toBeNull()
+        expect(rangeToBox({r: 0, c: 0}, "4B")).toBeNull()
     })
 })
 

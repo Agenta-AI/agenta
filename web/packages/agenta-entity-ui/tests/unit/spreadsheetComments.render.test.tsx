@@ -8,7 +8,6 @@ import {DriveSessionProvider} from "../../src/drive/driveSessionContext"
 import {DriveToolbar} from "../../src/drive/DriveToolbar"
 import {PreviewCommentModeProvider} from "../../src/drive/previewCommentMode"
 import {SpreadsheetView} from "../../src/drive/renderers"
-import * as addressing from "../../src/drive/workbook"
 import type {Workbook} from "../../src/drive/workbook"
 
 class StubResizeObserver {
@@ -59,7 +58,7 @@ const show = (workbook: Workbook) =>
             <DriveSessionProvider sessionId={sessionId}>
                 <PreviewCommentModeProvider fileKey="q3">
                     <DriveToolbar variant="other" path={target.path} previewKind="spreadsheet" />
-                    <SpreadsheetView workbook={workbook} addressing={addressing} target={target} />
+                    <SpreadsheetView workbook={workbook} target={target} />
                 </PreviewCommentModeProvider>
             </DriveSessionProvider>,
         ),
@@ -115,6 +114,18 @@ describe("spreadsheet comments", () => {
                 anchor: {type: "cells", sheet: "Q3", range: "B4"},
                 text: "| Region |\n| --- |\n| North |",
             },
+        ])
+    })
+
+    it("leaves the sheet out for a CSV's single unnamed sheet", () => {
+        const csv: Workbook = {
+            sheets: [{...book().sheets[0], name: "", origin: {r: 0, c: 0}}],
+        }
+        startCommenting(csv)
+        select([1, 1])
+        stage()
+        expect(staged()).toEqual([
+            {anchor: {type: "cells", range: "B2"}, text: "| Q1 |\n| --- |\n| 120 |"},
         ])
     })
 

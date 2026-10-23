@@ -88,6 +88,7 @@ describe("formatPreviewChipLocation", () => {
         expect(formatPreviewChipLocation({type: "cells", sheet: "Q3", range: "B4:C5"})).toBe(
             "Q3!B4:C5",
         )
+        expect(formatPreviewChipLocation({type: "cells", range: "B4:C5"})).toBe("B4:C5")
     })
 })
 
@@ -131,6 +132,17 @@ describe("quotesToMarkdown for preview comments", () => {
         expect(quotesToMarkdown([quote])).toBe(
             "> **`agent-files/app/index.html`** (sheet `Q3`, B4:C4)  \n> | Region | Revenue |\n> | --- | --- |\n> | EU | 40 |\n\nCheck.",
         )
+    })
+})
+
+describe("CSV comments", () => {
+    it("head a CSV range without a sheet and read back as a card", () => {
+        const quote = previewQuote({type: "cells", range: "B2"}, "| Q1 |\n| --- |\n| 120 |", "")
+        const markdown = quotesToMarkdown([quote])
+        expect(markdown.split("\n")[0]).toBe("> **`agent-files/app/index.html`** (cells B2)  ")
+        expect(splitQuotedMessage(markdown).quotes).toEqual([
+            {origin: "agent-files/app/index.html", text: "| Q1 |\n| --- |\n| 120 |"},
+        ])
     })
 })
 

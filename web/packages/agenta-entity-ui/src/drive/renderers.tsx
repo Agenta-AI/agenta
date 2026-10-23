@@ -47,14 +47,9 @@ import {OfficeViewerFrame} from "./officeViewer/OfficeViewerFrame"
 import type {OfficeViewerKind} from "./officeViewer/protocol"
 import {previewTarget, usePreviewCommentMode, usePreviewCommentSession} from "./previewCommentMode"
 import {useQuotableFile} from "./quotable"
-import {
-    isInBox,
-    useSheetComments,
-    type CellAddressing,
-    type CellSelection,
-} from "./spreadsheetComments"
+import {isInBox, useSheetComments, type CellSelection} from "./spreadsheetComments"
 import {useDriveAnchorClickCapture} from "./useDriveLinkClick"
-import type {SheetCell, Truncation, Workbook} from "./workbook"
+import type {Sheet, SheetCell, Truncation, Workbook} from "./workbook"
 
 // The host's code viewer (see `registerDriveCodeBlock`). The desktop registers a Lexical +
 // lazy-Shiki block — an ~8.7 MB chunk it keeps out of first load — so the indirection is also
@@ -368,7 +363,15 @@ const PreviewTable = ({
     )
 }
 
-const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+const CsvBody = ({
+    mount,
+    path,
+    displayPath,
+}: {
+    mount: Mount | null
+    path: string
+    displayPath?: string
+}) => {
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
     // +2 (header + CSV_ROW_CAP body + 1 probe): one row past the cap tells "exactly the cap" from "more".
@@ -382,15 +385,31 @@ const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
         [content, path],
     )
 
+    // One unnamed sheet at A1, so CSV cells take comments like a spreadsheet's.
+    const workbook = useMemo<Workbook>(
+        () => ({
+            sheets: [
+                {
+                    name: "",
+                    rows: rows.slice(0, CSV_ROW_CAP + 1),
+                    truncated: {rows: rows.length > CSV_ROW_CAP + 1, totalColumns: null},
+                    origin: {r: 0, c: 0},
+                },
+            ],
+        }),
+        [rows],
+    )
+
     if (contentQuery.isPending) return <TableSkeleton />
     if (typeof content !== "string" || rows.length === 0)
         return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
 
     return (
         <Inset flush>
-            <PreviewTable
-                rows={rows.slice(0, CSV_ROW_CAP + 1)}
-                truncated={{rows: rows.length > CSV_ROW_CAP + 1, totalColumns: null}}
+            <CommentableTable
+                workbook={workbook}
+                sheet={workbook.sheets[0]}
+                target={previewTarget(path, displayPath, mount?.id)}
             />
         </Inset>
     )
@@ -540,7 +559,7 @@ const VideoBody = ({mount, path}: {mount: Mount | null; path: string}) => {
 // ---- Office bodies (bytes keyed by the listing's file version) --------------------------------
 
 type WorkbookState =
-    | {status: "ready"; workbook: Workbook; addressing: CellAddressing}
+    | {status: "ready"; workbook: Workbook}
     | {status: "unreadable"}
     | {status: "too-large"; unpackedBytes: number}
 
@@ -551,11 +570,9 @@ function useWorkbook(blob: Blob | null): WorkbookState | undefined {
         if (!blob) return
         let cancelled = false
         Promise.all([import("./workbook"), blob.arrayBuffer()])
-            .then(([addressing, bytes]): WorkbookState => {
-                const workbook = addressing.parseWorkbook(bytes)
-                return workbook.sheets.length
-                    ? {status: "ready", workbook, addressing}
-                    : {status: "unreadable"}
+            .then(([{parseWorkbook}, bytes]): WorkbookState => {
+                const workbook = parseWorkbook(bytes)
+                return workbook.sheets.length ? {status: "ready", workbook} : {status: "unreadable"}
             })
             .catch(
                 (error: unknown): WorkbookState =>
@@ -571,19 +588,17 @@ function useWorkbook(blob: Blob | null): WorkbookState | undefined {
     return parsed && parsed.blob === blob ? parsed.state : undefined
 }
 
-export const SpreadsheetView = ({
+/** A sheet's preview table that takes cell comments in comment mode. */
+const CommentableTable = ({
     workbook,
-    addressing,
+    sheet,
     target,
 }: {
     workbook: Workbook
-    addressing: CellAddressing
+    sheet: Sheet
     /** The file comments attach to. */
     target: PreviewCommentTarget
 }) => {
-    const [active, setActive] = useState(0)
-    const index = Math.min(active, workbook.sheets.length - 1)
-    const sheet = workbook.sheets[index]
     const sessionId = usePreviewCommentSession()
     const {enabled} = usePreviewCommentMode()
     const rootRef = useRef<HTMLDivElement>(null)
@@ -592,10 +607,40 @@ export const SpreadsheetView = ({
         rootRef,
         workbook,
         sheet,
-        addressing,
         comments,
         enabled: enabled && !!sessionId,
     })
+    return (
+        <div ref={rootRef} className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+            {sheet.rows.length > 0 ? (
+                <PreviewTable rows={sheet.rows} truncated={sheet.truncated} comments={selection} />
+            ) : (
+                <div className="p-3 text-xs text-colorTextTertiary">This sheet is empty.</div>
+            )}
+            <PreviewCommentLayer
+                rootRef={rootRef}
+                sessionId={sessionId}
+                target={target}
+                pick={pick}
+                onPickConsumed={onPickConsumed}
+                onDraftClose={onDraftClose}
+                pinRects={pinRects}
+            />
+        </div>
+    )
+}
+
+export const SpreadsheetView = ({
+    workbook,
+    target,
+}: {
+    workbook: Workbook
+    /** The file comments attach to. */
+    target: PreviewCommentTarget
+}) => {
+    const [active, setActive] = useState(0)
+    const index = Math.min(active, workbook.sheets.length - 1)
+    const sheet = workbook.sheets[index]
     return (
         <Inset flush>
             <Tabs value={String(index)} onValueChange={(v) => setActive(Number(v))}>
@@ -610,26 +655,7 @@ export const SpreadsheetView = ({
                     ))}
                 </TabsList>
             </Tabs>
-            <div ref={rootRef} className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-                {sheet && sheet.rows.length > 0 ? (
-                    <PreviewTable
-                        rows={sheet.rows}
-                        truncated={sheet.truncated}
-                        comments={selection}
-                    />
-                ) : (
-                    <div className="p-3 text-xs text-colorTextTertiary">This sheet is empty.</div>
-                )}
-                <PreviewCommentLayer
-                    rootRef={rootRef}
-                    sessionId={sessionId}
-                    target={target}
-                    pick={pick}
-                    onPickConsumed={onPickConsumed}
-                    onDraftClose={onDraftClose}
-                    pinRects={pinRects}
-                />
-            </div>
+            <CommentableTable key={index} workbook={workbook} sheet={sheet} target={target} />
         </Inset>
     )
 }
@@ -672,7 +698,6 @@ const SpreadsheetBody = ({
     return (
         <SpreadsheetView
             workbook={parsed.workbook}
-            addressing={parsed.addressing}
             target={previewTarget(path, displayPath, mount?.id)}
         />
     )
@@ -783,7 +808,7 @@ export function DriveFileBody({
         case "json":
             return <CodeBody mount={mount} path={path} displayPath={displayPath} />
         case "csv":
-            return <CsvBody mount={mount} path={path} />
+            return <CsvBody mount={mount} path={path} displayPath={displayPath} />
         case "html":
             return <CodeBody mount={mount} path={path} />
         case "image":

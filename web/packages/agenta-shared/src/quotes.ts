@@ -38,7 +38,8 @@ export interface ElementAnchor {
 /** A cell range in a spreadsheet preview, in the sheet's own A1 coordinates. */
 export interface CellAnchor {
     type: "cells"
-    sheet: string
+    /** Absent for a CSV, which has one unnamed sheet. */
+    sheet?: string
     range: string
 }
 
@@ -304,7 +305,10 @@ export const inlineCode = (text: string): string => {
 
 /** The location in a preview quote's head: what the agent searches the file for. */
 export const formatPreviewLocation = (anchor: PreviewAnchor): string => {
-    if (anchor.type === "cells") return `sheet ${inlineCode(anchor.sheet)}, ${anchor.range}`
+    if (anchor.type === "cells")
+        return anchor.sheet === undefined
+            ? `cells ${anchor.range}`
+            : `sheet ${inlineCode(anchor.sheet)}, ${anchor.range}`
     if (anchor.format === "document" && anchor.page) return `page ${anchor.page}`
     if (anchor.format === "presentation" && anchor.page) return `slide ${anchor.page}`
     return `element ${inlineCode(anchor.selector)}`
@@ -312,7 +316,8 @@ export const formatPreviewLocation = (anchor: PreviewAnchor): string => {
 
 /** The short location a composer chip shows. */
 export const formatPreviewChipLocation = (anchor: PreviewAnchor): string => {
-    if (anchor.type === "cells") return `${anchor.sheet}!${anchor.range}`
+    if (anchor.type === "cells")
+        return anchor.sheet === undefined ? anchor.range : `${anchor.sheet}!${anchor.range}`
     if (anchor.format === "document" && anchor.page) return `p. ${anchor.page}`
     if (anchor.format === "presentation" && anchor.page) return `slide ${anchor.page}`
     return `<${anchor.tag}>`
@@ -399,7 +404,7 @@ export interface QuotedExcerpt {
 // The whole origin line `quotesToMarkdown` writes, so a hand-written blockquote is not taken for one.
 // A preview location's greedy `.+` runs to the line's last `)`, so brackets inside it are safe.
 const QUOTE_HEAD =
-    /^> \*\*(?:`([^`]+)`|(Agent reply))\*\*(?: \((?:L\d+(?:–L\d+)?|(?:element|page|slide|sheet) .+)\))? *$/
+    /^> \*\*(?:`([^`]+)`|(Agent reply))\*\*(?: \((?:L\d+(?:–L\d+)?|(?:element|page|slide|sheet|cells) .+)\))? *$/
 
 /** A sent message's leading quotes and the user's own words; inverts `quotesToMarkdown`. */
 export const splitQuotedMessage = (markdown: string): {quotes: QuotedExcerpt[]; text: string} => {

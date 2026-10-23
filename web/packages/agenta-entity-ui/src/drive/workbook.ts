@@ -1,6 +1,8 @@
 // Workbook bytes → cell strings (design D5); only text leaves here, never SheetJS HTML.
 import {read, utils, type CellObject, type WorkSheet} from "xlsx"
 
+import type {CellOrigin} from "./cellAddress"
+
 /** A stored value, or the formula text of a formula cell that has no stored value. */
 export type SheetCell = {value: string} | {formula: string}
 
@@ -16,8 +18,8 @@ export interface Sheet {
     name: string
     rows: SheetCell[][]
     truncated: Truncation
-    /** Where `rows[0][0]` sits in the sheet, 0-based; the used range need not start at A1. */
-    origin: {r: number; c: number}
+    /** Where `rows[0][0]` sits in the sheet; the used range need not start at A1. */
+    origin: CellOrigin
 }
 
 export interface Workbook {
@@ -77,35 +79,6 @@ function readSheet(name: string, sheet: WorkSheet): Sheet {
         truncated: {rows: rowCount > ROW_CAP, totalColumns: colCount > COL_CAP ? colCount : null},
         origin,
     }
-}
-
-/** A rectangle of `Sheet.rows` indices, inclusive. */
-export interface CellBox {
-    top: number
-    left: number
-    bottom: number
-    right: number
-}
-
-/** The box in the sheet's own A1 coordinates: `B4`, or `B4:C5` for more than one cell. */
-export function boxToRange(origin: Sheet["origin"], box: CellBox): string {
-    const start = utils.encode_cell({r: origin.r + box.top, c: origin.c + box.left})
-    const end = utils.encode_cell({r: origin.r + box.bottom, c: origin.c + box.right})
-    return start === end ? start : `${start}:${end}`
-}
-
-/** The inverse of {@link boxToRange}; null when the range starts before the origin. */
-export function rangeToBox(origin: Sheet["origin"], range: string): CellBox | null {
-    const {s, e} = utils.decode_range(range)
-    if (![s.r, s.c, e.r, e.c].every(Number.isInteger)) return null
-    const box = {
-        top: s.r - origin.r,
-        left: s.c - origin.c,
-        bottom: e.r - origin.r,
-        right: e.c - origin.c,
-    }
-    if (box.top < 0 || box.left < 0 || box.bottom < box.top || box.right < box.left) return null
-    return box
 }
 
 // A workbook may unpack to at most this much XML, and to at most this many times its own size.
