@@ -316,6 +316,10 @@ const PreviewTable = ({
         comments ? {"data-row": row, "data-col": col} : undefined
     const selected = (row: number, col: number) =>
         !!comments?.box && isInBox(comments.box, row, col)
+    // The same blue outline the iframe picker draws over the element under the pointer.
+    const hover = comments
+        ? "hover:outline hover:outline-2 hover:-outline-offset-2 hover:outline-colorPrimary"
+        : ""
     return (
         <>
             <div className="min-h-0 flex-1 overflow-auto">
@@ -330,7 +334,7 @@ const PreviewTable = ({
                                 <th
                                     key={i}
                                     {...at(0, i)}
-                                    className={`sticky top-0 max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1.5 text-left font-medium text-colorTextSecondary ${selected(0, i) ? "bg-colorInfoBg" : "bg-colorFillTertiary"}`}
+                                    className={`sticky top-0 max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1.5 text-left font-medium text-colorTextSecondary ${hover} ${selected(0, i) ? "bg-colorInfoBg" : "bg-colorFillTertiary"}`}
                                 >
                                     <PreviewCell cell={h} />
                                 </th>
@@ -344,7 +348,7 @@ const PreviewTable = ({
                                     <td
                                         key={j}
                                         {...at(i + 1, j)}
-                                        className={`max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1 align-top ${selected(i + 1, j) ? "bg-colorInfoBg" : ""}`}
+                                        className={`max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1 align-top ${hover} ${selected(i + 1, j) ? "bg-colorInfoBg" : ""}`}
                                     >
                                         <PreviewCell cell={c} />
                                     </td>
