@@ -27,6 +27,7 @@ from oss.tests.pytest.utils.principals import make_envelope
 from oss.tests.pytest.utils.sharing import register_sharing_service_for_tests
 from unit.sessions.test_heartbeat_turn_binding import _FakeDAO
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = UUID("00000000-0000-0000-0000-0000000000aa")
@@ -75,7 +76,11 @@ def client(redis, monkeypatch):
         return await call_next(request)
 
     app.include_router(
-        SessionStreamsRouter(service=service, interactions_service=AsyncMock()).router
+        SessionStreamsRouter(
+            service=service,
+            interactions_service=AsyncMock(),
+            run_admission=NoopRunAdmission(),
+        ).router
     )
     with (
         patch.object(engine, "_client", return_value=redis),

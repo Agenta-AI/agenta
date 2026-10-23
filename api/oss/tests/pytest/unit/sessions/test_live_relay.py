@@ -25,6 +25,7 @@ from oss.src.core.sessions.records.dtos import (
 from oss.src.core.sessions.records.streaming import LIVE_FRAME_STREAM_NAME
 from oss.src.tasks.asyncio.sessions.live_relay_worker import LiveRelayWorker
 from oss.src.utils.env import env
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 class FakePubSub:
@@ -390,6 +391,7 @@ async def test_events_route_is_hidden_when_shared_reader_is_off():
     router = SessionStreamsRouter(
         service=AsyncMock(),
         interactions_service=AsyncMock(),
+        run_admission=NoopRunAdmission(),
     )
     request = Request(
         {
@@ -415,6 +417,7 @@ async def test_events_route_disables_authenticated_response_storage():
         service=AsyncMock(),
         interactions_service=AsyncMock(),
         records_service=AsyncMock(),
+        run_admission=NoopRunAdmission(),
     )
     request = Request(
         {
@@ -458,6 +461,7 @@ async def test_recheck_uses_captured_access_and_stops_after_removal():
         service=AsyncMock(),
         interactions_service=AsyncMock(),
         records_service=AsyncMock(),
+        run_admission=NoopRunAdmission(),
     )
     project_id = uuid4()
     access = make_request_access(

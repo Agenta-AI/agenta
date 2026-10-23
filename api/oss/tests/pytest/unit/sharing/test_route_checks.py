@@ -57,6 +57,7 @@ from oss.src.utils.env import env
 from oss.tests.pytest.utils.memberships import RecordingRbac
 from oss.tests.pytest.utils.principals import InMemoryPrincipalsDAO
 from oss.tests.pytest.utils.sharing import SharingWorld
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 pytestmark = pytest.mark.real_resource_checks
 
@@ -354,7 +355,11 @@ def _session_routes(world: _World):
     return [
         (
             "session_fetch",
-            SessionStreamsRouter(service=streams, interactions_service=interactions),
+            SessionStreamsRouter(
+                service=streams,
+                interactions_service=interactions,
+                run_admission=NoopRunAdmission(),
+            ),
             "",
             lambda client, sid: client.get(f"/sessions/streams/?session_id={sid}"),
         ),
@@ -494,7 +499,11 @@ async def test_hidden_send_and_mount_sign_answer_the_canonical_not_found(world):
     mounts = AsyncMock()
     streams_client = _client(
         world,
-        SessionStreamsRouter(service=streams, interactions_service=AsyncMock()),
+        SessionStreamsRouter(
+            service=streams,
+            interactions_service=AsyncMock(),
+            run_admission=NoopRunAdmission(),
+        ),
         user_id=world.bob,
     )
     mounts_client = _client(
@@ -522,7 +531,11 @@ async def test_viewer_send_is_403_access_denied(world):
     streams = _streams_service(world)
     client = _client(
         world,
-        SessionStreamsRouter(service=streams, interactions_service=AsyncMock()),
+        SessionStreamsRouter(
+            service=streams,
+            interactions_service=AsyncMock(),
+            run_admission=NoopRunAdmission(),
+        ),
         user_id=world.vic,
     )
 

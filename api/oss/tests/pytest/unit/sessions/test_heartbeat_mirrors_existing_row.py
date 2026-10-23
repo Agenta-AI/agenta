@@ -35,6 +35,7 @@ from oss.src.dbs.redis.sessions.locks import release_alive
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
 from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -116,6 +117,8 @@ async def test_heartbeat_writes_flags_onto_a_pre_existing_row(lock_engine):
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert dao.creates == 0, "the row exists; the beat must UPDATE, never re-create"
@@ -140,12 +143,16 @@ async def test_turn_end_heartbeat_clears_running_on_the_row(lock_engine):
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     result = await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-1", is_running=False),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert result.stream is not None
@@ -165,6 +172,8 @@ async def test_first_beat_creates_then_later_beats_update(lock_engine):
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert (dao.creates, dao.updates) == (1, 0)
 
@@ -173,6 +182,8 @@ async def test_first_beat_creates_then_later_beats_update(lock_engine):
         request=_beat("turn-1", is_running=False),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert (dao.creates, dao.updates) == (1, 1), (
         "the turn-end beat must reach the row it created"
@@ -195,12 +206,16 @@ async def test_a_stale_beat_does_not_restamp_the_row_with_its_dead_turn(lock_eng
         request=_beat("turn-a"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-a", is_running=False),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert dao.row.turn_id == "turn-a"
 
@@ -226,6 +241,8 @@ async def test_a_stale_beat_does_not_restamp_the_row_with_its_dead_turn(lock_eng
         request=_beat("turn-a"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert late.is_current_turn is False

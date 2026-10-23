@@ -45,6 +45,7 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -762,7 +763,13 @@ def _app(router) -> FastAPI:
 
 def _client(service) -> TestClient:
     return TestClient(
-        _app(SessionStreamsRouter(service=service, interactions_service=AsyncMock()))
+        _app(
+            SessionStreamsRouter(
+                service=service,
+                interactions_service=AsyncMock(),
+                run_admission=NoopRunAdmission(),
+            )
+        )
     )
 
 

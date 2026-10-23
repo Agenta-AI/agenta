@@ -33,6 +33,7 @@ from unit.sessions.test_heartbeat_parked_zombie import _FakeStreamsDAO
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
 from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -144,6 +145,8 @@ async def test_heartbeat_returns_committed_result_when_guard_lease_is_lost(lock_
             request=_beat("turn-a"),
             envelope=make_envelope(),
             access=OWNERLESS_PROJECT_POLICY,
+            run_admission=NoopRunAdmission(),
+            admission_envelope=make_envelope(),
         )
 
     assert result.is_current_turn is True
@@ -174,12 +177,16 @@ async def test_handover_will_not_evict_a_turn_that_took_the_lock_mid_read(lock_e
         request=_beat("turn-live"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-live", running=False),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert await _alive(lock_engine) == "turn-live"
     assert await _running(lock_engine) is None
@@ -194,6 +201,8 @@ async def test_handover_will_not_evict_a_turn_that_took_the_lock_mid_read(lock_e
             request=_beat("turn-new"),
             envelope=make_envelope(),
             access=OWNERLESS_PROJECT_POLICY,
+            run_admission=NoopRunAdmission(),
+            admission_envelope=make_envelope(),
         )
 
     assert await _alive(lock_engine) == "turn-live", (
@@ -222,6 +231,8 @@ async def test_cancel_atomically_tombstones_and_clears_the_locks(lock_engine):
         request=_beat("turn-a"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert await _alive(lock_engine) == "turn-a"
     redis = lock_engine._client()
@@ -235,6 +246,8 @@ async def test_cancel_atomically_tombstones_and_clears_the_locks(lock_engine):
                 request=_beat("turn-a"),
                 envelope=make_envelope(),
                 access=OWNERLESS_PROJECT_POLICY,
+                run_admission=NoopRunAdmission(),
+                admission_envelope=make_envelope(),
             )
             assert late.is_current_turn is False
         return result

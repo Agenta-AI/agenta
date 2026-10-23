@@ -21,6 +21,10 @@ Key namespace — every key is project-scoped:
                                                — the runner pod that holds this turn:
                                                  `<replica_id>\\x1f<replica_address>`
                                                  (API-side only; see below)
+  admitted:<project_id>:session:<session_id>:turn:<turn_id>
+                                               — the principal this turn's heartbeat
+                                                 admitted, `<kind>:<id>` (API-side only;
+                                                 see below)
 
 `session_id` is caller-supplied and Postgres uniqueness is (project_id, session_id), so two
 projects may legitimately hold the same one. The `project_id` segment is the tenant boundary:
@@ -129,6 +133,16 @@ def turn_bound_key(project_id: str, session_id: str, turn_id: str) -> str:
     two readers parse `started` as a number.
     """
     return f"bound:{project_id}:session:{session_id}:turn:{turn_id}"
+
+
+def turn_admitted_key(project_id: str, session_id: str, turn_id: str) -> str:
+    """The principal a checked heartbeat admitted for this turn, as `<kind>:<id>`.
+
+    API-side only: the heartbeat writes it after a beat passed `RunAdmission`, and a later
+    running beat of the same turn by the same principal skips the check (verified
+    continuity). It lives as long as the turn binding and each verified beat renews it.
+    """
+    return f"admitted:{project_id}:session:{session_id}:turn:{turn_id}"
 
 
 def displaced_channel(project_id: str, session_id: str) -> str:

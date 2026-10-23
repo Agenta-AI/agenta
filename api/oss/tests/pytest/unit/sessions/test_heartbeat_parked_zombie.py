@@ -43,6 +43,7 @@ from oss.src.dbs.redis.sessions.locks import (
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
 from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -133,24 +134,32 @@ async def _park_a_session(svc, lock_engine) -> None:
         request=_beat("turn-old"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-old", running=False),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-live"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-live", running=False),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert await _alive(lock_engine) == "turn-live"
     assert await _running(lock_engine) is None
@@ -185,6 +194,8 @@ async def test_zombie_beat_cannot_take_the_nest_of_a_parked_session(lock_engine)
         request=_beat("turn-old"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert zombie.is_current_turn is False, (
@@ -213,6 +224,8 @@ async def test_approval_resume_survives_a_zombie_beat(lock_engine):
         request=_beat("turn-old"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     resumed = await svc.heartbeat(
@@ -220,6 +233,8 @@ async def test_approval_resume_survives_a_zombie_beat(lock_engine):
         request=_beat("turn-resume"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert resumed.is_current_turn is True, (
@@ -239,18 +254,24 @@ async def test_zombie_turn_end_beat_cannot_clear_the_live_turns_running(lock_eng
         request=_beat("turn-old"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-old", running=False),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-live"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert await _running(lock_engine) == "turn-live"
 
@@ -259,6 +280,8 @@ async def test_zombie_turn_end_beat_cannot_clear_the_live_turns_running(lock_eng
         request=_beat("turn-old", running=False),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert await _running(lock_engine) == "turn-live"
@@ -278,6 +301,8 @@ async def test_repeated_zombie_beats_stay_refused(lock_engine):
             request=_beat("turn-old"),
             envelope=make_envelope(),
             access=OWNERLESS_PROJECT_POLICY,
+            run_admission=NoopRunAdmission(),
+            admission_envelope=make_envelope(),
         )
         assert beat.is_current_turn is False
     assert await _alive(lock_engine) == "turn-live"
@@ -299,12 +324,16 @@ async def test_a_never_displaced_turn_still_takes_a_lapsed_nest(lock_engine):
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-1", running=False),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     second = await svc.heartbeat(
@@ -312,6 +341,8 @@ async def test_a_never_displaced_turn_still_takes_a_lapsed_nest(lock_engine):
         request=_beat("turn-2"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert second.is_current_turn is True
@@ -330,12 +361,16 @@ async def test_a_live_different_turn_is_still_a_real_takeover(lock_engine):
         request=_beat("turn-2"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     old = await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert old.is_current_turn is False
@@ -353,18 +388,24 @@ async def test_two_overlapping_beats_of_one_turn_stay_current(lock_engine):
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     second = await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     third = await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert (first.is_current_turn, second.is_current_turn, third.is_current_turn) == (
@@ -388,6 +429,8 @@ async def test_cancel_tombstones_the_cancelled_turn(lock_engine):
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     await svc.command(
@@ -405,6 +448,8 @@ async def test_cancel_tombstones_the_cancelled_turn(lock_engine):
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert beat.is_current_turn is False
     assert await _alive(lock_engine) is None, (
@@ -420,6 +465,8 @@ async def test_steer_tombstones_the_displaced_turn_and_frees_the_new_one(lock_en
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     steered = await svc.command(
@@ -442,6 +489,8 @@ async def test_steer_tombstones_the_displaced_turn_and_frees_the_new_one(lock_en
             request=_beat("turn-1"),
             envelope=make_envelope(),
             access=OWNERLESS_PROJECT_POLICY,
+            run_admission=NoopRunAdmission(),
+            admission_envelope=make_envelope(),
         )
     ).is_current_turn is False
     # The steered-in turn owns the nest and keeps it.
@@ -457,6 +506,8 @@ async def test_kill_tombstones_the_killed_turn(lock_engine):
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     with patch(
@@ -471,6 +522,8 @@ async def test_kill_tombstones_the_killed_turn(lock_engine):
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert beat.is_current_turn is False
     assert await _alive(lock_engine) is None

@@ -45,6 +45,7 @@ from oss.src.dbs.redis.sessions.locks import (
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
 from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -421,6 +422,8 @@ async def test_heartbeat_records_a_start_time_for_a_runner_minted_turn(lock_engi
         ),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert (

@@ -69,6 +69,12 @@ class _FakeRedis:
             self._ttl[k] = ex
         return True
 
+    async def getex(self, key, ex=None):
+        k = self._norm(key)
+        if ex and k in self._values:
+            self._ttl[k] = ex
+        return self._values.get(k)
+
     async def delete(self, key):
         k = self._norm(key)
         existed = k in self._values

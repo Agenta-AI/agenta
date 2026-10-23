@@ -20,6 +20,8 @@ from oss.src.core.sessions.streams.dtos import (
 )
 from oss.src.utils.env import env
 from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.principals import make_envelope
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = UUID("00000000-0000-0000-0000-0000000000aa")
@@ -37,6 +39,7 @@ def _router(service):
     return SessionStreamsRouter(
         service=service,
         interactions_service=SimpleNamespace(),
+        run_admission=_ADMISSION,
     )
 
 
@@ -55,11 +58,16 @@ def _service():
     )
 
 
+_ENVELOPE = make_envelope(project_id=_PROJECT)
+_ADMISSION = NoopRunAdmission()
+
+
 @pytest.fixture(autouse=True)
 def _allowed(monkeypatch):
     monkeypatch.setattr(
         router_module, "check_action_access", AsyncMock(return_value=True)
     )
+    monkeypatch.setattr(router_module, "request_run_envelope", lambda _r: _ENVELOPE)
 
 
 @pytest.mark.asyncio
@@ -78,6 +86,8 @@ async def test_a_beat_with_the_runner_token_is_runner_verified(monkeypatch):
         runner_verified=True,
         envelope=None,
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=_ADMISSION,
+        admission_envelope=_ENVELOPE,
     )
 
 
@@ -103,6 +113,8 @@ async def test_a_beat_without_a_valid_runner_token_still_runs_unverified(
         runner_verified=False,
         envelope=None,
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=_ADMISSION,
+        admission_envelope=_ENVELOPE,
     )
 
 
@@ -122,4 +134,6 @@ async def test_a_deployment_with_no_runner_token_verifies_no_beat(monkeypatch):
         runner_verified=False,
         envelope=None,
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=_ADMISSION,
+        admission_envelope=_ENVELOPE,
     )

@@ -41,6 +41,7 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
 )
 from oss.tests.pytest.utils.principals import make_envelope
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 _PROJECT = uuid4()
 _ALICE = uuid4()
@@ -179,6 +180,8 @@ async def test_conflict_arms_never_write_access(lock_engine):
         request=_beat("known"),
         envelope=make_envelope(),
         access=_PRIVATE_BOB,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert dao.created == []
     for fill in dao.fills:
@@ -212,6 +215,8 @@ async def test_heartbeat_create_arm_writes_access(lock_engine):
         request=_beat("new-by-beat"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert [stream.access for stream in dao.created] == [OWNERLESS_PROJECT_POLICY]
 
@@ -245,6 +250,7 @@ def _router(service):
         router_module.SessionStreamsRouter
     )
     router._service = service
+    router._run_admission = NoopRunAdmission()
     return router_module, router
 
 

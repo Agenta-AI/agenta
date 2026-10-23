@@ -13,6 +13,7 @@ from oss.src.core.sessions.streams.types import SessionCreationRequiresRunCreden
 from oss.tests.pytest.utils.principals import make_envelope
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 _PROJECT = uuid4()
 
@@ -65,6 +66,8 @@ async def test_headless_invoke_creates_its_session(lock_engine):
         request=_beat("headless"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert dao.creates == 1 and result.stream is not None
 
@@ -78,6 +81,8 @@ async def test_create_without_run_credential_is_refused(lock_engine):
             request=_beat("browser"),
             envelope=None,
             access=OWNERLESS_PROJECT_POLICY,
+            run_admission=NoopRunAdmission(),
+            admission_envelope=make_envelope(),
         )
     assert dao.creates == 0
 
@@ -91,6 +96,8 @@ async def test_existing_stream_heartbeat_without_envelope_still_works(lock_engin
         request=_beat("known"),
         envelope=None,
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert dao.creates == 0 and result.stream is not None
 
@@ -100,8 +107,13 @@ async def test_the_route_maps_the_refusal_to_403():
 
     import oss.src.apis.fastapi.sessions.router as router_module
 
-    with patch.object(
-        router_module, "check_action_access", AsyncMock(return_value=True)
+    with (
+        patch.object(
+            router_module, "check_action_access", AsyncMock(return_value=True)
+        ),
+        patch.object(
+            router_module, "request_run_envelope", lambda _request: make_envelope()
+        ),
     ):
         service = SimpleNamespace(
             heartbeat=AsyncMock(side_effect=SessionCreationRequiresRunCredential("s"))
@@ -110,6 +122,7 @@ async def test_the_route_maps_the_refusal_to_403():
             router_module.SessionStreamsRouter
         )
         router._service = service
+        router._run_admission = NoopRunAdmission()
         request = SimpleNamespace(
             state=SimpleNamespace(project_id=_PROJECT, user_id=uuid4()),
             headers={},
@@ -136,5 +149,7 @@ async def test_a_refused_create_binds_no_turn(lock_engine):
                 request=_beat("browser-2"),
                 envelope=None,
                 access=OWNERLESS_PROJECT_POLICY,
+                run_admission=NoopRunAdmission(),
+                admission_envelope=make_envelope(),
             )
     bind.assert_not_awaited()

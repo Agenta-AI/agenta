@@ -42,7 +42,7 @@ from oss.src.core.access.context import fresh_request_memo, get_request_access
 from oss.src.core.access.dtos import RunApproval
 from oss.src.core.sessions.streams.types import SessionCreationRequiresRunCredential
 from oss.src.core.tools.dtos import AgentError
-from oss.src.core.access.principals import missing_envelope_error
+from oss.src.core.access.principals import access_denied_error, missing_envelope_error
 from oss.src.core.access.types import MissingEnvelope
 from oss.src.middlewares.auth import request_run_envelope
 from oss.src.apis.fastapi.sharing.utils import (
@@ -55,7 +55,10 @@ from oss.src.apis.fastapi.sharing.utils import (
     session_read_scope_for_request,
     session_resource,
 )
+from oss.src.core.sharing.admission import RunAdmission
 from oss.src.core.sharing.dtos import SharedItemKind, Visibility
+from oss.src.core.sharing.types import AdmissionDenied
+from oss.src.core.workflows.types import AgentReferenceUnresolved
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
@@ -487,10 +490,12 @@ class SessionStreamsRouter:
         *,
         service: SessionStreamsService,
         interactions_service: SessionInteractionsService,
+        run_admission: RunAdmission,
         records_service: Optional[RecordsService] = None,
     ) -> None:
         self._service = service
         self._interactions_service = interactions_service
+        self._run_admission = run_admission
         self._records_service = records_service
         self.router = APIRouter()
 
@@ -814,13 +819,35 @@ class SessionStreamsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
-        heartbeat = await self._service.heartbeat(
-            project_id=project_id,
-            request=payload,
-            runner_verified=has_valid_runner_token(request),
-            envelope=getattr(request.state, "run_envelope", None),
-            access=policy_for_request(request, kind=SharedItemKind.SESSION),
-        )
+        # The envelope of the caller's credential, whatever its kind. Without one the
+        # beat cannot be authorized: it answers like an unknown session.
+        admission_envelope = request_run_envelope(request)
+        if admission_envelope is None:
+            raise not_found_exception()
+
+        try:
+            heartbeat = await self._service.heartbeat(
+                project_id=project_id,
+                request=payload,
+                runner_verified=has_valid_runner_token(request),
+                envelope=getattr(request.state, "run_envelope", None),
+                access=policy_for_request(request, kind=SharedItemKind.SESSION),
+                run_admission=self._run_admission,
+                admission_envelope=admission_envelope,
+            )
+        except AdmissionDenied as error:
+            if not error.readable:
+                raise not_found_exception() from error
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=access_denied_error(
+                    decision=error.decision,
+                    principal_kind=admission_envelope.authority.principal.kind,
+                    project_id=UUID(str(project_id)),
+                ).model_dump(exclude_none=True),
+            ) from error
+        except AgentReferenceUnresolved as error:
+            raise not_found_exception() from error
         return heartbeat.model_copy(
             update={"stream": sanitize_session_stream(heartbeat.stream)}
         )
@@ -3437,11 +3464,13 @@ class SessionsRouter:
         turns_service: SessionTurnsService,
         sessions_service: SessionsService,
         commands_service: SessionCommandsService,
+        run_admission: RunAdmission,
         inputs_service: Optional[SessionInputsService] = None,
     ) -> None:
         self.streams = SessionStreamsRouter(
             service=streams_service,
             interactions_service=interactions_service,
+            run_admission=run_admission,
             records_service=records_service,
         )
         self.records = RecordsRouter(

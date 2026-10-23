@@ -12,6 +12,10 @@ from dataclasses import dataclass
 from typing import AsyncIterator, List, Optional, Tuple
 from uuid import uuid4
 
+from pydantic import ValidationError
+from redis.exceptions import ResponseError
+
+from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
 from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
@@ -37,6 +41,7 @@ from oss.src.dbs.redis.sessions.contract import (
     parse_turn_binding_value,
     running_key,
     superseded_key,
+    turn_admitted_key,
     turn_bound_key,
     turn_started_key,
     validate_session_id,  # noqa: F401 — re-exported for callers that import from locks
@@ -654,6 +659,91 @@ async def get_routable_turn_binding(
         )
         return None
     return binding if binding and binding.replica_address else None
+
+
+# ---------------------------------------------------------------------------
+# Turn admission — "which principal this turn's heartbeat admitted"
+#
+# Written after a heartbeat passed `RunAdmission`, read by the next running beat of the same
+# turn: when it names the beat's principal, the beat skips the check (verified continuity).
+# Same TTL as the turn binding; every read renews it, like `bind_turn` renews the binding, so
+# a long turn is not rechecked only because the record expired. Any Redis failure reads as
+# "no record", which means a full check, never continuity.
+# ---------------------------------------------------------------------------
+
+
+def _admission_value(principal: PrincipalRef) -> bytes:
+    return f"{principal.kind.value}:{principal.id}".encode()
+
+
+def _parse_admission_value(raw: Optional[bytes]) -> Optional[PrincipalRef]:
+    if not raw:
+        return None
+    value = raw.decode() if isinstance(raw, (bytes, bytearray)) else str(raw)
+    kind, _, principal_id = value.partition(":")
+    try:
+        return PrincipalRef(kind=PrincipalKind(kind), id=principal_id)
+    except (ValueError, ValidationError):
+        return None
+
+
+async def record_turn_admission(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+    principal: PrincipalRef,
+) -> None:
+    """Record that this turn's heartbeat admitted `principal`. A Redis error is logged and
+    swallowed: the beat already passed, and the next beat is checked again."""
+    try:
+        await engine.set(
+            turn_admitted_key(project_id, session_id, turn_id),
+            _admission_value(principal),
+            ex=TURN_BOUND_TTL_SECONDS,
+        )
+    except Exception as error:  # noqa: BLE001 - a lost record only costs a check
+        log.warning(
+            "[sharing] admission record not written",
+            project_id=project_id,
+            session_id=session_id,
+            turn_id=turn_id,
+            error=type(error).__name__,
+        )
+
+
+async def get_turn_admission(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+) -> Optional[PrincipalRef]:
+    """The principal this turn's heartbeat admitted, renewing the record's TTL in the same
+    round trip (`GETEX`; a pipelined `GET` + `EXPIRE` on a server without `GETEX`). `None`
+    when there is no record or Redis fails (logged): the caller then runs the full check."""
+    key = turn_admitted_key(project_id, session_id, turn_id)
+    try:
+        try:
+            raw = await engine.getex(key, ex=TURN_BOUND_TTL_SECONDS)
+        except ResponseError as error:
+            if "unknown command" not in str(error).lower():
+                raise
+            pipe = engine.pipeline(transaction=False)
+            pipe.get(key)
+            pipe.expire(key, TURN_BOUND_TTL_SECONDS)
+            raw, _ = await pipe.execute()
+    except Exception as error:  # noqa: BLE001 - fail closed: a full check
+        log.warning(
+            "[sharing] admission record unavailable",
+            project_id=project_id,
+            session_id=session_id,
+            turn_id=turn_id,
+            error=type(error).__name__,
+        )
+        return None
+    return _parse_admission_value(raw)
 
 
 # ---------------------------------------------------------------------------

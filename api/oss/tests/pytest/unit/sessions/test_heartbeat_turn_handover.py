@@ -35,6 +35,7 @@ from oss.src.dbs.redis.sessions.locks import (
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
 from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -120,12 +121,16 @@ async def test_second_turn_on_a_warm_session_is_current(lock_engine):
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     # Turn end: `release()` beats once with is_running=false. It clears ONLY `running` —
     # `alive` is what keeps the session warm/reattachable, so it survives by design.
@@ -134,6 +139,8 @@ async def test_second_turn_on_a_warm_session_is_current(lock_engine):
         request=_beat("turn-1", running=False),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert await _alive(lock_engine) == "turn-1"
     assert await _running(lock_engine) is None
@@ -143,6 +150,8 @@ async def test_second_turn_on_a_warm_session_is_current(lock_engine):
         request=_beat("turn-2"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert second.is_current_turn is True, (
@@ -166,6 +175,8 @@ async def test_a_live_different_turn_holding_running_is_still_a_takeover(lock_en
         request=_beat("turn-2"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert await _alive(lock_engine) == "turn-2"
     assert await _running(lock_engine) == "turn-2"
@@ -176,6 +187,8 @@ async def test_a_live_different_turn_holding_running_is_still_a_takeover(lock_en
         request=_beat("turn-1"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert old_turn.is_current_turn is False
@@ -194,6 +207,8 @@ async def test_a_live_different_turn_holding_running_is_still_a_takeover(lock_en
         request=_beat("turn-2"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert live.is_current_turn is True
 
@@ -222,6 +237,8 @@ async def test_overlapping_beats_of_the_same_turn_stay_current(lock_engine):
             request=_beat("turn-1"),
             envelope=make_envelope(),
             access=OWNERLESS_PROJECT_POLICY,
+            run_admission=NoopRunAdmission(),
+            admission_envelope=make_envelope(),
         )
 
     assert result.is_current_turn is True
@@ -241,6 +258,8 @@ async def test_resume_after_a_parked_turn_is_current(lock_engine):
         request=_beat("turn-parked"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     # Park: the run returns, `release()` beats is_running=false, the runner stops beating.
     await svc.heartbeat(
@@ -248,6 +267,8 @@ async def test_resume_after_a_parked_turn_is_current(lock_engine):
         request=_beat("turn-parked", running=False),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert await _alive(lock_engine) == "turn-parked"
 
@@ -256,6 +277,8 @@ async def test_resume_after_a_parked_turn_is_current(lock_engine):
         request=_beat("turn-resume"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert resumed.is_current_turn is True, (

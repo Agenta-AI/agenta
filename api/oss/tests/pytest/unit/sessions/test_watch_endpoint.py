@@ -26,6 +26,7 @@ from oss.src.apis.fastapi.sessions.watch import (
 from oss.src.dbs.redis.sessions.contract import project_watch_channel, watch_channel
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
 from oss.src.utils.env import env
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 class _FakePubSub:
@@ -296,6 +297,7 @@ def _router() -> SessionStreamsRouter:
     return SessionStreamsRouter(
         service=AsyncMock(),
         interactions_service=AsyncMock(),
+        run_admission=NoopRunAdmission(),
     )
 
 

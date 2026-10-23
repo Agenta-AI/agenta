@@ -19,6 +19,7 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionStatus,
 )
 from oss.src.core.access.dtos import PrincipalRef, RunApproval
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 async def test_durable_response_returns_202_and_stable_refs(monkeypatch):
@@ -379,6 +380,7 @@ async def test_session_stream_response_advertises_capabilities(monkeypatch):
     router = SessionStreamsRouter(
         service=service,
         interactions_service=AsyncMock(),
+        run_admission=NoopRunAdmission(),
     )
 
     response = await router.fetch_session_stream(

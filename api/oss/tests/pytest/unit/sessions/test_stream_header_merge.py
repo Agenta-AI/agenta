@@ -35,6 +35,7 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
 from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -263,6 +264,8 @@ async def test_rename_survives_a_heartbeat_flag_mirror(lock_engine):
         request=_beat("replica-a", "turn-a"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert result.stream.name == "Keep Me"
@@ -281,6 +284,8 @@ async def test_heartbeat_still_mirrors_the_nest_flags(lock_engine):
         request=_beat("replica-a", "turn-a"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert result.stream.flags.is_alive is True
@@ -305,6 +310,8 @@ async def test_detach_flag_mirror_does_not_touch_header(lock_engine):
         request=_beat("replica-a", "turn-a"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     await svc.detach(
@@ -331,6 +338,8 @@ async def test_kill_flag_mirror_does_not_touch_header(lock_engine):
         request=_beat("replica-a", "turn-a"),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     await svc.kill(project_id=_PROJECT, user_id=None, session_id=_SESSION)

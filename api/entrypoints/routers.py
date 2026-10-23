@@ -28,6 +28,8 @@ from oss.src.utils.helpers import (
 
 # Engines
 from entrypoints.access import bootstrap_access
+from oss.src.core.access.service import get_access_service
+from oss.src.core.sharing.admission import RunAdmission
 from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
     get_analytics_engine,
@@ -875,6 +877,12 @@ workflows_service = WorkflowsService(
     watch_publisher=_sessions_watch_publisher,
 )
 
+# Every run start and resume (the heartbeat first) checks the session and the agent.
+run_admission = RunAdmission(
+    access_service=get_access_service(),
+    workflows_service=workflows_service,
+)
+
 environments_service = EnvironmentsService(
     environments_dao=environments_dao,
 )
@@ -1672,6 +1680,7 @@ sessions = SessionsRouter(
     turns_service=session_turns_service,
     sessions_service=sessions_service,
     commands_service=session_commands_service,
+    run_admission=run_admission,
     inputs_service=session_inputs_service,
 )
 

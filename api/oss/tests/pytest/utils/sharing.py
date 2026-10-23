@@ -357,3 +357,72 @@ def register_sharing_service_for_tests(monkeypatch) -> SharingService:
 PROJECT_SESSION_SCOPE = SessionReadScope(
     owner_user_id=None, include_project=True, granted_stream_ids=[]
 )
+
+
+class NoopRunAdmission:
+    """A `RunAdmission` that admits every run and records nothing, for tests that are
+    not about admission."""
+
+    async def admit(self, **_kwargs) -> None:
+        return None
+
+    async def admit_turn(self, **_kwargs) -> None:
+        return None
+
+    async def admit_request(self, **_kwargs) -> None:
+        return None
+
+
+class RecordingRunAdmission:
+    """A `RunAdmission` that records each call as `(method, kwargs)` in `calls`.
+
+    `refuse(method, kwargs)` returns the exception a call raises (an `AdmissionDenied`
+    or an `AgentReferenceUnresolved`), or None to admit. `before(method, kwargs)`, when
+    set, is awaited first (a test uses it to order a race)."""
+
+    def __init__(self, *, refuse=None, before=None) -> None:
+        self.calls: List[Tuple[str, dict]] = []
+        self._refuse = refuse
+        self._before = before
+
+    async def _record(self, method: str, kwargs: dict) -> None:
+        self.calls.append((method, kwargs))
+        if self._before is not None:
+            await self._before(method, kwargs)
+        if self._refuse is not None:
+            error = self._refuse(method, kwargs)
+            if error is not None:
+                raise error
+
+    async def admit(self, **kwargs) -> None:
+        await self._record("admit", kwargs)
+
+    async def admit_turn(self, **kwargs) -> None:
+        await self._record("admit_turn", kwargs)
+
+    async def admit_request(self, **kwargs) -> None:
+        await self._record("admit_request", kwargs)
+
+    def methods(self) -> List[str]:
+        return [method for method, _ in self.calls]
+
+
+class RuleAccessService:
+    """An `AccessService` stand-in for `RunAdmission` tests: `rule(principal, action,
+    resource)` returns True to allow. `decide_calls` records each decision."""
+
+    def __init__(self, rule) -> None:
+        self._rule = rule
+        self.decide_calls: List[dict] = []
+
+    async def decide(
+        self, *, authority, principal, action, project_id=None, resource=None
+    ):
+        from oss.src.core.access.dtos import Decision  # noqa: PLC0415
+
+        self.decide_calls.append(
+            {"principal": principal, "action": action, "resource": resource}
+        )
+        if self._rule(principal, action, resource):
+            return Decision(allowed=True, reason=DecisionReason.ROLE)
+        return Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED)

@@ -33,6 +33,7 @@ from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
 from oss.tests.pytest.utils.sharing import register_sharing_service_for_tests
 from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -172,6 +173,8 @@ async def test_runner_first_heartbeat_publishes_session_changed(lock_engine):
         ),
         envelope=make_envelope(),
         access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert publisher.changed_calls == [(str(_PROJECT), "session", session_id)]
@@ -194,6 +197,8 @@ async def test_subsequent_heartbeats_do_not_republish(lock_engine):
             ),
             envelope=make_envelope(),
             access=OWNERLESS_PROJECT_POLICY,
+            run_admission=NoopRunAdmission(),
+            admission_envelope=make_envelope(),
         )
 
     assert publisher.changed_calls == [(str(_PROJECT), "session", session_id)]
