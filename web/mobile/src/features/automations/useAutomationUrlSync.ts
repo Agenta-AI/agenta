@@ -40,9 +40,10 @@ export const useAutomationUrlSync = ({
     const openId = schedule?.scheduleId ?? subscription?.subscriptionId ?? null
     const prevIdRef = useRef<string | null>(null)
     useEffect(() => {
-        if (!enabled) return
+        // Not before the read: a drawer closing meanwhile would erase the next session's link.
+        if (!enabled || !ready) return
         if (openId) replaceQueryParam(AUTOMATION_QUERY_PARAM, openId)
         else if (prevIdRef.current) replaceQueryParam(AUTOMATION_QUERY_PARAM, null)
         prevIdRef.current = openId
-    }, [enabled, openId])
+    }, [enabled, ready, openId])
 }

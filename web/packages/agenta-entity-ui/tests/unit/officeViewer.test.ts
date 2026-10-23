@@ -231,14 +231,16 @@ describe("DOCX page count", () => {
     })
 
     it("finds the page under the line inside and across sections", () => {
+        // A 2,500px section on 1,100px paper: pages start at 0, 1,100 and 2,200.
         const sections = [
-            {top: -2000, height: 3000, pages: 3},
-            {top: 1030, height: 1000, pages: 1},
+            {top: 0, height: 2500, pageHeight: 1100, pages: 3},
+            {top: 2530, height: 1000, pageHeight: 1000, pages: 1},
         ]
-        expect(pageAtLine(sections, 200)).toBe(2)
-        expect(pageAtLine(sections, -1500)).toBe(0)
-        expect(pageAtLine(sections, 1020)).toBe(2)
-        expect(pageAtLine(sections, 1100)).toBe(3)
+        expect(pageAtLine(sections, 900)).toBe(0)
+        expect(pageAtLine(sections, 1200)).toBe(1)
+        expect(pageAtLine(sections, 2300)).toBe(2)
+        expect(pageAtLine(sections, 2520)).toBe(2)
+        expect(pageAtLine(sections, 2600)).toBe(3)
     })
 })
 

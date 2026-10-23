@@ -52,7 +52,12 @@ const markdownOf = (node: HastNode): string => {
     const inner = (node.children ?? []).map(markdownOf).join("")
     const href = node.tagName === "a" ? node.properties?.href : undefined
     if (typeof href !== "string" || !href || inner === href) return inner
-    return `[${inner}](${href})`
+    // Percent-encode what would end or break a CommonMark destination.
+    const destination = href.replace(
+        /[\s()<>]/g,
+        (ch) => `%${ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`,
+    )
+    return `[${inner}](${destination})`
 }
 
 const elements = (node: HastNode, tag: string): HastNode[] =>

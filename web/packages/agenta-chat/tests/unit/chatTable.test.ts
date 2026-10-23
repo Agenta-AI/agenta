@@ -136,6 +136,22 @@ describe("toMarkdown", () => {
         )
     })
 
+    it("encodes spaces and parentheses in a link destination", () => {
+        const tbody = table(["Source"], [["x"]])
+        const cell = tbody.children![1].children![0].children![0]
+        cell.children = [
+            {
+                type: "element",
+                tagName: "a",
+                properties: {href: "https://example.com/my file (1)"},
+                children: [{type: "text", value: "file"}],
+            },
+        ]
+        expect(toMarkdown(tableModel(tbody))).toBe(
+            "| Source |\n| --- |\n| [file](https://example.com/my%20file%20%281%29) |",
+        )
+    })
+
     it("escapes a backslash before a pipe so the pipe stays in its cell", () => {
         const model = tableModel(table(["Path"], [["C:\\ | D:"]]))
         expect(toMarkdown(model)).toBe("| Path |\n| --- |\n| C:\\\\ \\| D: |")

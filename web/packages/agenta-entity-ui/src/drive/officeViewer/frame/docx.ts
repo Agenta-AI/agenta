@@ -28,15 +28,19 @@ function fitPages(root: HTMLElement): void {
     wrapper.style.zoom = String(scale)
 }
 
-// Pages per rendered section, measured before `fitPages` zooms them.
-let sectionPages: number[] = []
+// Per rendered section: its page count, and its paper height as a share of its own height.
+// Measured before `fitPages` zooms them; the share holds at any zoom.
+let sectionPages: {pages: number; paperShare: number}[] = []
 
 function countPages(root: HTMLElement): number {
     const sections = Array.from(root.querySelectorAll<HTMLElement>("section.docx"))
-    sectionPages = sections.map((section) =>
-        sectionPageCount(section.offsetHeight, parseFloat(getComputedStyle(section).minHeight)),
-    )
-    return sectionPages.reduce((sum, pages) => sum + pages, 0)
+    sectionPages = sections.map((section) => {
+        const height = section.offsetHeight
+        const paper = parseFloat(getComputedStyle(section).minHeight)
+        const pages = sectionPageCount(height, paper)
+        return {pages, paperShare: pages > 1 ? paper / height : 1}
+    })
+    return sectionPages.reduce((sum, {pages}) => sum + pages, 0)
 }
 
 // The page at the upper third of the view, reported as the current page.
@@ -47,7 +51,8 @@ function trackPage(root: HTMLElement): void {
         frame = 0
         const sections = Array.from(root.querySelectorAll("section.docx")).map((section, i) => {
             const {top, height} = section.getBoundingClientRect()
-            return {top, height, pages: sectionPages[i] ?? 1}
+            const {pages, paperShare} = sectionPages[i] ?? {pages: 1, paperShare: 1}
+            return {top, height, pages, pageHeight: height * paperShare}
         })
         const index = pageAtLine(sections, window.innerHeight / 3)
         if (index === shown) return

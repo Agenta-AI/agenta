@@ -7,9 +7,11 @@ import {act, createElement} from "react"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
-const {setSchedule, readQueryParam} = vi.hoisted(() => ({
+const {setSchedule, readQueryParam, replaceQueryParam, drawer} = vi.hoisted(() => ({
     setSchedule: vi.fn(),
     readQueryParam: vi.fn(),
+    replaceQueryParam: vi.fn(),
+    drawer: {schedule: null as {scheduleId: string} | null},
 }))
 
 vi.mock("@agenta/entities/gatewayTrigger", () => ({
@@ -19,10 +21,10 @@ vi.mock("@agenta/entities/gatewayTrigger", () => ({
 vi.mock("@agenta/shared/utils", () => ({
     AUTOMATION_QUERY_PARAM: "automation",
     readQueryParam,
-    replaceQueryParam: vi.fn(),
+    replaceQueryParam,
 }))
 vi.mock("jotai", () => ({
-    useAtom: () => [null, setSchedule],
+    useAtom: () => [drawer.schedule, setSchedule],
     useAtomValue: () => null,
 }))
 
@@ -32,20 +34,21 @@ import {useAutomationUrlSync} from "@/features/automations/useAutomationUrlSync"
 
 let root: Root | undefined
 
-const Probe = ({scope}: {scope: string}) => {
-    useAutomationUrlSync({scope})
+const Probe = ({scope, ready}: {scope: string; ready: boolean}) => {
+    useAutomationUrlSync({scope, ready})
     return null
 }
 
-const renderScope = (scope: string) =>
+const renderScope = (scope: string, ready = true) =>
     act(() => {
         root ??= createRoot(document.createElement("div"))
-        root.render(createElement(Probe, {scope}))
+        root.render(createElement(Probe, {scope, ready}))
     })
 
 afterEach(() => {
     act(() => root?.unmount())
     root = undefined
+    drawer.schedule = null
     vi.clearAllMocks()
 })
 
@@ -72,5 +75,17 @@ describe("useAutomationUrlSync", () => {
         renderScope("session-a")
         renderScope("session-a")
         expect(setSchedule).toHaveBeenCalledTimes(1)
+    })
+
+    it("leaves the next session's link alone while its agent resolves", () => {
+        drawer.schedule = {scheduleId: "auto-a"}
+        renderScope("session-a")
+        expect(replaceQueryParam).toHaveBeenLastCalledWith("automation", "auto-a")
+        replaceQueryParam.mockClear()
+
+        // Session B's agent is still resolving when A's drawer closes.
+        drawer.schedule = null
+        renderScope("session-b", false)
+        expect(replaceQueryParam).not.toHaveBeenCalled()
     })
 })
