@@ -6,7 +6,6 @@ exactly one Postgres statement, whatever the number of organizations and project
 
 import pytest
 
-import oss.src.core.access.permissions.service as wrapper_module
 import oss.src.core.access.service as access_module
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
@@ -23,7 +22,8 @@ from oss.tests.pytest.utils.membership_seed import (
     seed_organization,
 )
 from oss.tests.pytest.utils.statements import count_statements
-from oss.tests.pytest.utils.principals import HumanPrincipalsDAO
+from oss.tests.pytest.utils.memberships import FakeAccessCache
+from oss.tests.pytest.utils.principals import HumanPrincipalsDAO, bearer_request_access
 
 
 pytestmark = pytest.mark.integration
@@ -193,7 +193,10 @@ async def test_check_action_access_miss_is_one_statement(
     registered_access(policy)
     monkeypatch.setattr(env.agenta.api.caching, "enabled", False, raising=False)
 
-    with count_statements(get_transactions_engine()) as statements:
+    with (
+        bearer_request_access(user),
+        count_statements(get_transactions_engine()) as statements,
+    ):
         allowed = await check_action_access(
             user_uid=str(user),
             project_id=str(organizations[0].project_ids[0]),
@@ -207,35 +210,20 @@ async def test_check_action_access_hit_is_zero_statements(
     member_of_three_organizations, registered_access, monkeypatch
 ):
     """The stack's Redis is not published to the host, so the cache is a dict with the
-    same get/set contract: the second identical call must read no Postgres row."""
+    same get/set contract. No decision is cached (M2); the second identical call reads
+    the cached membership and no Postgres row."""
 
     user, organizations = member_of_three_organizations
     registered_access(MembershipPolicy.PROJECT_ROWS)
-    store = {}
-
-    def _key(kwargs):
-        return (
-            kwargs["namespace"],
-            kwargs["project_id"],
-            kwargs["user_id"],
-            str(sorted(kwargs["key"].items())),
-        )
-
-    async def _get_cache(**kwargs):
-        return store.get(_key(kwargs))
-
-    async def _set_cache(**kwargs):
-        store[_key(kwargs)] = kwargs["value"]
-
-    monkeypatch.setattr(wrapper_module, "get_cache", _get_cache)
-    monkeypatch.setattr(wrapper_module, "set_cache", _set_cache)
+    FakeAccessCache().install(monkeypatch)
     arguments = dict(
         user_uid=str(user),
         project_id=str(organizations[0].project_ids[0]),
         permission=Permission.VIEW_APPLICATIONS,
     )
 
-    assert await check_action_access(**arguments) is True
-    with count_statements(get_transactions_engine()) as statements:
+    with bearer_request_access(user):
         assert await check_action_access(**arguments) is True
+        with count_statements(get_transactions_engine()) as statements:
+            assert await check_action_access(**arguments) is True
     assert statements == []
