@@ -124,6 +124,8 @@ async def test_call_without_registration_raises(monkeypatch):
 async def test_malformed_or_unknown_project_id_denies(monkeypatch):
     dao = InMemoryMembershipsDAO()
     dao.add_project(make_summary())
+    # Recorded first, so teardown restores the real original registration.
+    monkeypatch.setattr(access_module, "_access_service", None)
     register_access_service(
         access_service=AccessService(
             memberships=MembershipsService(
@@ -132,25 +134,22 @@ async def test_malformed_or_unknown_project_id_denies(monkeypatch):
             rbac=RecordingRbac(),
         )
     )
-    try:
-        assert (
-            await check_action_access(
-                user_uid=str(uuid4()),
-                project_id="not-a-uuid",
-                permission=Permission.VIEW_APPLICATIONS,
-            )
-            is False
+    assert (
+        await check_action_access(
+            user_uid=str(uuid4()),
+            project_id="not-a-uuid",
+            permission=Permission.VIEW_APPLICATIONS,
         )
-        assert (
-            await check_action_access(
-                user_uid=str(uuid4()),
-                project_id=str(uuid4()),
-                permission=Permission.VIEW_APPLICATIONS,
-            )
-            is False
+        is False
+    )
+    assert (
+        await check_action_access(
+            user_uid=str(uuid4()),
+            project_id=str(uuid4()),
+            permission=Permission.VIEW_APPLICATIONS,
         )
-    finally:
-        monkeypatch.setattr(access_module, "_access_service", None)
+        is False
+    )
 
 
 async def test_missing_project_id_raises(registered):
