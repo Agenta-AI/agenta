@@ -97,6 +97,7 @@ describe("ComposerQuotes", () => {
             />,
         )
         expect(screen.getByText("Is this still true?")).toBeTruthy()
+        expect(screen.getByText("schedule.mdx")).toBeTruthy()
         expect(document.querySelector("[data-quote-range]")?.textContent).toBe("L34–L36")
     })
 
