@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
 from oss.src.core.shared.dtos import Header, Identifier, Lifecycle
+from oss.src.core.sharing.dtos import Visibility
 from oss.src.core.sessions.types import (
     SessionDelivery,
     SessionOrigin,
@@ -86,6 +87,10 @@ class SessionStream(Identifier, Header, Lifecycle):
     origin: Optional[SessionOrigin] = None
     trigger: Optional[SessionTrigger] = None
     delivery: Optional[SessionDelivery] = None
+    # The sharing policy, read only. A row written by pre-sharing code (stored NULL) reads
+    # as project-visible.
+    visibility: Visibility = Visibility.PROJECT
+    owner_user_id: Optional[UUID] = None
 
 
 class SessionStreamReadOptions(BaseModel):
