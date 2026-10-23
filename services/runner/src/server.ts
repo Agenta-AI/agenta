@@ -334,19 +334,72 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
   // Every coordinator dispatch reaches runTurn through here, so the pre-turn read lives here
   // once rather than at each of its call sites. It must happen BEFORE runTurn: that function
   // may not suspend before its permission responder is attached.
-  runTurn: async (env, request, emit, signal, opts) =>
-    runTurn(env, request, emit, signal, {
-      ...opts,
-      // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
-      // rows the spread would then discard — a claimed row is spent even if it is thrown away.
-      seededDecisions:
+  runTurn: async (env, request, emit, signal, opts) => {
+    const sandbox = env.sandbox?.sandbox;
+    const sandboxId = env.sandbox?.sandboxId;
+
+    const run = async () => {
+      const seededDecisions =
         opts?.seededDecisions ??
         (await loadDurableDecisions(
           env.sessionId,
           runCredential(request),
           env.logger,
-        )),
-    }),
+        ));
+
+      return runTurn(env, request, emit, signal, {
+        ...opts,
+       // After the spread so a caller-supplied set wins, and short-circuited so we never CLAIM
+       // rows the spread would then discard — a claimed row is spent even if it is thrown away.
+        seededDecisions,
+      });
+    };
+
+    if (
+      !env.plan.isDaytona ||
+      !sandbox?.refreshActivity ||
+      !sandboxId
+    ) {
+      return run();
+    }
+
+    const autostopMinutes = loadRunnerConfig().daytona.autostopMinutes;
+    const heartbeatIntervalMs = Math.max(
+      10_000,
+      Math.floor((autostopMinutes * 60_000) / 3),
+    );
+
+    let refreshInFlight = false;
+
+    const heartbeat = setInterval(() => {
+      if (refreshInFlight) return;
+
+      refreshInFlight = true;
+
+      void Promise.resolve(sandbox.refreshActivity(sandboxId))
+        .catch((error: unknown) => {
+          process.stderr.write(
+            `[daytona] heartbeat failed sandbox=${sandboxId}: ${String(
+              error instanceof Error ? error.message : error,
+            ).slice(0, 200)}\n`,
+          );
+        })
+        .finally(() => {
+          refreshInFlight = false;
+        });
+    }, heartbeatIntervalMs);
+
+    heartbeat.unref?.();
+
+    try {
+      return await run();
+    } finally {
+      clearInterval(heartbeat);
+    }
+  },
+
+
+
   // LIFECYCLE MIGRATION, STEP 6. The live-route applier. The coordinator gates on the plan being
   // entirely live-applicable; this performs it and commits applied state only if all of it landed.
   applyReconcilePlan: (env, request, plan) =>

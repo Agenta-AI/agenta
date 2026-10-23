@@ -219,21 +219,49 @@ describe("Daytona provider delete", () => {
 });
 
 describe("Daytona provider activity refresh", () => {
-  it("strips the provider prefix and performs exactly one lookup", async () => {
+  it("strips the provider prefix and refreshes sandbox activity", async () => {
     const ids: string[] = [];
+    let refreshCalls = 0;
+
     const provider = daytonaWithLifecycle({}, {
-      client: { get: async (id: string) => { ids.push(id); return {} as any; } } as any,
+      client: {
+        get: async (id: string) => {
+          ids.push(id);
+
+          return {
+            async refreshActivity() {
+              refreshCalls += 1;
+            },
+          } as any;
+        },
+      } as any,
       buildBaseProvider: fakeProvider,
     });
 
     await provider.refreshActivity("daytona/sandbox-1");
 
     assert.deepEqual(ids, ["sandbox-1"]);
+    assert.equal(refreshCalls, 1);
   });
 
   it("swallows a missing sandbox", async () => {
     const provider = buildProvider({}, { statusCode: 404 });
-    await assert.doesNotReject(() => provider.refreshActivity("daytona/missing"));
+
+    await assert.doesNotReject(() =>
+      provider.refreshActivity("daytona/missing"),
+    );
+  });
+
+  it("swallows an activity refresh failure", async () => {
+    const provider = buildProvider({
+      async refreshActivity() {
+        throw new Error("temporary activity refresh failure");
+      },
+    });
+
+    await assert.doesNotReject(() =>
+      provider.refreshActivity("daytona/sandbox-1"),
+    );
   });
 });
 
