@@ -625,9 +625,9 @@ class SessionStreamsService:
             session_id=request.session_id,
         )
         turn_was_established = bool(
-            prior_stream and prior_stream.turn_id == request.turn_id
+            request.turn_id and prior_stream and prior_stream.turn_id == request.turn_id
         )
-        is_current_turn = True
+        is_current_turn = bool(request.turn_id)
 
         if request.turn_id and request.is_running:
             # Acquire-then-refresh: the first heartbeat must establish the nest locks
@@ -789,7 +789,7 @@ class SessionStreamsService:
         proposed_references = request.references or None
 
         created = False
-        if prior_stream is None:
+        if prior_stream is None and is_current_turn:
             try:
                 stream = await self._dao.create(
                     project_id=project_id,
@@ -831,7 +831,8 @@ class SessionStreamsService:
                 references=proposed_references,
             )
 
-        if stream is None:
+        can_update_stream = is_current_turn or turn_was_established
+        if stream is None and can_update_stream:
             stream = await self._dao.update(
                 project_id=project_id,
                 user_id=None,
@@ -851,6 +852,8 @@ class SessionStreamsService:
                     project_id=project_id,
                     session_id=request.session_id,
                 )
+        elif stream is None:
+            stream = prior_stream
 
         # `running` lifecycle for the path that actually runs turns. `_start_turn` publishes it
         # for send/steer, but the runner mints its own turn id and only ever heartbeats, so
@@ -859,7 +862,8 @@ class SessionStreamsService:
         # `stream is None` = the row is a killed tombstone; announcing a dead session as
         # running would light every watcher's badge for a run that cannot exist.
         if (
-            request.turn_id
+            is_current_turn
+            and request.turn_id
             and request.is_running
             and not turn_was_established
             and stream is not None
