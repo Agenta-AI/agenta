@@ -92,7 +92,7 @@ export interface CatalogConfig<I, T, C> {
     /** Render the connect flow (ConnectDrawer / TriggerConnectDrawer) for the chosen integration. */
     renderConnect: (
         integration: I,
-        handlers: {onClose: () => void; onSuccess: () => void},
+        handlers: {onClose: () => void; onSuccess: () => void; container: HTMLElement | null},
     ) => ReactNode
 }
 
@@ -667,6 +667,7 @@ export function GatewayCatalogDrawer<I, T, C>({
 }) {
     const [selected, setSelected] = useState<I | null>(null)
     const [connectFor, setConnectFor] = useState<I | null>(null)
+    const [panel, setPanel] = useState<HTMLDivElement | null>(null)
 
     // Reset navigation AND the shared searches when closed externally (e.g. picking an item closes
     // the drawer from the host), matching handleClose so the next open starts clean.
@@ -700,6 +701,7 @@ export function GatewayCatalogDrawer<I, T, C>({
                 onClose={handleClose}
                 title={config.title(selected)}
                 width={736}
+                panelRef={setPanel}
                 styles={{
                     body: {
                         padding: 0,
@@ -726,6 +728,7 @@ export function GatewayCatalogDrawer<I, T, C>({
                 config.renderConnect(connectFor, {
                     onClose: () => setConnectFor(null),
                     onSuccess: () => setConnectFor(null),
+                    container: panel,
                 })}
         </>
     )

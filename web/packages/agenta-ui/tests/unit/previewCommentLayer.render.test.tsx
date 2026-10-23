@@ -257,11 +257,11 @@ describe("PreviewCommentLayer", () => {
         }
     })
 
-    it("gives a touch pin a 44px hit area around its 28px dot", () => {
+    it("gives a touch pin a 44px hit area around its 28px badge", () => {
         stageOne(true)
         const pin = screen.getByRole("button", {name: "Comment 1"})
-        // 28px dot + 8px each side = 44px.
-        expect(pin.className).toContain("size-7")
+        // 28px badge + 8px each side = 44px.
+        expect(pin.className).toContain("h-7 min-w-7")
         expect(pin.className).toContain("after:-inset-2")
     })
 })

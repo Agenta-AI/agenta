@@ -9,11 +9,14 @@ import { DaytonaReconnectTerminalError } from "./daytona-provider.ts";
 import { planSlotKeys, type DaytonaSecretPlan } from "./daytona-secret-plan.ts";
 import {
   allocateDaytonaSecrets,
+  DAYTONA_SECRETS_PERMISSION_MESSAGE,
   DaytonaSecretLease,
   deleteDaytonaSecrets,
+  gatewayCredentialPlaceholders,
   isDaytonaNotFound,
   type DaytonaSecretAllocation,
   type DaytonaSecretApi,
+  type GatewayCredentialPlaceholders,
 } from "./daytona-secrets.ts";
 
 export interface DaytonaProviderLike {
@@ -113,13 +116,25 @@ function plansMatch(entry: RegistryEntry, createFingerprint: string): boolean {
   return entry.createFingerprint === createFingerprint;
 }
 
-/** Whether an allocation's slots are exactly the ones a plan asks for. Identities only. */
+/**
+ * Whether an allocation's slots are exactly the ones a plan asks for. Identities only.
+ *
+ * An allocation that left the gateway credential plain (`gatewayLeftPlain`) never asks for the
+ * gateway slot, so a reconnect with the same plan still matches.
+ */
 function slotSetsMatch(
   allocation: DaytonaSecretAllocation,
   plan: DaytonaSecretPlan,
 ): boolean {
   const allocated = [...allocation.bySlot.keys()].sort();
-  const wanted = planSlotKeys(plan);
+  const wanted = allocation.gatewayLeftPlain
+    ? planSlotKeys({
+        ...plan,
+        candidates: plan.candidates.filter(
+          (candidate) => candidate.consumer.kind !== "gateway",
+        ),
+      })
+    : planSlotKeys(plan);
   return (
     allocated.length === wanted.length &&
     allocated.every((key, index) => key === wanted[index])
@@ -211,7 +226,10 @@ function withMcpPlaceholders(
  * is an explicit follow-up (PR B of the Daytona-Secrets design; see PR #5278).
  */
 export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
-  buildProvider: (attachments: Record<string, string>) => T,
+  buildProvider: (
+    attachments: Record<string, string>,
+    gatewayPlaceholders?: GatewayCredentialPlaceholders,
+  ) => T,
   plan: DaytonaSecretPlan,
   api: DaytonaSecretApi,
   dependencies: ProcessLocalSecretDependencies,
@@ -348,6 +366,46 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
     }
   };
 
+  /**
+   * Allocate this plan's Secrets, or none when only the gateway credential needed one and the
+   * Daytona API key may not manage Secrets.
+   *
+   * A run whose only hideable value is the gateway credential made no Secret call before the
+   * gateway credential was hidden, so an API key without the Secrets permission still ran it.
+   * Failing that run now would break every built-in model run on such a deployment. It runs with
+   * the gateway credential as a plain environment value instead, which is what it did before, and
+   * says so in the log. A run that also hides a provider or MCP key fails as it always has.
+   */
+  const allocate = async (): Promise<DaytonaSecretAllocation> => {
+    try {
+      return await allocateDaytonaSecrets(plan, api, undefined, log);
+    } catch (error) {
+      const gatewayOnly =
+        plan.candidates.length > 0 &&
+        plan.candidates.every(
+          (candidate) => candidate.consumer.kind === "gateway",
+        );
+      // Only Daytona's own 403 on the Secret create, not any message that mentions a permission.
+      const forbidden =
+        error instanceof Error &&
+        error.message === DAYTONA_SECRETS_PERMISSION_MESSAGE &&
+        (error.cause as { statusCode?: unknown } | undefined)?.statusCode ===
+          403;
+      if (!gatewayOnly || !forbidden) throw error;
+      log(
+        "[daytona-secrets] the Daytona API key may not manage Secrets; the gateway credential " +
+          "stays a plain sandbox environment value for this run",
+      );
+      return {
+        attachments: {},
+        mcpHeaderPlaceholders: {},
+        created: [],
+        bySlot: new Map(),
+        gatewayLeftPlain: true,
+      };
+    }
+  };
+
   const facade: ProcessLocalDaytonaSecretProvider = {
     name: PROVIDER_NAME,
     async create(...args: unknown[]): Promise<string> {
@@ -374,14 +432,13 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
       }
       const lease = usable
         ? inheritedLease
-        : new DaytonaSecretLease(
-            await allocateDaytonaSecrets(plan, api, undefined, log),
-            api,
-            log,
-          );
+        : new DaytonaSecretLease(await allocate(), api, log);
       const allocation = lease.allocation;
       try {
-        provider = buildProvider(allocation.attachments);
+        provider = buildProvider(
+          allocation.attachments,
+          gatewayCredentialPlaceholders(plan, allocation),
+        );
       } catch (cause) {
         // buildProvider is synchronous and failed before any remote create call, so absence is
         // proven and compensation may safely remove the Secrets. The lease is left DETACHED

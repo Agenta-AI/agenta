@@ -2,7 +2,7 @@
 import {useEffect, useLayoutEffect, useRef, useState} from "react"
 
 import {truncateQuoteText, type Quote} from "@agenta/shared/quotes"
-import {ArrowUp} from "@phosphor-icons/react"
+import {ArrowUp, Quotes} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "../components/ui/tooltip"
@@ -44,8 +44,14 @@ export const QuoteNote = ({
     cancelRef.current = onCancel
 
     useLayoutEffect(() => {
-        setHeight(ref.current?.offsetHeight ?? 0)
+        const box = ref.current
+        setHeight(box?.offsetHeight ?? 0)
         inputRef.current?.focus({preventScroll: true})
+        // The note grows with its text, so the flip and clamp must follow the new height.
+        if (!box || typeof ResizeObserver === "undefined") return
+        const observer = new ResizeObserver(() => setHeight(box.offsetHeight))
+        observer.observe(box)
+        return () => observer.disconnect()
     }, [])
 
     // Bound once: the box re-renders every scroll frame while it tracks its span.
@@ -60,8 +66,11 @@ export const QuoteNote = ({
     const width = Math.min(WIDTH, Math.max(bounds.width - GAP * 2, 200))
     const below = anchor.bottom + GAP
     const flipped = height > 0 && below + height > bounds.height && anchor.top - height - GAP > GAP
-    // Clamped either way, so a flip near the top never escapes the pane.
-    const top = Math.max(flipped ? anchor.top - height - GAP : below, GAP)
+    // Clamped both ways: in a short pane the note covers its anchor rather than hide its input.
+    const top = Math.max(
+        Math.min(flipped ? anchor.top - height - GAP : below, bounds.height - height - GAP),
+        GAP,
+    )
     const left = Math.min(
         Math.max(anchor.left - width / 2, GAP),
         Math.max(bounds.width - width - GAP, GAP),
@@ -73,7 +82,7 @@ export const QuoteNote = ({
             data-quote-ignore="true"
             role="dialog"
             aria-label="Reply to the selected part"
-            className="absolute z-30 flex flex-col gap-2 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated px-3 py-2.5 shadow-lg"
+            className="absolute z-30 flex flex-col overflow-hidden rounded-lg bg-popover shadow-lg"
             style={{top, left, width, opacity: height ? 1 : 0}}
             onKeyDown={(e) => {
                 if (e.key === "Escape") {
@@ -83,11 +92,18 @@ export const QuoteNote = ({
                 }
             }}
         >
-            <p className="m-0 line-clamp-2 border-0 border-l-2 border-solid border-colorBorder pl-2.5 text-xs leading-5 text-colorTextSecondary">
-                {truncateQuoteText(quote.text, 220)}
-            </p>
-            {/* Bottom-aligned so the button stays put as the note grows. */}
-            <div className="flex items-end gap-2">
+            {/* A foreground tint: dark mode's muted and popover are the same color. */}
+            <div className="flex gap-2.5 bg-foreground/5 px-3.5 py-3">
+                <Quotes
+                    size={14}
+                    weight="fill"
+                    className="mt-[3px] shrink-0 text-muted-foreground"
+                />
+                <p className="m-0 line-clamp-2 text-[13px] leading-5 text-muted-foreground">
+                    {truncateQuoteText(quote.text, 220)}
+                </p>
+            </div>
+            <div className="flex flex-col gap-1 px-3.5 pb-2.5 pt-3">
                 <textarea
                     ref={inputRef}
                     value={note}
@@ -98,16 +114,16 @@ export const QuoteNote = ({
                         if (e.metaKey || e.ctrlKey) onSend(note)
                         else onStage(note)
                     }}
-                    rows={1}
-                    placeholder="Reply to the agent"
-                    className="max-h-24 min-h-0 flex-1 resize-none border-0 bg-transparent px-0 py-0.5 font-[inherit] text-xs leading-5 text-colorText outline-none [field-sizing:content] placeholder:text-colorTextPlaceholder"
+                    rows={2}
+                    placeholder="Ask about this…"
+                    className="max-h-32 min-h-10 resize-none border-0 bg-transparent p-0 font-[inherit] text-[13px] leading-5 text-popover-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground"
                 />
                 <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Button
-                                size="icon-xs"
-                                className="shrink-0"
+                                size="icon-sm"
+                                className="self-end"
                                 aria-label="Add to message"
                                 aria-keyshortcuts="Enter"
                                 onClick={() => onStage(note)}

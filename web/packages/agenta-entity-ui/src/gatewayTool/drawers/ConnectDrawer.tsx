@@ -34,6 +34,8 @@ interface Props {
     authSchemes: string[]
     onClose: () => void
     onSuccess?: () => void
+    /** A drawer panel to open inside, masking only that drawer. Absent = the page. */
+    container?: HTMLElement | null
 }
 
 function resolveAvailableModes(authSchemes: string[]): AuthMode[] {
@@ -58,6 +60,7 @@ export default function ConnectDrawer({
     authSchemes,
     onClose,
     onSuccess,
+    container = null,
 }: Props) {
     const [loading, setLoading] = useState(false)
     /** A failed create said NOTHING before — the spinner just stopped, indistinguishable from
@@ -189,6 +192,8 @@ export default function ConnectDrawer({
             footer={null}
             width={480}
             destroyOnClose
+            getContainer={container ?? false}
+            contained={!!container}
         >
             <ModalContent>
                 <div className="flex flex-col gap-1">

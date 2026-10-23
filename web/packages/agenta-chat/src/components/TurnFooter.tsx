@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from "react"
 
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {ChatActionIconButton, MetaSeparator} from "@agenta/ui/components/presentational"
-import {ArrowClockwise, ArrowUUpLeft, Check, Copy, TreeStructure} from "@phosphor-icons/react"
+import {ArrowClockwise, Check, Copy, TreeStructure} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import type {MessageUsageMetrics} from "../assets"
@@ -111,7 +111,7 @@ export const TurnFooter = ({
             {onRewind ? (
                 <ChatActionIconButton
                     label={isUser ? "Edit and re-run" : "Re-run this turn"}
-                    icon={<ArrowUUpLeft size={12} />}
+                    icon={<ArrowClockwise size={12} />}
                     onClick={onRewind}
                 />
             ) : null}

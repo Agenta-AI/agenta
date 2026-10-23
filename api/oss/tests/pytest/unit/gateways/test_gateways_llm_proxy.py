@@ -154,6 +154,13 @@ class _MockLlmGatewayService:
         return self._models
 
 
+def _platform_run(request: Request) -> Request:
+    """Authenticate `request` the way a gateway token from a platform agent run does."""
+    request.state.token_audience = "gateway"
+    request.state.gateway_platform_run = True
+    return request
+
+
 async def _read_body(response) -> bytes:
     if hasattr(response, "body_iterator"):
         return b"".join([chunk async for chunk in response.body_iterator])
@@ -215,11 +222,11 @@ async def test_standard_route_passes_standard_namespace_and_provider_as_name():
 async def test_the_run_a_caller_presents_reaches_the_service():
     """The run claim is read off request state, never off the tenant scope, and it is
     what ties a measured call back to its workflow run. A caller on no run passes None."""
-    on_a_run = _request(body=_body())
+    on_a_run = _platform_run(_request(body=_body()))
     on_a_run.state.gateway_run_id = "run-42"
     run_ids = []
 
-    for request in (on_a_run, _request(body=_body())):
+    for request in (on_a_run, _platform_run(_request(body=_body()))):
         service = _MockLlmGatewayService(
             relay_result=_relay_result(status_code=200, chunks=[b"{}"])
         )
@@ -968,3 +975,167 @@ async def test_a_stream_the_client_leaves_closes_the_relayed_body_at_once():
         await response.body_iterator.aclose()
 
     assert closed == [True]
+
+
+# --- built-in models are for platform agent runs only ------------------------ #
+
+
+def _unreadable_request(state: Dict[str, Any]) -> Request:
+    """A request whose body fails the test if anything reads it."""
+    scope = {"type": "http", "method": "POST", "path": "/", "headers": []}
+
+    async def receive() -> Dict[str, Any]:
+        raise AssertionError("the body of a refused built-in call was read")
+
+    request = Request(scope, receive)
+    for key, value in state.items():
+        setattr(request.state, key, value)
+    return request
+
+
+async def _call_builtin(proxy: LLMGatewayProxy, operation: str, request: Request):
+    return await getattr(proxy, operation)(request, "mock")
+
+
+_BUILTIN_OPERATIONS = [
+    "chat_completions_builtin",
+    "responses_builtin",
+    "messages_builtin",
+    "list_models_builtin",
+]
+
+# What request state each caller type leaves after authentication.
+_REFUSED_CALLERS = {
+    # Session cookies and API keys set neither audience nor claim.
+    "session_or_api_key": {},
+    # The runtime's own general-purpose credential, carrying the vault grant.
+    "general_secret_with_grant": {"token_grants": ("secret-resolve",)},
+    # A gateway token minted for a user principal, or before this claim existed.
+    "gateway_token_without_claim": {"token_audience": "gateway"},
+    "gateway_token_claim_false": {
+        "token_audience": "gateway",
+        "gateway_platform_run": False,
+    },
+    "gateway_token_claim_not_a_boolean": {
+        "token_audience": "gateway",
+        "gateway_platform_run": "true",
+    },
+    # The claim means nothing without the gateway audience.
+    "claim_without_gateway_audience": {"gateway_platform_run": True},
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", _BUILTIN_OPERATIONS)
+@pytest.mark.parametrize("caller", sorted(_REFUSED_CALLERS))
+async def test_a_built_in_route_refuses_every_caller_but_a_platform_agent_run(
+    operation, caller
+):
+    service = _MockLlmGatewayService(
+        relay_result=_relay_result(chunks=[b"{}"]), models=["gpt-4o"]
+    )
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+
+    with _auth_scope():
+        response = await _call_builtin(
+            proxy, operation, _unreadable_request(_REFUSED_CALLERS[caller])
+        )
+
+    assert response.status_code == 403
+    error = json.loads(response.body)["error"]
+    assert error["code"] == "builtin_requires_agent_run"
+    assert error["type"] == "permission_error"
+    assert service.relay_calls == []
+    assert service.list_models_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", _BUILTIN_OPERATIONS)
+async def test_a_built_in_route_serves_a_platform_agent_run(operation):
+    service = _MockLlmGatewayService(
+        relay_result=_relay_result(chunks=[b"{}"]), models=["gpt-4o"]
+    )
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+    body = {
+        "chat_completions_builtin": _body(),
+        "responses_builtin": _responses_body(),
+        "messages_builtin": _messages_body(),
+        "list_models_builtin": b"",
+    }[operation]
+
+    with _auth_scope():
+        response = await _call_builtin(
+            proxy, operation, _platform_run(_request(body=body))
+        )
+
+    if operation == "list_models_builtin":
+        assert response["data"] == [{"id": "gpt-4o", "object": "model"}]
+        assert service.list_models_calls[0]["namespace"] == (
+            GatewayEndpointNamespace.BUILTIN
+        )
+    else:
+        assert response.status_code == 200
+        assert service.relay_calls[0]["namespace"] == GatewayEndpointNamespace.BUILTIN
+
+
+@pytest.mark.asyncio
+async def test_a_malformed_body_on_a_built_in_route_is_refused_for_the_caller_first():
+    service = _MockLlmGatewayService()
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+
+    with _auth_scope():
+        response = await proxy.chat_completions_builtin(
+            _request(body=b"{not json"), "mock"
+        )
+
+    assert response.status_code == 403
+    assert json.loads(response.body)["error"]["code"] == "builtin_requires_agent_run"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "chat_completions_standard",
+        "chat_completions_custom",
+        "responses_standard",
+        "responses_custom",
+        "messages_standard",
+        "messages_custom",
+    ],
+)
+@pytest.mark.parametrize("caller", sorted(_REFUSED_CALLERS))
+async def test_own_connection_routes_do_not_need_a_platform_agent_run(
+    operation, caller
+):
+    """Standard and custom routes spend the caller's own provider key."""
+    service = _MockLlmGatewayService(relay_result=_relay_result(chunks=[b"{}"]))
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+    body = (
+        _responses_body()
+        if operation.startswith("responses")
+        else _messages_body()
+        if operation.startswith("messages")
+        else _body()
+    )
+    request = _request(body=body)
+    for key, value in _REFUSED_CALLERS[caller].items():
+        setattr(request.state, key, value)
+
+    with _auth_scope():
+        response = await getattr(proxy, operation)(request, "my-connection")
+
+    assert response.status_code == 200
+    assert len(service.relay_calls) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["list_models_standard", "list_models_custom"])
+async def test_own_connection_model_lists_do_not_need_a_platform_agent_run(operation):
+    service = _MockLlmGatewayService(models=["gpt-4o"])
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+
+    with _auth_scope():
+        result = await getattr(proxy, operation)("my-connection")
+
+    assert result["data"] == [{"id": "gpt-4o", "object": "model"}]

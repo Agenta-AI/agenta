@@ -71,10 +71,12 @@ PI_VAULT_PROVIDERS: List[str] = [
 PI_SUBSCRIPTION_MODELS: Dict[str, List[str]] = {
     # Bare ids (like the ``openai`` catalog); the ``openai-codex`` provider disambiguates from the
     # plain ``openai`` models that share these names. The runner normalizes any of these onto the
-    # harness's ``openai-codex/<id>`` model. This is the full ``openai-codex`` model set Pi's
+    # harness's ``openai-codex/<id>`` model. This is the ``openai-codex`` model set Pi's
     # vendored catalog exposes (``@earendil-works/pi-ai`` ``models.generated`` ->
-    # ``openai-codex``, served via ``chatgpt.com/backend-api``); keep it in sync when the pinned
-    # Pi version changes its codex model list.
+    # ``openai-codex``, served via ``chatgpt.com/backend-api``), minus the ids a ChatGPT account
+    # refuses ("not supported when using Codex with a ChatGPT account"): ``gpt-5.5`` and
+    # ``gpt-5.3-codex-spark``. Keep it in sync when the pinned Pi version changes its codex model
+    # list, and run one turn per new id on a ChatGPT login before you add it.
     "openai-codex": [
         "gpt-6.1-sol",
         "gpt-6-sol",
@@ -83,8 +85,6 @@ PI_SUBSCRIPTION_MODELS: Dict[str, List[str]] = {
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.6-luna",
-        "gpt-5.5",
-        "gpt-5.3-codex-spark",
     ],
 }
 PI_SUBSCRIPTION_PROVIDERS: List[str] = list(PI_SUBSCRIPTION_MODELS)

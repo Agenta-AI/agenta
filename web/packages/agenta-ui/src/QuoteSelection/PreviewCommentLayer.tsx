@@ -13,6 +13,7 @@ import type {PinQuery} from "@agenta/shared/previewPicker"
 import {
     isPreviewQuote,
     previewCommentNumber,
+    readableQuoteText,
     truncateQuoteText,
     type ElementAnchor,
     type PreviewAnchor,
@@ -129,11 +130,13 @@ const noteAnchor = (rect: PreviewRect) => ({
     bottom: rect.top + rect.height,
 })
 
+// QuoteNote shows `quote.text`; a cell quote's text is a Markdown table.
+const readable = (quote: Quote): Quote => ({...quote, text: readableQuoteText(quote)})
+
 const pinPoint = (quote: PreviewQuote, rect: PreviewRect) => {
     const {anchor} = quote.source
-    // Inside the cell's right edge: its left edge is the table's, which clips.
-    if (anchor.type === "cells")
-        return {top: rect.top + rect.height / 2, left: rect.left + rect.width - 10}
+    // The pin's tail sits just inside the cell's top-right corner.
+    if (anchor.type === "cells") return {top: rect.top + 6, left: rect.left + rect.width - 6}
     return {
         top: rect.top + anchor.point.y * rect.height,
         left: rect.left + anchor.point.x * rect.width,
@@ -156,7 +159,7 @@ const PinCard = ({
             </p>
         ) : null}
         <p className="m-0 line-clamp-3 border-0 border-l-2 border-solid border-border pl-2 text-xs leading-4 text-muted-foreground">
-            {truncateQuoteText(quote.text)}
+            {truncateQuoteText(readableQuoteText(quote))}
         </p>
         <div className="flex justify-end gap-1">
             <Button size="xs" variant="ghost" onClick={onEdit}>
@@ -322,11 +325,11 @@ export const PreviewCommentLayer = ({
                         data-quote-ignore="true"
                         aria-label={`Comment ${number}`}
                         onClick={isTouch ? () => setOpenPin(quote.id) : undefined}
-                        // On touch the 28px dot grows an invisible 44px hit area (see touch-target).
-                        className={`absolute z-20 flex -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-primary p-0 text-[11px] font-semibold leading-none text-btn-primary-fg shadow-md ring-2 ring-background ${
+                        // The square bottom-left corner is the tail; it sits on the commented point.
+                        className={`absolute z-20 flex origin-bottom-left -translate-y-full cursor-pointer items-center justify-center rounded-full rounded-bl-none border-0 bg-primary px-1.5 font-semibold leading-none tabular-nums text-btn-primary-fg shadow-md ring-2 ring-background transition-transform hover:scale-110 ${
                             isTouch
-                                ? "size-7 after:absolute after:-inset-2 after:content-['']"
-                                : "size-5"
+                                ? "h-7 min-w-7 text-xs after:absolute after:-inset-2 after:content-['']"
+                                : "h-6 min-w-6 text-[11px]"
                         }`}
                         style={{top, left}}
                     >
@@ -368,7 +371,7 @@ export const PreviewCommentLayer = ({
                 ) : (
                     <QuoteNote
                         key={draft.quote.id}
-                        quote={draft.quote}
+                        quote={readable(draft.quote)}
                         anchor={noteAnchor(draftRect)}
                         bounds={bounds}
                         initialNote={draft.note}
@@ -390,7 +393,7 @@ export const PreviewCommentLayer = ({
                 ) : editRect ? (
                     <QuoteNote
                         key={`edit-${editing.id}`}
-                        quote={editing}
+                        quote={readable(editing)}
                         anchor={noteAnchor(editRect)}
                         bounds={bounds}
                         initialNote={editing.note}

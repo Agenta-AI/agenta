@@ -15,6 +15,7 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {getDefaultStore, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {agentEntryHref} from "../agents/agentEntry"
 import {useProjectPermission} from "../context/useProjectPermission"
 
 import {selectedRevisionAtomFamily} from "./selectedRevision"
@@ -41,9 +42,9 @@ export const DrillInBridgeProvider = ({
     const router = useRouter()
     const {workspace_id: workspaceId} = router.query
     // A bare <a target="_blank">, so the `/m` basePath has to be spelled out here.
-    const agentBase =
+    const projectBase =
         typeof workspaceId === "string"
-            ? `${router.basePath}/w/${workspaceId}/p/${projectId}/agents`
+            ? `${router.basePath}/w/${workspaceId}/p/${projectId}`
             : null
 
     // Registry-backed "Add skill" flow — without this /m keeps the inline-skill editor.
@@ -52,9 +53,10 @@ export const DrillInBridgeProvider = ({
     const workflowReference = useMemo(
         () => ({
             ...baseWorkflowReference,
-            agentHref: (workflowId: string) => (agentBase ? `${agentBase}/${workflowId}` : null),
+            agentHref: (workflowId: string) =>
+                projectBase ? agentEntryHref(projectBase, workflowId) : null,
         }),
-        [baseWorkflowReference, agentBase],
+        [baseWorkflowReference, projectBase],
     )
 
     const canEditSecrets = useProjectPermission(projectId, "edit_secret")

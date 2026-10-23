@@ -93,6 +93,9 @@ export function installPreviewPicker(
     var PRESS_WINDOW = 1500
     var mode: PickerMode | null = null
     var pressed: {target: EventTarget | null; at: number} | null = null
+    // Touch has no hover: a tap's compat mouseover would leave the highlight stuck.
+    var touchedAt = 0
+    var noHover = !!window.matchMedia && window.matchMedia("(hover: none)").matches
     var pins: PinQuery[] = []
     var missing: Record<string, boolean> = {}
     var highlight: HTMLElement | null = null
@@ -266,17 +269,22 @@ export function installPreviewPicker(
             s.position = "fixed"
             s.pointerEvents = "none"
             s.zIndex = "2147483647"
-            s.outline = "2px solid rgba(22, 119, 255, 0.9)"
+            // The iframe cannot read host tokens; this is palette.ts `selection` (light).
+            s.border = "2px solid #1677ff"
+            s.borderRadius = "4px"
             s.background = "rgba(22, 119, 255, 0.08)"
             s.boxSizing = "border-box"
             s.margin = "0"
+            s.transition =
+                "top 80ms ease-out, left 80ms ease-out, width 80ms ease-out, height 80ms ease-out"
             document.documentElement.appendChild(highlight)
         }
+        // A 3px gap keeps the border off the element's own text.
         var r = rectOf(el)
-        highlight.style.top = r.top + "px"
-        highlight.style.left = r.left + "px"
-        highlight.style.width = r.width + "px"
-        highlight.style.height = r.height + "px"
+        highlight.style.top = r.top - 3 + "px"
+        highlight.style.left = r.left - 3 + "px"
+        highlight.style.width = r.width + 6 + "px"
+        highlight.style.height = r.height + 6 + "px"
     }
 
     function pick(event: MouseEvent): void {
@@ -308,6 +316,10 @@ export function installPreviewPicker(
         if (type !== "touchstart" && type !== "touchend") event.preventDefault()
         event.stopPropagation()
         event.stopImmediatePropagation()
+        if (type === "touchstart") {
+            touchedAt = Date.now()
+            removeHighlight()
+        }
         if (type === "pointerdown" || type === "mousedown" || type === "touchstart") {
             pressed = {target: event.target, at: Date.now()}
             return
@@ -321,6 +333,8 @@ export function installPreviewPicker(
 
     function onHover(event: Event): void {
         if (!mode) return
+        if (noHover || (event as PointerEvent).pointerType === "touch") return
+        if (Date.now() - touchedAt < PRESS_WINDOW) return
         var found = pickable(event.target)
         if (found) showHighlight(found.el)
         else removeHighlight()

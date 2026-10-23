@@ -6,6 +6,7 @@ import {
     inlineCode,
     previewCommentNumber,
     quotesToMarkdown,
+    readableQuoteText,
     splitQuotedMessage,
     type PreviewAnchor,
     type Quote,
@@ -226,5 +227,43 @@ describe("previewCommentNumber", () => {
             source: {kind: "message", messageId: "m"},
         }
         expect(previewCommentNumber([text], text)).toBeNull()
+    })
+})
+
+describe("readableQuoteText", () => {
+    const cells = (rows: string[][]) =>
+        previewQuote({type: "cells", sheet: "Q3", range: "C5"}, cellsToTable(null, rows), "")
+
+    it("reads one cell under its header as name: value", () => {
+        expect(readableQuoteText(cells([["Plan"], ["80"]]))).toBe("Plan: 80")
+    })
+
+    it("pairs each header with its value for one row", () => {
+        expect(
+            readableQuoteText(
+                cells([
+                    ["Plan", "Actual"],
+                    ["80", "9|1"],
+                ]),
+            ),
+        ).toBe("Plan: 80, Actual: 9|1")
+    })
+
+    it("joins cells with dots and rows with slashes for a block", () => {
+        expect(
+            readableQuoteText(
+                cells([
+                    ["A", "B"],
+                    ["1", "2"],
+                    ["3", "4"],
+                ]),
+            ),
+        ).toBe("A · B / 1 · 2 / 3 · 4")
+    })
+
+    it("leaves an element quote unchanged", () => {
+        expect(readableQuoteText(previewQuote(element({}), "Pricing | plans", ""))).toBe(
+            "Pricing | plans",
+        )
     })
 })

@@ -18,12 +18,14 @@ import {useRouter} from "next/router"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
+import {startBlankSession} from "../chat/useStartBlankSession"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
 import {HowThisWorksButton} from "../education/HowThisWorksButton"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {isAgentOverviewEnabled} from "./agentEntry"
 import {AgentFilterMenu} from "./AgentFilterMenu"
 import {AgentListTable} from "./AgentListTable"
 import {
@@ -121,7 +123,10 @@ export const AgentListScreen = ({
     // the unnarrowed list — a search that matches nothing empties this one too.
     const projectHasAgents = (query.data ?? []).length > 0
     const openRow = useCallback(
-        (row: AgentListRow) => void router.push(`${base}/agents/${row.id}`),
+        (row: AgentListRow) => {
+            if (isAgentOverviewEnabled()) void router.push(`${base}/agents/${row.id}`)
+            else startBlankSession(base, row.id)
+        },
         [base, router],
     )
     const failed = showArchived ? archived.isError : query.isError

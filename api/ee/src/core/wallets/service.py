@@ -39,9 +39,6 @@ from ee.src.core.wallets.purchases import (
     PURCHASE_CREDIT_KIND,
     PURCHASE_LIFETIME_DAYS,
     PURCHASE_PRIORITY,
-    STARTER_CREDITS_KIND,
-    STARTER_CREDITS_LIFETIME_DAYS,
-    STARTER_CREDITS_PRIORITY,
 )
 from ee.src.core.wallets.types import (
     WalletCreditDTO,
@@ -335,27 +332,6 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         return await self.wallets_dao.get_awarded_credit(
             organization_id=organization_id,
             idempotency_key=_purchase_key(checkout_session_id),
-        )
-
-    async def grant_starter_credits(
-        self,
-        *,
-        organization_id: UUID,
-        amount_musd: int,
-        now: Optional[datetime] = None,
-    ) -> WalletCreditDTO:
-        """Move an organization's remaining starter-credits proxy budget into the wallet,
-        expiring after twelve months. Idempotent per organization: a rerun returns the
-        first transfer whatever amount it is called with."""
-        now = now or datetime.now(timezone.utc)
-        return await self.wallets_dao.award_credit(
-            organization_id=organization_id,
-            idempotency_key=f"starter_credits:organization:{organization_id}",
-            credit_kind=STARTER_CREDITS_KIND,
-            amount_musd=amount_musd,
-            priority=STARTER_CREDITS_PRIORITY,
-            end_time=now + timedelta(days=STARTER_CREDITS_LIFETIME_DAYS),
-            now=now,
         )
 
 
