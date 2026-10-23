@@ -37,14 +37,20 @@ forged `postMessage`, markdown injection text, a 10,000-character element).
 3. The comment layer re-renders when its root resizes, so the note box stays in the pane.
 4. The chip editor puts the cursor after the existing note.
 
+## Fixed after the pass
+
+1. A second pick while a draft is open moves the draft to the new element and keeps its
+   typed text (commit `qyy`).
+2. Composer chips show the same number as their pin (commit `oko`).
+3. The open draft note follows its element on scroll and resize: the draft sits in the quote
+   store unstaged, so the frames report its position like a pin (commit `wyk`).
+
 ## Open findings, not fixed
 
-1. A second pick while a draft is open replaces the draft and loses its typed text.
-2. Pin numbers do not appear on the composer chips, so a pin and its chip are hard to match
-   when several comments exist.
-3. An open draft note stays where it opened when the preview scrolls or resizes.
-4. Staged comments live in memory and are lost on a page reload, the same as text quotes.
-5. The chip shows `Q3 "final" (v2)!A2:B5` without the quotes Excel puts around such sheet
+1. Staged comments live in memory and are lost on a page reload, the same as text quotes.
+2. The chip shows `Q3 "final" (v2)!A2:B5` without the quotes Excel puts around such sheet
    names.
-6. A comment marked "changed" still sends with its old excerpt; the chip warns, the send does
+3. A comment marked "changed" still sends with its old excerpt; the chip warns, the send does
    not.
+4. The hover outline inside the frame stays where it was after the frame scrolls, until the
+   pointer moves.
