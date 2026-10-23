@@ -147,6 +147,7 @@ JOIN projects p ON p.id = pm.project_id
 WHERE p.organization_id = ANY(CAST(:orgs AS uuid[]))
   AND (pm.project_id, pm.user_id) IN (
       SELECT project_id, user_id FROM project_members
+      WHERE project_id IS NOT NULL AND user_id IS NOT NULL
       GROUP BY project_id, user_id HAVING count(*) > 1)
 ORDER BY pm.project_id, pm.user_id, pm.created_at ASC NULLS LAST, pm.id ASC
 """
@@ -258,6 +259,7 @@ WHERE id IN (
         FROM project_members pm
         JOIN projects p ON p.id = pm.project_id
         WHERE pm.is_demo IS NOT TRUE
+          AND pm.user_id IS NOT NULL
           AND p.organization_id = ANY(CAST(:orgs AS uuid[]))
     ) ranked
     WHERE ranked.position > 1

@@ -36,6 +36,8 @@ _INDEX_NAME = "ux_project_members_project_id_user_id"
 _COUNT_DUPLICATE_GROUPS_SQL = """
 SELECT count(*) FROM (
     SELECT 1 FROM project_members
+    -- NULL keys are distinct for a unique index, so they are never duplicates.
+    WHERE project_id IS NOT NULL AND user_id IS NOT NULL
     GROUP BY project_id, user_id
     HAVING count(*) > 1
 ) duplicates
