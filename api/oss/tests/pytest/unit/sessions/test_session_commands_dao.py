@@ -917,7 +917,7 @@ async def test_full_service_parallel_answers_create_one_terminal_continuation(
         ).all()
     assert before == [(second.execution_id, None)]
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=command_scope["project_id"],
         session_id=command_scope["session_id"],
         execution_id=second.execution_id,
