@@ -1049,7 +1049,9 @@ async def test_error_ending_leaves_a_stopping_continuation_to_its_stop():
         executions_dao=executions,
     )
 
-    assert not await service.settle_execution_ended(
+    # Reconciled: the Stop command owns the ending, so the watchdog must not keep retrying it
+    # (a False here would hold back the sweep's abandoned-command settlement).
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="continuation-1",

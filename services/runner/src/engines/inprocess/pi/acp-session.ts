@@ -191,6 +191,7 @@ export class InProcessAcpSession {
     const silenced = new Promise<never>((_, reject) => {
       this.silence = reject;
     });
+    this.malformedRetry.reset();
     this.watchdog.start();
     const turn = this.acp.prompt(message, images);
     this.currentTurn = turn.catch(() => {});

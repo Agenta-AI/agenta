@@ -507,6 +507,17 @@ describe("a broken tool call from the model (production EU, 2026-10-06)", () => 
     await host.destroySandbox();
   }, 60_000);
 
+  it("gives the next prompt its own retry after a prompt ended on a second failure", async () => {
+    const fixture = createHostFixture(model.baseUrl);
+    model.script([MALFORMED, MALFORMED, MALFORMED, { text: "next prompt recovered" }]);
+    const { session, host, turn } = await openSession(fixture);
+    await expect(session.prompt(prompt("run it"))).rejects.toMatchObject({ publicCode: "upstream_error" });
+    expect(await session.rollbackFailedTurn()).toBe(true);
+    expect(await session.prompt(prompt("try again"))).toEqual({ stopReason: "end_turn" });
+    expect(turn.text()).toContain("next prompt recovered");
+    await host.destroySandbox();
+  }, 60_000);
+
   it("gives the retry back after a model call succeeds", async () => {
     const fixture = createHostFixture(model.baseUrl);
     model.script([MALFORMED, { tool: "bash", args: { command: "echo first" } }, MALFORMED, { text: "recovered twice" }]);

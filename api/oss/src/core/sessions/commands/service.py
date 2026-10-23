@@ -1753,7 +1753,16 @@ class SessionCommandsService:
             if receipt is None or receipt.status != "accepted":
                 await self._mark_continuation_recoverable(admission, receipt)
                 admission.execution_state = SessionExecutionState.recoverable
-        return result.won or result.settlement.terminal_outcome is not None
+        # A failed ending deferred to a Stop is reconciled too: the Stop command settles it.
+        deferred_to_stop = (
+            terminal_outcome == "failed"
+            and result.settlement.state == SessionExecutionState.stopping
+        )
+        return (
+            result.won
+            or result.settlement.terminal_outcome is not None
+            or deferred_to_stop
+        )
 
     async def repair_terminal_redis(self) -> int:
         if self._executions is None:

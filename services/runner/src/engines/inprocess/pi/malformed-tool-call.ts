@@ -25,6 +25,8 @@ interface RetryCheck {
 export interface MalformedToolCallRetry {
   /** True once this run of failures was retried, so a further failure is the second one. */
   retried(): boolean;
+  /** Give the next prompt its own retry, even when the last prompt ended on a second failure. */
+  reset(): void;
   stop(): void;
 }
 
@@ -40,7 +42,13 @@ export function retryMalformedToolCallOnce(session: AgentSession): MalformedTool
     if (event.type === "auto_retry_start" && isMalformedToolCall(event.errorMessage)) retried = true;
     if (event.type === "message_end" && event.message.role === "assistant" && (event.message as { stopReason?: string }).stopReason !== "error") retried = false;
   });
-  return { retried: () => retried, stop };
+  return {
+    retried: () => retried,
+    reset: () => {
+      retried = false;
+    },
+    stop,
+  };
 }
 
 /**

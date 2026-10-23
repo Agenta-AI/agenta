@@ -463,6 +463,9 @@ async def test_persisted_error_ending_settles_the_continuation_as_failed(
 
     assert ("failed", "continuation-1") in commands.calls
     assert _swept(row)
+    # A reconciled ending does not hold back the abandoned-command settlement or the Redis repair.
+    assert "settle" in commands.calls
+    assert "repair" in commands.calls
 
 
 @pytest.mark.anyio
