@@ -1,5 +1,5 @@
 // Runs inside the viewer frame: receives the bytes once, renders them, keeps links in the frame.
-import {installPreviewPicker} from "@agenta/shared/previewPicker"
+import {installPreviewPicker, isHostToPickerType} from "@agenta/shared/previewPicker"
 
 import {
     isOpenableLink,
@@ -53,16 +53,13 @@ export function runViewer(renderer: FrameRenderer): void {
 
     window.addEventListener("message", (event) => {
         if (event.source !== window.parent) return
-        const message = parseHostMessage(event.data)
-        if (!message) return
-        if (
-            message.type === "pick-start" ||
-            message.type === "pick-stop" ||
-            message.type === "pins"
-        ) {
-            picker(message)
+        const data = event.data as {type?: unknown} | null
+        if (data && isHostToPickerType(data.type)) {
+            picker(data)
             return
         }
+        const message = parseHostMessage(event.data)
+        if (!message) return
         if (message.type === "goto") {
             renderer.goto?.(message.index)
             return

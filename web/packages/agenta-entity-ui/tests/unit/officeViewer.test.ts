@@ -109,36 +109,6 @@ describe("parseViewerMessage picker messages", () => {
 })
 
 describe("parseHostMessage", () => {
-    it("accepts the picker messages", () => {
-        expect(parseHostMessage({type: "pick-start", format: "presentation", page: 2})).toEqual({
-            type: "pick-start",
-            format: "presentation",
-            page: 2,
-        })
-        expect(parseHostMessage({type: "pick-start", format: "document"})).toEqual({
-            type: "pick-start",
-            format: "document",
-        })
-        expect(parseHostMessage({type: "pick-stop"})).toEqual({type: "pick-stop"})
-        const pins = [{id: "a", selector: "section.docx:nth-of-type(1) > p", text: "Hi"}]
-        expect(parseHostMessage({type: "pins", pins})).toEqual({type: "pins", pins})
-    })
-
-    it.each([
-        {type: "pick-start", format: "spreadsheet"},
-        {type: "pick-start", format: "presentation", page: 0},
-        {type: "pick-start", format: "presentation", page: 1.5},
-        {type: "pins", pins: "a"},
-        {type: "pins", pins: [{id: "a", selector: 1, text: "x"}]},
-        {type: "pins", pins: [{id: "a", selector: "p".repeat(501), text: "x"}]},
-        {
-            type: "pins",
-            pins: Array.from({length: 201}, (_, i) => ({id: `${i}`, selector: "p", text: ""})),
-        },
-    ])("rejects %j", (data) => {
-        expect(parseHostMessage(data)).toBeNull()
-    })
-
     it("accepts render with an ArrayBuffer and goto with an index", () => {
         const bytes = new ArrayBuffer(4)
         expect(parseHostMessage({type: "render", kind: "document", bytes})).toEqual({

@@ -4,15 +4,9 @@
 /* eslint-disable no-var, @typescript-eslint/prefer-for-of */
 
 import {
-    isHostToPickerType,
     parsePickerMessage,
-    PICKER_ID_CAP,
-    PICKER_PIN_RECTS_CAP,
-    PICKER_SELECTOR_CAP,
-    PICKER_TEXT_CAP,
     type HostToPicker,
     type PickerToHost,
-    type PinQuery,
 } from "@agenta/shared/previewPicker"
 
 export type OfficeViewerKind = "document" | "presentation"
@@ -63,8 +57,7 @@ const isRecord = (x: unknown): x is Record<string, unknown> =>
 
 const isIndex = (x: unknown): x is number => Number.isInteger(x) && (x as number) >= 0
 
-/** Frame → host, validated at the boundary; anything else is null and ignored. `frame` is the
- * host iframe's size, which the relay's inner frame fills. */
+/** Frame → host, validated at the boundary; `frame` is the host iframe's size. */
 export function parseViewerMessage(
     data: unknown,
     frame: {width: number; height: number},
@@ -92,42 +85,9 @@ export function parseViewerMessage(
     }
 }
 
-const isPickerFormat = (x: unknown): x is "html" | "document" | "presentation" =>
-    x === "html" || x === "document" || x === "presentation"
-
-const cappedString = (x: unknown, cap: number): x is string =>
-    typeof x === "string" && x.length <= cap
-
-function parsePins(x: unknown): PinQuery[] | null {
-    if (!Array.isArray(x) || x.length > PICKER_PIN_RECTS_CAP) return null
-    const pins: PinQuery[] = []
-    for (const pin of x) {
-        if (!isRecord(pin)) return null
-        const {id, selector, text} = pin
-        if (!cappedString(id, PICKER_ID_CAP) || !cappedString(selector, PICKER_SELECTOR_CAP))
-            return null
-        if (!cappedString(text, PICKER_TEXT_CAP)) return null
-        pins.push({id, selector, text})
-    }
-    return pins
-}
-
-function parsePickerHostMessage(data: Record<string, unknown>): HostToPicker | null {
-    if (data.type === "pick-stop") return {type: "pick-stop"}
-    if (data.type === "pins") {
-        const pins = parsePins(data.pins)
-        return pins ? {type: "pins", pins} : null
-    }
-    if (data.type !== "pick-start" || !isPickerFormat(data.format)) return null
-    if (data.page === undefined) return {type: "pick-start", format: data.format}
-    if (!Number.isInteger(data.page) || (data.page as number) < 1) return null
-    return {type: "pick-start", format: data.format, page: data.page as number}
-}
-
-/** Host → frame, validated inside the frame. */
-export function parseHostMessage(data: unknown): HostToViewer | null {
+/** Host → frame, validated inside the frame; the picker validates its own messages. */
+export function parseHostMessage(data: unknown): Exclude<HostToViewer, HostToPicker> | null {
     if (!isRecord(data)) return null
-    if (isHostToPickerType(data.type)) return parsePickerHostMessage(data)
     if (data.type === "goto") return isIndex(data.index) ? {type: "goto", index: data.index} : null
     if (
         data.type === "render" &&
