@@ -1,5 +1,13 @@
 // Comments on a rendered preview: note box at a pick, numbered pins, pin card with Edit and Delete.
-import {useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject} from "react"
+import {
+    Fragment,
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+    type RefObject,
+} from "react"
 
 import type {PinQuery} from "@agenta/shared/previewPicker"
 import {
@@ -15,10 +23,10 @@ import {generateId} from "@agenta/shared/utils"
 
 import {Button} from "../components/ui/button"
 import {HoverCard, HoverCardContent, HoverCardTrigger} from "../components/ui/hover-card"
-import {Popover, PopoverContent, PopoverTrigger} from "../components/ui/popover"
 import {hasCoarsePointer} from "../hooks/useVisualViewport"
 
 import {QuoteNote} from "./QuoteNote"
+import {CommentSheet, QuoteNoteSheet} from "./QuoteNoteSheet"
 import {
     addQuote,
     getQuotes,
@@ -269,6 +277,29 @@ export const PreviewCommentLayer = ({
             : live
     })()
 
+    const stageDraft = (note: string) => {
+        if (!draft) return
+        updateQuote(sessionId, draft.quote.id, {note, staged: true})
+        close()
+    }
+    const sendDraft = (note: string) => {
+        stageDraft(note)
+        submitSessionMessage(sessionId)
+    }
+    const saveEdit = (note: string) => {
+        if (editing) updateQuote(sessionId, editing.id, {note})
+        close()
+    }
+    const editPin = (id: string) => {
+        setOpenPin(null)
+        setEditor({kind: "edit", id})
+    }
+    const deletePin = (id: string) => {
+        setOpenPin(null)
+        removeQuote(sessionId, id)
+    }
+    const openQuote = openPin ? comments.find((quote) => quote.id === openPin) : undefined
+
     return (
         <>
             {comments.map((quote) => {
@@ -281,14 +312,8 @@ export const PreviewCommentLayer = ({
                 const card = (
                     <PinCard
                         quote={quote}
-                        onEdit={() => {
-                            setOpenPin(null)
-                            setEditor({kind: "edit", id: quote.id})
-                        }}
-                        onDelete={() => {
-                            setOpenPin(null)
-                            removeQuote(sessionId, quote.id)
-                        }}
+                        onEdit={() => editPin(quote.id)}
+                        onDelete={() => deletePin(quote.id)}
                     />
                 )
                 const pin = (
@@ -296,26 +321,24 @@ export const PreviewCommentLayer = ({
                         type="button"
                         data-quote-ignore="true"
                         aria-label={`Comment ${number}`}
+                        onClick={isTouch ? () => setOpenPin(quote.id) : undefined}
+                        // On touch the 28px dot grows an invisible 44px hit area (see touch-target).
                         className={`absolute z-20 flex -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-primary p-0 text-[11px] font-semibold leading-none text-btn-primary-fg shadow-md ring-2 ring-background ${
-                            isTouch ? "size-7" : "size-5"
+                            isTouch
+                                ? "size-7 after:absolute after:-inset-2 after:content-['']"
+                                : "size-5"
                         }`}
                         style={{top, left}}
                     >
                         {number}
                     </button>
                 )
-                const open = openPin === quote.id
-                const onOpenChange = (next: boolean) => setOpenPin(next ? quote.id : null)
-                return isTouch ? (
-                    <Popover key={quote.id} open={open} onOpenChange={onOpenChange}>
-                        <PopoverTrigger asChild>{pin}</PopoverTrigger>
-                        <PopoverContent className="w-64 p-3">{card}</PopoverContent>
-                    </Popover>
-                ) : (
+                if (isTouch) return <Fragment key={quote.id}>{pin}</Fragment>
+                return (
                     <HoverCard
                         key={quote.id}
-                        open={open}
-                        onOpenChange={onOpenChange}
+                        open={openPin === quote.id}
+                        onOpenChange={(next) => setOpenPin(next ? quote.id : null)}
                         openDelay={150}
                         closeDelay={100}
                     >
@@ -324,42 +347,58 @@ export const PreviewCommentLayer = ({
                     </HoverCard>
                 )
             })}
-            {draft && draftRect ? (
-                <QuoteNote
-                    key={draft.quote.id}
-                    quote={draft.quote}
-                    anchor={noteAnchor(draftRect)}
-                    bounds={bounds}
-                    initialNote={draft.note}
-                    onStage={(note) => {
-                        updateQuote(sessionId, draft.quote.id, {note, staged: true})
-                        close()
-                    }}
-                    onSend={(note) => {
-                        updateQuote(sessionId, draft.quote.id, {note, staged: true})
-                        close()
-                        submitSessionMessage(sessionId)
-                    }}
-                    onCancel={discardDraft}
+            {isTouch && openQuote ? (
+                <CommentSheet
+                    quote={openQuote}
+                    onEdit={() => editPin(openQuote.id)}
+                    onDelete={() => deletePin(openQuote.id)}
+                    onClose={() => setOpenPin(null)}
                 />
             ) : null}
-            {editing && editRect ? (
-                <QuoteNote
-                    key={`edit-${editing.id}`}
-                    quote={editing}
-                    anchor={noteAnchor(editRect)}
-                    bounds={bounds}
-                    initialNote={editing.note}
-                    onStage={(note) => {
-                        updateQuote(sessionId, editing.id, {note})
-                        close()
-                    }}
-                    onSend={(note) => {
-                        updateQuote(sessionId, editing.id, {note})
-                        close()
-                    }}
-                    onCancel={close}
-                />
+            {draft && draftRect ? (
+                isTouch ? (
+                    <QuoteNoteSheet
+                        key={draft.quote.id}
+                        quote={draft.quote}
+                        initialNote={draft.note}
+                        onStage={stageDraft}
+                        onSend={sendDraft}
+                        onCancel={discardDraft}
+                    />
+                ) : (
+                    <QuoteNote
+                        key={draft.quote.id}
+                        quote={draft.quote}
+                        anchor={noteAnchor(draftRect)}
+                        bounds={bounds}
+                        initialNote={draft.note}
+                        onStage={stageDraft}
+                        onSend={sendDraft}
+                        onCancel={discardDraft}
+                    />
+                )
+            ) : null}
+            {editing && (isTouch || editRect) ? (
+                isTouch ? (
+                    <QuoteNoteSheet
+                        key={`edit-${editing.id}`}
+                        quote={editing}
+                        initialNote={editing.note}
+                        onStage={saveEdit}
+                        onCancel={close}
+                    />
+                ) : editRect ? (
+                    <QuoteNote
+                        key={`edit-${editing.id}`}
+                        quote={editing}
+                        anchor={noteAnchor(editRect)}
+                        bounds={bounds}
+                        initialNote={editing.note}
+                        onStage={saveEdit}
+                        onSend={saveEdit}
+                        onCancel={close}
+                    />
+                ) : null
             ) : null}
         </>
     )

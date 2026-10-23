@@ -46,7 +46,7 @@ afterEach(() => {
     clearSessionQuotes(sessionId)
 })
 
-function setup(touch = true) {
+function setup(touch = false) {
     const rootRef = createRef<HTMLDivElement>()
     const onPickConsumed = vi.fn()
     const ui = (p: PreviewPick | null, pinRects: PreviewPinRect[]) => (
@@ -76,9 +76,15 @@ function typeNote(text: string, modifier?: {ctrlKey: boolean}) {
     fireEvent.keyDown(input, {key: "Enter", ...modifier})
 }
 
-function stageOne(touch = true) {
+function stageOne(touch = false) {
     const harness = setup(touch)
-    typeNote("Say 41%.")
+    if (touch) {
+        const input = within(screen.getByRole("dialog")).getByRole("textbox")
+        fireEvent.change(input, {target: {value: "Say 41%."}})
+        fireEvent.click(screen.getByRole("button", {name: "Add to message"}))
+    } else {
+        typeNote("Say 41%.")
+    }
     const id = getQuotes(sessionId)[0].id
     harness.rerender([{id, rect}])
     return {...harness, id}
@@ -145,13 +151,14 @@ describe("PreviewCommentLayer", () => {
         expect(screen.queryByRole("button", {name: "Comment 1"})).toBeNull()
     })
 
-    it("edits the note from the pin card", () => {
-        const {id} = stageOne()
+    it("edits the note from the pin's sheet on a touch screen", () => {
+        const {id} = stageOne(true)
         fireEvent.click(screen.getByRole("button", {name: "Comment 1"}))
         fireEvent.click(screen.getByRole("button", {name: "Edit"}))
         const input = within(screen.getByRole("dialog")).getByRole("textbox")
         expect((input as HTMLTextAreaElement).value).toBe("Say 41%.")
-        typeNote("Say 42%.")
+        fireEvent.change(input, {target: {value: "Say 42%."}})
+        fireEvent.click(screen.getByRole("button", {name: "Save"}))
         expect(getQuotes(sessionId)).toEqual([
             expect.objectContaining({
                 id,
@@ -161,8 +168,8 @@ describe("PreviewCommentLayer", () => {
         ])
     })
 
-    it("deletes the comment and its pin from the pin card", () => {
-        stageOne()
+    it("deletes the comment and its pin from the pin's sheet on a touch screen", () => {
+        stageOne(true)
         fireEvent.click(screen.getByRole("button", {name: "Comment 1"}))
         fireEvent.click(screen.getByRole("button", {name: "Delete"}))
         expect(getQuotes(sessionId)).toEqual([])
@@ -223,12 +230,38 @@ describe("PreviewCommentLayer", () => {
     })
 
     it("continues an edit after the existing note", () => {
-        const {id} = stageOne()
+        const {id} = stageOne(true)
         fireEvent.click(screen.getByRole("button", {name: "Comment 1"}))
         fireEvent.click(screen.getByRole("button", {name: "Edit"}))
         const input = within(screen.getByRole("dialog")).getByRole("textbox") as HTMLTextAreaElement
         expect(input.value).toBe("Say 41%.")
         expect(input.selectionStart).toBe("Say 41%.".length)
         expect(getQuotes(sessionId)[0].id).toBe(id)
+    })
+
+    it("opens a bottom sheet with Add to message and Send now on a touch screen", () => {
+        const submit = vi.fn(() => true)
+        const unregister = registerQuoteSubmit(sessionId, submit)
+        try {
+            setup(true)
+            const sheet = screen.getByRole("dialog")
+            expect(sheet.getAttribute("data-side")).toBe("bottom")
+            fireEvent.change(within(sheet).getByRole("textbox"), {target: {value: "Say 41%."}})
+            fireEvent.click(screen.getByRole("button", {name: "Send now"}))
+            expect(getQuotes(sessionId).map((q) => [q.note, q.staged])).toEqual([
+                ["Say 41%.", true],
+            ])
+            expect(submit).toHaveBeenCalledTimes(1)
+        } finally {
+            unregister()
+        }
+    })
+
+    it("gives a touch pin a 44px hit area around its 28px dot", () => {
+        stageOne(true)
+        const pin = screen.getByRole("button", {name: "Comment 1"})
+        // 28px dot + 8px each side = 44px.
+        expect(pin.className).toContain("size-7")
+        expect(pin.className).toContain("after:-inset-2")
     })
 })
