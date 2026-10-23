@@ -16,9 +16,18 @@ export interface DriveLinkTarget {
 export const formatDriveParam = ({path, folder}: DriveLinkTarget): string =>
     folder ? `${path}/` : path
 
+/** Linear, not `/\/+$/`: the value comes from the URL, and that regex backtracks on long slash runs. */
+const trimSlashes = (value: string): string => {
+    let start = 0
+    let end = value.length
+    while (start < end && value[start] === "/") start++
+    while (end > start && value[end - 1] === "/") end--
+    return value.slice(start, end)
+}
+
 export const parseDriveParam = (value: string | null): DriveLinkTarget | null => {
     if (value == null) return null
-    const path = value.replace(/^\/+/, "").replace(/\/+$/, "")
+    const path = trimSlashes(value)
     return {path, folder: path === "" || value.endsWith("/")}
 }
 
