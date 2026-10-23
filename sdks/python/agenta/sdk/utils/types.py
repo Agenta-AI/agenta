@@ -1032,7 +1032,11 @@ class PromptTemplate(AgSchemaMixin):
             kwargs["chat_template_kwargs"] = llm_config.chat_template_kwargs
 
         if llm_config.response_format:
-            kwargs["response_format"] = llm_config.response_format.dict(by_alias=True)
+            # Drop unset optional fields. Some providers (OpenRouter) ignore a
+            # json_schema response_format that carries "description": null.
+            kwargs["response_format"] = llm_config.response_format.model_dump(
+                by_alias=True, exclude_none=True
+            )
 
         if llm_config.tools:
             kwargs["tools"] = llm_config.tools
