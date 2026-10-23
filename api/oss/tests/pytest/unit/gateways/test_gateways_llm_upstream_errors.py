@@ -303,27 +303,6 @@ async def test_an_oversized_error_body_is_read_only_up_to_the_bound():
     )
 
 
-@pytest.mark.asyncio
-async def test_the_retired_starter_credits_endpoint_relays_its_errors_unchanged():
-    body = {
-        "error": {"message": "Budget has been exceeded!", "type": "budget_exceeded"}
-    }
-    adapter = RelayLLMAdapter(
-        client=httpx.AsyncClient(
-            transport=httpx.MockTransport(lambda _: httpx.Response(400, json=body))
-        )
-    )
-    result = await adapter.relay_chat_completion(
-        route=_route(label="starter-credits"),
-        secret=None,
-        context=LLMCallContext(model="m", stream=False),
-        body=b'{"model": "m"}',
-        headers={},
-    )
-
-    assert json.loads(b"".join([chunk async for chunk in result.body])) == body
-
-
 def test_ordinary_words_before_a_colon_are_kept():
     message = upstream_error_message(
         code=UPSTREAM_REJECTED, provider_message="Invalid key: model, max_tokens: 4096"

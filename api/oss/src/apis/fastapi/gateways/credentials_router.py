@@ -25,7 +25,11 @@ from oss.src.core.gateways.run_claims import (
     gateway_run_labels,
     gateway_tools,
 )
-from oss.src.middlewares.auth import GATEWAY_TOKEN_AUDIENCE, sign_secret_token
+from oss.src.middlewares.auth import (
+    GATEWAY_TOKEN_AUDIENCE,
+    request_is_platform_runtime,
+    sign_secret_token,
+)
 from oss.src.utils.context import get_auth_scope
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
@@ -81,7 +85,8 @@ class GatewayCredentialsRouter:
 
         No permission check of its own: the result is strictly weaker than the credential
         that bought it — same tenant scope, same run, fewer routes — so a caller can reach
-        nothing here it could not already reach with what it presented.
+        nothing here it could not already reach with what it presented. Any caller gets a
+        credential, but only the platform runtime gets one that built-in models accept.
 
         It does check the switch for the plane the caller named, because minting a credential
         for a plane that will refuse every request is worse than refusing here: the caller
@@ -120,6 +125,9 @@ class GatewayCredentialsRouter:
             gateway_run_id=gateway_run_id(request),
             gateway_tools=gateway_tools(request),
             gateway_run_labels=labels or None,
+            # Built-in models accept only this mark. It follows the caller's proof that it
+            # is the platform runtime, never the labels, the plane or the run id above.
+            gateway_platform_run=request_is_platform_runtime(request),
             audience=GATEWAY_TOKEN_AUDIENCE,
             # Its own lifetime: this credential is held inside a sandbox for the length of a
             # turn and nothing re-mints it there, so the default 15 minutes was a ceiling on

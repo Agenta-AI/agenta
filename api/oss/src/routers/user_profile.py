@@ -13,6 +13,7 @@ from oss.src.core.accounts.service import PlatformAdminAccountsService
 from oss.src.core.accounts.errors import (
     AdminError,
     AccountAuthDeletionError,
+    AccountTombstoneError,
     AccountHasMembersError,
     AdminUserNotFoundError,
 )
@@ -138,6 +139,8 @@ async def delete_user_account(request: Request):
         raise HTTPException(status_code=404, detail=exc.message)
     except AccountAuthDeletionError as exc:
         raise HTTPException(status_code=502, detail=exc.message)
+    except AccountTombstoneError as exc:
+        raise HTTPException(status_code=503, detail=exc.message)
     except AdminError as exc:
         raise HTTPException(status_code=400, detail=exc.message)
 

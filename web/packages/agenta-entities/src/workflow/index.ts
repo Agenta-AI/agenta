@@ -79,6 +79,7 @@ export {
 
 export {
     agentModelCandidatesAtomFamily,
+    builtinModelEndpointsQueryAtom,
     loadAgentModelCandidates,
     resolveAgentModelCandidateSources,
     type AgentModelCandidatesState,

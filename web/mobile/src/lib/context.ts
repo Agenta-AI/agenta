@@ -76,21 +76,12 @@ export function forgetTemplateKey(): void {
     }
 }
 
-/**
- * Settings -> LLM providers, which renders the same shared AI-providers page the desktop's
- * provider drawer opens. It is where a project's own provider key is added and where a dead
- * subscription sign-in is renewed, so it is the destination for both recovery escapes on a failed
- * run.
- */
+/** Settings -> LLM providers: where a key is added or a subscription signed in again. */
 export const llmProvidersUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=llms`
 
 export const billingUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=billing`
-
-/** Settings -> Credits with the pack picker open: where "Buy credits" goes from anywhere. */
-export const buyCreditsUrl = ({workspaceId, projectId}: LastContext): string =>
-    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=credits&buy_credits=1`
 
 export function writeLastContext(context: LastContext): void {
     try {

@@ -65,4 +65,9 @@ export {
     type UseChatMarkdownLinkResolver,
 } from "./ChatMarkdown"
 export {PermissionsPickerPanel, useRovingList, type RovingListOptions} from "./SlashCommand"
-export {ActivityTimeline, type ActivityTimelineProps, ActivityNode} from "./activity"
+export {
+    type ActivityFailure,
+    ActivityTimeline,
+    type ActivityTimelineProps,
+    ActivityNode,
+} from "./activity"

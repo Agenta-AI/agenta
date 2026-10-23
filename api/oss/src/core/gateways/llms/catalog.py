@@ -42,13 +42,13 @@ AGENTA_MODELS = (
     "google/gemini-4-argon",
 )
 
-# The connection the starter-credits bridge seeded ("Agenta", slug `starter-credits`), and
-# each model id a saved revision can name on it, with the `builtin/agenta` model that
-# replaces it. The transfer job (`entrypoints.migrate_starter_credits_to_wallet --apply`)
-# deletes the connection and moves its budget into the wallet; saved agents keep naming it,
-# so the gateway resolves the alias at run time instead of a data migration rewriting their
-# configs. Both spellings a custom endpoint allows are here: the qualified vault key and the
-# bare model slug. Production holds no other starter-credits model.
+# The connection the retired starter-credits program seeded ("Agenta", slug
+# `starter-credits`), and each model id a saved revision can name on it, with the
+# `builtin/agenta` model that replaces it. A one-off transfer deleted the connection and
+# moved its budget into the wallet; saved agents keep naming it, so the gateway resolves
+# the alias at run time instead of a data migration rewriting their configs. Both
+# spellings a custom endpoint allows are here: the qualified vault key and the bare model
+# slug. Production holds no other starter-credits model.
 RETIRED_STARTER_CREDITS_SLUG = "starter-credits"
 RETIRED_STARTER_CREDITS_MODEL_ALIASES = {
     "Agenta/custom/vertex_ai/gemini-3.7-flash": "google/gemini-3.7-flash",

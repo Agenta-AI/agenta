@@ -25,6 +25,11 @@ from oss.src.apis.fastapi.gateways import (
     credentials_router as credentials_router_module,
 )
 from oss.src.apis.fastapi.gateways.credentials_router import GatewayCredentialsRouter
+from oss.src.apis.fastapi.gateways.llms import proxy as llm_proxy_module
+from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy
+from oss.src.apis.fastapi.gateways.mcps.models import MCPAgentaCredentialRequest
+from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
+from oss.src.core.gateways.llms.interfaces import LLMRelayResult
 from oss.src.middlewares import auth
 from oss.src.utils.env import env
 from oss.src.utils.context import AuthScope
@@ -45,6 +50,13 @@ MCP_RELAY_PATH = "/gateways/mcps/custom/notion"
 VAULT_PATH = "/vault/v1/secrets/"
 OTHER_PATH = "/workflows/revisions/commit"
 EXCHANGE_PATH = "/gateways/credentials"
+BUILTIN_PATH = "/gateways/llms/builtin/mock/v1"
+STANDARD_PATH = "/gateways/llms/standard/openai/v1"
+CUSTOM_PATH = "/gateways/llms/custom/my-connection/v1"
+
+# Test-only header that makes the app authenticate the caller as a session or ApiKey
+# principal would: tenant scope on request state, no grants, no audience.
+USER_PRINCIPAL_HEADER = "x-test-user-principal"
 
 
 @pytest.fixture(autouse=True)
@@ -90,28 +102,81 @@ async def _runtime_credential() -> str:
     return f"Secret {token}"
 
 
+async def _granted_credential_without_run() -> str:
+    """What `/access/permissions/check` re-mints for the platform runtime: no run id."""
+    token = await auth.sign_secret_token(
+        user_id=USER_ID,
+        project_id=PROJECT_ID,
+        workspace_id=WORKSPACE_ID,
+        organization_id=ORGANIZATION_ID,
+        grants=[auth.SECRET_RESOLVE_GRANT],
+    )
+    return f"Secret {token}"
+
+
+async def _ungranted_credential() -> str:
+    """A general Secret token without the grant, as a tenant-hosted service receives."""
+    token = await auth.sign_secret_token(
+        user_id=USER_ID,
+        project_id=PROJECT_ID,
+        workspace_id=WORKSPACE_ID,
+        organization_id=ORGANIZATION_ID,
+        gateway_run_id=RUN_ID,
+    )
+    return f"Secret {token}"
+
+
+class _RecordingLlmService:
+    """Stands in for the gateway service, so the built-in routes run for real."""
+
+    def __init__(self) -> None:
+        self.relay_calls = []
+        self.list_models_calls = []
+
+    async def relay_chat_completion(self, *, namespace, name, **_kwargs):
+        self.relay_calls.append((namespace, name))
+
+        async def _body():
+            yield b"{}"
+
+        return LLMRelayResult(status_code=200, headers={}, body=_body())
+
+    async def list_models(self, *, namespace, name, **_kwargs):
+        self.list_models_calls.append((namespace, name))
+        return ["gpt-4o"]
+
+
+def _scope() -> AuthScope:
+    return AuthScope(
+        organization_id=ORGANIZATION_ID,
+        workspace_id=WORKSPACE_ID,
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+    )
+
+
+@pytest.fixture(name="llm_service")
+def _llm_service():
+    return _RecordingLlmService()
+
+
 @pytest.fixture(name="exchange")
-def _exchange(monkeypatch):
-    """The real exchange route behind the real auth middleware.
+def _exchange(monkeypatch, llm_service):
+    """The real exchange and LLM relay routes behind the real auth middleware.
 
     The client presents a credential; the app authenticates it the way production does and
     the route answers with the credential the sandbox is meant to hold.
     """
-    monkeypatch.setattr(
-        credentials_router_module,
-        "get_auth_scope",
-        lambda: AuthScope(
-            organization_id=ORGANIZATION_ID,
-            workspace_id=WORKSPACE_ID,
-            project_id=PROJECT_ID,
-            user_id=USER_ID,
-        ),
-    )
+    monkeypatch.setattr(credentials_router_module, "get_auth_scope", _scope)
+    monkeypatch.setattr(llm_proxy_module, "get_auth_scope", _scope)
 
     app = FastAPI()
 
     @app.middleware("http")
     async def _authenticate(request: Request, call_next):
+        if request.headers.get(USER_PRINCIPAL_HEADER):
+            request.state.project_id = PROJECT_ID
+            return await call_next(request)
         try:
             await auth._check_authentication_token(request)
         except HTTPException as exc:
@@ -119,6 +184,10 @@ def _exchange(monkeypatch):
         return await call_next(request)
 
     app.include_router(GatewayCredentialsRouter().router, prefix="/gateways")
+    app.include_router(
+        LLMGatewayProxy(llm_gateway_service=llm_service).router,
+        prefix="/gateways/llms",
+    )
 
     @app.get(LLM_RELAY_PATH)
     async def _llm_relay(request: Request):
@@ -357,6 +426,256 @@ def test_the_exchange_never_asks_for_the_plaintext_vault_grant():
 
     assert "SECRET_RESOLVE_GRANT" not in source
     assert "grants=" not in source
+
+
+# --- built-in models: only the platform's own agent runs --------------------------------
+
+
+_OPERATIONS = [
+    ("POST", "/chat/completions", {"model": "gpt-4o", "messages": []}),
+    ("POST", "/responses", {"model": "gpt-4o", "input": []}),
+    ("POST", "/messages", {"model": "claude-3", "messages": [], "max_tokens": 16}),
+    ("GET", "/models", None),
+]
+
+
+def _call(client: TestClient, base: str, operation, credentials: dict):
+    method, suffix, body = operation
+    if method == "GET":
+        return client.get(base + suffix, headers=credentials)
+    return client.post(base + suffix, headers=credentials, json=body)
+
+
+def _exchanged(client: TestClient, headers: dict, body=None) -> str:
+    response = client.post(EXCHANGE_PATH, headers=headers, json=body or {})
+    assert response.status_code == 200, response.text
+    return response.json()["credentials"]
+
+
+def _assert_refused(response) -> None:
+    assert response.status_code == 403, response.text
+    assert response.json()["error"]["code"] == "builtin_requires_agent_run"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("plane", [None, "llm", "mcp"])
+@pytest.mark.parametrize(
+    "granted", [_runtime_credential, _granted_credential_without_run]
+)
+async def test_the_platform_runtime_exchange_marks_the_credential(
+    exchange, plane, granted
+):
+    body = {"plane": plane} if plane else {}
+
+    credentials = _exchanged(exchange, {"Authorization": await granted()}, body)
+
+    claims = _claims(credentials.removeprefix("Secret "))
+    assert claims["gateway_platform_run"] is True
+    assert claims["aud"] == auth.GATEWAY_TOKEN_AUDIENCE
+    assert "grants" not in claims
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "body",
+    [
+        {},
+        {"plane": "llm"},
+        {"plane": "mcp"},
+        # Labels are the caller's own words, so they must not buy the mark.
+        {"plane": "llm", "session_id": "session-1", "agent_id": "agent-1"},
+    ],
+)
+@pytest.mark.parametrize("caller", ["user_principal", "ungranted_secret"])
+async def test_an_exchange_without_the_runtime_grant_never_marks_the_credential(
+    exchange, body, caller
+):
+    if caller == "user_principal":
+        headers = {USER_PRINCIPAL_HEADER: "1"}
+    else:
+        # Carries a signed run id, which is not proof of a platform run either.
+        headers = {"Authorization": await _ungranted_credential()}
+
+    credentials = _exchanged(exchange, headers, body)
+
+    assert "gateway_platform_run" not in _claims(credentials.removeprefix("Secret "))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", _OPERATIONS, ids=lambda op: op[1])
+async def test_a_platform_runtime_exchange_reaches_the_built_in_models(
+    exchange, llm_service, operation
+):
+    credentials = _exchanged(exchange, {"Authorization": await _runtime_credential()})
+
+    response = _call(
+        exchange, BUILTIN_PATH, operation, {"X-AG-Credentials": credentials}
+    )
+
+    assert response.status_code == 200, response.text
+    assert len(llm_service.relay_calls) + len(llm_service.list_models_calls) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", _OPERATIONS, ids=lambda op: op[1])
+@pytest.mark.parametrize("caller", ["user_principal", "ungranted_secret"])
+async def test_a_user_credential_exchanged_for_a_gateway_token_is_refused_on_built_in(
+    exchange, llm_service, operation, caller
+):
+    """The bypass chain: an API key buys a gateway token, then calls a built-in model."""
+    if caller == "user_principal":
+        headers = {USER_PRINCIPAL_HEADER: "1"}
+    else:
+        headers = {"Authorization": await _ungranted_credential()}
+    credentials = _exchanged(
+        exchange, headers, {"plane": "llm", "session_id": "session-1"}
+    )
+
+    response = _call(
+        exchange, BUILTIN_PATH, operation, {"X-AG-Credentials": credentials}
+    )
+
+    _assert_refused(response)
+    assert llm_service.relay_calls == [] and llm_service.list_models_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", _OPERATIONS, ids=lambda op: op[1])
+@pytest.mark.parametrize(
+    "caller", ["user_principal", "runtime_credential", "ungranted_secret"]
+)
+async def test_a_built_in_model_refuses_every_credential_but_the_marked_gateway_token(
+    exchange, llm_service, operation, caller
+):
+    """Even the runtime's own credential must go through the exchange first."""
+    if caller == "user_principal":
+        headers = {USER_PRINCIPAL_HEADER: "1"}
+    elif caller == "runtime_credential":
+        headers = {"X-AG-Credentials": await _runtime_credential()}
+    else:
+        headers = {"X-AG-Credentials": await _ungranted_credential()}
+
+    _assert_refused(_call(exchange, BUILTIN_PATH, operation, headers))
+    assert llm_service.relay_calls == [] and llm_service.list_models_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "claim", ["true", 1, False, None], ids=["string", "int", "false", "null"]
+)
+async def test_a_mark_that_is_not_exactly_true_is_refused(exchange, claim):
+    expiry = datetime.now(timezone.utc) + timedelta(seconds=600)
+    token = encode(
+        payload={
+            "user_id": USER_ID,
+            "project_id": PROJECT_ID,
+            "aud": auth.GATEWAY_TOKEN_AUDIENCE,
+            "gateway_platform_run": claim,
+            "exp": int(expiry.timestamp()),
+        },
+        key=SECRET_KEY,
+        algorithm="HS256",
+    )
+
+    response = _call(
+        exchange, BUILTIN_PATH, _OPERATIONS[0], {"X-AG-Credentials": f"Secret {token}"}
+    )
+
+    _assert_refused(response)
+
+
+@pytest.mark.asyncio
+async def test_the_mark_on_a_token_without_the_gateway_audience_is_ignored(exchange):
+    """A general Secret token with the mark was not minted by `sign_secret_token`."""
+    expiry = datetime.now(timezone.utc) + timedelta(seconds=600)
+    token = encode(
+        payload={
+            "user_id": USER_ID,
+            "project_id": PROJECT_ID,
+            "gateway_platform_run": True,
+            "exp": int(expiry.timestamp()),
+        },
+        key=SECRET_KEY,
+        algorithm="HS256",
+    )
+    request = _request(BUILTIN_PATH + "/models", credentials=f"Secret {token}")
+
+    await auth.verify_secret_token(request=request, secret_token=token)
+
+    assert request.state.gateway_platform_run is False
+
+
+@pytest.mark.asyncio
+async def test_only_a_gateway_audience_token_can_be_minted_with_the_mark():
+    with pytest.raises(ValueError, match="gateway-audience"):
+        await auth.sign_secret_token(user_id=USER_ID, gateway_platform_run=True)
+
+    with pytest.raises(ValueError, match="cannot carry grants"):
+        await auth.sign_secret_token(
+            user_id=USER_ID,
+            grants=[auth.SECRET_RESOLVE_GRANT],
+            audience=auth.GATEWAY_TOKEN_AUDIENCE,
+            gateway_platform_run=True,
+        )
+
+
+@pytest.mark.asyncio
+async def test_the_agenta_mcp_credential_is_refused_on_built_in_models(
+    exchange, monkeypatch
+):
+    """`/gateways/mcps/credentials/agenta` also signs gateway tokens, never with the mark.
+
+    Its caller here carries the runtime grant, so this proves the MCP issuer does not pass
+    the grant on as the mark.
+    """
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.mcps.router.check_action_access",
+        lambda **_kwargs: _allowed(),
+    )
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.mcps.router.get_auth_scope", _scope
+    )
+    runtime = (await _runtime_credential()).removeprefix("Secret ")
+    request = _request("/gateways/mcps/credentials/agenta", credentials="unused")
+    await auth.verify_secret_token(request=request, secret_token=runtime)
+    router = MCPGatewayRouter(
+        mcp_gateway_service=None, oauth_connect_service=None, server_probe=None
+    )
+
+    issued = await router.issue_agenta_credential(
+        request=request, body=MCPAgentaCredentialRequest(tools=[])
+    )
+
+    assert "gateway_platform_run" not in _claims(
+        issued.credentials.removeprefix("Secret ")
+    )
+    for operation in _OPERATIONS:
+        _assert_refused(
+            _call(
+                exchange,
+                BUILTIN_PATH,
+                operation,
+                {"X-AG-Credentials": issued.credentials},
+            )
+        )
+
+
+async def _allowed() -> bool:
+    return True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("base", [STANDARD_PATH, CUSTOM_PATH])
+@pytest.mark.parametrize("operation", _OPERATIONS, ids=lambda op: op[1])
+async def test_an_unmarked_gateway_token_still_reaches_own_connection_routes(
+    exchange, llm_service, base, operation
+):
+    credentials = _exchanged(exchange, {USER_PRINCIPAL_HEADER: "1"})
+
+    response = _call(exchange, base, operation, {"X-AG-Credentials": credentials})
+
+    assert response.status_code == 200, response.text
+    assert len(llm_service.relay_calls) + len(llm_service.list_models_calls) == 1
 
 
 # --- how long it lives ------------------------------------------------------------------
