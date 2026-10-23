@@ -74,6 +74,32 @@ describe("ComposerQuotes", () => {
         expect(onEdit).not.toHaveBeenCalled()
     })
 
+    it("shows a reply quote's note on its chip, the excerpt on hover", () => {
+        const replyQuote: Quote = {
+            id: "m1",
+            text: "The run failed on step 3.",
+            note: "Why did it fail?",
+            staged: true,
+            stale: false,
+            source: {kind: "message", messageId: "msg-1"},
+        }
+        render(<ComposerQuotes quotes={[replyQuote]} onRemove={vi.fn()} />)
+        const label = screen.getByText("Why did it fail?")
+        expect(screen.queryByText("The run failed on step 3.")).toBeNull()
+        expect(label.closest("[title]")?.getAttribute("title")).toBe("The run failed on step 3.")
+    })
+
+    it("shows a file quote's note beside its location", () => {
+        render(
+            <ComposerQuotes
+                quotes={[{...textQuote, note: "Is this still true?"}]}
+                onRemove={vi.fn()}
+            />,
+        )
+        expect(screen.getByText("Is this still true?")).toBeTruthy()
+        expect(document.querySelector("[data-quote-range]")?.textContent).toBe("L34–L36")
+    })
+
     it("labels preview chips with their pin numbers per document", () => {
         const second = {...comment, id: "c2"}
         render(<ComposerQuotes quotes={[comment, textQuote, second]} onRemove={vi.fn()} />)

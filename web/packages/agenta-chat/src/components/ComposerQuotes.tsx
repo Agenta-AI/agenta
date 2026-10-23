@@ -101,7 +101,8 @@ const QuoteChip = ({
                 <Icon size={touch ? 14 : 12} className="shrink-0 text-colorTextTertiary" />
             )}
             <span className="min-w-6 truncate text-xs text-colorText">
-                {truncateQuoteText(preview && quote.note ? quote.note : quote.text, 48)}
+                {/* The note is what the user asked; without it on the chip they retype it. */}
+                {truncateQuoteText(quote.note.trim() || quote.text, 48)}
             </span>
             {origin ? (
                 <>
@@ -128,7 +129,9 @@ const QuoteChip = ({
             title={
                 origin
                     ? `${origin.displayPath}${origin.location ? ` ${origin.location}` : ""}`
-                    : undefined
+                    : quote.note.trim()
+                      ? truncateQuoteText(quote.text)
+                      : undefined
             }
             className={`flex min-w-0 max-w-[320px] items-center gap-1.5 rounded-lg border border-solid px-2 ${
                 touch ? "h-8" : "h-7"
