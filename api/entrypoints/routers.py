@@ -84,6 +84,7 @@ from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
+from oss.src.dbs.postgres.workflows.dao import WorkflowsDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
 from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
@@ -750,7 +751,7 @@ queries_dao = GitDAO(
     RevisionDBE=QueryRevisionDBE,
 )
 
-workflows_dao = GitDAO(
+workflows_dao = WorkflowsDAO(
     engine=_transactions_engine,
     ArtifactDBE=WorkflowArtifactDBE,
     VariantDBE=WorkflowVariantDBE,

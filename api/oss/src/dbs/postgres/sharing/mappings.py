@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from oss.src.core.sharing.dtos import (
     AccessPolicy,
     SessionGrant,
@@ -5,6 +7,7 @@ from oss.src.core.sharing.dtos import (
     UserSessionGrant,
     Visibility,
 )
+from oss.src.dbs.postgres.sharing.dbes import AgentAccessDBE
 
 
 def map_agent_access_dbe_to_dto(row) -> AccessPolicy:
@@ -14,6 +17,24 @@ def map_agent_access_dbe_to_dto(row) -> AccessPolicy:
     return AccessPolicy(
         visibility=Visibility(row.visibility),
         owner_user_id=row.owner_user_id,
+    )
+
+
+def map_agent_access_dto_to_dbe(
+    *,
+    project_id: UUID,
+    artifact_id: UUID,
+    policy: AccessPolicy,
+    user_id: UUID,
+):
+    """The `agent_access` row of a new agent."""
+
+    return AgentAccessDBE(
+        project_id=project_id,
+        artifact_id=artifact_id,
+        visibility=policy.visibility.value,
+        owner_user_id=policy.owner_user_id,
+        created_by_id=user_id,
     )
 
 

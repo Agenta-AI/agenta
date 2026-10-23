@@ -77,6 +77,7 @@ from oss.src.dbs.postgres.environments.dbes import (
 )
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
+from oss.src.dbs.postgres.workflows.dao import WorkflowsDAO
 from oss.src.dbs.postgres.queries.dbes import (
     QueryArtifactDBE,
     QueryRevisionDBE,
@@ -232,7 +233,7 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
     transactions_engine = get_transactions_engine()
     triggers_dao = TriggersDAO(engine=transactions_engine)
     session_streams_dao = SessionStreamsDAO(engine=transactions_engine)
-    workflows_dao = GitDAO(
+    workflows_dao = WorkflowsDAO(
         ArtifactDBE=WorkflowArtifactDBE,
         VariantDBE=WorkflowVariantDBE,
         RevisionDBE=WorkflowRevisionDBE,
@@ -312,7 +313,7 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
     )
 
     transactions_engine = get_transactions_engine()
-    workflows_dao = GitDAO(
+    workflows_dao = WorkflowsDAO(
         ArtifactDBE=WorkflowArtifactDBE,
         VariantDBE=WorkflowVariantDBE,
         RevisionDBE=WorkflowRevisionDBE,
@@ -438,7 +439,7 @@ def _build_interactions_broker() -> tuple[AsyncBroker, int]:
 
     transactions_engine = get_transactions_engine()
     interactions_dao = SessionInteractionsDAO(engine=transactions_engine)
-    workflows_dao = GitDAO(
+    workflows_dao = WorkflowsDAO(
         ArtifactDBE=WorkflowArtifactDBE,
         VariantDBE=WorkflowVariantDBE,
         RevisionDBE=WorkflowRevisionDBE,
@@ -513,7 +514,7 @@ def _build_evaluations_broker() -> tuple[AsyncBroker, int]:
         VariantDBE=TestsetVariantDBE,
         RevisionDBE=TestsetRevisionDBE,
     )
-    workflows_dao = GitDAO(
+    workflows_dao = WorkflowsDAO(
         ArtifactDBE=WorkflowArtifactDBE,
         VariantDBE=WorkflowVariantDBE,
         RevisionDBE=WorkflowRevisionDBE,

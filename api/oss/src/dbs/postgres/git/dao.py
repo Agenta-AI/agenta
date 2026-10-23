@@ -109,6 +109,43 @@ class GitDAO(GitDAOInterface):
         #
         platform_meta: bool = False,
     ) -> Optional[Artifact]:
+        try:
+            async with self.engine.session() as session:
+                artifact = await self._insert_artifact(
+                    session=session,
+                    project_id=project_id,
+                    user_id=user_id,
+                    artifact_create=artifact_create,
+                    artifact_id=artifact_id,
+                    platform_meta=platform_meta,
+                )
+
+                await session.commit()
+
+                return artifact
+
+        except Exception as e:
+            check_entity_creation_conflict(e)
+
+            raise
+
+    async def _insert_artifact(
+        self,
+        *,
+        session,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        artifact_create: ArtifactCreate,
+        #
+        artifact_id: Optional[UUID],
+        #
+        platform_meta: bool,
+    ) -> Artifact:
+        """Add the artifact row to `session` and flush it. Never commits, so a caller
+        can write more rows in the same transaction. A unique violation raises
+        `EntityCreationConflict`."""
+
         artifact = Artifact(
             project_id=project_id,
             #
@@ -134,26 +171,19 @@ class GitDAO(GitDAOInterface):
             dto=artifact,
         )
 
+        session.add(artifact_dbe)
+
         try:
-            async with self.engine.session() as session:
-                session.add(artifact_dbe)
-
-                await session.commit()
-
-                if not artifact_dbe:
-                    return None
-
-                artifact = map_dbe_to_dto(
-                    DTO=Artifact,
-                    dbe=artifact_dbe,  # type: ignore
-                )
-
-                return artifact
-
+            await session.flush()
         except Exception as e:
             check_entity_creation_conflict(e)
 
             raise
+
+        return map_dbe_to_dto(
+            DTO=Artifact,
+            dbe=artifact_dbe,  # type: ignore
+        )
 
     @suppress_exceptions()
     async def fetch_artifact(
