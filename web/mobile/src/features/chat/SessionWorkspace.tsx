@@ -17,7 +17,12 @@ import {
     useFilesPaneLayout,
 } from "@agenta/chat/state"
 import {useDriveDirtyGuard} from "@agenta/entities/drive"
-import {DriveSessionProvider, SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
+import {
+    DriveLinkContext,
+    DriveSessionProvider,
+    SessionFilesPane,
+    useSessionFilesPane,
+} from "@agenta/entity-ui/drive"
 import {SIDEBAR_DEFAULT_WIDTH} from "@agenta/navigation"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {sessionRoutePath} from "@agenta/sessions/link"
@@ -31,6 +36,7 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import {useAutomationUrlSync} from "../automations/useAutomationUrlSync"
 import {AppShell} from "../nav/AppShell"
 
 import {CollapsedConfigRail} from "./CollapsedConfigRail"
@@ -39,6 +45,7 @@ import {resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
 import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
+import {useDriveUrlSync} from "./useDriveUrlSync"
 import {useLeaveSession} from "./useLeaveSession"
 import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
@@ -57,6 +64,19 @@ const ConfigPane = dynamic(() => import("./ConfigPane").then((m) => m.ConfigPane
 // not render. One mount, always present, as the desktop playground keeps one beside its panels.
 const CatalogDrawer = dynamic(
     () => import("@agenta/entity-ui/gatewayTool").then((m) => m.CatalogDrawer),
+    {ssr: false},
+)
+
+// Mounted here, not in the config pane, so a linked drawer opens while that pane is collapsed.
+const AutomationDrawer = dynamic(
+    () => import("@agenta/automation-ui").then((m) => m.AutomationDrawer),
+    {ssr: false},
+)
+const AutomationRunHistoryDrawerHost = dynamic(
+    () =>
+        import("../automations/AutomationRunHistoryDrawerHost").then(
+            (m) => m.AutomationRunHistoryDrawerHost,
+        ),
     {ssr: false},
 )
 
@@ -85,6 +105,7 @@ export const SessionWorkspace = ({
     bare = false,
     hideSessionTabs = false,
     collapseConfigByDefault = false,
+    deepLinks = false,
 }: {
     /** The revision being configured. Absent = nothing to build yet (a session with no turns). */
     entityId: string | null
@@ -114,8 +135,15 @@ export const SessionWorkspace = ({
      * Only the DEFAULT — a stored preference still wins in both directions.
      */
     collapseConfigByDefault?: boolean
+    /** Mirror the Files pane and the automation drawer in the URL; only where the URL names this session. */
+    deepLinks?: boolean
 }) => {
     const base = `/w/${workspaceId}/p/${projectId}`
+    useAutomationUrlSync({
+        enabled: deepLinks,
+        ready: Boolean(entityId) || (!agentResolving && !agentId),
+        playgroundEntityId: entityId ?? undefined,
+    })
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     // Collapsing the config panel is separate from the Build/Chat mode: the desktop keeps you in
     // Build with the panel out of the way, and the top bar's "»" brings it back.
@@ -169,6 +197,7 @@ export const SessionWorkspace = ({
         close: closeFilesPane,
         toggle: toggleFilesPane,
     } = useSessionFilesPane(filesScope, sessionId)
+    const driveLink = useDriveUrlSync({sessionId, open: filesOpen, enabled: deepLinks})
     // Drafts outlive the pane, so the unload guard lives on the host.
     useDriveDirtyGuard()
     // Tailwind's `md`. Client-only, so the first paint is the phone layout — the right guess here.
@@ -317,7 +346,6 @@ export const SessionWorkspace = ({
                         entityId={entityId}
                         sessionId={sessionId}
                         filesScope={filesScope}
-                        workspaceId={workspaceId}
                         projectId={projectId}
                     />
                 </div>
@@ -414,16 +442,19 @@ export const SessionWorkspace = ({
                                     className="h-full"
                                     pane={
                                         filesSlide.keepMounted ? (
-                                            <SessionFilesPane
-                                                scope={filesScope}
-                                                sessionId={sessionId}
-                                                // The session bar's icon closes the pane — on a
-                                                // phone that bar is off screen with it, so the
-                                                // pane's own control does.
-                                                closeControl={twoPane ? "none" : "back"}
-                                                expanded={filesExpanded}
-                                                onToggleExpand={filesLayout.toggleExpand}
-                                            />
+                                            <DriveLinkContext.Provider value={driveLink.copyLink}>
+                                                <SessionFilesPane
+                                                    scope={filesScope}
+                                                    sessionId={sessionId}
+                                                    onSelectionChange={driveLink.onSelectionChange}
+                                                    // The session bar's icon closes the pane — on a
+                                                    // phone that bar is off screen with it, so the
+                                                    // pane's own control does.
+                                                    closeControl={twoPane ? "none" : "back"}
+                                                    expanded={filesExpanded}
+                                                    onToggleExpand={filesLayout.toggleExpand}
+                                                />
+                                            </DriveLinkContext.Provider>
                                         ) : null
                                     }
                                     fill={
@@ -466,6 +497,8 @@ export const SessionWorkspace = ({
                     </div>
                 </div>
                 <CatalogDrawer />
+                <AutomationDrawer />
+                <AutomationRunHistoryDrawerHost workspaceId={workspaceId} projectId={projectId} />
             </DriveSessionProvider>
         </>
     )

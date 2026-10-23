@@ -5,6 +5,15 @@ import {
 } from "@agenta/observability/traceDrawer"
 import type {NextRouter} from "next/router"
 
+/** Route params from the router, the rest from the address bar: `replaceState` writes skip `router.query`. */
+const currentQuery = (router: NextRouter): NextRouter["query"] => {
+    const routeKeys = [...router.pathname.matchAll(/\[\.{0,3}([^\]]+)\]/g)].map((m) => m[1])
+    return {
+        ...Object.fromEntries(routeKeys.map((key) => [key, router.query[key]])),
+        ...Object.fromEntries(new URLSearchParams(window.location.search)),
+    }
+}
+
 /**
  * Points the packaged trace drawer at `/m`'s router.
  *
@@ -23,14 +32,14 @@ export const bindTraceDrawerSeams = (router: NextRouter) => {
     })
 
     bindTraceDrawerSetQueryParam((name, value) => {
-        const query = {...router.query}
+        const query = currentQuery(router)
         if (value == null) delete query[name]
         else query[name] = value
         void router.push({pathname: router.pathname, query}, undefined, {shallow: true})
     })
 
     bindTraceDrawerClearParams(() => {
-        const query = {...router.query}
+        const query = currentQuery(router)
         delete query.trace
         delete query.span
         void router.push({pathname: router.pathname, query}, undefined, {shallow: true})

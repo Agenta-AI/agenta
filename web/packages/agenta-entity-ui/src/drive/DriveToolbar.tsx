@@ -126,6 +126,7 @@ type DriveToolbarProps =
           actions?: DriveFolderActions
           /** Absent at the root (nothing to copy). */
           onCopyPath?: () => void
+          onCopyLink?: () => void
           onDownloadAll?: () => void
           downloadingAll?: boolean
       }
@@ -140,6 +141,7 @@ type DriveToolbarProps =
           onRetry: () => void
           actions?: DriveFileActions
           onCopyPath?: () => void
+          onCopyLink?: () => void
           onDownload?: () => void
       }
     | {
@@ -157,6 +159,7 @@ type DriveToolbarProps =
           /** The kind the preview shows; a commentable one gets the Comment toggle in a conversation. */
           previewKind?: DriveFileKind
           onCopyPath?: () => void
+          onCopyLink?: () => void
           onDownload?: () => void
       }
 
@@ -185,12 +188,14 @@ const FileActionsMenu = ({
     actions,
     appView,
     onCopyPath,
+    onCopyLink,
     onDownload,
 }: {
     actions?: DriveFileActions
     appView?: DriveAppView
     /** Read-side actions, offered on a read-only mount too. */
     onCopyPath?: () => void
+    onCopyLink?: () => void
     onDownload?: () => void
 }) => (
     <DropdownMenu>
@@ -235,6 +240,12 @@ const FileActionsMenu = ({
                 <LinkSimple />
                 Copy path
             </DropdownMenuItem>
+            {onCopyLink ? (
+                <DropdownMenuItem onSelect={onCopyLink}>
+                    <LinkSimple />
+                    Copy link
+                </DropdownMenuItem>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={!actions} onSelect={actions?.onRename}>
                 <PencilSimple />
@@ -295,8 +306,17 @@ const Row = ({children}: {children: ReactNode}) => (
 export function DriveToolbar(props: DriveToolbarProps) {
     const sessionId = useDriveSessionId()
     if (props.variant === "folder") {
-        const {view, setView, sort, setSort, actions, onCopyPath, onDownloadAll, downloadingAll} =
-            props
+        const {
+            view,
+            setView,
+            sort,
+            setSort,
+            actions,
+            onCopyPath,
+            onCopyLink,
+            onDownloadAll,
+            downloadingAll,
+        } = props
         return (
             <Row>
                 <IconPill
@@ -353,6 +373,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                         {driveFolderMenuEntries({
                             actions,
                             onCopyPath,
+                            onCopyLink,
                             onDownloadAll,
                             downloadingAll,
                         }).map((entry, i) =>
@@ -381,8 +402,18 @@ export function DriveToolbar(props: DriveToolbarProps) {
     }
 
     if (props.variant === "markdown") {
-        const {path, toolbarRef, mode, setMode, status, onRetry, actions, onCopyPath, onDownload} =
-            props
+        const {
+            path,
+            toolbarRef,
+            mode,
+            setMode,
+            status,
+            onRetry,
+            actions,
+            onCopyPath,
+            onCopyLink,
+            onDownload,
+        } = props
         const rendered = mode === "rendered"
         return (
             <Row>
@@ -419,14 +450,25 @@ export function DriveToolbar(props: DriveToolbarProps) {
                 <FileActionsMenu
                     actions={actions}
                     onCopyPath={onCopyPath}
+                    onCopyLink={onCopyLink}
                     onDownload={onDownload}
                 />
             </Row>
         )
     }
 
-    const {path, actions, draft, note, appView, controlsRef, previewKind, onCopyPath, onDownload} =
-        props
+    const {
+        path,
+        actions,
+        draft,
+        note,
+        appView,
+        controlsRef,
+        previewKind,
+        onCopyPath,
+        onCopyLink,
+        onDownload,
+    } = props
     return (
         <Row>
             <DriveInlineName
@@ -445,6 +487,7 @@ export function DriveToolbar(props: DriveToolbarProps) {
                 actions={actions}
                 appView={appView}
                 onCopyPath={onCopyPath}
+                onCopyLink={onCopyLink}
                 onDownload={onDownload}
             />
         </Row>
