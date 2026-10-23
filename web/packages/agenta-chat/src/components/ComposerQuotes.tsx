@@ -1,6 +1,15 @@
 // Staged quotes as chips in the composer header, beside `ComposerAttachments`.
-import {formatLineRange, truncateQuoteText, type Quote} from "@agenta/shared/quotes"
-import {FileText, Quotes, X} from "@phosphor-icons/react"
+import {useState} from "react"
+
+import {
+    formatLineRange,
+    formatPreviewChipLocation,
+    previewCommentNumber,
+    truncateQuoteText,
+    type Quote,
+} from "@agenta/shared/quotes"
+import {Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {ChatCircleText, FileText, Quotes, X} from "@phosphor-icons/react"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {SESSION_SPRING} from "../assets/motion"
@@ -14,27 +23,113 @@ const ITEM_VARIANTS = {
 interface ComposerQuotesProps {
     quotes: Quote[]
     onRemove: (id: string) => void
+    /** Save a preview comment's edited note; its chip opens the editor on click. */
+    onEdit?: (id: string, note: string) => void
     /** Larger hit targets on a touch screen, per the shared convention. */
     touch?: boolean
 }
 
+const NoteEditor = ({note, onSave}: {note: string; onSave: (note: string) => void}) => {
+    const [value, setValue] = useState(note)
+    return (
+        <textarea
+            autoFocus
+            aria-label="Edit comment"
+            // Editing continues after the existing note.
+            onFocus={(e) => e.currentTarget.setSelectionRange(value.length, value.length)}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+                if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return
+                e.preventDefault()
+                onSave(value)
+            }}
+            rows={3}
+            placeholder="Ask about this…"
+            className="w-full resize-none border-0 bg-transparent p-0 font-[inherit] text-[13px] leading-5 text-popover-foreground outline-none [field-sizing:content] placeholder:text-muted-foreground"
+        />
+    )
+}
+
+const quoteOrigin = (quote: Quote) => {
+    const {source} = quote
+    if (source.kind === "file")
+        return {
+            displayPath: source.displayPath,
+            fileName: source.fileName,
+            location: formatLineRange(source.startLine, source.endLine),
+        }
+    if (source.kind === "preview")
+        return {
+            displayPath: source.displayPath,
+            fileName: source.fileName,
+            location: formatPreviewChipLocation(source.anchor),
+        }
+    return null
+}
+
 const QuoteChip = ({
     quote,
+    number,
     onRemove,
+    onEdit,
     touch,
 }: {
     quote: Quote
+    /** The comment's pin number on its document; null for other quotes. */
+    number: number | null
     onRemove: () => void
+    onEdit?: (note: string) => void
     touch?: boolean
 }) => {
-    const file = quote.source.kind === "file" ? quote.source : null
-    const Icon = file ? FileText : Quotes
-    const range = file ? formatLineRange(file.startLine, file.endLine) : ""
+    const [editing, setEditing] = useState(false)
+    const origin = quoteOrigin(quote)
+    const preview = quote.source.kind === "preview"
+    const Icon = preview ? ChatCircleText : origin ? FileText : Quotes
+    const label = (
+        <>
+            {number !== null ? (
+                <span
+                    aria-label={`Comment ${number}`}
+                    className={`flex shrink-0 items-center justify-center rounded-full rounded-bl-none bg-primary px-1 text-[10px] font-semibold leading-none tabular-nums text-btn-primary-fg ${
+                        touch ? "h-[18px] min-w-[18px]" : "h-4 min-w-4"
+                    }`}
+                >
+                    {number}
+                </span>
+            ) : (
+                <Icon size={touch ? 14 : 12} className="shrink-0 text-colorTextTertiary" />
+            )}
+            <span className="min-w-6 truncate text-xs text-colorText">
+                {truncateQuoteText(preview && quote.note ? quote.note : quote.text, 48)}
+            </span>
+            {origin ? (
+                <>
+                    <span className="h-3 w-px shrink-0 bg-colorBorderSecondary" aria-hidden />
+                    <span className="min-w-8 truncate font-mono text-[10px] text-colorTextTertiary">
+                        {origin.fileName}
+                    </span>
+                    {origin.location ? (
+                        <span
+                            data-quote-range
+                            className="-ml-0.5 shrink-0 font-mono text-[10px] text-colorTextTertiary"
+                        >
+                            {origin.location}
+                        </span>
+                    ) : null}
+                </>
+            ) : null}
+        </>
+    )
     return (
         // Only the excerpt and the file name give way; the range, the tag and the remove button
         // keep their width so a long file name can never push them out of the chip.
         <div
-            title={file ? `${file.displayPath}${range ? ` ${range}` : ""}` : undefined}
+            title={
+                origin
+                    ? `${origin.displayPath}${origin.location ? ` ${origin.location}` : ""}`
+                    : undefined
+            }
             className={`flex min-w-0 max-w-[320px] items-center gap-1.5 rounded-lg border border-solid px-2 ${
                 touch ? "h-8" : "h-7"
             } ${
@@ -43,26 +138,30 @@ const QuoteChip = ({
                     : "border-colorBorderSecondary bg-colorFillQuaternary"
             }`}
         >
-            <Icon size={touch ? 14 : 12} className="shrink-0 text-colorTextTertiary" />
-            <span className="min-w-6 truncate text-xs text-colorText">
-                {truncateQuoteText(quote.text, 48)}
-            </span>
-            {file ? (
-                <>
-                    <span className="h-3 w-px shrink-0 bg-colorBorderSecondary" aria-hidden />
-                    <span className="min-w-8 truncate font-mono text-[10px] text-colorTextTertiary">
-                        {file.fileName}
-                    </span>
-                    {range ? (
-                        <span
-                            data-quote-range
-                            className="-ml-0.5 shrink-0 font-mono text-[10px] text-colorTextTertiary"
+            {preview && onEdit ? (
+                <Popover open={editing} onOpenChange={setEditing}>
+                    <PopoverTrigger asChild>
+                        <button
+                            type="button"
+                            aria-label="Edit comment"
+                            className="flex min-w-0 cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0"
                         >
-                            {range}
-                        </span>
-                    ) : null}
-                </>
-            ) : null}
+                            {label}
+                        </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-3">
+                        <NoteEditor
+                            note={quote.note}
+                            onSave={(note) => {
+                                onEdit(note)
+                                setEditing(false)
+                            }}
+                        />
+                    </PopoverContent>
+                </Popover>
+            ) : (
+                label
+            )}
             {quote.stale ? (
                 <span className="shrink-0 rounded bg-colorWarning/20 px-1.5 text-[10px] font-medium leading-4 text-colorWarning">
                     changed
@@ -82,7 +181,7 @@ const QuoteChip = ({
     )
 }
 
-export const ComposerQuotes = ({quotes, onRemove, touch}: ComposerQuotesProps) => {
+export const ComposerQuotes = ({quotes, onRemove, onEdit, touch}: ComposerQuotesProps) => {
     if (quotes.length === 0) return null
     return (
         <MotionConfig transition={SESSION_SPRING}>
@@ -101,7 +200,9 @@ export const ComposerQuotes = ({quotes, onRemove, touch}: ComposerQuotesProps) =
                             >
                                 <QuoteChip
                                     quote={quote}
+                                    number={previewCommentNumber(quotes, quote)}
                                     onRemove={() => onRemove(quote.id)}
+                                    onEdit={onEdit ? (note) => onEdit(quote.id, note) : undefined}
                                     touch={touch}
                                 />
                             </motion.div>

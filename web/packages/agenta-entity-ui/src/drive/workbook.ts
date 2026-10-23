@@ -1,6 +1,8 @@
 // Workbook bytes → cell strings (design D5); only text leaves here, never SheetJS HTML.
 import {read, utils, type CellObject, type WorkSheet} from "xlsx"
 
+import type {CellOrigin} from "./cellAddress"
+
 /** A stored value, or the formula text of a formula cell that has no stored value. */
 export type SheetCell = {value: string} | {formula: string}
 
@@ -16,6 +18,8 @@ export interface Sheet {
     name: string
     rows: SheetCell[][]
     truncated: Truncation
+    /** Where `rows[0][0]` sits in the sheet; the used range need not start at A1. */
+    origin: CellOrigin
 }
 
 export interface Workbook {
@@ -45,8 +49,9 @@ const startsWith = (bytes: Uint8Array, magic: number[]): boolean =>
 
 function readSheet(name: string, sheet: WorkSheet): Sheet {
     const ref = sheet["!ref"]
-    if (!ref) return {name, rows: [], truncated: NOT_TRUNCATED}
+    if (!ref) return {name, rows: [], truncated: NOT_TRUNCATED, origin: {r: 0, c: 0}}
     const start = utils.decode_range(ref).s
+    const origin = {r: start.r, c: start.c}
     let lastRow = -1
     let lastCol = -1
     for (const address of Object.keys(sheet)) {
@@ -56,7 +61,8 @@ function readSheet(name: string, sheet: WorkSheet): Sheet {
         if (r > lastRow) lastRow = r
         if (c > lastCol) lastCol = c
     }
-    if (lastRow < start.r || lastCol < start.c) return {name, rows: [], truncated: NOT_TRUNCATED}
+    if (lastRow < start.r || lastCol < start.c)
+        return {name, rows: [], truncated: NOT_TRUNCATED, origin: {r: 0, c: 0}}
 
     const rowCount = lastRow - start.r + 1
     const colCount = lastCol - start.c + 1
@@ -71,6 +77,7 @@ function readSheet(name: string, sheet: WorkSheet): Sheet {
         name,
         rows,
         truncated: {rows: rowCount > ROW_CAP, totalColumns: colCount > COL_CAP ? colCount : null},
+        origin,
     }
 }
 

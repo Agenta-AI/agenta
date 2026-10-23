@@ -9,11 +9,16 @@
  * context — the sandbox the spec asks for); audio/video/PDF bytes come as cached blobs (see
  * driveMedia.ts for the signed-URL deviation).
  */
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "@agenta/entities/drive"
 import {humanSize} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
+import {
+    PreviewCommentLayer,
+    usePreviewComments,
+    type PreviewCommentTarget,
+} from "@agenta/ui/quote-selection"
 import {
     Button,
     Empty,
@@ -40,9 +45,11 @@ import {DriveCodeBlock, DriveMarkdown} from "./driveMarkdown"
 import {HtmlAppBody} from "./htmlApp"
 import {OfficeViewerFrame} from "./officeViewer/OfficeViewerFrame"
 import type {OfficeViewerKind} from "./officeViewer/protocol"
+import {previewTarget, usePreviewCommentMode, usePreviewCommentSession} from "./previewCommentMode"
 import {useQuotableFile} from "./quotable"
+import {isInBox, useSheetComments, type CellSelection} from "./spreadsheetComments"
 import {useDriveAnchorClickCapture} from "./useDriveLinkClick"
-import type {SheetCell, Truncation, Workbook} from "./workbook"
+import type {Sheet, SheetCell, Truncation, Workbook} from "./workbook"
 
 // The host's code viewer (see `registerDriveCodeBlock`). The desktop registers a Lexical +
 // lazy-Shiki block — an ~8.7 MB chunk it keeps out of first load — so the indirection is also
@@ -293,19 +300,41 @@ function truncationNote(
 }
 
 /** A row-capped table whose first row is the header; CSV and spreadsheet previews share it. */
-const PreviewTable = ({rows, truncated}: {rows: SheetCell[][]; truncated: Truncation}) => {
+const PreviewTable = ({
+    rows,
+    truncated,
+    comments,
+}: {
+    rows: SheetCell[][]
+    truncated: Truncation
+    /** Comment mode: cells carry their `rows` index and select by pointer. */
+    comments?: CellSelection
+}) => {
     const [header, ...body] = rows
     const note = truncationNote(truncated, body.length, header.length)
+    const at = (row: number, col: number) =>
+        comments ? {"data-row": row, "data-col": col} : undefined
+    const selected = (row: number, col: number) =>
+        !!comments?.box && isInBox(comments.box, row, col)
+    // The same blue outline the iframe picker draws over the element under the pointer.
+    const hover = comments
+        ? "hover:outline hover:outline-2 hover:-outline-offset-2 hover:outline-colorPrimary"
+        : ""
     return (
         <>
             <div className="min-h-0 flex-1 overflow-auto">
-                <table className="w-full border-collapse font-mono text-xs">
+                <table
+                    className={`w-full border-collapse font-mono text-xs ${comments ? "cursor-cell select-none" : ""}`}
+                    onPointerDown={comments?.onPointerDown}
+                    onPointerOver={comments?.onPointerOver}
+                >
                     <thead>
                         <tr>
                             {header.map((h, i) => (
                                 <th
                                     key={i}
-                                    className="sticky top-0 max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary bg-colorFillTertiary px-2.5 py-1.5 text-left font-medium text-colorTextSecondary"
+                                    {...at(0, i)}
+                                    className={`sticky top-0 max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1.5 text-left font-medium text-colorTextSecondary ${hover} ${selected(0, i) ? "bg-colorInfoBg" : "bg-colorFillTertiary"}`}
                                 >
                                     <PreviewCell cell={h} />
                                 </th>
@@ -318,7 +347,8 @@ const PreviewTable = ({rows, truncated}: {rows: SheetCell[][]; truncated: Trunca
                                 {r.map((c, j) => (
                                     <td
                                         key={j}
-                                        className="max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1 align-top"
+                                        {...at(i + 1, j)}
+                                        className={`max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1 align-top ${hover} ${selected(i + 1, j) ? "bg-colorInfoBg" : ""}`}
                                     >
                                         <PreviewCell cell={c} />
                                     </td>
@@ -337,7 +367,15 @@ const PreviewTable = ({rows, truncated}: {rows: SheetCell[][]; truncated: Trunca
     )
 }
 
-const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+const CsvBody = ({
+    mount,
+    path,
+    displayPath,
+}: {
+    mount: Mount | null
+    path: string
+    displayPath?: string
+}) => {
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
     // +2 (header + CSV_ROW_CAP body + 1 probe): one row past the cap tells "exactly the cap" from "more".
@@ -351,15 +389,31 @@ const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
         [content, path],
     )
 
+    // One unnamed sheet at A1, so CSV cells take comments like a spreadsheet's.
+    const workbook = useMemo<Workbook>(
+        () => ({
+            sheets: [
+                {
+                    name: "",
+                    rows: rows.slice(0, CSV_ROW_CAP + 1),
+                    truncated: {rows: rows.length > CSV_ROW_CAP + 1, totalColumns: null},
+                    origin: {r: 0, c: 0},
+                },
+            ],
+        }),
+        [rows],
+    )
+
     if (contentQuery.isPending) return <TableSkeleton />
     if (typeof content !== "string" || rows.length === 0)
         return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
 
     return (
         <Inset flush>
-            <PreviewTable
-                rows={rows.slice(0, CSV_ROW_CAP + 1)}
-                truncated={{rows: rows.length > CSV_ROW_CAP + 1, totalColumns: null}}
+            <CommentableTable
+                workbook={workbook}
+                sheet={workbook.sheets[0]}
+                target={previewTarget(path, displayPath, mount?.id)}
             />
         </Inset>
     )
@@ -538,7 +592,56 @@ function useWorkbook(blob: Blob | null): WorkbookState | undefined {
     return parsed && parsed.blob === blob ? parsed.state : undefined
 }
 
-const SpreadsheetView = ({workbook}: {workbook: Workbook}) => {
+/** A sheet's preview table that takes cell comments in comment mode. */
+const CommentableTable = ({
+    workbook,
+    sheet,
+    target,
+}: {
+    workbook: Workbook
+    sheet: Sheet
+    /** The file comments attach to. */
+    target: PreviewCommentTarget
+}) => {
+    const sessionId = usePreviewCommentSession()
+    const {enabled} = usePreviewCommentMode()
+    const rootRef = useRef<HTMLDivElement>(null)
+    const comments = usePreviewComments(sessionId, target)
+    const {selection, pick, onPickConsumed, onDraftClose, pinRects} = useSheetComments({
+        rootRef,
+        workbook,
+        sheet,
+        comments,
+        enabled: enabled && !!sessionId,
+    })
+    return (
+        <div ref={rootRef} className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+            {sheet.rows.length > 0 ? (
+                <PreviewTable rows={sheet.rows} truncated={sheet.truncated} comments={selection} />
+            ) : (
+                <div className="p-3 text-xs text-colorTextTertiary">This sheet is empty.</div>
+            )}
+            <PreviewCommentLayer
+                rootRef={rootRef}
+                sessionId={sessionId}
+                target={target}
+                pick={pick}
+                onPickConsumed={onPickConsumed}
+                onDraftClose={onDraftClose}
+                pinRects={pinRects}
+            />
+        </div>
+    )
+}
+
+export const SpreadsheetView = ({
+    workbook,
+    target,
+}: {
+    workbook: Workbook
+    /** The file comments attach to. */
+    target: PreviewCommentTarget
+}) => {
     const [active, setActive] = useState(0)
     const index = Math.min(active, workbook.sheets.length - 1)
     const sheet = workbook.sheets[index]
@@ -556,11 +659,7 @@ const SpreadsheetView = ({workbook}: {workbook: Workbook}) => {
                     ))}
                 </TabsList>
             </Tabs>
-            {sheet && sheet.rows.length > 0 ? (
-                <PreviewTable rows={sheet.rows} truncated={sheet.truncated} />
-            ) : (
-                <div className="p-3 text-xs text-colorTextTertiary">This sheet is empty.</div>
-            )}
+            <CommentableTable key={index} workbook={workbook} sheet={sheet} target={target} />
         </Inset>
     )
 }
@@ -573,7 +672,15 @@ const TooLargeCard = ({mount, path, bytes}: {mount: Mount | null; path: string; 
     <DownloadCard mount={mount} path={path} title={`Too large to preview (${humanSize(bytes)})`} />
 )
 
-const SpreadsheetBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+const SpreadsheetBody = ({
+    mount,
+    path,
+    displayPath,
+}: {
+    mount: Mount | null
+    path: string
+    displayPath?: string
+}) => {
     const version = useDriveFileVersion(mount, path)
     const {blob, isPending, failed} = useDriveFileBlob(mount, path, version)
     const tooLarge = overCap("spreadsheet", blob)
@@ -592,7 +699,12 @@ const SpreadsheetBody = ({mount, path}: {mount: Mount | null; path: string}) => 
         )
     if (parsed.status === "unreadable")
         return <DownloadCard mount={mount} path={path} title="Couldn't preview this spreadsheet" />
-    return <SpreadsheetView workbook={parsed.workbook} />
+    return (
+        <SpreadsheetView
+            workbook={parsed.workbook}
+            target={previewTarget(path, displayPath, mount?.id)}
+        />
+    )
 }
 
 /** A DOCX or PPTX in the sandboxed viewer frame; a new file version mounts a fresh frame. */
@@ -600,10 +712,12 @@ const OfficeFrameBody = ({
     mount,
     path,
     kind,
+    displayPath,
 }: {
     mount: Mount | null
     path: string
     kind: OfficeViewerKind
+    displayPath?: string
 }) => {
     const version = useDriveFileVersion(mount, path)
     const {blob, isPending, failed} = useDriveFileBlob(mount, path, version)
@@ -623,6 +737,7 @@ const OfficeFrameBody = ({
                 blob={blob}
                 onFailed={onFailed}
                 placeholder={<MediaLoading />}
+                target={previewTarget(path, displayPath, mount?.id)}
             />
         </Inset>
     )
@@ -697,7 +812,7 @@ export function DriveFileBody({
         case "json":
             return <CodeBody mount={mount} path={path} displayPath={displayPath} />
         case "csv":
-            return <CsvBody mount={mount} path={path} />
+            return <CsvBody mount={mount} path={path} displayPath={displayPath} />
         case "html":
             return <CodeBody mount={mount} path={path} />
         case "image":
@@ -709,10 +824,12 @@ export function DriveFileBody({
         case "video":
             return <VideoBody mount={mount} path={path} />
         case "spreadsheet":
-            return <SpreadsheetBody mount={mount} path={path} />
+            return <SpreadsheetBody mount={mount} path={path} displayPath={displayPath} />
         case "document":
         case "presentation":
-            return <OfficeFrameBody mount={mount} path={path} kind={kind} />
+            return (
+                <OfficeFrameBody mount={mount} path={path} kind={kind} displayPath={displayPath} />
+            )
         default:
             return <DownloadCard mount={mount} path={path} />
     }

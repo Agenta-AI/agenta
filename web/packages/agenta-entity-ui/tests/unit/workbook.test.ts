@@ -5,6 +5,7 @@ import {zipSync} from "fflate"
 import {describe, expect, it} from "vitest"
 import {utils, write} from "xlsx"
 
+import {boxToRange, rangeToBox} from "../../src/drive/cellAddress"
 import {
     COL_CAP,
     parseWorkbook,
@@ -58,7 +59,27 @@ describe("parseWorkbook", () => {
                 [{value: "Ada"}, {value: "9"}],
             ],
             truncated: {rows: false, totalColumns: null},
+            origin: {r: 0, c: 0},
         })
+    })
+
+    it("records where the used range starts when it is not A1", () => {
+        const sheet = utils.aoa_to_sheet(
+            [
+                ["Region", "Q1"],
+                ["North", 120],
+            ],
+            {origin: "B3"},
+        )
+        // SheetJS widens a fresh sheet's range to A1; a file's own dimension starts at its data.
+        sheet["!ref"] = "B3:C4"
+        const {sheets} = parseWorkbook(book({Data: sheet, Empty: utils.aoa_to_sheet([])}))
+        expect(sheets[0].origin).toEqual({r: 2, c: 1})
+        expect(sheets[0].rows).toEqual([
+            [{value: "Region"}, {value: "Q1"}],
+            [{value: "North"}, {value: "120"}],
+        ])
+        expect(sheets[1].origin).toEqual({r: 0, c: 0})
     })
 
     it("caps rows and columns and marks the sheet truncated", () => {
@@ -86,6 +107,31 @@ describe("parseWorkbook", () => {
         expect(() => parseWorkbook(new TextEncoder().encode("Region,Q1\nNorth,1\n"))).toThrow(
             "not a workbook",
         )
+    })
+})
+
+describe("A1 ranges", () => {
+    const origin = {r: 2, c: 1}
+
+    it("encodes a box in the sheet's own coordinates", () => {
+        expect(boxToRange(origin, {top: 1, left: 0, bottom: 1, right: 0})).toBe("B4")
+        expect(boxToRange(origin, {top: 1, left: 0, bottom: 2, right: 1})).toBe("B4:C5")
+    })
+
+    it("decodes a range back to the box, or null before the origin", () => {
+        expect(rangeToBox(origin, "B4:C5")).toEqual({top: 1, left: 0, bottom: 2, right: 1})
+        expect(rangeToBox(origin, "A1")).toBeNull()
+    })
+
+    it("crosses the Z to AA column boundary both ways", () => {
+        const a1 = {r: 0, c: 0}
+        expect(boxToRange(a1, {top: 0, left: 25, bottom: 9, right: 27})).toBe("Z1:AB10")
+        expect(rangeToBox(a1, "Z1:AB10")).toEqual({top: 0, left: 25, bottom: 9, right: 27})
+    })
+
+    it("rejects a malformed range", () => {
+        expect(rangeToBox({r: 0, c: 0}, "B0")).toBeNull()
+        expect(rangeToBox({r: 0, c: 0}, "4B")).toBeNull()
     })
 })
 

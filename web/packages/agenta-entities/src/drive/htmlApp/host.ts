@@ -17,6 +17,7 @@
 import {createAccessGate} from "./access"
 import {createEtagCache, type EtagCache} from "./etags"
 import {createFsClient, isFsClientError, type FsClient} from "./fsClient"
+import {createPickBridge} from "./pickBridge"
 import {
     isFsRequest,
     isIframeToParent,
@@ -102,6 +103,8 @@ export function createHtmlAppHost(
     const post = (msg: ParentToIframe) => {
         channel?.port1.postMessage(msg)
     }
+
+    const picks = createPickBridge(post)
 
     const relativeOf = (fullPath: string): string => toAppRelative(dir, fullPath) ?? fullPath
 
@@ -215,15 +218,18 @@ export function createHtmlAppHost(
             return
         }
         if (!isIframeToParent(data) || !("type" in data)) return
-        if (data.type === "nav") {
+        if (picks.receive(data)) return
+        if (data.type === "hello-ack") {
+            picks.acked()
+        } else if (data.type === "nav") {
             for (const cb of navCbs) cb(data.href)
         } else if (data.type === "error") {
             emitError({kind: "script", message: data.message, line: data.line})
         }
-        // `hello-ack` needs no reply.
     }
 
     const detach = () => {
+        picks.detached()
         if (!channel) return
         channel.port1.onmessage = null
         channel.port1.close()
@@ -237,6 +243,7 @@ export function createHtmlAppHost(
         if (!target) return
         const next = new MessageChannel()
         channel = next
+        picks.attached(iframe)
         next.port1.onmessage = (event: MessageEvent) => {
             void onPortMessage(event.data, next)
         }
@@ -305,5 +312,11 @@ export function createHtmlAppHost(
             }
         },
         setAccess: gate.set,
+        startPick: picks.startPick,
+        stopPick: picks.stopPick,
+        setPins: picks.setPins,
+        onPicked: picks.onPicked,
+        onPinRects: picks.onPinRects,
+        onPickCancel: picks.onPickCancel,
     }
 }

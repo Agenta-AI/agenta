@@ -70,6 +70,7 @@ import {DriveTreePane} from "./DriveTreePane"
 import {TreeRow} from "./DriveTreeRow"
 import {FolderView} from "./FolderView"
 import {dirOf, HtmlAppEnvContext, useAppAccessMenu} from "./htmlApp"
+import {PreviewCommentModeProvider} from "./previewCommentMode"
 import {DriveHtmlApp} from "./renderers"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
 import {useDrivePasteUpload} from "./useDrivePasteUpload"
@@ -633,6 +634,7 @@ export function DriveExplorer({
                         : undefined
                 }
                 controlsRef={htmlRunning ? setAppControlsEl : undefined}
+                previewKind={selectedKind === "html" && !htmlRunning ? undefined : selectedKind}
                 onCopyPath={onCopyCurrentPath}
                 onDownload={onDownloadCurrent}
             />
@@ -734,73 +736,80 @@ export function DriveExplorer({
                 />
             )
         body = (
-            <DriveTreePane
-                pane={pane}
-                mirrored={mirrored}
-                treeScrollRef={treeScrollRef}
-                onTreeKeyDown={onTreeKeyDown}
-                treeDropProps={canUpload ? drop.containerDropProps(currentFolder) : undefined}
-                contentHeader={contentHeader}
-                railHeader={
-                    chrome ? (
-                        <Input
-                            allowClear
-                            size="sm"
-                            value={search}
-                            onValueChange={setSearch}
-                            placeholder="Search files"
-                            className="w-full"
-                            prefix={
-                                <MagnifyingGlass size={12} className="text-colorTextQuaternary" />
+            <PreviewCommentModeProvider
+                fileKey={selectedPath == null ? null : `${selectedMount?.id ?? ""}:${selectedPath}`}
+            >
+                <DriveTreePane
+                    pane={pane}
+                    mirrored={mirrored}
+                    treeScrollRef={treeScrollRef}
+                    onTreeKeyDown={onTreeKeyDown}
+                    treeDropProps={canUpload ? drop.containerDropProps(currentFolder) : undefined}
+                    contentHeader={contentHeader}
+                    railHeader={
+                        chrome ? (
+                            <Input
+                                allowClear
+                                size="sm"
+                                value={search}
+                                onValueChange={setSearch}
+                                placeholder="Search files"
+                                className="w-full"
+                                prefix={
+                                    <MagnifyingGlass
+                                        size={12}
+                                        className="text-colorTextQuaternary"
+                                    />
+                                }
+                            />
+                        ) : null
+                    }
+                    rows={
+                        <DriveTreeList
+                            flatRows={flatRows}
+                            searchLoading={lazyTree.searchLoading}
+                            treeVirtualizer={treeVirtualizer}
+                            measureRow={measureRow}
+                            justLoadedDirs={justLoadedDirs}
+                            firstEverPaths={firstEverPaths}
+                            shownExpanded={shownExpanded}
+                            selectedPath={selectedPath}
+                            showOrigin={showOrigin}
+                            isDirLoading={isDirLoading}
+                            scrollXFor={scrollXFor}
+                            onMeasureContent={onMeasureContent}
+                            canUpload={canUpload}
+                            drop={drop}
+                            pendingUploadByPath={pendingUploadByPath}
+                            onRetryUpload={retryUpload}
+                            onDismissUpload={dismissUpload}
+                            setExpanded={setExpanded}
+                            select={select}
+                            copyPath={copyPath}
+                            download={download}
+                            writes={itemWrites}
+                            depthOffset={chrome && !searchActive ? 1 : 0}
+                            rootRow={
+                                chrome && !searchActive ? (
+                                    <TreeRow
+                                        node={ROOT_NODE}
+                                        depth={0}
+                                        isOpen
+                                        selected={selectedPath === ""}
+                                        parent=""
+                                        scrollX={0}
+                                        onMeasureContent={noop}
+                                        onToggle={noop}
+                                        onSelect={select}
+                                    />
+                                ) : null
                             }
                         />
-                    ) : null
-                }
-                rows={
-                    <DriveTreeList
-                        flatRows={flatRows}
-                        searchLoading={lazyTree.searchLoading}
-                        treeVirtualizer={treeVirtualizer}
-                        measureRow={measureRow}
-                        justLoadedDirs={justLoadedDirs}
-                        firstEverPaths={firstEverPaths}
-                        shownExpanded={shownExpanded}
-                        selectedPath={selectedPath}
-                        showOrigin={showOrigin}
-                        isDirLoading={isDirLoading}
-                        scrollXFor={scrollXFor}
-                        onMeasureContent={onMeasureContent}
-                        canUpload={canUpload}
-                        drop={drop}
-                        pendingUploadByPath={pendingUploadByPath}
-                        onRetryUpload={retryUpload}
-                        onDismissUpload={dismissUpload}
-                        setExpanded={setExpanded}
-                        select={select}
-                        copyPath={copyPath}
-                        download={download}
-                        writes={itemWrites}
-                        depthOffset={chrome && !searchActive ? 1 : 0}
-                        rootRow={
-                            chrome && !searchActive ? (
-                                <TreeRow
-                                    node={ROOT_NODE}
-                                    depth={0}
-                                    isOpen
-                                    selected={selectedPath === ""}
-                                    parent=""
-                                    scrollX={0}
-                                    onMeasureContent={noop}
-                                    onToggle={noop}
-                                    onSelect={select}
-                                />
-                            ) : null
-                        }
-                    />
-                }
-            >
-                {contentPane}
-            </DriveTreePane>
+                    }
+                >
+                    {contentPane}
+                </DriveTreePane>
+            </PreviewCommentModeProvider>
         )
     }
     // The lazy per-directory subscribers render alongside EVERY branch (skeleton/empty/tree) so the

@@ -11,7 +11,12 @@ import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from 
 
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
-import {registerQuoteSubmit, removeQuote, useStagedQuotes} from "@agenta/ui/quote-selection"
+import {
+    registerQuoteSubmit,
+    removeQuote,
+    updateQuote,
+    useStagedQuotes,
+} from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
@@ -322,6 +327,7 @@ export const ChatComposer = ({
                             <ComposerQuotes
                                 quotes={quotes}
                                 onRemove={(id) => removeQuote(quoteSessionId, id)}
+                                onEdit={(id, note) => updateQuote(quoteSessionId, id, {note})}
                                 touch={!hasKeyboard}
                             />
                         </HeightCollapse>

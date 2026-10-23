@@ -321,6 +321,7 @@ export function HtmlAppBody({
                     onReload={hint.clear}
                     onNavigate={onNavigate}
                     toDisplayPath={toDisplayPath}
+                    mountId={mountId ?? undefined}
                     onAllowEditing={canAllowEditing ? allowEditing : undefined}
                 />
             ) : (
