@@ -35,6 +35,20 @@ from oss.src.utils.exceptions import (
 )
 
 from oss.src.core.auth.service import AuthService
+from oss.src.core.access.context import reset_request_access, set_request_access
+from oss.src.core.access.dtos import (
+    PrincipalKind,
+    PrincipalRef,
+    RequestAccess,
+    RequestCredentialKind,
+    RunAuthority,
+    RunContext,
+    RunEnvelope,
+    RunOrigin,
+    RunSender,
+)
+from oss.src.core.access.principals import ENVELOPE_CLAIM_KEYS, envelope_from_claims
+from oss.src.core.access.types import InvalidRunClaims
 from oss.src.core.memberships.service import get_memberships_service
 
 log = get_module_logger(__name__)
@@ -335,6 +349,7 @@ async def auth_middleware(request: Request, call_next):
     """
 
     auth_token = None
+    access_token = None
     try:
         await _check_authentication_token(request)
 
@@ -343,6 +358,9 @@ async def auth_middleware(request: Request, call_next):
         auth_ctx = _build_auth_context_from_state(request)
         if auth_ctx is not None:
             auth_token = set_auth_context(auth_ctx)
+            access = _build_request_access_from_state(request)
+            if access is not None:
+                access_token = set_request_access(access)
 
         response = await call_next(request)
 
@@ -397,6 +415,8 @@ async def auth_middleware(request: Request, call_next):
         )
 
     finally:
+        if access_token is not None:
+            reset_request_access(access_token)
         if auth_token is not None:
             reset_auth_context(auth_token)
 
@@ -445,6 +465,133 @@ def _build_auth_context_from_state(request: Request) -> Optional[AuthContext]:
     except Exception:  # pylint: disable=broad-exception-caught
         log.warning("Failed to build AuthContext from request.state", exc_info=True)
         return None
+
+
+# -- the request principal (M2) ------------------------------------------------------
+
+
+def _set_principal_state(
+    request: Request,
+    *,
+    principal: Optional[PrincipalRef],
+    credential_kind: Optional[RequestCredentialKind],
+    envelope: Optional[RunEnvelope] = None,
+) -> None:
+    """`request.state.principal`, `.authority`, `.credential_kind`, `.run_envelope`.
+
+    Bearer and ApiKey: the authority is the principal in the request's organization and
+    project. Secret: the authority of the token's claims."""
+
+    request.state.principal = principal
+    request.state.credential_kind = credential_kind
+    request.state.run_envelope = envelope
+    request.state.authority = None
+
+    if principal is None:
+        return
+    if envelope is not None:
+        request.state.authority = envelope.authority
+        return
+    try:
+        request.state.authority = RunAuthority(
+            principal=principal,
+            organization_id=UUID(str(request.state.organization_id)),
+            project_id=UUID(str(request.state.project_id)),
+        )
+    except (TypeError, ValueError):
+        request.state.authority = None
+
+
+def _principal_from_state(value: object) -> Optional[PrincipalRef]:
+    """A principal stored in a cached middleware state, or `None` (a state cached by an
+    older pod, which the caller then rebuilds)."""
+
+    if not isinstance(value, dict):
+        return None
+    try:
+        return PrincipalRef.model_validate(value)
+    except ValidationError:
+        return None
+
+
+def _build_request_access_from_state(request: Request) -> Optional[RequestAccess]:
+    state = request.state
+    principal = getattr(state, "principal", None)
+    authority = getattr(state, "authority", None)
+    credential_kind = getattr(state, "credential_kind", None)
+    user_id = getattr(state, "user_id", None)
+    if principal is None or authority is None or credential_kind is None:
+        return None
+    try:
+        return RequestAccess(
+            principal=principal,
+            authority=authority,
+            credential_kind=credential_kind,
+            acting_user_id=UUID(str(user_id)),
+            envelope=getattr(state, "run_envelope", None),
+        )
+    except (TypeError, ValueError, ValidationError):
+        log.warning("[auth] request access could not be built", exc_info=True)
+        return None
+
+
+def request_run_envelope(request: Request) -> Optional[RunEnvelope]:
+    """The envelope a router stores or mints for work this request starts.
+
+    Secret: the token's envelope, copied. Bearer: origin `web`, the user as sender.
+    ApiKey: origin `api`, the key id as origin id, no sender. `None` outside an
+    authenticated request. It is the only producer-side envelope source in routers."""
+
+    state = request.state
+    envelope = getattr(state, "run_envelope", None)
+    if envelope is not None:
+        return envelope
+
+    authority = getattr(state, "authority", None)
+    credential_kind = getattr(state, "credential_kind", None)
+    if authority is None or credential_kind is None:
+        return None
+
+    if credential_kind == RequestCredentialKind.BEARER_SESSION:
+        return RunEnvelope(
+            authority=authority,
+            context=RunContext(origin=RunOrigin.WEB),
+            sender=RunSender(user_id=UUID(str(state.user_id))),
+        )
+    if credential_kind == RequestCredentialKind.API_KEY:
+        return RunEnvelope(
+            authority=authority,
+            context=RunContext(
+                origin=RunOrigin.API,
+                origin_id=str(authority.principal.id),
+            ),
+        )
+    return None
+
+
+def _envelope_from_secret_claims(auth_context: dict) -> Optional[RunEnvelope]:
+    """The envelope of a Secret token. `None` when the token carries no `principal`
+    claim. Raises `DecodeError` (401 `invalid_token`) for claims that are not valid or
+    whose authority differs from the token's scope claims."""
+
+    claims = {
+        key: auth_context[key] for key in ENVELOPE_CLAIM_KEYS if key in auth_context
+    }
+    try:
+        envelope = envelope_from_claims(claims=claims)
+    except InvalidRunClaims as exc:
+        raise DecodeError("Secret token carries invalid run claims.") from exc
+
+    if envelope is None:
+        return None
+
+    authority = envelope.authority
+    if str(authority.organization_id) != str(auth_context.get("organization_id")) or (
+        str(authority.project_id) != str(auth_context.get("project_id"))
+    ):
+        raise DecodeError("Secret token run authority differs from its scope.")
+
+    return envelope
 
 
 async def _check_authentication_token(request: Request):
@@ -759,6 +906,14 @@ async def verify_bearer_token(
         )
         # state = None
 
+        # A state cached by an older pod has no principal: a miss, rebuilt below.
+        if (
+            state is not None
+            and not state.get("deny")
+            and _principal_from_state(state.get("principal")) is None
+        ):
+            state = None
+
         if state is not None:
             if state.get("deny"):
                 _deny("state_cache", "cached deny for user+project")
@@ -771,6 +926,11 @@ async def verify_bearer_token(
             request.state.organization_id = state.get("organization_id")
             request.state.organization_name = state.get("organization_name")
             request.state.credentials = state.get("credentials")
+            _set_principal_state(
+                request,
+                principal=_principal_from_state(state.get("principal")),
+                credential_kind=RequestCredentialKind.BEARER_SESSION,
+            )
 
             return
 
@@ -976,6 +1136,7 @@ async def verify_bearer_token(
             "organization_id": organization_id,
             "organization_name": organization_name,
             "credentials": f"{_SECRET_TOKEN_PREFIX}{secret_token}",
+            "principal": {"kind": PrincipalKind.HUMAN.value, "id": str(user_id)},
         }
 
         if not is_invite_accept_route:
@@ -994,6 +1155,11 @@ async def verify_bearer_token(
         request.state.organization_id = state.get("organization_id")
         request.state.organization_name = state.get("organization_name")
         request.state.credentials = state.get("credentials")
+        _set_principal_state(
+            request,
+            principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=UUID(str(user_id))),
+            credential_kind=RequestCredentialKind.BEARER_SESSION,
+        )
 
     except GatewayTimeoutException as exc:
         raise exc
@@ -1042,6 +1208,17 @@ async def verify_apikey_token(
             key=cache_key,
         )
 
+        # A state cached by an older pod has no key id and principal: a miss.
+        if (
+            state is not None
+            and not state.get("deny")
+            and (
+                not state.get("api_key_id")
+                or _principal_from_state(state.get("principal")) is None
+            )
+        ):
+            state = None
+
         if state is not None:
             if state.get("deny"):
                 raise UnauthorizedException()
@@ -1053,6 +1230,12 @@ async def verify_apikey_token(
             request.state.organization_id = state.get("organization_id")
             request.state.organization_name = state.get("organization_name")
             request.state.credentials = state.get("credentials")
+            request.state.api_key_id = state.get("api_key_id")
+            _set_principal_state(
+                request,
+                principal=_principal_from_state(state.get("principal")),
+                credential_kind=RequestCredentialKind.API_KEY,
+            )
 
             return
 
@@ -1082,6 +1265,10 @@ async def verify_apikey_token(
         if is_ee():
             organization_name = apikey_project_db.organization.name
 
+        # After the `user.email` read above, so a key whose creator is not a user
+        # keeps failing at the same place as before, with nothing cached.
+        api_key_id = str(api_key_obj.id)
+
         state = {
             "user_id": user_id,
             "user_email": user_email,
@@ -1090,6 +1277,8 @@ async def verify_apikey_token(
             "organization_id": organization_id,
             "organization_name": organization_name,
             "credentials": f"{_APIKEY_TOKEN_PREFIX}{apikey_token}",
+            "api_key_id": api_key_id,
+            "principal": {"kind": PrincipalKind.API_KEY.value, "id": api_key_id},
         }
 
         await set_cache(
@@ -1105,6 +1294,12 @@ async def verify_apikey_token(
         request.state.organization_id = state.get("organization_id")
         request.state.organization_name = state.get("organization_name")
         request.state.credentials = state.get("credentials")
+        request.state.api_key_id = api_key_id
+        _set_principal_state(
+            request,
+            principal=PrincipalRef(kind=PrincipalKind.API_KEY, id=UUID(api_key_id)),
+            credential_kind=RequestCredentialKind.API_KEY,
+        )
 
     except Exception as exc:
         log.error(exc)
@@ -1152,6 +1347,10 @@ async def verify_secret_token(
 
         request.state.token_audience = audience
 
+        # The run envelope: parsed after the grant and audience checks. A Secret without
+        # a `principal` claim carries no principal.
+        envelope = _envelope_from_secret_claims(auth_context)
+
         if audience:
             allowed_paths = _AUDIENCE_PATHS[audience]
 
@@ -1187,6 +1386,14 @@ async def verify_secret_token(
         request.state.gateway_platform_run = (
             audience == GATEWAY_TOKEN_AUDIENCE
             and auth_context.get("gateway_platform_run") is True
+        )
+        _set_principal_state(
+            request,
+            principal=envelope.authority.principal if envelope is not None else None,
+            credential_kind=(
+                RequestCredentialKind.RUN_CREDENTIAL if envelope is not None else None
+            ),
+            envelope=envelope,
         )
 
     except ExpiredSignatureError as exc:
