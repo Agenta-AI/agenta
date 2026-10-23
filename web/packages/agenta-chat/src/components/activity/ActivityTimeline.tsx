@@ -20,10 +20,11 @@ import {
     partToolName,
     type ActivityStep,
 } from "../../model"
+import {toolHadApproval} from "../../model/approvals"
 import {resolveToolDisplay} from "../../skin"
 import type {ActivityIcon} from "../../skin/types"
 import {activityFoldKey, expandedValueAtomFamily, setExpandedAtom} from "../../state"
-import {useTurnStage, useTurnStageSince} from "../../state/turnClock"
+import {turnSpanAtomFamily, useTurnStage, useTurnStageSince} from "../../state/turnClock"
 import RevealCollapse from "../RevealCollapse"
 
 import {ActivityClientStep} from "./ActivityClientStep"
@@ -199,6 +200,10 @@ const waitingKind = (steps: ActivityStep[]): WaitingKind => {
     return "approval"
 }
 
+/** A step that paused the run to wait on user input or approval. */
+const stepHadGate = (step: ActivityStep): boolean =>
+    step.kind === "client" || (step.kind === "tool" && toolHadApproval(step.part))
+
 /** The last step of the agent's own: a settled ask's verb must not hold the line. */
 const lastAgentStep = (steps: ActivityStep[]): ActivityStep | null => {
     for (let i = steps.length - 1; i >= 0; i--) if (steps[i].kind !== "client") return steps[i]
@@ -258,7 +263,9 @@ export interface ActivityTimelineProps {
     waitingOnUser?: boolean
     /** The ask was answered here and the transcript still carries it: the line reads as work. */
     resuming?: boolean
-    /** The turn's trace: once settled, its duration outranks the local count. */
+    /** Gate history from the full turn, including tools hidden or merged in the activity steps. */
+    hadGate?: boolean
+    /** The turn's trace: once settled, ungated turns can use its duration. */
     traceId?: string | null
     /** This tab streamed the run itself, so its first step is the start. False for a run found
      * already in progress, whose start has to come from the trace. Defaults to true: a caller
@@ -287,6 +294,7 @@ export const ActivityTimeline = ({
     sessionId,
     waitingOnUser = false,
     resuming = false,
+    hadGate: recordedGate = false,
     traceId,
     streamedHere = true,
     renderClientTool,
@@ -311,16 +319,36 @@ export const ActivityTimeline = ({
     const trace = useAtomValue(
         traceDataSummaryAtomFamily((!live || metMidFlight) && traceId ? traceId : ""),
     )
-    const startedAt = metMidFlight ? parseTraceTime(trace.rootSpan?.start_time) : undefined
+    const span = useAtomValue(turnSpanAtomFamily(clockId))
+    // An open clock inherited on mount may have missed a gate while this timeline was absent.
+    const inheritedRunningClock = useRef(Boolean(span && span.endedAt === undefined))
+    const hadGate = Boolean(
+        recordedGate ||
+        (span && span.pausedMs > 0) ||
+        resuming ||
+        waitingOnUser ||
+        steps.some(stepHadGate),
+    )
+    const startedAt =
+        metMidFlight && !hadGate ? parseTraceTime(trace.rootSpan?.start_time) : undefined
     // The clock counts the agent's work: from the first step, paused while parked on the reader.
-    const counted = useTurnClock(clockId, live && !awaiting && steps.length > 0, startedAt)
-    // A run resumed after a gate traces only its last leg; the longer of the two is the work.
-    const traced = live ? null : (trace.metrics.durationMs ?? null)
-    const elapsed = live
-        ? counted
-        : traced === null && counted === null
-          ? null
-          : Math.max(traced ?? 0, counted ?? 0)
+    const measured = useTurnClock(clockId, live && !awaiting && steps.length > 0, startedAt)
+    // A tab that joined later cannot account for earlier waits. A clock already anchored to
+    // the trace start is also unsafe if gate history arrives after that start was applied.
+    const counted =
+        hadGate && (!streamedHere || span?.anchored || inheritedRunningClock.current)
+            ? null
+            : measured
+    // A gate's trace covers the whole run, including the time parked on the user (#7445).
+    // When a turn had a gate, only the local clock saw the actual work time; an unclocked
+    // turn that had a gate falls back to "Worked" rather than reporting the parked time.
+    const traced = live || hadGate ? null : (trace.metrics.durationMs ?? null)
+    const elapsed =
+        live || hadGate
+            ? counted
+            : traced === null && counted === null
+              ? null
+              : Math.max(traced ?? 0, counted ?? 0)
     const files = useMemo(() => activityFiles(steps), [steps])
     // A settled step's verb holds for a beat, then the line reads "Working".
     const idle = useHeldFor(live && !awaiting && !current && steps.length > 0, VERB_HOLD_MS)
