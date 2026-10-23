@@ -43,6 +43,8 @@
     --ag-colorErrorActive: #3f0605;
     --ag-colorErrorBorder: #d94c4a;
     --ag-colorInfo: #113955;
+    --ag-colorSelection: #1677ff;
+    --ag-colorSelectionBg: rgba(22, 119, 255, 0.08);
     --ag-colorInfoBorder: #a5bac8;
     --ag-colorPrimaryBorder: #e5e5e3;
     --ag-colorPrimaryBorderHover: #a3a19f;
@@ -433,6 +435,8 @@
     --ag-colorErrorActive: #ad393a;
     --ag-colorErrorBorder: #5b2526;
     --ag-colorInfo: #1668dc;
+    --ag-colorSelection: #4096ff;
+    --ag-colorSelectionBg: rgba(64, 150, 255, 0.16);
     --ag-colorInfoBorder: #15325b;
     --ag-colorPrimaryBorder: #57572a;
     --ag-colorPrimaryBorderHover: #787834;

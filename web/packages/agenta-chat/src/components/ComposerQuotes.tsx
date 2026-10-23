@@ -91,8 +91,8 @@ const QuoteChip = ({
             {number !== null ? (
                 <span
                     aria-label={`Comment ${number}`}
-                    className={`flex shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold leading-none text-btn-primary-fg ${
-                        touch ? "size-[18px]" : "size-4"
+                    className={`flex shrink-0 items-center justify-center rounded-full rounded-bl-none bg-colorSelection px-1 text-[10px] font-semibold leading-none tabular-nums text-colorTextLightSolid ${
+                        touch ? "h-[18px] min-w-[18px]" : "h-4 min-w-4"
                     }`}
                 >
                     {number}

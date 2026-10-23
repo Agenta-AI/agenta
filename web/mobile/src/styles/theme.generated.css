@@ -54,6 +54,8 @@
     --colorTextLightSolid: #ffffff;
     --colorSplit: #f0efed;
     --colorInfo: #113955;
+    --colorSelection: #1677ff;
+    --colorSelectionBg: rgba(22, 119, 255, 0.08);
     --colorBgLayout: #f6f5f3;
     --colorBgMask: rgba(36, 36, 36, 0.45);
     --colorBgContainerDisabled: rgba(36, 36, 36, 0.04);
@@ -200,6 +202,8 @@
     --colorTextLightSolid: #ffffff;
     --colorSplit: rgba(253, 253, 253, 0.12);
     --colorInfo: #1668dc;
+    --colorSelection: #4096ff;
+    --colorSelectionBg: rgba(64, 150, 255, 0.16);
     --colorBgLayout: #000000;
     --colorBgMask: rgba(0, 0, 0, 0.45);
     --colorBgContainerDisabled: rgba(255, 255, 255, 0.08);
