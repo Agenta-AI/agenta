@@ -57,8 +57,7 @@ const TraceDrawerContent = ({
         [],
     )
 
-    // The stored span is the only selection. The view is that id, or the first loaded span.
-    const activeId = activeSpanId || traces[0]?.span_id || ""
+    const activeId = activeSpanId || ""
 
     // Write the stored id only when it is not a loaded span.
     useEffect(() => {
@@ -68,8 +67,7 @@ const TraceDrawerContent = ({
     }, [traces.length, activeId, rawActiveSpanId, setActiveSpan])
 
     useEffect(() => {
-        if (!activeId) return
-        setSpanQueryParam(activeId)
+        setSpanQueryParam(activeId || null)
     }, [activeId, setSpanQueryParam])
 
     const setSelected = useCallback(

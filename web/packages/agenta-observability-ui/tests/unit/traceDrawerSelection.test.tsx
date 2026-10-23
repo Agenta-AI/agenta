@@ -1,9 +1,5 @@
-/**
- * @vitest-environment jsdom
- *
- * Regression for #6714. The drawer copied a local selected span to and from the
- * active span id. An outside change of the active span made the two swap.
- */
+/** @vitest-environment jsdom */
+// Regression for #6714: the shown span follows the active span id.
 import {act} from "react"
 
 import {createStore, Provider, type Atom, type WritableAtom} from "jotai"
