@@ -1760,3 +1760,72 @@ async def test_custom_connection_preserves_catalog_capabilities(
     assert resolved.model == upstream_model
     assert resolved.input_modalities == expected
     _assert_routed_through_gateway(resolved, namespace="custom", name=slug)
+
+
+# -- M2: a refused run credential is one clear 403 access_denied (QA D7) ----------
+
+_DENIAL = {
+    "detail": {
+        "code": "access_denied",
+        "message": "Access denied: the user this runs as is not a member of the project.",
+        "retryable": False,
+        "next_step": "Ask a project admin for access.",
+        "details": {"reason": "not_member", "principal_kind": "human"},
+    }
+}
+
+
+async def test_a_refused_gateway_mint_is_access_denied(fake_http, connection):
+    from agenta.sdk.agents.connections import ConnectionAccessDeniedError
+
+    fake_http(connections, status=403, payload=_DENIAL)
+    with pytest.raises(ConnectionAccessDeniedError) as raised:
+        await VaultConnectionResolver(connection).resolve(
+            model=_model(), context=_context()
+        )
+    error = raised.value
+    assert error.status_code == 403
+    assert error.failure_code == "access_denied"
+    assert error.error_detail["details"]["reason"] == "not_member"
+    assert "not a member" in str(error)
+
+
+@pytest.mark.parametrize("status", [401, 403])
+async def test_a_refused_vault_read_is_access_denied_not_500(
+    fake_http, connection, status
+):
+    from agenta.sdk.agents.connections import ConnectionAccessDeniedError
+
+    fake_http(connections, status=status, payload={"detail": "Forbidden"})
+    with pytest.raises(ConnectionAccessDeniedError) as raised:
+        await VaultConnectionResolver(connection)._resolve_from_vault(
+            api_base="https://api.x/api",
+            authorization="Secret tok",
+            model=_model(),
+            context=_context(),
+        )
+    assert raised.value.status_code == 403
+    assert raised.value.error_detail["code"] == "access_denied"
+
+
+async def test_a_refused_run_reaches_the_caller_as_403():
+    """The normalizer keeps a refused run credential a 403 `access_denied` (other
+    downstream 401/403 become 424)."""
+
+    from agenta.sdk.agents.connections import ConnectionAccessDeniedError
+    from agenta.sdk.middlewares.running.normalizer import NormalizerMiddleware
+
+    normalizer = NormalizerMiddleware.__new__(NormalizerMiddleware)
+    normalizer._correlation_ids = lambda: (None, None, None)
+    response = await normalizer._normalize_exception(
+        ConnectionAccessDeniedError.from_response(status_code=403, body=_DENIAL)
+    )
+    assert response.status.code == 403
+    assert response.status.failure_code == "access_denied"
+    assert "not a member" in response.status.message
+
+    class _Other(Exception):
+        status_code = 403
+
+    other = await normalizer._normalize_exception(_Other("downstream"))
+    assert other.status.code == 424

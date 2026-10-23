@@ -12,6 +12,8 @@ from typing import Any, Dict, Optional
 
 import pytest
 
+from agenta.sdk.utils.cache import TTLLRUCache
+
 from agenta.sdk.middlewares.routing import auth as auth_module
 
 
@@ -55,6 +57,10 @@ class _FakeAsyncClient:
 @pytest.fixture
 def platform(monkeypatch):
     monkeypatch.setattr(auth_module, "_AUTH_ENABLED", True)
+    monkeypatch.setattr(auth_module, "_CACHE_ENABLED", True)
+    monkeypatch.setattr(
+        auth_module, "_cache", TTLLRUCache(ttl=auth_module._CREDENTIALS_TTL_SECONDS)
+    )
     _FakeAsyncClient.call_count = 0
     _FakeAsyncClient.body = {}
     _FakeAsyncClient.last_headers = None
@@ -149,12 +155,29 @@ def test_runtime_key_placeholder_is_treated_as_unconfigured(monkeypatch):
     assert auth_module._runtime_key_from_environment() == ""
 
 
-async def test_every_call_asks_the_platform(platform):
-    """No cache: a removed member or a deleted key is refused on the next request,
-    before a run starts with a credential minted earlier (M2, QA D7)."""
+def test_the_exchange_cache_lives_at_most_ten_seconds():
+    """M2: the services path may serve an allowed exchange for at most 10 s; after that
+    the API decides again (a refused run inside the window gets a 403 downstream)."""
 
+    assert auth_module._cache.ttl <= 10
+
+
+async def test_an_allowed_exchange_is_reused_within_the_ttl(platform):
+    platform.body = {"effect": "allow", "credentials": "Secret general-token"}
+    assert await _get_credentials() == "Secret general-token"
+    platform.body = {"effect": "deny"}
+    assert await _get_credentials() == "Secret general-token"
+    assert platform.call_count == 1
+
+
+async def test_after_the_ttl_the_platform_decides_again(platform, monkeypatch):
+    import agenta.sdk.utils.cache as cache_module
+
+    now = [1000.0]
+    monkeypatch.setattr(cache_module, "time", lambda: now[0])
     platform.body = {"effect": "allow", "credentials": "Secret general-token"}
     await _get_credentials()
+    now[0] += auth_module._CREDENTIALS_TTL_SECONDS + 1
     platform.body = {"effect": "deny"}
     with pytest.raises(auth_module.DenyException) as denied:
         await _get_credentials()
