@@ -34,6 +34,8 @@ const NoteEditor = ({note, onSave}: {note: string; onSave: (note: string) => voi
         <textarea
             autoFocus
             aria-label="Edit comment"
+            // Editing continues after the existing note.
+            onFocus={(e) => e.currentTarget.setSelectionRange(value.length, value.length)}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {

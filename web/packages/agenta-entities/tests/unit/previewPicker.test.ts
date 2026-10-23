@@ -32,6 +32,12 @@ const realm = (body: string, withCssEscape = true): Realm => {
 const fire = (r: Realm, el: Element, type: string) =>
     el.dispatchEvent(new r.win.MouseEvent(type, {bubbles: true, cancelable: true}))
 
+/** What a person's click looks like to the picker: a press, then the click. */
+const press = (r: Realm, el: Element) => {
+    fire(r, el, "mousedown")
+    return fire(r, el, "click")
+}
+
 const lastPicked = (r: Realm) => {
     const msg = r.posted.filter((m) => m.type === "picked").pop()
     if (!msg || msg.type !== "picked") throw new Error("nothing picked")
@@ -51,7 +57,7 @@ describe("installPreviewPicker: html", () => {
     it("picks the heading past inline tags with its unique id", () => {
         const r = realm(`<h2 id="x"><strong>Hi</strong></h2>`)
         r.handle({type: "pick-start", format: "html"})
-        fire(r, r.doc.querySelector("strong")!, "click")
+        press(r, r.doc.querySelector("strong")!)
         const msg = lastPicked(r)
         expect(msg.element.selector).toBe("#x")
         expect(msg.element.tag).toBe("h2")
@@ -64,7 +70,7 @@ describe("installPreviewPicker: html", () => {
     it("builds an nth-of-type path to body when no id is unique", () => {
         const r = realm(`<div><p>a</p></div><div><p>b</p><p>  c <em>d</em>  </p></div>`)
         r.handle({type: "pick-start", format: "html"})
-        fire(r, r.doc.querySelector("em")!, "click")
+        press(r, r.doc.querySelector("em")!)
         const msg = lastPicked(r)
         expect(msg.element.selector).toBe("div:nth-of-type(2) > p:nth-of-type(2)")
         expect(msg.text).toBe("c d")
@@ -74,14 +80,14 @@ describe("installPreviewPicker: html", () => {
     it("anchors the path at the nearest ancestor with a unique id", () => {
         const r = realm(`<section id="s"><ul><li>a</li><li>b</li></ul></section>`)
         r.handle({type: "pick-start", format: "html"})
-        fire(r, r.doc.querySelectorAll("li")[1], "click")
+        press(r, r.doc.querySelectorAll("li")[1])
         expect(lastPicked(r).element.selector).toBe("#s > ul:nth-of-type(1) > li:nth-of-type(2)")
     })
 
     it("skips ids when CSS.escape is missing", () => {
         const r = realm(`<h2 id="x">Hi</h2>`, false)
         r.handle({type: "pick-start", format: "html"})
-        fire(r, r.doc.querySelector("h2")!, "click")
+        press(r, r.doc.querySelector("h2")!)
         expect(lastPicked(r).element.selector).toBe("h2:nth-of-type(1)")
     })
 
@@ -96,7 +102,7 @@ describe("installPreviewPicker: html", () => {
         r.handle({type: "pick-start", format: "html"})
         fire(r, button, "pointerdown")
         fire(r, button, "mousedown")
-        fire(r, button, "click")
+        press(r, button)
         expect(calls).toEqual([])
         expect(lastPicked(r).element.tag).toBe("button")
 
@@ -112,7 +118,7 @@ describe("installPreviewPicker: html", () => {
         const seen: string[] = []
         r.doc.addEventListener("click", () => seen.push("document"))
         r.handle({type: "pick-start", format: "html"})
-        const notCancelled = fire(r, r.doc.querySelector("a")!, "click")
+        const notCancelled = press(r, r.doc.querySelector("a")!)
         expect(notCancelled).toBe(false)
         expect(seen).toEqual([])
         expect(r.win.location.hash).toBe("")
@@ -137,7 +143,7 @@ describe("installPreviewPicker: html", () => {
         r.handle({type: "pick-start", format: "html"})
         r.win.dispatchEvent(new r.win.KeyboardEvent("keydown", {key: "Escape"}))
         expect(r.posted).toEqual([{type: "pick-cancel"}])
-        fire(r, r.doc.querySelector("button")!, "click")
+        press(r, r.doc.querySelector("button")!)
         expect(clicks).toBe(1)
     })
 
@@ -146,7 +152,7 @@ describe("installPreviewPicker: html", () => {
         r.handle(null)
         r.handle({type: "pick-start", format: "pdf"})
         r.handle({type: "pins", pins: "nope"})
-        fire(r, r.doc.querySelector("button")!, "click")
+        press(r, r.doc.querySelector("button")!)
         expect(r.posted).toEqual([])
     })
 })
@@ -158,7 +164,7 @@ describe("installPreviewPicker: document", () => {
                 `<section class="docx"><p>first</p><p><span>two</span></p></section></div>`,
         )
         r.handle({type: "pick-start", format: "document"})
-        fire(r, r.doc.querySelector("section:nth-of-type(2) span")!, "click")
+        press(r, r.doc.querySelector("section:nth-of-type(2) span")!)
         const msg = lastPicked(r)
         expect(msg.element.page).toBe(2)
         expect(msg.element.tag).toBe("p")
@@ -172,7 +178,7 @@ describe("installPreviewPicker: document", () => {
     it("picks nothing outside a docx section", () => {
         const r = realm(`<p>loose</p>`)
         r.handle({type: "pick-start", format: "document"})
-        fire(r, r.doc.querySelector("p")!, "click")
+        press(r, r.doc.querySelector("p")!)
         expect(r.posted).toEqual([])
     })
 })
@@ -187,7 +193,7 @@ describe("installPreviewPicker: presentation", () => {
     it("picks the slide root's child that holds the target", () => {
         const r = realm(slide)
         r.handle({type: "pick-start", format: "presentation", page: 3})
-        fire(r, r.doc.querySelector(".shape span")!, "click")
+        press(r, r.doc.querySelector(".shape span")!)
         const msg = lastPicked(r)
         expect(msg.element).toMatchObject({selector: ":scope > :nth-child(1)", tag: "div", page: 3})
         expect(msg.text).toBe("Title")
@@ -197,7 +203,7 @@ describe("installPreviewPicker: presentation", () => {
         const r = realm(slide)
         r.handle({type: "pick-start", format: "presentation", page: 1})
         r.handle({type: "pick-start", format: "presentation", page: 4})
-        fire(r, r.doc.querySelector("[data-pptx-background-image]")!, "click")
+        press(r, r.doc.querySelector("[data-pptx-background-image]")!)
         const msg = lastPicked(r)
         expect(msg.element).toMatchObject({selector: ":scope", tag: "slide", page: 4})
         expect(msg.text).toBe("")
@@ -261,5 +267,34 @@ describe("installPreviewPicker: pins", () => {
             {type: "pin-rects", rects: [{id: "bad", rect: null}]},
             {type: "pin-rects", rects: [{id: "bad", rect: {top: 0, left: 0, width: 0, height: 0}}]},
         ])
+    })
+
+    it("keeps a unique-id pin on its element while the element's text changes", () => {
+        const r = realm(`<p id="c">count 1</p>`)
+        r.doc.querySelector("p")!.textContent = "count 9"
+        r.handle({type: "pins", pins: [{id: "live", selector: "#c", text: "count 1"}]})
+        expect(r.posted.pop()).toEqual({type: "pin-rects", rects: [{id: "live", rect: zero}]})
+        r.doc.querySelector("p")!.remove()
+        r.handle({type: "pins", pins: [{id: "live", selector: "#c", text: "count 1"}]})
+        expect(r.posted.pop()).toEqual({type: "pin-rects", rects: [{id: "live", rect: null}]})
+    })
+})
+
+describe("installPreviewPicker: who can pick", () => {
+    it("ignores a scripted click with no press before it", () => {
+        const r = realm(`<h2>Hostile</h2>`)
+        r.handle({type: "pick-start", format: "html"})
+        fire(r, r.doc.querySelector("h2")!, "click")
+        expect(r.posted).toEqual([])
+        press(r, r.doc.querySelector("h2")!)
+        expect(lastPicked(r).element.tag).toBe("h2")
+    })
+
+    it("ignores a click whose press landed on another element", () => {
+        const r = realm(`<h2>One</h2><p>Two</p>`)
+        r.handle({type: "pick-start", format: "html"})
+        fire(r, r.doc.querySelector("h2")!, "mousedown")
+        fire(r, r.doc.querySelector("p")!, "click")
+        expect(r.posted).toEqual([])
     })
 })

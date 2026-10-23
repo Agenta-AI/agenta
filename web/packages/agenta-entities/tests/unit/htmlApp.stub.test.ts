@@ -518,6 +518,7 @@ describe("preview comment picker", () => {
 
         r.parent.send({v: 1, type: "pick-start", format: "html"})
         await tick()
+        heading.dispatchEvent(new r.win.MouseEvent("mousedown", {bubbles: true, cancelable: true}))
         heading.dispatchEvent(new r.win.MouseEvent("click", {bubbles: true, cancelable: true}))
 
         const picked = await r.parent.next()

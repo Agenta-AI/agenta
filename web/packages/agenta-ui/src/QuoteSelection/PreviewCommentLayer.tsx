@@ -179,6 +179,18 @@ export const PreviewCommentLayer = ({
         }
     }, [sessionId, pinRects])
 
+    // The note box and pins clamp to the root's size; a resized pane re-renders them.
+    const [rootSize, setRootSize] = useState<{width: number; height: number} | null>(null)
+    useEffect(() => {
+        const root = rootRef.current
+        if (!root || typeof ResizeObserver === "undefined") return
+        const observer = new ResizeObserver(() =>
+            setRootSize({width: root.clientWidth, height: root.clientHeight}),
+        )
+        observer.observe(root)
+        return () => observer.disconnect()
+    }, [rootRef])
+
     // QuoteNote focuses its field on mount; editing continues after the existing text.
     const editingId = editor?.kind === "edit" ? editor.id : null
     useLayoutEffect(() => {
@@ -190,7 +202,7 @@ export const PreviewCommentLayer = ({
     if (!sessionId) return null
 
     const root = rootRef.current
-    const bounds = {width: root?.clientWidth ?? 0, height: root?.clientHeight ?? 0}
+    const bounds = rootSize ?? {width: root?.clientWidth ?? 0, height: root?.clientHeight ?? 0}
     const isTouch = touch ?? hasCoarsePointer()
     const rectOf = (id: string) => pinRects.find((pin) => pin.id === id)?.rect ?? null
     const close = () => {

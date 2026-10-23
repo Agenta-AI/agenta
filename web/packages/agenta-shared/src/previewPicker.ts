@@ -94,7 +94,9 @@ export function installPreviewPicker(
         "contextmenu",
     ]
 
+    var PRESS_WINDOW = 1500
     var mode: PickerMode | null = null
+    var pressed: {target: EventTarget | null; at: number} | null = null
     var pins: PinQuery[] = []
     var highlight: HTMLElement | null = null
     var scheduled = false
@@ -307,7 +309,16 @@ export function installPreviewPicker(
         event.preventDefault()
         event.stopPropagation()
         event.stopImmediatePropagation()
-        if (event.type === "click") pick(event as MouseEvent)
+        var type = event.type
+        if (type === "pointerdown" || type === "mousedown" || type === "touchstart") {
+            pressed = {target: event.target, at: Date.now()}
+            return
+        }
+        // A scripted `el.click()` has no press before it; only a person picks.
+        if (type !== "click" || !pressed) return
+        var fresh = pressed.target === event.target && Date.now() - pressed.at < PRESS_WINDOW
+        pressed = null
+        if (fresh) pick(event as MouseEvent)
     }
 
     function onHover(event: Event): void {
@@ -337,6 +348,8 @@ export function installPreviewPicker(
         } catch (e) {
             el = null
         }
+        // A unique id names the element itself, so its text may change (a live counter).
+        if (el && /^#[^\s>]+$/.test(pin.selector)) return el
         var stored = tidy(pin.text)
         var prefix = stored.slice(0, PIN_PREFIX)
         if (el && tidy(el.textContent).indexOf(prefix) === 0) return el
