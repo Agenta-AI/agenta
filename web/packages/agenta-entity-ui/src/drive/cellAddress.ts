@@ -53,3 +53,7 @@ export function rangeToBox(origin: CellOrigin, range: string): CellBox | null {
     if (box.top < 0 || box.left < 0 || box.bottom < box.top || box.right < box.left) return null
     return box
 }
+
+/** The widest row's length: CSV rows can run longer than the header. */
+export const tableWidth = (rows: readonly (readonly unknown[])[]): number =>
+    rows.reduce((width, row) => Math.max(width, row.length), 0)

@@ -4,6 +4,7 @@ export interface HastNode {
     tagName?: string
     value?: string
     children?: HastNode[]
+    properties?: {href?: unknown}
     position?: {start?: {line?: number; column?: number}}
 }
 
@@ -19,6 +20,8 @@ export interface TableModel {
     /** Body rows, each padded or cut to the header's width. */
     rows: string[][]
     columns: ColumnLayout[]
+    /** Header and rows again as Markdown, so a copy keeps link destinations. */
+    markdown: {header: string[]; rows: string[][]}
 }
 
 export interface CellLayout extends ColumnLayout {
@@ -43,6 +46,15 @@ const isEmptyCell = (text: string): boolean => EMPTY_CELLS.has(text.trim())
 const textOf = (node: HastNode): string =>
     node.type === "text" ? (node.value ?? "") : (node.children ?? []).map(textOf).join("")
 
+/** Cell text with each link written as Markdown; a bare URL stays bare. */
+const markdownOf = (node: HastNode): string => {
+    if (node.type === "text") return node.value ?? ""
+    const inner = (node.children ?? []).map(markdownOf).join("")
+    const href = node.tagName === "a" ? node.properties?.href : undefined
+    if (typeof href !== "string" || !href || inner === href) return inner
+    return `[${inner}](${href})`
+}
+
 const elements = (node: HastNode, tag: string): HastNode[] =>
     (node.children ?? []).filter((child) => child.type === "element" && child.tagName === tag)
 
@@ -65,8 +77,12 @@ const fit = (cells: string[], width: number): string[] =>
     Array.from({length: width}, (_, i) => cells[i] ?? "")
 
 export const tableModel = (node: HastNode): TableModel => {
-    const [headRow = [], ...bodyRows] = rowsOf(node).map((cells) =>
+    const cellRows = rowsOf(node)
+    const [headRow = [], ...bodyRows] = cellRows.map((cells) =>
         cells.map((cell) => textOf(cell).trim()),
+    )
+    const [markdownHead = [], ...markdownBody] = cellRows.map((cells) =>
+        cells.map((cell) => markdownOf(cell).trim()),
     )
     const header = headRow
     const rows = bodyRows.map((cells) => fit(cells, header.length))
@@ -79,7 +95,15 @@ export const tableModel = (node: HastNode): TableModel => {
             prose: rows.some((row) => row[col].length > PROSE_MIN_CHARS),
         }
     })
-    return {header, rows, columns}
+    return {
+        header,
+        rows,
+        columns,
+        markdown: {
+            header: markdownHead,
+            rows: markdownBody.map((cells) => fit(cells, header.length)),
+        },
+    }
 }
 
 /** Cells are matched back to their column by source position: a cell renderer has no index. */
@@ -106,12 +130,13 @@ const markdownCell = (text: string) =>
 export const toMarkdown = (model: TableModel): string => {
     const line = (cells: string[]) => `| ${cells.map(markdownCell).join(" | ")} |`
     const rule = `| ${model.columns.map((column) => (column.numeric ? "---:" : "---")).join(" | ")} |`
-    return [line(model.header), rule, ...model.rows.map(line)].join("\n")
+    return [line(model.markdown.header), rule, ...model.markdown.rows.map(line)].join("\n")
 }
 
-// A spreadsheet runs a cell that starts with = + - @ as a formula; a plain number is left alone.
+// A spreadsheet runs a cell that starts with = + - @ (or their full-width forms) as a formula;
+// a plain number is left alone.
 const defuse = (text: string) =>
-    /^[=+\-@\t\r]/.test(text) && !/^[-+]?[\d.,]*%?$/.test(text) ? `'${text}` : text
+    /^[=+\-@\t\r＝＋－＠]/.test(text) && !/^[-+]?[\d.,]*%?$/.test(text) ? `'${text}` : text
 
 const csvField = (raw: string) => {
     const text = defuse(raw)

@@ -1,5 +1,6 @@
 import {renderAsync} from "docx-preview"
 
+import {pageAtLine, sectionPageCount} from "./docxPages"
 import {runViewer} from "./runtime"
 
 const style = document.createElement("style")
@@ -27,18 +28,28 @@ function fitPages(root: HTMLElement): void {
     wrapper.style.zoom = String(scale)
 }
 
-// The page whose top last passed the upper third of the view, reported as the current page.
+// Pages per rendered section, measured before `fitPages` zooms them.
+let sectionPages: number[] = []
+
+function countPages(root: HTMLElement): number {
+    const sections = Array.from(root.querySelectorAll<HTMLElement>("section.docx"))
+    sectionPages = sections.map((section) =>
+        sectionPageCount(section.offsetHeight, parseFloat(getComputedStyle(section).minHeight)),
+    )
+    return sectionPages.reduce((sum, pages) => sum + pages, 0)
+}
+
+// The page at the upper third of the view, reported as the current page.
 function trackPage(root: HTMLElement): void {
     let shown = -1
     let frame = 0
     const report = () => {
         frame = 0
-        const line = window.innerHeight / 3
-        const pages = Array.from(root.querySelectorAll("section.docx"))
-        let index = 0
-        pages.forEach((page, i) => {
-            if (page.getBoundingClientRect().top <= line) index = i
+        const sections = Array.from(root.querySelectorAll("section.docx")).map((section, i) => {
+            const {top, height} = section.getBoundingClientRect()
+            return {top, height, pages: sectionPages[i] ?? 1}
         })
+        const index = pageAtLine(sections, window.innerHeight / 3)
         if (index === shown) return
         shown = index
         window.parent.postMessage({type: "slide", index}, "*")
@@ -64,9 +75,10 @@ runViewer({
             ignoreWidth: reflow,
             ignoreHeight: reflow,
         })
+        const slideCount = countPages(root)
         fitPages(root)
         document.body.scrollTop = 0
-        return {slideCount: root.querySelectorAll("section.docx").length}
+        return {slideCount}
     },
     setup: (root) => {
         window.addEventListener("resize", () => fitPages(root))

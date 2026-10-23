@@ -141,8 +141,10 @@ export const SessionWorkspace = ({
     const base = `/w/${workspaceId}/p/${projectId}`
     useAutomationUrlSync({
         enabled: deepLinks,
-        ready: Boolean(entityId) || (!agentResolving && !agentId),
+        // Not while resolving: on a session switch `entityId` still holds the last session's agent.
+        ready: !agentResolving && (Boolean(entityId) || !agentId),
         playgroundEntityId: entityId ?? undefined,
+        scope: sessionId,
     })
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     // Collapsing the config panel is separate from the Build/Chat mode: the desktop keeps you in

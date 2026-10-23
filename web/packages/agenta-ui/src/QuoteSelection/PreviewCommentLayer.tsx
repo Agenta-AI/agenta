@@ -209,11 +209,14 @@ export const PreviewCommentLayer = ({
         latest.current.onPickConsumed()
     }, [pick, sessionId, rootRef])
 
-    // A draft never outlives its layer (a file switch, the pane closing).
+    // A draft never outlives its layer (a file switch, the pane closing) or its session: the
+    // open note would stage against a quote the new session does not hold.
     useEffect(
         () => () => {
             const current = latest.current.editor
             if (sessionId && current?.kind === "draft") removeQuote(sessionId, current.quote.id)
+            setEditor(null)
+            setOpenPin(null)
         },
         [sessionId],
     )

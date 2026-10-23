@@ -58,7 +58,9 @@ describe("tableModel", () => {
     )
 
     it("reads header, rows and a layout per column", () => {
-        expect(tableModel(providers)).toEqual({
+        const {markdown, ...model} = tableModel(providers)
+        expect(markdown).toEqual({header: model.header, rows: model.rows})
+        expect(model).toEqual({
             header: ["Provider", "Latency", "Price / hr", "Notes"],
             rows: [
                 ["Groq", "2–4s", "$0.111", "whisper-large-v3 on LPU"],
@@ -116,6 +118,24 @@ describe("toMarkdown", () => {
         expect(toMarkdown(model)).toBe("| Name | Cost |\n| --- | ---: |\n| a \\| b | $1 |")
     })
 
+    it("keeps link destinations, and leaves a bare URL bare", () => {
+        const link = (text: string, href: string): HastNode => ({
+            type: "element",
+            tagName: "a",
+            properties: {href},
+            children: [{type: "text", value: text}],
+        })
+        const tbody = table(["Source"], [["docs"], ["https://agenta.ai"]])
+        const [docs, bare] = tbody.children![1].children!.map((tr) => tr.children![0])
+        docs.children = [link("Agenta docs", "https://agenta.ai/docs")]
+        bare.children = [link("https://agenta.ai", "https://agenta.ai")]
+        const linked = tableModel(tbody)
+        expect(linked.rows).toEqual([["Agenta docs"], ["https://agenta.ai"]])
+        expect(toMarkdown(linked)).toBe(
+            "| Source |\n| --- |\n| [Agenta docs](https://agenta.ai/docs) |\n| https://agenta.ai |",
+        )
+    })
+
     it("escapes a backslash before a pipe so the pipe stays in its cell", () => {
         const model = tableModel(table(["Path"], [["C:\\ | D:"]]))
         expect(toMarkdown(model)).toBe("| Path |\n| --- |\n| C:\\\\ \\| D: |")
@@ -151,5 +171,10 @@ describe("toCsv", () => {
         expect(toCsv(model)).toBe(
             'Cell,Delta\r\n"\'=HYPERLINK(""http://x"")",-5\r\n\'@SUM(A1),+1.5%',
         )
+    })
+
+    it("defuses the full-width formula marks", () => {
+        const model = tableModel(table(["Cell"], [["＝SUM(A1)"], ["＋1"], ["－A1"], ["＠x"]]))
+        expect(toCsv(model)).toBe("Cell\r\n'＝SUM(A1)\r\n'＋1\r\n'－A1\r\n'＠x")
     })
 })

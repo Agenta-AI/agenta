@@ -177,6 +177,26 @@ describe("spreadsheet comments", () => {
         expect(getQuotes(sessionId)[0].stale).toBe(false)
     })
 
+    it("keeps a comment on a cell past the first row's width", () => {
+        const ragged: Workbook = {
+            sheets: [
+                {
+                    name: "",
+                    origin: {r: 0, c: 0},
+                    truncated: {rows: false, totalColumns: null},
+                    rows: [
+                        [{value: "a"}, {value: "b"}],
+                        [{value: "1"}, {value: "2"}, {value: "3"}],
+                    ],
+                },
+            ],
+        }
+        startCommenting(ragged)
+        select([1, 2])
+        stage()
+        expect(getQuotes(sessionId)[0].stale).toBe(false)
+    })
+
     it("marks a comment changed when its sheet is gone", () => {
         startCommenting(book())
         select([1, 0])
