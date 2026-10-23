@@ -205,6 +205,23 @@ describe("PreviewCommentLayer", () => {
         ])
     })
 
+    it("moves the open draft's note box with its element", () => {
+        const {rerender} = setup()
+        const [draft] = getQuotes(sessionId)
+        expect([draft.staged, draft.text]).toEqual([false, "Q3 revenue grew 40%"])
+        const before = screen.getByRole("dialog").style.top
+        act(() => rerender([{id: draft.id, rect: {...rect, top: 250}}]))
+        expect(screen.getByRole("dialog").style.top).not.toBe(before)
+        expect(screen.getByRole("dialog").style.top).toBe(`${250 + rect.height + 8}px`)
+    })
+
+    it("drops the unstaged draft when the layer goes away", () => {
+        setup()
+        expect(getQuotes(sessionId)).toHaveLength(1)
+        cleanup()
+        expect(getQuotes(sessionId)).toEqual([])
+    })
+
     it("continues an edit after the existing note", () => {
         const {id} = stageOne()
         fireEvent.click(screen.getByRole("button", {name: "Comment 1"}))

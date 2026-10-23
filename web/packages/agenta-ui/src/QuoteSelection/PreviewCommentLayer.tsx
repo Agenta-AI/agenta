@@ -71,7 +71,10 @@ type Editor =
     | {kind: "draft"; quote: Quote; rect: PreviewRect; note: string}
     | {kind: "edit"; id: string}
 
-/** Staged preview comments on this target, in store order. */
+/**
+ * Preview comments on this target, in store order: the staged ones and the open draft. The
+ * bridges report a position for each, so the draft's note box follows its element too.
+ */
 export const usePreviewComments = (
     sessionId: string | null,
     target: PreviewCommentTarget,
@@ -82,7 +85,6 @@ export const usePreviewComments = (
         () =>
             quotes.filter(
                 (quote): quote is PreviewQuote =>
-                    quote.staged &&
                     isPreviewQuote(quote) &&
                     quote.source.path === path &&
                     quote.source.mountId === mountId,
@@ -154,28 +156,37 @@ export const PreviewCommentLayer = ({
     const [openPin, setOpenPin] = useState<string | null>(null)
     const comments = usePreviewComments(sessionId, target)
     // Read at pick time: a later target change must not reopen the note.
-    const latest = useRef({target, onPickConsumed})
-    latest.current = {target, onPickConsumed}
+    const latest = useRef({target, onPickConsumed, editor})
+    latest.current = {target, onPickConsumed, editor}
 
+    // The draft lives in the store unstaged (no chip) so the bridges track its element.
     useEffect(() => {
         if (!pick || !sessionId) return
+        const current = latest.current.editor
         // A pick while a draft is open moves the draft there, keeping what was typed.
-        const typed = draftField(rootRef.current)?.value ?? ""
-        setEditor((current) => ({
-            kind: "draft",
-            rect: pick.rect,
-            note: current?.kind === "draft" ? typed : "",
-            quote: {
-                id: generateId(),
-                text: pick.text,
-                note: "",
-                staged: false,
-                stale: false,
-                source: {kind: "preview", ...latest.current.target, anchor: pick.anchor},
-            },
-        }))
+        const typed = current?.kind === "draft" ? (draftField(rootRef.current)?.value ?? "") : ""
+        if (current?.kind === "draft") removeQuote(sessionId, current.quote.id)
+        const quote: Quote = {
+            id: generateId(),
+            text: pick.text,
+            note: "",
+            staged: false,
+            stale: false,
+            source: {kind: "preview", ...latest.current.target, anchor: pick.anchor},
+        }
+        addQuote(sessionId, quote)
+        setEditor({kind: "draft", rect: pick.rect, note: typed, quote})
         latest.current.onPickConsumed()
     }, [pick, sessionId, rootRef])
+
+    // A draft never outlives its layer (a file switch, the pane closing).
+    useEffect(
+        () => () => {
+            const current = latest.current.editor
+            if (sessionId && current?.kind === "draft") removeQuote(sessionId, current.quote.id)
+        },
+        [sessionId],
+    )
 
     useEffect(() => {
         if (!sessionId) return
@@ -224,6 +235,20 @@ export const PreviewCommentLayer = ({
 
     const editing = editor?.kind === "edit" ? comments.find((q) => q.id === editor.id) : null
     const editRect = editing ? rectOf(editing.id) : null
+    const draft = editor?.kind === "draft" ? editor : null
+    const discardDraft = () => {
+        if (draft) removeQuote(sessionId, draft.quote.id)
+        close()
+    }
+    // Follow the element; a cell range's live rect is its first cell, so keep the range's size.
+    const draftRect = (() => {
+        if (!draft) return null
+        const live = rectOf(draft.quote.id)
+        if (!live) return draft.rect
+        return isPreviewQuote(draft.quote) && draft.quote.source.anchor.type === "cells"
+            ? {...draft.rect, top: live.top, left: live.left}
+            : live
+    })()
 
     return (
         <>
@@ -280,23 +305,23 @@ export const PreviewCommentLayer = ({
                     </HoverCard>
                 )
             })}
-            {editor?.kind === "draft" ? (
+            {draft && draftRect ? (
                 <QuoteNote
-                    key={editor.quote.id}
-                    quote={editor.quote}
-                    anchor={noteAnchor(editor.rect)}
+                    key={draft.quote.id}
+                    quote={draft.quote}
+                    anchor={noteAnchor(draftRect)}
                     bounds={bounds}
-                    initialNote={editor.note}
+                    initialNote={draft.note}
                     onStage={(note) => {
-                        addQuote(sessionId, {...editor.quote, note, staged: true})
+                        updateQuote(sessionId, draft.quote.id, {note, staged: true})
                         close()
                     }}
                     onSend={(note) => {
-                        addQuote(sessionId, {...editor.quote, note, staged: true})
+                        updateQuote(sessionId, draft.quote.id, {note, staged: true})
                         close()
                         submitSessionMessage(sessionId)
                     }}
-                    onCancel={close}
+                    onCancel={discardDraft}
                 />
             ) : null}
             {editing && editRect ? (
