@@ -1,7 +1,6 @@
-from json import dumps
-from agenta.sdk.utils.cache import CACHE_TTL, TTLLRUCache
 from typing import Any, Callable, Optional, Dict
 from os import getenv
+from json import dumps
 
 import httpx
 
@@ -12,6 +11,7 @@ from fastapi.responses import JSONResponse
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.exceptions import display_exception
+from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.constants import TRUTHY
 
 import agenta as ag
@@ -69,19 +69,17 @@ _CACHE_ENABLED = (
     or "true"
 ).lower() in TRUTHY
 
-# The exchange answer is cached for at most 10 seconds (or the shorter middleware
-# TTL). It saves one API call per services request; a deleted key or a removed member
-# is refused by the API within that bound, and a run started inside it is refused at
-# its first checked call with a clear 403 (see the agent connection resolution).
-_CREDENTIALS_TTL_SECONDS = 10
+# The exchange answer is cached as in M1 (the middleware TTL, 60 s by default): it saves
+# one API call per services request. A run started with a cached credential after its
+# principal lost access is refused at its first checked call with a clear 403
+# `access_denied` (the agent connection resolution maps the API's refusal).
 
 _ALWAYS_ALLOW_LIST = [
     "/health",
     f"{AGENTA_RUNTIME_PREFIX}/health",
 ]
 
-
-_cache = TTLLRUCache(ttl=min(CACHE_TTL, _CREDENTIALS_TTL_SECONDS))
+_cache = TTLLRUCache()
 
 
 class DenyResponse(JSONResponse):

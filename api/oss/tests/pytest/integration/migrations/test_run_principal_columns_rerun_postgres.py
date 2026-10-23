@@ -1,10 +1,12 @@
-"""`oss000000046` is safe to rerun after an interrupted upgrade.
+"""`oss000000046`: one short transaction per table, and a rerun after a failure part-way
+completes.
 
-Entering the autocommit block for the concurrent indexes commits the new columns. When
-an index build then fails, the deploy reruns the revision against tables that already
-have the columns. Each `ADD COLUMN` must accept that. The test captures the statements of
-`upgrade()` and runs the column statements twice on temp-table copies of the tables
-(the copies already have the columns, as after the interrupted run), then rolls back.
+Each table is altered in its own `ALTER TABLE` in an autocommit block, so no table keeps
+its `ACCESS EXCLUSIVE` lock while the next one waits. When the hook fails part-way (a
+lock timeout on one table), the deploy reruns the revision: the tables already altered
+must accept the rerun. The test captures the statements of `upgrade()`, applies the
+first few to temp-table copies of the tables without the new columns, then the whole
+list again, and rolls back.
 """
 
 from contextlib import contextmanager
@@ -36,8 +38,9 @@ class _RecordingOp:
     def get_context(self):
         @contextmanager
         def autocommit_block():
-            self.statements.append("-- autocommit")
+            self.statements.append("-- autocommit begin")
             yield
+            self.statements.append("-- autocommit end")
 
         return SimpleNamespace(autocommit_block=autocommit_block)
 
@@ -50,35 +53,50 @@ def _upgrade_statements():
     return module, recorder.statements
 
 
-def test_every_add_column_accepts_an_existing_column():
-    _, statements = _upgrade_statements()
-    alters = [s for s in statements if s.startswith("ALTER TABLE")]
-    assert alters
-    assert all("ADD COLUMN IF NOT EXISTS" in s for s in alters)
-    # The columns come before the block that commits them.
-    assert statements.index("-- autocommit") > max(statements.index(s) for s in alters)
-
-
-async def test_rerun_after_columns_were_committed():
+def test_each_table_is_altered_alone_outside_a_transaction():
     module, statements = _upgrade_statements()
     alters = [s for s in statements if s.startswith("ALTER TABLE")]
-    tables = [table for table, _ in module._COLUMNS]
+    # One statement per table, so each is its own short transaction.
+    assert len(alters) == len(module._COLUMNS)
+    assert all("ADD COLUMN IF NOT EXISTS" in s for s in alters)
+    for table, _ in module._COLUMNS:
+        assert sum(s.startswith(f"ALTER TABLE {table} ") for s in alters) == 1
+    # The ALTERs run inside an autocommit block, with a bounded lock wait that is
+    # reset before the index builds.
+    begin = statements.index("-- autocommit begin")
+    end = statements.index("-- autocommit end")
+    assert statements[begin + 1] == "SET lock_timeout = '5s'"
+    assert all(begin < statements.index(s) < end for s in alters)
+    assert statements[end - 1] == "RESET lock_timeout"
+
+
+async def test_rerun_after_a_failure_part_way_completes():
+    module, statements = _upgrade_statements()
+    alters = [s for s in statements if s.startswith("ALTER TABLE")]
 
     engine = get_transactions_engine()
     inner = getattr(engine, "_engine", engine)
     async with inner.connect() as connection:
         transaction = await connection.begin()
         try:
-            for table in tables:
+            for table, columns in module._COLUMNS:
                 await connection.execute(
                     text(
                         f"CREATE TEMP TABLE {table} "
                         f"(LIKE public.{table} INCLUDING DEFAULTS) ON COMMIT DROP"
                     )
                 )
-            for _ in range(2):
-                for statement in alters:
-                    await connection.execute(text(statement))
+                # As before the revision: the new columns do not exist yet.
+                for name, _ in columns:
+                    await connection.execute(
+                        text(f"ALTER TABLE {table} DROP COLUMN IF EXISTS {name}")
+                    )
+            # The first run fails after three tables.
+            for statement in alters[:3]:
+                await connection.execute(text(statement))
+            # The rerun applies the whole list.
+            for statement in alters:
+                await connection.execute(text(statement))
             for table, columns in module._COLUMNS:
                 found = set(
                     (
@@ -92,6 +110,6 @@ async def test_rerun_after_columns_were_committed():
                         )
                     ).scalars()
                 )
-                assert {name for name, _ in columns} <= found
+                assert {name for name, _ in columns} <= found, table
         finally:
             await transaction.rollback()

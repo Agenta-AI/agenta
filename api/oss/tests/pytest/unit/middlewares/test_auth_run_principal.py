@@ -231,6 +231,24 @@ async def test_cached_api_key_state_without_principal_is_a_miss(monkeypatch, cac
     assert len(world.calls) == 2
 
 
+async def test_a_cold_api_key_request_reuses_the_key_row_for_its_decision(
+    monkeypatch, cache
+):
+    """DB load M2-2: the key row authentication just read becomes the principal
+    record of this request, so a cold decision does not read `api_keys` again."""
+
+    creator = uuid4()
+    world = _api_key_world(monkeypatch, user=creator)
+    request = _request()
+    await auth.verify_apikey_token(request=request, apikey_token="k.secret")
+
+    record = request.state.principal_record
+    assert record.principal == PrincipalRef(kind=PrincipalKind.API_KEY, id=world.key_id)
+    assert record.project_id == world.project_id
+    assert record.acting_user_id == creator
+    assert record.is_active is True
+
+
 async def test_api_key_whose_creator_is_missing_fails_as_today(monkeypatch, cache):
     """Today (measured on an M1 stack): 401
     {"detail": {"message": "Unauthorized"}} on every request, nothing cached."""
