@@ -238,7 +238,7 @@ def test_the_revision_comes_before_the_name_in_details():
 
 def test_a_padded_name_is_trimmed_before_it_is_stored():
     assert _edit(name="  Padded  ").name == "Padded"
-    assert _edit(replacing_name="  Padded  ").replacing_name == "Padded"
+    assert _edit(name="New", replacing_name="  Padded  ").replacing_name == "Padded"
     assert _edit(name="").name == ""
     with pytest.raises(ValueError):
         _edit(name="   ")
@@ -812,6 +812,8 @@ def test_the_route_reads_the_source_from_the_query_string():
 
 
 def test_a_body_name_source_cannot_reach_the_service():
+    # The header edit forbids unknown body keys, so a body `name_source` is refused
+    # before the service runs, and the query parameter stays the only source.
     service = AsyncMock()
     service.set_header.return_value = _row(name=_AGENT_NAME)
 
@@ -825,11 +827,8 @@ def test_a_body_name_source_cannot_reach_the_service():
             json={"name": _AGENT_NAME, "name_source": "manual"},
         )
 
-    assert response.status_code == 200
-    assert (
-        service.set_header.await_args.kwargs["name_source"]
-        is SessionNameSource.automatic
-    )
+    assert response.status_code == 422
+    service.set_header.assert_not_called()
 
 
 def test_a_refused_rename_answers_409_with_the_agent_actionable_envelope():

@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
@@ -135,6 +135,8 @@ class SessionStreamHeaderEdit(Header):
     ``rename_session`` schema already rejects both; this closes the direct-API hole.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     #: The exact name this edit replaces, sent by an automatic caller whose new name a
     #: person asked for. It is a precondition, not a permission: the write lands only while
     #: the stored name still equals it, so a call that was decided before a later rename is
@@ -173,6 +175,14 @@ class SessionStreamHeaderEdit(Header):
                 " (send an empty string to clear the title)"
             )
         return trimmed
+
+    @model_validator(mode="after")
+    def _require_header_field(self) -> "SessionStreamHeaderEdit":
+        if not self.model_fields_set.intersection({"name", "description"}):
+            raise ValueError(
+                "no header field to update; send name or description at the top level"
+            )
+        return self
 
 
 class SessionStreamQuery(BaseModel):
