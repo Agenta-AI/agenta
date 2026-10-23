@@ -14,6 +14,7 @@ from typing import (
     Union,
     TYPE_CHECKING,
 )
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.git.dtos import RevisionGrouping
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
@@ -190,7 +191,6 @@ from agenta.sdk.decorators.running import (
     WorkflowServiceBatchResponse,  # noqa: F811
     WorkflowServiceStreamResponse,  # noqa: F811
     WorkflowRequestData,
-    WorkflowInspectRequest,
     WorkflowServiceStatus,
 )
 
@@ -1107,21 +1107,6 @@ class WorkflowsService:
             )
 
         return WorkflowServiceBatchResponse.model_validate(payload)
-
-    @staticmethod
-    def _build_inspect_request(
-        *,
-        request: WorkflowServiceRequest,
-    ) -> WorkflowInspectRequest:
-        return WorkflowInspectRequest(
-            version=request.version,
-            revision=request.data.revision if request.data else None,
-            references=request.references,
-            selector=request.selector,
-            flags=request.flags,
-            tags=request.tags,
-            meta=request.meta,
-        )
 
     async def _ensure_request_revision(
         self,
@@ -3188,6 +3173,7 @@ class WorkflowsService:
         user_id: UUID,
         #
         request: WorkflowServiceRequest,
+        envelope: RunEnvelope,
     ) -> tuple[str, Optional[str]]:
         """Shared invoke prelude for batch + detached: auth + ref-resolution + service URL.
 
@@ -3217,6 +3203,18 @@ class WorkflowsService:
         # but a service running with auth middleware disabled uses this token directly.
         # Only the operator's own services URL may receive it: a revision's `url` is tenant
         # data, and a token sent there is a token the tenant holds.
+        # The run credential carries the caller's envelope. A detached run names its
+        # runner turn (`meta.run_id`) in the run context.
+        run_id = (request.meta or {}).get("run_id")
+        if run_id is not None and envelope.context.run_id != str(run_id):
+            envelope = envelope.model_copy(
+                update={
+                    "context": envelope.context.model_copy(
+                        update={"run_id": str(run_id)}
+                    )
+                }
+            )
+
         secret_token = await sign_secret_token(
             user_id=str(user_id),
             project_id=str(project_id),
@@ -3224,6 +3222,7 @@ class WorkflowsService:
             organization_id=str(project.organization_id),
             gateway_run_id=gateway_run_id,
             grants=self._service_grants(service_url),
+            envelope=envelope,
         )
 
         credentials = f"Secret {secret_token}"
@@ -3355,6 +3354,7 @@ class WorkflowsService:
         user_id: UUID,
         #
         request: WorkflowServiceRequest,
+        envelope: RunEnvelope,
         #
         **kwargs,
     ) -> Union[
@@ -3378,6 +3378,7 @@ class WorkflowsService:
             project_id=project_id,
             user_id=user_id,
             request=request,
+            envelope=envelope,
         )
 
         if not service_url:
@@ -3419,6 +3420,7 @@ class WorkflowsService:
         user_id: UUID,
         #
         request: WorkflowServiceRequest,
+        envelope: RunEnvelope,
         #
         run_id: Optional[str] = None,
         control_command_id: Optional[UUID] = None,
@@ -3448,6 +3450,7 @@ class WorkflowsService:
             project_id=project_id,
             user_id=user_id,
             request=request,
+            envelope=envelope,
         )
 
         if not service_url:
@@ -3463,63 +3466,6 @@ class WorkflowsService:
             run_id=run_id,
             strict_first_record=strict_start or bool(meta.get("control_command_id")),
         )
-
-    async def inspect_workflow(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        request: WorkflowServiceRequest,
-    ) -> WorkflowServiceRequest:
-        project = await get_project_by_id(
-            project_id=str(project_id),
-        )
-
-        await self._ensure_request_revision(
-            project_id=project_id,
-            request=request,
-        )
-
-        revision_data = self._get_revision_data(request=request)
-        service_url = self._get_service_url(revision_data=revision_data)
-
-        secret_token = await sign_secret_token(
-            user_id=str(user_id),
-            project_id=str(project_id),
-            workspace_id=str(project.workspace_id),
-            organization_id=str(project.organization_id),
-            grants=self._service_grants(service_url),
-        )
-
-        credentials = f"Secret {secret_token}"
-
-        if not service_url:
-            raise ValueError("Workflow revision has no inspectable service URL.")
-
-        inspect_request = self._build_inspect_request(request=request)
-
-        response, body = await self._post_service_json(
-            url=f"{service_url}/inspect",
-            credentials=credentials,
-            payload=inspect_request.model_dump(
-                mode="json",
-                exclude_none=True,
-            ),
-        )
-
-        if response.status_code < 200 or response.status_code >= 300:
-            detail = (
-                body.get("details")
-                if isinstance(body, dict)
-                else response.text or "Workflow service inspection failed."
-            )
-            raise ValueError(detail)
-
-        if not isinstance(body, dict):
-            raise ValueError("Workflow service inspection returned an invalid payload.")
-
-        return WorkflowServiceRequest.model_validate(body)
 
     async def resolve_workflow_revision(
         self,

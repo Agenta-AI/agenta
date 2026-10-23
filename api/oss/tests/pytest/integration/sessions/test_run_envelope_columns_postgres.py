@@ -136,3 +136,130 @@ async def test_input_command_interaction_envelope_round_trip(project_id):
 
     assert stored["v"] == 1
     assert map_envelope_column(data=stored) == envelope
+
+
+async def _turn_columns(project_id, turn_index):
+    async with get_transactions_engine().session() as session:
+        row = (
+            (
+                await session.execute(
+                    text(
+                        "SELECT principal_kind, principal_id, sender_user_id, "
+                        "sender_external_key, origin, origin_id, parent_run_id, "
+                        "approved_by FROM session_turns "
+                        "WHERE project_id = :p AND session_id = 'm2-attr' "
+                        "AND turn_index = :i"
+                    ),
+                    {"p": project_id, "i": turn_index},
+                )
+            )
+            .mappings()
+            .first()
+        )
+    return dict(row)
+
+
+_STREAM_ID = uuid4()
+
+
+@pytest.fixture
+async def turns_project():
+    import oss.src.dbs.postgres.sessions.streams.dbes  # noqa: F401 (the turn FKs)
+    import oss.src.models.db_models  # noqa: F401
+
+    seeded = await seed_organization(members={})
+    project_id = seeded.project_ids[0]
+    await execute(
+        "INSERT INTO session_streams (id, project_id, session_id) "
+        "VALUES (:id, :p, 'm2-attr')",
+        {"id": _STREAM_ID, "p": project_id},
+    )
+    yield project_id
+    await execute("DELETE FROM session_turns WHERE project_id = :p", {"p": project_id})
+    await execute(
+        "DELETE FROM session_streams WHERE project_id = :p", {"p": project_id}
+    )
+    await delete_seeded_organization(seeded)
+
+
+async def test_api_key_append_then_human_complete_keeps_key_attribution(
+    turns_project,
+):
+    """Review focus 5: the completing credential never rewrites the attribution of
+    a turn that recorded one, nulls included (an API-key turn has no sender)."""
+    from datetime import datetime, timezone
+
+    from oss.src.core.sessions.turns.dtos import (
+        HarnessKind,
+        SessionTurnComplete,
+        SessionTurnCreate,
+    )
+    from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
+
+    dao = SessionTurnsDAO(engine=get_transactions_engine())
+    key = make_envelope(kind="api_key", origin="api", origin_id="k1", sender=None)
+    human = make_envelope(kind="human")
+    await dao.append(
+        project_id=turns_project,
+        user_id=None,
+        turn=SessionTurnCreate(
+            session_id="m2-attr",
+            stream_id=_STREAM_ID,
+            turn_index=0,
+            harness_kind=HarnessKind.PI,
+            envelope=key,
+        ),
+    )
+    completed = await dao.complete(
+        project_id=turns_project,
+        turn=SessionTurnComplete(
+            session_id="m2-attr",
+            turn_index=0,
+            end_time=datetime.now(timezone.utc),
+            envelope=human,
+        ),
+    )
+    columns = await _turn_columns(turns_project, 0)
+    assert columns["principal_kind"] == "api_key"
+    assert columns["principal_id"] == key.authority.principal.id
+    assert columns["sender_user_id"] is None and columns["origin"] == "api"
+    assert completed.principal == key.authority.principal
+    assert completed.sender is None
+
+
+async def test_complete_fills_attribution_when_append_had_none(turns_project):
+    from datetime import datetime, timezone
+
+    from oss.src.core.sessions.turns.dtos import (
+        HarnessKind,
+        SessionTurnComplete,
+        SessionTurnCreate,
+    )
+    from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
+
+    dao = SessionTurnsDAO(engine=get_transactions_engine())
+    human = make_envelope(kind="human", run_id="t1")
+    await dao.append(
+        project_id=turns_project,
+        user_id=None,
+        turn=SessionTurnCreate(
+            session_id="m2-attr",
+            stream_id=_STREAM_ID,
+            turn_index=1,
+            harness_kind=HarnessKind.PI,
+        ),
+    )
+    assert (await _turn_columns(turns_project, 1))["principal_kind"] is None
+    await dao.complete(
+        project_id=turns_project,
+        turn=SessionTurnComplete(
+            session_id="m2-attr",
+            turn_index=1,
+            end_time=datetime.now(timezone.utc),
+            envelope=human,
+        ),
+    )
+    columns = await _turn_columns(turns_project, 1)
+    assert columns["principal_kind"] == "human"
+    assert columns["sender_user_id"] == human.authority.principal.id
+    assert columns["origin"] == "web"

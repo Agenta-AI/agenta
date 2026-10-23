@@ -36,6 +36,12 @@ from fastapi import UploadFile as FastAPIUploadFile
 from starlette.datastructures import UploadFile
 from typing import Any, Optional, Union
 
+from oss.src.core.access.dtos import RunApproval
+from oss.src.core.sessions.streams.types import SessionCreationRequiresRunCredential
+from oss.src.core.tools.dtos import AgentError
+from oss.src.core.access.principals import missing_envelope_error
+from oss.src.core.access.types import MissingEnvelope
+from oss.src.middlewares.auth import request_run_envelope
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
@@ -298,6 +304,15 @@ def _handle_session_exceptions():
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=e.message,
+                ) from e
+            except SessionCreationRequiresRunCredential as e:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=AgentError(
+                        code="session_requires_run_credential",
+                        message=e.message,
+                        retryable=False,
+                    ).model_dump(exclude_none=True),
                 ) from e
             except SessionTurnInUse as e:
                 raise HTTPException(
@@ -720,6 +735,7 @@ class SessionStreamsRouter:
             project_id=project_id,
             request=payload,
             runner_verified=has_valid_runner_token(request),
+            envelope=getattr(request.state, "run_envelope", None),
         )
         return heartbeat.model_copy(
             update={"stream": sanitize_session_stream(heartbeat.stream)}
@@ -1320,6 +1336,7 @@ class InteractionsRouter:
                 tags=body.tags,
                 meta=body.meta,
             ),
+            envelope=request_run_envelope(request),
         )
         return SessionInteractionResponse(count=1, interaction=interaction)
 
@@ -1534,6 +1551,11 @@ class InteractionsRouter:
             if body.answers is not None
             else [(interaction_id, body.answer)]
         )
+        # The approver is the answering request's principal and acting user.
+        approved_by = RunApproval(
+            principal=request.state.principal,
+            user_id=UUID(str(user_id)),
+        )
         try:
             if body.answers is not None:
                 admission = await self.commands_service.respond_interactions(
@@ -1542,6 +1564,7 @@ class InteractionsRouter:
                     interaction_answers=interaction_answers,
                     expected_execution_id=body.expected_execution_id,
                     idempotency_key=idempotency_key,
+                    approved_by=approved_by,
                 )
             else:
                 admission = await self.commands_service.respond_interaction(
@@ -1551,7 +1574,18 @@ class InteractionsRouter:
                     answer=body.answer,
                     expected_execution_id=body.expected_execution_id,
                     idempotency_key=idempotency_key,
+                    approved_by=approved_by,
                 )
+        except MissingEnvelope:
+            # Parked before this release: the interaction was cancelled (committed).
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content={
+                    "detail": missing_envelope_error(
+                        next_step="Ask for the approval again."
+                    ).model_dump(exclude_none=True)
+                },
+            )
         except InteractionResponseConflict as error:
             return JSONResponse(
                 status_code=(
@@ -2102,6 +2136,8 @@ class SessionTurnsRouter:
                 span_id=body.span_id,
                 start_time=body.start_time,
                 end_time=body.end_time,
+                # Attribution comes from the request's credential, never the body.
+                envelope=request_run_envelope(request),
             ),
         )
         return SessionTurnResponse(count=1, turn=turn)
@@ -2134,6 +2170,7 @@ class SessionTurnsRouter:
                         else None
                     ),
                     end_time=body.end_time,
+                    envelope=request_run_envelope(request),
                 ),
             )
         except SessionTurnNotFound as e:
@@ -2832,6 +2869,7 @@ class SessionControlRouter:
             content=payload.content,
             policy=payload.on_busy,
             idempotency_key=idempotency_key,
+            envelope=request_run_envelope(request),
         )
         if (
             payload.on_busy == "steer"

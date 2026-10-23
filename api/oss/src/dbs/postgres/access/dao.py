@@ -169,6 +169,36 @@ class PrincipalsDAO(PrincipalsDAOInterface):
     async def invalidate_principal(self, *, principal: PrincipalRef) -> Optional[bool]:
         return await invalidate_principal_cache(principal=principal)
 
+    async def fetch_project_organization_id(
+        self,
+        *,
+        project_id: UUID,
+    ) -> Optional[UUID]:
+        # A project never moves to another organization, so the entry needs no
+        # invalidation; a deleted project's entry only names an organization.
+        cached = await get_cache(
+            namespace="project_organization",
+            project_id=str(project_id),
+            key="organization",
+        )
+        if cached:
+            return UUID(str(cached))
+        async with self.engine.session() as session:
+            organization_id = (
+                await session.execute(
+                    text("SELECT organization_id FROM projects WHERE id = :p"),
+                    {"p": project_id},
+                )
+            ).scalar_one_or_none()
+        if organization_id is not None:
+            await set_cache(
+                namespace="project_organization",
+                project_id=str(project_id),
+                key="organization",
+                value=str(organization_id),
+            )
+        return organization_id
+
     async def _read(self, *, principal: PrincipalRef) -> Optional[PrincipalRecord]:
         if principal.kind == PrincipalKind.HUMAN:
             sql, mapper = _FETCH_USER_SQL, map_user_dbe_to_principal_record

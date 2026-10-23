@@ -30,6 +30,14 @@ before giving up.
 from typing import Any, Callable, Dict, List, Optional
 from uuid import UUID
 
+from oss.src.core.access.dtos import (
+    PrincipalKind,
+    PrincipalRef,
+    RunApproval,
+    RunEnvelope,
+)
+from oss.src.core.access.principals import resumed_envelope
+from oss.src.core.access.types import MissingEnvelope
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionData,
@@ -394,13 +402,34 @@ class InteractionsDispatcher:
         #
         interaction_id: UUID,
         answer: Any,
+        approved_by: Optional[RunApproval] = None,
         control_command_id: Optional[UUID] = None,
         continuation_execution_id: Optional[str] = None,
     ) -> None:
+        """Rebuild the resumed envelope from the interaction row. The approver is
+        `approved_by`, else the task's user. A row without an envelope (parked before
+        M2) raises `MissingEnvelope`."""
+
+        interaction = await self.interactions_service.fetch_interaction(
+            project_id=project_id,
+            interaction_id=interaction_id,
+        )
+        if interaction is None or interaction.run_envelope is None:
+            raise MissingEnvelope()
+        envelope = resumed_envelope(
+            asked=interaction.run_envelope,
+            run_id=continuation_execution_id,
+            approved_by=approved_by
+            or RunApproval(
+                principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=user_id),
+                user_id=user_id,
+            ),
+        )
         await self.respond_many(
             project_id=project_id,
             user_id=user_id,
             interaction_answers=[(interaction_id, answer)],
+            envelope=envelope,
             control_command_id=control_command_id,
             continuation_execution_id=continuation_execution_id,
         )
@@ -411,6 +440,7 @@ class InteractionsDispatcher:
         project_id: UUID,
         user_id: UUID,
         interaction_answers: List[tuple[UUID, Any]],
+        envelope: RunEnvelope,
         control_command_id: Optional[UUID] = None,
         continuation_execution_id: Optional[str] = None,
     ) -> None:
@@ -482,6 +512,7 @@ class InteractionsDispatcher:
                 "project_id": project_id,
                 "user_id": user_id,
                 "request": invoke_request,
+                "envelope": envelope,
             }
             if continuation_execution_id is not None:
                 kwargs["run_id"] = continuation_execution_id
@@ -492,4 +523,5 @@ class InteractionsDispatcher:
             project_id=project_id,
             user_id=user_id,
             request=invoke_request,
+            envelope=envelope,
         )

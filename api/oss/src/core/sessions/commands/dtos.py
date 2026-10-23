@@ -100,6 +100,9 @@ class SessionCommandCreate(BaseModel):
 
     idempotency_key: Optional[str] = None
 
+    # continue_input / continue_interaction: the envelope the continuation runs under.
+    run_envelope: Optional[RunEnvelope] = None
+
     # The instant the service stamped as the request's arrival. It is stored as `created_at`
     # rather than left to the server default, so the value the stale-Stop guard COMPARED is the
     # value the row CARRIES. A guard that compares one timestamp and stores another is not a

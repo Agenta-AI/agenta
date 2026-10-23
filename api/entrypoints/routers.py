@@ -14,6 +14,7 @@ from supertokens_python.framework.fastapi import (
     get_middleware as get_supertokens_middleware,
 )
 
+from oss.src.core.sessions.commands.service import deliverable_envelope
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.server_tracing import instrument_fastapi, setup_server_tracing
@@ -1053,11 +1054,14 @@ triggers_service = TriggersService(
 
 # Detached workflow start: hand the run to the runner and return on the started handshake
 # (no awaiting the run). Shared by both detached consumers (triggers + interaction continuations).
-async def _dispatch_detached_run(*, project_id, user_id, request, run_id=None) -> str:
+async def _dispatch_detached_run(
+    *, project_id, user_id, request, envelope, run_id=None
+) -> str:
     result = await workflows_service.invoke_workflow_detached(
         project_id=project_id,
         user_id=user_id,
         request=request,
+        envelope=envelope,
         run_id=run_id,
     )
     return result.run_id
@@ -1308,13 +1312,18 @@ _channels_inbox_broker = ProducerOnlyRedisStreamBroker(
 )
 
 
-async def _respond_channel_interaction(*, project_id, user_id, interaction_id, answer):
+async def _respond_channel_interaction(
+    *, project_id, user_id, interaction_id, answer, approved_by
+):
     """A channel's approval answer goes to the turn that parked, like a click
-    in the playground does; the continuation runs in the same session."""
-    await _interactions_dispatcher.respond_many(
+    in the playground does; the continuation runs in the same session, under the
+    asked run's envelope, with the installation as approver."""
+    await _interactions_dispatcher.respond(
         project_id=project_id,
         user_id=user_id,
-        interaction_answers=[(interaction_id, answer)],
+        interaction_id=interaction_id,
+        answer=answer,
+        approved_by=approved_by,
     )
 
 
@@ -1577,6 +1586,7 @@ session_commands_service = SessionCommandsService(
                 (UUID(item["interaction_id"]), item["answer"])
                 for item in command.data["answers"]
             ],
+            envelope=deliverable_envelope(command=command),
             control_command_id=command.id,
             continuation_execution_id=command.target_turn_id,
         ),
@@ -1584,6 +1594,7 @@ session_commands_service = SessionCommandsService(
             project_id=command.project_id,
             user_id=command.created_by_id,
             request=WorkflowServiceRequest.model_validate(command.data["request"]),
+            envelope=deliverable_envelope(command=command),
             run_id=command.target_turn_id,
             control_command_id=command.id,
         ),

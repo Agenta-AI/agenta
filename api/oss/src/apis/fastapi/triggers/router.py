@@ -9,6 +9,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 
+from oss.src.core.access.dtos import PrincipalRef
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
@@ -110,6 +111,16 @@ def handle_adapter_exceptions():
         return wrapper
 
     return decorator
+
+
+def _request_principal(request: Request) -> PrincipalRef:
+    """The principal the created trigger runs as: the creating request's principal
+    (a human, or an API key). Never taken from the body."""
+
+    principal = getattr(request.state, "principal", None)
+    if principal is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return principal
 
 
 class TriggersRouter:
@@ -1008,6 +1019,7 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 subscription=body.subscription,
+                principal=_request_principal(request),
             )
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
@@ -1035,6 +1047,7 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 subscription=body.subscription,
+                principal=_request_principal(request),
             )
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
@@ -1286,6 +1299,7 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 schedule=body.schedule,
+                principal=_request_principal(request),
             )
         except TriggerScheduleInvalid as e:
             raise HTTPException(status_code=422, detail=e.message) from e

@@ -43,6 +43,7 @@ from oss.src.dbs.redis.sessions.locks import (
 )
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.tests.pytest.utils.principals import make_envelope
 
 
 _PROJECT = uuid4()
@@ -382,6 +383,7 @@ async def test_heartbeat_records_a_start_time_for_a_runner_minted_turn(lock_engi
         request=SessionHeartbeatRequest(
             session_id=_SESSION, replica_id="replica-a", turn_id="turn-runner"
         ),
+        envelope=make_envelope(),
     )
 
     assert (

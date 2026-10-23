@@ -15,6 +15,13 @@ from uuid import UUID, uuid4
 
 import uuid_utils.compat as uuid_compat
 
+from oss.src.core.access.dtos import RunOrigin
+from oss.src.core.access.principals import (
+    missing_principal_error,
+    stored_work_envelope,
+)
+from oss.src.core.access.service import AccessService, get_access_service
+from oss.src.core.tools.dtos import AgentError
 from oss.src.core.shared.dtos import Status
 from oss.src.core.triggers.dtos import (
     TRIGGER_CONTEXT_FIELDS,
@@ -50,11 +57,18 @@ class TriggersDispatcher:
         session_claims_dao: TriggerSessionClaimsDAOInterface,
         workflows_service: WorkflowsService,
         dispatch_fn: Optional[Callable] = None,
+        access_service: Optional[AccessService] = None,
     ):
         self.triggers_dao = triggers_dao
         self.session_claims_dao = session_claims_dao
         self.workflows_service = workflows_service
         self._dispatch_fn = dispatch_fn
+        # None: the process's registered service (bootstrap_access).
+        self._access_service = access_service
+
+    @property
+    def access_service(self) -> AccessService:
+        return self._access_service or get_access_service()
 
     def _build_context(
         self,
@@ -245,6 +259,18 @@ class TriggersDispatcher:
         """
         is_subscription = isinstance(entity, TriggerSubscription)
 
+        # No principal (created by a pod before M2, or a creatorless row the backfill
+        # paused): refuse and pause. The principal is never rebuilt from created_by_id.
+        if entity.principal is None:
+            await self._refuse(
+                project_id=project_id,
+                entity=entity,
+                event_id=event_id,
+                reason="missing_principal",
+                error=missing_principal_error(next_step="Create the schedule again."),
+            )
+            return
+
         delivery_id = uuid_compat.uuid7()
         session_id = uuid4().hex
         user_id = entity.created_by_id
@@ -326,6 +352,15 @@ class TriggersDispatcher:
             )
             return
 
+        envelope = stored_work_envelope(
+            principal=entity.principal,
+            organization_id=await self._organization_id(project_id=project_id),
+            project_id=project_id,
+            origin=RunOrigin.SUBSCRIPTION if is_subscription else RunOrigin.SCHEDULE,
+            origin_id=str(entity.id),
+            created_by_id=entity.created_by_id,
+        )
+
         if self._dispatch_fn is not None:
             # Detached completion means the runner accepted ownership. The API has no durable
             # callback for the run's later terminal outcome, so this delivery remains 202.
@@ -334,6 +369,7 @@ class TriggersDispatcher:
                     project_id=project_id,
                     user_id=user_id,
                     request=request,
+                    envelope=envelope,
                 )
             except Exception as e:
                 log.error("[TRIGGERS DISPATCHER] detached invoke failed: %s", e)
@@ -366,6 +402,7 @@ class TriggersDispatcher:
                 project_id=project_id,
                 user_id=user_id,
                 request=request,
+                envelope=envelope,
             )
         except Exception as e:
             log.error("[TRIGGERS DISPATCHER] invoke failed: %s", e, exc_info=True)
@@ -419,6 +456,56 @@ class TriggersDispatcher:
             "[TRIGGERS DISPATCHER] dispatch complete entity=%s event=%s status=200",
             entity.id,
             event_id,
+        )
+
+    async def _organization_id(self, *, project_id: UUID) -> UUID:
+        organization_id = await self.access_service.project_organization_id(
+            project_id=project_id
+        )
+        if organization_id is None:
+            raise ValueError(f"project {project_id} has no organization")
+        return organization_id
+
+    async def _refuse(
+        self,
+        *,
+        project_id: UUID,
+        entity: Union[TriggerSubscription, TriggerSchedule],
+        event_id: str,
+        reason: str,
+        error: AgentError,
+    ) -> None:
+        """A refused delivery (status failed, `error` the message, `error_details` the
+        envelope) and the trigger paused, in one DAO transaction. A repeated event
+        writes nothing."""
+
+        is_subscription = isinstance(entity, TriggerSubscription)
+        await self.triggers_dao.refuse_delivery(
+            project_id=project_id,
+            user_id=entity.created_by_id,
+            delivery=TriggerDeliveryCreate(
+                id=uuid_compat.uuid7(),
+                subscription_id=entity.id if is_subscription else None,
+                schedule_id=None if is_subscription else entity.id,
+                event_id=event_id,
+                status=Status(code="403", message="failed"),
+                data=TriggerDeliveryData(
+                    event_key=entity.data.event_key,
+                    references=entity.data.references,
+                    error=error.message,
+                    error_details=error,
+                ),
+            ),
+            reason=reason,
+        )
+        log.info(
+            "[triggers] paused",
+            trigger_kind="subscription" if is_subscription else "schedule",
+            trigger_id=str(entity.id),
+            project_id=str(project_id),
+            principal_kind=entity.principal.kind.value if entity.principal else None,
+            principal_id=str(entity.principal.id) if entity.principal else None,
+            reason=reason,
         )
 
     async def _write_subscription_delivery_if_live(

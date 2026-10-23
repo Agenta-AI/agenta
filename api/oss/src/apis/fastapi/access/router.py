@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from oss.src.middlewares.auth import (
     SECRET_RESOLVE_GRANT,
+    request_run_envelope,
     sign_secret_token,
 )
 from oss.src.utils.env import env
@@ -211,6 +212,11 @@ class AccessRouter:
             if without_grants is True
             else _run_credential_grants(request, action=action)
         )
+        # The new credential copies the caller's run envelope: same principal, same
+        # authority, same run. It never upgrades a principal.
+        envelope = request_run_envelope(request)
+        if envelope is None:
+            raise Deny()
         secret_token = await sign_secret_token(
             user_id=user_id,
             user_email=getattr(request.state, "user_email", None),
@@ -219,6 +225,7 @@ class AccessRouter:
             organization_id=str(ctx.scope.organization_id),
             organization_name=getattr(request.state, "organization_name", None),
             grants=grants or None,
+            envelope=envelope,
         )
         credentials_header = f"Secret {secret_token}"
 

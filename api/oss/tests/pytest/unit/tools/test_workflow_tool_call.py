@@ -15,6 +15,8 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+
+from oss.tests.pytest.utils.principals import make_envelope
 from fastapi import HTTPException
 
 from oss.src.apis.fastapi.tools.router import ToolsRouter
@@ -33,9 +35,14 @@ class FakeWorkflowsService:
         self._raises = raises
         self.calls: list[dict] = []
 
-    async def invoke_workflow(self, *, project_id, user_id, request):
+    async def invoke_workflow(self, *, project_id, user_id, request, envelope):
         self.calls.append(
-            {"project_id": project_id, "user_id": user_id, "request": request}
+            {
+                "project_id": project_id,
+                "user_id": user_id,
+                "request": request,
+                "envelope": envelope,
+            }
         )
         if self._raises is not None:
             raise self._raises
@@ -57,7 +64,11 @@ def _router(workflows_service):
 
 def _request():
     return SimpleNamespace(
-        state=SimpleNamespace(project_id=str(uuid4()), user_id=str(uuid4())),
+        state=SimpleNamespace(
+            project_id=str(uuid4()),
+            user_id=str(uuid4()),
+            run_envelope=make_envelope(run_id="parent-run"),
+        ),
         headers={},
     )
 
@@ -212,3 +223,34 @@ async def test_malformed_call_ref_rejected(name):
         )
     assert caught.value.status_code == 400
     assert workflows.calls == []
+
+
+async def test_child_run_inherits_parent_and_names_parent_run():
+    workflows = FakeWorkflowsService(outputs={"summary": "ok"})
+    request = _request()
+    parent = request.state.run_envelope
+
+    await _router(workflows)._call_workflow_tool(
+        request=request,
+        body=_call("workflow.variant.summarize", {"text": "hello"}),
+    )
+
+    child = workflows.calls[0]["envelope"]
+    assert child.authority == parent.authority
+    assert child.sender == parent.sender
+    assert child.context.origin.value == "child"
+    assert child.context.parent_run_id == "parent-run"
+    assert child.context.run_id is None
+
+
+async def test_web_direct_parent_has_no_parent_run_id():
+    workflows = FakeWorkflowsService(outputs={"summary": "ok"})
+    request = _request()
+    request.state.run_envelope = make_envelope(run_id=None)
+
+    await _router(workflows)._call_workflow_tool(
+        request=request,
+        body=_call("workflow.variant.summarize", {"text": "hello"}),
+    )
+
+    assert workflows.calls[0]["envelope"].context.parent_run_id is None

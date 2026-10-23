@@ -8,6 +8,7 @@ from agenta.sdk.agents import Message
 from agenta.sdk.decorators.running import WorkflowServiceRequest
 from agenta.sdk.models.workflows import WorkflowRequestData
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.starts.dtos import SessionStartResult
@@ -249,6 +250,7 @@ class SessionStartsService:
         message: str | Message,
         parameters: dict[str, Any] | None = None,
         request_key: str,
+        envelope: RunEnvelope,
     ) -> SessionStartResult:
         session_id = self.session_id_for(project_id=project_id, request_key=request_key)
         execution_id = str(
@@ -274,6 +276,7 @@ class SessionStartsService:
                 execution_id=execution_id,
                 content=content,
                 idempotency_key=request_key,
+                envelope=envelope,
             )
             existing = await self._has_started(
                 project_id=project_id,
@@ -324,6 +327,7 @@ class SessionStartsService:
                     project_id=project_id,
                     user_id=user_id,
                     request=stored_request,
+                    envelope=envelope,
                     run_id=execution_id,
                     strict_start=True,
                 )

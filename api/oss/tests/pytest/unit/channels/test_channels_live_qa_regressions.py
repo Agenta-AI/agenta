@@ -92,13 +92,13 @@ async def test_controls_are_removed_only_after_admission(fail_admission):
     dispatcher = InboxDispatcher(
         channels_service=service, respond_interaction_fn=respond
     )
-    dispatcher._invoking_user_id = AsyncMock(return_value=uuid4())
+    dispatcher._invoking_identity = AsyncMock(return_value=(uuid4(), None))
     resolution = SimpleNamespace(
         answered_interaction_id=str(uuid4()),
         resolved_token="deny",
         resolved_choice="Deny",
         thread=SimpleNamespace(id=uuid4()),
-        agent=SimpleNamespace(created_by_id=uuid4()),
+        agent=SimpleNamespace(id=uuid4(), created_by_id=uuid4()),
     )
     args = dict(
         project_id=uuid4(),
@@ -135,13 +135,13 @@ async def test_ui_failure_does_not_retry_an_admitted_decision():
     dispatcher = InboxDispatcher(
         channels_service=service, respond_interaction_fn=respond
     )
-    dispatcher._invoking_user_id = AsyncMock(return_value=uuid4())
+    dispatcher._invoking_identity = AsyncMock(return_value=(uuid4(), None))
     resolution = SimpleNamespace(
         answered_interaction_id=str(uuid4()),
         resolved_token="approve",
         resolved_choice="Approve",
         thread=SimpleNamespace(id=uuid4()),
-        agent=SimpleNamespace(created_by_id=uuid4()),
+        agent=SimpleNamespace(id=uuid4(), created_by_id=uuid4()),
     )
     await dispatcher._answer_interaction(
         project_id=uuid4(),
@@ -247,13 +247,13 @@ async def test_a_failed_consumed_mark_admits_nothing():
     dispatcher = InboxDispatcher(
         channels_service=service, respond_interaction_fn=respond
     )
-    dispatcher._invoking_user_id = AsyncMock(return_value=uuid4())
+    dispatcher._invoking_identity = AsyncMock(return_value=(uuid4(), None))
     resolution = SimpleNamespace(
         answered_interaction_id=str(uuid4()),
         resolved_token="approve",
         resolved_choice="Approve",
         thread=SimpleNamespace(id=uuid4()),
-        agent=SimpleNamespace(created_by_id=uuid4()),
+        agent=SimpleNamespace(id=uuid4(), created_by_id=uuid4()),
     )
 
     with pytest.raises(httpx.ReadTimeout):

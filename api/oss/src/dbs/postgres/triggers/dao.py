@@ -1,9 +1,9 @@
 import asyncio
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import cast, delete, func, literal, select, update
+from sqlalchemy import Boolean, cast, delete, func, literal, select, update
 from sqlalchemy.dialects.postgresql import JSON, JSONB, insert
 from sqlalchemy.exc import IntegrityError
 
@@ -24,7 +24,8 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionEdit,
     TriggerSubscriptionQuery,
 )
-from oss.src.core.triggers.interfaces import TriggersDAOInterface
+from oss.src.core.access.dtos import PrincipalRef
+from oss.src.core.triggers.interfaces import KEEP_ARTIFACT_ID, TriggersDAOInterface
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.postgres.shared.engine import (
@@ -55,6 +56,34 @@ from oss.src.dbs.postgres.triggers.upsert_utils import (
 log = get_module_logger(__name__)
 
 
+def _set_principal_and_target(dbe, *, principal: PrincipalRef, artifact_id) -> None:
+    dbe.principal_kind = principal.kind.value
+    dbe.principal_id = principal.id
+    dbe.artifact_id = artifact_id
+
+
+def _pause_statement(*, TriggerDBE, project_id: UUID, reason: str):
+    """`flags.is_active = false`, `meta.paused_reason = reason` (both columns can be
+    SQL NULL; `meta` is JSON, `flags` JSONB), tenant-scoped by project."""
+
+    return (
+        update(TriggerDBE)
+        .where(TriggerDBE.project_id == project_id)
+        .values(
+            flags=func.coalesce(TriggerDBE.flags, cast({}, JSONB)).op("||")(
+                cast({"is_active": False}, JSONB)
+            ),
+            meta=cast(
+                func.coalesce(cast(TriggerDBE.meta, JSONB), cast({}, JSONB)).op("||")(
+                    cast({"paused_reason": reason}, JSONB)
+                ),
+                JSON,
+            ),
+            updated_at=datetime.now(timezone.utc),
+        )
+    )
+
+
 class TriggersDAO(TriggersDAOInterface):
     def __init__(self, engine: TransactionsEngine = None):
         if engine is None:
@@ -72,6 +101,8 @@ class TriggersDAO(TriggersDAOInterface):
         subscription: TriggerSubscriptionCreate,
         #
         trigger_id: str,
+        principal: PrincipalRef,
+        artifact_id: Optional[UUID],
     ) -> TriggerSubscription:
         subscription_dbe = map_subscription_dto_to_dbe_create(
             project_id=project_id,
@@ -80,6 +111,9 @@ class TriggersDAO(TriggersDAOInterface):
             subscription=subscription,
             #
             trigger_id=trigger_id,
+        )
+        _set_principal_and_target(
+            subscription_dbe, principal=principal, artifact_id=artifact_id
         )
 
         try:
@@ -168,6 +202,8 @@ class TriggersDAO(TriggersDAOInterface):
         user_id: UUID,
         #
         subscription: TriggerSubscriptionEdit,
+        #
+        artifact_id: Any = KEEP_ARTIFACT_ID,
     ) -> Optional[TriggerSubscription]:
         async with self.engine.session() as session:
             stmt = (
@@ -194,6 +230,9 @@ class TriggersDAO(TriggersDAOInterface):
                 #
                 subscription=subscription,
             )
+            # The principal never changes on an edit; the target follows the refs.
+            if artifact_id is not KEEP_ARTIFACT_ID:
+                subscription_dbe.artifact_id = artifact_id
 
             await session.commit()
 
@@ -509,6 +548,113 @@ class TriggersDAO(TriggersDAOInterface):
             return None
         return map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)
 
+    async def refuse_delivery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        #
+        delivery: TriggerDeliveryCreate,
+        reason: str,
+    ) -> Optional[TriggerDelivery]:
+        """Record a refused delivery and pause its trigger, in one transaction.
+
+        The delivery is inserted with the existing dedup key `ON CONFLICT DO NOTHING`, so a
+        repeated event writes nothing. The schedule or subscription (tenant-scoped by
+        `project_id`) gets `flags.is_active = false` and `meta.paused_reason = reason`.
+        No session is created and no provider is synced. `write_subscription_delivery_if_live`
+        cannot do this: it needs `is_active = true` and refuses schedules.
+        """
+
+        by_schedule = delivery.subscription_id is None
+        if by_schedule == (delivery.schedule_id is None):
+            raise ValueError("A delivery names exactly one schedule or subscription.")
+
+        delivery_dbe = map_delivery_dto_to_dbe_create(
+            project_id=project_id,
+            user_id=user_id,
+            delivery=delivery,
+        )
+        values = build_trigger_delivery_values(delivery_dbe)
+        index_elements, index_where = build_trigger_delivery_conflict(by_schedule)
+        insert_stmt = (
+            insert(TriggerDeliveryDBE)
+            .values(**values)
+            .on_conflict_do_nothing(
+                index_elements=index_elements,
+                index_where=index_where,
+            )
+            .returning(TriggerDeliveryDBE)
+        )
+
+        TriggerDBE = TriggerScheduleDBE if by_schedule else TriggerSubscriptionDBE
+        trigger_id = delivery.schedule_id if by_schedule else delivery.subscription_id
+
+        async with self.engine.session() as session:
+            delivery_dbe = (await session.execute(insert_stmt)).scalar_one_or_none()
+            await session.execute(
+                _pause_statement(
+                    TriggerDBE=TriggerDBE,
+                    project_id=project_id,
+                    reason=reason,
+                ).where(TriggerDBE.id == trigger_id)
+            )
+            await session.commit()
+
+        if delivery_dbe is None:
+            return None
+        return map_delivery_dbe_to_dto(delivery_dbe=delivery_dbe)
+
+    async def pause_trigger(
+        self,
+        *,
+        project_id: UUID,
+        schedule_id: Optional[UUID] = None,
+        subscription_id: Optional[UUID] = None,
+        reason: str,
+    ) -> None:
+        if (schedule_id is None) == (subscription_id is None):
+            raise ValueError("Pause names exactly one schedule or subscription.")
+        TriggerDBE = TriggerScheduleDBE if schedule_id else TriggerSubscriptionDBE
+        trigger_id = schedule_id or subscription_id
+        async with self.engine.session() as session:
+            await session.execute(
+                _pause_statement(
+                    TriggerDBE=TriggerDBE, project_id=project_id, reason=reason
+                ).where(TriggerDBE.id == trigger_id)
+            )
+            await session.commit()
+
+    async def pause_triggers_for_artifact(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+        reason: str,
+    ) -> int:
+        """Pause every live schedule and subscription whose direct target is this
+        agent. Environment-bound triggers (artifact_id NULL) are not touched."""
+
+        paused = 0
+        async with self.engine.session() as session:
+            for TriggerDBE in (TriggerScheduleDBE, TriggerSubscriptionDBE):
+                result = await session.execute(
+                    _pause_statement(
+                        TriggerDBE=TriggerDBE, project_id=project_id, reason=reason
+                    )
+                    .where(
+                        TriggerDBE.artifact_id == artifact_id,
+                        TriggerDBE.deleted_at.is_(None),
+                        func.coalesce(
+                            TriggerDBE.flags["is_active"].astext.cast(Boolean), True
+                        ),
+                    )
+                    .returning(TriggerDBE.id)
+                )
+                paused += len(result.all())
+            await session.commit()
+        return paused
+
     async def update_delivery(
         self,
         *,
@@ -750,12 +896,17 @@ class TriggersDAO(TriggersDAOInterface):
         user_id: UUID,
         #
         schedule: TriggerScheduleCreate,
+        principal: PrincipalRef,
+        artifact_id: Optional[UUID],
     ) -> TriggerSchedule:
         schedule_dbe = map_schedule_dto_to_dbe_create(
             project_id=project_id,
             user_id=user_id,
             #
             schedule=schedule,
+        )
+        _set_principal_and_target(
+            schedule_dbe, principal=principal, artifact_id=artifact_id
         )
 
         async with self.engine.session() as session:
@@ -818,6 +969,8 @@ class TriggersDAO(TriggersDAOInterface):
         user_id: UUID,
         #
         schedule: TriggerScheduleEdit,
+        #
+        artifact_id: Any = KEEP_ARTIFACT_ID,
     ) -> Optional[TriggerSchedule]:
         async with self.engine.session() as session:
             stmt = (
@@ -844,6 +997,9 @@ class TriggersDAO(TriggersDAOInterface):
                 #
                 schedule=schedule,
             )
+            # The principal never changes on an edit; the target follows the refs.
+            if artifact_id is not KEEP_ARTIFACT_ID:
+                schedule_dbe.artifact_id = artifact_id
 
             await session.commit()
 

@@ -36,6 +36,7 @@ from taskiq.receiver import Receiver
 from contextlib import suppress
 
 from entrypoints.access import bootstrap_access
+from oss.src.core.sessions.commands.service import deliverable_envelope
 from oss.src.utils import heartbeat
 from taskiq.cli.worker.run import shutdown_broker
 
@@ -255,11 +256,15 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
         workflows_service, transactions_engine=transactions_engine
     )
 
-    async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
+    async def _dispatch_detached_run(
+        *, project_id, user_id, request, envelope, run_id=None
+    ) -> str:
         result = await workflows_service.invoke_workflow_detached(
             project_id=project_id,
             user_id=user_id,
             request=request,
+            envelope=envelope,
+            run_id=run_id,
         )
         return result.run_id
 
@@ -326,12 +331,13 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
     environments_service.embeds_service = embeds_service
 
     async def _dispatch_detached_run(
-        *, project_id, user_id, request, run_id=None
+        *, project_id, user_id, request, envelope, run_id=None
     ) -> str:
         result = await workflows_service.invoke_workflow_detached(
             project_id=project_id,
             user_id=user_id,
             request=request,
+            envelope=envelope,
             run_id=run_id,
         )
         return result.run_id
@@ -374,13 +380,16 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
                     (UUID(item["interaction_id"]), item["answer"])
                     for item in command.data["answers"]
                 ],
+                envelope=deliverable_envelope(command=command),
                 control_command_id=command.id,
                 continuation_execution_id=command.target_turn_id,
             ),
         ),
     )
 
-    async def _respond_interaction(*, project_id, user_id, interaction_id, answer):
+    async def _respond_interaction(
+        *, project_id, user_id, interaction_id, answer, approved_by
+    ):
         # Reuse the same atomic admission as the session approval endpoint.
         # The interaction is the stable key across provider retries and two answers.
         await commands_service.respond_interaction(
@@ -390,6 +399,7 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
             answer=answer,
             expected_execution_id=None,
             idempotency_key=f"channels:{interaction_id}",
+            approved_by=approved_by,
         )
 
     # A follow-up sent while the thread's turn runs joins the session queue,
@@ -471,11 +481,15 @@ def _build_interactions_broker() -> tuple[AsyncBroker, int]:
         records_dao=RecordsDAO(engine=get_analytics_engine()),
     )
 
-    async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
+    async def _dispatch_detached_run(
+        *, project_id, user_id, request, envelope, run_id=None
+    ) -> str:
         result = await workflows_service.invoke_workflow_detached(
             project_id=project_id,
             user_id=user_id,
             request=request,
+            envelope=envelope,
+            run_id=run_id,
         )
         return result.run_id
 

@@ -50,6 +50,16 @@ class PrincipalsDAOInterface(ABC):
 
         return ScopePrincipals(project_ids=list(project_ids))
 
+    async def fetch_project_organization_id(
+        self,
+        *,
+        project_id: UUID,
+    ) -> Optional[UUID]:
+        """The organization of a project (immutable), for envelopes built outside a
+        request. The default knows none."""
+
+        return None
+
     async def invalidate_principal(self, *, principal: PrincipalRef) -> Optional[bool]:
         """Clear the cached record of a principal. Returns `None` when the delete
         failed. The default caches nothing."""

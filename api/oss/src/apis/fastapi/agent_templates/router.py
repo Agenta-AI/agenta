@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import JSONResponse
 
+from oss.src.middlewares.auth import request_run_envelope
 from oss.src.apis.fastapi.agent_templates.exceptions import (
     SCAN_UNAVAILABLE_NEXT_STEP,
     template_load_error_response,
@@ -308,11 +309,15 @@ class AgentTemplatesRouter:
         if project_id != authorized_project_id:
             raise FORBIDDEN_EXCEPTION  # type: ignore
         user_id = UUID(str(request.state.user_id))
+        envelope = request_run_envelope(request)
+        if envelope is None:
+            raise FORBIDDEN_EXCEPTION  # type: ignore
         try:
             result = await self._loader.load(
                 project_id=project_id,
                 user_id=user_id,
                 command=payload.to_domain(request_key=request_key),
+                envelope=envelope,
             )
         except Exception as exc:
             response = template_load_error_response(exc)

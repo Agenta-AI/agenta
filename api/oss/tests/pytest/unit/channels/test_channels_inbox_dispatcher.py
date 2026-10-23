@@ -249,7 +249,7 @@ class TestBacklogAndInvoke:
 
         captured = {}
 
-        async def fake_invoke(*, project_id, resolution, turn_input, turn_id):
+        async def fake_invoke(*, project_id, resolution, turn_input, turn_id, envelope):
             captured["turn_id"] = turn_id
             captured["session_id"] = resolution.thread.session_id
             return turn_id
@@ -285,7 +285,7 @@ class TestBacklogAndInvoke:
 
         invoked = {}
 
-        async def fake_invoke(*, project_id, resolution, turn_input, turn_id):
+        async def fake_invoke(*, project_id, resolution, turn_input, turn_id, envelope):
             invoked["called"] = True
             return turn_id
 

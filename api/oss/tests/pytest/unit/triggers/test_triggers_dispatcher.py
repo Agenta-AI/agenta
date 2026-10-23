@@ -24,6 +24,7 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionFlags,
 )
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
+from oss.tests.pytest.utils.principals import any_principal
 
 
 def _make_subscription(
@@ -37,6 +38,7 @@ def _make_subscription(
     return TriggerSubscription(
         id=uuid4(),
         created_by_id=uuid4(),
+        principal=any_principal(),
         connection_id=uuid4(),
         flags=TriggerSubscriptionFlags(
             is_active=is_active, is_valid=is_valid, is_test=is_test
@@ -54,6 +56,7 @@ def _make_schedule(*, is_active=True, references=None, inputs_fields=None):
     return TriggerSchedule(
         id=uuid4(),
         created_by_id=uuid4(),
+        principal=any_principal(),
         flags=TriggerScheduleFlags(is_active=is_active),
         data=TriggerScheduleData(
             event_key="cron.tick",
@@ -74,6 +77,7 @@ def _make_dao(*, seen=False, claim_lost=False):
     dao.claim_trigger_delivery = AsyncMock(return_value=not claim_lost)
     dao.update_delivery = AsyncMock()
     dao.abandon_claimed_session = AsyncMock()
+    dao.refuse_delivery = AsyncMock()
     return dao
 
 

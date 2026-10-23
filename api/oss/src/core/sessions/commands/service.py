@@ -35,6 +35,14 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional, Tuple
 from uuid import UUID, uuid4
 
+from oss.src.core.access.dtos import RunApproval, RunEnvelope
+from oss.src.core.access.principals import (
+    access_denied_error,
+    missing_envelope_error,
+    resumed_envelope,
+)
+from oss.src.core.access.types import AccessDenied, MissingEnvelope
+from oss.src.core.tools.dtos import AgentError
 from oss.src.core.sessions.commands.dtos import (
     SessionCommand,
     SessionCommandCreate,
@@ -590,6 +598,7 @@ class SessionCommandsService:
         answer: dict[str, Any],
         expected_execution_id: Optional[str],
         idempotency_key: str,
+        approved_by: RunApproval,
     ) -> InteractionContinuationAdmission:
         return await self.respond_interactions(
             project_id=project_id,
@@ -597,6 +606,7 @@ class SessionCommandsService:
             interaction_answers=[(interaction_id, answer)],
             expected_execution_id=expected_execution_id,
             idempotency_key=idempotency_key,
+            approved_by=approved_by,
         )
 
     async def respond_interactions(
@@ -607,7 +617,10 @@ class SessionCommandsService:
         interaction_answers: List[Tuple[UUID, dict[str, Any]]],
         expected_execution_id: Optional[str],
         idempotency_key: str,
+        approved_by: RunApproval,
     ) -> InteractionContinuationAdmission:
+        """`approved_by` is the answering principal. The continuation keeps the asked
+        run's authority, sender and origin, and records the approver."""
         if self._executions is None:
             raise RuntimeError(
                 "durable interaction responses require executions storage"
@@ -639,6 +652,17 @@ class SessionCommandsService:
                 message="The interaction belongs to a different execution.",
                 details={"current_execution_id": source_execution_id},
             )
+        if anchor.run_envelope is None:
+            # Parked by a pod before M2: there is no authority to resume under. Cancel it
+            # in its own committed transaction (raising inside the respond transaction
+            # would roll the cancellation back), then refuse.
+            await self._cancel_unresumable_interactions(
+                project_id=project_id,
+                session_id=anchor.session_id,
+                turn_id=source_execution_id,
+                interaction_id=anchor_id,
+            )
+            raise MissingEnvelope()
 
         async with self._dao.transaction() as transaction:
             source = await self._executions.lock_for_control(
@@ -820,6 +844,11 @@ class SessionCommandsService:
                                 "continuation_execution_id": execution_id,
                             },
                             idempotency_key=idempotency_key,
+                            run_envelope=resumed_envelope(
+                                asked=anchor.run_envelope,
+                                run_id=execution_id,
+                                approved_by=approved_by,
+                            ),
                         ),
                         transaction=transaction,
                     )
@@ -867,6 +896,93 @@ class SessionCommandsService:
                 if await self._mark_continuation_recoverable(admission, receipt):
                     admission.execution_state = SessionExecutionState.recoverable
         return admission
+
+    async def _cancel_unresumable_interactions(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        interaction_id: UUID,
+    ) -> None:
+        async with self._dao.transaction() as transaction:
+            await self._interactions.cancel_session_pending(
+                project_id=project_id,
+                session_id=session_id,
+                only_turn_id=turn_id,
+                transaction=transaction,
+                publish=False,
+            )
+        await self._interactions.publish_session_pending_cancelled(
+            project_id=project_id, session_id=session_id
+        )
+        log.info(
+            "[sessions] work cancelled",
+            interaction_id=str(interaction_id),
+            session_id=session_id,
+            project_id=str(project_id),
+            code="missing_envelope",
+        )
+
+    async def _settle_refused_continuation(
+        self,
+        *,
+        command: SessionCommand,
+        error: AgentError,
+    ) -> DeliveryReceipt:
+        """Terminal settlement of a continuation that may not run (no envelope, or the
+        principal lost access), in one transaction: the command becomes `obsolete`/
+        `failed`, the execution stores the error and is settled `failed`. Without the
+        settlement the promoted input would stay the active successor and block the next
+        input. The receipt is `refused`, which nothing retries."""
+
+        try:
+            async with self._dao.transaction() as transaction:
+                await self._dao.settle_command(
+                    settle=SessionCommandSettle(
+                        project_id=command.project_id,
+                        command_id=command.id,
+                        state=SessionCommandState.obsolete,
+                        outcome=SessionCommandOutcome.failed,
+                        expected_states=[
+                            SessionCommandState.pending,
+                            SessionCommandState.claimed,
+                        ],
+                    ),
+                    transaction=transaction,
+                )
+                if self._executions is not None and command.target_turn_id:
+                    await self._executions.set_state(
+                        project_id=command.project_id,
+                        session_id=command.session_id,
+                        execution_id=command.target_turn_id,
+                        state=SessionExecutionState.terminal,
+                        error=error.model_dump(exclude_none=True),
+                        transaction=transaction,
+                    )
+                    await self._executions.settle(
+                        project_id=command.project_id,
+                        session_id=command.session_id,
+                        execution_id=command.target_turn_id,
+                        terminal_outcome="failed",
+                        settled_by="access_refusal",
+                        transaction=transaction,
+                    )
+        except Exception as failure:  # noqa: BLE001 - the sweep still finds the command
+            log.error(
+                "refused continuation settlement failed command=%s: %s",
+                command.id,
+                failure,
+            )
+            return DeliveryReceipt(status="unreachable", detail=error.code)
+        log.info(
+            "[sessions] work cancelled",
+            command_id=str(command.id),
+            session_id=command.session_id,
+            project_id=str(command.project_id),
+            code=error.code,
+        )
+        return DeliveryReceipt(status="refused", detail=error.code)
 
     async def _mark_continuation_recoverable(
         self,
@@ -1267,6 +1383,13 @@ class SessionCommandsService:
                 runner_address=binding.replica_address if binding else None,
                 runner_replica_id=binding.replica_id if binding else None,
             )
+        except (MissingEnvelope, AccessDenied) as refusal:
+            # A refusal is a decision, not a transport failure: settle the work
+            # terminally instead of handing it to the retry sweep.
+            return await self._settle_refused_continuation(
+                command=command,
+                error=_refusal_error(refusal=refusal, command=command),
+            )
         except Exception as e:  # noqa: BLE001 — transport failure is never a request failure
             log.warning(
                 "control delivery raised for command=%s session=%s: %s",
@@ -1638,6 +1761,8 @@ class SessionCommandsService:
                     "request": request,
                 },
                 idempotency_key=f"input:{pending_input.id}",
+                # Copied as is, also when None: delivery refuses a command without one.
+                run_envelope=pending_input.run_envelope,
             ),
             transaction=transaction,
         )
@@ -2185,6 +2310,33 @@ class SessionCommandsService:
             if receipt is None or receipt.status != "accepted":
                 await self._mark_continuation_recoverable(input_admission, receipt)
         return settled
+
+
+def deliverable_envelope(*, command: SessionCommand) -> RunEnvelope:
+    """The envelope a continue_input / continue_interaction command runs under.
+    `MissingEnvelope` for a command written before M2; delivery then settles it
+    terminally (`missing_envelope`)."""
+
+    if command.run_envelope is None:
+        raise MissingEnvelope()
+    return command.run_envelope
+
+
+def _refusal_error(*, refusal: Exception, command: SessionCommand) -> AgentError:
+    if isinstance(refusal, AccessDenied):
+        envelope = command.run_envelope
+        return access_denied_error(
+            decision=refusal.decision,
+            principal_kind=envelope.authority.principal.kind,
+            project_id=command.project_id,
+        )
+    return missing_envelope_error(
+        next_step=(
+            "Ask for the approval again."
+            if command.kind == SessionCommandKind.continue_interaction
+            else "Send the message again."
+        )
+    )
 
 
 # The runner names what happened to the EXECUTION; the command's `outcome` column stores it.

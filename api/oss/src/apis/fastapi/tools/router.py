@@ -13,6 +13,9 @@ from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.principals import child_envelope
+from oss.src.middlewares.auth import request_run_envelope
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
@@ -227,6 +230,14 @@ def _agent_error_result(*, body: ToolCall, error: AgentError) -> ToolCallRespons
         successful=False,
         message=error.message,
     )
+
+
+def _child_run_envelope(request: Request) -> Optional[RunEnvelope]:
+    """The envelope of a run this request starts as a tool call: the parent's
+    principal, authority and sender; origin `child`; the parent's run id."""
+
+    parent = request_run_envelope(request)
+    return child_envelope(parent=parent) if parent is not None else None
 
 
 class ToolsRouter:
@@ -1399,6 +1410,7 @@ class ToolsRouter:
                 workflows_service=self.workflows_service,
                 tracing_service=self.tracing_service,
                 mounts_service=self.mounts_service,
+                envelope=_child_run_envelope(request),
             )
         except PlatformToolHandlerError as e:
             raise HTTPException(status_code=e.status_code, detail=e.message) from e
@@ -1744,11 +1756,18 @@ class ToolsRouter:
             data=WorkflowServiceRequestData(inputs=arguments),
         )
 
+        # The child runs as its parent: same principal and authority, and it names the
+        # parent run.
+        child = _child_run_envelope(request)
+        if child is None:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
         try:
             response = await self.workflows_service.invoke_workflow(
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(request.state.user_id),
                 request=invoke_request,
+                envelope=child,
             )
         except Exception as e:
             log.error("Workflow tool invocation failed", exc_info=True)

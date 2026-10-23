@@ -7,6 +7,7 @@ import pytest
 from fastapi import FastAPI, Request
 from httpx import ASGITransport, AsyncClient
 
+from oss.tests.pytest.utils.principals import make_envelope
 from oss.src.apis.fastapi.agent_templates import router as router_module
 from oss.src.apis.fastapi.agent_templates.router import AgentTemplatesRouter
 from oss.src.core.agent_templates.catalog import AgentTemplateCatalog
@@ -78,6 +79,7 @@ def _app(loader, catalog=CATALOG):
     async def add_state(request: Request, call_next):
         request.state.project_id = str(PROJECT_ID)
         request.state.user_id = str(USER_ID)
+        request.state.run_envelope = make_envelope()
         return await call_next(request)
 
     app.include_router(
@@ -452,6 +454,7 @@ def _validation_app(validator, loader=None):
     async def add_state(request: Request, call_next):
         request.state.project_id = str(PROJECT_ID)
         request.state.user_id = str(USER_ID)
+        request.state.run_envelope = make_envelope()
         return await call_next(request)
 
     app.include_router(
@@ -656,6 +659,7 @@ def _scan_app(monkeypatch, scanner, access=None):
     async def add_state(request: Request, call_next):
         request.state.project_id = str(PROJECT_ID)
         request.state.user_id = str(USER_ID)
+        request.state.run_envelope = make_envelope()
         return await call_next(request)
 
     app.include_router(

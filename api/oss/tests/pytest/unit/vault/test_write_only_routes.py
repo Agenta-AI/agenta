@@ -24,6 +24,7 @@ from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT
+from oss.tests.pytest.utils.principals import envelope_for_claims
 
 
 def _vault_router(vault_service: VaultService) -> VaultRouter:
@@ -40,6 +41,7 @@ def _vault_router(vault_service: VaultService) -> VaultRouter:
 
 PROJECT_ID = str(uuid4())
 USER_ID = str(uuid4())
+ORGANIZATION_ID = str(uuid4())
 
 KEY = "sk-test-openai-secret"
 
@@ -372,11 +374,22 @@ def _auth(token):
 
 @pytest.mark.asyncio
 async def test_real_tokens_grant_and_deny_plaintext(token_client):
-    plain = await auth_module.sign_secret_token(user_id=USER_ID, project_id=PROJECT_ID)
+    plain = await auth_module.sign_secret_token(
+        user_id=USER_ID,
+        project_id=PROJECT_ID,
+        organization_id=ORGANIZATION_ID,
+        envelope=envelope_for_claims(
+            user_id=USER_ID, project_id=PROJECT_ID, organization_id=ORGANIZATION_ID
+        ),
+    )
     granted = await auth_module.sign_secret_token(
         user_id=USER_ID,
         project_id=PROJECT_ID,
         grants=[SECRET_RESOLVE_GRANT],
+        organization_id=ORGANIZATION_ID,
+        envelope=envelope_for_claims(
+            user_id=USER_ID, project_id=PROJECT_ID, organization_id=ORGANIZATION_ID
+        ),
     )
 
     created = token_client.post(

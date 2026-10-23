@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import and_, delete as sa_delete, func, or_, select
+from sqlalchemy import and_, case, delete as sa_delete, func, literal, or_, select
 from sqlalchemy import update as sa_update
 from sqlalchemy.exc import IntegrityError
 
@@ -17,6 +17,7 @@ from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.dbs.postgres.sessions.turns.dbes import SessionTurnDBE
 from oss.src.dbs.postgres.sessions.turns.mappings import (
+    map_turn_attribution_to_columns,
     map_turn_dbe_to_dto,
     map_turn_dto_to_dbe_create,
 )
@@ -79,6 +80,21 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
         values = {"end_time": turn.end_time}
         if turn.agent_session_id is not None:
             values["agent_session_id"] = turn.agent_session_id
+        if turn.envelope is not None:
+            # One group: every attribution column takes the completing envelope's
+            # value only when the row recorded no principal; otherwise every column
+            # keeps its value, nulls included (an API-key turn keeps its null sender).
+            unattributed = SessionTurnDBE.principal_kind.is_(None)
+            for column, value in map_turn_attribution_to_columns(
+                envelope=turn.envelope
+            ).items():
+                values[column] = case(
+                    (
+                        unattributed,
+                        literal(value, type_=SessionTurnDBE.__table__.c[column].type),
+                    ),
+                    else_=getattr(SessionTurnDBE, column),
+                )
 
         async with self.engine.session() as session:
             stmt = (

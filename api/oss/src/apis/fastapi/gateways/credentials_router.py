@@ -13,7 +13,7 @@ minting another one.
 
 from typing import Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from oss.src.apis.fastapi.gateways.exceptions import plane_disabled_http_exception
@@ -28,6 +28,7 @@ from oss.src.core.gateways.run_claims import (
 from oss.src.middlewares.auth import (
     GATEWAY_TOKEN_AUDIENCE,
     request_is_platform_runtime,
+    request_run_envelope,
     sign_secret_token,
 )
 from oss.src.utils.context import get_auth_scope
@@ -107,6 +108,11 @@ class GatewayCredentialsRouter:
 
         scope = get_auth_scope()
 
+        # The confined credential copies the caller's run envelope.
+        envelope = request_run_envelope(request)
+        if envelope is None:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
         # A re-exchange keeps the labels its caller's credential already carries.
         labels = dict(gateway_run_labels(request) or {})
         if body and body.session_id:
@@ -133,6 +139,7 @@ class GatewayCredentialsRouter:
             # turn and nothing re-mints it there, so the default 15 minutes was a ceiling on
             # how long a turn could reach a gateway rather than a bound on exposure.
             expires_in=env.gateway_credentials.ttl_seconds,
+            envelope=envelope,
         )
 
         return GatewayCredentialsResponse(credentials=f"Secret {token}")

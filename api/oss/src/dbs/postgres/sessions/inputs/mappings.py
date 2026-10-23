@@ -1,8 +1,15 @@
 from typing import Optional
 from uuid import UUID
 
-from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputState
-from oss.src.dbs.postgres.access.mappings import map_envelope_column
+from oss.src.core.sessions.inputs.dtos import (
+    PendingInput,
+    PendingInputCreate,
+    PendingInputState,
+)
+from oss.src.dbs.postgres.access.mappings import (
+    map_envelope_column,
+    map_envelope_to_column,
+)
 from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE
 
 
@@ -29,10 +36,12 @@ def to_pending_input(row: SessionInputDBE) -> PendingInput:
 
 
 def new_input_row(
-    *, user_id: Optional[UUID], values: dict, position: int
+    *, user_id: Optional[UUID], pending_input: PendingInputCreate, position: int
 ) -> SessionInputDBE:
+    values = pending_input.model_dump(mode="python", exclude={"run_envelope"})
     return SessionInputDBE(
         **values,
+        run_envelope=map_envelope_to_column(envelope=pending_input.run_envelope),
         position=position,
         created_by_id=user_id,
     )

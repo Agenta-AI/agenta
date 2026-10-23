@@ -199,3 +199,86 @@ class HumanPrincipalsDAO(PrincipalsDAOInterface):
         return PrincipalRecord(
             principal=principal, acting_user_id=principal.id, is_active=True
         )
+
+
+def envelope_for_claims(
+    *,
+    user_id=None,
+    project_id=None,
+    organization_id=None,
+) -> RunEnvelope:
+    """A human web envelope whose authority matches the given token scope claims
+    (`sign_secret_token` refuses an envelope of another organization or project).
+    Ids may be UUIDs or UUID strings; a missing one is random."""
+
+    def _uuid(value):
+        return UUID(str(value)) if value is not None else uuid4()
+
+    return make_envelope(
+        kind="human",
+        principal_id=_uuid(user_id),
+        project_id=_uuid(project_id),
+        organization_id=_uuid(organization_id),
+    )
+
+
+def any_principal() -> PrincipalRef:
+    return PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4())
+
+
+def any_approval() -> RunApproval:
+    user_id = uuid4()
+    return RunApproval(
+        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=user_id), user_id=user_id
+    )
+
+
+class AllowingAccessService:
+    """A stand-in for `AccessService` in tests of durable-work consumers (channels,
+    triggers, evaluations, tools) that are not about the decision itself: every
+    decision allows, and every project belongs to a stable organization. Records
+    what was asked."""
+
+    def __init__(self, *, organization_id: Optional[UUID] = None) -> None:
+        from oss.src.core.access.dtos import Decision, DecisionReason  # noqa: PLC0415
+
+        self._allow = Decision(allowed=True, reason=DecisionReason.ROLE)
+        self.organization_id = organization_id or uuid4()
+        self.decisions: List[dict] = []
+        self.required: List[dict] = []
+
+    async def project_organization_id(self, *, project_id: UUID) -> UUID:
+        return self.organization_id
+
+    async def decide(self, **kwargs):
+        self.decisions.append(kwargs)
+        return self._allow
+
+    async def check_request(self, **kwargs):
+        self.decisions.append(kwargs)
+        return self._allow
+
+    async def check_eligibility(self, **kwargs):
+        self.decisions.append(kwargs)
+        return self._allow
+
+    async def check_human(self, **kwargs):
+        self.decisions.append(kwargs)
+        return self._allow
+
+    async def require(self, **kwargs) -> None:
+        self.required.append(kwargs)
+
+    async def invalidate_principal(self, **kwargs) -> None:
+        return None
+
+    async def invalidate_principals(self, **kwargs) -> None:
+        return None
+
+
+def register_allowing_access_service(monkeypatch) -> AllowingAccessService:
+    import oss.src.core.access.service as access_module  # noqa: PLC0415
+
+    service = AllowingAccessService()
+    monkeypatch.setattr(access_module, "_access_service", service)
+    return service
