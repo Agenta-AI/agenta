@@ -636,3 +636,19 @@ class ResolvedTarget(BaseModel):
     artifact_id: UUID
     revision_id: UUID
     archived: bool = False
+
+
+# The reference keys that name an agent: the `workflow` and `application` families, each
+# with `_variant` and `_revision`, and `environment` (resolved to its current revision).
+# A superset of `core/channels/dtos.py::RESOLVABLE_AGENT_REFERENCE_KEYS`.
+AGENT_REFERENCE_KEYS = frozenset(
+    {
+        "workflow",
+        "workflow_variant",
+        "workflow_revision",
+        "application",
+        "application_variant",
+        "application_revision",
+        "environment",
+    }
+)

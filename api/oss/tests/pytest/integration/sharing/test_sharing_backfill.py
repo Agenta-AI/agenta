@@ -19,7 +19,11 @@ import pytest
 from sqlalchemy import text
 
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
-from oss.tests.pytest.utils.membership_seed import load_revision_module
+from oss.src.dbs.postgres.sharing.dao import SharingDAO
+from oss.tests.pytest.utils.membership_seed import (
+    ConnectionEngine,
+    load_revision_module,
+)
 
 
 pytestmark = pytest.mark.integration
@@ -422,3 +426,115 @@ async def test_batches_cover_more_than_one_batch():
         for stream_id, _ in streams:
             assert await _policy(connection, stream_id) == ("project", creator)
         assert (await _policy(connection, done[0]))[0] == "private"
+
+
+class _ShadowEngine(ConnectionEngine):
+    """Runs the real `SharingDAO` on the shadow connection: its sessions and its
+    transactions both use the open, rolled-back transaction."""
+
+    @asynccontextmanager
+    async def transaction(self):
+        yield self._connection
+
+
+async def test_migration_and_lazy_assignment_agree():
+    async with shadowed() as connection:
+        alice, bob, key_id, installation_id = uuid4(), uuid4(), uuid4(), uuid4()
+        creator, turn_creator = uuid4(), uuid4()
+        # The fixture of test_m2_turn_attribution_decides_owner, plus the pre-M2 and
+        # channel shapes. Each case: (stream creator, first-turn fields or None, channel).
+        cases = [
+            (creator, dict(principal_kind="human", principal_id=alice, sender_user_id=alice, origin="web"), False),
+            (creator, dict(principal_kind="api_key", principal_id=key_id, origin="api"), False),
+            (creator, dict(principal_kind="api_key", principal_id=key_id, sender_user_id=alice, origin="api"), False),
+            (creator, dict(principal_kind="human", principal_id=bob, origin="schedule"), False),
+            (creator, dict(principal_kind="human", principal_id=bob, origin="subscription"), False),
+            (creator, dict(principal_kind="installation", principal_id=installation_id, sender_user_id=alice, origin="installation"), False),
+            (creator, dict(principal_kind="human", principal_id=bob, sender_user_id=bob, origin="child"), False),
+            (creator, dict(principal_kind="human", principal_id=bob, origin="evaluation"), False),
+            (creator, dict(created_by_id=turn_creator), False),
+            (None, dict(created_by_id=turn_creator), False),
+            (creator, None, False),
+            (creator, dict(principal_kind="human", principal_id=alice, sender_user_id=alice, origin="web"), True),
+        ]  # fmt: skip
+
+        async def seed(project_id):
+            streams = []
+            for stream_creator, first_turn, channel in cases:
+                stream = await _stream(
+                    connection, project_id=project_id, created_by_id=stream_creator
+                )
+                if first_turn is not None:
+                    await _turn(
+                        connection, project_id=project_id, stream=stream, **first_turn
+                    )
+                    # Two later turns, one at the same instant as the first: the
+                    # first turn is decided by created_at, then turn_index.
+                    for turn_index, at_same_time in ((2, False), (1, True)):
+                        await _turn(
+                            connection,
+                            project_id=project_id,
+                            stream=stream,
+                            turn_index=turn_index,
+                            principal_kind="human",
+                            principal_id=uuid4(),
+                            sender_user_id=uuid4(),
+                            origin="web",
+                        )
+                        if at_same_time:
+                            await connection.execute(
+                                text(
+                                    "UPDATE session_turns SET created_at = :at "
+                                    "WHERE session_id = :s AND turn_index = 1"
+                                ),
+                                {"at": _T0, "s": stream[1]},
+                            )
+                if channel:
+                    await connection.execute(
+                        text(
+                            "INSERT INTO channel_threads (project_id, id, space_id, "
+                            "agent_id, session_id) VALUES (:p, :id, :sp, :ag, :s)"
+                        ),
+                        {
+                            "p": project_id,
+                            "id": uuid4(),
+                            "sp": uuid4(),
+                            "ag": uuid4(),
+                            "s": stream[1],
+                        },
+                    )
+                streams.append(stream)
+            return streams
+
+        project_a, project_b = uuid4(), uuid4()
+        streams_a = await seed(project_a)
+        streams_b = await seed(project_b)
+
+        # Project B row by row, through the live DAO.
+        dao = SharingDAO(engine=_ShadowEngine(connection))
+        for _, session_id in streams_b:
+            await dao.assign_legacy_session_access(
+                project_id=project_b, session_id=session_id
+            )
+        # Project A by the migration (B is done, so the walk leaves it alone).
+        _, sessions = await _backfill(connection)
+        assert sessions == len(cases)
+
+        results_a = [await _policy(connection, s[0]) for s in streams_a]
+        results_b = [await _policy(connection, s[0]) for s in streams_b]
+        assert results_a == results_b
+        # And the fixture decides what it should (sanity check of the shapes).
+        assert [owner for _, owner in results_a] == [
+            alice, None, alice, bob, None, None, None, None,
+            creator, turn_creator, creator, None,
+        ]  # fmt: skip
+        assert {visibility for visibility, _ in results_a} == {"project"}
+
+        # The DAO's read path agrees too.
+        state = await dao.fetch_session_policy(
+            project_id=project_b, session_id=streams_b[0][1]
+        )
+        assert (state.policy.visibility.value, state.policy.owner_user_id) == (
+            "project",
+            alice,
+        )
