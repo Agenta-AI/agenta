@@ -15,7 +15,7 @@ dependencies = [
     # Keep this exact: a range would silently change those contracts underneath us, and
     # the contract case beside the OAuth storage asserts this exact version, so a relock
     # that moved within a range turned the branch red (M16).
-    "mcp==2.1.1",
+    "mcp==2.2.0",
     "uvicorn[standard]>=0.51,<0.52",
     "gunicorn>=26,<27",
     "httpx>=0.28,<0.29",
