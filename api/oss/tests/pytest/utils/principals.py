@@ -1,6 +1,7 @@
 """Test helpers for the run principal (M2): envelopes, request access, an in-memory
 principals DAO, and the API-key-with-missing-creator fixture."""
 
+from contextlib import contextmanager
 from typing import Dict, List, Optional
 from uuid import UUID, uuid4
 
@@ -338,3 +339,24 @@ class HumanCheckFromWrapper:
             if allowed
             else DecisionReason.MISSING_CAPABILITY,
         )
+
+
+@contextmanager
+def bearer_request_access(user_id: UUID):
+    """Run the block as a browser session of `user_id` (the request access the auth
+    middleware sets), for code that calls `check_action_access`."""
+
+    from oss.src.core.access.context import (  # noqa: PLC0415
+        reset_request_access,
+        set_request_access,
+    )
+
+    access = make_request_access(
+        envelope=make_envelope(kind="human", principal_id=user_id),
+        credential_kind="bearer_session",
+    )
+    token = set_request_access(access)
+    try:
+        yield access
+    finally:
+        reset_request_access(token)

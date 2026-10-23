@@ -29,7 +29,10 @@ from oss.tests.pytest.utils.membership_seed import (
     seed_organization,
 )
 from oss.tests.pytest.utils.memberships import FakeAccessCache
-from oss.tests.pytest.utils.principals import HumanPrincipalsDAO
+from oss.tests.pytest.utils.principals import (
+    HumanPrincipalsDAO,
+    bearer_request_access,
+)
 
 
 pytestmark = pytest.mark.integration
@@ -57,11 +60,12 @@ def cache(monkeypatch):
 
 
 async def _can_view(user, project) -> bool:
-    return await check_action_access(
-        user_uid=str(user),
-        project_id=str(project),
-        permission=Permission.VIEW_APPLICATIONS,
-    )
+    with bearer_request_access(user):
+        return await check_action_access(
+            user_uid=str(user),
+            project_id=str(project),
+            permission=Permission.VIEW_APPLICATIONS,
+        )
 
 
 async def test_admin_membership_create_clears_a_cached_denial(cache):
@@ -140,11 +144,12 @@ async def test_admin_owner_membership_clears_the_former_owner(cache):
         )
 
         async def _can_edit_workspace(user) -> bool:
-            return await check_action_access(
-                user_uid=str(user),
-                project_id=str(project),
-                permission=Permission.EDIT_WORKSPACE,
-            )
+            with bearer_request_access(user):
+                return await check_action_access(
+                    user_uid=str(user),
+                    project_id=str(project),
+                    permission=Permission.EDIT_WORKSPACE,
+                )
 
         # The owner shortcut allows, and the answer is cached.
         assert await _can_edit_workspace(owner) is True
