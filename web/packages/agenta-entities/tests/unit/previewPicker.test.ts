@@ -290,6 +290,17 @@ describe("installPreviewPicker: who can pick", () => {
         expect(lastPicked(r).element.tag).toBe("h2")
     })
 
+    it("blocks touch events from the app without cancelling them, so a tap still clicks", () => {
+        const r = realm(`<button>Go</button>`)
+        const seen: string[] = []
+        const button = r.doc.querySelector("button")!
+        button.addEventListener("touchend", () => seen.push("touchend"))
+        r.handle({type: "pick-start", format: "html"})
+        const touch = new r.win.Event("touchend", {bubbles: true, cancelable: true})
+        expect(button.dispatchEvent(touch)).toBe(true)
+        expect(seen).toEqual([])
+    })
+
     it("ignores a click whose press landed on another element", () => {
         const r = realm(`<h2>One</h2><p>Two</p>`)
         r.handle({type: "pick-start", format: "html"})

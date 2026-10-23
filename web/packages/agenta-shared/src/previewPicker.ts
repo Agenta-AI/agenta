@@ -1,10 +1,6 @@
-/**
- * Preview comment picker. `installPreviewPicker` ships as a string into sandboxed frames, so its
- * body follows the HTML stub's rules: self-contained ES2017, no spread, no `?.`/`??`.
- */
+// Preview comment picker; `installPreviewPicker` ships as a string, so it follows the stub's rules.
 import {QUOTE_EXCERPT_CAP} from "./quotes"
 
-// Old-style loops on purpose: the picker body is shipped as a string into a foreign document.
 /* eslint-disable no-var, @typescript-eslint/prefer-for-of */
 
 export type PickerFormat = "html" | "document" | "presentation"
@@ -98,6 +94,7 @@ export function installPreviewPicker(
     var mode: PickerMode | null = null
     var pressed: {target: EventTarget | null; at: number} | null = null
     var pins: PinQuery[] = []
+    var missing: Record<string, boolean> = {}
     var highlight: HTMLElement | null = null
     var scheduled = false
     var observer: MutationObserver | null = null
@@ -306,10 +303,11 @@ export function installPreviewPicker(
 
     function onBlocked(event: Event): void {
         if (!mode) return
-        event.preventDefault()
+        var type = event.type
+        // A cancelled touch event cancels the tap's click too, and the click is what picks.
+        if (type !== "touchstart" && type !== "touchend") event.preventDefault()
         event.stopPropagation()
         event.stopImmediatePropagation()
-        var type = event.type
         if (type === "pointerdown" || type === "mousedown" || type === "touchstart") {
             pressed = {target: event.target, at: Date.now()}
             return
@@ -353,7 +351,8 @@ export function installPreviewPicker(
         var stored = tidy(pin.text)
         var prefix = stored.slice(0, PIN_PREFIX)
         if (el && tidy(el.textContent).indexOf(prefix) === 0) return el
-        if (!stored) return null
+        // Only a DOM change can bring a missing element back; scrolling skips the scan.
+        if (!stored || missing[pin.id]) return null
         var lastStep = pin.selector.split(">").pop() || ""
         var tagMatch = /^([a-zA-Z][a-zA-Z0-9-]*)/.exec(lastStep.trim())
         var candidates =
@@ -373,6 +372,7 @@ export function installPreviewPicker(
             if (!first && t.indexOf(prefix) === 0) first = c
             if (exact) break
         }
+        if (!exact && !first) missing[pin.id] = true
         return exact || first
     }
 
@@ -396,9 +396,14 @@ export function installPreviewPicker(
         else setTimeout(run, 16)
     }
 
+    function onMutation(): void {
+        missing = {}
+        schedule()
+    }
+
     function ensureObserver(): void {
         if (observer || !document.body || typeof MutationObserver === "undefined") return
-        observer = new MutationObserver(schedule)
+        observer = new MutationObserver(onMutation)
         observer.observe(document.body, {childList: true, subtree: true, characterData: true})
     }
 
@@ -448,6 +453,7 @@ export function installPreviewPicker(
             var next = readPins(m.pins)
             if (!next) return
             pins = next
+            missing = {}
             ensureObserver()
             postPinRects()
         }
