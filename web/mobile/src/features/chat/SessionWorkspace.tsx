@@ -98,6 +98,8 @@ export const SessionWorkspace = ({
     entityId,
     agentId,
     agentResolving = false,
+    linkEntityId = entityId,
+    linkAgentId = agentId,
     sessionId,
     workspaceId,
     projectId,
@@ -112,6 +114,12 @@ export const SessionWorkspace = ({
     agentId?: string | null
     /** The session's agent is still being read; a null `agentId` is not yet the answer. */
     agentResolving?: boolean
+    /**
+     * This session's own revision and agent, without the last session's held across a switch.
+     * A linked automation drawer opens with them. Default: `entityId` and `agentId`.
+     */
+    linkEntityId?: string | null
+    linkAgentId?: string | null
     sessionId: string
     workspaceId: string
     projectId: string
@@ -141,9 +149,8 @@ export const SessionWorkspace = ({
     const base = `/w/${workspaceId}/p/${projectId}`
     useAutomationUrlSync({
         enabled: deepLinks,
-        // Not while resolving: on a session switch `entityId` still holds the last session's agent.
-        ready: !agentResolving && (Boolean(entityId) || !agentId),
-        playgroundEntityId: entityId ?? undefined,
+        ready: !agentResolving && (Boolean(linkEntityId) || !linkAgentId),
+        playgroundEntityId: linkEntityId ?? undefined,
         scope: sessionId,
     })
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
