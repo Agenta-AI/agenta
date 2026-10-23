@@ -40,7 +40,7 @@ async def check_action_access(
     """Check that a user is a member of a project and has a role or a permission there.
 
     Membership comes from `MembershipsService.resolve` (one statement); the decision
-    from `AccessService.check_capability`. The boolean is cached per (user, project)
+    from `AccessService.check_human`. The boolean is cached per (user, project)
     as before; every membership writer clears it.
 
     Args:
@@ -95,7 +95,7 @@ async def check_action_access(
         else permission
     )
 
-    decision = await access_service.check_capability(
+    decision = await access_service.check_human(
         user_id=user_id,
         project_id=target_project_id,
         action=action,

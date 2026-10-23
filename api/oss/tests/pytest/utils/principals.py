@@ -176,3 +176,21 @@ async def seed_api_key_with_missing_creator(*, project_id: UUID) -> UUID:
         )
         await session.commit()
     return key_id
+
+
+class HumanPrincipalsDAO(PrincipalsDAOInterface):
+    """Every human id is an active user; other kinds do not exist. Reads nothing, so a
+    test that counts membership statements keeps counting only those."""
+
+    def __init__(self) -> None:
+        self.reads: List[PrincipalRef] = []
+
+    async def fetch_principal(
+        self, *, principal: PrincipalRef
+    ) -> Optional[PrincipalRecord]:
+        self.reads.append(principal)
+        if principal.kind != PrincipalKind.HUMAN:
+            return None
+        return PrincipalRecord(
+            principal=principal, acting_user_id=principal.id, is_active=True
+        )

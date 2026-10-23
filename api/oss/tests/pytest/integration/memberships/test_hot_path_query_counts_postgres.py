@@ -23,6 +23,7 @@ from oss.tests.pytest.utils.membership_seed import (
     seed_organization,
 )
 from oss.tests.pytest.utils.statements import count_statements
+from oss.tests.pytest.utils.principals import HumanPrincipalsDAO
 
 
 pytestmark = pytest.mark.integration
@@ -174,7 +175,11 @@ def registered_access(monkeypatch):
         monkeypatch.setattr(
             access_module,
             "_access_service",
-            AccessService(memberships=_service(policy), rbac=AlwaysEnforcedRbac()),
+            AccessService(
+                memberships=_service(policy),
+                rbac=AlwaysEnforcedRbac(),
+                principals=HumanPrincipalsDAO(),
+            ),
         )
 
     return _register
