@@ -22,7 +22,7 @@ or a backfill.
 | session_turns | principal_kind, principal_id, sender_user_id, sender_external_key, origin, origin_id, parent_run_id, approved_by |
 | session_inputs, session_commands, session_interactions | run_envelope |
 | trigger_schedules, trigger_subscriptions | principal_kind, principal_id, artifact_id |
-| evaluation_runs | principal_kind, principal_id |
+| evaluation_runs | principal_kind, principal_id, principal_user_id |
 
 Kinds and origins are validated by the application enums, so a later principal kind
 needs no schema change. Old pods do not select the new columns and keep working.
@@ -70,7 +70,7 @@ _COLUMNS = (
         "trigger_subscriptions",
         (*_principal_columns(), ("artifact_id", "UUID")),
     ),
-    ("evaluation_runs", _principal_columns()),
+    ("evaluation_runs", (*_principal_columns(), ("principal_user_id", "UUID"))),
 )
 
 # (index name, table, columns): archiving an agent pauses its triggers by artifact.

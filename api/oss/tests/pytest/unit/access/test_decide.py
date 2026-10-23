@@ -566,5 +566,8 @@ async def test_deny_logs_ids_without_credentials(fake_cache, monkeypatch):
     assert fields["principal_kind"] == "human"
     assert fields["credential_kind"] == "run_credential"
     assert fields["run_id"] == "turn-1" and fields["origin"] == "web"
+    # The role user is known on a membership denial and is logged.
+    assert fields["role_user_id"] == str(outsider.id)
+    assert fields["organization_id"] == str(world.organization_id)
     for value in fields.values():
         assert "Secret " not in str(value) and "ApiKey " not in str(value)

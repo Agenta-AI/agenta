@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from oss.tests.pytest.utils.principals import make_envelope
+from oss.tests.pytest.utils.principals import any_approval, make_envelope
 
 from oss.src.apis.fastapi.sessions.models import SessionInteractionCreateRequest
 from oss.src.core.sessions.interactions.dtos import SessionInteractionKind
@@ -156,6 +156,7 @@ async def test_respond_fallback_calls_invoke_when_no_dispatch_fn():
         user_id=user_id,
         interaction_id=interaction.id,
         answer={"reply": "yes"},
+        approved_by=any_approval(),
     )
 
     workflows_service.invoke_workflow.assert_awaited_once()
@@ -185,6 +186,7 @@ async def test_respond_without_references_builds_a_safe_reference_less_request()
         user_id=user_id,
         interaction_id=interaction.id,
         answer={"approved": True},
+        approved_by=any_approval(),
     )
 
     workflows_service.invoke_workflow.assert_awaited_once()
@@ -217,6 +219,7 @@ async def test_respond_detached_calls_dispatch_fn_not_invoke():
         user_id=user_id,
         interaction_id=interaction.id,
         answer={"reply": "yes"},
+        approved_by=any_approval(),
     )
 
     dispatch_fn.assert_awaited_once()
@@ -286,6 +289,7 @@ async def test_approval_respond_composes_resume_messages_from_records():
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": True},
+        approved_by=any_approval(),
     )
 
     request = dispatch_fn.await_args.kwargs["request"]
@@ -327,6 +331,7 @@ async def test_denial_with_message_appends_a_trailing_user_note():
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": False, "message": "use --dry-run instead"},
+        approved_by=any_approval(),
     )
 
     messages = dispatch_fn.await_args.kwargs["request"].data.inputs["messages"]
@@ -352,6 +357,7 @@ async def test_approval_respond_without_records_synthesizes_the_anchor():
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": True},
+        approved_by=any_approval(),
     )
 
     messages = dispatch_fn.await_args.kwargs["request"].data.inputs["messages"]
@@ -404,6 +410,7 @@ async def test_explicit_tool_call_id_wins_over_the_records_lookup():
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": True, "tool_call_id": "tc-9"},
+        approved_by=any_approval(),
     )
 
     messages = dispatch_fn.await_args.kwargs["request"].data.inputs["messages"]
@@ -431,6 +438,7 @@ async def test_non_approval_answers_still_pass_through_unchanged():
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"reply": "yes"},
+        approved_by=any_approval(),
     )
 
     assert dispatch_fn.await_args.kwargs["request"].data.inputs == {"reply": "yes"}
@@ -449,6 +457,7 @@ async def test_approval_answer_without_a_boolean_verdict_passes_through():
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": "yep"},
+        approved_by=any_approval(),
     )
 
     assert dispatch_fn.await_args.kwargs["request"].data.inputs == {"approved": "yep"}
@@ -572,6 +581,7 @@ async def test_respond_sends_the_stamped_config_inline_with_references():
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": True},
+        approved_by=any_approval(),
     )
 
     request = dispatch_fn.await_args.kwargs["request"]
@@ -602,6 +612,7 @@ async def test_respond_on_a_pre_change_row_stays_references_only():
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": True},
+        approved_by=any_approval(),
     )
 
     request = dispatch_fn.await_args.kwargs["request"]
@@ -632,6 +643,7 @@ async def test_respond_passes_the_stamped_config_on_the_blocking_path_too():
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": True},
+        approved_by=any_approval(),
     )
 
     request = workflows_service.invoke_workflow.await_args.kwargs["request"]
@@ -659,6 +671,7 @@ async def test_the_stored_call_id_anchors_the_envelope_when_records_are_missing(
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": True},
+        approved_by=any_approval(),
     )
 
     blocks = dispatch_fn.await_args.kwargs["request"].data.inputs["messages"][0][
@@ -684,6 +697,7 @@ async def test_an_explicit_client_id_still_outranks_the_stored_one():
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": True, "tool_call_id": "toolu_from_client"},
+        approved_by=any_approval(),
     )
 
     blocks = dispatch_fn.await_args.kwargs["request"].data.inputs["messages"][0][
@@ -940,6 +954,7 @@ async def test_resume_falls_back_to_the_turn_references_when_the_gate_row_has_no
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": True},
+        approved_by=any_approval(),
     )
 
     invoke_request = workflows_service.invoke_workflow.await_args.kwargs["request"]
@@ -981,6 +996,7 @@ async def test_resume_falls_back_to_the_stream_references_when_no_turn_carries_a
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": True},
+        approved_by=any_approval(),
     )
 
     invoke_request = workflows_service.invoke_workflow.await_args.kwargs["request"]
@@ -1020,6 +1036,7 @@ async def test_the_gate_rows_own_references_win_over_the_session_fallback():
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": True},
+        approved_by=any_approval(),
     )
 
     invoke_request = workflows_service.invoke_workflow.await_args.kwargs["request"]
@@ -1050,6 +1067,7 @@ async def test_a_session_with_no_recorded_identity_still_sends_a_reference_less_
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": True},
+        approved_by=any_approval(),
     )
 
     invoke_request = workflows_service.invoke_workflow.await_args.kwargs["request"]
@@ -1122,6 +1140,7 @@ async def test_client_tool_answer_replays_questionnaire_result(outcome):
         interaction_id=interaction.id,
         answer=answer,
         continuation_execution_id=execution_id,
+        approved_by=any_approval(),
     )
     request = dispatch_fn.await_args.kwargs["request"]
     assert dispatch_fn.await_args.kwargs["run_id"] == execution_id
@@ -1170,6 +1189,7 @@ async def test_original_principal_removed(monkeypatch):
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": True},
+        approved_by=any_approval(),
     )
     workflows_service.invoke_workflow.assert_not_awaited()
     interactions_service.cancel_session_pending.assert_awaited_once_with(
@@ -1200,6 +1220,7 @@ async def test_response_without_envelope_is_settled_not_raised(
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": True},
+        approved_by=any_approval(),
     )
     workflows_service.invoke_workflow.assert_not_awaited()
     interactions_service.cancel_session_pending.assert_awaited_once()
@@ -1224,6 +1245,7 @@ async def test_refused_response_without_a_turn_cancels_that_interaction(
         user_id=uuid4(),
         interaction_id=interaction.id,
         answer={"approved": True},
+        approved_by=any_approval(),
     )
     interactions_service.cancel_session_pending.assert_not_awaited()
     transition = interactions_service.transition_interaction.await_args.kwargs[

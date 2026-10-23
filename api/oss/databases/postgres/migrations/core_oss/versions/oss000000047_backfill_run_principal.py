@@ -72,7 +72,7 @@ Read-only counts to run on a copy of a production database before the deploy:
      WHERE status = 'pending' AND deleted_at IS NULL;
 """
 
-from typing import Callable, Dict, List, Optional, Sequence, Union
+from typing import Callable, Dict, Iterator, List, Optional, Sequence, Union
 
 from alembic import op
 from sqlalchemy import text
@@ -238,17 +238,16 @@ _START_KEY = {
 }
 
 
-def _walk(connection, sql: str, *, batch_size: int) -> List:
-    """Run `sql` batch after batch until the walk passes the last key. Returns the
-    `changed` value of each batch."""
+def _walk(connection, sql: str, *, batch_size: int) -> Iterator:
+    """Run `sql` batch after batch until the walk passes the last key. Yields the
+    `changed` value of each batch as it runs, so memory stays one batch."""
 
-    results = []
     key = dict(_START_KEY)
     while True:
         row = connection.execute(text(sql), {**key, "batch_size": batch_size}).first()
         if row is None:  # the batch was empty: past the last key
-            return results
-        results.append(row.changed)
+            return
+        yield row.changed
         key = {"after_project": str(row.project_id), "after_id": str(row.id)}
 
 
@@ -270,17 +269,17 @@ def _backfill(
             counts["principals"] += int(changed or 0)
 
     for table in _TRIGGER_TABLES:
-        paused_ids: List[str] = []
         for changed in _walk(
             connection, PAUSE_SQL.format(table=table), batch_size=batch_size
         ):
-            paused_ids.extend(str(i) for i in (changed or []))
-        counts["paused"] += len(paused_ids)
-        if report is not None and paused_ids:
-            report(
-                f"[run principal] paused {len(paused_ids)} {table} without a "
-                f"principal: {', '.join(paused_ids)}"
-            )
+            paused_ids = [str(i) for i in (changed or [])]
+            counts["paused"] += len(paused_ids)
+            # One line per batch: the log stays bounded by the batch size.
+            if report is not None and paused_ids:
+                report(
+                    f"[run principal] paused {len(paused_ids)} {table} without a "
+                    f"principal: {', '.join(paused_ids)}"
+                )
 
     for table in _TRIGGER_TABLES:
         for changed in _walk(

@@ -397,75 +397,145 @@ async def test_gateway_credentials_warm_runs_no_access_statement(
     assert s["endpoint"] == []
 
 
+async def _seed_agent(project_id, user_id):
+    """A workflow with one committed revision, through the real workflows service."""
+
+    import oss.src.models.db_models  # noqa: F401, PLC0415
+    from oss.src.core.workflows.dtos import (  # noqa: PLC0415
+        WorkflowRevisionCommit,
+        WorkflowRevisionData,
+    )
+    from oss.src.core.workflows.service import WorkflowsService  # noqa: PLC0415
+    from oss.src.dbs.postgres.git.dao import GitDAO  # noqa: PLC0415
+    from oss.src.dbs.postgres.workflows.dbes import (  # noqa: PLC0415
+        WorkflowArtifactDBE,
+        WorkflowRevisionDBE,
+        WorkflowVariantDBE,
+    )
+
+    artifact_id, variant_id = uuid4(), uuid4()
+    await execute(
+        "INSERT INTO workflow_artifacts (id, project_id, slug, created_at) "
+        "VALUES (:id, :p, :slug, now())",
+        {"id": artifact_id, "p": project_id, "slug": f"m2cnt-{artifact_id.hex[:8]}"},
+    )
+    await execute(
+        "INSERT INTO workflow_variants (id, project_id, artifact_id, slug, created_at) "
+        "VALUES (:id, :p, :a, :slug, now())",
+        {
+            "id": variant_id,
+            "p": project_id,
+            "a": artifact_id,
+            "slug": f"m2cnt-v-{variant_id.hex[:8]}",
+        },
+    )
+    service = WorkflowsService(
+        workflows_dao=GitDAO(
+            ArtifactDBE=WorkflowArtifactDBE,
+            VariantDBE=WorkflowVariantDBE,
+            RevisionDBE=WorkflowRevisionDBE,
+            engine=get_transactions_engine(),
+        )
+    )
+    outcome = await service.commit_workflow_revision_checked(
+        project_id=project_id,
+        user_id=user_id,
+        workflow_revision_commit=WorkflowRevisionCommit(
+            workflow_variant_id=variant_id,
+            data=WorkflowRevisionData(url="http://services/agent"),
+            message="seed",
+        ),
+    )
+    assert outcome.status == "committed"
+    return service, artifact_id, variant_id
+
+
+async def _delete_agent(project_id):
+    for table in (
+        "trigger_deliveries",
+        "session_streams",
+        "trigger_schedules",
+        "workflow_revisions",
+        "workflow_variants",
+        "workflow_artifacts",
+    ):
+        await execute(f"DELETE FROM {table} WHERE project_id = :p", {"p": project_id})
+
+
 @pytest.mark.parametrize("edition", EDITIONS)
 async def test_trigger_tick_runs_no_access_statement_and_unchanged_endpoint_statements(
     edition, seeded, fake_cache, monkeypatch
 ):
-    from types import SimpleNamespace  # noqa: PLC0415
-    from unittest.mock import AsyncMock, MagicMock  # noqa: PLC0415
+    """A real tick: real TriggersDAO, real delivery claim, real target resolution and
+    artifact read; only the detached dispatch is a stub. Warm, the decision sends no
+    statement, and the tick sends as many statements with the real AccessService as
+    with an always-allow stub (no hidden access read on the endpoint side)."""
+
+    from unittest.mock import AsyncMock  # noqa: PLC0415
 
     from oss.src.core.triggers.dtos import (  # noqa: PLC0415
-        TriggerSchedule,
+        TriggerScheduleCreate,
         TriggerScheduleData,
     )
-    from oss.src.core.workflows.dtos import ResolvedTarget  # noqa: PLC0415
+    from oss.src.dbs.postgres.sessions.streams.dao import (  # noqa: PLC0415
+        SessionStreamsDAO,
+    )
+    from oss.src.dbs.postgres.triggers.dao import TriggersDAO  # noqa: PLC0415
     from oss.src.tasks.asyncio.triggers.dispatcher import (  # noqa: PLC0415
         TriggersDispatcher,
     )
 
     project_id = seeded.project_ids[0]
-    schedule = TriggerSchedule(
-        id=uuid4(),
-        created_by_id=seeded.user_ids["editor"],
-        principal=_human(seeded.user_ids["editor"]),
-        data=TriggerScheduleData(
-            event_key="cron.tick",
-            schedule="* * * * *",
-            references={"workflow": {"slug": "agent"}},
-        ),
-    )
-
-    def _dispatcher(access_service):
-        dao = MagicMock()
-        dao.dedup_seen_schedule = AsyncMock(return_value=False)
-        dao.update_delivery = AsyncMock()
-        dao.refuse_delivery = AsyncMock()
-        claims = MagicMock()
-        claims.claim_trigger_delivery = AsyncMock(return_value=True)
-        workflows = MagicMock()
-        workflows.resolve_request_target = AsyncMock(
-            return_value=ResolvedTarget(artifact_id=uuid4(), revision_id=uuid4())
+    editor = seeded.user_ids["editor"]
+    workflows, artifact_id, _ = await _seed_agent(project_id, editor)
+    triggers = TriggersDAO(engine=get_transactions_engine())
+    claims = SessionStreamsDAO(engine=get_transactions_engine())
+    try:
+        schedule = await triggers.create_schedule(
+            project_id=project_id,
+            user_id=editor,
+            principal=_human(editor),
+            artifact_id=artifact_id,
+            schedule=TriggerScheduleCreate(
+                name="m2-count",
+                data=TriggerScheduleData(
+                    event_key="cron.tick",
+                    schedule="0 0 1 1 *",
+                    references={"workflow": {"id": str(artifact_id)}},
+                ),
+            ),
         )
-        dispatch = AsyncMock(return_value="run-1")
-        return (
-            TriggersDispatcher(
-                triggers_dao=dao,
+
+        async def _tick(access_service, event_id):
+            dispatch = AsyncMock(return_value="run-1")
+            dispatcher = TriggersDispatcher(
+                triggers_dao=triggers,
                 session_claims_dao=claims,
                 workflows_service=workflows,
                 dispatch_fn=dispatch,
                 access_service=access_service,
-            ),
-            SimpleNamespace(dao=dao, dispatch=dispatch),
+            )
+            await dispatcher.dispatch_schedule(
+                project_id=project_id, schedule=schedule, event_id=event_id, event={}
+            )
+            return dispatch
+
+        stub = AllowingAccessService(organization_id=seeded.organization_id)
+        await _tick(stub, "warm-stub")
+        with count_statements_by_phase(get_transactions_engine()) as baseline:
+            await _tick(stub, "tick-stub")
+
+        service = _service(edition)
+        await _tick(service, "warm-real")
+        with count_statements_by_phase(get_transactions_engine()) as s:
+            dispatch = await _tick(service, "tick-real")
+
+        dispatch.assert_awaited_once()
+        assert dispatch.await_args.kwargs["envelope"].authority.principal == (
+            _human(editor)
         )
-
-    async def _tick(access_service, event_id):
-        dispatcher, parts = _dispatcher(access_service)
-        await dispatcher.dispatch_schedule(
-            project_id=project_id, schedule=schedule, event_id=event_id, event={}
-        )
-        return parts
-
-    stub = AllowingAccessService(organization_id=seeded.organization_id)
-    await _tick(stub, "warm-stub")
-    with count_statements_by_phase(get_transactions_engine()) as baseline:
-        await _tick(stub, "tick-stub")
-
-    service = _service(edition)
-    await _tick(service, "warm-real")
-    with count_statements_by_phase(get_transactions_engine()) as s:
-        parts = await _tick(service, "tick-real")
-
-    parts.dispatch.assert_awaited_once()
-    parts.dao.refuse_delivery.assert_not_awaited()
-    assert s["access"] == []
-    assert len(s["endpoint"]) == len(baseline["endpoint"])
+        assert s["access"] == []
+        assert len(s["endpoint"]) == len(baseline["endpoint"])
+        assert baseline["endpoint"], "the tick must have reached Postgres"
+    finally:
+        await _delete_agent(project_id)

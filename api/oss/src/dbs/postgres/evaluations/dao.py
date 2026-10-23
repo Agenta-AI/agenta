@@ -133,6 +133,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
         run_dbe.principal_kind = principal.kind.value
         run_dbe.principal_id = principal.id
+        run_dbe.principal_user_id = user_id
 
         try:
             async with self.engine.session() as session:
@@ -320,6 +321,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         project_id: UUID,
         run_id: UUID,
         principal: PrincipalRef,
+        user_id: Optional[UUID] = None,
     ) -> None:
         async with self.engine.session() as session:
             await session.execute(
@@ -328,7 +330,11 @@ class EvaluationsDAO(EvaluationsDAOInterface):
                     EvaluationRunDBE.project_id == project_id,
                     EvaluationRunDBE.id == run_id,
                 )
-                .values(principal_kind=principal.kind.value, principal_id=principal.id)
+                .values(
+                    principal_kind=principal.kind.value,
+                    principal_id=principal.id,
+                    principal_user_id=user_id,
+                )
             )
             await session.commit()
 

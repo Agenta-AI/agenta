@@ -38,6 +38,9 @@ class EvaluationRunDBA(
     # The principal the run executes as (M2): set at create, start and rerun.
     principal_kind = Column(VARCHAR, nullable=True)
     principal_id = Column(UUID(as_uuid=True), nullable=True)
+    # The acting user of the request that set the principal (for an installation, the
+    # linked user whose role the run uses). Written with the principal.
+    principal_user_id = Column(UUID(as_uuid=True), nullable=True)
 
 
 class EvaluationScenarioDBA(

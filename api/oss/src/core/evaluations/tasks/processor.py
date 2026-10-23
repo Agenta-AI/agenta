@@ -760,7 +760,7 @@ class APISliceProcessor:
             project_id=project_id,
             run_id=run_id,
         )
-        if not run or not run.data or not run.data.steps:
+        if not run:
             return ProcessSummary()
 
         # The run executes as its stored principal. A run without one (created by a
@@ -795,6 +795,11 @@ class APISliceProcessor:
                 run=run,
                 evaluations_service=self.evaluations_service,
             )
+            return ProcessSummary()
+
+        # Checked after the access decision, so a refused run without steps is
+        # still settled.
+        if not run.data or not run.data.steps:
             return ProcessSummary()
 
         steps = run.data.steps

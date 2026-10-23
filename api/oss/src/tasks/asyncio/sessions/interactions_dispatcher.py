@@ -31,8 +31,6 @@ from typing import Any, Callable, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.access.dtos import (
-    PrincipalKind,
-    PrincipalRef,
     RunApproval,
     RunEnvelope,
 )
@@ -407,12 +405,12 @@ class InteractionsDispatcher:
         #
         interaction_id: UUID,
         answer: Any,
-        approved_by: Optional[RunApproval] = None,
+        approved_by: RunApproval,
         control_command_id: Optional[UUID] = None,
         continuation_execution_id: Optional[str] = None,
     ) -> None:
         """Rebuild the resumed envelope from the interaction row. The approver is
-        `approved_by`, else the task's user.
+        `approved_by`, from the trusted caller; it is never rebuilt from a user id.
 
         A refusal is terminal and is not raised, so no task retry repeats it: a row
         without an envelope (parked before M2) or a principal that lost access cancels
@@ -428,11 +426,7 @@ class InteractionsDispatcher:
             envelope = resumed_envelope(
                 asked=interaction.run_envelope,
                 run_id=continuation_execution_id,
-                approved_by=approved_by
-                or RunApproval(
-                    principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=user_id),
-                    user_id=user_id,
-                ),
+                approved_by=approved_by,
             )
             # The resume runs as the asked run's principal: recheck it now.
             await get_access_service().require(

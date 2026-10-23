@@ -313,3 +313,67 @@ async def test_run_from_source_refuses_before_any_source(monkeypatch, refusal):
         edited = service.edit_run.await_args.kwargs["run"]
         assert edited.status == EvaluationStatus.FAILURE
         assert edited.flags.is_active is False
+
+
+async def test_installation_run_uses_the_starting_linked_user(_allowing_access_service):
+    """Alice (admin) creates the evaluation; an installation linked to Bob starts it.
+    The run uses Bob's role (the acting user of the start), never Alice's."""
+
+    alice, bob = uuid4(), uuid4()
+    installation = PrincipalRef(kind=PrincipalKind.INSTALLATION, id=uuid4())
+    run = EvaluationRun(
+        id=uuid4(),
+        created_by_id=alice,
+        principal=installation,
+        principal_user_id=bob,
+    )
+    envelope = await _processor()._run_envelope(project_id=uuid4(), run=run)
+    assert envelope.authority.principal == installation
+    assert envelope.authority.linked_user_id == bob
+
+
+def test_principal_user_id_is_not_in_responses():
+    run = EvaluationRun(id=uuid4(), principal_user_id=uuid4())
+    assert "principal_user_id" not in run.model_dump()
+
+
+async def test_start_stores_the_acting_user_with_the_principal():
+    dao = SimpleNamespace(set_run_principal=AsyncMock())
+    from oss.src.core.evaluations.service import EvaluationsService
+
+    service = EvaluationsService.__new__(EvaluationsService)
+    service.evaluations_dao = dao
+    principal = PrincipalRef(kind=PrincipalKind.INSTALLATION, id=uuid4())
+    user = uuid4()
+    await service.set_run_principal(
+        project_id=uuid4(), run_id=uuid4(), principal=principal, user_id=user
+    )
+    assert dao.set_run_principal.await_args.kwargs["user_id"] == user
+
+
+@pytest.mark.parametrize("data", [None, "empty"])
+async def test_refused_run_without_steps_is_closed_through_process(data):
+    from oss.src.core.evaluations.runtime.types import RunSlice
+    from oss.src.core.evaluations.types import EvaluationRunData, EvaluationStatus
+
+    run = EvaluationRun(
+        id=uuid4(),
+        name="r",
+        created_by_id=uuid4(),
+        flags=EvaluationRunFlags(is_active=True),
+        status=EvaluationStatus.RUNNING,
+        data=EvaluationRunData(steps=[], mappings=[]) if data == "empty" else None,
+    )
+    service = SimpleNamespace(
+        fetch_run=AsyncMock(return_value=run), edit_run=AsyncMock()
+    )
+    processor = _processor()
+    processor.evaluations_service = service
+
+    await processor.process(
+        project_id=uuid4(), user_id=uuid4(), run_slice=RunSlice(run_id=run.id)
+    )
+
+    edited = service.edit_run.await_args.kwargs["run"]
+    assert edited.status == EvaluationStatus.FAILURE
+    assert edited.flags.is_active is False
