@@ -38,6 +38,7 @@ from oss.src.dbs.postgres.channels.dbes import ChannelConnectionDBE
 from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
 
 from sqlalchemy import update
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 pytestmark = pytest.mark.integration
 
@@ -181,6 +182,7 @@ async def test_a_matched_command_travels_through_dispatch_event_and_opens_no_tur
     )
 
     dispatcher = InboxDispatcher(
+        run_admission=NoopRunAdmission(),
         channels_service=registry_scope["service"],
         streams_service=_FakeStreamsService(),
         invoke_fn=None,
@@ -241,6 +243,7 @@ async def test_backfill_runs_once_through_dispatch_event_and_sets_the_flag(
         return "run-1"
 
     dispatcher = InboxDispatcher(
+        run_admission=NoopRunAdmission(),
         channels_service=registry_scope["service"],
         invoke_fn=_invoke_fn,
     )

@@ -1082,6 +1082,7 @@ async def _dispatch_detached_run(
 _interactions_dispatcher = InteractionsDispatcher(
     workflows_service=workflows_service,
     interactions_service=interactions_service,
+    run_admission=run_admission,
     records_service=records_service,
     # Read-only: the resume's reference fallback, for a gate row whose own `data.references` is
     # empty. Without it the invoke has nothing to resolve a service URL from.
@@ -1104,6 +1105,7 @@ _triggers_dispatcher = TriggersDispatcher(
     triggers_dao=triggers_dao,
     session_claims_dao=session_streams_dao,
     workflows_service=workflows_service,
+    run_admission=run_admission,
     dispatch_fn=_dispatch_detached_run,
 )
 
@@ -1275,6 +1277,7 @@ simple_queues = SimpleQueuesRouter(
 
 tools = ToolsRouter(
     tools_service=tools_service,
+    run_admission=run_admission,
     workflows_service=workflows_service,
     tracing_service=tracing_service,
     mounts_service=mounts_service,
@@ -1341,6 +1344,7 @@ async def _respond_channel_interaction(
 
 _channels_inbox_dispatcher = InboxDispatcher(
     channels_service=channels_service,
+    run_admission=run_admission,
     attachments_service=session_attachments_service,
     respond_interaction_fn=_respond_channel_interaction,
     workflows_service=workflows_service,
@@ -1598,6 +1602,7 @@ session_commands_service = SessionCommandsService(
         continue_input=lambda command: deliver_continue_input(
             command=command,
             workflows_service=workflows_service,
+            run_admission=run_admission,
         ),
     ),
     executions_dao=session_executions_dao,
@@ -1612,6 +1617,7 @@ session_inputs_service = SessionInputsService(
 )
 session_starts_service = SessionStartsService(
     inputs_service=session_inputs_service,
+    run_admission=run_admission,
     executions_dao=session_executions_dao,
     streams_dao=session_streams_dao,
     workflows_service=workflows_service,

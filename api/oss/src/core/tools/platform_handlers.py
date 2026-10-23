@@ -33,6 +33,7 @@ from agenta.sdk.models.workflows import WorkflowServiceStatus
 
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY, RunAdmission
 from oss.src.core.apps.handlers import (
     CREATE_APP_CALL_REF,
     CREATE_APP_DEFAULT_TIMEOUT_MS,
@@ -118,6 +119,7 @@ async def handle_test_run(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService],
     envelope: RunEnvelope,
+    run_admission: RunAdmission,
     timeout_ms: int = TEST_RUN_DEFAULT_TIMEOUT_MS,
 ) -> PlatformHandlerResult:
     if _header_value(headers, TEST_RUN_RECURSION_HEADER) == TEST_RUN_RECURSION_VALUE:
@@ -134,6 +136,8 @@ async def handle_test_run(
         workflows_service=workflows_service,
         project_id=project_id,
         request=request,
+        envelope=envelope,
+        run_admission=run_admission,
     )
 
     meta = dict(workflow_request.meta or {})
@@ -219,6 +223,8 @@ async def _build_test_workflow_request(
     workflows_service: WorkflowsService,
     project_id: UUID,
     request: TestRunRequest,
+    envelope: RunEnvelope,
+    run_admission: RunAdmission,
 ) -> WorkflowServiceRequest:
     workflow_request = WorkflowServiceRequest(
         references={
@@ -229,6 +235,16 @@ async def _build_test_workflow_request(
 
     # Resolving the committed revision first (even with a delta) is the target validation:
     # a delta can only ever be applied on top of a variant that exists in THIS project.
+    # The admission resolves it (once, left on the request) and refuses an agent the
+    # parent's principal may not run (`AdmissionDenied`), before any delta is applied.
+    await run_admission.admit_request(
+        envelope=envelope,
+        session_id=None,
+        project_id=project_id,
+        request=workflow_request,
+        boundary=CHILD_RUN_BOUNDARY,
+    )
+    # A no-op once the admission resolved the request (it carries the revision).
     await workflows_service._ensure_request_revision(
         project_id=project_id,
         request=workflow_request,
@@ -1094,6 +1110,7 @@ async def dispatch_platform_tool_handler(
     user_id: UUID,
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService],
+    run_admission: RunAdmission,
     mounts_service: Any = None,
     envelope: Optional[RunEnvelope] = None,
 ) -> PlatformHandlerResult:
@@ -1112,6 +1129,8 @@ async def dispatch_platform_tool_handler(
                 "This tool starts a run and needs a run credential."
             )
         extra["envelope"] = envelope
+        # A handler that starts a run admits it.
+        extra["run_admission"] = run_admission
     return await registration.handler(
         arguments=arguments,
         headers=headers,

@@ -30,6 +30,8 @@ from oss.src.core.access.dtos import (
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import AccessDenied
+from oss.src.core.sharing.admission import CHANNEL_TURN_BOUNDARY, RunAdmission
+from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.channels.commands import (
     COMMAND_NEW,
     COMMAND_SESSIONS,
@@ -134,6 +136,7 @@ class InboxDispatcher:
         self,
         *,
         channels_service: ChannelsService,
+        run_admission: RunAdmission,
         workflows_service: Optional[WorkflowsService] = None,
         identity_service: Optional[ChannelIdentityService] = None,
         streams_service: Optional[SessionStreamsService] = None,
@@ -143,6 +146,9 @@ class InboxDispatcher:
         attachments_service: Optional[SessionAttachmentsService] = None,
     ):
         self.channels_service = channels_service
+        # Admits each turn (the installation and the bound agent) right before the
+        # invoke; a refusal settles the trigger failed with the failed-start reply.
+        self.run_admission = run_admission
         self.workflows_service = workflows_service
         # None means the turn runs as the agent's creator, not the sender.
         self.identity_service = identity_service
@@ -1046,6 +1052,19 @@ class InboxDispatcher:
                     envelope=envelope,
                     **extra,
                 )
+            except AdmissionDenied as denied:
+                # A decision, not a failed start: never retried.
+                await self._refuse_turn(
+                    project_id=project_id,
+                    resolution=resolution,
+                    turn_id=turn_id,
+                    trigger_id=trigger_id,
+                    reason=denied.decision.reason.value,
+                    connection=connection,
+                    capabilities=capabilities,
+                    request_locator=request_locator,
+                )
+                return
             except TurnRefused:
                 if attempt >= _MAX_INVOKE_ATTEMPTS:
                     log.error(
@@ -1157,33 +1176,58 @@ class InboxDispatcher:
             )
             return True
         except AccessDenied as denied:
-            reason = denied.decision.reason.value
-            log.info(
-                "[INBOX DISPATCHER] turn refused",
-                turn_id=turn_id,
-                binding_id=str(resolution.agent.id),
-                reason=reason,
-            )
-            await self.channels_service.settle_turn(
-                project_id=project_id,
-                trigger_id=trigger_id,
-                state=ChannelTriggerState.FAILED,
-                status=Status(code="access_denied", message=reason),
-            )
-            if connection and connection.channel == "slack" and request_locator:
-                adapter = self.channels_service.adapter_registry.get(connection.channel)
-                await adapter.set_message_status(
-                    connection=connection, locator=request_locator, status="failed"
-                )
-            await self._notify_not_started(
+            await self._refuse_turn(
                 project_id=project_id,
                 resolution=resolution,
                 turn_id=turn_id,
+                trigger_id=trigger_id,
+                reason=denied.decision.reason.value,
                 connection=connection,
                 capabilities=capabilities,
-                render=render_failed_start,
+                request_locator=request_locator,
             )
             return False
+
+    async def _refuse_turn(
+        self,
+        *,
+        project_id: UUID,
+        resolution: ChannelResolution,
+        turn_id: str,
+        trigger_id: UUID,
+        reason: str,
+        connection: Optional[ChannelConnection],
+        capabilities: Optional[ChannelCapabilities],
+        request_locator: Optional[Dict],
+    ) -> None:
+        """A refused turn: the trigger settles failed with `access_denied`, and the chat
+        gets the failed-start reply. Nothing is invoked."""
+
+        log.info(
+            "[INBOX DISPATCHER] turn refused",
+            turn_id=turn_id,
+            binding_id=str(resolution.agent.id),
+            reason=reason,
+        )
+        await self.channels_service.settle_turn(
+            project_id=project_id,
+            trigger_id=trigger_id,
+            state=ChannelTriggerState.FAILED,
+            status=Status(code="access_denied", message=reason),
+        )
+        if connection and connection.channel == "slack" and request_locator:
+            adapter = self.channels_service.adapter_registry.get(connection.channel)
+            await adapter.set_message_status(
+                connection=connection, locator=request_locator, status="failed"
+            )
+        await self._notify_not_started(
+            project_id=project_id,
+            resolution=resolution,
+            turn_id=turn_id,
+            connection=connection,
+            capabilities=capabilities,
+            render=render_failed_start,
+        )
 
     async def _notify_not_started(
         self,
@@ -1294,6 +1338,17 @@ class InboxDispatcher:
             )
 
         request = self._build_request(resolution=resolution, turn_input=turn_input)
+
+        # Raises `AdmissionDenied` for an agent the installation may not run (the
+        # caller settles the turn). Resolves the target once and leaves it on the
+        # request, so the invoke runs what was checked.
+        await self.run_admission.admit_request(
+            envelope=envelope,
+            session_id=None,
+            project_id=project_id,
+            request=request,
+            boundary=CHANNEL_TURN_BOUNDARY,
+        )
 
         try:
             response = await self.workflows_service.invoke_workflow_detached(

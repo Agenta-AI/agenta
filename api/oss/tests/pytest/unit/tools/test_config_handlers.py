@@ -28,6 +28,7 @@ from oss.src.core.tools.platform_handlers import (
 from oss.src.core.workflows.change_set import ChangeSetError, Reason
 from oss.src.core.workflows.service import RevisionConflictError
 from oss.src.core.access.permissions.types import Permission
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 VARIANT = uuid4()
@@ -455,6 +456,7 @@ class TestTheBoundaryActuallyPerformsTheSideEffects:
 
         emitted, invalidated = [], []
         router = ToolsRouter(
+            run_admission=NoopRunAdmission(),
             tools_service=SimpleNamespace(),
             workflows_service=SimpleNamespace(),
             tracing_service=SimpleNamespace(),

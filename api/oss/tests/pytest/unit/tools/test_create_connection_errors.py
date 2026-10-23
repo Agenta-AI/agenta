@@ -25,11 +25,12 @@ from oss.src.core.gateway.connections.exceptions import (
     AdapterError as ConnectionAdapterError,
 )
 from oss.src.core.tools.dtos import ToolConnectionCreate, ToolProviderKind
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 def _router(*, create_connection):
     tools_service = SimpleNamespace(create_connection=create_connection)
-    return ToolsRouter(tools_service=tools_service)
+    return ToolsRouter(run_admission=NoopRunAdmission(), tools_service=tools_service)
 
 
 def _request():

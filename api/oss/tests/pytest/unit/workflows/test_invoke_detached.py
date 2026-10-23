@@ -21,6 +21,7 @@ from oss.src.core.workflows.types import (
     WorkflowDetachedStartRejected,
 )
 from oss.tests.pytest.utils.principals import make_envelope
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 @pytest.fixture(autouse=True)
@@ -473,11 +474,13 @@ def test_dispatch_fn_injected_into_both_consumers():
         return "run-1"
 
     worker = InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
         workflows_service=SimpleNamespace(),
         interactions_service=SimpleNamespace(),
         dispatch_fn=_dispatch,
     )
     dispatcher = TriggersDispatcher(
+        run_admission=NoopRunAdmission(),
         triggers_dao=SimpleNamespace(),
         session_claims_dao=SimpleNamespace(),
         workflows_service=SimpleNamespace(),

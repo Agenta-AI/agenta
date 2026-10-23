@@ -16,6 +16,7 @@ from oss.src.core.triggers.dtos import (
 )
 from oss.src.core.triggers.service import TriggersService
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _DEFAULT_TARGET = object()
@@ -126,6 +127,7 @@ async def test_scheduled_run_as_api_key(_allowing_access_service):
     claims.claim_trigger_delivery = AsyncMock(return_value=True)
     dispatch = AsyncMock(return_value="run-1")
     dispatcher = TriggersDispatcher(
+        run_admission=NoopRunAdmission(),
         triggers_dao=dao,
         session_claims_dao=claims,
         workflows_service=MagicMock(),
@@ -158,6 +160,7 @@ async def test_null_principal_is_refused_and_paused_without_reconstruction(
     claims.claim_trigger_delivery = AsyncMock(return_value=True)
     dispatch = AsyncMock()
     dispatcher = TriggersDispatcher(
+        run_admission=NoopRunAdmission(),
         triggers_dao=dao,
         session_claims_dao=claims,
         workflows_service=MagicMock(),
@@ -184,7 +187,17 @@ def _allowing_access_service(_allowing_access_service):
 # -- C12: recheck before each run -----------------------------------------------------
 
 
-def _dispatch_setup(*, access_service, references=None, target=_DEFAULT_TARGET):
+def _dispatch_setup(
+    *,
+    access_service,
+    references=None,
+    target=_DEFAULT_TARGET,
+    admission_access=None,
+):
+    """`access_service` serves the organization id and, unless `admission_access` is
+    given, the real `RunAdmission`'s decisions."""
+
+    from oss.src.core.sharing.admission import RunAdmission
     from oss.src.core.workflows.dtos import ResolvedTarget
 
     order = []
@@ -224,14 +237,18 @@ def _dispatch_setup(*, access_service, references=None, target=_DEFAULT_TARGET):
 
     dispatch = AsyncMock(side_effect=_dispatch)
 
-    original_require = access_service.require
+    deciding = admission_access or access_service
+    original_decide = deciding.decide
 
-    async def _require(**kwargs):
+    async def _decide(**kwargs):
         order.append("decide")
-        return await original_require(**kwargs)
+        return await original_decide(**kwargs)
 
-    access_service.require = _require
+    deciding.decide = _decide
     dispatcher = TriggersDispatcher(
+        run_admission=RunAdmission(
+            access_service=deciding, workflows_service=workflows
+        ),
         triggers_dao=dao,
         session_claims_dao=claims,
         workflows_service=workflows,
@@ -316,12 +333,17 @@ async def test_decide_checks_run_workflows_on_the_resolved_agent():
     setup = _dispatch_setup(access_service=service)
     await _tick(setup)
 
-    asked = service.required[-1]
+    # One decision: the admission of the resolved agent (no session: the claim
+    # creates it).
+    assert len(service.decisions) == 1
+    asked = service.decisions[-1]
     assert asked["action"] == Permission.RUN_WORKFLOWS
     assert asked["resource"].kind == ResourceKind.AGENT
     assert asked["resource"].id == str(setup.target.artifact_id)
-    assert asked["envelope"].authority.principal == setup.schedule.principal
-    assert asked["envelope"].context.origin_id == str(setup.schedule.id)
+    assert asked["principal"] == setup.schedule.principal
+    envelope = setup.dispatch.await_args.kwargs["envelope"]
+    assert envelope.authority.principal == setup.schedule.principal
+    assert envelope.context.origin_id == str(setup.schedule.id)
 
 
 async def test_environment_target_resolved_before_check():
@@ -357,7 +379,7 @@ async def test_archived_target_pauses():
     kwargs = setup.dao.refuse_delivery.await_args.kwargs
     assert kwargs["reason"] == "agent_deleted"
     assert kwargs["delivery"].data.error_details.code == "agent_deleted"
-    assert service.required == []
+    assert service.decisions == []
     setup.claims.claim_trigger_delivery.assert_not_awaited()
 
 
@@ -371,6 +393,46 @@ async def test_unresolved_target_keeps_the_failed_delivery():
     setup.claims.claim_trigger_delivery.assert_awaited_once()
     status = setup.dao.update_delivery.await_args.kwargs["status"]
     assert status.code == "400"
+    setup.dispatch.assert_not_awaited()
+
+
+async def test_environment_trigger_private_target_paused():
+    """The environment now points at a private agent of another member: the
+    admission refuses the resolved agent, the trigger is paused with a denied
+    delivery (`access_denied`, reason `resource_denied`), nothing is claimed or
+    run. (Persisted rows: integration/sharing/test_admission_settlement.py.)"""
+
+    from oss.src.core.access.dtos import ResourceKind
+    from oss.src.core.workflows.dtos import ResolvedTarget
+    from oss.tests.pytest.utils.principals import AllowingAccessService
+    from oss.tests.pytest.utils.sharing import RuleAccessService
+
+    private_agent = uuid4()
+    rules = RuleAccessService(
+        lambda principal, action, resource: not (
+            resource is not None
+            and resource.kind == ResourceKind.AGENT
+            and resource.id == str(private_agent)
+        )
+    )
+    setup = _dispatch_setup(
+        access_service=AllowingAccessService(),
+        admission_access=rules,
+        references={
+            "environment": {"slug": "production"},
+            "workflow": {"slug": "agent"},
+        },
+        target=ResolvedTarget(artifact_id=private_agent, revision_id=uuid4()),
+    )
+    await _tick(setup)
+
+    assert setup.order == ["resolve", "decide", "refuse"]
+    kwargs = setup.dao.refuse_delivery.await_args.kwargs
+    assert kwargs["reason"] == "access_denied"
+    details = kwargs["delivery"].data.error_details
+    assert details.code == "access_denied"
+    assert details.details["reason"] == "resource_denied"
+    setup.claims.claim_trigger_delivery.assert_not_awaited()
     setup.dispatch.assert_not_awaited()
 
 

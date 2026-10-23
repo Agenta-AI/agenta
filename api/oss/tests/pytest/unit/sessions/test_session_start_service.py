@@ -23,6 +23,9 @@ from oss.src.core.workflows.types import (
     WorkflowDetachedStartNeverSent,
     WorkflowServiceUrlMissing,
 )
+from oss.src.core.access.dtos import Decision, DecisionReason
+from oss.src.core.sharing.types import AdmissionDenied
+from oss.tests.pytest.utils.sharing import NoopRunAdmission, RecordingRunAdmission
 
 
 PROJECT_ID = uuid4()
@@ -77,8 +80,11 @@ def _execution(session_id, execution_id):
     )
 
 
-def _service(*, inputs=None, executions=None, workflows=None, timeout=0):
+def _service(
+    *, inputs=None, executions=None, workflows=None, timeout=0, admission=None
+):
     return SessionStartsService(
+        run_admission=admission or NoopRunAdmission(),
         inputs_service=inputs or AsyncMock(),
         executions_dao=executions or AsyncMock(),
         workflows_service=workflows or AsyncMock(),
@@ -160,28 +166,77 @@ async def test_replay_returns_existing_execution_without_invoking_again():
     assert result.replayed is True
 
 
+class _ResolvingAdmission(RecordingRunAdmission):
+    """Records the call and resolves the target onto the request, as
+    `RunAdmission.admit_request` does (`resolve_request_target`)."""
+
+    async def admit_request(self, **kwargs) -> None:
+        await super().admit_request(**kwargs)
+        kwargs["request"].data.revision = {"data": {"url": "http://resolved"}}
+
+
 @pytest.mark.asyncio
-async def test_stored_claimed_content_drives_invocation():
+async def test_the_admitted_request_is_invoked_and_the_input_stores_no_target():
+    """The start is admitted before anything is claimed. The admission resolves the
+    target on the request (`resolve_request_target`); the invoke sends that request,
+    so `_prepare_invoke` does not resolve it again. The stored input keeps the
+    references only (its content is taken before the admission; the claim's
+    fingerprint makes the claimed content equal to it)."""
+
     inputs = AsyncMock()
     executions = AsyncMock()
     workflows = AsyncMock()
-    stored = SessionStartsService._request(
-        session_id="stored-session",
-        workflow_id=WORKFLOW_ID,
-        revision_id=REVISION_ID,
-        message="Stored original message.",
-    ).model_dump(mode="json", exclude_none=True)
-    inputs.claim_for_execution.return_value = _input(stored)
+    claimed = {}
+
+    async def claim(**kwargs):
+        claimed.update(kwargs["content"])
+        return _input(kwargs["content"])
+
+    inputs.claim_for_execution.side_effect = claim
     executions.fetch_execution.side_effect = [
         None,
         _execution("stored-session", "stored-execution"),
     ]
-    service = _service(inputs=inputs, executions=executions, workflows=workflows)
+    admission = _ResolvingAdmission()
+    service = _service(
+        inputs=inputs, executions=executions, workflows=workflows, admission=admission
+    )
 
     await service.start_once(**_args())
 
+    assert admission.methods() == ["admit_request"]
+    admitted = admission.calls[0][1]
+    assert admitted["boundary"] == "template_start"
+    assert admitted["session_id"] is None
+    assert admitted["envelope"] == ENVELOPE
     request = workflows.invoke_workflow_detached.await_args.kwargs["request"]
-    assert request.data.inputs["messages"][0]["content"] == "Stored original message."
+    assert request is admitted["request"]
+    assert request.data.revision == {"data": {"url": "http://resolved"}}
+    assert request.data.inputs["messages"][0]["content"] == "Configure the agent."
+    assert "revision" not in claimed["data"]
+
+
+@pytest.mark.asyncio
+async def test_template_start_checks_agent():
+    """A start into an agent the principal may not run raises `AdmissionDenied` (403
+    at the route) before any input is claimed or anything is invoked."""
+
+    inputs = AsyncMock()
+    workflows = AsyncMock()
+    admission = RecordingRunAdmission(
+        refuse=lambda method, kwargs: AdmissionDenied(
+            decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
+            readable=False,
+            boundary=kwargs["boundary"],
+        )
+    )
+    service = _service(inputs=inputs, workflows=workflows, admission=admission)
+
+    with pytest.raises(AdmissionDenied):
+        await service.start_once(**_args())
+
+    inputs.claim_for_execution.assert_not_awaited()
+    workflows.invoke_workflow_detached.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -263,6 +318,7 @@ async def test_two_concurrent_same_key_starts_dispatch_once():
             )
 
     service = SessionStartsService(
+        run_admission=NoopRunAdmission(),
         inputs_service=Inputs(),
         executions_dao=Executions(),
         workflows_service=Workflows(),
@@ -296,6 +352,7 @@ async def test_live_initial_heartbeat_prevents_duplicate_dispatch_without_settle
 
     workflows.invoke_workflow_detached.side_effect = invoke
     service = SessionStartsService(
+        run_admission=NoopRunAdmission(),
         inputs_service=inputs,
         executions_dao=executions,
         streams_dao=streams,
@@ -322,6 +379,7 @@ async def test_unrelated_heartbeat_does_not_confirm_start():
         turn_id="another-execution"
     )
     service = SessionStartsService(
+        run_admission=NoopRunAdmission(),
         inputs_service=inputs,
         executions_dao=executions,
         streams_dao=streams,
@@ -628,6 +686,7 @@ async def test_concurrent_retries_after_a_release_dispatch_exactly_once():
 
     def _start(*, unreachable):
         return SessionStartsService(
+            run_admission=NoopRunAdmission(),
             inputs_service=inputs,
             executions_dao=Executions(),
             workflows_service=Workflows(unreachable),

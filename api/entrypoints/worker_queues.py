@@ -36,6 +36,8 @@ from taskiq.receiver import Receiver
 from contextlib import suppress
 
 from entrypoints.access import bootstrap_access
+from oss.src.core.access.service import get_access_service
+from oss.src.core.sharing.admission import RunAdmission
 from oss.src.core.sessions.commands.delivery import (
     deliver_continue_interaction,
 )
@@ -207,6 +209,16 @@ def _install_session_context_resolver(
     )
 
 
+def _run_admission(workflows_service: WorkflowsService) -> RunAdmission:
+    """The admission of every run this worker starts or resumes, over the worker's own
+    `WorkflowsService` (one per builder). Built after `bootstrap_access()`."""
+
+    return RunAdmission(
+        access_service=get_access_service(),
+        workflows_service=workflows_service,
+    )
+
+
 def _build_webhooks_broker() -> tuple[AsyncBroker, int]:
     broker = TrimOnAckRedisStreamBroker(
         url=env.redis.uri_durable,
@@ -283,6 +295,7 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
         triggers_dao=triggers_dao,
         session_claims_dao=session_streams_dao,
         workflows_service=workflows_service,
+        run_admission=_run_admission(workflows_service),
         dispatch_fn=_dispatch_detached_run,
     )
     TriggersWorker(
@@ -345,10 +358,13 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
         )
         return result.run_id
 
+    run_admission = _run_admission(workflows_service)
+
     # A channel's approval answer resumes the parked session the way a
     # playground click does: through the interactions dispatcher.
     interactions_dispatcher = InteractionsDispatcher(
         workflows_service=workflows_service,
+        run_admission=run_admission,
         interactions_service=SessionInteractionsService(
             interactions_dao=SessionInteractionsDAO(engine=transactions_engine),
             watch_publisher=SessionsWatchPublisher(),
@@ -411,6 +427,7 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
 
     dispatcher = InboxDispatcher(
         channels_service=_build_channels_service(),
+        run_admission=run_admission,
         workflows_service=workflows_service,
         identity_service=ChannelIdentityService(
             identity_dao=ChannelIdentityDAO(engine=transactions_engine),
@@ -492,6 +509,7 @@ def _build_interactions_broker() -> tuple[AsyncBroker, int]:
     interactions_dispatcher = InteractionsDispatcher(
         workflows_service=workflows_service,
         interactions_service=interactions_service,
+        run_admission=_run_admission(workflows_service),
         records_service=records_service,
         dispatch_fn=_dispatch_detached_run,
     )

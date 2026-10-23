@@ -254,3 +254,75 @@ async def test_session_readable_is_one_view_decision():
         Permission.VIEW_SESSIONS
     ] * 3
     assert {call["resource"].id for call in access.decide_calls} == {_SESSION}
+
+
+async def test_admission_and_invoke_prelude_resolve_the_target_once(monkeypatch):
+    """The real `WorkflowsService`: `admit_request` resolves the request's target
+    (`resolve_request_target` -> `_ensure_request_revision`) and leaves the revision
+    on the request; the invoke prelude (`_prepare_invoke`) then finds it and does
+    not resolve again. One revision lookup per boundary run."""
+
+    from unittest.mock import AsyncMock
+
+    import oss.src.core.workflows.service as workflows_service_module
+    from oss.src.core.workflows.dtos import (
+        WorkflowRevision,
+        WorkflowRevisionData,
+        WorkflowServiceRequest,
+        WorkflowServiceRequestData,
+    )
+    from oss.src.core.workflows.service import WorkflowsService
+    from oss.src.middlewares import auth as auth_module
+    from oss.tests.pytest.utils.principals import register_allowing_access_service
+
+    register_allowing_access_service(monkeypatch)  # the prelude's acting user
+    monkeypatch.setattr(
+        auth_module, "_SECRET_KEY", "unit-test-secret-key-with-32-bytes"
+    )
+    organization_id = uuid4()
+    monkeypatch.setattr(
+        workflows_service_module,
+        "get_project_by_id",
+        AsyncMock(
+            return_value=SimpleNamespace(
+                workspace_id=uuid4(), organization_id=organization_id
+            )
+        ),
+    )
+    service = WorkflowsService(workflows_dao=AsyncMock())
+    revision = WorkflowRevision(
+        id=uuid4(),
+        artifact_id=_PROJECT_AGENT,
+        variant_id=uuid4(),
+        slug="shared-v1",
+        data=WorkflowRevisionData(url="http://services/agent"),
+    )
+    service.retrieve_workflow_revision = AsyncMock(return_value=(revision, None, None))
+    service.fetch_workflow = AsyncMock(return_value=SimpleNamespace(deleted_at=None))
+    service._stamp_session_context = AsyncMock()
+    admission = RunAdmission(
+        access_service=RuleAccessService(lambda *_: True), workflows_service=service
+    )
+    envelope = make_envelope(
+        principal_id=_ALICE, project_id=_PROJECT, organization_id=organization_id
+    )
+    request = WorkflowServiceRequest(
+        references={"workflow": {"id": str(_PROJECT_AGENT)}},
+        data=WorkflowServiceRequestData(inputs={}),
+    )
+
+    await admission.admit_request(
+        envelope=envelope,
+        session_id=None,
+        project_id=_PROJECT,
+        request=request,
+        boundary="queued_dispatch",
+    )
+    await service._prepare_invoke(
+        project_id=_PROJECT,
+        user_id=_ALICE,
+        request=request,
+        envelope=envelope,
+    )
+
+    service.retrieve_workflow_revision.assert_awaited_once()

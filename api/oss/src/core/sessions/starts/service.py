@@ -16,6 +16,7 @@ from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.starts.dtos import SessionStartResult
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
+from oss.src.core.sharing.admission import TEMPLATE_START_BOUNDARY, RunAdmission
 from oss.src.core.shared.idempotency import resource_identity
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.types import invoke_never_dispatched
@@ -43,6 +44,7 @@ class SessionStartsService:
         executions_dao: SessionExecutionsDAOInterface,
         workflows_service: WorkflowsService,
         lock_engine: Any,
+        run_admission: RunAdmission,
         streams_dao: SessionStreamsDAOInterface | None = None,
         poll_timeout_seconds: float = 2.0,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
@@ -51,6 +53,7 @@ class SessionStartsService:
         self._executions = executions_dao
         self._streams = streams_dao
         self._workflows = workflows_service
+        self._run_admission = run_admission
         self._lock_engine = lock_engine
         self._poll_timeout_seconds = poll_timeout_seconds
         self._sleep = sleep
@@ -271,6 +274,18 @@ class SessionStartsService:
             parameters=parameters,
         )
         content = request.model_dump(mode="json", exclude_none=True)
+        # Before anything is claimed, so a refusal (`AdmissionDenied`, an
+        # `AccessDenied`: 403 at the route) leaves no input behind. It resolves the
+        # target on `request` (after `content` is taken, so the stored input keeps its
+        # references only); the invoke below sends this request, so it runs the target
+        # that was checked without resolving it again.
+        await self._run_admission.admit_request(
+            envelope=envelope,
+            session_id=None,
+            project_id=project_id,
+            request=request,
+            boundary=TEMPLATE_START_BOUNDARY,
+        )
 
         async with self._start_lock(
             project_id=project_id,
@@ -319,7 +334,8 @@ class SessionStartsService:
                     replayed=True,
                 )
 
-            stored_request = WorkflowServiceRequest.model_validate(claimed.content)
+            # `claimed.content` equals `content` (same fingerprint), so `request` is the
+            # stored request with its target resolved.
             error: Exception | None = None
             # `except Exception` deliberately lets `asyncio.CancelledError` through with the claim
             # still held. A shutdown or a client disconnect can cancel this task with the request
@@ -333,7 +349,7 @@ class SessionStartsService:
                 await self._workflows.invoke_workflow_detached(
                     project_id=project_id,
                     user_id=user_id,
-                    request=stored_request,
+                    request=request,
                     envelope=envelope,
                     run_id=execution_id,
                     strict_start=True,

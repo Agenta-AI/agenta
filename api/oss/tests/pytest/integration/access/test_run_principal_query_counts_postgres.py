@@ -224,6 +224,7 @@ from oss.tests.pytest.utils.principals import (  # noqa: E402
     make_envelope,
     make_request_access,
 )
+from oss.src.core.sharing.admission import RunAdmission  # noqa: E402
 
 
 def _bearer(user_id, *, project_id, organization_id):
@@ -511,6 +512,11 @@ async def test_trigger_tick_runs_no_access_statement_and_unchanged_endpoint_stat
         async def _tick(access_service, event_id):
             dispatch = AsyncMock(return_value="run-1")
             dispatcher = TriggersDispatcher(
+                # The real admission over the access service under test (M3): the
+                # tick's agent check is its decision.
+                run_admission=RunAdmission(
+                    access_service=access_service, workflows_service=workflows
+                ),
                 triggers_dao=triggers,
                 session_claims_dao=claims,
                 workflows_service=workflows,

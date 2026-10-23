@@ -18,6 +18,8 @@ from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import AccessDenied
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.principals import child_envelope
+from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY, RunAdmission
+from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.middlewares.auth import request_run_envelope
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
@@ -260,6 +262,25 @@ async def _deny_child_run(
         )
 
 
+def _admission_error_result(
+    *,
+    body: ToolCall,
+    child: RunEnvelope,
+    refusal: AdmissionDenied,
+) -> ToolCallResponse:
+    """A child run into an agent its principal may not run: a tool result the model
+    can read (`access_denied`), not an HTTP error."""
+
+    return _agent_error_result(
+        body=body,
+        error=access_denied_error(
+            decision=refusal.decision,
+            principal_kind=child.authority.principal.kind,
+            project_id=child.authority.project_id,
+        ),
+    )
+
+
 def _child_run_envelope(request: Request) -> Optional[RunEnvelope]:
     """The envelope of a run this request starts as a tool call: the parent's
     principal, authority and sender; origin `child`; the parent's run id."""
@@ -273,11 +294,14 @@ class ToolsRouter:
         self,
         *,
         tools_service: ToolsService,
+        run_admission: RunAdmission,
         workflows_service: Optional[WorkflowsService] = None,
         tracing_service: Optional[TracingService] = None,
         mounts_service: Optional[MountsService] = None,
     ):
         self.tools_service = tools_service
+        # Admits each child run (the parent's principal and the child's agent).
+        self.run_admission = run_admission
         # Used to execute a referenced-workflow (@ag.reference) agent tool server-side: a
         # ``workflow.{slug}[.{version}]`` call_ref routes here instead of the Composio adapter.
         # Optional so a deployment that wires only the tools service still serves gateway tools.
@@ -1444,7 +1468,10 @@ class ToolsRouter:
                 tracing_service=self.tracing_service,
                 mounts_service=self.mounts_service,
                 envelope=envelope,
+                run_admission=self.run_admission,
             )
+        except AdmissionDenied as refusal:
+            return _admission_error_result(body=body, child=envelope, refusal=refusal)
         except PlatformToolHandlerError as e:
             raise HTTPException(status_code=e.status_code, detail=e.message) from e
 
@@ -1797,10 +1824,23 @@ class ToolsRouter:
         denied = await _deny_child_run(body=body, child=child)
         if denied is not None:
             return denied
+        project_id = UUID(request.state.project_id)
+        try:
+            # Resolves the child's target once and leaves it on the request, so the
+            # invoke runs what was checked.
+            await self.run_admission.admit_request(
+                envelope=child,
+                session_id=None,
+                project_id=project_id,
+                request=invoke_request,
+                boundary=CHILD_RUN_BOUNDARY,
+            )
+        except AdmissionDenied as refusal:
+            return _admission_error_result(body=body, child=child, refusal=refusal)
 
         try:
             response = await self.workflows_service.invoke_workflow(
-                project_id=UUID(request.state.project_id),
+                project_id=project_id,
                 user_id=UUID(request.state.user_id),
                 request=invoke_request,
                 envelope=child,

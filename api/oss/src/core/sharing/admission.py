@@ -34,7 +34,14 @@ if TYPE_CHECKING:  # pragma: no cover - types only, no import cycle at runtime
 
 log = get_module_logger(__name__)
 
+# The `boundary` of each admission point, logged with a refusal.
 HEARTBEAT_BOUNDARY = "heartbeat"
+QUEUED_DISPATCH_BOUNDARY = "queued_dispatch"
+APPROVAL_RESUME_BOUNDARY = "approval_resume"
+CHANNEL_TURN_BOUNDARY = "channel_turn"
+TRIGGER_DISPATCH_BOUNDARY = "trigger_dispatch"
+CHILD_RUN_BOUNDARY = "child_run"
+TEMPLATE_START_BOUNDARY = "template_start"
 
 
 class RunAdmission:
