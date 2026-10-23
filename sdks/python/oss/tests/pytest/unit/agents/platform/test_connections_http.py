@@ -1790,7 +1790,7 @@ async def test_a_refused_gateway_mint_is_access_denied(fake_http, connection):
     assert "not a member" in str(error)
 
 
-@pytest.mark.parametrize("status", [401, 403])
+@pytest.mark.parametrize("status", [403])
 async def test_a_refused_vault_read_is_access_denied_not_500(
     fake_http, connection, status
 ):
@@ -1829,3 +1829,29 @@ async def test_a_refused_run_reaches_the_caller_as_403():
 
     other = await normalizer._normalize_exception(_Other("downstream"))
     assert other.status.code == 424
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"detail": {"code": "missing_principal", "message": "no principal"}},
+        {"detail": {"message": "Unauthorized"}},
+    ],
+)
+async def test_a_401_is_not_an_access_refusal(fake_http, connection, body):
+    """An expired or principal-less credential keeps its own failure, not a 403."""
+
+    from agenta.sdk.agents.connections import (
+        ConnectionAccessDeniedError,
+        ConnectionResolutionError,
+    )
+
+    fake_http(connections, status=401, payload=body)
+    with pytest.raises(ConnectionResolutionError) as raised:
+        await VaultConnectionResolver(connection)._resolve_from_vault(
+            api_base="https://api.x/api",
+            authorization="Secret tok",
+            model=_model(),
+            context=_context(),
+        )
+    assert not isinstance(raised.value, ConnectionAccessDeniedError)
