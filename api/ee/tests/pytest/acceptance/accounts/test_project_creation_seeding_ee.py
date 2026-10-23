@@ -3,7 +3,11 @@ project on transfer."""
 
 import pytest
 
-from oss.tests.pytest.utils.membership_accounts import Team
+from oss.tests.pytest.utils.membership_accounts import (
+    Team,
+    api_key_for_project,
+    headers,
+)
 
 
 @pytest.fixture
@@ -69,10 +73,15 @@ def test_new_owner_can_edit_after_transfer(admin_api):
         )
         assert resp.status_code == 200, resp.text
 
+        # An API key stays in its own project (M2): the successor uses a key of P2.
         resp = admin_api(
             "PATCH",
             f"/projects/{p2}",
-            headers=team.headers("successor"),
+            headers=headers(
+                api_key_for_project(
+                    admin_api, project_id=p2, user_id=team.user_ids["successor"]
+                )
+            ),
             json={"name": "P2-after"},
         )
         assert resp.status_code == 200, resp.text
@@ -112,10 +121,15 @@ def test_new_owner_can_edit_after_admin_transfer(admin_api):
         )
         assert resp.status_code in (200, 204), resp.text
 
+        # An API key stays in its own project (M2): the successor uses a key of P2.
         resp = admin_api(
             "PATCH",
             f"/projects/{p2}",
-            headers=team.headers("successor"),
+            headers=headers(
+                api_key_for_project(
+                    admin_api, project_id=p2, user_id=team.user_ids["successor"]
+                )
+            ),
             json={"name": "P2-after"},
         )
         assert resp.status_code == 200, resp.text
