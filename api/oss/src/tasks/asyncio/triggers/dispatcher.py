@@ -23,6 +23,7 @@ from oss.src.core.access.principals import (
     stored_work_envelope,
 )
 from oss.src.core.access.service import AccessService, get_access_service
+from oss.src.core.access.types import AccessDenied
 from oss.src.core.tools.dtos import AgentError
 from oss.src.core.shared.dtos import Status
 from oss.src.core.triggers.dtos import (
@@ -368,15 +369,17 @@ class TriggersDispatcher:
                 origin_id=str(entity.id),
                 created_by_id=entity.created_by_id,
             )
-            decision = await self.access_service.decide(
-                authority=envelope.authority,
-                principal=envelope.authority.principal,
-                action=Permission.RUN_WORKFLOWS,
-                resource=ResourceRef(
-                    kind=ResourceKind.AGENT, id=str(target.artifact_id)
-                ),
-            )
-            if not decision.allowed:
+            # `require` logs a denial with the run context (origin, trigger id).
+            try:
+                await self.access_service.require(
+                    envelope=envelope,
+                    action=Permission.RUN_WORKFLOWS,
+                    resource=ResourceRef(
+                        kind=ResourceKind.AGENT, id=str(target.artifact_id)
+                    ),
+                )
+            except AccessDenied as denied:
+                decision = denied.decision
                 await self._refuse(
                     project_id=project_id,
                     entity=entity,

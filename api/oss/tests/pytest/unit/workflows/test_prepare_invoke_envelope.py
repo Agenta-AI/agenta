@@ -120,3 +120,57 @@ def test_envelope_is_a_required_keyword(fn):
 
 def test_inspect_workflow_is_gone():
     assert not hasattr(WorkflowsService, "inspect_workflow")
+
+
+async def _prepare(prelude, *, envelope, user_id):
+    credentials, _ = await prelude.service._prepare_invoke(
+        project_id=prelude.project_id,
+        user_id=user_id,
+        request=SimpleNamespace(meta={}),
+        envelope=envelope,
+    )
+    return _claims(credentials)
+
+
+def _scoped(prelude, **kwargs):
+    return make_envelope(
+        project_id=prelude.project_id, organization_id=prelude.organization_id, **kwargs
+    )
+
+
+async def test_resumed_token_user_is_the_run_acting_user_not_the_approver(prelude):
+    """Alice's run approved by Bob: the minted token's user is Alice (the principal's
+    acting user), never Bob, so no route sees Alice's principal with Bob's id."""
+
+    alice, bob = uuid4(), uuid4()
+    claims = await _prepare(
+        prelude,
+        envelope=_scoped(prelude, kind="human", principal_id=alice),
+        user_id=bob,
+    )
+    assert claims["user_id"] == str(alice)
+    assert claims["principal"]["id"] == str(alice)
+
+
+async def test_api_key_token_user_is_the_key_creator(prelude, _allowing_access_service):
+    creator = uuid4()
+    envelope = _scoped(
+        prelude, kind="api_key", origin="api", origin_id="k", sender=None
+    )
+    _allowing_access_service.acting_users[envelope.authority.principal.id] = creator
+    claims = await _prepare(prelude, envelope=envelope, user_id=uuid4())
+    assert claims["user_id"] == str(creator)
+
+
+async def test_inactive_principal_gets_no_token(prelude, monkeypatch):
+    import oss.src.core.access.service as access_module
+    from oss.src.core.access.types import MissingPrincipal
+    from oss.tests.pytest.utils.principals import AllowingAccessService
+
+    class _Inactive(AllowingAccessService):
+        async def acting_user_id(self, *, authority):
+            return None
+
+    monkeypatch.setattr(access_module, "_access_service", _Inactive())
+    with pytest.raises(MissingPrincipal):
+        await _prepare(prelude, envelope=_scoped(prelude), user_id=uuid4())

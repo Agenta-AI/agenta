@@ -247,6 +247,7 @@ class AllowingAccessService:
         self.organization_id = organization_id or uuid4()
         self.decisions: List[dict] = []
         self.required: List[dict] = []
+        self.acting_users: Dict[UUID, UUID] = {}
 
     async def project_organization_id(self, *, project_id: UUID) -> UUID:
         return self.organization_id
@@ -269,6 +270,14 @@ class AllowingAccessService:
 
     async def require(self, **kwargs) -> None:
         self.required.append(kwargs)
+
+    async def acting_user_id(self, *, authority):
+        """The linked user, else the principal id (a human acts as itself; tests of
+        other kinds that care set `acting_users`)."""
+
+        if authority.linked_user_id is not None:
+            return authority.linked_user_id
+        return self.acting_users.get(authority.principal.id, authority.principal.id)
 
     async def invalidate_principal(self, **kwargs) -> None:
         return None

@@ -232,7 +232,7 @@ async def test_cached_api_key_state_without_principal_is_a_miss(monkeypatch, cac
 
 
 async def test_api_key_whose_creator_is_missing_fails_as_today(monkeypatch, cache):
-    """Today (measured on the M1 stack, ~/agenta-m2-qa/before/ghost-key-*.json): 401
+    """Today (measured on an M1 stack): 401
     {"detail": {"message": "Unauthorized"}} on every request, nothing cached."""
 
     _api_key_world(monkeypatch, user=None)

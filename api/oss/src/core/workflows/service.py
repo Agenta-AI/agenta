@@ -15,6 +15,8 @@ from typing import (
     TYPE_CHECKING,
 )
 from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import MissingPrincipal
 from oss.src.core.git.dtos import RevisionGrouping
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
@@ -24,6 +26,7 @@ import httpx
 if TYPE_CHECKING:
     from oss.src.core.environments.service import EnvironmentsService
     from oss.src.core.embeds.service import EmbedsService
+    from oss.src.core.triggers.interfaces import TriggersDAOInterface
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
@@ -366,9 +369,9 @@ class WorkflowsService:
         # Archiving an agent pauses the triggers that target it. Set by the composition
         # root that serves the archive routes (the triggers DAO is built after this
         # service there).
-        self._triggers_dao: Optional[Any] = None
+        self._triggers_dao: Optional["TriggersDAOInterface"] = None
 
-    def set_triggers_dao(self, triggers_dao: Any) -> None:
+    def set_triggers_dao(self, triggers_dao: "TriggersDAOInterface") -> None:
         self._triggers_dao = triggers_dao
 
     def set_session_continuation_resumer(
@@ -3273,8 +3276,17 @@ class WorkflowsService:
                 }
             )
 
+        # The token's user is the run's acting user, derived from its authority, so it
+        # never pairs one principal with another user's identity (an approver, the
+        # creator of a stored row). `user_id` stays the audit user of this call.
+        acting_user_id = await get_access_service().acting_user_id(
+            authority=envelope.authority
+        )
+        if acting_user_id is None:
+            raise MissingPrincipal("The run's principal is not active")
+
         secret_token = await sign_secret_token(
-            user_id=str(user_id),
+            user_id=str(acting_user_id),
             project_id=str(project_id),
             workspace_id=str(project.workspace_id),
             organization_id=str(project.organization_id),

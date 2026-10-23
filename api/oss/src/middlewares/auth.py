@@ -1386,10 +1386,7 @@ async def verify_secret_token(
             )
             raise HTTPException(
                 status_code=401,
-                detail={
-                    **missing_principal_error().model_dump(exclude_none=True),
-                    "reason": "missing_principal",
-                },
+                detail=missing_principal_error().model_dump(exclude_none=True),
             )
 
         if audience:

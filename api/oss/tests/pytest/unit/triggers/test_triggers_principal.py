@@ -224,13 +224,13 @@ def _dispatch_setup(*, access_service, references=None, target=_DEFAULT_TARGET):
 
     dispatch = AsyncMock(side_effect=_dispatch)
 
-    original_decide = access_service.decide
+    original_require = access_service.require
 
-    async def _decide(**kwargs):
+    async def _require(**kwargs):
         order.append("decide")
-        return await original_decide(**kwargs)
+        return await original_require(**kwargs)
 
-    access_service.decide = _decide
+    access_service.require = _require
     dispatcher = TriggersDispatcher(
         triggers_dao=dao,
         session_claims_dao=claims,
@@ -316,11 +316,12 @@ async def test_decide_checks_run_workflows_on_the_resolved_agent():
     setup = _dispatch_setup(access_service=service)
     await _tick(setup)
 
-    asked = service.decisions[-1]
+    asked = service.required[-1]
     assert asked["action"] == Permission.RUN_WORKFLOWS
     assert asked["resource"].kind == ResourceKind.AGENT
     assert asked["resource"].id == str(setup.target.artifact_id)
-    assert asked["principal"] == setup.schedule.principal
+    assert asked["envelope"].authority.principal == setup.schedule.principal
+    assert asked["envelope"].context.origin_id == str(setup.schedule.id)
 
 
 async def test_environment_target_resolved_before_check():
@@ -356,7 +357,7 @@ async def test_archived_target_pauses():
     kwargs = setup.dao.refuse_delivery.await_args.kwargs
     assert kwargs["reason"] == "agent_deleted"
     assert kwargs["delivery"].data.error_details.code == "agent_deleted"
-    assert service.decisions == []
+    assert service.required == []
     setup.claims.claim_trigger_delivery.assert_not_awaited()
 
 

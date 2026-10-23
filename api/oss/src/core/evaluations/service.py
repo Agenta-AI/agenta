@@ -752,12 +752,14 @@ class EvaluationsService:
         project_id: UUID,
         run_id: UUID,
         principal: PrincipalRef,
+        user_id: Optional[UUID] = None,
     ) -> None:
         """An explicit start or rerun: the run executes as the caller from now on."""
         await self.evaluations_dao.set_run_principal(
             project_id=project_id,
             run_id=run_id,
             principal=principal,
+            user_id=user_id,
         )
 
     async def fetch_run(
@@ -2693,6 +2695,7 @@ class SimpleEvaluationsService:
                     project_id=project_id,
                     run_id=evaluation_id,
                     principal=principal,
+                    user_id=user_id,
                 )
             _evaluation = await self.fetch(
                 project_id=project_id,
@@ -2986,6 +2989,7 @@ class SimpleEvaluationsService:
             project_id=project_id,
             run_id=run_id,
             principal=principal,
+            user_id=user_id,
         )
 
         # Re-activate the run before dispatching: the slice re-executes scenarios

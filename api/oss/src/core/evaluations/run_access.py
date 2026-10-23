@@ -40,7 +40,9 @@ async def evaluation_run_envelope(
         project_id=project_id,
         origin=RunOrigin.EVALUATION,
         origin_id=str(run.id),
-        created_by_id=run.created_by_id,
+        # For an installation, the linked user is the acting user of the request that
+        # set the principal (create, start, rerun), not the run's creator.
+        created_by_id=run.principal_user_id or run.created_by_id,
     )
 
 

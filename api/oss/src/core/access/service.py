@@ -134,7 +134,7 @@ class AccessService:
         if project is None:
             raise DecisionInputMissing()
 
-        membership, denial = await self._eligibility(
+        membership, denial, role_user_id = await self._eligibility(
             authority=authority,
             principal=principal,
             project_id=project,
@@ -147,7 +147,7 @@ class AccessService:
                 action=action,
                 resource=resource,
                 reason=denial,
-                role_user_id=None,
+                role_user_id=role_user_id,
                 context=context,
             )
 
@@ -193,7 +193,7 @@ class AccessService:
         if project_id is None:
             raise DecisionInputMissing()
 
-        membership, denial = await self._eligibility(
+        membership, denial, role_user_id = await self._eligibility(
             authority=authority, principal=principal, project_id=project_id
         )
         if denial is None:
@@ -208,7 +208,7 @@ class AccessService:
                 action=None,
                 resource=None,
                 reason=denial,
-                role_user_id=membership.user_id if membership else None,
+                role_user_id=role_user_id,
                 context=None,
             )
         return Decision(allowed=True, reason=DecisionReason.ELIGIBLE)
@@ -370,6 +370,20 @@ class AccessService:
                 user_ids=[], project_ids=snapshot.project_ids
             )
 
+    async def acting_user_id(self, *, authority: RunAuthority) -> Optional[UUID]:
+        """The user a run acts as: its human, its API key's creator, or its
+        installation's linked user (else the binding creator). Read from the cached
+        principal record, never from a request or command field. `None` when the
+        principal is not active."""
+
+        principal = authority.principal
+        if principal.kind == PrincipalKind.INSTALLATION and authority.linked_user_id:
+            return authority.linked_user_id
+        record = await self._principals.fetch_principal(principal=principal)
+        if record is None or not record.is_active:
+            return None
+        return record.acting_user_id
+
     async def invalidate_principal(self, *, principal: PrincipalRef) -> None:
         try:
             cleared = await self._principals.invalidate_principal(principal=principal)
@@ -390,14 +404,17 @@ class AccessService:
         authority: Optional[RunAuthority],
         principal: PrincipalRef,
         project_id: UUID,
-    ) -> tuple[Optional[ProjectMembership], Optional[DecisionReason]]:
+    ) -> tuple[Optional[ProjectMembership], Optional[DecisionReason], Optional[UUID]]:
+        """(membership, denial, role user). The role user is also returned on a
+        denial, for the audit log."""
+
         record = await self._principals.fetch_principal(principal=principal)
         if record is None or not record.is_active:
-            return None, DecisionReason.PRINCIPAL_INACTIVE
+            return None, DecisionReason.PRINCIPAL_INACTIVE, None
         if record.expires_at is not None and record.expires_at <= _now():
-            return None, DecisionReason.PRINCIPAL_INACTIVE
+            return None, DecisionReason.PRINCIPAL_INACTIVE, record.acting_user_id
         if record.project_id is not None and record.project_id != project_id:
-            return None, DecisionReason.NOT_MEMBER
+            return None, DecisionReason.NOT_MEMBER, record.acting_user_id
 
         role_user_id = record.acting_user_id
         if (
@@ -408,15 +425,15 @@ class AccessService:
         ):
             role_user_id = authority.linked_user_id
         if role_user_id is None:
-            return None, DecisionReason.PRINCIPAL_INACTIVE
+            return None, DecisionReason.PRINCIPAL_INACTIVE, None
 
         membership = await self._memberships.resolve(
             user_id=role_user_id,
             project_id=project_id,
         )
         if membership is None:
-            return None, DecisionReason.NOT_MEMBER
-        return membership, None
+            return None, DecisionReason.NOT_MEMBER, role_user_id
+        return membership, None, role_user_id
 
     @staticmethod
     def _restrictions(
