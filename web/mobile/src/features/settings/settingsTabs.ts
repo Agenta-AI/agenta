@@ -105,7 +105,7 @@ export const useActiveSettingsTab = (): SettingsTabKey => {
     if (!AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey))
         return DEFAULT_MOBILE_SETTINGS_TAB
     if (requested === "tools" && !access.canShowTools) return DEFAULT_MOBILE_SETTINGS_TAB
-    if (requested === "billing" && !access.billingEnabled) return DEFAULT_MOBILE_SETTINGS_TAB
+    if (requested === "billing" && !access.isEE) return DEFAULT_MOBILE_SETTINGS_TAB
     // The wallet routes are EE-only, whatever the mirrored wallet flag says.
     if (requested === "credits" && !(access.isEE && access.walletsEnabled))
         return DEFAULT_MOBILE_SETTINGS_TAB
