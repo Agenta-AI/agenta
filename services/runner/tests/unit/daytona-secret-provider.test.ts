@@ -367,6 +367,57 @@ describe("process-local Daytona Secret provider", () => {
       assert.equal(registry.has(id), true);
     });
 
+    it("waits for a cleanup the timer already started", async () => {
+      vi.useFakeTimers();
+      const events: string[] = [];
+      const registry = new Map();
+      let finishDestroy!: () => void;
+      const destroyStarted = new Promise<void>((resolveStarted) => {
+        const destroyGate = new Promise<void>((resolve) => {
+          finishDestroy = resolve;
+        });
+        const provider = daytonaWithProcessLocalSecrets(
+          (): DaytonaProviderLike => ({
+            name: "daytona",
+            async create() {
+              return "sandbox-1";
+            },
+            async pause() {},
+            async destroy(id) {
+              events.push(`sandbox:destroy:${id}`);
+              resolveStarted();
+              await destroyGate;
+            },
+          }),
+          plan,
+          secretApi(events),
+          {
+            registry,
+            cleanupDelayMilliseconds: 60_000,
+            createFingerprint: GENERATION,
+          },
+        );
+        void (async () => {
+          const id = await provider.create();
+          await provider.pause!(id);
+          await vi.advanceTimersByTimeAsync(60_000);
+        })();
+      });
+      await destroyStarted;
+
+      let flushed = false;
+      const flush = flushPendingDaytonaSecretCleanups(registry).then(() => {
+        flushed = true;
+      });
+      await Promise.resolve();
+      assert.equal(flushed, false, "the flush waits for the running cleanup");
+
+      finishDestroy();
+      await flush;
+      assert.ok(events.includes("secret:delete:secret-1"));
+      assert.equal(registry.size, 0);
+    });
+
     it("keeps the Secrets and logs when the sandbox delete fails", async () => {
       vi.useFakeTimers();
       const events: string[] = [];

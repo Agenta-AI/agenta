@@ -42,6 +42,11 @@ interface RegistryEntry {
    * `flushPendingDaytonaSecretCleanups`.
    */
   runPendingCleanup?: () => Promise<void>;
+  /**
+   * The timer's cleanup while it runs (a timer that already fired, or a flush). The shutdown
+   * flush waits for it, so a runner does not exit halfway through deleting the Secrets.
+   */
+  cleanupInFlight?: Promise<void>;
 }
 
 export interface ProcessLocalDaytonaSecretProvider extends DaytonaProviderLike {
@@ -134,8 +139,11 @@ export async function flushPendingDaytonaSecretCleanups(
   log: (message: string) => void = () => {},
 ): Promise<void> {
   const pending = [...registry.entries()].flatMap(([sandboxId, entry]) => {
-    const run = entry.runPendingCleanup;
-    return run ? [{ sandboxId, run }] : [];
+    const pendingRun = entry.runPendingCleanup;
+    if (pendingRun) return [{ sandboxId, run: pendingRun }];
+    // A cleanup the timer already started: wait for it instead of skipping the entry.
+    const inFlight = entry.cleanupInFlight;
+    return inFlight ? [{ sandboxId, run: () => inFlight }] : [];
   });
   await Promise.all(
     pending.map(({ sandboxId, run }) =>
@@ -339,7 +347,14 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
         }
         entry.cleanupTimer = undefined;
         entry.runPendingCleanup = undefined;
-        await cleanupAfterSandbox(sandboxId, entry, activeProvider);
+        const cleanup = cleanupAfterSandbox(sandboxId, entry, activeProvider);
+        entry.cleanupInFlight = cleanup;
+        try {
+          await cleanup;
+        } finally {
+          if (entry.cleanupInFlight === cleanup)
+            entry.cleanupInFlight = undefined;
+        }
       });
     entry.cleanupTimer = schedule(() => {
       void run().catch(onError);
