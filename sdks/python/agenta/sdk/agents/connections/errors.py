@@ -470,3 +470,53 @@ class UnsupportedDeploymentError(ConnectionResolutionError):
         )
         self.deployment = deployment
         self.harness = harness
+
+
+class ConnectionAccessDeniedError(ConnectionResolutionError):
+    """The platform refused the run's credential while the connection was resolved:
+    the key was deleted, the member was removed, or the role no longer allows it.
+
+    A decision, not a server fault: the caller gets one 403 ``access_denied`` with the
+    platform's reason (``details.reason``, for example ``not_member``), never a 500. The
+    services middleware caches an allowed exchange for a few seconds, so a run that
+    started inside that window is refused here, at its first checked call.
+    """
+
+    status_code = 403
+    failure_code = "access_denied"
+
+    def __init__(self, message: str, *, error_detail: Optional[dict] = None) -> None:
+        super().__init__(message)
+        self.error_detail = error_detail
+
+    @classmethod
+    def from_response(
+        cls, *, status_code: int, body: Any = None
+    ) -> "ConnectionAccessDeniedError":
+        detail = body.get("detail") if isinstance(body, dict) else None
+        if isinstance(detail, dict) and detail.get("code") == "access_denied":
+            message = _stripped_str(detail.get("message")) or "Access denied."
+            return cls(message, error_detail=detail)
+        message = (
+            "Access denied: the run's credential is no longer allowed in this project."
+        )
+        return cls(
+            message,
+            error_detail={
+                "code": "access_denied",
+                "message": message,
+                "retryable": False,
+                "next_step": "Ask a project admin for access.",
+                "details": {"status": status_code},
+            },
+        )
+
+
+def is_access_refusal(*, status_code: int, body: Any = None) -> bool:
+    """A 401 or 403 from the platform (the credential was refused), or a body that
+    names ``access_denied``."""
+
+    detail = body.get("detail") if isinstance(body, dict) else None
+    if isinstance(detail, dict) and detail.get("code") == "access_denied":
+        return True
+    return status_code in (401, 403)

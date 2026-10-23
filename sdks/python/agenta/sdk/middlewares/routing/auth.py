@@ -1,3 +1,5 @@
+from json import dumps
+from agenta.sdk.utils.cache import CACHE_TTL, TTLLRUCache
 from typing import Any, Callable, Optional, Dict
 from os import getenv
 
@@ -61,10 +63,25 @@ _AUTH_ENABLED = (
     or "true"
 ).lower() in TRUTHY
 
+_CACHE_ENABLED = (
+    getenv("AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED")
+    or getenv("AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED")
+    or "true"
+).lower() in TRUTHY
+
+# The exchange answer is cached for at most 10 seconds (or the shorter middleware
+# TTL). It saves one API call per services request; a deleted key or a removed member
+# is refused by the API within that bound, and a run started inside it is refused at
+# its first checked call with a clear 403 (see the agent connection resolution).
+_CREDENTIALS_TTL_SECONDS = 10
+
 _ALWAYS_ALLOW_LIST = [
     "/health",
     f"{AGENTA_RUNTIME_PREFIX}/health",
 ]
+
+
+_cache = TTLLRUCache(ttl=min(CACHE_TTL, _CREDENTIALS_TTL_SECONDS))
 
 
 class DenyResponse(JSONResponse):
@@ -175,9 +192,20 @@ async def get_credentials(
         ## RESOURCE
         params["resource_type"] = "service"
 
-        # No cache: the API decides on every exchange (its warm path reads no
-        # Postgres row), so a deleted key or a removed member is refused before the
-        # run starts, not after it has begun with a cached credential.
+        _hash = dumps(
+            {
+                "headers": headers,
+                "cookies": cookies,
+                "params": params,
+            },
+            sort_keys=True,
+        )
+
+        if _CACHE_ENABLED:
+            credentials = _cache.get(_hash)
+
+            if credentials:
+                return credentials
 
         try:
             async with httpx.AsyncClient() as client:
@@ -267,7 +295,11 @@ async def get_credentials(
                         content="Permission denied. Please check your permissions or contact your administrator.",
                     )
 
-                return auth.get("credentials")
+                credentials = auth.get("credentials")
+
+                _cache.put(_hash, credentials)
+
+                return credentials
 
         except DenyException as deny:
             raise deny

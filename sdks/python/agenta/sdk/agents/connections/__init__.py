@@ -9,6 +9,7 @@ the resolver port (:class:`ConnectionResolver`), and the offline SDK-default ada
 from .errors import (
     AgentConnectionError,
     AmbiguousConnectionError,
+    ConnectionAccessDeniedError,
     ConnectionNotFoundError,
     ConnectionResolutionError,
     EndpointResolutionError,
@@ -25,6 +26,7 @@ from .errors import (
     UnsupportedDeploymentError,
     UnsupportedProviderError,
     WriteOnlySecretError,
+    is_access_refusal,
 )
 from .interfaces import ConnectionResolver
 from .models import (
@@ -44,6 +46,8 @@ from .models import (
 from .resolver import EnvConnectionResolver, StaticConnectionResolver
 
 __all__ = [
+    "ConnectionAccessDeniedError",
+    "is_access_refusal",
     # Contracts
     "Connection",
     "Endpoint",

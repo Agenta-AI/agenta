@@ -53,6 +53,7 @@ class _RecordingClient:
 @pytest.fixture(name="exchange")
 def _exchange(monkeypatch):
     monkeypatch.setattr(auth_middleware, "_AUTH_ENABLED", True)
+    monkeypatch.setattr(auth_middleware, "_CACHE_ENABLED", False)
     monkeypatch.setattr(auth_middleware.httpx, "AsyncClient", _RecordingClient)
     _RecordingClient.last_headers = None
     return _RecordingClient
