@@ -26,6 +26,8 @@ class FakeCache:
         self.sets: List[str] = []
         self.deletes: List[str] = []
         self.scans: List[str] = []
+        # Redis round trips of reads: one per get_cache, one per get_cache_many.
+        self.read_round_trips = 0
         # When true every call behaves like a Redis error: get misses, set and
         # invalidate return None.
         self.fail = fail
@@ -47,6 +49,7 @@ class FakeCache:
             namespace=namespace, key=key, project_id=project_id, user_id=user_id
         )
         self.gets.append(name)
+        self.read_round_trips += 1
         if self.fail:
             return None
         raw = self.store.get(name)
@@ -57,6 +60,31 @@ class FakeCache:
         except Exception:  # pylint: disable=broad-exception-caught
             # The real get_cache logs and returns a miss.
             return None
+
+    async def get_cache_many(self, entries: list) -> list:
+        """One round trip for several entries (`MGET`)."""
+
+        if entries:
+            self.read_round_trips += 1
+        values = []
+        for entry in entries:
+            name = caching._pack(
+                namespace=entry.get("namespace"),
+                key=entry.get("key"),
+                project_id=entry.get("project_id"),
+                user_id=entry.get("user_id"),
+            )
+            self.gets.append(name)
+            raw = None if self.fail else self.store.get(name)
+            try:
+                values.append(
+                    caching._deserialize(raw, model=entry.get("model"))
+                    if raw is not None
+                    else None
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                values.append(None)
+        return values
 
     async def set_cache(
         self,
@@ -140,6 +168,8 @@ class FakeCache:
             ):
                 if hasattr(module, attr):
                     monkeypatch.setattr(module, attr, getattr(self, attr))
+        # Read where the access service imports it at call time.
+        monkeypatch.setattr(caching, "get_cache_many", self.get_cache_many)
         return self
 
     def names(self, namespace: str) -> List[str]:
@@ -150,3 +180,4 @@ class FakeCache:
         self.sets.clear()
         self.deletes.clear()
         self.scans.clear()
+        self.read_round_trips = 0

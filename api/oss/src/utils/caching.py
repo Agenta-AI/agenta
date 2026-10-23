@@ -637,3 +637,39 @@ async def invalidate_cache(
         log.warn(e)
 
         return None
+
+
+async def get_cache_many(entries: list) -> list:
+    """Read several cache entries in ONE Redis round trip (`MGET`).
+
+    `entries` are dicts with the `get_cache` naming arguments (`namespace`,
+    `project_id`, `user_id`, `key`) and an optional `model`. Returns one value per
+    entry, `None` for a miss. No lock and no retry: a caller falls back to `get_cache`
+    for an entry that missed. Caching disabled, or a Redis error: all `None`.
+    """
+
+    if not entries:
+        return []
+    if not env.agenta.api.caching.enabled:
+        return [None] * len(entries)
+    try:
+        names = [
+            _pack(
+                namespace=entry.get("namespace"),
+                key=entry.get("key"),
+                project_id=entry.get("project_id"),
+                user_id=entry.get("user_id"),
+            )
+            for entry in entries
+        ]
+        raws = await _cache_engine.mget(names)
+        return [
+            _deserialize(raw, model=entry.get("model"), is_list=False)
+            if raw is not None
+            else None
+            for raw, entry in zip(raws, entries)
+        ]
+    except Exception as e:  # pylint: disable=broad-except
+        log.warn("[cache] MGET ", count=len(entries))
+        log.warn(e)
+        return [None] * len(entries)
