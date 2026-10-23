@@ -44,11 +44,12 @@ def _create_account(admin_api, *, email):
 
 
 def _delete_account(admin_api, *, email):
-    admin_api(
+    response = admin_api(
         "DELETE",
         "/admin/simple/accounts/",
         json={"accounts": {"u": {"user": {"email": email}}}, "confirm": "delete"},
     )
+    assert response.status_code == 204, response.text
 
 
 def _add_member(admin_api, *, organization_id, project_id, user_id, role):
@@ -168,22 +169,26 @@ def team(admin_api):
     uid = uuid4().hex[:12]
     owner_email = f"m2-owner-{uid}@test.agenta.ai"
     member_email = f"m2-member-{uid}@test.agenta.ai"
-    owner = _create_account(admin_api, email=owner_email)
-    member = _create_account(admin_api, email=member_email)
-    organization_id = _first_id(owner["organizations"])
-    project_id = _first_id(owner["projects"])
-    member_id = member["user"]["id"]
-    _add_member(
-        admin_api,
-        organization_id=organization_id,
-        project_id=project_id,
-        user_id=member_id,
-        role="editor",
-    )
-    key, key_id = _project_key(admin_api, project_id=project_id, user_id=member_id)
+    created = []
     try:
+        owner = _create_account(admin_api, email=owner_email)
+        created.append(owner_email)
+        member = _create_account(admin_api, email=member_email)
+        created.append(member_email)
+        organization_id = _first_id(owner["organizations"])
+        project_id = _first_id(owner["projects"])
+        member_id = member["user"]["id"]
+        _add_member(
+            admin_api,
+            organization_id=organization_id,
+            project_id=project_id,
+            user_id=member_id,
+            role="editor",
+        )
+        key, key_id = _project_key(admin_api, project_id=project_id, user_id=member_id)
         yield {
             "owner_key": f"ApiKey {owner['api_keys']['key']}",
+            "owner_id": owner["user"]["id"],
             "member_key": f"ApiKey {key}",
             "member_key_id": key_id,
             "member_id": member_id,
@@ -193,8 +198,8 @@ def team(admin_api):
             "member_email": member_email,
         }
     finally:
-        _delete_account(admin_api, email=member_email)
-        _delete_account(admin_api, email=owner_email)
+        for email in reversed(created):
+            _delete_account(admin_api, email=email)
 
 
 class TestRunPrincipal:
@@ -249,25 +254,44 @@ class TestRunPrincipal:
         assert _exchange(admin_api, secret, action="view_workflows").status_code == 200
 
     def test_run_credential_cannot_leave_its_project(self, admin_api, team):
-        secret = _secret(admin_api, team["owner_key"])
-        other_project = str(uuid4())
+        # A second project of the same owner, with the owner's key of that project.
+        created = admin_api(
+            "POST",
+            "/projects/",
+            json={"name": f"m2-b-{uuid4().hex[:6]}"},
+            headers={"Authorization": team["owner_key"]},
+        )
+        assert created.status_code == 201, created.text
+        project_b = created.json()["project_id"]
+        key_b, _ = _project_key(
+            admin_api, project_id=project_b, user_id=team["owner_id"]
+        )
+        secret_a = _secret(admin_api, team["owner_key"])
 
+        # The exchange refuses to name project B for a credential of project A.
         denied = _exchange(
-            admin_api, secret, scope_type="project", scope_id=other_project
+            admin_api, secret_a, scope_type="project", scope_id=project_b
         )
         assert denied.status_code == 403, denied.text
 
-        # A project id in the query does not move the credential.
-        moved = admin_api(
-            "GET",
-            "/projects/",
-            params={"project_id": other_project},
-            headers={"Authorization": secret},
+        # A concrete write on project B: allowed with B's own key, refused with A's
+        # run credential (and with A's key).
+        rename = {"name": f"m2-b-renamed-{uuid4().hex[:4]}"}
+        for credential in (secret_a, team["owner_key"]):
+            refused = admin_api(
+                "PATCH",
+                f"/projects/{project_b}",
+                json=rename,
+                headers={"Authorization": credential},
+            )
+            assert refused.status_code == 403, refused.text
+        allowed = admin_api(
+            "PATCH",
+            f"/projects/{project_b}",
+            json=rename,
+            headers={"Authorization": f"ApiKey {key_b}"},
         )
-        assert moved.status_code in (401, 403) or all(
-            project.get("project_id", project.get("id")) != other_project
-            for project in moved.json()
-        ), moved.text
+        assert allowed.status_code == 200, allowed.text
 
 
 def _create_workflow(admin_api, credentials):
@@ -364,14 +388,62 @@ class TestSchedulePrincipal:
         assert (paused.get("meta") or {}).get("paused_reason") == "agent_deleted"
 
         # Unarchiving does not resume it.
-        admin_api(
+        unarchived = admin_api(
             "POST",
             f"/workflows/{workflow_id}/unarchive",
             headers={"Authorization": team["owner_key"]},
         )
+        assert unarchived.status_code == 200, unarchived.text
         again = admin_api(
             "GET",
             f"/triggers/schedules/{schedule['id']}",
             headers={"Authorization": team["owner_key"]},
         ).json()["schedule"]
         assert (again.get("flags") or {}).get("is_active") is False
+
+
+class TestWorkspaceRoutesWithKeys:
+    """Workspace and organization management routes check the workspace's default
+    project. An API key acts only in its own project (M2), so these routes need a
+    key of the default project; a key of another project in the workspace is
+    refused. Browser sessions are not confined."""
+
+    def test_invite_needs_a_key_of_the_default_project(self, admin_api, team):
+        created = admin_api(
+            "POST",
+            "/projects/",
+            json={"name": f"m2-c-{uuid4().hex[:6]}"},
+            headers={"Authorization": team["owner_key"]},
+        )
+        assert created.status_code == 201, created.text
+        other_key, _ = _project_key(
+            admin_api,
+            project_id=created.json()["project_id"],
+            user_id=team["owner_id"],
+        )
+        path = (
+            f"/organizations/{team['organization_id']}/workspaces/"
+            f"{team['workspace_id']}/invite"
+        )
+
+        refused = admin_api(
+            "POST",
+            path,
+            params={"project_id": created.json()["project_id"]},
+            json=[
+                {"email": f"m2-inv-{uuid4().hex[:8]}@agenta.ai", "roles": ["viewer"]}
+            ],
+            headers={"Authorization": f"ApiKey {other_key}"},
+        )
+        assert refused.status_code == 403, refused.text
+
+        allowed = admin_api(
+            "POST",
+            path,
+            params={"project_id": team["project_id"]},
+            json=[
+                {"email": f"m2-inv-{uuid4().hex[:8]}@agenta.ai", "roles": ["viewer"]}
+            ],
+            headers={"Authorization": team["owner_key"]},
+        )
+        assert allowed.status_code == 200, allowed.text

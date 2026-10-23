@@ -44,7 +44,10 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionData,
     SessionInteractionKind,
+    SessionInteractionStatus,
+    SessionInteractionTransition,
 )
+from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.interactions.references import (
     keyed_references as keyed_references,
     resolve_interaction_references,
@@ -468,13 +471,28 @@ class InteractionsDispatcher:
             interaction_id=str(interaction.id) if interaction else None,
             code=code,
         )
-        if interaction is None or not interaction.turn_id:
+        if interaction is None:
             return
-        await self.interactions_service.cancel_session_pending(
-            project_id=project_id,
-            session_id=interaction.session_id,
-            only_turn_id=interaction.turn_id,
-        )
+        if interaction.turn_id:
+            await self.interactions_service.cancel_session_pending(
+                project_id=project_id,
+                session_id=interaction.session_id,
+                only_turn_id=interaction.turn_id,
+            )
+            return
+        # No turn: cancel this interaction only.
+        try:
+            await self.interactions_service.transition_interaction(
+                transition=SessionInteractionTransition(
+                    project_id=project_id,
+                    session_id=interaction.session_id,
+                    token=interaction.token,
+                    status=SessionInteractionStatus.cancelled,
+                )
+            )
+        except InteractionNotFound:
+            # Already terminal: nothing is waiting on it.
+            return
 
     async def respond_many(
         self,

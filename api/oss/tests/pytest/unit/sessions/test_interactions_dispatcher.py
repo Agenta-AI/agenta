@@ -1203,3 +1203,31 @@ async def test_response_without_envelope_is_settled_not_raised(
     )
     workflows_service.invoke_workflow.assert_not_awaited()
     interactions_service.cancel_session_pending.assert_awaited_once()
+
+
+async def test_refused_response_without_a_turn_cancels_that_interaction(
+    _allowing_access_service,
+):
+    from oss.src.core.sessions.interactions.dtos import SessionInteractionStatus
+
+    interaction = _make_interaction().model_copy(update={"run_envelope": None})
+    interactions_service = MagicMock()
+    interactions_service.fetch_interaction = AsyncMock(return_value=interaction)
+    interactions_service.cancel_session_pending = AsyncMock()
+    interactions_service.transition_interaction = AsyncMock()
+    dispatcher = InteractionsDispatcher(
+        workflows_service=MagicMock(),
+        interactions_service=interactions_service,
+    )
+    await dispatcher.respond(
+        project_id=interaction.project_id,
+        user_id=uuid4(),
+        interaction_id=interaction.id,
+        answer={"approved": True},
+    )
+    interactions_service.cancel_session_pending.assert_not_awaited()
+    transition = interactions_service.transition_interaction.await_args.kwargs[
+        "transition"
+    ]
+    assert transition.token == interaction.token
+    assert transition.status == SessionInteractionStatus.cancelled
