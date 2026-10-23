@@ -45,7 +45,6 @@ log = get_module_logger(__name__)
 # `resolve_membership` is the M2 membership cache; clearing it here means every M1
 # writer already clears it on the day M2 ships.
 ACCESS_CACHE_NAMESPACES = (
-    "check_action_access",
     "verify_bearer_token",
     "resolve_membership",
 )

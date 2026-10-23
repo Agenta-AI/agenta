@@ -125,3 +125,31 @@ def _llm_gateway_plane_on(monkeypatch):
 
     monkeypatch.setattr(flags, "llm_gateway_serves_caller", _master_switch_only)
     monkeypatch.setattr(llm_proxy, "llm_gateway_serves_caller", _master_switch_only)
+
+
+@pytest.fixture(autouse=True)
+def _eligible_gateway_principal(monkeypatch):
+    """`POST /gateways/credentials` checks the request principal's eligibility. These
+    suites mount the router without the auth middleware that sets the request access,
+    so every exchange here runs as an eligible principal. The eligibility refusal
+    itself is asserted in `test_gateway_credentials_envelope.py`, which overrides both."""
+
+    from oss.src.apis.fastapi.gateways import credentials_router
+    from oss.src.core.access.context import get_request_access
+    from oss.tests.pytest.utils.principals import (
+        AllowingAccessService,
+        make_envelope,
+        make_request_access,
+    )
+
+    fallback = make_request_access(
+        envelope=make_envelope(), credential_kind="bearer_session"
+    )
+    monkeypatch.setattr(
+        credentials_router,
+        "get_request_access",
+        lambda: get_request_access() or fallback,
+    )
+    monkeypatch.setattr(
+        credentials_router, "get_access_service", lambda: AllowingAccessService()
+    )

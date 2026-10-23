@@ -10,7 +10,12 @@ from uuid import uuid4
 
 import pytest
 
-from oss.tests.pytest.utils.principals import envelope_for_claims
+from oss.tests.pytest.utils.principals import (
+    envelope_for_claims,
+    make_request_access,
+)
+from oss.src.core.access.context import reset_request_access, set_request_access
+from oss.src.core.access.dtos import Decision, DecisionReason
 from jwt import decode
 from starlette.requests import Request
 
@@ -44,23 +49,24 @@ def _exchange(monkeypatch):
 
     verdict = {"action": True, "resource": True}
 
-    async def _check_action_access(**kwargs):
-        return verdict["action"]
+    calls = []
 
-    async def _get_cache(**kwargs):
-        return None
-
-    async def _set_cache(**kwargs):
-        return True
+    class _Access:
+        async def check_request(self, **kwargs):
+            calls.append(kwargs)
+            return Decision(
+                allowed=verdict["action"],
+                reason=(
+                    DecisionReason.ROLE
+                    if verdict["action"]
+                    else DecisionReason.MISSING_CAPABILITY
+                ),
+            )
 
     async def _check_resource_access(**kwargs):
         return verdict["resource"]
 
-    monkeypatch.setattr(
-        access_router_module, "check_action_access", _check_action_access
-    )
-    monkeypatch.setattr(access_router_module, "get_cache", _get_cache)
-    monkeypatch.setattr(access_router_module, "set_cache", _set_cache)
+    monkeypatch.setattr(access_router_module, "get_access_service", lambda: _Access())
     monkeypatch.setattr(
         access_router_module, "_check_resource_access", _check_resource_access
     )
@@ -75,6 +81,7 @@ def _exchange(monkeypatch):
         scope_type=None,
         scope_id=None,
         without_grants=False,
+        credential_kind="bearer_session",
     ):
         """Run the exchange as a principal whose credential carries ``carried_grants``.
 
@@ -102,6 +109,13 @@ def _exchange(monkeypatch):
         request.state.run_envelope = envelope_for_claims(
             user_id=USER_ID, project_id=PROJECT_ID, organization_id=ORGANIZATION_ID
         )
+        access_token = set_request_access(
+            make_request_access(
+                envelope=request.state.run_envelope,
+                credential_kind=credential_kind,
+                acting_user_id=USER_ID,
+            )
+        )
 
         token = set_auth_context(
             AuthContext(
@@ -126,7 +140,9 @@ def _exchange(monkeypatch):
             )
         finally:
             reset_auth_context(token)
+            reset_request_access(access_token)
 
+    run.calls = calls
     return run, verdict
 
 
@@ -369,3 +385,96 @@ async def test_a_grant_free_credential_cannot_get_the_grant_back(exchange):
     body = _body(await run("run_service", carried_grants=carried))
 
     assert "grants" not in _claims(body["credentials"])
+
+
+# -- M2: the exchange decides for the request principal, then mints -----------------
+
+
+@pytest.mark.asyncio
+async def test_exchange_copies_envelope_and_never_upgrades(exchange):
+    run, _ = exchange
+
+    body = _body(await run("run_service"))
+
+    claims = _claims(body["credentials"])
+    assert claims["principal"] == {"kind": "human", "id": str(USER_ID)}
+    assert claims["authority"]["project_id"] == str(PROJECT_ID)
+
+
+@pytest.mark.asyncio
+async def test_exchange_mints_only_after_allow(exchange, monkeypatch):
+    run, verdict = exchange
+    minted = []
+    real_sign = access_router_module.sign_secret_token
+
+    async def _spy(**kwargs):
+        minted.append(kwargs)
+        return await real_sign(**kwargs)
+
+    monkeypatch.setattr(access_router_module, "sign_secret_token", _spy)
+
+    for action, resource in ((False, True), (True, False)):
+        verdict.update(action=action, resource=resource)
+        with pytest.raises(access_router_module.Deny):
+            await run("run_service")
+    with pytest.raises(access_router_module.Deny):
+        await run(None)
+    assert minted == []
+
+    verdict.update(action=True, resource=True)
+    await run("run_service")
+    assert len(minted) == 1
+
+
+@pytest.mark.asyncio
+async def test_exchange_has_no_cache():
+    assert not hasattr(access_router_module, "get_cache")
+    assert not hasattr(access_router_module, "set_cache")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["bearer_session", "api_key", "run_credential"])
+async def test_exchange_passes_the_auth_scope_project(exchange, kind):
+    run, _ = exchange
+
+    await run("run_service", credential_kind=kind)
+
+    call = run.calls[-1]
+    assert call["project_id"] == PROJECT_ID
+    assert call["access"].credential_kind.value == kind
+    assert call["action"].value == "run_service"
+
+
+@pytest.mark.asyncio
+async def test_exchange_denies_an_inactive_principal(exchange, monkeypatch):
+    """The real decision: an inactive principal record (a deleted key, a deleted
+    user) is refused before any membership read, so no cached answer can allow it."""
+
+    from oss.src.core.access.dtos import PrincipalKind, PrincipalRecord, PrincipalRef
+    from oss.src.core.access.service import AccessService
+    from oss.src.core.memberships.dtos import MembershipPolicy
+    from oss.src.core.memberships.service import MembershipsService
+    from oss.tests.pytest.utils.memberships import (
+        InMemoryMembershipsDAO,
+        RecordingRbac,
+    )
+    from oss.tests.pytest.utils.principals import InMemoryPrincipalsDAO
+
+    run, _ = exchange
+    key = PrincipalRef(kind=PrincipalKind.HUMAN, id=USER_ID)
+    principals = InMemoryPrincipalsDAO()
+    principals.add(
+        PrincipalRecord(principal=key, acting_user_id=USER_ID, is_active=False)
+    )
+    service = AccessService(
+        memberships=MembershipsService(
+            memberships_dao=InMemoryMembershipsDAO(),
+            policy=MembershipPolicy.ORGANIZATION_WIDE,
+        ),
+        rbac=RecordingRbac(),
+        principals=principals,
+    )
+    monkeypatch.setattr(access_router_module, "get_access_service", lambda: service)
+
+    with pytest.raises(access_router_module.Deny):
+        await run("run_service")

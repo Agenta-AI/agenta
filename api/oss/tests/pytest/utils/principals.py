@@ -299,8 +299,42 @@ class DenyingAccessService(AllowingAccessService):
         self.decisions.append(kwargs)
         return self._deny
 
+    async def check_request(self, **kwargs):
+        self.decisions.append(kwargs)
+        return self._deny
+
+    async def check_eligibility(self, **kwargs):
+        self.decisions.append(kwargs)
+        return self._deny
+
+    async def check_human(self, **kwargs):
+        self.decisions.append(kwargs)
+        return self._deny
+
     async def require(self, **kwargs) -> None:
         from oss.src.core.access.types import AccessDenied  # noqa: PLC0415
 
         self.required.append(kwargs)
         raise AccessDenied(decision=self._deny)
+
+
+class HumanCheckFromWrapper:
+    """An `AccessService` stand-in whose `check_human` answers with an old-style
+    `check_action_access(user_uid=, project_id=, permission=)` stub, so tests written
+    against the wrapper keep their stub and its call assertions."""
+
+    def __init__(self, check) -> None:
+        self._check = check
+
+    async def check_human(self, *, user_id, project_id, action):
+        from oss.src.core.access.dtos import Decision, DecisionReason  # noqa: PLC0415
+
+        allowed = await self._check(
+            user_uid=str(user_id), project_id=str(project_id), permission=action
+        )
+        return Decision(
+            allowed=bool(allowed),
+            reason=DecisionReason.ROLE
+            if allowed
+            else DecisionReason.MISSING_CAPABILITY,
+        )

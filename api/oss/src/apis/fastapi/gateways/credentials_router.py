@@ -17,6 +17,10 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from oss.src.apis.fastapi.gateways.exceptions import plane_disabled_http_exception
+from oss.src.core.access.context import get_request_access
+from oss.src.core.access.dtos import RequestCredentialKind
+from oss.src.core.access.principals import access_denied_error
+from oss.src.core.access.service import get_access_service
 from oss.src.apis.fastapi.gateways.flags import require_mcp_gateway_enabled
 from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.types import LLMGatewayDisabledError
@@ -86,7 +90,8 @@ class GatewayCredentialsRouter:
 
         No permission check of its own: the result is strictly weaker than the credential
         that bought it — same tenant scope, same run, fewer routes — so a caller can reach
-        nothing here it could not already reach with what it presented. Any caller gets a
+        nothing here it could not already reach with what it presented. The principal must
+        still be eligible (active, a member of the project). Any caller gets a
         credential, but only the platform runtime gets one that built-in models accept.
 
         It does check the switch for the plane the caller named, because minting a credential
@@ -112,6 +117,30 @@ class GatewayCredentialsRouter:
         envelope = request_run_envelope(request)
         if envelope is None:
             raise HTTPException(status_code=401, detail="Unauthorized")
+
+        # No permission check, but the principal must still be eligible (decide steps 1
+        # and 2): a deleted key or a removed member gets no new credential.
+        access = get_request_access()
+        if access is None:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        decision = await get_access_service().check_eligibility(
+            authority=(
+                None
+                if access.credential_kind == RequestCredentialKind.BEARER_SESSION
+                else access.authority
+            ),
+            principal=access.principal,
+            project_id=scope.project_id,
+        )
+        if not decision.allowed:
+            raise HTTPException(
+                status_code=403,
+                detail=access_denied_error(
+                    decision=decision,
+                    principal_kind=access.principal.kind,
+                    project_id=scope.project_id,
+                ).model_dump(exclude_none=True),
+            )
 
         # A re-exchange keeps the labels its caller's credential already carries.
         labels = dict(gateway_run_labels(request) or {})

@@ -9,7 +9,7 @@ from oss.src.utils.env import env
 from oss.tests.pytest.utils.memberships import InMemoryMembershipsDAO, make_summary
 
 
-NAMESPACES = ("check_action_access", "verify_bearer_token", "resolve_membership")
+NAMESPACES = ("verify_bearer_token", "resolve_membership")
 
 
 class _Calls(list):
@@ -230,3 +230,10 @@ async def test_a_role_change_in_a_large_organization_scans_once_per_user(recorde
     # One user-scoped call, not 72 x 3 + 1 pattern scans; it covers every pair.
     assert recorded.user_calls == [str(user)]
     assert _normalized(recorded) == _normalized(_expected_for(user, project_ids))
+
+
+def test_invalidate_access_caches_has_no_check_action_access_line():
+    from oss.src.core.memberships.service import ACCESS_CACHE_NAMESPACES
+
+    assert "check_action_access" not in ACCESS_CACHE_NAMESPACES
+    assert "resolve_membership" in ACCESS_CACHE_NAMESPACES
