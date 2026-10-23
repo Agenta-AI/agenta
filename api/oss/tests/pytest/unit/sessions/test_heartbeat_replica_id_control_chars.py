@@ -24,6 +24,7 @@ from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.utils.env import env
 
 from oss.tests.pytest.utils.principals import make_envelope
+from oss.tests.pytest.utils.sharing import register_sharing_service_for_tests
 from unit.sessions.test_heartbeat_turn_binding import _FakeDAO
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 
@@ -59,6 +60,8 @@ def redis():
 @pytest.fixture
 def client(redis, monkeypatch):
     monkeypatch.setattr(env.runner, "token", _RUNNER_TOKEN)
+    # The route derives the new session's policy through the registered service.
+    register_sharing_service_for_tests(monkeypatch)
     engine = LockEngine()
     service = SessionStreamsService(streams_dao=_FakeDAO(), lock_engine=engine)
     app = FastAPI()

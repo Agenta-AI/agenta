@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from oss.src.core.sessions.streams.dtos import SessionStreamCreate
 from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 class _FakeSession:
@@ -75,7 +76,7 @@ async def test_concurrent_first_touch_raises_session_stream_already_exists(
     dao = SessionStreamsDAO(engine=_FakeEngine())
     project_id = uuid4()
     session_id = "sess-race-1"
-    stream = SessionStreamCreate(session_id=session_id)
+    stream = SessionStreamCreate(session_id=session_id, access=OWNERLESS_PROJECT_POLICY)
 
     # First create wins.
     await dao.create(project_id=project_id, user_id=None, stream=stream)

@@ -31,7 +31,7 @@ from oss.tests.pytest.utils.membership_seed import (
     execute,
     seed_organization,
 )
-from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy
+from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy, SharingWorld
 from oss.tests.pytest.utils.statements import (
     count_statements_by_phase,
     patch_access_phase,
@@ -516,6 +516,7 @@ async def test_trigger_tick_runs_no_access_statement_and_unchanged_endpoint_stat
                 workflows_service=workflows,
                 dispatch_fn=dispatch,
                 access_service=access_service,
+                sharing_service=SharingWorld().service,
             )
             await dispatcher.dispatch_schedule(
                 project_id=project_id, schedule=schedule, event_id=event_id, event={}

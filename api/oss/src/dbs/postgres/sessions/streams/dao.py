@@ -39,6 +39,7 @@ from oss.src.core.sessions.streams.interfaces import (
 from oss.src.core.sessions.streams.naming import refuse_name_change
 from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
 from oss.src.core.shared.dtos import Status, Windowing
+from oss.src.core.sharing.dtos import AccessPolicy
 from oss.src.core.triggers.dtos import TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE
 
 from oss.src.dbs.postgres.shared.engine import (
@@ -168,6 +169,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         event_id: str,
         session_id: str,
         attribution: SessionTriggerAttribution,
+        access: AccessPolicy,
     ) -> bool:
         by_schedule = attribution.kind == SessionTriggerKind.schedule
         claim_status = Status(code="102", message="claimed")
@@ -244,18 +246,33 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
 
         tags = trigger_attribution_tags(attribution)
         stream_insert = insert(SessionStreamDBE).from_select(
-            ["id", "project_id", "created_by_id", "session_id", "tags"],
+            [
+                "id",
+                "project_id",
+                "created_by_id",
+                "session_id",
+                "tags",
+                "visibility",
+                "owner_user_id",
+            ],
             select(
                 literal(uuid.uuid7()),
                 literal(project_id),
                 literal(user_id),
                 literal(session_id),
                 cast(tags, JSONB),
+                literal(access.visibility.value),
+                literal(
+                    access.owner_user_id,
+                    type_=SessionStreamDBE.__table__.c["owner_user_id"].type,
+                ),
             ).select_from(claimed_delivery),
         )
         merged_tags = func.coalesce(SessionStreamDBE.tags, cast({}, JSONB)).op("||")(
             stream_insert.excluded.tags
         )
+        # The conflict arm merges the attribution tags only: an existing row keeps its
+        # sharing policy.
         statement = stream_insert.on_conflict_do_update(
             index_elements=["project_id", "session_id"],
             set_={"tags": merged_tags},

@@ -52,7 +52,7 @@ class _FakeStreamsService:
     def __init__(self):
         self.calls = []
 
-    async def command(self, *, project_id, user_id, request):
+    async def command(self, *, project_id, user_id, request, access):
         from oss.src.core.sessions.streams.dtos import SessionStreamCommandResponse
 
         self.calls.append((project_id, user_id, request))

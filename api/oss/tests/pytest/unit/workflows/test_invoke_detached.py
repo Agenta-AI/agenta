@@ -482,6 +482,7 @@ def test_dispatch_fn_injected_into_both_consumers():
         session_claims_dao=SimpleNamespace(),
         workflows_service=SimpleNamespace(),
         dispatch_fn=_dispatch,
+        sharing_service=SimpleNamespace(),
     )
     assert worker._dispatch_fn is _dispatch
     assert dispatcher._dispatch_fn is _dispatch

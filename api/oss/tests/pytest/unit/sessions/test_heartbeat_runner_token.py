@@ -19,6 +19,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionHeartbeatResult,
 )
 from oss.src.utils.env import env
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 _PROJECT = UUID("00000000-0000-0000-0000-0000000000aa")
@@ -72,7 +73,11 @@ async def test_a_beat_with_the_runner_token_is_runner_verified(monkeypatch):
     )
 
     service.heartbeat.assert_awaited_once_with(
-        project_id=_PROJECT, request=payload, runner_verified=True, envelope=None
+        project_id=_PROJECT,
+        request=payload,
+        runner_verified=True,
+        envelope=None,
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
 
@@ -93,7 +98,11 @@ async def test_a_beat_without_a_valid_runner_token_still_runs_unverified(
 
     assert result.replica_id == "replica-1"
     service.heartbeat.assert_awaited_once_with(
-        project_id=_PROJECT, request=payload, runner_verified=False, envelope=None
+        project_id=_PROJECT,
+        request=payload,
+        runner_verified=False,
+        envelope=None,
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
 
@@ -108,5 +117,9 @@ async def test_a_deployment_with_no_runner_token_verifies_no_beat(monkeypatch):
     )
 
     service.heartbeat.assert_awaited_once_with(
-        project_id=_PROJECT, request=payload, runner_verified=False, envelope=None
+        project_id=_PROJECT,
+        request=payload,
+        runner_verified=False,
+        envelope=None,
+        access=OWNERLESS_PROJECT_POLICY,
     )

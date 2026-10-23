@@ -39,6 +39,7 @@ from oss.src.utils.env import env
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 _PROJECT = UUID("00000000-0000-0000-0000-0000000000cc")
@@ -148,6 +149,7 @@ class _Harness:
                 ),
                 runner_verified=True,
                 envelope=make_envelope(),
+                access=OWNERLESS_PROJECT_POLICY,
             )
 
     async def read(self):

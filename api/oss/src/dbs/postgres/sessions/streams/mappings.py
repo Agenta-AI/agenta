@@ -223,6 +223,8 @@ def map_stream_dto_to_dbe_create(
         # very first turn of a session.
         turn_started_at=datetime.now(timezone.utc) if stream.turn_id else None,
         references=references_to_json(stream.references),
+        visibility=stream.access.visibility.value,
+        owner_user_id=stream.access.owner_user_id,
     )
 
 

@@ -32,6 +32,7 @@ from oss.src.dbs.redis.sessions.contract import RELEASE_IF_OWNER_LUA
 from unit.sessions.test_heartbeat_parked_zombie import _FakeStreamsDAO
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 _PROJECT = uuid4()
@@ -139,7 +140,10 @@ async def test_heartbeat_returns_committed_result_when_guard_lease_is_lost(lock_
         patch("oss.src.core.sessions.streams.service.log.warning") as warning,
     ):
         result = await svc.heartbeat(
-            project_id=_PROJECT, request=_beat("turn-a"), envelope=make_envelope()
+            project_id=_PROJECT,
+            request=_beat("turn-a"),
+            envelope=make_envelope(),
+            access=OWNERLESS_PROJECT_POLICY,
         )
 
     assert result.is_current_turn is True
@@ -166,12 +170,16 @@ async def test_handover_will_not_evict_a_turn_that_took_the_lock_mid_read(lock_e
 
     # A parked holder: alive=turn-live, running cleared.
     await svc.heartbeat(
-        project_id=_PROJECT, request=_beat("turn-live"), envelope=make_envelope()
+        project_id=_PROJECT,
+        request=_beat("turn-live"),
+        envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-live", running=False),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     assert await _alive(lock_engine) == "turn-live"
     assert await _running(lock_engine) is None
@@ -182,7 +190,10 @@ async def test_handover_will_not_evict_a_turn_that_took_the_lock_mid_read(lock_e
         new=AsyncMock(return_value="turn-ghost"),
     ):
         result = await svc.heartbeat(
-            project_id=_PROJECT, request=_beat("turn-new"), envelope=make_envelope()
+            project_id=_PROJECT,
+            request=_beat("turn-new"),
+            envelope=make_envelope(),
+            access=OWNERLESS_PROJECT_POLICY,
         )
 
     assert await _alive(lock_engine) == "turn-live", (
@@ -207,7 +218,10 @@ async def test_cancel_atomically_tombstones_and_clears_the_locks(lock_engine):
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
     await svc.heartbeat(
-        project_id=_PROJECT, request=_beat("turn-a"), envelope=make_envelope()
+        project_id=_PROJECT,
+        request=_beat("turn-a"),
+        envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     assert await _alive(lock_engine) == "turn-a"
     redis = lock_engine._client()
@@ -217,13 +231,21 @@ async def test_cancel_atomically_tombstones_and_clears_the_locks(lock_engine):
         result = await original_eval(script, numkeys, *keys_and_args)
         if "AGENTA_DISPLACE_TURNS" in script:
             late = await svc.heartbeat(
-                project_id=_PROJECT, request=_beat("turn-a"), envelope=make_envelope()
+                project_id=_PROJECT,
+                request=_beat("turn-a"),
+                envelope=make_envelope(),
+                access=OWNERLESS_PROJECT_POLICY,
             )
             assert late.is_current_turn is False
         return result
 
     with patch.object(redis, "eval", new=_beat_after_atomic_displacement):
-        await svc.command(project_id=_PROJECT, user_id=_USER, request=_cancel())
+        await svc.command(
+            project_id=_PROJECT,
+            user_id=_USER,
+            request=_cancel(),
+            access=OWNERLESS_PROJECT_POLICY,
+        )
 
     assert await _alive(lock_engine) is None, (
         "the cancelled turn's own beat re-armed `alive`; the session stays 'alive' until "

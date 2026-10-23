@@ -31,6 +31,7 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 _PROJECT = uuid4()
@@ -122,6 +123,7 @@ async def _send(svc, session_id: str, *, force: bool = False):
             data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
             force=force,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
 
@@ -168,6 +170,7 @@ async def test_runner_first_heartbeat_publishes_session_changed(lock_engine):
             is_running=True,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert publisher.changed_calls == [(str(_PROJECT), "session", session_id)]
@@ -189,6 +192,7 @@ async def test_subsequent_heartbeats_do_not_republish(lock_engine):
                 is_running=True,
             ),
             envelope=make_envelope(),
+            access=OWNERLESS_PROJECT_POLICY,
         )
 
     assert publisher.changed_calls == [(str(_PROJECT), "session", session_id)]

@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
 from oss.src.core.shared.dtos import Header, Identifier, Lifecycle
-from oss.src.core.sharing.dtos import Visibility
+from oss.src.core.sharing.dtos import AccessPolicy, Visibility
 from oss.src.core.sessions.types import (
     SessionDelivery,
     SessionOrigin,
@@ -104,6 +104,8 @@ class SessionStreamQueryResult(BaseModel):
 
 class SessionStreamCreate(Header):
     session_id: str
+    # The initial sharing policy. Required: every insert path decides it on the server.
+    access: AccessPolicy
     # Who chose `name`. Typed here and encoded by the mapper, so the core never handles the
     # storage representation.
     name_source: Optional[SessionNameSource] = None

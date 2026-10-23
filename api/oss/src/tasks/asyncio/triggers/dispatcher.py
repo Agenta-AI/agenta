@@ -40,6 +40,8 @@ from oss.src.core.sessions.dtos import (
     SessionTriggerKind,
 )
 from oss.src.core.sessions.streams.interfaces import TriggerSessionClaimsDAOInterface
+from oss.src.core.sharing.dtos import SharedItemKind
+from oss.src.core.sharing.service import SharingService, get_sharing_service
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.logging import get_module_logger
 
@@ -70,6 +72,7 @@ class TriggersDispatcher:
         workflows_service: WorkflowsService,
         dispatch_fn: Optional[Callable] = None,
         access_service: Optional[AccessService] = None,
+        sharing_service: Optional[SharingService] = None,
     ):
         self.triggers_dao = triggers_dao
         self.session_claims_dao = session_claims_dao
@@ -77,6 +80,8 @@ class TriggersDispatcher:
         self._dispatch_fn = dispatch_fn
         # None: the process's registered service (bootstrap_access).
         self._access_service = access_service
+        # Every root builds the dispatcher after bootstrap_access().
+        self.sharing_service = sharing_service or get_sharing_service()
 
     @property
     def access_service(self) -> AccessService:
@@ -402,6 +407,14 @@ class TriggersDispatcher:
                 configuration_id=entity.id,
                 kind=kind,
                 delivery_id=delivery_id,
+            ),
+            access=self.sharing_service.initial_policy(
+                principal=entity.principal,
+                origin=(
+                    RunOrigin.SUBSCRIPTION if is_subscription else RunOrigin.SCHEDULE
+                ),
+                sender_user_id=None,
+                kind=SharedItemKind.SESSION,
             ),
         )
         if not claimed:

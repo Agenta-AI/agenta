@@ -35,6 +35,7 @@ from oss.src.dbs.redis.sessions.locks import (
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 _PROJECT = uuid4()
@@ -132,6 +133,7 @@ async def _beat_as_runner(svc, request: SessionHeartbeatRequest):
         request=request,
         runner_verified=True,
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
 
@@ -243,6 +245,7 @@ async def test_a_beat_without_the_runner_token_binds_an_empty_address_and_warns(
             request=_beat(_POD_A, "turn-1", address="http://attacker.example:80"),
             runner_verified=False,
             envelope=make_envelope(),
+            access=OWNERLESS_PROJECT_POLICY,
         )
 
     assert result.is_current_turn is True, "a missing runner token is not a refusal"

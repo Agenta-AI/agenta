@@ -261,7 +261,7 @@ class _FakeStreamsService:
     async def fetch_header(self, *, project_id: UUID, session_id: str):
         return self.stream
 
-    async def command(self, *, project_id, user_id, request):
+    async def command(self, *, project_id, user_id, request, access):
         actual = self.stream.turn_id if self.stream is not None else None
         if (
             request.expected_execution_id is not None

@@ -34,6 +34,7 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
 )
 
 from agenta.sdk.agents.dtos import HarnessKind
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 _PROJECT = uuid4()
@@ -168,7 +169,9 @@ def test_references_round_trip_through_the_row_with_their_keys():
     dbe = map_stream_dto_to_dbe_create(
         project_id=_PROJECT,
         user_id=None,
-        stream=SessionStreamCreate(session_id="s-1", references=references),
+        stream=SessionStreamCreate(
+            session_id="s-1", references=references, access=OWNERLESS_PROJECT_POLICY
+        ),
     )
     restored = map_stream_dbe_to_dto(stream_dbe=dbe)
 

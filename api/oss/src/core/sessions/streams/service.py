@@ -78,6 +78,7 @@ from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.runner_client import kill_runner_sandbox
 from oss.src.core.sessions.types import SessionReference
 from oss.src.core.shared.dtos import Windowing
+from oss.src.core.sharing.dtos import AccessPolicy
 
 log = get_module_logger(__name__)
 
@@ -315,8 +316,11 @@ class SessionStreamsService:
         project_id: UUID,
         user_id: UUID,
         request: SessionStreamCommandRequest,
+        access: AccessPolicy,
         arrived_at_ms: Optional[int] = None,
     ) -> SessionStreamCommandResponse:
+        """`access` is the policy a send or steer writes when it creates the row; an
+        existing row keeps its policy."""
         _validate_session_id(request.session_id)
 
         # When the request reached the process, for the stale-cancel guard. The router stamps it
@@ -344,6 +348,7 @@ class SessionStreamsService:
                 user_id=user_id,
                 session_id=session_id,
                 name=proposed_name,
+                access=access,
             )
             return SessionStreamCommandResponse(
                 mode=mode,
@@ -359,6 +364,7 @@ class SessionStreamsService:
                 user_id=user_id,
                 session_id=session_id,
                 name=proposed_name,
+                access=access,
             )
             return SessionStreamCommandResponse(
                 mode=mode,
@@ -499,13 +505,15 @@ class SessionStreamsService:
         request: SessionHeartbeatRequest,
         runner_verified: bool = False,
         envelope: Optional[RunEnvelope],
+        access: AccessPolicy,
     ) -> SessionHeartbeatResult:
         """`runner_verified` says the caller proved it is runner infrastructure (the runner
         token). Only then is its `replica_address` stored, because Stop later sends the runner
         token to that address.
 
         `envelope` is the run credential's envelope. A beat that would create the session
-        without one raises `SessionCreationRequiresRunCredential`."""
+        without one raises `SessionCreationRequiresRunCredential`. `access` is the policy
+        a beat that creates the row writes; it is never written on an existing row."""
         _validate_session_id(request.session_id)
         async with session_heartbeat_guard(
             self._lock,
@@ -517,6 +525,7 @@ class SessionStreamsService:
                 request=request,
                 runner_verified=runner_verified,
                 envelope=envelope,
+                access=access,
             )
             try:
                 guard.ensure_held()
@@ -534,6 +543,7 @@ class SessionStreamsService:
         request: SessionHeartbeatRequest,
         runner_verified: bool,
         envelope: Optional[RunEnvelope] = None,
+        access: AccessPolicy,
     ) -> SessionHeartbeatResult:
         """Refresh the nest, mirror it onto the row, and fill what the row still lacks.
 
@@ -813,6 +823,7 @@ class SessionStreamsService:
                         turn_id=durable_turn_id,
                         name=proposed_name,
                         references=proposed_references,
+                        access=access,
                     ),
                 )
                 created = True
@@ -962,6 +973,7 @@ class SessionStreamsService:
         user_id: Optional[UUID],
         session_id: str,
         header: SessionStreamHeaderEdit,
+        access: AccessPolicy,
         name_source: SessionNameSource = SessionNameSource.manual,
     ) -> Optional[SessionStream]:
         """The rename edit: full-PUT {name, description} onto the merged stream row.
@@ -977,6 +989,8 @@ class SessionStreamsService:
         locks; a check at this layer would be a read-then-write with a rename-shaped hole in
         the middle. The create arm needs no such check, because a row that does not exist
         holds no name to protect, and the concurrent-create arm re-enters the guarded update.
+
+        `access` is written only by the create arm; a rename never changes the policy.
         """
         _validate_session_id(session_id)
         updated = await self._dao.update_header(
@@ -996,6 +1010,7 @@ class SessionStreamsService:
                         name=header.name,
                         description=header.description,
                         name_source=name_source,
+                        access=access,
                     ),
                 )
             except SessionStreamAlreadyExists:
@@ -1147,6 +1162,7 @@ class SessionStreamsService:
         project_id: UUID,
         user_id: UUID,
         session_id: str,
+        access: AccessPolicy,
         name: Optional[str] = None,
     ) -> str:
         turn_id = str(uuid.uuid7())
@@ -1189,6 +1205,7 @@ class SessionStreamsService:
                         flags=flags,
                         turn_id=turn_id,
                         name=name,
+                        access=access,
                     ),
                 )
                 created = True

@@ -44,6 +44,8 @@ from oss.src.core.tools.dtos import AgentError
 from oss.src.core.access.principals import missing_envelope_error
 from oss.src.core.access.types import MissingEnvelope
 from oss.src.middlewares.auth import request_run_envelope
+from oss.src.apis.fastapi.sharing.utils import policy_for_request
+from oss.src.core.sharing.dtos import SharedItemKind, Visibility
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
@@ -562,6 +564,7 @@ class SessionStreamsRouter:
             project_id=project_id,
             user_id=user_id,
             request=payload,
+            access=policy_for_request(request, kind=SharedItemKind.SESSION),
         )
 
         if mode == CommandMode.cancel:
@@ -738,6 +741,7 @@ class SessionStreamsRouter:
             request=payload,
             runner_verified=has_valid_runner_token(request),
             envelope=getattr(request.state, "run_envelope", None),
+            access=policy_for_request(request, kind=SharedItemKind.SESSION),
         )
         return heartbeat.model_copy(
             update={"stream": sanitize_session_stream(heartbeat.stream)}
@@ -786,6 +790,7 @@ class SessionStreamsRouter:
         session_id: str = Query(...),
         name_source: Optional[SessionNameSource] = Query(None),
         author: Optional[str] = Query(None, include_in_schema=False, deprecated=True),
+        visibility: Optional[Visibility] = Query(None),
     ) -> SessionStreamResponse:
         """Rename a session.
 
@@ -805,6 +810,9 @@ class SessionStreamsRouter:
         moved on. Reading it costs one branch and keeps that call on the guarded path; the
         alternative is a rename that silently claims a person made it. Delete this parameter
         once no such session can still be alive.
+
+        `visibility` is the visibility a header call that creates the session asks for. It
+        is ignored on an existing session, and a `private` without an owner is dropped.
         """
         _validate_session_id_http(session_id)
         resolved_source = _resolve_name_source(name_source=name_source, author=author)
@@ -822,6 +830,9 @@ class SessionStreamsRouter:
             session_id=session_id,
             header=header,
             name_source=resolved_source,
+            access=policy_for_request(
+                request, kind=SharedItemKind.SESSION, requested=visibility
+            ),
         )
         return SessionStreamResponse(stream=sanitize_session_stream(stream))
 

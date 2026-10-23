@@ -32,6 +32,7 @@ from oss.src.dbs.redis.sessions.locks import force_cancel_alive, get_alive_owner
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 _PROJECT = uuid4()
@@ -103,11 +104,13 @@ async def test_uninterrupted_heartbeats_stay_current(lock_engine):
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-1"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     r2 = await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-1"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert r1.is_current_turn is True
@@ -122,6 +125,7 @@ async def test_cancel_between_beats_flips_next_beat_to_not_current(lock_engine):
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-1"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     assert first.is_current_turn is True
 
@@ -132,6 +136,7 @@ async def test_cancel_between_beats_flips_next_beat_to_not_current(lock_engine):
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-1"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert second.is_current_turn is False, (
@@ -156,6 +161,7 @@ async def test_steer_flips_the_old_turns_next_beat_to_not_current(lock_engine):
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-1"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     # Simulate a steer: a new turn steals the alive/running locks (force_cancel + a fresh
@@ -165,6 +171,7 @@ async def test_steer_flips_the_old_turns_next_beat_to_not_current(lock_engine):
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-2"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     # The OLD turn's own heartbeat (still in flight on the runner) must see the takeover.
@@ -172,6 +179,7 @@ async def test_steer_flips_the_old_turns_next_beat_to_not_current(lock_engine):
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-1"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert old_turn_beat.is_current_turn is False
@@ -195,6 +203,7 @@ async def test_a_second_replicas_turn_reports_not_current_while_a_turn_runs(
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-1"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     # A second replica beats another turn of the same session while turn-1 holds `running`.
@@ -202,6 +211,7 @@ async def test_a_second_replicas_turn_reports_not_current_while_a_turn_runs(
         project_id=_PROJECT,
         request=_beat("replica-b", "turn-2"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert result.is_current_turn is False
@@ -221,11 +231,13 @@ async def test_new_turn_on_a_previously_run_session_is_current(lock_engine):
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-1"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-1", running=False),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     # The previous turn's alive lock lapses (TTL) / is cleared before the next turn starts.
     await force_cancel_alive(lock_engine, project_id=str(_PROJECT), session_id=_SESSION)
@@ -234,6 +246,7 @@ async def test_new_turn_on_a_previously_run_session_is_current(lock_engine):
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-2"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert fresh.is_current_turn is True, (
@@ -259,6 +272,7 @@ async def test_second_turn_on_a_RUNNING_session_is_refused(lock_engine):
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-1"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     # The second message arrives on the SAME replica as its own turn. Nothing cancelled turn-1,
@@ -267,6 +281,7 @@ async def test_second_turn_on_a_RUNNING_session_is_refused(lock_engine):
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-2"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert second.is_current_turn is False, (
@@ -284,6 +299,7 @@ async def test_second_turn_on_a_RUNNING_session_is_refused(lock_engine):
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-1"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     assert still_live.is_current_turn is True
 
@@ -305,11 +321,13 @@ async def test_a_refused_turns_end_beat_cannot_clear_the_live_turns_running(
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-1"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-2"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     # The refused turn's end beat.
@@ -317,12 +335,14 @@ async def test_a_refused_turns_end_beat_cannot_clear_the_live_turns_running(
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-2", running=False),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     live = await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-1"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     assert live.is_current_turn is True, (
         "the refused turn's end beat released the LIVE turn's locks"
@@ -350,18 +370,21 @@ async def test_a_resume_is_admitted_while_the_previous_turn_is_PARKED(lock_engin
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-1"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     # Park: the turn ends its execution but the session stays alive.
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-1", running=False),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     resume = await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("replica-a", "turn-2"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert resume.is_current_turn is True, (

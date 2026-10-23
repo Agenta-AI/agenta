@@ -337,3 +337,15 @@ class SharingWorld:
             project_id=self.project_id,
             grant=SessionGrant(stream_id=state.stream_id, user_id=user_id, role=role),
         )
+
+
+def register_sharing_service_for_tests(monkeypatch) -> SharingService:
+    """Registers the `SharingService` of a fresh `SharingWorld` as the process's
+    service, for code that calls `get_sharing_service()` (the trigger dispatcher,
+    `policy_for_request`) in tests that run no `bootstrap_access()`."""
+
+    import oss.src.core.sharing.service as service_module  # noqa: PLC0415
+
+    service = SharingWorld().service
+    monkeypatch.setattr(service_module, "_sharing_service", service)
+    return service
