@@ -66,7 +66,9 @@ export interface PreviewCommentLayerProps {
     touch?: boolean
 }
 
-type Editor = {kind: "draft"; quote: Quote; rect: PreviewRect} | {kind: "edit"; id: string}
+type Editor =
+    | {kind: "draft"; quote: Quote; rect: PreviewRect; note: string}
+    | {kind: "edit"; id: string}
 
 /** Staged preview comments on this target, in store order. */
 export const usePreviewComments = (
@@ -87,6 +89,9 @@ export const usePreviewComments = (
         [quotes, path, mountId],
     )
 }
+
+const draftField = (root: HTMLElement | null) =>
+    root?.querySelector<HTMLTextAreaElement>("[role=dialog] textarea") ?? null
 
 const noteAnchor = (rect: PreviewRect) => ({
     top: rect.top,
@@ -153,9 +158,12 @@ export const PreviewCommentLayer = ({
 
     useEffect(() => {
         if (!pick || !sessionId) return
-        setEditor({
+        // A pick while a draft is open moves the draft there, keeping what was typed.
+        const typed = draftField(rootRef.current)?.value ?? ""
+        setEditor((current) => ({
             kind: "draft",
             rect: pick.rect,
+            note: current?.kind === "draft" ? typed : "",
             quote: {
                 id: generateId(),
                 text: pick.text,
@@ -164,9 +172,9 @@ export const PreviewCommentLayer = ({
                 stale: false,
                 source: {kind: "preview", ...latest.current.target, anchor: pick.anchor},
             },
-        })
+        }))
         latest.current.onPickConsumed()
-    }, [pick, sessionId])
+    }, [pick, sessionId, rootRef])
 
     useEffect(() => {
         if (!sessionId) return
@@ -191,13 +199,13 @@ export const PreviewCommentLayer = ({
         return () => observer.disconnect()
     }, [rootRef])
 
-    // QuoteNote focuses its field on mount; editing continues after the existing text.
-    const editingId = editor?.kind === "edit" ? editor.id : null
+    // QuoteNote focuses its field on mount; typing continues after any text it opens with.
+    const editorKey = !editor ? null : editor.kind === "edit" ? editor.id : editor.quote.id
     useLayoutEffect(() => {
-        if (!editingId) return
-        const field = rootRef.current?.querySelector<HTMLTextAreaElement>("[role=dialog] textarea")
+        if (!editorKey) return
+        const field = draftField(rootRef.current)
         field?.setSelectionRange(field.value.length, field.value.length)
-    }, [editingId, rootRef])
+    }, [editorKey, rootRef])
 
     if (!sessionId) return null
 
@@ -275,6 +283,7 @@ export const PreviewCommentLayer = ({
                     quote={editor.quote}
                     anchor={noteAnchor(editor.rect)}
                     bounds={bounds}
+                    initialNote={editor.note}
                     onStage={(note) => {
                         addQuote(sessionId, {...editor.quote, note, staged: true})
                         close()

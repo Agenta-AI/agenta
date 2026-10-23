@@ -66,6 +66,7 @@ function setup(touch = true) {
     return {
         onPickConsumed,
         rerender: (pinRects: PreviewPinRect[]) => view.rerender(ui(null, pinRects)),
+        pickAgain: (next: PreviewPick) => view.rerender(ui(next, [])),
     }
 }
 
@@ -183,6 +184,25 @@ describe("PreviewCommentLayer", () => {
         act(() => rerender([{id, rect: {...rect, top: -500}}]))
         expect(getQuotes(sessionId)[0].stale).toBe(false)
         expect(screen.queryByRole("button", {name: "Comment 1"})).toBeNull()
+    })
+
+    it("moves an open draft to a second pick and keeps what was typed", () => {
+        const {pickAgain} = setup()
+        const input = within(screen.getByRole("dialog")).getByRole("textbox")
+        fireEvent.change(input, {target: {value: "Half a thought"}})
+        const second: PreviewPick = {
+            anchor: {...anchor, selector: ":scope > :nth-child(4)"},
+            text: "Q4 outlook",
+            rect: {...rect, top: 300},
+        }
+        act(() => pickAgain(second))
+        const moved = within(screen.getByRole("dialog")).getByRole("textbox") as HTMLTextAreaElement
+        expect(moved.value).toBe("Half a thought")
+        expect(moved.selectionStart).toBe("Half a thought".length)
+        fireEvent.keyDown(moved, {key: "Enter"})
+        expect(getQuotes(sessionId).map((q) => [q.text, q.note])).toEqual([
+            ["Q4 outlook", "Half a thought"],
+        ])
     })
 
     it("continues an edit after the existing note", () => {
