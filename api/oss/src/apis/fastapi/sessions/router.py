@@ -1196,22 +1196,28 @@ class RecordsRouter:
             return {"ok": True}
 
         assert not isinstance(body, list)
-        # For a finished continuation, commit the core execution outcome before accepting its
+        # For a terminal continuation, commit the core execution outcome before accepting its
         # terminal record into the asynchronous tracing stream. This closes the cross-database
         # window where the watchdog could see no `done`, expose recovery, and replay work that
         # had already finished while the records worker was still settling core state.
+        stop_reason = (body.attributes or {}).get("stopReason")
         if (
             self.commands_service is not None
             and body.record_type == TERMINAL_RECORD_TYPE
             and body.turn_id
-            and (body.attributes or {}).get("stopReason")
-            not in ("paused", "cancelled", "error")
         ):
-            await self.commands_service.settle_execution_completed(
-                project_id=UUID(project_id),
-                session_id=body.session_id,
-                execution_id=body.turn_id,
-            )
+            if stop_reason == "error":
+                await self.commands_service.settle_execution_failed(
+                    project_id=UUID(project_id),
+                    session_id=body.session_id,
+                    execution_id=body.turn_id,
+                )
+            elif stop_reason not in ("paused", "cancelled"):
+                await self.commands_service.settle_execution_completed(
+                    project_id=UUID(project_id),
+                    session_id=body.session_id,
+                    execution_id=body.turn_id,
+                )
 
         published = await publish_record(
             organization_id=UUID(request.state.organization_id),

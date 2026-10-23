@@ -190,8 +190,8 @@ async def test_terminal_continuation_settles_core_before_stream_acceptance(monke
     )
 
 
-@pytest.mark.parametrize("stop_reason", ["cancelled", "error"])
-async def test_non_completing_terminal_does_not_settle_continuation_as_completed(
+@pytest.mark.parametrize("stop_reason", ["cancelled", "paused"])
+async def test_non_completing_terminal_does_not_settle_continuation(
     monkeypatch, stop_reason
 ):
     commands_service = AsyncMock()
@@ -223,6 +223,53 @@ async def test_non_completing_terminal_does_not_settle_continuation_as_completed
     ):
         await router.ingest_record_event(request=request, body=body)
 
+    commands_service.settle_execution_completed.assert_not_awaited()
+    commands_service.settle_execution_failed.assert_not_awaited()
+
+
+async def test_failed_terminal_settles_core_before_stream_acceptance(monkeypatch):
+    records_service = AsyncMock()
+    commands_service = AsyncMock()
+    router = RecordsRouter(
+        records_service=records_service,
+        commands_service=commands_service,
+    )
+    project_id = uuid4()
+    request = _make_authed_request(FastAPI(), project_id, uuid4(), uuid4())
+    body = SessionRecordIngestRequest(
+        session_id="session-1",
+        record_type="done",
+        record_source="agent",
+        turn_id="failed-turn-1",
+        attributes={"stopReason": "error"},
+    )
+    order = []
+    commands_service.settle_execution_failed.side_effect = lambda **_: order.append(
+        "settled-failed"
+    )
+
+    async def publish(**kwargs):
+        order.append("published")
+        return True
+
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.publish_record", side_effect=publish
+        ),
+    ):
+        await router.ingest_record_event(request=request, body=body)
+
+    assert order == ["settled-failed", "published"]
+    commands_service.settle_execution_failed.assert_awaited_once_with(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="failed-turn-1",
+    )
     commands_service.settle_execution_completed.assert_not_awaited()
 
 

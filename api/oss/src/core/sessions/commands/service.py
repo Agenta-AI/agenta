@@ -1715,7 +1715,38 @@ class SessionCommandsService:
         session_id: str,
         execution_id: str,
     ) -> bool:
-        """Reconcile a persisted runner ending before stale ownership is collapsed."""
+        """Reconcile a completed runner ending before stale ownership is collapsed."""
+        return await self._settle_execution_terminal(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+            terminal_outcome="completed",
+        )
+
+    async def settle_execution_failed(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+    ) -> bool:
+        """Record a runner error and continue with the next queued user input."""
+        return await self._settle_execution_terminal(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+            terminal_outcome="failed",
+        )
+
+    async def _settle_execution_terminal(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        terminal_outcome: str,
+    ) -> bool:
+        """Settle a persisted runner ending and promote one queued input atomically."""
         if self._executions is None:
             return True
         admission: Optional[InputContinuationAdmission] = None
@@ -1724,7 +1755,7 @@ class SessionCommandsService:
                 project_id=project_id,
                 session_id=session_id,
                 execution_id=execution_id,
-                terminal_outcome="completed",
+                terminal_outcome=terminal_outcome,
                 settled_by="runner",
                 transaction=transaction,
             )
@@ -1738,8 +1769,8 @@ class SessionCommandsService:
 
         if admission is not None:
             # The terminal record can arrive before the runner's final `is_running=false` beat.
-            # Release and fence that completed generation first, or the promoted continuation's
-            # first heartbeat sees the old `running` owner and rejects immediate delivery.
+            # Release and fence that generation first, or the promoted continuation's first
+            # heartbeat sees the old `running` owner and rejects immediate delivery.
             await self._reconcile_stopped_redis(
                 project_id=project_id,
                 session_id=session_id,
