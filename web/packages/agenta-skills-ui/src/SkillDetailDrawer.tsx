@@ -233,7 +233,7 @@ export function SkillDetailDrawer({
         setBusy(true)
         setError(null)
         try {
-            await commitSkillRevision({
+            const committed = await commitSkillRevision({
                 projectId,
                 workflowId,
                 skill: parsed.data,
@@ -245,6 +245,8 @@ export function SkillDetailDrawer({
             const refreshed = await revisionsQuery.refetch()
             // A stale head would reseed the draft over the saved edit.
             if (refreshed.isError) {
+                // The next save builds on this one, not on the head the drawer still shows.
+                if (committed.revision_id) setEditBaseId(committed.revision_id)
                 setError("Saved, but the latest version could not load. Reopen the skill.")
                 return
             }

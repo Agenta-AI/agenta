@@ -5,12 +5,15 @@ import {
 } from "@agenta/observability/traceDrawer"
 import type {NextRouter} from "next/router"
 
-/** Route params from the router, the rest from the address bar: `replaceState` writes skip `router.query`. */
-const currentQuery = (router: NextRouter): NextRouter["query"] => {
+/**
+ * Route params from the router, the rest from the address bar: `replaceState` writes skip
+ * `router.query`. Route params win, so `?session_id=B` on `/sessions/A` cannot move the page.
+ */
+export const currentQuery = (router: NextRouter, search: string): NextRouter["query"] => {
     const routeKeys = [...router.pathname.matchAll(/\[\.{0,3}([^\]]+)\]/g)].map((m) => m[1])
     return {
+        ...Object.fromEntries(new URLSearchParams(search)),
         ...Object.fromEntries(routeKeys.map((key) => [key, router.query[key]])),
-        ...Object.fromEntries(new URLSearchParams(window.location.search)),
     }
 }
 
@@ -32,14 +35,14 @@ export const bindTraceDrawerSeams = (router: NextRouter) => {
     })
 
     bindTraceDrawerSetQueryParam((name, value) => {
-        const query = currentQuery(router)
+        const query = currentQuery(router, window.location.search)
         if (value == null) delete query[name]
         else query[name] = value
         void router.push({pathname: router.pathname, query}, undefined, {shallow: true})
     })
 
     bindTraceDrawerClearParams(() => {
-        const query = currentQuery(router)
+        const query = currentQuery(router, window.location.search)
         delete query.trace
         delete query.span
         void router.push({pathname: router.pathname, query}, undefined, {shallow: true})

@@ -12,7 +12,7 @@ import {
 import {cellsToTable, type PreviewQuote} from "@agenta/shared/quotes"
 import type {PreviewPick, PreviewPinRect, PreviewRect} from "@agenta/ui/quote-selection"
 
-import {boxToRange, rangeToBox, type CellBox} from "./cellAddress"
+import {boxToRange, rangeToBox, tableWidth, type CellBox} from "./cellAddress"
 import type {Sheet, SheetCell, Workbook} from "./workbook"
 
 /** What `SheetGrid` needs in comment mode. */
@@ -75,7 +75,7 @@ function measurePins(
     sheet: Sheet,
     comments: PreviewQuote[],
 ): PreviewPinRect[] {
-    const width = sheet.rows[0]?.length ?? 0
+    const width = tableWidth(sheet.rows)
     return comments.flatMap((quote): PreviewPinRect[] => {
         const anchor = quote.source.anchor
         if (anchor.type !== "cells") return []

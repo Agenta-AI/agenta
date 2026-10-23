@@ -1,6 +1,6 @@
 import {memo, useState, type MouseEvent, type ReactNode} from "react"
 
-import {columnName, encodeCell, type CellBox, type CellOrigin} from "./cellAddress"
+import {columnName, encodeCell, tableWidth, type CellBox, type CellOrigin} from "./cellAddress"
 import type {CellSelection} from "./spreadsheetComments"
 import type {Sheet, SheetCell, Truncation} from "./workbook"
 
@@ -121,7 +121,7 @@ export function SheetGrid({
     // Tied to the rows it was picked on, so a refreshed file starts with no selection.
     const [picked, setPicked] = useState<{rows: SheetCell[][]; box: CellBox} | null>(null)
     const box = comments ? comments.box : picked?.rows === rows ? picked.box : null
-    const width = rows[0]?.length ?? 0
+    const width = tableWidth(rows)
     const columnCount = Math.max(width, MIN_COLUMNS)
     const onClick = (e: MouseEvent) => {
         const cell =
@@ -198,7 +198,7 @@ function truncationNote(truncated: Truncation, shownRows: number, shownColumns: 
 
 /** The bar under a sheet: its tabs, if any, and its size or what the caps cut. */
 export function SheetFooter({sheet, children}: {sheet: Sheet; children?: ReactNode}) {
-    const columns = sheet.rows[0]?.length ?? 0
+    const columns = tableWidth(sheet.rows)
     const note = truncationNote(sheet.truncated, sheet.rows.length, columns)
     return (
         <div className="flex shrink-0 items-center gap-3 border-0 border-t border-solid border-colorBorderSecondary bg-colorFillQuaternary pr-3">

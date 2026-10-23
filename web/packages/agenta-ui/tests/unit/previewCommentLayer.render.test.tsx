@@ -229,6 +229,28 @@ describe("PreviewCommentLayer", () => {
         expect(getQuotes(sessionId)).toEqual([])
     })
 
+    it("closes the draft when the session changes under it", () => {
+        const rootRef = createRef<HTMLDivElement>()
+        const ui = (session: string, p: PreviewPick | null) => (
+            <div ref={rootRef}>
+                <PreviewCommentLayer
+                    rootRef={rootRef}
+                    sessionId={session}
+                    target={target}
+                    pick={p}
+                    onPickConsumed={() => {}}
+                    pinRects={[]}
+                />
+            </div>
+        )
+        const view = render(ui(sessionId, pick))
+        expect(screen.getByRole("dialog")).toBeTruthy()
+        view.rerender(ui("other-session", null))
+        expect(screen.queryByRole("dialog")).toBeNull()
+        expect(getQuotes(sessionId)).toEqual([])
+        expect(getQuotes("other-session")).toEqual([])
+    })
+
     it("continues an edit after the existing note", () => {
         const {id} = stageOne(true)
         fireEvent.click(screen.getByRole("button", {name: "Comment 1"}))

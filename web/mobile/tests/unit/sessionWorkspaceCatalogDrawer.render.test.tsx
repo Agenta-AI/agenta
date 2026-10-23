@@ -106,6 +106,12 @@ vi.mock("@agenta/sessions/state", async () => {
 })
 vi.mock("@agenta/playground/state", () => ({registerAgentAutoCommitHandler: () => () => undefined}))
 vi.mock("@agenta/ui/shortcuts", () => ({useSessionShortcuts: () => undefined}))
+// The automation drawers load through `dynamic` too. Unmocked, the heavy package can still be
+// importing when the test file ends, which fails the run with a teardown error.
+vi.mock("@agenta/automation-ui", () => ({AutomationDrawer: () => null}))
+vi.mock("@/features/automations/AutomationRunHistoryDrawerHost", () => ({
+    AutomationRunHistoryDrawerHost: () => null,
+}))
 
 import {SessionWorkspace} from "@/features/chat/SessionWorkspace"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =

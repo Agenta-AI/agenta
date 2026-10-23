@@ -94,7 +94,10 @@ const TABLE_CLASS =
 /** A markdown table in a frame: the body scrolls; size, copy, download and expand sit in a footer. */
 export const ChatTable = ({node, children}: {node?: HastNode; children?: ReactNode}) => {
     const model = useMemo(
-        () => (node ? tableModel(node) : {header: [], rows: [], columns: []}),
+        () =>
+            node
+                ? tableModel(node)
+                : {header: [], rows: [], columns: [], markdown: {header: [], rows: []}},
         [node],
     )
     const layouts = useMemo(() => (node ? cellLayouts(node, model) : null), [node, model])

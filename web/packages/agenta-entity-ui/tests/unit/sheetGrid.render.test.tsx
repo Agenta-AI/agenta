@@ -61,6 +61,14 @@ describe("SheetGrid", () => {
         expect(formulaBar()).toBe("fx")
     })
 
+    it("shows a row that runs wider than the first row", () => {
+        const wide = Array.from({length: 10}, (_, c) => ({value: `v${c}`}))
+        act(() => root.render(<SheetGrid rows={[sheet.rows[0], wide]} origin={{r: 0, c: 0}} />))
+        expect(cell(1, 9).textContent).toBe("v9")
+        act(() => cell(1, 9).click())
+        expect(formulaBar()).toBe("J2fxv9")
+    })
+
     it("pads the grid without making the padding selectable", () => {
         expect(container.querySelectorAll("tbody tr")).toHaveLength(30)
         expect(container.querySelectorAll("[data-row]")).toHaveLength(8)

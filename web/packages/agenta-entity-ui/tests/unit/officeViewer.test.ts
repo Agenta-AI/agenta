@@ -1,6 +1,7 @@
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {mediaViewerKind} from "../../src/drive/MediaViewer"
+import {pageAtLine, sectionPageCount} from "../../src/drive/officeViewer/frame/docxPages"
 import {runViewer, sanitizeLinks} from "../../src/drive/officeViewer/frame/runtime"
 import {
     buildViewerSrcdoc,
@@ -200,6 +201,46 @@ describe("runViewer", () => {
         expect(calls).toEqual([true])
         finishFirst()
         await vi.waitFor(() => expect(calls).toEqual([true, false]))
+    })
+
+    it("keeps a layout that arrives before the file and renders with it", async () => {
+        const calls: boolean[] = []
+        const render = vi.fn((_bytes: ArrayBuffer, _root: HTMLElement, {reflow}) => {
+            calls.push(reflow)
+            return Promise.resolve({slideCount: 1})
+        })
+        runViewer({kind: "presentation", render})
+        const send = (data: unknown) =>
+            window.dispatchEvent(new MessageEvent("message", {data, source: window}))
+        send({type: "layout", reflow: false})
+        send({type: "render", kind: "presentation", bytes: new ArrayBuffer(1), reflow: true})
+        await vi.waitFor(() => expect(calls).toEqual([false]))
+    })
+})
+
+describe("DOCX page count", () => {
+    it("counts a section that runs past its paper height as several pages", () => {
+        expect(sectionPageCount(1100, 1100)).toBe(1)
+        expect(sectionPageCount(1100.5, 1100)).toBe(1)
+        expect(sectionPageCount(2500, 1100)).toBe(3)
+    })
+
+    it("counts a reflowed section, which has no paper height, as one page", () => {
+        expect(sectionPageCount(5000, 0)).toBe(1)
+        expect(sectionPageCount(5000, Number.NaN)).toBe(1)
+    })
+
+    it("finds the page under the line inside and across sections", () => {
+        // A 2,500px section on 1,100px paper: pages start at 0, 1,100 and 2,200.
+        const sections = [
+            {top: 0, height: 2500, pageHeight: 1100, pages: 3},
+            {top: 2530, height: 1000, pageHeight: 1000, pages: 1},
+        ]
+        expect(pageAtLine(sections, 900)).toBe(0)
+        expect(pageAtLine(sections, 1200)).toBe(1)
+        expect(pageAtLine(sections, 2300)).toBe(2)
+        expect(pageAtLine(sections, 2520)).toBe(2)
+        expect(pageAtLine(sections, 2600)).toBe(3)
     })
 })
 

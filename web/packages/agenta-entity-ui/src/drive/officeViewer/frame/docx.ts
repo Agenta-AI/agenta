@@ -1,5 +1,6 @@
 import {renderAsync} from "docx-preview"
 
+import {pageAtLine, sectionPageCount} from "./docxPages"
 import {runViewer} from "./runtime"
 
 const style = document.createElement("style")
@@ -27,18 +28,33 @@ function fitPages(root: HTMLElement): void {
     wrapper.style.zoom = String(scale)
 }
 
-// The page whose top last passed the upper third of the view, reported as the current page.
+// Per rendered section: its page count, and its paper height as a share of its own height.
+// Measured before `fitPages` zooms them; the share holds at any zoom.
+let sectionPages: {pages: number; paperShare: number}[] = []
+
+function countPages(root: HTMLElement): number {
+    const sections = Array.from(root.querySelectorAll<HTMLElement>("section.docx"))
+    sectionPages = sections.map((section) => {
+        const height = section.offsetHeight
+        const paper = parseFloat(getComputedStyle(section).minHeight)
+        const pages = sectionPageCount(height, paper)
+        return {pages, paperShare: pages > 1 ? paper / height : 1}
+    })
+    return sectionPages.reduce((sum, {pages}) => sum + pages, 0)
+}
+
+// The page at the upper third of the view, reported as the current page.
 function trackPage(root: HTMLElement): void {
     let shown = -1
     let frame = 0
     const report = () => {
         frame = 0
-        const line = window.innerHeight / 3
-        const pages = Array.from(root.querySelectorAll("section.docx"))
-        let index = 0
-        pages.forEach((page, i) => {
-            if (page.getBoundingClientRect().top <= line) index = i
+        const sections = Array.from(root.querySelectorAll("section.docx")).map((section, i) => {
+            const {top, height} = section.getBoundingClientRect()
+            const {pages, paperShare} = sectionPages[i] ?? {pages: 1, paperShare: 1}
+            return {top, height, pages, pageHeight: height * paperShare}
         })
+        const index = pageAtLine(sections, window.innerHeight / 3)
         if (index === shown) return
         shown = index
         window.parent.postMessage({type: "slide", index}, "*")
@@ -64,9 +80,10 @@ runViewer({
             ignoreWidth: reflow,
             ignoreHeight: reflow,
         })
+        const slideCount = countPages(root)
         fitPages(root)
         document.body.scrollTop = 0
-        return {slideCount: root.querySelectorAll("section.docx").length}
+        return {slideCount}
     },
     setup: (root) => {
         window.addEventListener("resize", () => fitPages(root))

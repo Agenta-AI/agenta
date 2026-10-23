@@ -57,6 +57,8 @@ export function runViewer(renderer: FrameRenderer): void {
     document.addEventListener("click", onClick, true)
     const picker = installPreviewPicker(post)
     let bytes: ArrayBuffer | null = null
+    // A layout the host asked for before the bytes came; it is newer than the render's own.
+    let pendingReflow: boolean | null = null
     // One render at a time, so a quick layout switch cannot interleave two renders in #root.
     let drawing = Promise.resolve()
 
@@ -85,12 +87,13 @@ export function runViewer(renderer: FrameRenderer): void {
         }
         if (message.type === "layout") {
             if (bytes) draw(bytes, {reflow: message.reflow})
+            else pendingReflow = message.reflow
             return
         }
         if (bytes || message.kind !== renderer.kind) return
         bytes = message.bytes
         renderer.setup?.(root)
-        draw(bytes, {reflow: message.reflow})
+        draw(bytes, {reflow: pendingReflow ?? message.reflow})
     })
 
     post({type: "ready"})
