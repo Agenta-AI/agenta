@@ -4,6 +4,7 @@ principals DAO, and the API-key-with-missing-creator fixture."""
 from typing import Dict, List, Optional
 from uuid import UUID, uuid4
 
+from oss.src.core.access.interfaces import PrincipalsDAOInterface
 from oss.src.core.access.dtos import (
     PrincipalRecord,
     PrincipalKind,
@@ -83,7 +84,7 @@ def make_request_access(
     )
 
 
-class InMemoryPrincipalsDAO:
+class InMemoryPrincipalsDAO(PrincipalsDAOInterface):
     """`PrincipalsDAOInterface` over a dict of records. `reads` lists every call."""
 
     def __init__(self, records: Optional[Dict[PrincipalRef, PrincipalRecord]] = None):
