@@ -155,8 +155,7 @@ function sandboxRootEnd(segments: readonly string[]): number {
  *
  * Returns null when an absolute path sits under NO such root (`/etc/hosts`, the runner's own
  * `/tmp/agenta/relay/…`, a throwaway run dir) or names the workspace root itself: those correspond
- * to nothing in the
- * drive, and listing them as if they did is the bug this replaces.
+ * to nothing in the drive, and listing them as if they did is the bug this replaces.
  */
 export function drivePathFromToolPath(toolPath: string): DriveToolPath | null {
     const trimmed = toolPath.trim()
