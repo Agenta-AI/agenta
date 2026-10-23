@@ -216,6 +216,15 @@ def request_has_grant(request: Request, grant: str) -> bool:
     return grant in getattr(request.state, "token_grants", ())
 
 
+def request_is_platform_runtime(request: Request) -> bool:
+    """Whether the caller is the platform's own agent runtime.
+
+    The secret-resolve grant reaches a credential only through the runtime-key check or a
+    platform services URL, so it is the one proof a user principal cannot present.
+    """
+    return request_has_grant(request, SECRET_RESOLVE_GRANT)
+
+
 # An audience CONFINES a token to one set of routes, which is the opposite axis from a
 # grant: a grant widens a general-purpose credential, an audience narrows a purpose-built
 # one. The agent sandbox holds the only audience-bound credential today. It reaches the
@@ -1174,6 +1183,10 @@ async def verify_secret_token(
         request.state.gateway_run_id = auth_context.get("gateway_run_id")
         request.state.gateway_run_labels = auth_context.get("gateway_run_labels")
         request.state.gateway_tools = auth_context.get("gateway_tools")
+        request.state.gateway_platform_run = (
+            audience == GATEWAY_TOKEN_AUDIENCE
+            and auth_context.get("gateway_platform_run") is True
+        )
 
     except ExpiredSignatureError as exc:
         # The signature verified, so this is our own token presented past `_SECRET_EXP` — a
@@ -1254,6 +1267,7 @@ async def sign_secret_token(
     gateway_run_id: Optional[str] = None,
     gateway_tools: Optional[list[dict]] = None,
     gateway_run_labels: Optional[Dict[str, str]] = None,
+    gateway_platform_run: bool = False,
     grants: Optional[List[str]] = None,
     audience: Optional[str] = None,
     expires_in: Optional[int] = None,
@@ -1273,6 +1287,9 @@ async def sign_secret_token(
     # plaintext-vault capability again the day someone copies a grant-bearing mint call.
     if validated_audience and validated_grants:
         raise ValueError("An audience-bound secret token cannot carry grants.")
+
+    if gateway_platform_run and validated_audience != GATEWAY_TOKEN_AUDIENCE:
+        raise ValueError("Only a gateway-audience token can mark a platform run.")
 
     try:
         if not _SECRET_KEY:
@@ -1311,6 +1328,10 @@ async def sign_secret_token(
         # out of the way for every token minted before this claim existed.
         if validated_audience:
             auth_context["aud"] = validated_audience
+
+        # Built-in (platform-funded) models accept only a token that carries this mark.
+        if gateway_platform_run:
+            auth_context["gateway_platform_run"] = True
 
         secret_token = encode(
             payload=auth_context,

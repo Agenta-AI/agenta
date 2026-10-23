@@ -25,6 +25,7 @@ from starlette.requests import Request
 
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy
+from oss.src.middlewares.auth import GATEWAY_TOKEN_AUDIENCE
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.dtos import LLMDeploymentKind, LLMModelFilter
 from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
@@ -271,6 +272,10 @@ def _request(
     request = Request(
         {"type": "http", "method": "POST", "path": "/", "headers": []}, receive
     )
+    # Authenticated as the gateway token of a platform agent run, the one caller the
+    # built-in route serves.
+    request.state.token_audience = GATEWAY_TOKEN_AUDIENCE
+    request.state.gateway_platform_run = True
     if run_id is not None:
         request.state.gateway_run_id = run_id
     if run_labels is not None:

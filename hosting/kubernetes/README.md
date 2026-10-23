@@ -548,11 +548,11 @@ supplies only names absent from explicit `env` entries, regardless of order:
 ```yaml
 api:
   extraEnv:
-    - name: AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY
+    - name: TYPESAFE_API_KEY
       valueFrom:
         secretKeyRef:
           name: agenta
-          key: AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY
+          key: TYPESAFE_API_KEY
   envFrom:
     - secretRef:
         name: agenta-extra

@@ -155,9 +155,10 @@ async def test_the_model_listing_refuses_an_organization_outside_the_rollout(cal
     caller(OUTSIDE)
     proxy = LLMGatewayProxy(llm_gateway_service=_Unreachable())
 
-    response = await proxy.list_models_builtin("mock")
+    response = await proxy.list_models_builtin(_asgi_request(b""), "mock")
 
     assert response.status_code == 403
+    assert json.loads(bytes(response.body))["error"]["code"] == "llm_gateway_disabled"
 
 
 def test_the_credential_exchange_follows_the_master_switch_only(caller, monkeypatch):
