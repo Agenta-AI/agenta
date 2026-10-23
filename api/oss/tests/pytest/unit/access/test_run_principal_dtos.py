@@ -236,3 +236,15 @@ def test_access_denied_error_shape():
 def test_new_decision_reasons():
     assert DecisionReason.PRINCIPAL_INACTIVE.value == "principal_inactive"
     assert DecisionReason.RESTRICTED_BY_AUTHORITY.value == "restricted_by_authority"
+
+
+def test_resource_denied_reason_round_trips():
+    reason = DecisionReason.RESOURCE_DENIED
+    assert reason.value == "resource_denied"
+    assert DecisionReason("resource_denied") is reason
+    decision = Decision(allowed=False, reason=reason)
+    assert Decision.model_validate_json(decision.model_dump_json()) == decision
+    err = access_denied_error(
+        decision=decision, principal_kind=PrincipalKind.HUMAN, project_id=P
+    )
+    assert err.details["reason"] == "resource_denied"

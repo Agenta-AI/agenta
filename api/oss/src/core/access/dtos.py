@@ -26,7 +26,10 @@ class DecisionReason(str, Enum):
     RESTRICTED_BY_AUTHORITY = "restricted_by_authority"
     # The allow reason of `check_eligibility`, which checks no capability.
     ELIGIBLE = "eligible"
-    # M3 adds RESOURCE_DENIED.
+    # A resource rule (an agent's or a session's sharing policy) refused the action.
+    # Internal: HTTP shows it only as `details.reason` of `access_denied`, or hides it
+    # behind `not_found`.
+    RESOURCE_DENIED = "resource_denied"
 
 
 class Decision(BaseModel):

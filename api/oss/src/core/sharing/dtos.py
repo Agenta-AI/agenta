@@ -1,8 +1,14 @@
+from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, model_validator
+
+
+# Every nullable field below has an explicit `= None` default: the cache serializer
+# (`utils/caching.py::_serialize`) drops None fields, and a required field missing on
+# read would turn every cache read into a miss.
 
 
 class Visibility(str, Enum):
@@ -15,9 +21,25 @@ class SessionRole(str, Enum):
     PARTICIPANT = "participant"
 
 
+class SharedItemKind(str, Enum):
+    """The kind of item `initial_policy` decides for."""
+
+    AGENT = "agent"
+    SESSION = "session"
+    CHANNEL_SESSION = "channel_session"
+
+
+class EffectiveRole(str, Enum):
+    """What the caller is on an item. Computed, never stored."""
+
+    OWNER = "owner"
+    PARTICIPANT = "participant"
+    VIEWER = "viewer"
+    NONE = "none"
+
+
 class AccessPolicy(BaseModel):
     visibility: Visibility
-    # Explicit default: the cache serializer drops None fields (`exclude_none=True`).
     owner_user_id: Optional[UUID] = None
 
     @model_validator(mode="after")
@@ -32,3 +54,124 @@ class AccessPolicy(BaseModel):
 OWNERLESS_PROJECT_POLICY = AccessPolicy(
     visibility=Visibility.PROJECT, owner_user_id=None
 )
+
+
+# -- sessions ---------------------------------------------------------------------------
+
+
+class SessionGrant(BaseModel):
+    stream_id: UUID
+    user_id: UUID
+    role: SessionRole
+    created_at: Optional[datetime] = None
+    created_by_id: Optional[UUID] = None
+
+
+class UserSessionGrant(BaseModel):
+    """One grant of a user, with the owner of its session (`list_user_grants`)."""
+
+    stream_id: UUID
+    owner_user_id: Optional[UUID] = None
+
+
+class SessionPolicyState(BaseModel):
+    """One read of the session row, whatever `deleted_at` and `archived_at` hold."""
+
+    stream_id: UUID
+    session_id: str
+    policy: AccessPolicy
+    is_channel: bool  # a channel_threads row names this session
+    references_agent: bool  # session_streams.references names an agent
+
+
+class SessionGrantInput(BaseModel):
+    user_id: UUID
+    role: SessionRole
+
+
+class SessionSharingChange(BaseModel):
+    """A delta, applied under the row lock. "Only me" is PRIVATE + remove_all_grants."""
+
+    visibility: Optional[Visibility] = None
+    upsert_grants: List[SessionGrantInput] = []
+    remove_user_ids: List[UUID] = []
+    remove_all_grants: bool = False
+
+
+class SessionSharingWriteResult(BaseModel):
+    """The result of `set_session_sharing`. Carries the grant delta, so the service can
+    invalidate the right user entries and publish the change without a second read."""
+
+    state: SessionPolicyState
+    before: AccessPolicy
+    grants: List[SessionGrant]  # every grant after the write
+    upserted: List[SessionGrantInput]  # grants added or changed
+    removed_user_ids: List[UUID]  # grants actually removed
+
+
+# -- agents -----------------------------------------------------------------------------
+
+
+class AgentPolicyWriteResult(BaseModel):
+    """The result of `set_agent_policy`."""
+
+    policy: AccessPolicy
+    # Channel agents that a make-private set inactive, in the same transaction.
+    deactivated_channel_agent_ids: List[UUID]
+
+
+# -- read scopes ------------------------------------------------------------------------
+
+
+class AgentReadScope(BaseModel):
+    owner_user_id: Optional[UUID]  # principal.id for a human, else None
+
+
+class SessionReadScope(BaseModel):
+    owner_user_id: Optional[UUID]  # principal.id for a human, else None
+    include_project: bool  # True for every principal kind
+    granted_stream_ids: List[UUID]  # grants whose owner is an active member
+
+
+# -- sharing state (the sharing routes) ---------------------------------------------------
+
+
+class AgentSharingState(BaseModel):
+    policy: AccessPolicy
+    owner_is_active: bool
+    my_role: EffectiveRole  # OWNER, VIEWER or NONE for agents
+    can_take_ownership: bool
+
+
+class SessionSharingState(BaseModel):
+    policy: AccessPolicy
+    owner_is_active: bool
+    grants: List[SessionGrant]  # returned to the owner only; empty for others
+    my_role: EffectiveRole
+    can_send: bool
+    shareable: bool  # False for channel, ownerless and non-agent sessions
+
+
+# -- cache entries (never returned to callers) --------------------------------------------
+
+
+class CachedAgentAccess(BaseModel):
+    """Namespace `sharing_agent_access`, key (project_id, artifact_id)."""
+
+    # None = "no agent_access row" (project-visible, ownerless): a hit, not a miss.
+    policy: Optional[AccessPolicy] = None
+
+
+class CachedSessionAccess(BaseModel):
+    """Namespace `sharing_session_access`, key (project_id, session_id)."""
+
+    stream_id: UUID
+    policy: AccessPolicy  # never NULL: a legacy row is assigned before it is cached
+    grants: List[SessionGrant]  # every grant of the session; [] when none
+
+
+class CachedUserGrants(BaseModel):
+    """Namespace `sharing_user_grants`, key (project_id, user_id). Written also when
+    empty."""
+
+    grants: List[UserSessionGrant]
