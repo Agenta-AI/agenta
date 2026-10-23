@@ -56,14 +56,20 @@ export const TurnMetrics = ({
         )
     }
     if (!traceId && !usage) return null
+    const metrics = mergeTurnMetrics(summary.metrics, usage)
+    // No figure to draw: no lead either, or the next separator in the row shows on its own.
+    const hasFigure = (["latency", "tokens", "cost"] as const).some(
+        (metric) =>
+            (!show || show.includes(metric)) &&
+            {latency: metrics.durationMs, tokens: metrics.totalTokens, cost: metrics.totalCost}[
+                metric
+            ] !== undefined,
+    )
+    if (!hasFigure) return null
     return (
         <>
             {lead}
-            <ExecutionMetricsDisplay
-                metrics={mergeTurnMetrics(summary.metrics, usage)}
-                variant="plain"
-                show={show}
-            />
+            <ExecutionMetricsDisplay metrics={metrics} variant="plain" show={show} />
         </>
     )
 }

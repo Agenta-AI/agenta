@@ -70,6 +70,7 @@ async def test_get_blocked_domains_accepts_string_posthog_payload(monkeypatch):
                     blocked_domains=set(),
                     blocked_emails=set(),
                     allowed_domains=set(),
+                    blocklist_cache_ttl=123,
                 ),
             ),
             posthog=SimpleNamespace(enabled=True, api_key="posthog-key"),
@@ -93,9 +94,13 @@ async def test_get_blocked_domains_accepts_string_posthog_payload(monkeypatch):
         ),
     )
 
+    set_cache = AsyncMock()
+    monkeypatch.setattr(auth_helper, "set_cache", set_cache)
+
     blocked_domains = await auth_helper.get_blocked_domains()
 
     assert blocked_domains == {"agenta.dev"}
+    assert set_cache.await_args.kwargs["ttl"] == 123
 
 
 @pytest.mark.asyncio
@@ -109,6 +114,7 @@ async def test_get_blocked_domains_splits_comma_separated_posthog_payload(monkey
                     blocked_domains=set(),
                     blocked_emails=set(),
                     allowed_domains=set(),
+                    blocklist_cache_ttl=60,
                 ),
             ),
             posthog=SimpleNamespace(enabled=True, api_key="posthog-key"),
@@ -150,6 +156,7 @@ async def test_get_blocked_emails_treats_posthog_errors_as_empty(monkeypatch):
                     blocked_domains=set(),
                     blocked_emails=set(),
                     allowed_domains=set(),
+                    blocklist_cache_ttl=60,
                 ),
             ),
             posthog=SimpleNamespace(enabled=True),

@@ -87,11 +87,12 @@ export const installTurnstileFetchPatch = (): void => {
 }
 
 /**
- * The API answers a missing or rejected token with a 401 `{detail: {message}}`. SuperTokens'
- * client throws that Response as is, so this reads the message for the form to show.
+ * The API answers a missing or rejected Turnstile token with a 401 `{detail: {message}}`, and
+ * too many sign-in code or sign-up requests from one IP with a 429 of the same shape.
+ * SuperTokens' client throws that Response as is, so this reads the message for the form to show.
  */
-export const readTurnstileRejection = async (error: unknown): Promise<string | null> => {
-    if (!(error instanceof Response) || error.status !== 401) return null
+export const readAuthRejection = async (error: unknown): Promise<string | null> => {
+    if (!(error instanceof Response) || (error.status !== 401 && error.status !== 429)) return null
     try {
         const body = (await error.clone().json()) as {detail?: {message?: unknown}}
         const message = body?.detail?.message

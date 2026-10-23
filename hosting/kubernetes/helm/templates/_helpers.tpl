@@ -1340,6 +1340,14 @@ failureThreshold: 3
 - name: AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS
   value: {{ $access.maxOwnedOrganizations | quote }}
 {{- end }}
+{{- if $access.trustedProxyHops }}
+- name: AGENTA_ACCESS_TRUSTED_PROXY_HOPS
+  value: {{ $access.trustedProxyHops | quote }}
+{{- end }}
+{{- if $access.trustCloudflareIp }}
+- name: AGENTA_ACCESS_TRUST_CLOUDFLARE_IP
+  value: {{ $access.trustCloudflareIp | quote }}
+{{- end }}
 {{- if $access.allowedOwnerEmails }}
 - name: AGENTA_ACCESS_ALLOWED_OWNER_EMAILS
   value: {{ $access.allowedOwnerEmails | quote }}

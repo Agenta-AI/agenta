@@ -181,6 +181,7 @@ class AccessRouter:
         scope_id: Optional[UUID] = Query(None),
         resource_type: Optional[str] = Query(None),
         resource_id: Optional[UUID] = Query(None),
+        without_grants: bool = Query(False),
     ):
         """Evaluate a permission against the AUTHENTICATED scope.
 
@@ -202,7 +203,14 @@ class AccessRouter:
         # `_run_credential_grants`. Minting on `action` alone made the grant self-serve —
         # a member who may run a service could ask for it with their own session or
         # ApiKey and spend it on the vault routes, which is the write-only guarantee gone.
-        grants = _run_credential_grants(request, action=action)
+        #
+        # `without_grants` asks for the same credential with no grant at all. The code
+        # evaluator sandbox runs user-written code, and this is the credential it holds.
+        grants = (
+            []
+            if without_grants is True
+            else _run_credential_grants(request, action=action)
+        )
         secret_token = await sign_secret_token(
             user_id=user_id,
             user_email=getattr(request.state, "user_email", None),

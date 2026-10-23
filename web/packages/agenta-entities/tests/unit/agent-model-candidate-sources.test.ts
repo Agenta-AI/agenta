@@ -36,6 +36,19 @@ describe("resolveAgentModelCandidateSources", () => {
         expect(state.status).toBe("loading")
     })
 
+    it("waits for built-in endpoints so a credits-only project is not called keyless", () => {
+        const state = resolveAgentModelCandidateSources({
+            vaultRows: [],
+            capabilities,
+            subscriptionStatus: null,
+            subscriptionSettled: true,
+            showSubscriptions: true,
+            builtinSettled: false,
+        })
+
+        expect(state).toMatchObject({status: "loading", candidates: []})
+    })
+
     it("treats terminal runner status without harnesses as resolved and empty", () => {
         const state = resolveAgentModelCandidateSources({
             vaultRows,

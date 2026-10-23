@@ -27,7 +27,7 @@ import {useTurnStage, useTurnStageSince} from "../../state/turnClock"
 import RevealCollapse from "../RevealCollapse"
 
 import {ActivityClientStep} from "./ActivityClientStep"
-import {LIVE_TEXT_CLASS, WaitingGlyph, type WaitingKind} from "./activityIcons"
+import {ActivityNode, LIVE_TEXT_CLASS, WaitingGlyph, type WaitingKind} from "./activityIcons"
 import {ActivityThoughtStep} from "./ActivityThoughtStep"
 import {ActivityToolStep} from "./ActivityToolStep"
 
@@ -266,6 +266,15 @@ export interface ActivityTimelineProps {
     streamedHere?: boolean
     /** Renders a client tool's widget in its step; absent on a read-only host. */
     renderClientTool?: (part: ToolUIPart) => ReactNode
+    /** The run failed: the header names it and the server's raw text is the fold's last step. */
+    failure?: ActivityFailure
+}
+
+export interface ActivityFailure {
+    /** The short name of what happened, shown in the header: "Run stopped". */
+    label: string
+    /** The server's text as it came. Absent when the message already shows all of it. */
+    detail?: string | null
 }
 
 /** The turn's work, folded: a live verb or "Worked for 11s" over a timeline of steps. */
@@ -281,6 +290,7 @@ export const ActivityTimeline = ({
     traceId,
     streamedHere = true,
     renderClientTool,
+    failure,
 }: ActivityTimelineProps) => {
     // Any turn can cold start: a parked environment outlives an idle gap by minutes at most.
     const stage = useTurnStage(streaming && sessionId ? sessionId : "")
@@ -338,9 +348,14 @@ export const ActivityTimeline = ({
         wasLiveRef.current = live
     }, [live, open, key, setExpanded])
 
-    if (!steps.length && !live) return null
+    // A failure shows only once the run is over: a live line still narrates the work.
+    const failed = !live && failure ? failure : null
+    if (!steps.length && !live && !failed) return null
 
     const count = steps.length
+    const detail = failed?.detail || null
+    // Steps, then the failure's own text as the last node on the wire.
+    const nodes = count + (detail ? 1 : 0)
     // No clock before the first step.
     const clock =
         elapsed === null || awaiting || !count ? "" : ` · ${formatElapsed(elapsed, {live: true})}`
@@ -361,8 +376,20 @@ export const ActivityTimeline = ({
                   : liveStep(verbStep)
     if (line) {
         title = <SwapLabel shimmer suffix={clock} text={line.text} />
+    } else if (failed && !count) {
+        // Failed before any step: there is no work to name, only the failure.
+        title = <span className="text-colorError">{failed.label}</span>
     } else {
         title = elapsed === null ? "Worked" : `Worked for ${formatElapsed(elapsed, {live: false})}`
+        if (failed) {
+            title = (
+                <>
+                    {title}
+                    <span className="whitespace-pre text-colorTextTertiary"> · </span>
+                    <span className="text-colorError">{failed.label}</span>
+                </>
+            )
+        }
     }
 
     return (
@@ -370,8 +397,10 @@ export const ActivityTimeline = ({
             <button
                 type="button"
                 onClick={() => setExpanded({key, value: !open})}
-                aria-expanded={open}
-                className="-ml-1.5 flex w-fit max-w-full cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary group/row"
+                // Nothing to open yet (no step, no raw failure): a plain line, not a toggle.
+                disabled={!nodes}
+                aria-expanded={nodes ? open : undefined}
+                className="-ml-1.5 flex w-fit max-w-full cursor-pointer disabled:cursor-default items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary group/row"
             >
                 {awaiting ? (
                     <WaitingGlyph kind={waitingKind(steps)} />
@@ -389,7 +418,7 @@ export const ActivityTimeline = ({
                     </span>
                 ) : null}
                 {/* Nothing to open before the first step. */}
-                {count ? (
+                {nodes ? (
                     <CaretRight
                         size={10}
                         weight="bold"
@@ -402,7 +431,7 @@ export const ActivityTimeline = ({
             <RevealCollapse open={open}>
                 <div className="relative mt-3 mb-1.5 flex flex-col">
                     {/* The wire behind the nodes; one node has nothing to join. */}
-                    {steps.length > 1 ? (
+                    {nodes > 1 ? (
                         <div
                             aria-hidden
                             className={`absolute bottom-3.5 top-3.5 w-px bg-colorBorderSecondary ${
@@ -435,6 +464,16 @@ export const ActivityTimeline = ({
                             )}
                         </StepReveal>
                     ))}
+                    {detail ? (
+                        <div
+                            className={`flex min-w-0 items-start gap-3.5 ${count ? "pt-4.5" : ""}`}
+                        >
+                            <ActivityNode icon="platform" state="failed" />
+                            <pre className="m-0 max-h-60 min-w-0 flex-1 overflow-auto whitespace-pre-wrap break-words ag-surface-inset rounded-md px-3 py-2 font-mono text-xs leading-relaxed text-colorTextSecondary">
+                                {detail}
+                            </pre>
+                        </div>
+                    ) : null}
                 </div>
             </RevealCollapse>
         </div>
