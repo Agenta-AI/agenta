@@ -1,0 +1,39 @@
+---
+title: "See what your agents cost and how often they fail"
+slug: agent-analytics
+date: 2026-10-07
+tags: [v0.122.3]
+description: "See what your Agenta AI agents cost, how often they run and how often they fail, by agent or model, with the runs behind every number."
+---
+
+<Summary>
+
+Settings now has an **Analytics** tab. It shows what your agents cost, how often they run, how often they succeed and how many tokens they use, over the last day, week, month or 90 days.
+
+Group the charts by agent or by model to see where the money goes and which agents fail most. Click **Explore** to see the runs behind a number and open their traces.
+
+</Summary>
+
+{/* truncate */}
+
+Settings now has an **Analytics** tab, and Settings opens on it. You can see what your agents cost, how often they run and how often they fail, without digging through traces.
+
+## What you see
+
+Pick a range: the last 24 hours, 7 days, 30 days or 90 days. The page charts:
+
+- **Cost** over time
+- **Runs** over time
+- **Success rate**, with failed runs shown under the line
+- **Tokens** by type
+- **Failure rate by agent**, with the agents that fail most at the top
+
+Ranges longer than your plan's trace retention are locked.
+
+## Group and filter
+
+Use **Group** to split cost, runs and tokens by agent or by model. Each agent or model keeps the same color in every chart. Use **Filter** to focus on some agents or models.
+
+## Find the runs behind a number
+
+Click **Explore** on a chart to open a breakdown by agent, model or tool, and the runs behind it. Switch between the most expensive runs and the failed ones, grouped by reason, and open any run's trace.
