@@ -29,6 +29,7 @@ from oss.tests.pytest.utils.membership_seed import (
     seed_organization,
 )
 from oss.tests.pytest.utils.memberships import FakeAccessCache
+from oss.tests.pytest.utils.principals import HumanPrincipalsDAO
 
 
 pytestmark = pytest.mark.integration
@@ -49,6 +50,7 @@ def cache(monkeypatch):
                 policy=policy,
             ),
             rbac=AlwaysEnforcedRbac(),
+            principals=HumanPrincipalsDAO(),
         ),
     )
     return fake

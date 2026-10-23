@@ -19,6 +19,7 @@ from oss.tests.pytest.utils.memberships import (
     RecordingRbac,
     make_summary,
 )
+from oss.tests.pytest.utils.principals import HumanPrincipalsDAO
 
 
 class _RecordingAccess:
@@ -26,7 +27,7 @@ class _RecordingAccess:
         self.decision = decision
         self.calls = []
 
-    async def check_capability(self, **kwargs):
+    async def check_human(self, **kwargs):
         self.calls.append(kwargs)
         return self.decision
 
@@ -132,6 +133,7 @@ async def test_malformed_or_unknown_project_id_denies(monkeypatch):
                 memberships_dao=dao, policy=MembershipPolicy.ORGANIZATION_WIDE
             ),
             rbac=RecordingRbac(),
+            principals=HumanPrincipalsDAO(),
         )
     )
     assert (
