@@ -513,10 +513,12 @@ class ConnectionAccessDeniedError(ConnectionResolutionError):
 
 
 def is_access_refusal(*, status_code: int, body: Any = None) -> bool:
-    """A 401 or 403 from the platform (the credential was refused), or a body that
-    names ``access_denied``."""
+    """The platform refused the run's principal: a body that names ``access_denied``,
+    or a 403 that names no other code. A 401 is a credential-state failure (expired or
+    invalid token, a token without a principal) and keeps its own handling, so the
+    caller can refresh the credential or restart the run."""
 
     detail = body.get("detail") if isinstance(body, dict) else None
-    if isinstance(detail, dict) and detail.get("code") == "access_denied":
-        return True
-    return status_code in (401, 403)
+    if isinstance(detail, dict) and detail.get("code"):
+        return detail.get("code") == "access_denied"
+    return status_code == 403
