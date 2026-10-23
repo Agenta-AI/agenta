@@ -11,6 +11,7 @@ from oss.src.core.sharing.dtos import (
     AccessPolicy,
     AgentPolicyWriteResult,
     SessionGrant,
+    SessionReadScope,
     SessionGrantInput,
     SessionPolicyState,
     SessionSharingChange,
@@ -349,3 +350,10 @@ def register_sharing_service_for_tests(monkeypatch) -> SharingService:
     service = SharingWorld().service
     monkeypatch.setattr(service_module, "_sharing_service", service)
     return service
+
+
+# The read scope of a caller that acts for no person: every project-visible session
+# and no private one.
+PROJECT_SESSION_SCOPE = SessionReadScope(
+    owner_user_id=None, include_project=True, granted_stream_ids=[]
+)

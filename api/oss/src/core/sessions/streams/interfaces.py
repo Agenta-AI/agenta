@@ -14,7 +14,7 @@ from oss.src.core.sessions.streams.dtos import (
 )
 from oss.src.core.sessions.types import SessionReference, SessionTriggerAttribution
 from oss.src.core.shared.dtos import Windowing
-from oss.src.core.sharing.dtos import AccessPolicy
+from oss.src.core.sharing.dtos import AccessPolicy, SessionReadScope
 
 
 class SessionStreamsDAOInterface(ABC):
@@ -68,6 +68,7 @@ class SessionStreamsDAOInterface(ABC):
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
@@ -80,6 +81,7 @@ class SessionStreamsDAOInterface(ABC):
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         session_ids: Optional[List[str]] = None,
         exclude_session_ids: Optional[List[str]] = None,

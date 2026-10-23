@@ -1,4 +1,5 @@
 from typing import Optional
+from uuid import UUID
 
 from fastapi import HTTPException, Request
 
@@ -7,6 +8,7 @@ from oss.src.core.sharing.dtos import (
     OWNERLESS_PROJECT_POLICY,
     AccessPolicy,
     AgentReadScope,
+    SessionReadScope,
     SharedItemKind,
     Visibility,
 )
@@ -53,6 +55,22 @@ async def agent_read_scope_for_request(request: Request) -> AgentReadScope:
     if principal is None:
         return AgentReadScope(owner_user_id=None)
     return await get_sharing_service().agent_read_scope(principal=principal)
+
+
+async def session_read_scope_for_request(request: Request) -> SessionReadScope:
+    """The sessions a list shows to this request's principal: every project-visible
+    session, and for a human their own private sessions and the sessions granted to
+    them. A request without a principal sees no private session."""
+
+    principal = getattr(request.state, "principal", None)
+    if principal is None:
+        return SessionReadScope(
+            owner_user_id=None, include_project=True, granted_stream_ids=[]
+        )
+    return await get_sharing_service().session_read_scope(
+        project_id=UUID(str(request.state.project_id)),
+        principal=principal,
+    )
 
 
 def agent_creation_failed_exception(error: AgentCreationFailed) -> HTTPException:

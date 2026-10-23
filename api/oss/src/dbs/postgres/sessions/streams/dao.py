@@ -4,16 +4,18 @@ from uuid import UUID
 
 import uuid_utils.compat as uuid
 from sqlalchemy import (
+    any_,
     case,
     cast,
     delete as sa_delete,
+    false,
     func,
     literal,
     or_,
     select,
     update as sa_update,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID, insert
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID, insert
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.sessions.dtos import (
@@ -39,7 +41,7 @@ from oss.src.core.sessions.streams.interfaces import (
 from oss.src.core.sessions.streams.naming import refuse_name_change
 from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
 from oss.src.core.shared.dtos import Status, Windowing
-from oss.src.core.sharing.dtos import AccessPolicy
+from oss.src.core.sharing.dtos import AccessPolicy, SessionReadScope, Visibility
 from oss.src.core.triggers.dtos import TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE
 
 from oss.src.dbs.postgres.shared.engine import (
@@ -356,10 +358,39 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         return map_stream_dbe_to_dto(stream_dbe=dbe)
 
     @staticmethod
+    def _apply_read_scope(stmt, *, read_scope: SessionReadScope):
+        """The sessions the scope may list (technical design 4.3): project-visible and
+        legacy rows (`visibility NULL`), the scope owner's own rows, and the granted
+        rows. An empty grant list adds no `ANY` term."""
+        terms = []
+        if read_scope.include_project:
+            terms.append(
+                or_(
+                    SessionStreamDBE.visibility == Visibility.PROJECT.value,
+                    SessionStreamDBE.visibility.is_(None),
+                )
+            )
+        if read_scope.owner_user_id is not None:
+            terms.append(SessionStreamDBE.owner_user_id == read_scope.owner_user_id)
+        if read_scope.granted_stream_ids:
+            terms.append(
+                SessionStreamDBE.id
+                == any_(
+                    literal(
+                        list(read_scope.granted_stream_ids),
+                        ARRAY(PG_UUID(as_uuid=True)),
+                    )
+                )
+            )
+        return stmt.where(or_(*terms) if terms else false())
+
+    @classmethod
     def _apply_filters(
+        cls,
         stmt,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         session_ids: Optional[List[str]] = None,
         exclude_session_ids: Optional[List[str]] = None,
@@ -367,6 +398,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         """Shared row predicate for `query` and `count` — one definition, so a filtered
         page and its total can never disagree."""
         stmt = stmt.where(SessionStreamDBE.project_id == project_id)
+        stmt = cls._apply_read_scope(stmt, read_scope=read_scope)
         if not filter.include_ended:
             stmt = stmt.where(SessionStreamDBE.deleted_at.is_(None))
         if filter.archived_only:
@@ -418,6 +450,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         session_ids: Optional[List[str]] = None,
         exclude_session_ids: Optional[List[str]] = None,
@@ -429,6 +462,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             stmt = self._apply_filters(
                 select(func.count()).select_from(SessionStreamDBE),
                 project_id=project_id,
+                read_scope=read_scope,
                 filter=filter,
                 session_ids=session_ids,
                 exclude_session_ids=exclude_session_ids,
@@ -440,6 +474,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
@@ -452,6 +487,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             stmt = self._apply_filters(
                 stmt,
                 project_id=project_id,
+                read_scope=read_scope,
                 filter=filter,
                 session_ids=session_ids,
                 exclude_session_ids=exclude_session_ids,

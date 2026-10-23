@@ -44,7 +44,10 @@ from oss.src.core.tools.dtos import AgentError
 from oss.src.core.access.principals import missing_envelope_error
 from oss.src.core.access.types import MissingEnvelope
 from oss.src.middlewares.auth import request_run_envelope
-from oss.src.apis.fastapi.sharing.utils import policy_for_request
+from oss.src.apis.fastapi.sharing.utils import (
+    policy_for_request,
+    session_read_scope_for_request,
+)
 from oss.src.core.sharing.dtos import SharedItemKind, Visibility
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
@@ -767,6 +770,7 @@ class SessionStreamsRouter:
 
         streams = await self._service.query_streams(
             project_id=project_id,
+            read_scope=await session_read_scope_for_request(request),
             filter=SessionStreamQuery(
                 session_id=payload.session_id,
                 flags=SessionStreamQueryFlags(
@@ -2461,6 +2465,7 @@ class SessionsRootRouter:
         normalized = normalize_session_query_request(body)
         page = await self.sessions_service.query_sessions_page(
             project_id=UUID(str(project_id)),
+            read_scope=await session_read_scope_for_request(request),
             query=normalized.predicates,
             lifecycle=normalized.lifecycle,
             options=normalized.options,

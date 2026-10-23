@@ -35,6 +35,7 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
 
 from agenta.sdk.agents.dtos import HarnessKind
 from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import PROJECT_SESSION_SCOPE
 
 
 _PROJECT = uuid4()
@@ -341,7 +342,9 @@ async def test_the_list_prefers_the_row_over_the_turn():
         {"s-1": _turn("s-1", turn_references)},
     )
 
-    result = await svc.query_sessions(project_id=_PROJECT)
+    result = await svc.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE, project_id=_PROJECT
+    )
 
     assert result[0].references == row_references
 
@@ -352,7 +355,9 @@ async def test_the_list_falls_back_to_the_turn_for_a_row_without_references():
     turn_references = [SessionReference(id=uuid4(), key=ReferenceKey.workflow)]
     svc, _ = _sessions_service([_stream("s-1")], {"s-1": _turn("s-1", turn_references)})
 
-    result = await svc.query_sessions(project_id=_PROJECT)
+    result = await svc.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE, project_id=_PROJECT
+    )
 
     assert result[0].references == turn_references
 
@@ -361,7 +366,9 @@ async def test_the_list_falls_back_to_the_turn_for_a_row_without_references():
 async def test_a_session_with_neither_lists_without_references():
     svc, _ = _sessions_service([_stream("s-1")], {})
 
-    result = await svc.query_sessions(project_id=_PROJECT)
+    result = await svc.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE, project_id=_PROJECT
+    )
 
     assert result[0].references is None
 
@@ -379,6 +386,7 @@ async def test_the_reference_filter_unions_both_reference_columns():
     )
 
     await svc.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=_PROJECT,
         query=SessionQuery(turn_references=[SessionReference(id=uuid4())]),
     )
@@ -399,6 +407,7 @@ async def test_a_stream_only_match_reaches_the_list():
     )
 
     result = await svc.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=_PROJECT,
         query=SessionQuery(turn_references=[SessionReference(id=uuid4())]),
     )
@@ -412,6 +421,7 @@ async def test_a_reference_matching_neither_column_still_short_circuits():
     svc, streams_service = _sessions_service([], {})
 
     result = await svc.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=_PROJECT,
         query=SessionQuery(turn_references=[SessionReference(id=uuid4())]),
     )
@@ -437,6 +447,7 @@ async def test_the_union_is_re_capped():
     )
 
     await svc.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=_PROJECT,
         query=SessionQuery(turn_references=[SessionReference(id=uuid4())]),
     )

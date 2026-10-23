@@ -78,7 +78,7 @@ from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.runner_client import kill_runner_sandbox
 from oss.src.core.sessions.types import SessionReference
 from oss.src.core.shared.dtos import Windowing
-from oss.src.core.sharing.dtos import AccessPolicy
+from oss.src.core.sharing.dtos import AccessPolicy, SessionReadScope
 
 log = get_module_logger(__name__)
 
@@ -1032,6 +1032,7 @@ class SessionStreamsService:
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
@@ -1042,6 +1043,7 @@ class SessionStreamsService:
             _validate_session_id(filter.session_id)
         results = await self._dao.query(
             project_id=project_id,
+            read_scope=read_scope,
             filter=filter,
             windowing=windowing,
             session_ids=session_ids,
@@ -1083,6 +1085,7 @@ class SessionStreamsService:
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         session_ids: Optional[List[str]] = None,
         exclude_session_ids: Optional[List[str]] = None,
@@ -1091,6 +1094,7 @@ class SessionStreamsService:
             _validate_session_id(filter.session_id)
         return await self._dao.count(
             project_id=project_id,
+            read_scope=read_scope,
             filter=filter,
             session_ids=session_ids,
             exclude_session_ids=exclude_session_ids,
