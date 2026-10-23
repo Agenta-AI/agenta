@@ -64,6 +64,7 @@ import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvid
 import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {answerThenSteer} from "./assets/answerThenSteer"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
@@ -95,6 +96,7 @@ import {
     autoTitleSessionAtomFamily,
     bumpSessionActivityAtomFamily,
     firstUserText,
+    precreateThenInvoke,
 } from "./state/sessions"
 import {focusComposerRequestAtom, matchesSessionRequest} from "./state/uiRequests"
 
@@ -387,6 +389,20 @@ const AgentConversation = ({
         isSharedReaderReady: () => readerReady,
         onExecuted: revalidate,
     })
+    // The composer's send goes through this server admission, not through the chat transport, so
+    // it gets the same pre-create: a new chat exists as a project-visible session before its first
+    // run.
+    const projectId = useAtomValue(projectIdAtom)
+    const queueServer = useMemo(
+        () => ({
+            ...serverInputs,
+            submit: (...args: Parameters<typeof serverInputs.submit>) =>
+                precreateThenInvoke({sessionId, projectId, messages: messagesRef.current}, () =>
+                    serverInputs.submit(...args),
+                ),
+        }),
+        [serverInputs, sessionId, projectId, messagesRef],
+    )
 
     const previousServerInputsStatusRef = useRef(status)
     useEffect(() => {
@@ -453,7 +469,7 @@ const AgentConversation = ({
         stopped,
         continuationExecutionId,
         restoreRefusedSend: restoreLateRefusedSend,
-        server: serverInputs,
+        server: queueServer,
     })
 
     // Declared after the queue because it renders the queue's echoes.
