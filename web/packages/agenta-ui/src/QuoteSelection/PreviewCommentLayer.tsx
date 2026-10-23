@@ -322,7 +322,7 @@ export const PreviewCommentLayer = ({
                         aria-label={`Comment ${number}`}
                         onClick={isTouch ? () => setOpenPin(quote.id) : undefined}
                         // The square bottom-left corner is the tail; it sits on the commented point.
-                        className={`absolute z-20 flex origin-bottom-left -translate-y-full cursor-pointer items-center justify-center rounded-full rounded-bl-none border-0 bg-colorSelection px-1.5 font-semibold leading-none tabular-nums text-colorTextLightSolid shadow-md ring-2 ring-background transition-transform hover:scale-110 ${
+                        className={`absolute z-20 flex origin-bottom-left -translate-y-full cursor-pointer items-center justify-center rounded-full rounded-bl-none border-0 bg-primary px-1.5 font-semibold leading-none tabular-nums text-btn-primary-fg shadow-md ring-2 ring-background transition-transform hover:scale-110 ${
                             isTouch
                                 ? "h-7 min-w-7 text-xs after:absolute after:-inset-2 after:content-['']"
                                 : "h-6 min-w-6 text-[11px]"
