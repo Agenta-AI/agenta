@@ -126,6 +126,9 @@ ORDER BY p.organization_id, p.created_at ASC NULLS LAST, p.id ASC
 
 _LOCK_SQL = "SELECT pg_advisory_xact_lock(hashtextextended('memberships:' || :organization_id, 0))"
 
+# The same lock for writers outside this DAO (the admin ownership transfer).
+ORGANIZATION_LOCK_SQL = _LOCK_SQL
+
 _FETCH_OWNER_SQL = "SELECT owner_id FROM organizations WHERE id = :organization_id"
 
 _FETCH_OLDEST_ORGANIZATION_ROW_SQL = f"""

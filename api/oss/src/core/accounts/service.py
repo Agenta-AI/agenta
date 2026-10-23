@@ -39,17 +39,13 @@ from oss.src.services.db_manager import (
     admin_delete_api_key as _db_delete_api_key,
     admin_delete_accounts_batch as _db_delete_accounts_batch,
     admin_delete_user_with_cascade as _db_delete_user_with_cascade,
-    admin_transfer_org_ownership_batch as _db_transfer_org_ownership_batch,
+    admin_transfer_ownership as _db_transfer_ownership,
     admin_delete_org_membership as _ee_delete_org_membership,
     admin_delete_workspace_membership as _ee_delete_workspace_membership,
     admin_delete_project_membership as _ee_delete_project_membership,
     admin_delete_user_memberships as _ee_delete_user_memberships,
     admin_get_member_org_ids as _ee_get_member_org_ids,
     count_organization_members as _ee_count_organization_members,
-    admin_swap_org_memberships as _ee_swap_org_memberships,
-    admin_swap_workspace_memberships as _ee_swap_workspace_memberships,
-    admin_swap_project_memberships as _ee_swap_project_memberships,
-    admin_seed_owner_project_rows as _db_seed_owner_project_rows,
 )
 from oss.src.core.environments.defaults import (
     create_default_environments as _create_default_environments,
@@ -2079,10 +2075,7 @@ class PlatformAdminAccountsService:
             org_ids = [oid for oid in org_ids if oid in target_member_org_ids]
 
         if org_ids:
-            # 1. Transfer org ownership
-            await _db_transfer_org_ownership_batch(org_ids, target_id)
-
-            # 2. Collect workspace + project IDs within transferred orgs
+            # Collect workspace + project IDs within the orgs to transfer
             all_ws_ids = await _db_get_workspace_ids_for_orgs(org_ids)
             all_proj_ids = await _db_get_project_ids_for_orgs(org_ids)
 
@@ -2105,17 +2098,33 @@ class PlatformAdminAccountsService:
                 }
                 proj_scope = [pid for pid in all_proj_ids if pid in proj_filter]
 
-            # 3. Swap org/workspace/project membership roles. Both editions: OSS
-            # reads the organization role, so the source must not keep `owner`.
-            await _ee_swap_org_memberships(org_ids, source_id, target_id)
-            if ws_scope:
-                await _ee_swap_workspace_memberships(ws_scope, source_id, target_id)
-            if proj_scope:
-                await _ee_swap_project_memberships(proj_scope, source_id, target_id)
-
-            # 4. The new owner needs a row in every project (the resolver checks
-            # membership before the owner shortcut), as transfer_ownership does.
-            await _db_seed_owner_project_rows(org_ids, target_id)
+            # One transaction under each organization's membership lock: ownership,
+            # role swaps (both editions) and the new owner's project rows. It checks
+            # ownership and target membership again under the locks.
+            transferred = await _db_transfer_ownership(
+                org_ids=org_ids,
+                source_id=source_id,
+                target_id=target_id,
+                workspace_ids=ws_scope,
+                project_ids=proj_scope,
+            )
+            for oid in org_ids:
+                if oid not in transferred:
+                    errors.append(
+                        AdminStructuredError(
+                            code="transfer_conflict",
+                            message=(
+                                f"Organization '{oid}' was not transferred: its owner "
+                                "or the target's membership changed during the transfer."
+                            ),
+                            details={"organization_id": str(oid)},
+                        )
+                    )
+            if transferred != org_ids:
+                org_ids = transferred
+                all_proj_ids = (
+                    await _db_get_project_ids_for_orgs(org_ids) if org_ids else []
+                )
 
             await invalidate_access_caches(
                 user_ids=[source_id, target_id],

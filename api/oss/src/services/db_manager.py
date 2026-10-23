@@ -1,5 +1,6 @@
 import os
 import uuid
+from contextlib import asynccontextmanager
 import json
 from pathlib import Path
 from datetime import datetime, timezone
@@ -1730,9 +1731,22 @@ async def admin_delete_user_with_cascade(user_id: uuid.UUID) -> List[uuid.UUID]:
     return org_ids
 
 
+@asynccontextmanager
+async def _admin_session(session: Optional[AsyncSession]):
+    """The caller's session (the caller commits), or a new one committed on exit."""
+    if session is not None:
+        yield session
+        return
+    async with get_transactions_engine().session() as own:
+        yield own
+        await own.commit()
+
+
 async def admin_transfer_org_ownership_batch(
     org_ids: List[uuid.UUID],
     target_id: uuid.UUID,
+    *,
+    session: Optional[AsyncSession] = None,
 ) -> None:
     """Update owner_id and created_by_id on multiple orgs.
 
@@ -1742,9 +1756,7 @@ async def admin_transfer_org_ownership_batch(
     of that user does not destroy orgs now owned by the target.
     """
     now = datetime.now(timezone.utc)
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
+    async with _admin_session(session) as session:
         for org_id in org_ids:
             await session.execute(
                 update(OrganizationDB)
@@ -1756,7 +1768,6 @@ async def admin_transfer_org_ownership_batch(
                     updated_by_id=target_id,
                 )
             )
-        await session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -2216,11 +2227,11 @@ async def admin_swap_org_memberships(
     org_ids: List[uuid.UUID],
     source_id: uuid.UUID,
     target_id: uuid.UUID,
+    *,
+    session: Optional[AsyncSession] = None,
 ) -> None:
     """Swap org membership roles between source and target."""
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
+    async with _admin_session(session) as session:
         source_rows = (
             (
                 await session.execute(
@@ -2268,18 +2279,16 @@ async def admin_swap_org_memberships(
                 .values(role=target_by_org[org_id])
             )
 
-        await session.commit()
-
 
 async def admin_swap_workspace_memberships(
     workspace_ids: List[uuid.UUID],
     source_id: uuid.UUID,
     target_id: uuid.UUID,
+    *,
+    session: Optional[AsyncSession] = None,
 ) -> None:
     """Swap workspace membership roles between source and target."""
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
+    async with _admin_session(session) as session:
         source_rows = (
             (
                 await session.execute(
@@ -2327,18 +2336,16 @@ async def admin_swap_workspace_memberships(
                 .values(role=target_by_ws[ws_id])
             )
 
-        await session.commit()
-
 
 async def admin_swap_project_memberships(
     project_ids: List[uuid.UUID],
     source_id: uuid.UUID,
     target_id: uuid.UUID,
+    *,
+    session: Optional[AsyncSession] = None,
 ) -> None:
     """Swap project membership roles between source and target."""
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
+    async with _admin_session(session) as session:
         source_rows = (
             (
                 await session.execute(
@@ -2386,12 +2393,12 @@ async def admin_swap_project_memberships(
                 .values(role=target_by_proj[proj_id])
             )
 
-        await session.commit()
-
 
 async def admin_seed_owner_project_rows(
     org_ids: List[uuid.UUID],
     owner_id: uuid.UUID,
+    *,
+    session: Optional[AsyncSession] = None,
 ) -> int:
     """Add an `owner` project row for `owner_id` in every project of `org_ids` where
     the user has none; existing rows keep their roles.
@@ -2403,9 +2410,7 @@ async def admin_seed_owner_project_rows(
     if not org_ids:
         return 0
 
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
+    async with _admin_session(session) as session:
         result = await session.execute(
             text(
                 "INSERT INTO project_members "
@@ -2417,8 +2422,114 @@ async def admin_seed_owner_project_rows(
             ),
             {"owner_id": owner_id, "org_ids": list(org_ids)},
         )
-        await session.commit()
         return result.rowcount or 0
+
+
+async def admin_transfer_ownership(
+    *,
+    org_ids: List[uuid.UUID],
+    source_id: uuid.UUID,
+    target_id: uuid.UUID,
+    workspace_ids: List[uuid.UUID],
+    project_ids: List[uuid.UUID],
+) -> List[uuid.UUID]:
+    """The admin ownership transfer in one transaction, under the membership lock of
+    each organization (the lock `MembershipsDAO` writers take).
+
+    Under the locks it checks again that the source owns each organization and that
+    the target has an organization row there; other organizations are left out.
+    Then it moves the ownership, swaps the organization, workspace and project roles
+    (workspaces and projects of the transferred organizations only), and seeds the
+    new owner into every project. Returns the transferred organization ids.
+    """
+    from oss.src.dbs.postgres.memberships.dao import (  # noqa: PLC0415
+        ORGANIZATION_LOCK_SQL,
+    )
+
+    if not org_ids:
+        return []
+
+    async with _admin_session(None) as session:
+        for org_id in sorted(org_ids, key=str):
+            await session.execute(
+                text(ORGANIZATION_LOCK_SQL), {"organization_id": str(org_id)}
+            )
+
+        owned = set(
+            (
+                await session.execute(
+                    select(OrganizationDB.id).where(
+                        OrganizationDB.id.in_(org_ids),
+                        OrganizationDB.owner_id == source_id,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        members = set(
+            (
+                await session.execute(
+                    select(OrganizationMemberDB.organization_id).where(
+                        OrganizationMemberDB.user_id == target_id,
+                        OrganizationMemberDB.organization_id.in_(org_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        eligible = [o for o in org_ids if o in owned and o in members]
+        if not eligible:
+            return []
+
+        ws_scope = (
+            (
+                await session.execute(
+                    select(WorkspaceDB.id).where(
+                        WorkspaceDB.id.in_(workspace_ids),
+                        WorkspaceDB.organization_id.in_(eligible),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+            if workspace_ids
+            else []
+        )
+        proj_scope = (
+            (
+                await session.execute(
+                    select(ProjectDB.id).where(
+                        ProjectDB.id.in_(project_ids),
+                        ProjectDB.organization_id.in_(eligible),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+            if project_ids
+            else []
+        )
+
+        await admin_transfer_org_ownership_batch(eligible, target_id, session=session)
+        # Both editions: OSS reads the organization role, so the source must not
+        # keep `owner`.
+        await admin_swap_org_memberships(
+            eligible, source_id, target_id, session=session
+        )
+        if ws_scope:
+            await admin_swap_workspace_memberships(
+                list(ws_scope), source_id, target_id, session=session
+            )
+        if proj_scope:
+            await admin_swap_project_memberships(
+                list(proj_scope), source_id, target_id, session=session
+            )
+        # The resolver checks membership before the owner shortcut.
+        await admin_seed_owner_project_rows(eligible, target_id, session=session)
+
+    return eligible
 
 
 async def admin_delete_user_memberships(user_id: uuid.UUID) -> None:
