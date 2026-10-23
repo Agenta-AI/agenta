@@ -272,7 +272,8 @@ async def test_live_run_with_access_keeps_ticking(_allowing_access_service):
 async def test_run_from_source_refuses_before_any_source(monkeypatch, refusal):
     """Every topology goes through `run_from_source` or `run_from_batch`; both check
     the principal before reading a source, so an empty testset or an open queue
-    cannot end SUCCESS or stay active for a refused run."""
+    cannot end SUCCESS or stay active for a refused run. The run here has no steps:
+    the check comes before the step validation."""
 
     import oss.src.core.access.service as access_module
     from oss.src.core.evaluations.tasks.run import RunProcessor
@@ -296,7 +297,6 @@ async def test_run_from_source_refuses_before_any_source(monkeypatch, refusal):
     )
     processor = RunProcessor.__new__(RunProcessor)
     processor.evaluations_service = service
-    processor._fetch_validated_run = AsyncMock(return_value=run)
 
     for call in (
         processor.run_from_source(project_id=uuid4(), user_id=uuid4(), run_id=run.id),

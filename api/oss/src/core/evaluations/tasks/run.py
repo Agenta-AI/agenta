@@ -128,17 +128,27 @@ class RunProcessor:
         project_id: UUID,
         run_id: UUID,
         require: bool = False,
+        access_user_id: Optional[UUID] = None,
     ) -> Optional[EvaluationRun]:
         """Fetch a run and assert it has executable steps.
 
         `require=False` (default) returns None on a missing/empty run so the
         caller can warn-and-skip; `require=True` raises so a pre-execution error
         finalizes the run to FAILURE through the caller's handler.
+
+        With `access_user_id`, the run's principal is rechecked first, before the
+        step validation: a refused run, even one without steps, ends FAILURE and
+        inactive, and None is returned.
         """
         run = await self.evaluations_service.fetch_run(
             project_id=project_id,
             run_id=run_id,
         )
+        if run is not None and access_user_id is not None:
+            if not await self._may_run(
+                project_id=project_id, user_id=access_user_id, run=run
+            ):
+                return None
         if not run or not run.data or not run.data.steps:
             if require:
                 raise ValueError(f"Evaluation run with id {run_id} not found or empty!")
@@ -353,12 +363,10 @@ class RunProcessor:
             project_id=project_id,
             #
             run_id=run_id,
+            access_user_id=user_id,
         )
         if not run:
             log.warning("[EVAL] [process-run] run not found or empty", run_id=run_id)
-            return False
-
-        if not await self._may_run(project_id=project_id, user_id=user_id, run=run):
             return False
 
         topology = classify_run_topology(run)
@@ -692,14 +700,12 @@ class RunProcessor:
             project_id=project_id,
             #
             run_id=run_id,
+            access_user_id=user_id,
         )
         if not run:
             log.warning(
                 "[EVAL] [process-slice] run not found or has no steps", run_id=run_id
             )
-            return False
-
-        if not await self._may_run(project_id=project_id, user_id=user_id, run=run):
             return False
 
         input_keys = _input_step_keys(run)
