@@ -25,6 +25,12 @@ This is the same continuity as the steady heartbeat: a run that the heartbeat ad
 
 Cost, measured in `api/oss/tests/pytest/integration/sharing/test_runner_write_counts_postgres.py` (warm caches, OSS and EE): the runner path adds one Redis round trip (the admission `GETEX`), no access decision and no Postgres statement. The full check adds no Postgres statement and two cache round trips (`sharing_session_access` and the owner's `resolve_membership`; the principal and the caller's membership come from the request memo of the capability check). Using the full check on every write would cost two round trips per frame batch instead of one, so the runner path keeps the admission read. A write that misses the record pays both (three round trips).
 
+## Embedded references
+
+Every embed (`@ag.embed`, string and snippet embeds, nested embeds, environment key references) is fetched by the universal resolver in `core/embeds/utils.py::create_universal_resolver`, so the check lives there once. After a workflow, application or evaluator revision is fetched, and before its content is used, `EmbedsService` calls `embedded_agent_visible(project_id, artifact_id)`: rule A1 or A2 through `AccessService.resource_policy.evaluate` for the principal of the current request (`get_request_access()`), with `VIEW_WORKFLOWS` (the rules do not depend on the action, so a run credential at invoke gets the same answer as `RUN_WORKFLOWS`). The route already checked the capability. A hidden agent raises the same `EmbedNotFoundError`, with the same message, as a reference that names nothing, so every error policy (exception, placeholder, keep) answers as for an unknown reference. Without a request principal the embed is hidden (fail closed); no path resolves embeds outside a request today.
+
+Cost: a configuration without embeds runs no check. Each embedded agent costs one cached read (`sharing_agent_access`): no Postgres statement when warm, one when cold. The artifact id comes from the revision the resolver fetched anyway, so there is no added reference read. Environment revisions hold references, not agent content, and are not checked; the agents they lead to are checked when they are embedded.
+
 ## Exception: routes that create what an unknown id names
 
 A send, a header call, an input admission, a composer upload, a cwd upload, a session mount sign, a mount create, a record ingest, a records incomplete report, an interaction create and a turn append on an unknown session id create the session, the file, the mount or the row. A hidden session cannot get that answer, so these routes answer the one canonical body `NOT_FOUND_ERROR` (`{"code": "not_found", "message": "Not found.", "retryable": false}`, 404), the same body as the heartbeat and the sharing routes. This tells the caller that the id is taken, not what it holds.
@@ -38,12 +44,12 @@ A send, a header call, an input admission, a composer upload, a cwd upload, a se
 | `GET /sessions/streams/` `fetch_session_stream` | 685 | `VIEW_SESSIONS` | query `session_id` | hidden: reads an unknown id (`stream: null`) |
 | `DELETE /sessions/streams/` `delete_session_stream` (kill) | 729 | `EDIT_SESSIONS` (rule S4; capability stays `RUN_SESSIONS`) | query `session_id` | hidden: `{"ok": true}` |
 | `POST /sessions/streams/detach` | 767 | `RUN_SESSIONS` | body `session_id` | hidden: `{"ok": true}` |
-| `POST /sessions/streams/heartbeat` | 800 | `RUN_SESSIONS` | body | Task 13 (`RunAdmission.admit_turn`, verified continuity) |
+| `POST /sessions/streams/heartbeat` | 800 | `RUN_SESSIONS` | body | Task 13 (`RunAdmission.admit_turn`, verified continuity). Without a run credential (Bearer, ApiKey) an unknown session answers 403 `session_requires_run_credential`; a refused beat on a session the caller cannot read answers the same (one `VIEW_SESSIONS` decision on the refusal path only), whatever refused it. A caller who can read the session gets the refusal itself (403 `access_denied`, or the agent's canonical 404) |
 | `POST /sessions/streams/query` | 829 | `VIEW_SESSIONS` | list | Task 11: read scope in SQL |
 | `PUT /sessions/streams/header` `set_session_stream_header` | 863 | `EDIT_SESSIONS` on an existing row | query `session_id` | hidden: canonical 404 (an unknown id creates) |
 | `GET /sessions/streams/watch` | 927 | `VIEW_SESSIONS` | query `session_id` | hidden: the stream of an unknown id (open, nothing published) |
 | `GET /sessions/{session_id}/events` `session_events`, and its live recheck `authorized()` | 998 | `VIEW_SESSIONS` | path | entry and every recheck use `check_resource_for` on the captured request access; hidden: the stream and replay of an unknown id |
-| `GET /sessions/watch` `watch_project` | 1069 | none | project feed | no check: change notices carry only an entity id; content is read through checked routes (open item 3) |
+| `GET /sessions/watch` `watch_project` | 1171 | `VIEW_SESSIONS` per session event, `VIEW_WORKFLOWS` per workflow event | the event's `id` (`entity` `session` or `workflow`) or `session_id` | an event passes only when `check_resource_for` on the captured request access answers `ALLOWED`; a refused, malformed or failed check drops the frame (the stream stays open); events that name no item pass. Each decision is kept inside one connection for at most 60 s (`min(live_auth_recheck_seconds, 60)`), never across connections. Warm: Redis only, no Postgres |
 | `POST /sessions/records/query` | 1161 | `VIEW_SESSIONS` | body `session_id` | hidden: reads an unknown id |
 | `GET /sessions/records/{record_id}` | 1245 | `VIEW_SESSIONS` | fetched record's `session_id` | hidden: `record: null` |
 | `POST /sessions/records/ingest` (a record) | 1304 | `RUN_SESSIONS` (rule S2), runner write check | body `session_id`, `turn_id` | hidden: canonical 404 (an unknown id stores the record); a viewer: 403 `resource_denied` |
@@ -100,7 +106,7 @@ Session delete (`core/sessions/streams/service.py::hard_delete`): reads the row 
 | `POST /workflows/revisions/log` | 1993 | `VIEW_WORKFLOWS` | fetched revisions | revisions of hidden agents are dropped |
 | `POST /workflows/revisions/deploy` | 2032 | `EDIT_WORKFLOWS` | fetched revision | hidden: `Workflow revision not found.` 404 |
 | `POST /workflows/revisions/retrieve` | 2192 | `VIEW_WORKFLOWS` | retrieved revision | hidden: the unknown answer (`count: 0`; environment lookup: its 404) |
-| `POST /workflows/revisions/resolve` | 2328 | `VIEW_WORKFLOWS` | resolved revision | hidden: the empty answer (embedded references: open item 2) |
+| `POST /workflows/revisions/resolve` | 2328 | `VIEW_WORKFLOWS` | resolved revision | hidden: the empty answer; embedded references: see "Embedded references" |
 | `POST /simple/workflows/` | 2508 | `EDIT_WORKFLOWS` | new | Task 10 |
 | `GET /simple/workflows/{id}` | 2549 | `VIEW_WORKFLOWS` | path | hidden: `count: 0` |
 | `PUT /simple/workflows/{id}`, `/archive`, `/unarchive` | 2579, 2614, 2646 | `EDIT_WORKFLOWS` | path | hidden: `count: 0` |
@@ -148,7 +154,7 @@ An agent is a workflow, so these routes reach agents by id too. Each gets the sa
 | --- | --- |
 | `core/tools/platform_handlers.py` `read_config`, `commit_revision`, `test_run` | no route check: the target variant is bound from the run context (the run's own agent), and the run was admitted (Tasks 13, 14; `test_run` is a child run, `child_run` boundary) |
 | `apis/fastapi/tools/router.py` workflow tool calls (`_call_workflow_tool`) | Task 14 (`child_run`) |
-| Embedded references (`@ag.references`) resolved by the resolve routes and at invoke | open item 2 |
+| Embedded references (`@ag.references`) resolved by the resolve and retrieve routes (also when the SDK resolves at invoke with the run credential) | `core/embeds/service.py::embedded_agent_visible` in the universal resolver; see "Embedded references" |
 | `apis/fastapi/environments/router.py` | no check: an environment holds references (ids, slugs, versions), not agent content; only an agent's owner can deploy a private agent (deploy checks `EDIT_*`) |
 | `apis/fastapi/tracing/router.py` `/tracing/sessions/query` | not scoped in M3 (session-trace-privacy work) |
 
@@ -167,5 +173,5 @@ An agent is a workflow, so these routes reach agents by id too. Each gets the sa
 ## Open items
 
 1. Closed: the runner write routes check rule S2 (see "Runner write check").
-2. Embedded references: a configuration that embeds a reference to a private agent's revision resolves it (resolve routes, invoke). The check belongs in the embeds resolver, not at the route.
-3. `GET /sessions/watch` sends the id of every changed session in the project to every member who may view sessions, private ones included. It sends no content.
+2. Closed: embedded references check rules A1 and A2 in the embeds resolver (see "Embedded references").
+3. Closed: `GET /sessions/watch` filters each event through the watcher's resource check (see the sessions table).

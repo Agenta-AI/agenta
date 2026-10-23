@@ -873,3 +873,113 @@ async def test_admission_record_write_error_is_swallowed(lock_engine, redis):
         turn_id="t1",
         principal=_ALICE_ENVELOPE.authority.principal,
     )
+
+
+# -- beats without a run credential (Bearer, ApiKey) ------------------------------------
+
+
+def _credential_app(service, dao, viewers, credential: str) -> TestClient:
+    """The real router and `RunAdmission` for a Bob request without a run credential:
+    a Bearer session or one of Bob's API keys."""
+
+    from oss.src.core.access.dtos import (  # noqa: PLC0415
+        PrincipalKind,
+        PrincipalRef,
+        RequestCredentialKind,
+        RunAuthority,
+    )
+
+    if credential == "bearer":
+        principal = PrincipalRef(kind=PrincipalKind.HUMAN, id=_BOB)
+        kind = RequestCredentialKind.BEARER_SESSION
+    else:
+        principal = PrincipalRef(kind=PrincipalKind.API_KEY, id=uuid4())
+        kind = RequestCredentialKind.API_KEY
+    authority = RunAuthority(
+        principal=principal, organization_id=_ORGANIZATION, project_id=_PROJECT
+    )
+    admission = RunAdmission(
+        access_service=RuleAccessService(_rule(dao, viewers)),
+        workflows_service=_Workflows(),
+    )
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def _scope(request: Request, call_next):
+        request.state.project_id = str(_PROJECT)
+        request.state.user_id = str(_BOB)
+        request.state.run_envelope = None
+        request.state.authority = authority
+        request.state.credential_kind = kind
+        return await call_next(request)
+
+    router = SessionStreamsRouter(
+        service=service, interactions_service=SimpleNamespace(), run_admission=admission
+    )
+    app.include_router(router.router)
+    return TestClient(app, raise_server_exceptions=False)
+
+
+@pytest.mark.parametrize("credential", ["bearer", "api_key"])
+@pytest.mark.parametrize(
+    "beat",
+    [
+        {"turn_id": "t1"},
+        {"turn_id": "t1", "references": [{"key": "workflow", "slug": "unknown"}]},
+        {"turn_id": "t1", "references": [{"key": "workflow", "slug": "private"}]},
+        {"turn_id": None},
+        {"turn_id": "t1", "is_running": False},
+    ],
+    ids=["running", "unknown_agent", "private_agent", "no_turn", "stopped"],
+)
+async def test_hidden_session_answers_like_unknown_without_run_credential(
+    service, dao, sharing, credential, beat
+):
+    dao.seed()
+    client = _credential_app(service, dao, set(), credential)
+
+    unknown = _post(client, session_id="never-created", replica_id="r", **beat)
+    hidden = _post(client, session_id=_SESSION, replica_id="r", **beat)
+
+    assert unknown.status_code == 403
+    assert unknown.json()["detail"]["code"] == "session_requires_run_credential"
+    assert hidden.status_code == unknown.status_code
+    assert hidden.json() == {
+        "detail": {
+            **unknown.json()["detail"],
+            "message": unknown.json()["detail"]["message"].replace(
+                "never-created", _SESSION
+            ),
+        }
+    }
+    assert "never-created" not in dao.rows
+    assert dao.count("update") == dao.count("create") == 0
+
+
+async def test_readable_session_keeps_its_refusal_without_run_credential(
+    service, dao, sharing
+):
+    dao.seed()
+    dao.seed(session_id="project-session", policy=OWNERLESS_PROJECT_POLICY)
+    client = _credential_app(service, dao, {_BOB}, "bearer")
+
+    # Bob can read Alice's session, so he gets the refusal itself.
+    readable = _post(client, session_id=_SESSION, replica_id="r", turn_id="t1")
+    assert readable.status_code == 403
+    assert readable.json()["detail"]["code"] == "access_denied"
+
+    # A session he may run, naming an agent hidden from him: the agent's 404, as an
+    # unknown agent reference answers.
+    for slug in ("private", "unknown"):
+        response = _post(
+            client,
+            session_id="project-session",
+            replica_id="r",
+            turn_id="t1",
+            references=[{"key": "workflow", "slug": slug}],
+        )
+        assert response.status_code == 404
+        assert response.json()["detail"] == NOT_FOUND_ERROR.model_dump(
+            exclude_none=True
+        )
+    assert dao.count("update") == 0

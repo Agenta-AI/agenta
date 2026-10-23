@@ -105,6 +105,24 @@ class RunAdmission:
                     boundary=boundary,
                 )
 
+    async def session_readable(
+        self,
+        *,
+        envelope: RunEnvelope,
+        session_id: str,
+    ) -> bool:
+        """Whether the envelope's principal may read the session (rule S1). A refusal
+        path uses it to answer a hidden session exactly like an unknown one."""
+
+        authority = envelope.authority
+        decision = await self._access_service.decide(
+            authority=authority,
+            principal=authority.principal,
+            action=Permission.VIEW_SESSIONS,
+            resource=ResourceRef(kind=ResourceKind.SESSION, id=str(session_id)),
+        )
+        return decision.allowed
+
     async def admit_turn(
         self,
         *,

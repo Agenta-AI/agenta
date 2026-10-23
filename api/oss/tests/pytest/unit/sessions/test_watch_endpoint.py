@@ -421,6 +421,10 @@ async def test_project_watch_endpoint_streams_known_events_and_skips_unknown():
             return_value=True,
         ),
         patch(
+            "oss.src.apis.fastapi.sessions.router.get_request_access",
+            return_value=object(),
+        ),
+        patch(
             "oss.src.apis.fastapi.sessions.router.get_streams_engine"
         ) as streams_engine,
     ):
@@ -463,3 +467,188 @@ async def test_project_watch_endpoint_requires_both_view_permissions(permissions
         Permission.VIEW_SESSIONS,
         Permission.VIEW_WORKFLOWS,
     ]
+
+
+# -- the project stream shows only what the watcher may view ---------------------------
+
+
+_ALICE, _BOB, _CAROL = "alice", "bob", "carol"
+_PRIVATE_SESSION = "alice-private"
+_PRIVATE_AGENT = str(uuid4())
+
+
+def _sharing_rule(calls: list):
+    """Alice owns the private session and the private agent; Carol holds a grant on
+    the session. Every other item is project-visible."""
+
+    from oss.src.apis.fastapi.sharing.utils import ResourceCheck  # noqa: PLC0415
+
+    async def check_resource_for(*, access, action, project_id, resource):
+        calls.append((access.user, action, resource.id))
+        if resource.id == _PRIVATE_SESSION:
+            allowed = access.user in (_ALICE, _CAROL)
+        elif resource.id == _PRIVATE_AGENT:
+            allowed = access.user == _ALICE
+        else:
+            allowed = True
+        return ResourceCheck.ALLOWED if allowed else ResourceCheck.HIDDEN
+
+    return check_resource_for
+
+
+async def _project_frames(user: str, messages: list, calls: list) -> list:
+    router = _router()
+    project_id = uuid4()
+    request = _make_authed_request(
+        FastAPI(), project_id, uuid4(), path="/sessions/watch"
+    )
+    pubsub = _FakePubSub(messages)
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.get_request_access",
+            return_value=type("Access", (), {"user": user})(),
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_resource_for",
+            _sharing_rule(calls),
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.get_streams_engine"
+        ) as streams_engine,
+    ):
+        streams_engine.return_value.get_redis.return_value.pubsub.return_value = pubsub
+        response = await router.watch_project(request=request, project_id=project_id)
+        frames = []
+        while True:
+            frame = await response.body_iterator.__anext__()
+            if frame == HEARTBEAT_FRAME:
+                break
+            frames.append(frame)
+        await response.body_iterator.aclose()
+    return frames[2:]  # after the retry and ready preamble
+
+
+_CHANGES = [
+    _msg({"type": "session-changed", "entity": "session", "id": _PRIVATE_SESSION}),
+    _msg({"type": "session-changed", "entity": "session", "id": "project-session"}),
+    _msg({"type": "workflow-changed", "entity": "workflow", "id": _PRIVATE_AGENT}),
+    _msg({"type": "session-changed", "entity": "session", "id": _PRIVATE_SESSION}),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.real_resource_checks
+async def test_project_watch_hides_private_items_from_other_members():
+    calls: list = []
+    frames = await _project_frames(_BOB, list(_CHANGES), calls)
+
+    assert len(frames) == 1
+    assert "project-session" in frames[0]
+    assert not any(_PRIVATE_SESSION in f or _PRIVATE_AGENT in f for f in frames)
+    # The second change of the private session reuses this connection's decision.
+    assert [c[2] for c in calls] == [
+        _PRIVATE_SESSION,
+        "project-session",
+        _PRIVATE_AGENT,
+    ]
+    assert [c[1] for c in calls] == [
+        Permission.VIEW_SESSIONS,
+        Permission.VIEW_SESSIONS,
+        Permission.VIEW_WORKFLOWS,
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.real_resource_checks
+@pytest.mark.parametrize("user", [_ALICE, _CAROL])
+async def test_project_watch_shows_private_session_to_owner_and_grantee(user):
+    frames = await _project_frames(user, list(_CHANGES), [])
+
+    private = [f for f in frames if _PRIVATE_SESSION in f]
+    assert len(private) == 2
+    assert any("project-session" in f for f in frames)
+    assert any(_PRIVATE_AGENT in f for f in frames) is (user == _ALICE)
+
+
+@pytest.mark.asyncio
+@pytest.mark.real_resource_checks
+async def test_project_watch_passes_events_without_an_item_and_drops_malformed_ids():
+    calls: list = []
+    frames = await _project_frames(
+        _BOB,
+        [
+            _msg({"type": "session-changed", "entity": "session", "id": 7}),
+            _msg({"type": "workflow-changed", "entity": "workflow"}),
+            _msg({"type": "session-changed", "entity": "other", "id": "x"}),
+        ],
+        calls,
+    )
+    assert len(frames) == 1 and '"entity": "other"' in frames[0]
+    assert calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.real_resource_checks
+async def test_project_event_decisions_expire_within_the_live_recheck_bound():
+    from oss.src.apis.fastapi.sessions.router import (  # noqa: PLC0415
+        project_event_filter,
+    )
+
+    calls: list = []
+    now = [0.0]
+    event = {"type": "session-changed", "entity": "session", "id": _PRIVATE_SESSION}
+    with patch(
+        "oss.src.apis.fastapi.sessions.router.check_resource_for",
+        _sharing_rule(calls),
+    ):
+        access = type("Access", (), {"user": _CAROL})()
+        allow = project_event_filter(
+            access=access, project_id=uuid4(), clock=lambda: now[0]
+        )
+        assert await allow(event) is True
+        now[0] = 59.0
+        assert await allow(event) is True
+        assert len(calls) == 1
+        # The grant was removed: the next decision after the bound sees it.
+        access.user = _BOB
+        now[0] = 60.0
+        assert await allow(event) is False
+        assert len(calls) == 2
+
+        # A second connection never reuses the first one's decisions.
+        other = project_event_filter(
+            access=access, project_id=uuid4(), clock=lambda: now[0]
+        )
+        assert await other(event) is False
+        assert len(calls) == 3
+
+
+@pytest.mark.asyncio
+async def test_event_filter_error_drops_the_frame_and_keeps_the_stream():
+    pubsub = _FakePubSub(
+        [
+            _msg({"type": "session-changed", "entity": "session", "id": "s1"}),
+            _msg({"type": "session-changed", "entity": "session", "id": "s2"}),
+        ]
+    )
+
+    async def _filter(payload):
+        if payload["id"] == "s1":
+            raise ConnectionError("redis down")
+        return True
+
+    stream = watch_event_stream(
+        channel="c",
+        pubsub_factory=lambda: pubsub,
+        heartbeat_seconds=1,
+        retry_milliseconds=1000,
+        event_filter=_filter,
+    )
+    frames = [await stream.__anext__() for _ in range(3)]
+    await stream.aclose()
+    assert '"s2"' in frames[2] and '"s1"' not in frames[2]

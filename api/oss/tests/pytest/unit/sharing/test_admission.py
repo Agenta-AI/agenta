@@ -242,3 +242,15 @@ async def test_refusal_logs_ids_and_kinds_only(monkeypatch):
     assert fields["principal_id"] == str(_BOB)
     assert fields["resource_id"] == _SESSION
     assert fields["reason"] == "resource_denied"
+
+
+async def test_session_readable_is_one_view_decision():
+    admission, (access, _) = _admission()
+    assert await admission.session_readable(envelope=_alice(), session_id=_SESSION)
+    assert not await admission.session_readable(envelope=_bob(), session_id=_SESSION)
+    globals()["_VIEWER"] = True
+    assert await admission.session_readable(envelope=_bob(), session_id=_SESSION)
+    assert [call["action"] for call in access.decide_calls] == [
+        Permission.VIEW_SESSIONS
+    ] * 3
+    assert {call["resource"].id for call in access.decide_calls} == {_SESSION}

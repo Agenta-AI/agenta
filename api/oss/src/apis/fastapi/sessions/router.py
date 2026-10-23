@@ -17,6 +17,7 @@ composing the individual reads already exposed here:
 """
 
 import re
+import time
 from functools import wraps
 from uuid import UUID, uuid4
 
@@ -36,7 +37,7 @@ from pydantic import ValidationError
 # FastAPI route params need fastapi.UploadFile; request.form() yields starlette's base class.
 from fastapi import UploadFile as FastAPIUploadFile
 from starlette.datastructures import UploadFile
-from typing import Any, Optional, Union
+from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, Union
 
 from oss.src.core.access.context import fresh_request_memo, get_request_access
 from oss.src.core.access.dtos import RunApproval
@@ -47,6 +48,7 @@ from oss.src.core.access.types import MissingEnvelope
 from oss.src.middlewares.auth import request_run_envelope
 from oss.src.apis.fastapi.sharing.utils import (
     ResourceCheck,
+    agent_resource,
     allow_mount,
     allow_resource,
     allow_session_write,
@@ -291,6 +293,78 @@ def _unknown_session_id() -> str:
     (same body, same work). Only for reads whose answer does not repeat the id."""
 
     return f"hidden-{uuid4().hex}"
+
+
+# The project stream remembers a decision for at most this long (and never longer
+# than the live stream recheck), so a sharing change reaches an open stream as fast
+# as it reaches a live stream.
+_PROJECT_EVENT_MEMO_SECONDS = 60
+_PROJECT_EVENT_MEMO_LIMIT = 4096
+
+
+def _project_event_target(payload: dict) -> Optional[Tuple[Permission, Any]]:
+    """The item a project event names, with the view action it needs; `None` for an
+    event that names no session or agent. A malformed id raises ValueError, so the
+    filter drops the event."""
+
+    entity = payload.get("entity")
+    item_id = payload.get("id")
+    if entity in ("session", "workflow"):
+        if not isinstance(item_id, str) or not item_id:
+            raise ValueError("project event without an id")
+        if entity == "session":
+            return Permission.VIEW_SESSIONS, session_resource(item_id)
+        return Permission.VIEW_WORKFLOWS, agent_resource(item_id)
+    session_id = payload.get("session_id")
+    if session_id is not None:
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("project event with a malformed session id")
+        return Permission.VIEW_SESSIONS, session_resource(session_id)
+    return None
+
+
+def project_event_filter(
+    *,
+    access,
+    project_id: UUID,
+    clock: Callable[[], float] = time.monotonic,
+) -> Callable[[dict], Awaitable[bool]]:
+    """The filter of one `/sessions/watch` connection: an event that names a session
+    or an agent passes only when the watcher may view it (the cached sharing decision,
+    no Postgres when warm). Each decision is remembered inside this connection for at
+    most `_PROJECT_EVENT_MEMO_SECONDS`; nothing is shared between connections."""
+
+    ttl = min(env.sessions.live_auth_recheck_seconds, _PROJECT_EVENT_MEMO_SECONDS)
+    memo: Dict[Tuple[str, str], Tuple[bool, float]] = {}
+
+    async def allow(payload: dict) -> bool:
+        target = _project_event_target(payload)
+        if target is None:
+            return True
+        action, resource = target
+        key = (resource.kind.value, resource.id)
+        now = clock()
+        remembered = memo.get(key)
+        if remembered is not None and remembered[1] > now:
+            return remembered[0]
+        allowed = (
+            await check_resource_for(
+                access=access,
+                action=action,
+                project_id=project_id,
+                resource=resource,
+            )
+            == ResourceCheck.ALLOWED
+        )
+        if len(memo) >= _PROJECT_EVENT_MEMO_LIMIT:
+            for stale in [k for k, (_, until) in memo.items() if until <= now]:
+                del memo[stale]
+            if len(memo) >= _PROJECT_EVENT_MEMO_LIMIT:
+                memo.clear()
+        memo[key] = (allowed, now + ttl)
+        return allowed
+
+    return allow
 
 
 async def _visible_items(request: Request, items: list, *, session_id_of) -> list:
@@ -1107,6 +1181,9 @@ class SessionStreamsRouter:
     ) -> StreamingResponse:
         """Relay low-frequency entity changes for the authorized project.
 
+        An event that names a session or an agent reaches only a watcher who may view
+        it, so a private item's id never reaches another member.
+
         A caller with only one required view permission cannot open this stream and falls back to
         the lists' polling behavior.
         """
@@ -1125,12 +1202,21 @@ class SessionStreamsRouter:
         )
         if not (can_view_sessions and can_view_workflows):
             raise FORBIDDEN_EXCEPTION
+        # Captured at entry: the filter runs while the stream is open, outside the
+        # request's ContextVar scope.
+        access = get_request_access()
+        if access is None:
+            raise FORBIDDEN_EXCEPTION
 
         stream = watch_event_stream(
             channel=project_watch_channel(str(authorized_project_id)),
             pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
             heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
             retry_milliseconds=env.sessions.watch_retry_milliseconds,
+            event_filter=project_event_filter(
+                access=access,
+                project_id=UUID(str(authorized_project_id)),
+            ),
         )
         return StreamingResponse(
             stream,

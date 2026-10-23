@@ -74,8 +74,9 @@ def _stub_event_publishing(request, monkeypatch):
 @pytest.fixture(autouse=True)
 def _allow_resource_checks(request, monkeypatch):
     """Route tests that are not about sharing run with every agent and session
-    allowed: the routes' resource checks answer ALLOWED, and the capability checks
-    (`check_action_access`, which those tests stub) decide as before.
+    allowed: the routes' resource checks and the embedded agent check answer
+    ALLOWED, and the capability checks (`check_action_access`, which those tests
+    stub) decide as before.
 
     Tests of the resource checks themselves opt out with
     `@pytest.mark.real_resource_checks`.
@@ -99,6 +100,12 @@ def _allow_resource_checks(request, monkeypatch):
 
     async def _write_allowed(*_args, **_kwargs):
         return True
+
+    monkeypatch.setattr(
+        "oss.src.core.embeds.service.embedded_agent_visible",
+        _write_allowed,
+        raising=False,
+    )
 
     monkeypatch.setattr(
         "oss.src.apis.fastapi.sessions.router.allow_session_write",

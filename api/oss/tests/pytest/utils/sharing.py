@@ -378,12 +378,14 @@ class RecordingRunAdmission:
 
     `refuse(method, kwargs)` returns the exception a call raises (an `AdmissionDenied`
     or an `AgentReferenceUnresolved`), or None to admit. `before(method, kwargs)`, when
-    set, is awaited first (a test uses it to order a race)."""
+    set, is awaited first (a test uses it to order a race). `readable(kwargs)` answers
+    `session_readable` (True when not set)."""
 
-    def __init__(self, *, refuse=None, before=None) -> None:
+    def __init__(self, *, refuse=None, before=None, readable=None) -> None:
         self.calls: List[Tuple[str, dict]] = []
         self._refuse = refuse
         self._before = before
+        self._readable = readable
 
     async def _record(self, method: str, kwargs: dict) -> None:
         self.calls.append((method, kwargs))
@@ -402,6 +404,10 @@ class RecordingRunAdmission:
 
     async def admit_request(self, **kwargs) -> None:
         await self._record("admit_request", kwargs)
+
+    async def session_readable(self, **kwargs) -> bool:
+        self.calls.append(("session_readable", kwargs))
+        return self._readable(kwargs) if self._readable is not None else True
 
     def methods(self) -> List[str]:
         return [method for method, _ in self.calls]

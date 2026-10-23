@@ -82,6 +82,8 @@ from oss.src.core.sessions.types import SessionReference
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.sharing.admission import HEARTBEAT_BOUNDARY, RunAdmission
 from oss.src.core.sharing.dtos import AccessPolicy, SessionReadScope
+from oss.src.core.sharing.types import AdmissionDenied
+from oss.src.core.workflows.types import AgentReferenceUnresolved
 from oss.src.core.sharing.service import (
     get_sharing_service,
     invalidate_sharing_caches,
@@ -995,13 +997,30 @@ class SessionStreamsService:
                 == principal
             ):
                 return prior_stream, None
-            await self._check_existing_row(
-                project_id=project_id,
-                request=request,
-                prior_stream=prior_stream,
-                run_admission=run_admission,
-                admission_envelope=admission_envelope,
-            )
+            try:
+                await self._check_existing_row(
+                    project_id=project_id,
+                    request=request,
+                    prior_stream=prior_stream,
+                    run_admission=run_admission,
+                    admission_envelope=admission_envelope,
+                )
+            except (AdmissionDenied, AgentReferenceUnresolved) as error:
+                # Without a run credential an unknown session answers
+                # `SessionCreationRequiresRunCredential`. A session this caller cannot
+                # read must answer the same, whatever refused the beat. A caller who
+                # can read the session gets the refusal itself.
+                if envelope is None and not (
+                    isinstance(error, AdmissionDenied) and error.readable
+                ):
+                    if not await run_admission.session_readable(
+                        envelope=admission_envelope,
+                        session_id=request.session_id,
+                    ):
+                        raise SessionCreationRequiresRunCredential(
+                            request.session_id
+                        ) from error
+                raise
 
         if running_turn_id:
             await record_turn_admission(
