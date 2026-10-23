@@ -383,7 +383,9 @@ def test_agent_v0_force_header_is_406():
 # The SDK's tracing id allows '.' and ':', the session store does not; before this
 # the runner's admission heartbeat got a 422 and the client a 500 "platform is busy".
 # =========================================================================== #
-@pytest.mark.parametrize("session_id", ["matrix-gpt-4.1_pi", "slack:C123"])
+@pytest.mark.parametrize(
+    "session_id", ["matrix-gpt-4.1_pi", "slack:C123", "a" * 128 + "\n"]
+)
 def test_agent_v0_invalid_session_id_is_400(session_id):
     resp = _post_agent(_agent_client(), session_id=session_id)
     assert resp.status_code == 400

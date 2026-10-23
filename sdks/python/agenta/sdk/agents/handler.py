@@ -435,7 +435,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         # An agent turn is session-owned, so its id must pass the platform's session store,
         # whose charset is narrower than the SDK's tracing id. Without this the turn starts and
         # the runner's admission heartbeat gets a 422, which reaches the client as a 500.
-        if session_id is not None and not _AGENT_SESSION_ID_RE.match(session_id):
+        if session_id is not None and not _AGENT_SESSION_ID_RE.fullmatch(session_id):
             raise InvalidSessionIdV0Error(session_id)
 
         workflow_span = current_product_span()
