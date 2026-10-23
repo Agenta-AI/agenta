@@ -200,6 +200,32 @@ def stored_work_envelope(
 
 ACCESS_DENIED_NEXT_STEP = "Ask a project admin for access."
 
+# Message and next step per denial reason, so a paused trigger or a refused run says
+# what is wrong. Unknown reasons fall back to the general sentence.
+_DENIAL_TEXT = {
+    "principal_inactive": (
+        "Access denied: the API key, user or installation this runs as no longer "
+        "exists or is inactive.",
+        "Set it up again under an active user or API key.",
+    ),
+    "not_member": (
+        "Access denied: the user this runs as is not a member of the project.",
+        ACCESS_DENIED_NEXT_STEP,
+    ),
+    "missing_capability": (
+        "Access denied: the role of the user this runs as does not allow this.",
+        ACCESS_DENIED_NEXT_STEP,
+    ),
+    "restricted_by_authority": (
+        "Access denied: the run's credential is not valid for this project.",
+        "Start the run from the project it belongs to.",
+    ),
+}
+_DENIAL_DEFAULT = (
+    "Access denied: the run's principal cannot do this in the project.",
+    ACCESS_DENIED_NEXT_STEP,
+)
+
 
 def access_denied_error(
     *,
@@ -209,11 +235,12 @@ def access_denied_error(
 ):
     from oss.src.core.tools.dtos import AgentError  # noqa: PLC0415 (import cycle)
 
+    message, next_step = _DENIAL_TEXT.get(decision.reason.value, _DENIAL_DEFAULT)
     return AgentError(
         code="access_denied",
-        message="Access denied: the run's principal cannot do this in the project.",
+        message=message,
         retryable=False,
-        next_step=ACCESS_DENIED_NEXT_STEP,
+        next_step=next_step,
         details={
             "reason": decision.reason.value,
             "principal_kind": PrincipalKind(principal_kind).value,

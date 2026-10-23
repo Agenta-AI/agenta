@@ -8,7 +8,11 @@ from uuid import UUID
 
 from croniter import croniter
 
-from oss.src.core.access.dtos import PrincipalRef
+from oss.src.core.access.dtos import PrincipalRef, RunOrigin
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.principals import stored_work_envelope
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import AccessDenied, MissingPrincipal
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 from oss.src.utils.caching import get_cache, set_cache
@@ -295,6 +299,45 @@ def _has_primary_evidence(
         integration=integration,
     )
     return exact_phrase or matched_terms >= _DISCOVERY_MIN_PRIMARY_TERMS
+
+
+async def recheck_trigger_principal(
+    *, project_id: UUID, trigger, origin: RunOrigin
+) -> None:
+    """A trigger that is started again must still have a principal that may run it.
+    Raises `MissingPrincipal` or `AccessDenied`, so a resume of a trigger whose key or
+    creator is gone is refused at once instead of at its next tick."""
+
+    if trigger.principal is None:
+        raise MissingPrincipal()
+    access = get_access_service()
+    organization_id = await access.project_organization_id(project_id=project_id)
+    if organization_id is None:
+        raise MissingPrincipal("The trigger's project has no organization")
+    try:
+        await access.require(
+            envelope=stored_work_envelope(
+                principal=trigger.principal,
+                organization_id=organization_id,
+                project_id=project_id,
+                origin=origin,
+                origin_id=str(trigger.id),
+                created_by_id=trigger.created_by_id,
+            ),
+            action=Permission.RUN_WORKFLOWS,
+        )
+    except AccessDenied as denied:
+        # The router names the principal kind in the refusal.
+        denied.principal_kind = trigger.principal.kind
+        raise
+
+
+def _resumed_meta(meta):
+    """The trigger's meta without the reason of its last automatic pause."""
+
+    if not meta or "paused_reason" not in meta:
+        return meta
+    return {key: value for key, value in dict(meta).items() if key != "paused_reason"}
 
 
 class TriggersService:
@@ -1271,13 +1314,18 @@ class TriggersService:
         if existing is None:
             raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
 
+        if is_active:
+            await recheck_trigger_principal(
+                project_id=project_id, trigger=existing, origin=RunOrigin.SUBSCRIPTION
+            )
+
         edit = TriggerSubscriptionEdit(
             id=existing.id,
             connection_id=existing.connection_id,
             name=existing.name,
             description=existing.description,
             tags=existing.tags,
-            meta=existing.meta,
+            meta=_resumed_meta(existing.meta) if is_active else existing.meta,
             data=existing.data,
             flags=existing.flags.model_copy(update={"is_active": is_active}),
         )
@@ -1690,12 +1738,17 @@ class TriggersService:
                 reason="window ended",
             )
 
+        if is_active:
+            await recheck_trigger_principal(
+                project_id=project_id, trigger=existing, origin=RunOrigin.SCHEDULE
+            )
+
         edit = TriggerScheduleEdit(
             id=existing.id,
             name=existing.name,
             description=existing.description,
             tags=existing.tags,
-            meta=existing.meta,
+            meta=_resumed_meta(existing.meta) if is_active else existing.meta,
             data=existing.data,
             flags=existing.flags.model_copy(update={"is_active": is_active}),
         )

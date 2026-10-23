@@ -10,6 +10,11 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 
 from oss.src.core.access.dtos import PrincipalRef
+from oss.src.core.access.principals import (
+    access_denied_error,
+    missing_principal_error,
+)
+from oss.src.core.access.types import AccessDenied, MissingPrincipal
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
@@ -121,6 +126,28 @@ def _request_principal(request: Request) -> PrincipalRef:
     if principal is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
     return principal
+
+
+def _resume_refused(refusal, *, project_id) -> HTTPException:
+    """A start of a trigger whose principal may no longer run it: 403 `access_denied`
+    or 409 `missing_principal`, with the reason, and the trigger stays paused."""
+
+    if isinstance(refusal, AccessDenied):
+        principal = getattr(refusal, "principal_kind", None)
+        return HTTPException(
+            status_code=403,
+            detail=access_denied_error(
+                decision=refusal.decision,
+                principal_kind=principal or "human",
+                project_id=UUID(str(project_id)),
+            ).model_dump(exclude_none=True),
+        )
+    return HTTPException(
+        status_code=409,
+        detail=missing_principal_error(
+            next_step="Create the trigger again."
+        ).model_dump(exclude_none=True),
+    )
 
 
 class TriggersRouter:
@@ -1274,6 +1301,10 @@ class TriggersRouter:
             )
         except SubscriptionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except (AccessDenied, MissingPrincipal) as refusal:
+            raise _resume_refused(
+                refusal, project_id=request.state.project_id
+            ) from refusal
 
         return TriggerSubscriptionResponse(
             count=1,
@@ -1479,6 +1510,10 @@ class TriggersRouter:
             )
         except ScheduleNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except (AccessDenied, MissingPrincipal) as refusal:
+            raise _resume_refused(
+                refusal, project_id=request.state.project_id
+            ) from refusal
 
         return TriggerScheduleResponse(
             count=1,

@@ -115,6 +115,10 @@ from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
 from oss.src.core.evaluations.runtime.types import RunSlice
 from oss.src.core.evaluations.runtime.operations import SliceOperations
 
+from oss.src.core.access.principals import (
+    access_denied_error,
+    missing_principal_error,
+)
 from oss.src.core.access.types import AccessDenied, MissingPrincipal
 from oss.src.core.evaluations.run_access import require_evaluation_run_access
 
@@ -323,6 +327,17 @@ class EvaluationsService:
                         project_id=project_id,
                         user_id=user_id,
                         run=run,
+                        refusal=(
+                            missing_principal_error(
+                                next_step="Start the evaluation again."
+                            )
+                            if isinstance(refusal, MissingPrincipal)
+                            else access_denied_error(
+                                decision=refusal.decision,
+                                principal_kind=run.principal.kind,
+                                project_id=project_id,
+                            )
+                        ),
                     )
                     continue
 
@@ -400,10 +415,20 @@ class EvaluationsService:
         project_id: UUID,
         user_id: UUID,
         run: EvaluationRun,
+        refusal: Optional[Any] = None,  # an AgentError
     ) -> None:
+        """Close a live run. A run closed because its principal may no longer run it
+        (`refusal`) also ends FAILURE, with the refusal in `meta.closed_reason`."""
+
         flags = run.flags.model_copy() if run.flags else EvaluationRunFlags()
         flags.is_active = False
         flags.is_closed = True
+        meta = run.meta
+        if refusal is not None:
+            meta = {
+                **(dict(run.meta) if run.meta else {}),
+                "closed_reason": refusal.model_dump(exclude_none=True),
+            }
 
         await self.edit_run(
             project_id=project_id,
@@ -417,9 +442,9 @@ class EvaluationsService:
                 #
                 flags=flags,
                 tags=run.tags,
-                meta=run.meta,
+                meta=meta,
                 #
-                status=run.status,
+                status=EvaluationStatus.FAILURE if refusal is not None else run.status,
                 #
                 data=run.data,
             ),

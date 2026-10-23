@@ -940,6 +940,7 @@ class SessionCommandsService:
         settlement the promoted input would stay the active successor and block the next
         input. The receipt is `refused`, which nothing retries."""
 
+        admission: Optional[InputContinuationAdmission] = None
         try:
             async with self._dao.transaction() as transaction:
                 await self._dao.settle_command(
@@ -964,7 +965,7 @@ class SessionCommandsService:
                         error=error.model_dump(exclude_none=True),
                         transaction=transaction,
                     )
-                    await self._executions.settle(
+                    result = await self._executions.settle(
                         project_id=command.project_id,
                         session_id=command.session_id,
                         execution_id=command.target_turn_id,
@@ -972,6 +973,16 @@ class SessionCommandsService:
                         settled_by="access_refusal",
                         transaction=transaction,
                     )
+                    # The refused execution ended, as a completed one does: the next
+                    # queued input becomes the session's next execution, in the same
+                    # commit (`settle_execution_completed` does the same on a normal end).
+                    if result.won:
+                        admission = await self._promote_next_input(
+                            project_id=command.project_id,
+                            session_id=command.session_id,
+                            parent_execution_id=command.target_turn_id,
+                            transaction=transaction,
+                        )
         except Exception as failure:  # noqa: BLE001 - the sweep still finds the command
             log.error(
                 "refused continuation settlement failed command=%s: %s",
@@ -986,6 +997,15 @@ class SessionCommandsService:
             project_id=str(command.project_id),
             code=error.code,
         )
+        if admission is not None:
+            # Delivered like any promoted input. Its own refusal settles it the same
+            # way and promotes the one after it, so the queue always drains.
+            next_receipt = await self._deliver(admission.command)
+            if next_receipt is None or next_receipt.status not in (
+                "accepted",
+                "refused",
+            ):
+                await self._mark_continuation_recoverable(admission, next_receipt)
         return DeliveryReceipt(status="refused", detail=error.code)
 
     async def _mark_continuation_recoverable(

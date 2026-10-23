@@ -263,3 +263,51 @@ async def test_complete_fills_attribution_when_append_had_none(turns_project):
     assert columns["principal_kind"] == "human"
     assert columns["sender_user_id"] == human.authority.principal.id
     assert columns["origin"] == "web"
+
+
+async def test_approval_resume_records_the_approver_on_the_turn(turns_project):
+    """QA D2. Alice's turn parks; Bob approves; the resumed run completes the same
+    turn row. The row keeps Alice as principal and sender and stores Bob as
+    `approved_by`."""
+    from datetime import datetime, timezone
+
+    from oss.src.core.access.dtos import PrincipalKind, PrincipalRef, RunApproval
+    from oss.src.core.access.principals import resumed_envelope
+    from oss.src.core.sessions.turns.dtos import (
+        HarnessKind,
+        SessionTurnComplete,
+        SessionTurnCreate,
+    )
+    from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
+
+    dao = SessionTurnsDAO(engine=get_transactions_engine())
+    alice = make_envelope(kind="human", run_id="t2")
+    bob = uuid4()
+    approval = RunApproval(
+        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=bob), user_id=bob
+    )
+    await dao.append(
+        project_id=turns_project,
+        user_id=None,
+        turn=SessionTurnCreate(
+            session_id="m2-attr",
+            stream_id=_STREAM_ID,
+            turn_index=2,
+            harness_kind=HarnessKind.PI,
+            envelope=alice,
+        ),
+    )
+    await dao.complete(
+        project_id=turns_project,
+        turn=SessionTurnComplete(
+            session_id="m2-attr",
+            turn_index=2,
+            end_time=datetime.now(timezone.utc),
+            envelope=resumed_envelope(asked=alice, run_id="t2", approved_by=approval),
+        ),
+    )
+    columns = await _turn_columns(turns_project, 2)
+    assert columns["principal_id"] == alice.authority.principal.id
+    assert columns["sender_user_id"] == alice.sender.user_id
+    assert columns["approved_by"]["user_id"] == str(bob)
+    assert columns["approved_by"]["principal"] == {"kind": "human", "id": str(bob)}

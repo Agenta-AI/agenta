@@ -88,11 +88,17 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
             for column, value in map_turn_attribution_to_columns(
                 envelope=turn.envelope
             ).items():
+                typed = literal(value, type_=SessionTurnDBE.__table__.c[column].type)
+                if column == "approved_by" and value is not None:
+                    # An approval resumes the turn that asked: the row keeps its
+                    # principal and sender, and records the approver when it has none.
+                    values[column] = case(
+                        (SessionTurnDBE.approved_by.is_(None), typed),
+                        else_=SessionTurnDBE.approved_by,
+                    )
+                    continue
                 values[column] = case(
-                    (
-                        unattributed,
-                        literal(value, type_=SessionTurnDBE.__table__.c[column].type),
-                    ),
+                    (unattributed, typed),
                     else_=getattr(SessionTurnDBE, column),
                 )
 

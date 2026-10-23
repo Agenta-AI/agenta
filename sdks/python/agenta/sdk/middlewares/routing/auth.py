@@ -1,6 +1,5 @@
-from typing import Callable, Optional, Dict
+from typing import Any, Callable, Optional, Dict
 from os import getenv
-from json import dumps
 
 import httpx
 
@@ -11,7 +10,6 @@ from fastapi.responses import JSONResponse
 
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.exceptions import display_exception
-from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.constants import TRUTHY
 
 import agenta as ag
@@ -63,18 +61,10 @@ _AUTH_ENABLED = (
     or "true"
 ).lower() in TRUTHY
 
-_CACHE_ENABLED = (
-    getenv("AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED")
-    or getenv("AGENTA_SERVICE_MIDDLEWARE_CACHE_ENABLED")
-    or "true"
-).lower() in TRUTHY
-
 _ALWAYS_ALLOW_LIST = [
     "/health",
     f"{AGENTA_RUNTIME_PREFIX}/health",
 ]
-
-_cache = TTLLRUCache()
 
 
 class DenyResponse(JSONResponse):
@@ -103,6 +93,20 @@ class DenyException(Exception):
         self.status_code = status_code
         self.content = content
         self.headers = headers
+
+
+def _structured_denial(response) -> Optional[Dict[str, Any]]:
+    """The API's agent-visible refusal (`{"code": "access_denied", ...}`), when the
+    exchange answered with one, so the caller learns why (for example `not_member`)."""
+
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    detail = body.get("detail") if isinstance(body, dict) else None
+    if isinstance(detail, dict) and detail.get("code"):
+        return detail
+    return None
 
 
 async def get_credentials(
@@ -171,20 +175,9 @@ async def get_credentials(
         ## RESOURCE
         params["resource_type"] = "service"
 
-        _hash = dumps(
-            {
-                "headers": headers,
-                "cookies": cookies,
-                "params": params,
-            },
-            sort_keys=True,
-        )
-
-        if _CACHE_ENABLED:
-            credentials = _cache.get(_hash)
-
-            if credentials:
-                return credentials
+        # No cache: the API decides on every exchange (its warm path reads no
+        # Postgres row), so a deleted key or a removed member is refused before the
+        # run starts, not after it has begun with a cached credential.
 
         try:
             async with httpx.AsyncClient() as client:
@@ -225,7 +218,8 @@ async def get_credentials(
                 elif response.status_code == 403:
                     raise DenyException(
                         status_code=403,
-                        content="Permission denied. Please check your permissions or contact your administrator.",
+                        content=_structured_denial(response)
+                        or "Permission denied. Please check your permissions or contact your administrator.",
                     )
                 elif response.status_code == 429:
                     resp_headers = {
@@ -273,11 +267,7 @@ async def get_credentials(
                         content="Permission denied. Please check your permissions or contact your administrator.",
                     )
 
-                credentials = auth.get("credentials")
-
-                _cache.put(_hash, credentials)
-
-                return credentials
+                return auth.get("credentials")
 
         except DenyException as deny:
             raise deny
