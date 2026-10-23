@@ -91,7 +91,7 @@ const ToolbarButton = ({
 const TABLE_CLASS =
     "w-full border-separate border-spacing-0 text-xs leading-5 sm:text-[13px] [&_thead]:bg-transparent [&_tbody_tr]:hover:bg-muted/40"
 
-/** A markdown table in a frame: copy, download and expand sit in its header row; the body scrolls. */
+/** A markdown table in a frame: the body scrolls; size, copy, download and expand sit in a footer. */
 export const ChatTable = ({node, children}: {node?: HastNode; children?: ReactNode}) => {
     const model = useMemo(
         () => (node ? tableModel(node) : {header: [], rows: [], columns: []}),
@@ -123,23 +123,31 @@ export const ChatTable = ({node, children}: {node?: HastNode; children?: ReactNo
 
     return (
         <LayoutContext.Provider value={layouts}>
-            <div className="relative my-3 min-w-0 overflow-hidden rounded-lg border border-border/60 bg-background">
-                {/* The actions ride the header row's right end; a fade keeps scrolled headers legible. */}
-                <div className="absolute right-0 top-0 z-[2] flex h-[39px] items-center gap-0.5 bg-muted pl-4 pr-1.5 [mask-image:linear-gradient(to_right,transparent,black_12px)]">
-                    <ToolbarButton label={copied ? "Copied" : "Copy as Markdown"} onClick={copy}>
-                        {copied ? <Check size={14} /> : <Copy size={14} />}
-                    </ToolbarButton>
-                    <ToolbarButton
-                        label="Download CSV"
-                        onClick={() => downloadCsv(toCsv(model), "table.csv")}
-                    >
-                        <DownloadSimple size={14} />
-                    </ToolbarButton>
-                    <ToolbarButton label="Expand" onClick={() => setExpanded(true)}>
-                        <ArrowsOutSimple size={14} />
-                    </ToolbarButton>
-                </div>
+            <div className="my-3 min-w-0 overflow-hidden rounded-lg border border-border/60 bg-background">
                 <TableScroller>{table}</TableScroller>
+                {/* A quiet footer: the header row stays the table's own. */}
+                <div className="flex items-center justify-between gap-2 border-0 border-t border-solid border-border/60 py-0.5 pl-3.5 pr-1.5">
+                    <span className="min-w-0 truncate text-xs text-muted-foreground">
+                        {summary}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-0.5">
+                        <ToolbarButton
+                            label={copied ? "Copied" : "Copy as Markdown"}
+                            onClick={copy}
+                        >
+                            {copied ? <Check size={14} /> : <Copy size={14} />}
+                        </ToolbarButton>
+                        <ToolbarButton
+                            label="Download CSV"
+                            onClick={() => downloadCsv(toCsv(model), "table.csv")}
+                        >
+                            <DownloadSimple size={14} />
+                        </ToolbarButton>
+                        <ToolbarButton label="Expand" onClick={() => setExpanded(true)}>
+                            <ArrowsOutSimple size={14} />
+                        </ToolbarButton>
+                    </div>
+                </div>
             </div>
             <Dialog open={expanded} onOpenChange={setExpanded}>
                 <DialogContent className="max-w-6xl" aria-describedby={undefined}>
@@ -183,8 +191,6 @@ export const ChatTableCell = ({
                     : layout?.prose
                       ? "min-w-48"
                       : "whitespace-nowrap",
-                // The last header cell clears the actions; a right-aligned column keeps its edge.
-                (header || layout?.numeric) && "[tr>&:last-child]:pr-28",
                 layout?.first && !header && "font-medium",
                 layout?.first &&
                     pinned &&
