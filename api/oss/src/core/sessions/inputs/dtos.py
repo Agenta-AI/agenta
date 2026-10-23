@@ -37,6 +37,8 @@ class PendingInputCreate(BaseModel):
     policy: Literal["queue", "steer"]
     idempotency_key: str
     request_fingerprint: str
+    # The admitting request's run envelope; the delivery of this input runs under it.
+    run_envelope: Optional[RunEnvelope] = None
 
 
 class PendingInputAdmission(BaseModel):

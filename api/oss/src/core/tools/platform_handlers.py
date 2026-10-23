@@ -31,6 +31,7 @@ from pydantic import ValidationError
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.apps.handlers import (
     CREATE_APP_CALL_REF,
@@ -116,6 +117,7 @@ async def handle_test_run(
     user_id: UUID,
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService],
+    envelope: RunEnvelope,
     timeout_ms: int = TEST_RUN_DEFAULT_TIMEOUT_MS,
 ) -> PlatformHandlerResult:
     if _header_value(headers, TEST_RUN_RECURSION_HEADER) == TEST_RUN_RECURSION_VALUE:
@@ -145,6 +147,7 @@ async def handle_test_run(
         project_id=project_id,
         user_id=user_id,
         request=workflow_request,
+        envelope=envelope,
     )
     if not service_url:
         return _failed_response("Workflow revision has no runnable service URL.")
@@ -978,6 +981,8 @@ class PlatformToolHandlerRegistration:
     requires_elevation: Optional[Callable[[Any], bool]] = None
     # Drive-backed handlers take the router's MountsService as `mounts_service`.
     needs_mounts: bool = False
+    # Handlers that start a child run take its run envelope as `envelope`.
+    needs_envelope: bool = False
 
 
 PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
@@ -985,6 +990,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         call_ref=TEST_RUN_CALL_REF,
         timeout_ms=TEST_RUN_DEFAULT_TIMEOUT_MS,
         handler=handle_test_run,
+        needs_envelope=True,
         # An in-memory delta edits the (uncommitted) revision, so it needs the same
         # permission as committing one.
         elevated_permission=Permission.EDIT_WORKFLOWS,
@@ -1065,6 +1071,7 @@ async def dispatch_platform_tool_handler(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService],
     mounts_service: Any = None,
+    envelope: Optional[RunEnvelope] = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:
@@ -1075,6 +1082,12 @@ async def dispatch_platform_tool_handler(
     extra: Dict[str, Any] = (
         {"mounts_service": mounts_service} if registration.needs_mounts else {}
     )
+    if registration.needs_envelope:
+        if envelope is None:
+            raise PlatformToolHandlerRefused(
+                "This tool starts a run and needs a run credential."
+            )
+        extra["envelope"] = envelope
     return await registration.handler(
         arguments=arguments,
         headers=headers,

@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from oss.tests.pytest.utils.principals import make_envelope
+
 from oss.src.apis.fastapi.sessions.models import SessionInteractionCreateRequest
 from oss.src.core.sessions.interactions.dtos import SessionInteractionKind
 from oss.src.core.sessions.records.dtos import SessionRecord
@@ -37,6 +39,7 @@ def _make_interaction(
 
     refs = {"workflow": Reference(slug="wf-1")} if with_refs else None
     return SessionInteraction(
+        run_envelope=make_envelope(),
         id=uuid4(),
         project_id=uuid4(),
         session_id="sess-test-1",

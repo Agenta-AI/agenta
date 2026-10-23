@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+
+from oss.tests.pytest.utils.principals import make_envelope
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
@@ -344,6 +346,7 @@ _COMMIT_REVISION_CALL_REF = "tools.agenta.commit_revision"
 
 def _mint_request(**state):
     """A stand-in Request carrying only the auth state the mint reads."""
+    state.setdefault("run_envelope", make_envelope(run_id="run-1"))
     return type("Request", (), {"state": type("State", (), dict(state))()})()
 
 
@@ -1748,3 +1751,16 @@ def test_a_refused_base_url_does_not_echo_the_bound_key(client):
     assert response.status_code == 422, response.text
     assert "api_key" in response.text
     assert canary not in response.text
+
+
+@pytest.mark.asyncio
+async def test_mcp_mint_copies_the_run_envelope(router, signer, allow):
+    envelope = make_envelope(run_id="run-1")
+    request = _mint_request(gateway_run_id="run-1", run_envelope=envelope)
+    await router.issue_agenta_credential(
+        request=request,
+        body=MCPAgentaCredentialRequest(
+            tools=[_tool("read_config", _READ_CONFIG_CALL_REF)]
+        ),
+    )
+    assert signer.await_args.kwargs["envelope"] == envelope

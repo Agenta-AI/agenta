@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from genson import SchemaBuilder
 
+from oss.src.core.access.dtos import PrincipalRef
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.dtos import Reference, Windowing, Tags, Meta
@@ -670,7 +671,9 @@ class EvaluationsService:
         user_id: UUID,
         #
         run: EvaluationRunCreate,
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
+        """`principal` is the caller: the run executes as it."""
         run.version = CURRENT_VERSION
 
         created_run = await self.evaluations_dao.create_run(
@@ -678,6 +681,7 @@ class EvaluationsService:
             user_id=user_id,
             #
             run=run,
+            principal=principal,
         )
         if created_run:
             # Create is edit from an empty graph: no prior steps to prune.
@@ -696,6 +700,7 @@ class EvaluationsService:
         user_id: UUID,
         #
         runs: List[EvaluationRunCreate],
+        principal: PrincipalRef,
     ) -> List[EvaluationRun]:
         for run in runs:
             run.version = CURRENT_VERSION
@@ -705,6 +710,7 @@ class EvaluationsService:
             user_id=user_id,
             #
             runs=runs,
+            principal=principal,
         )
         return [
             await self._reconcile_run(
@@ -715,6 +721,20 @@ class EvaluationsService:
             )
             for created_run in created_runs
         ]
+
+    async def set_run_principal(
+        self,
+        *,
+        project_id: UUID,
+        run_id: UUID,
+        principal: PrincipalRef,
+    ) -> None:
+        """An explicit start or rerun: the run executes as the caller from now on."""
+        await self.evaluations_dao.set_run_principal(
+            project_id=project_id,
+            run_id=run_id,
+            principal=principal,
+        )
 
     async def fetch_run(
         self,
@@ -2269,6 +2289,7 @@ class SimpleEvaluationsService:
         user_id: UUID,
         #
         evaluation: SimpleEvaluationCreate,
+        principal: PrincipalRef,
     ) -> Optional[SimpleEvaluation]:
         evaluation.flags = evaluation.flags or SimpleEvaluationFlags(
             is_closed=False,
@@ -2344,6 +2365,7 @@ class SimpleEvaluationsService:
                 user_id=user_id,
                 #
                 run=run_create,
+                principal=principal,
             )
 
             if not run or not run.id:
@@ -2637,8 +2659,17 @@ class SimpleEvaluationsService:
         evaluation_id: UUID,
         #
         just_created: Optional[bool] = None,
+        principal: Optional[PrincipalRef] = None,
     ) -> Optional[SimpleEvaluation]:
+        """`principal` is set by an explicit start (the route passes the caller); an
+        edit's internal restart passes None, which keeps the stored principal."""
         try:
+            if principal is not None:
+                await self.evaluations_service.set_run_principal(
+                    project_id=project_id,
+                    run_id=evaluation_id,
+                    principal=principal,
+                )
             _evaluation = await self.fetch(
                 project_id=project_id,
                 #
@@ -2905,7 +2936,10 @@ class SimpleEvaluationsService:
         step_keys: Optional[List[str]] = None,
         repeat_idxs: Optional[List[int]] = None,
         overwrite: bool = False,
+        principal: PrincipalRef,
     ) -> bool:
+        """An explicit rerun: the run executes as `principal` (the caller) from now
+        on."""
         if self.evaluations_task_runner is None:
             log.warning(
                 "[EVAL] Taskiq client missing; cannot dispatch run slice",
@@ -2923,6 +2957,12 @@ class SimpleEvaluationsService:
                 run_id=run_id,
             )
             return False
+
+        await self.evaluations_service.set_run_principal(
+            project_id=project_id,
+            run_id=run_id,
+            principal=principal,
+        )
 
         # Re-activate the run before dispatching: the slice re-executes scenarios
         # (e.g. a newly added evaluator over existing outputs), so the run is genuinely
@@ -4294,6 +4334,7 @@ class SimpleQueuesService:
         user_id: UUID,
         #
         queue: SimpleQueueCreate,
+        principal: PrincipalRef,
     ) -> Optional[SimpleQueue]:
         if not queue.data:
             return None
@@ -4347,6 +4388,7 @@ class SimpleQueuesService:
         run = await self.evaluations_service.create_run(
             project_id=project_id,
             user_id=user_id,
+            principal=principal,
             #
             run=EvaluationRunCreate(
                 name=queue.name,

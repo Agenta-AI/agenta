@@ -25,6 +25,7 @@ from oss.src.core.tools.platform_handlers import (
 from oss.src.core.workflows.dtos import WorkflowRevisionData, WorkflowServiceRequestData
 from oss.src.core.workflows import service as service_module
 from oss.src.core.workflows.service import WorkflowsService
+from oss.tests.pytest.utils.principals import make_envelope
 
 
 @pytest.fixture(autouse=True)
@@ -99,9 +100,14 @@ class FakeWorkflowsService:
             warnings=[],
         )
 
-    async def _prepare_invoke(self, *, project_id, user_id, request):
+    async def _prepare_invoke(self, *, project_id, user_id, request, envelope):
         self.prepare_calls.append(
-            {"project_id": project_id, "user_id": user_id, "request": request}
+            {
+                "project_id": project_id,
+                "user_id": user_id,
+                "request": request,
+                "envelope": envelope,
+            }
         )
         return "Secret signed", self.service_url
 
@@ -198,6 +204,7 @@ async def _run(monkeypatch, *, outputs, args=None, tracing=None, raises=None):
         user_id=uuid4(),
         workflows_service=workflows,
         tracing_service=tracing or FakeTracingService(),
+        envelope=make_envelope(),
     )
     # The handler returns the generic `PlatformHandlerResult` now. These cells are about
     # the DIGEST, so they get the payload; the cells about the failure envelope reach for
@@ -338,6 +345,7 @@ async def test_test_run_parameters_less_agent_revision_succeeds_with_resolver_ba
         user_id=uuid4(),
         workflows_service=workflows,
         tracing_service=FakeTracingService(),
+        envelope=make_envelope(),
     )
     result = result.content
 
@@ -372,6 +380,7 @@ async def test_test_run_applies_delta_in_memory(monkeypatch):
         user_id=uuid4(),
         workflows_service=workflows,
         tracing_service=FakeTracingService(),
+        envelope=make_envelope(),
     )
     result = result.content
 
@@ -400,7 +409,11 @@ async def test_test_run_delta_requires_existing_project_scoped_variant(monkeypat
         tracing_service=FakeTracingService(),
     )
     request = SimpleNamespace(
-        state=SimpleNamespace(project_id=str(uuid4()), user_id=str(uuid4())),
+        state=SimpleNamespace(
+            project_id=str(uuid4()),
+            user_id=str(uuid4()),
+            run_envelope=make_envelope(run_id="parent-run"),
+        ),
         headers={},
     )
     body = ToolCall(
@@ -451,6 +464,7 @@ async def test_test_run_delta_outside_parameters_is_refused(monkeypatch, delta):
             user_id=uuid4(),
             workflows_service=workflows,
             tracing_service=FakeTracingService(),
+            envelope=make_envelope(),
         )
 
     assert "parameters" in exc_info.value.message
@@ -479,7 +493,11 @@ async def test_test_run_delta_requires_edit_workflows_permission(monkeypatch):
         tracing_service=FakeTracingService(),
     )
     request = SimpleNamespace(
-        state=SimpleNamespace(project_id=str(uuid4()), user_id=str(uuid4())),
+        state=SimpleNamespace(
+            project_id=str(uuid4()),
+            user_id=str(uuid4()),
+            run_envelope=make_envelope(run_id="parent-run"),
+        ),
         headers={},
     )
     body = ToolCall(
@@ -529,7 +547,11 @@ async def test_test_run_delta_with_edit_workflows_permission_invokes(monkeypatch
         tracing_service=FakeTracingService(),
     )
     request = SimpleNamespace(
-        state=SimpleNamespace(project_id=str(uuid4()), user_id=str(uuid4())),
+        state=SimpleNamespace(
+            project_id=str(uuid4()),
+            user_id=str(uuid4()),
+            run_envelope=make_envelope(run_id="parent-run"),
+        ),
         headers={},
     )
     body = ToolCall(
@@ -713,6 +735,7 @@ async def test_test_run_recursion_marker_is_refused(monkeypatch):
             user_id=uuid4(),
             workflows_service=FakeWorkflowsService(),
             tracing_service=FakeTracingService(),
+            envelope=make_envelope(),
         )
 
 
@@ -777,11 +800,15 @@ async def test_registered_test_run_dispatches_through_tools_call(monkeypatch):
     )
     router = ToolsRouter(
         tools_service=SimpleNamespace(),
-        workflows_service=FakeWorkflowsService(),
+        workflows_service=(workflows := FakeWorkflowsService()),
         tracing_service=FakeTracingService(),
     )
     request = SimpleNamespace(
-        state=SimpleNamespace(project_id=str(uuid4()), user_id=str(uuid4())),
+        state=SimpleNamespace(
+            project_id=str(uuid4()),
+            user_id=str(uuid4()),
+            run_envelope=make_envelope(run_id="parent-run"),
+        ),
         headers={},
     )
     body = ToolCall(
@@ -797,6 +824,11 @@ async def test_registered_test_run_dispatches_through_tools_call(monkeypatch):
     assert response.call.data.tool_call_id == "outer_call"
     assert content["verdict"] == "pass"
     assert response.call.status.code == "STATUS_CODE_OK"
+    # The test run is a child run: the parent's principal, origin `child`, the parent's
+    # run id.
+    child = workflows.prepare_calls[0]["envelope"]
+    assert child.context.origin.value == "child"
+    assert child.context.parent_run_id == "parent-run"
 
 
 async def test_infra_failure_surfaces_as_error_status_on_the_tool_result(monkeypatch):
@@ -813,7 +845,11 @@ async def test_infra_failure_surfaces_as_error_status_on_the_tool_result(monkeyp
         tracing_service=FakeTracingService(),
     )
     request = SimpleNamespace(
-        state=SimpleNamespace(project_id=str(uuid4()), user_id=str(uuid4())),
+        state=SimpleNamespace(
+            project_id=str(uuid4()),
+            user_id=str(uuid4()),
+            run_envelope=make_envelope(run_id="parent-run"),
+        ),
         headers={},
     )
     body = ToolCall(

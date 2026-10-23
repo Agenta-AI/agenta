@@ -87,6 +87,8 @@ class SessionInteractionCreate(BaseModel):
     flags: SessionInteractionFlags = SessionInteractionFlags()
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
+    # Server-set by the service; not part of the request body model.
+    run_envelope: Optional[RunEnvelope] = Field(default=None, exclude=True)
 
 
 class SessionInteractionTransition(BaseModel):

@@ -19,6 +19,10 @@ from agenta.sdk.evaluations.runtime.status import (
     ProcessedScenario,
 )
 
+from oss.src.core.access.dtos import RunEnvelope, RunOrigin
+from oss.src.core.access.principals import stored_work_envelope
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import MissingPrincipal
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.testcases.service import TestcasesService
@@ -226,16 +230,20 @@ class _BoundRunner:
         *,
         project_id: UUID,
         user_id: UUID,
+        envelope: RunEnvelope,
     ):
         self._runner = runner
         self._project_id = project_id
         self._user_id = user_id
+        # The run executes as the evaluation run's principal (origin `evaluation`).
+        self._envelope = envelope
 
     async def execute(self, *, request: Any) -> Any:
         return await self._runner.execute(
             request=request,
             project_id=self._project_id,
             user_id=self._user_id,
+            envelope=self._envelope,
         )
 
     async def execute_batch(self, *, requests: Any, semaphore: Any = None) -> Any:
@@ -244,6 +252,7 @@ class _BoundRunner:
             semaphore=semaphore,
             project_id=self._project_id,
             user_id=self._user_id,
+            envelope=self._envelope,
         )
 
 
@@ -453,6 +462,31 @@ class APISliceProcessor:
 
         return context_by_repeat
 
+    async def _run_envelope(
+        self, *, project_id: UUID, run: EvaluationRun
+    ) -> RunEnvelope:
+        if run.principal is None:
+            log.info(
+                "[evaluations] run refused",
+                run_id=str(run.id),
+                project_id=str(project_id),
+                code="missing_principal",
+            )
+            raise MissingPrincipal()
+        organization_id = await get_access_service().project_organization_id(
+            project_id=project_id
+        )
+        if organization_id is None:
+            raise MissingPrincipal("The run's project has no organization")
+        return stored_work_envelope(
+            principal=run.principal,
+            organization_id=organization_id,
+            project_id=project_id,
+            origin=RunOrigin.EVALUATION,
+            origin_id=str(run.id),
+            created_by_id=run.created_by_id,
+        )
+
     async def _resolve_runners_and_revisions(
         self,
         *,
@@ -460,6 +494,7 @@ class APISliceProcessor:
         user_id: UUID,
         #
         run: EvaluationRun,
+        envelope: RunEnvelope,
         #
         invocation_steps: List[Any],
         annotation_steps: List[Any],
@@ -507,6 +542,7 @@ class APISliceProcessor:
                 ),
                 project_id=project_id,
                 user_id=user_id,
+                envelope=envelope,
             )
             revisions[invocation_step.key] = application_revision
 
@@ -540,6 +576,7 @@ class APISliceProcessor:
                 ),
                 project_id=project_id,
                 user_id=user_id,
+                envelope=envelope,
             )
             revisions[annotation_step.key] = evaluator_revision
 
@@ -707,6 +744,10 @@ class APISliceProcessor:
         if not run or not run.data or not run.data.steps:
             return ProcessSummary()
 
+        # The run executes as its stored principal. A run without one (created by a
+        # pod before M2) fails; the principal is never rebuilt from created_by_id.
+        envelope = await self._run_envelope(project_id=project_id, run=run)
+
         steps = run.data.steps
         input_steps = [step for step in steps if step.type == "input"]
         invocation_steps = [step for step in steps if step.type == "invocation"]
@@ -764,6 +805,7 @@ class APISliceProcessor:
             user_id=user_id,
             #
             run=run,
+            envelope=envelope,
             #
             invocation_steps=invocation_steps,
             annotation_steps=annotation_steps,

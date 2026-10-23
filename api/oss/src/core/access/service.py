@@ -281,6 +281,14 @@ class AccessService:
         if not decision.allowed:
             raise AccessDenied(decision=decision)
 
+    async def project_organization_id(self, *, project_id: UUID) -> Optional[UUID]:
+        """The organization of a project, for envelopes of durable work (triggers,
+        evaluations, channel turns), which run outside a request."""
+
+        return await self._principals.fetch_project_organization_id(
+            project_id=project_id
+        )
+
     async def read_user_principals(self, *, user_id: UUID) -> UserPrincipals:
         """Read before a user deletion: what `invalidate_user` must clear after it."""
 

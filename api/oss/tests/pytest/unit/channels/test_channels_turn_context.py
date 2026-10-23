@@ -63,7 +63,9 @@ class _Queue:
         self.queued = []
         self.calls = 0
 
-    async def admit(self, *, project_id, user_id, session_id, request, idempotency_key):
+    async def admit(
+        self, *, project_id, user_id, session_id, request, idempotency_key, envelope
+    ):
         self.calls += 1
         if self.calls == 1:
             return ChannelQueueDecision.RUN_NOW
@@ -476,7 +478,7 @@ class TestAFailureBeforeTheInvoke:
         channels = InMemoryChannels()
         runner = _Runner()
         dispatcher = _dispatcher(channels, runner)
-        original = dispatcher._invoking_user_id
+        original = dispatcher._invoking_identity
         calls = []
 
         async def flaky_identity(**kwargs):
@@ -485,7 +487,7 @@ class TestAFailureBeforeTheInvoke:
                 raise RuntimeError("identity lookup failed")
             return await original(**kwargs)
 
-        monkeypatch.setattr(dispatcher, "_invoking_user_id", flaky_identity)
+        monkeypatch.setattr(dispatcher, "_invoking_identity", flaky_identity)
 
         m1 = channels.store("M1", addressed=True)
         with pytest.raises(RuntimeError):

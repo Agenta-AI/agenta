@@ -5,13 +5,14 @@ from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import not_, and_
+from sqlalchemy import not_, and_, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.inspection import inspect
 
+from oss.src.core.access.dtos import PrincipalRef
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
 
@@ -104,6 +105,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         user_id: UUID,
         #
         run: EvaluationRunCreate,
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
         _run = EvaluationRun(
             **run.model_dump(
@@ -128,6 +130,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
         if _run.data:
             run_dbe.data = _run.data.model_dump(mode="json")  # type: ignore
+
+        run_dbe.principal_kind = principal.kind.value
+        run_dbe.principal_id = principal.id
 
         try:
             async with self.engine.session() as session:
@@ -155,6 +160,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         user_id: UUID,
         #
         runs: List[EvaluationRunCreate],
+        principal: PrincipalRef,
     ) -> List[EvaluationRun]:
         _runs = [
             EvaluationRun(
@@ -185,6 +191,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             if _run.data:
                 run_dbe.data = _run.data.model_dump(mode="json")  # type: ignore
+
+            run_dbe.principal_kind = principal.kind.value
+            run_dbe.principal_id = principal.id
 
             run_dbes.append(run_dbe)
 
@@ -304,6 +313,24 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             ]
 
             return _runs
+
+    async def set_run_principal(
+        self,
+        *,
+        project_id: UUID,
+        run_id: UUID,
+        principal: PrincipalRef,
+    ) -> None:
+        async with self.engine.session() as session:
+            await session.execute(
+                update(EvaluationRunDBE)
+                .where(
+                    EvaluationRunDBE.project_id == project_id,
+                    EvaluationRunDBE.id == run_id,
+                )
+                .values(principal_kind=principal.kind.value, principal_id=principal.id)
+            )
+            await session.commit()
 
     @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def edit_run(

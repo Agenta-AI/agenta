@@ -50,6 +50,7 @@ from oss.src.utils.context import AuthScope, get_auth_scope
 from oss.src.middlewares.auth import (
     GATEWAY_TOKEN_AUDIENCE,
     resolve_session_user_id,
+    request_run_envelope,
     sign_secret_token,
 )
 from oss.src.utils.env import env
@@ -296,6 +297,13 @@ class MCPGatewayRouter:
         scope = get_auth_scope()
         await self._check(scope, Permission.USE_MCP_ENDPOINTS)
 
+        envelope = request_run_envelope(request)
+        if envelope is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Agenta MCP credentials require an invocation credential",
+            )
+
         tools = entitled_agenta_tools(
             requested=[tool.model_dump(mode="json") for tool in body.tools],
             carried=gateway_tools(request),
@@ -308,6 +316,7 @@ class MCPGatewayRouter:
             gateway_run_id=run_id,
             gateway_tools=tools,
             audience=GATEWAY_TOKEN_AUDIENCE,
+            envelope=envelope,
         )
         return MCPAgentaCredentialResponse(credentials=f"Secret {token}")
 

@@ -21,6 +21,7 @@ from oss.src.core.workflows.types import (
     invoke_never_dispatched,
 )
 from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT
+from oss.tests.pytest.utils.principals import make_envelope
 
 _SERVICES_URL = "https://agenta.example.com/services"
 
@@ -102,6 +103,7 @@ async def _prepared_grants(monkeypatch, *, revision_url):
         project_id=uuid4(),
         user_id=uuid4(),
         request=SimpleNamespace(meta=None),
+        envelope=make_envelope(),
     )
 
     assert credentials == "Secret tok"

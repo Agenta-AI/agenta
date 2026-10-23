@@ -292,11 +292,17 @@ async def test_secret_with_principal_claim_sets_claim_principal(cache):
     assert request.state.credential_kind == RequestCredentialKind.RUN_CREDENTIAL
 
 
-async def test_secret_without_principal_claim_has_no_principal(cache):
-    request = _request()
-    await auth.verify_secret_token(request=request, secret_token=_secret())
-    assert request.state.principal is None
-    assert request.state.credential_kind is None
+async def test_secret_without_principal_is_401_missing_principal(cache):
+    """A Secret minted by a pod before M2 carries no `principal` claim: refused, the
+    run starts again."""
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as error:
+        await auth.verify_secret_token(request=_request(), secret_token=_secret())
+    assert error.value.status_code == 401
+    assert error.value.detail["code"] == "missing_principal"
+    assert error.value.detail["next_step"] == "Start the run again."
+    assert error.value.detail["retryable"] is False
 
 
 @pytest.mark.parametrize("case", ["unknown_kind", "extra_key", "other_project"])

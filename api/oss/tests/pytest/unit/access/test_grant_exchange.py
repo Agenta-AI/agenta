@@ -9,6 +9,8 @@ cache are faked.
 from uuid import uuid4
 
 import pytest
+
+from oss.tests.pytest.utils.principals import envelope_for_claims
 from jwt import decode
 from starlette.requests import Request
 
@@ -97,6 +99,9 @@ def _exchange(monkeypatch):
             }
         )
         request.state.token_grants = tuple(carried_grants)
+        request.state.run_envelope = envelope_for_claims(
+            user_id=USER_ID, project_id=PROJECT_ID, organization_id=ORGANIZATION_ID
+        )
 
         token = set_auth_context(
             AuthContext(

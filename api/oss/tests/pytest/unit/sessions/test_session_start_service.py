@@ -9,6 +9,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
+from oss.tests.pytest.utils.principals import make_envelope
 from oss.src.core.sessions.executions.dtos import (
     SessionExecutionSettlement,
     SessionExecutionState,
@@ -86,6 +87,9 @@ def _service(*, inputs=None, executions=None, workflows=None, timeout=0):
     )
 
 
+ENVELOPE = make_envelope()
+
+
 def _args():
     return {
         "project_id": PROJECT_ID,
@@ -94,6 +98,7 @@ def _args():
         "revision_id": REVISION_ID,
         "message": "Configure the agent.",
         "request_key": "load-1",
+        "envelope": ENVELOPE,
     }
 
 

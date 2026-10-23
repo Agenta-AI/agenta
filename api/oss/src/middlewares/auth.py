@@ -47,7 +47,12 @@ from oss.src.core.access.dtos import (
     RunOrigin,
     RunSender,
 )
-from oss.src.core.access.principals import ENVELOPE_CLAIM_KEYS, envelope_from_claims
+from oss.src.core.access.principals import (
+    ENVELOPE_CLAIM_KEYS,
+    envelope_from_claims,
+    envelope_to_claims,
+    missing_principal_error,
+)
 from oss.src.core.access.types import InvalidRunClaims
 from oss.src.core.memberships.service import get_memberships_service
 
@@ -567,6 +572,22 @@ def request_run_envelope(request: Request) -> Optional[RunEnvelope]:
             ),
         )
     return None
+
+
+def _web_envelope(*, user_id, organization_id, project_id) -> RunEnvelope:
+    """The envelope of the credential a browser session carries: the user, origin
+    `web`, the user as sender."""
+
+    principal = PrincipalRef(kind=PrincipalKind.HUMAN, id=UUID(str(user_id)))
+    return RunEnvelope(
+        authority=RunAuthority(
+            principal=principal,
+            organization_id=UUID(str(organization_id)),
+            project_id=UUID(str(project_id)),
+        ),
+        context=RunContext(origin=RunOrigin.WEB),
+        sender=RunSender(user_id=principal.id),
+    )
 
 
 def _envelope_from_secret_claims(auth_context: dict) -> Optional[RunEnvelope]:
@@ -1126,6 +1147,11 @@ async def verify_bearer_token(
             workspace_id=workspace_id,
             organization_id=organization_id,
             organization_name=organization_name,
+            envelope=_web_envelope(
+                user_id=user_id,
+                organization_id=organization_id,
+                project_id=project_id,
+            ),
         )
 
         state = {
@@ -1348,8 +1374,23 @@ async def verify_secret_token(
         request.state.token_audience = audience
 
         # The run envelope: parsed after the grant and audience checks. A Secret without
-        # a `principal` claim carries no principal.
+        # a `principal` claim (minted by a pod before M2) is refused; the run is started
+        # again.
         envelope = _envelope_from_secret_claims(auth_context)
+        if envelope is None:
+            log.debug(
+                "[auth] secret token unauthorized",
+                path=request.url.path,
+                method=request.method,
+                reason="missing_principal",
+            )
+            raise HTTPException(
+                status_code=401,
+                detail={
+                    **missing_principal_error().model_dump(exclude_none=True),
+                    "reason": "missing_principal",
+                },
+            )
 
         if audience:
             allowed_paths = _AUDIENCE_PATHS[audience]
@@ -1389,10 +1430,8 @@ async def verify_secret_token(
         )
         _set_principal_state(
             request,
-            principal=envelope.authority.principal if envelope is not None else None,
-            credential_kind=(
-                RequestCredentialKind.RUN_CREDENTIAL if envelope is not None else None
-            ),
+            principal=envelope.authority.principal,
+            credential_kind=RequestCredentialKind.RUN_CREDENTIAL,
             envelope=envelope,
         )
 
@@ -1479,8 +1518,14 @@ async def sign_secret_token(
     grants: Optional[List[str]] = None,
     audience: Optional[str] = None,
     expires_in: Optional[int] = None,
+    *,
+    envelope: RunEnvelope,
 ):
     """Mint a secret token. `expires_in` overrides the default lifetime, in seconds.
+
+    `envelope` is required: every run credential carries its principal, authority and
+    run context as claims (`principal`, `restrictions`, `authority`, `run`, `sender`,
+    `approved_by`). Its authority must name the token's organization and project.
 
     Only the gateway credentials route passes it. Every other caller mints a token for a
     browser or a short server-to-server hop, where 15 minutes is the point; the gateway
@@ -1498,6 +1543,14 @@ async def sign_secret_token(
 
     if gateway_platform_run and validated_audience != GATEWAY_TOKEN_AUDIENCE:
         raise ValueError("Only a gateway-audience token can mark a platform run.")
+
+    if not isinstance(envelope, RunEnvelope):
+        raise ValueError("A secret token needs a run envelope.")
+    if str(envelope.authority.project_id) != str(project_id) or str(
+        envelope.authority.organization_id
+    ) != str(organization_id):
+        # The verifier refuses such a token (invalid_token); refuse to mint it.
+        raise ValueError("The run envelope names another organization or project.")
 
     try:
         if not _SECRET_KEY:
@@ -1540,6 +1593,8 @@ async def sign_secret_token(
         # Built-in (platform-funded) models accept only a token that carries this mark.
         if gateway_platform_run:
             auth_context["gateway_platform_run"] = True
+
+        auth_context.update(envelope_to_claims(envelope=envelope))
 
         secret_token = encode(
             payload=auth_context,
