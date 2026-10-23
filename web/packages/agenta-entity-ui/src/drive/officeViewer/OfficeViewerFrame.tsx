@@ -100,11 +100,8 @@ export function OfficeViewerFrame({
             if (!message) return
             switch (message.type) {
                 case "ready": {
-                    // Comments anchor to page layout, so comment mode always renders pages.
                     const narrow =
-                        kind === "document" &&
-                        !enabledRef.current &&
-                        (rootRef.current?.clientWidth ?? 0) < REFLOW_BELOW_PX
+                        kind === "document" && (rootRef.current?.clientWidth ?? 0) < REFLOW_BELOW_PX
                     reflowRef.current = narrow
                     setReflow(narrow)
                     blob.arrayBuffer().then(
@@ -136,9 +133,9 @@ export function OfficeViewerFrame({
                 case "picked": {
                     const root = rootRef.current
                     if (!enabledRef.current || !box || !root) return
-                    const {selector, tag, page, point} = message.element
+                    const {selector, tag, page, block, point} = message.element
                     setPick({
-                        anchor: {type: "element", format, selector, tag, page, point},
+                        anchor: {type: "element", format, selector, tag, page, block, point},
                         text: message.text,
                         rect: frameRectToRoot(message.rect, box, root),
                     })
@@ -208,9 +205,6 @@ export function OfficeViewerFrame({
         },
         [send],
     )
-    useEffect(() => {
-        if (enabled && reflow) layout(false)
-    }, [enabled, reflow, layout])
 
     const rendered = state.status === "rendered" ? state : null
     const slides = kind === "presentation" ? rendered : null
@@ -289,8 +283,7 @@ export function OfficeViewerFrame({
                         value={reflow ? "reflow" : "pages"}
                         onChange={(v) => layout(v === "reflow")}
                         options={[
-                            // Comments anchor to page layout, so reflow waits for comment mode to end.
-                            {value: "reflow", label: "Reflow", disabled: enabled},
+                            {value: "reflow", label: "Reflow"},
                             {value: "pages", label: "Pages"},
                         ]}
                     />

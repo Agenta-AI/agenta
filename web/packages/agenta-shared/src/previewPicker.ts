@@ -1,5 +1,5 @@
 // Preview comment picker; `installPreviewPicker` ships as a string, so it follows the stub's rules.
-import {QUOTE_EXCERPT_CAP} from "./quotes"
+import {QUOTE_EXCERPT_CAP, type WordBlock} from "./quotes"
 
 /* eslint-disable no-var, @typescript-eslint/prefer-for-of */
 
@@ -16,6 +16,8 @@ export interface PickedElement {
     selector: string
     tag: string
     page?: number
+    /** DOCX only: the Word body block, numbered like python-docx. */
+    block?: WordBlock
     openTag?: string
     point: {x: number; y: number}
 }
@@ -45,6 +47,9 @@ export const PICKER_PIN_RECTS_CAP = 200
 
 const HOST_TO_PICKER_TYPES: readonly string[] = ["pick-start", "pick-stop", "pins"]
 
+/** The DOCX renderer's class on a Word body block: `ag-p<n>` paragraph, `ag-t<n>` table. */
+export const blockClass = (kind: "p" | "t", index: number): string => `ag-${kind}${index}`
+
 export const isHostToPickerType = (type: unknown): boolean =>
     typeof type === "string" && HOST_TO_PICKER_TYPES.indexOf(type) !== -1
 
@@ -53,6 +58,7 @@ interface PickTarget {
     selector: string
     tag: string
     page: number | null
+    block: WordBlock | null
     slide: boolean
 }
 
@@ -76,6 +82,8 @@ export function installPreviewPicker(
     var TEXT_CAP = 2000
     var MAX_STEPS = 12
     var PIN_PREFIX = 80
+    // Matches `blockClass`; this body ships as a string and cannot reach module code.
+    var BLOCK_CLASS = /(?:^|\s)(ag-([pt])(\d+))(?=\s|$)/
     var INLINE_TAGS = "|span|b|i|em|strong|small|code|mark|u|s|sub|sup|"
     var BLOCKED = [
         "pointerdown",
@@ -131,6 +139,11 @@ export function installPreviewPicker(
         return null
     }
 
+    function blockSelector(el: Element): string | null {
+        var m = BLOCK_CLASS.exec(el.getAttribute("class") || "")
+        return m ? "." + m[1] : null
+    }
+
     function nthOfType(el: Element): string {
         var n = 1
         var sib = el.previousElementSibling
@@ -142,13 +155,13 @@ export function installPreviewPicker(
     }
 
     function cssPath(el: Element): string {
-        var own = uniqueId(el)
+        var own = uniqueId(el) || blockSelector(el)
         if (own) return own
         var steps: string[] = []
         var prefix = ""
         var node: Element | null = el
         while (node && node !== document.body && node !== document.documentElement) {
-            var anchor = node === el ? null : uniqueId(node)
+            var anchor = node === el ? null : uniqueId(node) || blockSelector(node)
             if (anchor) {
                 prefix = anchor + " > "
                 break
@@ -185,8 +198,19 @@ export function installPreviewPicker(
             selector: cssPath(el),
             tag: el.tagName.toLowerCase(),
             page: null,
+            block: null,
             slide: false,
         }
+    }
+
+    function wordBlock(el: Element): WordBlock | null {
+        var node: Element | null = el
+        while (node) {
+            var m = BLOCK_CLASS.exec(node.getAttribute("class") || "")
+            if (m) return {kind: m[2] === "p" ? "paragraph" : "table", index: Number(m[3])}
+            node = node.parentElement
+        }
+        return null
     }
 
     function pickDocument(target: Element): PickTarget | null {
@@ -194,17 +218,20 @@ export function installPreviewPicker(
         if (!el) return null
         var section = el.closest("section.docx")
         if (!section) return null
-        var sections = document.querySelectorAll("section.docx")
+        // Reflow renders one section, so a page exists only in the Pages layout.
         var page = 0
-        for (var i = 0; i < sections.length; i++) {
-            if (sections[i] === section) page = i + 1
+        if (!document.querySelector("#root.reflow")) {
+            var sections = document.querySelectorAll("section.docx")
+            for (var i = 0; i < sections.length; i++) {
+                if (sections[i] === section) page = i + 1
+            }
         }
-        if (!page) return null
         return {
             el: el,
             selector: cssPath(el),
             tag: el.tagName.toLowerCase(),
-            page: page,
+            page: page || null,
+            block: wordBlock(el),
             slide: false,
         }
     }
@@ -212,7 +239,14 @@ export function installPreviewPicker(
     function pickPresentation(target: Element, page: number | null): PickTarget | null {
         var root = slideRoot()
         if (!root || !root.contains(target)) return null
-        var whole = {el: root, selector: ":scope", tag: "slide", page: page, slide: true}
+        var whole = {
+            el: root,
+            selector: ":scope",
+            tag: "slide",
+            page: page,
+            block: null,
+            slide: true,
+        }
         if (target === root) return whole
         var child: Element = target
         while (child.parentElement && child.parentElement !== root) child = child.parentElement
@@ -233,6 +267,7 @@ export function installPreviewPicker(
             selector: ":scope > :nth-child(" + n + ")",
             tag: child.tagName.toLowerCase(),
             page: page,
+            block: null,
             slide: false,
         }
     }
@@ -300,6 +335,7 @@ export function installPreviewPicker(
             },
         }
         if (found.page !== null) element.page = found.page
+        if (found.block) element.block = found.block
         if (mode.format === "html") {
             var outer = found.el.outerHTML
             var end = outer.indexOf(">")
@@ -352,18 +388,28 @@ export function installPreviewPicker(
     function resolvePin(pin: PinQuery): Element | null {
         var root = slideRoot()
         var el: Element | null = null
+        var stored = tidy(pin.text)
+        var prefix = stored.slice(0, PIN_PREFIX)
         try {
             if (pin.selector === ":scope") el = root
             else if (pin.selector.indexOf(":scope") === 0)
                 el = root ? root.querySelector(pin.selector) : null
-            else el = document.querySelector(pin.selector)
+            else {
+                // Pages splits a Word paragraph at a page break; both halves share its block class.
+                var matches = document.querySelectorAll(pin.selector)
+                el = matches[0] || null
+                for (var m = 0; m < matches.length; m++) {
+                    if (tidy(matches[m].textContent).indexOf(prefix) === 0) {
+                        el = matches[m]
+                        break
+                    }
+                }
+            }
         } catch (e) {
             el = null
         }
         // A unique id names the element itself, so its text may change (a live counter).
         if (el && /^#[^\s>]+$/.test(pin.selector)) return el
-        var stored = tidy(pin.text)
-        var prefix = stored.slice(0, PIN_PREFIX)
         if (el && tidy(el.textContent).indexOf(prefix) === 0) return el
         // Only a DOM change can bring a missing element back; scrolling skips the scan.
         if (!stored || missing[pin.id]) return null
@@ -511,6 +557,12 @@ const parsePickedElement = (value: unknown): PickedElement | null => {
     if (value.page !== undefined) {
         if (!Number.isInteger(value.page) || (value.page as number) < 1) return null
         element.page = value.page as number
+    }
+    if (value.block !== undefined) {
+        const block = value.block
+        if (!isRecord(block) || (block.kind !== "paragraph" && block.kind !== "table")) return null
+        if (!Number.isInteger(block.index) || (block.index as number) < 1) return null
+        element.block = {kind: block.kind, index: block.index as number}
     }
     if (value.openTag !== undefined) {
         const openTag = cappedString(value.openTag, PICKER_OPEN_TAG_CAP)

@@ -87,6 +87,10 @@ describe("formatPreviewChipLocation", () => {
     it("names the short location per format", () => {
         expect(formatPreviewChipLocation(element({}))).toBe("<h2>")
         expect(formatPreviewChipLocation(element({format: "document", page: 3}))).toBe("p. 3")
+        const block = (kind: "paragraph" | "table", index: number) =>
+            element({format: "document", page: 1, block: {kind, index}})
+        expect(formatPreviewChipLocation(block("paragraph", 12))).toBe("¶ 12")
+        expect(formatPreviewChipLocation(block("table", 2))).toBe("table 2")
         expect(formatPreviewChipLocation(element({format: "presentation", page: 2}))).toBe(
             "slide 2",
         )
@@ -193,6 +197,22 @@ describe("splitQuotedMessage reads preview comments back", () => {
                 text: 'Hi\n``<p title="a`b">``',
             },
         ])
+    })
+
+    it("lifts a Word paragraph head into a quote card", () => {
+        const quote = previewQuote(
+            element({format: "document", block: {kind: "paragraph", index: 12}}),
+            "Revenue grew in every region.",
+            "",
+        )
+        const markdown = quotesToMarkdown([quote], "Name them")
+        expect(markdown.split("\n", 1)[0]).toBe(
+            "> **`agent-files/app/index.html`** (paragraph 12)  ",
+        )
+        expect(splitQuotedMessage(markdown)).toEqual({
+            quotes: [{origin: "agent-files/app/index.html", text: "Revenue grew in every region."}],
+            text: "Name them",
+        })
     })
 
     it("still reads a text quote's line range head", () => {
