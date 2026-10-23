@@ -60,8 +60,11 @@ export const QuoteNote = ({
     const width = Math.min(WIDTH, Math.max(bounds.width - GAP * 2, 200))
     const below = anchor.bottom + GAP
     const flipped = height > 0 && below + height > bounds.height && anchor.top - height - GAP > GAP
-    // Clamped either way, so a flip near the top never escapes the pane.
-    const top = Math.max(flipped ? anchor.top - height - GAP : below, GAP)
+    // Clamped both ways: in a short pane the note covers its anchor rather than hide its input.
+    const top = Math.max(
+        Math.min(flipped ? anchor.top - height - GAP : below, bounds.height - height - GAP),
+        GAP,
+    )
     const left = Math.min(
         Math.max(anchor.left - width / 2, GAP),
         Math.max(bounds.width - width - GAP, GAP),

@@ -93,6 +93,9 @@ export function installPreviewPicker(
     var PRESS_WINDOW = 1500
     var mode: PickerMode | null = null
     var pressed: {target: EventTarget | null; at: number} | null = null
+    // Touch has no hover: a tap's compat mouseover would leave the highlight stuck.
+    var touchedAt = 0
+    var noHover = !!window.matchMedia && window.matchMedia("(hover: none)").matches
     var pins: PinQuery[] = []
     var missing: Record<string, boolean> = {}
     var highlight: HTMLElement | null = null
@@ -312,6 +315,10 @@ export function installPreviewPicker(
         if (type !== "touchstart" && type !== "touchend") event.preventDefault()
         event.stopPropagation()
         event.stopImmediatePropagation()
+        if (type === "touchstart") {
+            touchedAt = Date.now()
+            removeHighlight()
+        }
         if (type === "pointerdown" || type === "mousedown" || type === "touchstart") {
             pressed = {target: event.target, at: Date.now()}
             return
@@ -325,6 +332,8 @@ export function installPreviewPicker(
 
     function onHover(event: Event): void {
         if (!mode) return
+        if (noHover || (event as PointerEvent).pointerType === "touch") return
+        if (Date.now() - touchedAt < PRESS_WINDOW) return
         var found = pickable(event.target)
         if (found) showHighlight(found.el)
         else removeHighlight()

@@ -136,6 +136,33 @@ describe("installPreviewPicker: html", () => {
         expect(r.doc.querySelector("[data-agenta-picker]")).toBeNull()
     })
 
+    it("draws no hover highlight for a tap, which has no hover to clear it", () => {
+        const r = realm(`<p>a</p>`)
+        r.handle({type: "pick-start", format: "html"})
+        const p = r.doc.querySelector("p")!
+        fire(r, p, "mouseover")
+        expect(r.doc.querySelector("[data-agenta-picker]")).not.toBeNull()
+        p.dispatchEvent(new r.win.Event("touchstart", {bubbles: true, cancelable: true}))
+        expect(r.doc.querySelector("[data-agenta-picker]")).toBeNull()
+        fire(r, p, "mouseover")
+        fire(r, p, "click")
+        expect(r.doc.querySelector("[data-agenta-picker]")).toBeNull()
+        expect(lastPicked(r).text).toBe("a")
+    })
+
+    it("draws no hover highlight on a device without hover", () => {
+        const frame = document.createElement("iframe")
+        document.body.appendChild(frame)
+        frames.push(frame)
+        const win = frame.contentWindow as Realm["win"]
+        win.eval("window.matchMedia = function (q) { return {matches: q === '(hover: none)'} }")
+        const handle = win.eval(`(${installPreviewPicker.toString()})(function () {})`) as Realm["handle"]
+        win.document.body.innerHTML = `<p>a</p>`
+        handle({type: "pick-start", format: "html"})
+        win.document.querySelector("p")!.dispatchEvent(new win.MouseEvent("mouseover", {bubbles: true}))
+        expect(win.document.querySelector("[data-agenta-picker]")).toBeNull()
+    })
+
     it("posts pick-cancel on Escape and leaves comment mode", () => {
         const r = realm(`<button>Go</button>`)
         let clicks = 0

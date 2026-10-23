@@ -340,6 +340,21 @@ export const cellsToTable = (header: string[] | null, rows: string[][]): string 
     return [line(head), `|${" --- |".repeat(width)}`, ...body.map(line)].join("\n")
 }
 
+const tableRow = (line: string): string[] =>
+    line
+        .replace(/^\|\s?|\s?\|$/g, "")
+        .split(" | ")
+        .map((cell) => cell.replace(/\\\|/g, "|").trim())
+
+/** A quote's text for people: a cell quote reads "Plan: 80", not its Markdown table. */
+export const readableQuoteText = (quote: Quote): string => {
+    if (!isPreviewQuote(quote) || quote.source.anchor.type !== "cells") return quote.text
+    const [head, , ...body] = quote.text.split("\n").map(tableRow)
+    if (!head) return quote.text
+    if (body.length === 1) return head.map((name, i) => `${name}: ${body[0][i] ?? ""}`).join(", ")
+    return [head, ...body].map((row) => row.join(" · ")).join(" / ")
+}
+
 const quoteHead = (source: QuoteSource): string => {
     // The drive path, not the bare name: it is what the agent opens the file by.
     if (source.kind === "preview")

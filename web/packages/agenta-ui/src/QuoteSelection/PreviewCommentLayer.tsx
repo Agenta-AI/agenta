@@ -13,6 +13,7 @@ import type {PinQuery} from "@agenta/shared/previewPicker"
 import {
     isPreviewQuote,
     previewCommentNumber,
+    readableQuoteText,
     truncateQuoteText,
     type ElementAnchor,
     type PreviewAnchor,
@@ -129,6 +130,9 @@ const noteAnchor = (rect: PreviewRect) => ({
     bottom: rect.top + rect.height,
 })
 
+// QuoteNote shows `quote.text`; a cell quote's text is a Markdown table.
+const readable = (quote: Quote): Quote => ({...quote, text: readableQuoteText(quote)})
+
 const pinPoint = (quote: PreviewQuote, rect: PreviewRect) => {
     const {anchor} = quote.source
     // The pin's tail sits just inside the cell's top-right corner.
@@ -155,7 +159,7 @@ const PinCard = ({
             </p>
         ) : null}
         <p className="m-0 line-clamp-3 border-0 border-l-2 border-solid border-border pl-2 text-xs leading-4 text-muted-foreground">
-            {truncateQuoteText(quote.text)}
+            {truncateQuoteText(readableQuoteText(quote))}
         </p>
         <div className="flex justify-end gap-1">
             <Button size="xs" variant="ghost" onClick={onEdit}>
@@ -367,7 +371,7 @@ export const PreviewCommentLayer = ({
                 ) : (
                     <QuoteNote
                         key={draft.quote.id}
-                        quote={draft.quote}
+                        quote={readable(draft.quote)}
                         anchor={noteAnchor(draftRect)}
                         bounds={bounds}
                         initialNote={draft.note}
@@ -389,7 +393,7 @@ export const PreviewCommentLayer = ({
                 ) : editRect ? (
                     <QuoteNote
                         key={`edit-${editing.id}`}
-                        quote={editing}
+                        quote={readable(editing)}
                         anchor={noteAnchor(editRect)}
                         bounds={bounds}
                         initialNote={editing.note}

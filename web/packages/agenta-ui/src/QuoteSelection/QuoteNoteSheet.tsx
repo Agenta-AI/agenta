@@ -1,7 +1,7 @@
 // Touch counterparts of the anchored note box and pin card: bottom sheets that sit on the keyboard.
 import {useState, type ReactNode} from "react"
 
-import {truncateQuoteText, type Quote} from "@agenta/shared/quotes"
+import {readableQuoteText, truncateQuoteText, type Quote} from "@agenta/shared/quotes"
 import {Quotes} from "@phosphor-icons/react"
 
 import {Button} from "../components/ui/button"
@@ -38,7 +38,7 @@ const Excerpt = ({quote}: {quote: Quote}) => (
     <div className="flex gap-2.5 rounded-lg bg-foreground/5 px-3.5 py-3">
         <Quotes size={14} weight="fill" className="mt-[3px] shrink-0 text-muted-foreground" />
         <p className="m-0 line-clamp-3 text-[13px] leading-5 text-muted-foreground">
-            {truncateQuoteText(quote.text, 220)}
+            {truncateQuoteText(readableQuoteText(quote), 220)}
         </p>
     </div>
 )
