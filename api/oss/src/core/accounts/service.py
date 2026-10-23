@@ -19,7 +19,9 @@ from oss.src.core.memberships.service import invalidate_access_caches
 from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
 from oss.src.core.access.service import (
     invalidate_principals_after_write,
+    invalidate_scope_after_delete,
     invalidate_user_after_delete,
+    read_scope_principals_before_delete,
     read_user_principals_before_delete,
 )
 from oss.src.services.api_key_service import create_api_key as _create_raw_api_key
@@ -1103,6 +1105,13 @@ class PlatformAdminAccountsService:
                 await read_user_principals_before_delete(user_id=user_id)
                 for user_id in user_ids
             ]
+            # The cascade removes the projects of these scopes with every member's
+            # access, key and binding in them; read them before the delete.
+            scope_snapshot = await read_scope_principals_before_delete(
+                organization_ids=org_ids,
+                workspace_ids=workspace_ids,
+                project_ids=project_ids,
+            )
             await _db_delete_accounts_batch(
                 org_ids=org_ids,
                 workspace_ids=workspace_ids,
@@ -1119,6 +1128,7 @@ class PlatformAdminAccountsService:
             )
             for snapshot in principals_snapshots:
                 await invalidate_user_after_delete(snapshot=snapshot)
+            await invalidate_scope_after_delete(snapshot=scope_snapshot)
         except Exception:
             if tombstone_ids:
                 await _ee_discard_account_tombstones(tombstone_ids=tombstone_ids)
@@ -1616,6 +1626,13 @@ class PlatformAdminAccountsService:
             # Keys, bindings and projects of the user, read before the delete, so the
             # cached principals of a deleted user stop working at the next decision.
             principals_snapshot = await read_user_principals_before_delete(user_id=uid)
+            # The cascade also deletes the organizations the user owns, with every
+            # member's access, key and binding in their projects.
+            scope_snapshot = await read_scope_principals_before_delete(
+                organization_ids=[
+                    org.id for org in await _db_get_orgs_owned_by_user(uid)
+                ]
+            )
             if is_ee():
                 await _ee_delete_user_memberships(uid)
 
@@ -1627,6 +1644,7 @@ class PlatformAdminAccountsService:
                 ],
             )
             await invalidate_user_after_delete(snapshot=principals_snapshot)
+            await invalidate_scope_after_delete(snapshot=scope_snapshot)
         except Exception:
             if tombstone_ids:
                 await _ee_discard_account_tombstones(tombstone_ids=tombstone_ids)
@@ -1802,7 +1820,11 @@ class PlatformAdminAccountsService:
         if not org:
             raise AdminOrganizationNotFoundError(organization_id)
 
+        scope_snapshot = await read_scope_principals_before_delete(
+            organization_ids=[oid]
+        )
         await _db_delete_organization(oid)
+        await invalidate_scope_after_delete(snapshot=scope_snapshot)
         deleted = AdminDeletedEntities(
             organizations=[AdminDeletedEntity(id=organization_id)]
         )
@@ -1831,7 +1853,9 @@ class PlatformAdminAccountsService:
         if not ws:
             raise AdminWorkspaceNotFoundError(workspace_id)
 
+        scope_snapshot = await read_scope_principals_before_delete(workspace_ids=[wid])
         await _db_delete_workspace(wid)
+        await invalidate_scope_after_delete(snapshot=scope_snapshot)
         deleted = AdminDeletedEntities(workspaces=[AdminDeletedEntity(id=workspace_id)])
         return AdminDeleteResponse(dry_run=False, deleted=deleted)
 
@@ -1858,7 +1882,9 @@ class PlatformAdminAccountsService:
         if not proj:
             raise AdminProjectNotFoundError(project_id)
 
+        scope_snapshot = await read_scope_principals_before_delete(project_ids=[pid])
         await _db_delete_project(pid)
+        await invalidate_scope_after_delete(snapshot=scope_snapshot)
         deleted = AdminDeletedEntities(projects=[AdminDeletedEntity(id=project_id)])
         return AdminDeleteResponse(dry_run=False, deleted=deleted)
 

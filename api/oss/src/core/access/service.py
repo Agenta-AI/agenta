@@ -20,7 +20,7 @@ two shortcuts and is denied every role and permission check (fail closed).
 """
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Sequence
 from uuid import UUID
 
 from oss.src.core.access.context import get_request_access
@@ -38,6 +38,7 @@ from oss.src.core.access.dtos import (
     RunAuthority,
     RunContext,
     RunEnvelope,
+    ScopePrincipals,
     UserPrincipals,
 )
 from oss.src.core.access.interfaces import (
@@ -320,13 +321,50 @@ class AccessService:
         for principal in principals:
             await self.invalidate_principal(principal=principal)
 
-    async def invalidate_principal(self, *, principal: PrincipalRef) -> None:
-        from oss.src.dbs.postgres.access.dao import (  # noqa: PLC0415
-            invalidate_principal_cache,
+    async def read_scope_principals(
+        self,
+        *,
+        organization_ids: Sequence[UUID] = (),
+        workspace_ids: Sequence[UUID] = (),
+        project_ids: Sequence[UUID] = (),
+    ) -> ScopePrincipals:
+        """Read before deleting organizations, workspaces or projects."""
+
+        return await self._principals.list_scope_principals(
+            organization_ids=organization_ids,
+            workspace_ids=workspace_ids,
+            project_ids=project_ids,
         )
 
+    async def invalidate_scope(self, *, snapshot: ScopePrincipals) -> None:
+        """After the cascade delete committed: the keys and bindings that went, and the
+        cached memberships of every user in the deleted projects (one pattern call per
+        namespace per project, never one call per member)."""
+
+        await self.invalidate_principals(
+            principals=[
+                *(
+                    PrincipalRef(kind=PrincipalKind.API_KEY, id=key_id)
+                    for key_id in snapshot.api_key_ids
+                ),
+                *(
+                    PrincipalRef(kind=PrincipalKind.INSTALLATION, id=binding_id)
+                    for binding_id in snapshot.binding_ids
+                ),
+            ]
+        )
+        if snapshot.project_ids:
+            from oss.src.core.memberships.service import (  # noqa: PLC0415
+                invalidate_access_caches,
+            )
+
+            await invalidate_access_caches(
+                user_ids=[], project_ids=snapshot.project_ids
+            )
+
+    async def invalidate_principal(self, *, principal: PrincipalRef) -> None:
         try:
-            cleared = await invalidate_principal_cache(principal=principal)
+            cleared = await self._principals.invalidate_principal(principal=principal)
         except Exception:  # pylint: disable=broad-exception-caught
             cleared = None
         if cleared is None and env.agenta.api.caching.enabled:
@@ -512,6 +550,46 @@ async def invalidate_user_after_delete(
             "[access] principal invalidation failed",
             source="user_deletion",
             user_id=str(snapshot.user_id),
+        )
+
+
+async def read_scope_principals_before_delete(
+    *,
+    organization_ids: Sequence[UUID] = (),
+    workspace_ids: Sequence[UUID] = (),
+    project_ids: Sequence[UUID] = (),
+) -> Optional[ScopePrincipals]:
+    """Read what a cascade delete of these scopes must invalidate, before the delete.
+    `None` (logged) when the read fails; the deletion goes on."""
+
+    if not (organization_ids or workspace_ids or project_ids):
+        return None
+    try:
+        return await get_access_service().read_scope_principals(
+            organization_ids=organization_ids,
+            workspace_ids=workspace_ids,
+            project_ids=project_ids,
+        )
+    except Exception:  # pylint: disable=broad-exception-caught
+        log.warning("[access] scope principals read failed")
+        return None
+
+
+async def invalidate_scope_after_delete(
+    *,
+    snapshot: Optional[ScopePrincipals],
+) -> None:
+    """After a cascade delete committed. A failure is logged and never fails it."""
+
+    if snapshot is None:
+        return
+    try:
+        await get_access_service().invalidate_scope(snapshot=snapshot)
+    except Exception:  # pylint: disable=broad-exception-caught
+        log.warning(
+            "[access] principal invalidation failed",
+            source="scope_deletion",
+            project_count=len(snapshot.project_ids),
         )
 
 

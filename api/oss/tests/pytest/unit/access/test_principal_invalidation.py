@@ -15,8 +15,14 @@ import oss.src.dbs.postgres.access.dao as principals_dao_module
 import oss.src.core.memberships.service as memberships_module
 import oss.src.services.api_key_service as api_key_module
 import oss.src.services.user_service as user_service_module
-from oss.src.core.access.dtos import PrincipalKind, PrincipalRef, UserPrincipals
+from oss.src.core.access.dtos import (
+    PrincipalKind,
+    PrincipalRef,
+    ScopePrincipals,
+    UserPrincipals,
+)
 from oss.src.core.access.service import AccessService
+from oss.src.dbs.postgres.access.dao import PrincipalsDAO
 from oss.src.core.channels.dtos import (
     ChannelAgent,
     ChannelAgentData,
@@ -313,6 +319,23 @@ async def test_user_deletion_invalidates_user_keys_bindings_and_memberships(
 
         monkeypatch.setattr(module, "_db_delete_user_with_cascade", _delete)
         monkeypatch.setattr(module, "_invalidate_memberships", AsyncMock())
+        owned = uuid4()
+        monkeypatch.setattr(
+            module,
+            "_db_get_orgs_owned_by_user",
+            AsyncMock(return_value=[SimpleNamespace(id=owned)]),
+        )
+        scope = ScopePrincipals(project_ids=[uuid4()], api_key_ids=[uuid4()])
+
+        async def _read_scope(**kwargs):
+            order.append(("read_scope", kwargs))
+            return scope
+
+        async def _invalidate_scope(*, snapshot):
+            order.append(("invalidate_scope", snapshot))
+
+        monkeypatch.setattr(module, "read_scope_principals_before_delete", _read_scope)
+        monkeypatch.setattr(module, "invalidate_scope_after_delete", _invalidate_scope)
         service = module.PlatformAdminAccountsService.__new__(
             module.PlatformAdminAccountsService
         )
@@ -334,7 +357,18 @@ async def test_user_deletion_invalidates_user_keys_bindings_and_memberships(
         )
         await module.delete_user(str(user_id))
 
-    assert order == ["read", "delete", ("invalidate", snapshot)]
+    if path == "core.accounts":
+        # The owned organizations go with the user: their projects, keys and
+        # bindings are read before and cleared after.
+        assert order == [
+            "read",
+            ("read_scope", {"organization_ids": [owned]}),
+            "delete",
+            ("invalidate", snapshot),
+            ("invalidate_scope", scope),
+        ]
+    else:
+        assert order == ["read", "delete", ("invalidate", snapshot)]
 
 
 async def test_invalidate_user_clears_user_keys_bindings_and_memberships(monkeypatch):
@@ -346,7 +380,7 @@ async def test_invalidate_user_clears_user_keys_bindings_and_memberships(monkeyp
             policy=MembershipPolicy.PROJECT_ROWS,
         ),
         rbac=RecordingRbac(),
-        principals=InMemoryPrincipalsDAO(),
+        principals=PrincipalsDAO(engine=None),  # the real cache delete
     )
     user_id, key_id, binding_id, project_id = uuid4(), uuid4(), uuid4(), uuid4()
     names = []
@@ -405,3 +439,95 @@ async def test_invalidation_failure_does_not_fail_the_writer(monkeypatch):
         principals=[_key(uuid4())], source="test"
     )
     assert len(warnings) == 2
+
+
+@pytest.mark.parametrize(
+    "method, kwargs, getter",
+    [
+        ("delete_organization", "organization_id", "_db_get_org_by_id"),
+        ("delete_workspace", "workspace_id", "_db_get_workspace_by_id"),
+        ("delete_project", "project_id", "_db_get_project_by_id"),
+    ],
+)
+async def test_admin_scope_deletion_invalidates_its_projects(
+    method, kwargs, getter, monkeypatch
+):
+    order = []
+    scope_id = uuid4()
+    scope = ScopePrincipals(project_ids=[uuid4()], binding_ids=[uuid4()])
+
+    async def _read_scope(**kw):
+        order.append(("read_scope", kw))
+        return scope
+
+    async def _invalidate_scope(*, snapshot):
+        order.append(("invalidate_scope", snapshot))
+
+    deleter = {
+        "delete_organization": "_db_delete_organization",
+        "delete_workspace": "_db_delete_workspace",
+        "delete_project": "_db_delete_project",
+    }[method]
+
+    async def _delete(_):
+        order.append("delete")
+
+    monkeypatch.setattr(
+        accounts_module, getter, AsyncMock(return_value=SimpleNamespace())
+    )
+    monkeypatch.setattr(accounts_module, deleter, _delete)
+    monkeypatch.setattr(
+        accounts_module, "read_scope_principals_before_delete", _read_scope
+    )
+    monkeypatch.setattr(
+        accounts_module, "invalidate_scope_after_delete", _invalidate_scope
+    )
+    service = accounts_module.PlatformAdminAccountsService.__new__(
+        accounts_module.PlatformAdminAccountsService
+    )
+    await getattr(service, method)(**{kwargs: str(scope_id)})
+
+    key = kwargs.replace("_id", "_ids")
+    assert order == [
+        ("read_scope", {key: [scope_id]}),
+        "delete",
+        ("invalidate_scope", scope),
+    ]
+
+
+async def test_invalidate_scope_clears_keys_bindings_and_members_project_wide(
+    monkeypatch,
+):
+    monkeypatch.setattr(env.agenta.api.caching, "enabled", True, raising=False)
+    cache = FakeCache().install(monkeypatch, principals_dao_module, memberships_module)
+    principals = InMemoryPrincipalsDAO()
+    service = AccessService(
+        memberships=MembershipsService(
+            memberships_dao=InMemoryMembershipsDAO(),
+            policy=MembershipPolicy.PROJECT_ROWS,
+        ),
+        rbac=RecordingRbac(),
+        principals=principals,
+    )
+    project_id, key_id, binding_id = uuid4(), uuid4(), uuid4()
+    members = [str(uuid4()) for _ in range(50)]
+    for user in members:
+        cache.store[
+            caching._pack(
+                namespace="resolve_membership",
+                key="membership",
+                project_id=str(project_id),
+                user_id=user,
+            )
+        ] = b"{}"
+
+    await service.invalidate_scope(
+        snapshot=ScopePrincipals(
+            project_ids=[project_id], api_key_ids=[key_id], binding_ids=[binding_id]
+        )
+    )
+
+    assert principals.invalidated == [_key(key_id), _binding(binding_id)]
+    assert cache.names("resolve_membership") == []
+    # One pattern call per namespace for the project, never one per member.
+    assert len(cache.scans) == len(memberships_module.ACCESS_CACHE_NAMESPACES)

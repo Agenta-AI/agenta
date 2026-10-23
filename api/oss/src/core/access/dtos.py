@@ -197,3 +197,15 @@ class UserPrincipals(BaseModel):
     api_key_ids: list[UUID] = []
     binding_ids: list[UUID] = []
     project_ids: list[UUID] = []
+
+
+class ScopePrincipals(BaseModel):
+    """What deleting organizations, workspaces or projects must invalidate, read
+    before the delete: the projects that go, and the API keys and channel bindings in
+    them (removed by the cascade)."""
+
+    model_config = _FROZEN
+
+    project_ids: list[UUID] = []
+    api_key_ids: list[UUID] = []
+    binding_ids: list[UUID] = []

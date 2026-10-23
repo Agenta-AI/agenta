@@ -90,6 +90,7 @@ class InMemoryPrincipalsDAO(PrincipalsDAOInterface):
     def __init__(self, records: Optional[Dict[PrincipalRef, PrincipalRecord]] = None):
         self.records: Dict[PrincipalRef, PrincipalRecord] = dict(records or {})
         self.reads: List[PrincipalRef] = []
+        self.invalidated: List[PrincipalRef] = []
 
     def add(self, record: PrincipalRecord) -> PrincipalRecord:
         self.records[record.principal] = record
@@ -145,6 +146,10 @@ class InMemoryPrincipalsDAO(PrincipalsDAOInterface):
     ) -> Optional[PrincipalRecord]:
         self.reads.append(principal)
         return self.records.get(principal)
+
+    async def invalidate_principal(self, *, principal: PrincipalRef) -> Optional[bool]:
+        self.invalidated.append(principal)
+        return True
 
 
 async def seed_api_key_with_missing_creator(*, project_id: UUID) -> UUID:
