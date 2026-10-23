@@ -545,6 +545,15 @@ class SessionStreamsService:
         """
         _validate_session_id(request.session_id)
 
+        # Only a run creates a session by heartbeat: refuse before any lock moves (the
+        # turn binding below is first-writer-wins).
+        prior_stream = await self._dao.get_by_session_id(
+            project_id=project_id,
+            session_id=request.session_id,
+        )
+        if prior_stream is None and envelope is None:
+            raise SessionCreationRequiresRunCredential(request.session_id)
+
         # A turn that was already displaced (handover, cancel, steer, kill, sweep) is dead
         # forever: refuse the beat before it touches ANY lock or the row. This is what keeps
         # the ambiguous "`alive` held by another turn + no `running`" state safe to resolve as
@@ -628,13 +637,6 @@ class SessionStreamsService:
         # being gone now is something else's doing. A row carrying a DIFFERENT turn_id is not
         # decisive on its own (it is also what a fresh turn on a previously-run session sees)
         # — the failed nx re-acquire below is what settles that case.
-        prior_stream = await self._dao.get_by_session_id(
-            project_id=project_id,
-            session_id=request.session_id,
-        )
-        if prior_stream is None and envelope is None:
-            # Only a run creates a session by heartbeat; refuse before any lock moves.
-            raise SessionCreationRequiresRunCredential(request.session_id)
         turn_was_established = bool(
             prior_stream and prior_stream.turn_id == request.turn_id
         )

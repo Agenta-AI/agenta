@@ -377,11 +377,15 @@ class AccessService:
         principal is not active."""
 
         principal = authority.principal
-        if principal.kind == PrincipalKind.INSTALLATION and authority.linked_user_id:
-            return authority.linked_user_id
+        # The record first, in the order `_eligibility` uses: an inactive or expired
+        # principal has no acting user, also an installation with a linked user.
         record = await self._principals.fetch_principal(principal=principal)
         if record is None or not record.is_active:
             return None
+        if record.expires_at is not None and record.expires_at <= _now():
+            return None
+        if principal.kind == PrincipalKind.INSTALLATION and authority.linked_user_id:
+            return authority.linked_user_id
         return record.acting_user_id
 
     async def invalidate_principal(self, *, principal: PrincipalRef) -> None:

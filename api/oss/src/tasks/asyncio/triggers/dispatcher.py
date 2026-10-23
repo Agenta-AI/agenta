@@ -279,7 +279,7 @@ class TriggersDispatcher:
                 entity=entity,
                 event_id=event_id,
                 reason="missing_principal",
-                error=missing_principal_error(next_step="Create the schedule again."),
+                error=missing_principal_error(next_step="Create the trigger again."),
             )
             return
 

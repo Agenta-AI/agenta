@@ -92,3 +92,29 @@ async def test_resolve_request_target_reports_an_archived_agent():
         )
         is None
     )
+
+
+async def test_a_failed_pause_does_not_fail_the_archive():
+    service, triggers = _service()
+    triggers.pause_triggers_for_artifact = AsyncMock(side_effect=RuntimeError("db"))
+    archived = await service.archive_workflow(
+        project_id=uuid4(), user_id=uuid4(), workflow_id=uuid4()
+    )
+    assert archived is not None
+
+
+async def test_a_static_target_is_never_archived():
+    service, _ = _service()
+    service._ensure_request_revision = AsyncMock(
+        return_value=SimpleNamespace(
+            artifact_id=uuid4(),
+            id=uuid4(),
+            slug="__ag__static-agent",
+            flags=SimpleNamespace(is_static=True),
+        )
+    )
+    service.fetch_workflow = AsyncMock(side_effect=AssertionError("no row to read"))
+    target = await service.resolve_request_target(
+        project_id=uuid4(), request=SimpleNamespace()
+    )
+    assert target.archived is False
