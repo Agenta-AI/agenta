@@ -15,7 +15,7 @@ Every composition root that builds `AccessService` SHALL register the resource p
 - **THEN** the process fails at startup
 
 ### Requirement: Execution admission checks the session and the agent
-Every point where a run starts or resumes SHALL check the existing session and the agent of the current turn through `decide`, before anything is invoked: the first heartbeat of each turn, queued dispatch, approval resume, a channel turn, trigger dispatch, and child invocation. A trigger SHALL resolve its current target before the check.
+Every point where a run starts or resumes SHALL check the existing session and the agent of the current turn through `decide`, before anything is invoked: every heartbeat that lacks verified continuity (including the first heartbeat of each turn), queued dispatch, approval resume, a channel turn, trigger dispatch, and child invocation. A trigger SHALL resolve its current target before the check.
 
 #### Scenario: Browser run into another member's private session
 - **WHEN** Bob's browser run sends its first heartbeat for Alice's private session

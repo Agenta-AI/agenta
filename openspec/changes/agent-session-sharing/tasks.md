@@ -1,29 +1,32 @@
 ## 1. Preconditions
 
+M3 ships as one implementation PR with ordered commits, in the order of the implementation plan. Every signature change lands with its callers, fakes and tests in the same commit.
+
+- [ ] 1.0 Align `docs/design/sharing-program/interfaces/m3/` and this change with the implementation plan in the first commit; run `openspec validate agent-session-sharing --strict`.
 - [ ] 1.1 Confirm M1 and M2 are merged (CONTRACT.md sections 2 to 6).
 - [ ] 1.2 Inventory every agent and session entry point (reads, lists, exports, streams, templates, clones, skills, mounts, reference tools, workers, channels) and every execution boundary (design D7), with the service method each must call.
 - [ ] 1.3 Write one fixture set with every role and principal kind, for OSS and EE.
 
 ## 2. Data
 
-- [ ] 2.1 Add the `core_oss` schema revision and the one-time data revision (design: Migration, D9); run the migration gate. Spec: Existing agents after migration, Existing chats after migration.
-- [ ] 2.2 Add `oss/src/dbs/postgres/sharing/` with the lock, the `expected` compare and the delta write (design D5; spec: Sharing writes are serialized and rechecked).
-- [ ] 2.3 Add `WorkflowsDAO(GitDAO)` and the non-committing insert helper (design D3; spec: Private agent creation is atomic).
+- [ ] 2.1 Add the `core_oss` schema revision `oss000000048` (`down_revision = "oss000000047"`) and the one-time data revision `oss000000049` (design: Migration, D9); run the migration gate on both. Spec: Existing agents after migration, Existing chats after migration.
+- [ ] 2.2 Add `oss/src/dbs/postgres/sharing/` with the lock, the `expected` compare, the delta write, the typed write results and `lock_agent_policy` (design D5; spec: Sharing writes are serialized and rechecked).
+- [ ] 2.3 Add `WorkflowsDAO(GitDAO)` with the non-committing insert helper and `ensure_first_agent_access` (design D3; spec: Private agent creation is atomic).
 
 ## 3. Core
 
-- [ ] 3.1 Add `core/sharing/` with `initial_policy` (design D2; specs: Policy of a new agent, Every session insertion path, Channel sessions).
-- [ ] 3.2 Add `ResourcePolicyInterface`, the required `resource_policy` in every composition root, and `Permission.MANAGE_AGENT_OWNERSHIP` (design D8; specs: Resource policy step, Shortcuts).
-- [ ] 3.3 Add principal-derived read scopes to the workflow and session list queries (spec: List scopes match direct reads).
+- [ ] 3.1 Add `core/sharing/` with `initial_policy`, `OWNERLESS_PROJECT_POLICY`, `DecisionReason.RESOURCE_DENIED`, the registry and `build_share_disclosure` (design D2; specs: Policy of a new agent, Every session insertion path, Channel sessions).
+- [ ] 3.2 Add `ResourcePolicyInterface`, the required `resource_policy` built in `bootstrap_access()`, and `Permission.MANAGE_AGENT_OWNERSHIP` (design D8; specs: Resource policy step, Shortcuts).
+- [ ] 3.3 Add principal-derived read scopes to the workflow and session list queries, required on every query caller; non-person callers pass `AgentReadScope(owner_user_id=None)` (design D6; spec: List scopes match direct reads).
 - [ ] 3.4 Pass a required `AccessPolicy` on the four session insert paths, with the `visibility` query parameter on the rename create arm (design D4).
-- [ ] 3.5 Add `RunAdmission` and call it at every boundary of design D7 with the execution target of the current turn; add `resolve_agent_artifact_id` with `AgentReferenceUnresolved`; move the `prior_stream` read in `_heartbeat_locked` to the top and authorize every beat before any lock, write or response, with the verified-continuity shortcut of design D7 (specs: Execution admission checks the session and the agent; Admission checks the execution target of the turn; Every heartbeat is authorized before it writes or answers).
-- [ ] 3.6 Add the cached policy reads and `invalidate_sharing_caches` of design D9a (spec: Policy reads are cached and invalidated by sharing writes).
+- [ ] 3.5 Add `RunAdmission` (`admit`, `admit_turn`, `admit_request`, `AdmissionDenied`) and call it at every boundary of design D7 with the execution target of the current turn; add `AGENT_REFERENCE_KEYS`, `resolve_agent_artifact_id` with `AgentReferenceUnresolved`, and `channel_agent_references`; move the `prior_stream` read in `_heartbeat_locked` to the top and authorize every beat before any lock, write or response, with the verified-continuity shortcut of design D7 (specs: Execution admission checks the session and the agent; Admission checks the execution target of the turn; Every heartbeat is authorized before it writes or answers).
+- [ ] 3.6 Add the cached policy reads, the `sharing_user_grants` cache and `invalidate_sharing_caches` (with `grant_user_ids`) of design D9a, and the principal-cache invalidation after a make-private (design D5) (spec: Policy reads are cached and invalidated by sharing writes).
 - [ ] 3.7 Add `MembershipsService.query_project_members` and the audit events (design D10; specs: Manage session sharing, Sharing changes are audited).
 
 ## 4. Entry points and web
 
-- [ ] 4.1 Call `decide` with a resource on every entry point from task 1.2, including approval answers and channel agent activation.
-- [ ] 4.2 Regenerate the Fern client and add `getSharingClient`; add the `@agenta/entities/sharing` subpath with project-scoped query keys and `getHostQueryClient` invalidation.
+- [ ] 4.1 Call `decide` with a resource on every entry point from task 1.2 through `check_resource`, including approval answers; lock the artifact at channel agent activation (`guard_artifact_id`).
+- [ ] 4.2 Regenerate the Fern client (the `Sharing` tag) and add `getSharingClient`; add the `@agenta/entities/sharing` subpath with project-scoped query keys and `getHostQueryClient` invalidation.
 - [ ] 4.3 `/m`: agent privacy, transfer, take ownership, share dialog with the member picker, disclosure, Slack setup notice; Storybook stories; package tests under `tests/unit/`.
 - [ ] 4.4 `/w`: create new chats through the rename create arm with `visibility=project`, and send `visibility=project` on new agents (spec: Omitted visibility uses the owner default). Record the `web/AGENTS.md` exception.
 
