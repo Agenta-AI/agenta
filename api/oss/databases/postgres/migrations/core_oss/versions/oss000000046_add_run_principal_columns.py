@@ -10,13 +10,12 @@ of existing schedules, subscriptions and evaluation runs is `oss000000047`, a se
 revision of the same release.
 
 Every column is nullable, with no default, no foreign key and no check constraint, so
-each `ADD COLUMN` is a catalog change only. Each table is altered in its own short
-transaction (one `ALTER TABLE` per table, in an autocommit block), so no table keeps
-its `ACCESS EXCLUSIVE` lock while another table waits for its own. `lock_timeout`
-bounds each wait: a long-running transaction on one of these tables fails the hook after
-5 s instead of queueing every other query behind the `ALTER TABLE`, and the deploy is
-re-run. A rerun after a failure part-way completes: every `ADD COLUMN` is
-`IF NOT EXISTS`. The two indexes are built CONCURRENTLY afterwards.
+each `ADD COLUMN` is a catalog change only. `lock_timeout` bounds the wait for the
+`ACCESS EXCLUSIVE` lock: a long-running transaction on one of these tables fails the hook
+after 5 s instead of queueing every other query behind the `ALTER TABLE`, and the deploy
+is re-run. The two indexes are built CONCURRENTLY in an autocommit block, which commits
+the column changes first, so their locks are held for milliseconds, never during a build
+or a backfill.
 
 | Table | Columns |
 | --- | --- |
@@ -89,30 +88,18 @@ _INDEXES = (
 )
 
 
-def _alter_statements():
-    """One `ALTER TABLE` per table, every column `ADD COLUMN IF NOT EXISTS`."""
-
-    return [
-        f"ALTER TABLE {table} "
-        + ", ".join(
-            f"ADD COLUMN IF NOT EXISTS {name} {type_}" for name, type_ in columns
-        )
-        for table, columns in _COLUMNS
-    ]
-
-
 def upgrade() -> None:
-    # Autocommit: each ALTER TABLE is its own short transaction. The session-level
-    # lock_timeout bounds each one's wait for its ACCESS EXCLUSIVE lock; it is reset
-    # before the index builds, which keep the server default.
-    with op.get_context().autocommit_block():
-        op.execute("SET lock_timeout = '5s'")
-        try:
-            for statement in _alter_statements():
-                op.execute(statement)
-        finally:
-            op.execute("RESET lock_timeout")
+    # Bounded wait for the ALTER TABLE locks; LOCAL ends with this transaction.
+    op.execute("SET LOCAL lock_timeout = '5s'")
 
+    # IF NOT EXISTS: entering the autocommit block below commits the columns, so a
+    # rerun after an index failure finds them and must not fail on them.
+    for table, columns in _COLUMNS:
+        for name, type_ in columns:
+            op.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {name} {type_}")
+
+    # CREATE INDEX CONCURRENTLY cannot run inside a transaction. Entering the block
+    # commits the column changes above.
     with op.get_context().autocommit_block():
         for name, table, columns in _INDEXES:
             op.execute(
