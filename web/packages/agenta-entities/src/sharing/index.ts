@@ -1,7 +1,8 @@
 /**
  * `@agenta/entities/sharing` — agent privacy, session sharing and the member picker.
  *
- * Wire schemas and project-scoped query keys.
+ * Wire schemas, project-scoped query keys, the API calls (through the Fern `sharing` client)
+ * and the query and mutation atoms.
  */
 export {
     visibilitySchema,
@@ -34,3 +35,37 @@ export {
 } from "./core/schema"
 
 export {sharingKeys} from "./core/keys"
+
+export {
+    fetchAgentSharing,
+    setAgentVisibility,
+    transferAgent,
+    takeAgentOwnership,
+    fetchSessionSharing,
+    upsertSessionGrant,
+    revokeSessionGrant,
+    setSessionVisibility,
+    restrictSessionToOwner,
+    querySharingMembers,
+    type AgentSharingParams,
+    type SessionSharingParams,
+    type SetAgentVisibilityParams,
+    type TransferAgentParams,
+    type UpsertSessionGrantParams,
+    type RevokeSessionGrantParams,
+    type SetSessionVisibilityParams,
+    type QuerySharingMembersParams,
+} from "./api"
+
+export {
+    agentSharingQueryAtomFamily,
+    sessionSharingQueryAtomFamily,
+    sharingMembersQueryAtomFamily,
+    setAgentVisibilityAtom,
+    transferAgentAtom,
+    takeAgentOwnershipAtom,
+    upsertSessionGrantAtom,
+    revokeSessionGrantAtom,
+    setSessionVisibilityAtom,
+    restrictSessionToOwnerAtom,
+} from "./state/store"

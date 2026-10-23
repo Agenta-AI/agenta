@@ -25,6 +25,7 @@ import {z} from "zod"
 
 import {parseRevisionUri, safeParseWithLogging} from "../../shared"
 import {extractAllEndpointSchemas, type OpenAPISpec} from "../../shared/openapi"
+import type {Visibility} from "../../sharing/core/schema"
 import {
     workflowSchema,
     workflowResponseSchema,
@@ -790,6 +791,9 @@ export interface CreateWorkflowPayload {
     data?: WorkflowData | null
     /** Overrides the URI-inferred flags on the v1 commit (e.g. `{is_skill: true}`). */
     revisionFlags?: Record<string, boolean> | null
+    /** Sharing (M3): `private` makes the creator the only one who sees the new agent.
+     * Omitted, the server keeps its default. */
+    visibility?: Visibility
 }
 
 /**
@@ -840,6 +844,7 @@ export async function createWorkflow(
                 flags: payload.flags,
                 tags: payload.tags,
                 meta: payload.meta,
+                ...(payload.visibility ? {visibility: payload.visibility} : {}),
             },
         },
         {params: {project_id: projectId}},

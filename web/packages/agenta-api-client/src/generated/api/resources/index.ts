@@ -48,6 +48,8 @@ export * as secrets from "./secrets/index.js";
 export * from "./sessions/client/requests/index.js";
 export * as sessions from "./sessions/index.js";
 export * from "./sessions/types/index.js";
+export * from "./sharing/client/requests/index.js";
+export * as sharing from "./sharing/index.js";
 export * from "./skills/client/requests/index.js";
 export * as skills from "./skills/index.js";
 export * as status from "./status/index.js";

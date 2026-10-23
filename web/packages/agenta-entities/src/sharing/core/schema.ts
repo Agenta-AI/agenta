@@ -4,6 +4,9 @@
  * Wire names are snake_case and match the backend DTOs in `api/oss/src/core/sharing/dtos.py`
  * and the router models in `api/oss/src/apis/fastapi/sharing/models.py`. Objects use zod's
  * default strip mode, so fields the backend adds later do not leak into the UI state.
+ *
+ * The router answers with `response_model_exclude_none`, so every backend `Optional` field is
+ * absent (not null) when it has no value: those fields are `nullable().optional()` here.
  */
 import {z} from "zod"
 
@@ -74,14 +77,16 @@ export const agentSharingResponseSchema = z.object({
 export const sessionSharingResponseSchema = z.object({
     count: z.number(),
     sharing: sessionSharingStateSchema,
-    disclosure: shareDisclosureSchema.nullable(),
+    /** Absent when the session cannot be shared. */
+    disclosure: shareDisclosureSchema.nullable().optional(),
 })
 
 export const projectMemberProfileSchema = z.object({
     user_id: z.string(),
     email: z.string(),
-    name: z.string().nullable(),
-    role: z.string(),
+    name: z.string().nullable().optional(),
+    /** Absent for an EE project member row without a role. */
+    role: z.string().nullable().optional(),
 })
 
 /** Backend `Windowing` (`sdks/python/agenta/sdk/models/shared.py`); cursor = user_id. */

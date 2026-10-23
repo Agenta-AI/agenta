@@ -36,5 +36,7 @@ export interface SessionListItem {
     origin?: (AgentaApi.SessionOrigin | null) | undefined;
     trigger?: (AgentaApi.SessionTrigger | null) | undefined;
     delivery?: (AgentaApi.SessionDelivery | null) | undefined;
+    visibility?: AgentaApi.Visibility | undefined;
+    owner_user_id?: (string | null) | undefined;
     last_message?: (AgentaApi.SessionMessagePreview | null) | undefined;
 }

@@ -9,6 +9,8 @@
  */
 import {z} from "zod"
 
+import {visibilitySchema} from "../../sharing/core/schema"
+
 /**
  * One durable, append-only record event row. Validates the wire shape (backend renamed the
  * envelope: `record_id`/`record_index`/`record_source`/`record_type`/`attributes`) and maps
@@ -189,6 +191,10 @@ export const sessionStreamSchema = z.object({
     origin: sessionOriginSchema.nullish().catch(undefined),
     trigger: sessionTriggerSchema.nullish().catch(undefined),
     delivery: sessionDeliverySchema.nullish().catch(undefined),
+    // Sharing (M3): who may see the session. `owner_user_id` is null for an ownerless session
+    // (channel, API key, trigger). An unknown visibility degrades to undefined, as above.
+    visibility: visibilitySchema.nullish().catch(undefined),
+    owner_user_id: z.string().nullish(),
     // `/sessions/query` only (WP0-R3): the session's latest turn's workflow/agent references —
     // absent for a session with no turns yet, and for a plain stream fetch (not query'd).
     references: z.array(sessionReferenceSchema).nullish(),
