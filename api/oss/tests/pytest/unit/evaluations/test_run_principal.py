@@ -266,3 +266,50 @@ async def test_live_run_with_access_keeps_ticking(_allowing_access_service):
     assert _allowing_access_service.required[-1]["action"].value == (
         "edit_evaluation_runs"
     )
+
+
+@pytest.mark.parametrize("refusal", ["missing_principal", "access_denied"])
+async def test_run_from_source_refuses_before_any_source(monkeypatch, refusal):
+    """Every topology goes through `run_from_source` or `run_from_batch`; both check
+    the principal before reading a source, so an empty testset or an open queue
+    cannot end SUCCESS or stay active for a refused run."""
+
+    import oss.src.core.access.service as access_module
+    from oss.src.core.evaluations.tasks.run import RunProcessor
+    from oss.src.core.evaluations.types import EvaluationStatus
+    from oss.tests.pytest.utils.principals import DenyingAccessService
+
+    monkeypatch.setattr(access_module, "_access_service", DenyingAccessService())
+    run = EvaluationRun(
+        id=uuid4(),
+        name="r",
+        created_by_id=uuid4(),
+        principal=(
+            None
+            if refusal == "missing_principal"
+            else PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4())
+        ),
+        flags=EvaluationRunFlags(is_active=True),
+    )
+    service = SimpleNamespace(
+        fetch_run=AsyncMock(return_value=run), edit_run=AsyncMock()
+    )
+    processor = RunProcessor.__new__(RunProcessor)
+    processor.evaluations_service = service
+    processor._fetch_validated_run = AsyncMock(return_value=run)
+
+    for call in (
+        processor.run_from_source(project_id=uuid4(), user_id=uuid4(), run_id=run.id),
+        processor.run_from_batch(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            run_id=run.id,
+            source_kind="traces",
+            trace_ids=["t-1"],
+        ),
+    ):
+        service.edit_run.reset_mock()
+        assert await call is False
+        edited = service.edit_run.await_args.kwargs["run"]
+        assert edited.status == EvaluationStatus.FAILURE
+        assert edited.flags.is_active is False

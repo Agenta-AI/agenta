@@ -16,6 +16,8 @@ from uuid import uuid4
 
 import pytest
 
+from oss.tests.pytest.utils.principals import any_principal
+
 from oss.src.core.evaluations.service import (
     EvaluationsService,
     SimpleEvaluationsService,
@@ -37,7 +39,6 @@ from oss.src.core.evaluations.types import (
     EvaluationRunDataStep,
     EvaluationStatus,
 )
-from oss.tests.pytest.utils.principals import any_principal
 
 
 # --- runner dispatch ----------------------------------------------------------
@@ -788,6 +789,7 @@ async def test_run_from_source_routes_queue_topologies(monkeypatch, dispatch):
         id=run_id,
         status=EvaluationStatus.RUNNING,
         data=EvaluationRunData(steps=[_step("input")], repeats=1),
+        principal=any_principal(),
     )
     monkeypatch.setattr(
         run_module,
