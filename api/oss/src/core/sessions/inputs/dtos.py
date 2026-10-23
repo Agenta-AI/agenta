@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.shared.dtos import Identifier, Lifecycle
 
 
@@ -24,6 +25,9 @@ class PendingInput(Identifier, Lifecycle):
     idempotency_key: str
     request_fingerprint: str
     promoted_execution_id: Optional[str] = None
+    # The run envelope this work continues under (M2). Internal: never in a response
+    # (`exclude=True`), and copied, never dumped, between services.
+    run_envelope: Optional[RunEnvelope] = Field(default=None, exclude=True)
 
 
 class PendingInputCreate(BaseModel):

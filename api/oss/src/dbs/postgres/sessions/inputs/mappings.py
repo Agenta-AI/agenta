@@ -2,6 +2,7 @@ from typing import Optional
 from uuid import UUID
 
 from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputState
+from oss.src.dbs.postgres.access.mappings import map_envelope_column
 from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE
 
 
@@ -23,6 +24,7 @@ def to_pending_input(row: SessionInputDBE) -> PendingInput:
         idempotency_key=row.idempotency_key,
         request_fingerprint=row.request_fingerprint,
         promoted_execution_id=row.promoted_execution_id,
+        run_envelope=map_envelope_column(data=row.run_envelope),
     )
 
 

@@ -2,8 +2,9 @@ from enum import Enum
 from typing import Any, Dict, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.shared.dtos import Identifier, Lifecycle, Reference, Selector
 
 
@@ -71,6 +72,9 @@ class SessionInteraction(Identifier, Lifecycle):
     flags: SessionInteractionFlags = SessionInteractionFlags()
     tags: Optional[Dict[str, Any]] = None
     meta: Optional[Dict[str, Any]] = None
+    # The run envelope this work continues under (M2). Internal: never in a response
+    # (`exclude=True`), and copied, never dumped, between services.
+    run_envelope: Optional[RunEnvelope] = Field(default=None, exclude=True)
 
 
 class SessionInteractionCreate(BaseModel):

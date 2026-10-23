@@ -10,6 +10,8 @@ from oss.src.dbs.postgres.sessions.references import (
     references_from_json,
     references_to_json,
 )
+from oss.src.core.access.dtos import RunApproval, RunContext, RunOrigin, RunSender
+from oss.src.dbs.postgres.access.mappings import map_principal_columns
 from oss.src.dbs.postgres.sessions.turns.dbes import SessionTurnDBE
 
 
@@ -66,4 +68,43 @@ def map_turn_dbe_to_dto(
         span_id=turn_dbe.span_id,
         start_time=turn_dbe.start_time,
         end_time=turn_dbe.end_time,
+        #
+        **map_turn_attribution_dbe_to_dto(turn_dbe=turn_dbe),
     )
+
+
+def map_turn_attribution_dbe_to_dto(*, turn_dbe: SessionTurnDBE) -> dict:
+    """The attribution group of a turn row; every field `None` for older rows."""
+
+    principal = map_principal_columns(
+        kind=turn_dbe.principal_kind, id=turn_dbe.principal_id
+    )
+    sender = None
+    if turn_dbe.sender_user_id is not None or turn_dbe.sender_external_key:
+        sender = RunSender(
+            user_id=turn_dbe.sender_user_id,
+            external_key=turn_dbe.sender_external_key,
+        )
+    context = None
+    if turn_dbe.origin is not None:
+        try:
+            context = RunContext(
+                run_id=str(turn_dbe.turn_id) if turn_dbe.turn_id else None,
+                parent_run_id=turn_dbe.parent_run_id,
+                origin=RunOrigin(turn_dbe.origin),
+                origin_id=turn_dbe.origin_id,
+            )
+        except ValueError:
+            context = None
+    approved_by = None
+    if turn_dbe.approved_by:
+        try:
+            approved_by = RunApproval.model_validate(turn_dbe.approved_by)
+        except ValueError:
+            approved_by = None
+    return {
+        "principal": principal,
+        "sender": sender,
+        "context": context,
+        "approved_by": approved_by,
+    }
