@@ -11,6 +11,10 @@
  * `{secret}`. The stored URL never holds the value. The prefix is the scheme word
  * (`Bearer`, `Basic`) a server expects in front of the value, because a raw key under
  * `Authorization` is refused by every server that names a scheme.
+ *
+ * Valid combinations: a `header` binding needs `name` and may take `prefix`; a `query`
+ * binding needs `name` and takes no `prefix`; a `url` binding takes neither `name` nor
+ * `prefix`.
  */
 export interface McpCredentialBinding {
     kind?: McpCredentialBinding.Kind | undefined;
