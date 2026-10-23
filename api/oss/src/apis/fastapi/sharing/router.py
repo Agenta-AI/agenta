@@ -425,14 +425,14 @@ class SharingRouter:
         raise FORBIDDEN_EXCEPTION
 
     async def _require_agent(self, request: Request, *, artifact_id: UUID) -> None:
-        """The agent exists in the request's project: no access row reads as a
-        project-visible, ownerless agent, so an unknown id must be refused here."""
+        """The artifact exists in the request's project and is an agent: no access row
+        reads as a project-visible, ownerless agent, so an unknown id, and a prompt or
+        an evaluator (no sharing), answer the canonical 404 here."""
 
-        workflow = await self.workflows_service.fetch_workflow(
+        if not await self.workflows_service.is_agent_artifact(
             project_id=_project_id(request),
-            workflow_ref=Reference(id=artifact_id),
-        )
-        if workflow is None:
+            artifact_id=artifact_id,
+        ):
             raise not_found_exception()
 
     async def _agent_disclosure(

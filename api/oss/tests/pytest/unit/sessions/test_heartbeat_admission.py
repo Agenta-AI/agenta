@@ -450,6 +450,52 @@ async def test_old_turn_replay_with_a_surviving_record_is_checked(
     assert admission.calls[-1][1]["envelope"] == _BOB_ENVELOPE
 
 
+async def test_refused_end_beat_drops_the_admission_record(
+    service, admission, dao, world, redis
+):
+    """Bob's grant is revoked before his turn-end beat: the end beat is refused, and it
+    still drops the turn's admission record (it names Bob). A replayed running beat of
+    the same turn, while the turn still holds `running`, is then checked and refused."""
+    world.participants.add(_BOB)
+    dao.seed()
+    await _send(service, admission, _beat("t1"), envelope=_BOB_ENVELOPE)
+    await _send(service, admission, _beat("t1"), envelope=_BOB_ENVELOPE)
+    world.participants.discard(_BOB)
+    updates = dao.count("update")
+
+    with pytest.raises(AdmissionDenied):
+        await _send(
+            service, admission, _beat("t1", running=False), envelope=_BOB_ENVELOPE
+        )
+    key = turn_admitted_key(str(_PROJECT), _SESSION, "t1")
+    assert await redis.get(key) is None
+    assert dao.count("update") == updates
+
+    with pytest.raises(AdmissionDenied):
+        await _send(service, admission, _beat("t1"), envelope=_BOB_ENVELOPE)
+    assert admission.methods() == ["admit_turn", "admit", "admit_turn"]
+    assert admission.calls[-1][1]["envelope"] == _BOB_ENVELOPE
+
+
+async def test_refused_end_beat_keeps_another_principals_record(
+    service, admission, dao, redis
+):
+    """A refused end beat from a principal the record does not name leaves the record:
+    Alice's running turn keeps its continuity."""
+    dao.seed()
+    await _send(service, admission, _beat("t1"))
+    await _send(service, admission, _beat("t1"))
+
+    with pytest.raises(AdmissionDenied):
+        await _send(
+            service, admission, _beat("t1", running=False), envelope=_BOB_ENVELOPE
+        )
+    assert await redis.get(turn_admitted_key(str(_PROJECT), _SESSION, "t1"))
+
+    await _send(service, admission, _beat("t1"))
+    assert admission.methods() == ["admit_turn", "admit"]
+
+
 # -- checked beats ----------------------------------------------------------------------
 
 

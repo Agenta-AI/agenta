@@ -137,6 +137,17 @@ class WorkflowsDAOInterface(GitDAOInterface):
         unknown, deleted or archived (the row or its artifact)."""
 
     @abstractmethod
+    async def is_agent_artifact(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+    ) -> bool:
+        """True when the artifact exists in the project (archived included) and one of
+        its revisions carries `flags.is_agent`, in one indexed read. The rule of the
+        agent access backfill and of `ensure_first_agent_access`."""
+
+    @abstractmethod
     async def query_artifacts(  # type: ignore[override]
         self,
         *,

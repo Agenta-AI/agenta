@@ -788,3 +788,48 @@ async def test_agent_creation_failed_is_the_envelope_not_a_generic_500(monkeypat
             "next_step": "Send the same request again.",
         }
     }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "visibility, expected",
+    [("project", "project"), (None, "private")],
+)
+async def test_load_gives_the_first_session_the_requested_visibility(
+    monkeypatch, visibility, expected
+):
+    """The load's requested visibility is the first session's too: a web human's
+    template load with `visibility: project` starts a project-visible session they
+    own; without it the session is private to them."""
+    from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+    from oss.tests.pytest.utils.sharing import register_sharing_service_for_tests
+
+    register_sharing_service_for_tests(monkeypatch)
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    loader = AsyncMock()
+    loader.load.return_value = _result()
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def add_state(request: Request, call_next):
+        request.state.project_id = str(PROJECT_ID)
+        request.state.user_id = str(USER_ID)
+        request.state.run_envelope = make_envelope(principal_id=USER_ID)
+        return await call_next(request)
+
+    app.include_router(
+        AgentTemplatesRouter(loader=loader, catalog=CATALOG).router,
+        prefix="/api/agent-templates",
+    )
+    body = _body()
+    if visibility is not None:
+        body["visibility"] = visibility
+
+    response = await _post(app, body=body)
+
+    assert response.status_code == 201, response.text
+    assert loader.load.await_args.kwargs["session_access"] == AccessPolicy(
+        visibility=Visibility(expected), owner_user_id=USER_ID
+    )

@@ -76,6 +76,20 @@ ON CONFLICT (project_id, artifact_id) DO NOTHING
 RETURNING artifact_id
 """
 
+# The agent rule of the backfill and of `ensure_first_agent_access`: an artifact is an
+# agent when one of its revisions carries `flags.is_agent`.
+_IS_AGENT_ARTIFACT_SQL = """
+SELECT EXISTS (
+    SELECT 1
+    FROM workflow_artifacts a
+    JOIN workflow_revisions r
+      ON r.project_id = a.project_id AND r.artifact_id = a.id
+    WHERE a.project_id = :project_id
+      AND a.id = :artifact_id
+      AND r.flags @> '{"is_agent": true}'::jsonb
+)
+"""
+
 
 class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
     """The constructor is `GitDAO`'s."""
@@ -275,6 +289,22 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
 
         async with self.engine.session() as session:
             return (await session.execute(stmt.limit(1))).scalar()
+
+    async def is_agent_artifact(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+    ) -> bool:
+        async with self.engine.session() as session:
+            return bool(
+                (
+                    await session.execute(
+                        text(_IS_AGENT_ARTIFACT_SQL),
+                        {"project_id": project_id, "artifact_id": artifact_id},
+                    )
+                ).scalar()
+            )
 
     # -- agent access writes ------------------------------------------------------------
 

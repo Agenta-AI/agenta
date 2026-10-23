@@ -1018,3 +1018,21 @@ async def test_load_forwards_the_route_policy_to_the_agent_create():
     )
 
     assert workflows.access_calls == [(policy, USER_ID)]
+
+
+@pytest.mark.asyncio
+async def test_load_forwards_the_session_policy_to_the_session_start():
+    from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+
+    loader, _, _, _, _, _, starts = _loader()
+    session_access = AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=USER_ID)
+
+    await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_command(),
+        envelope=make_envelope(),
+        session_access=session_access,
+    )
+
+    assert starts.calls[0]["access"] == session_access

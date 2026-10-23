@@ -754,3 +754,75 @@ async def test_template_start_is_rechecked_before_any_claim(monkeypatch):
     with pytest.raises(AccessDenied):
         await service.start_once(**_args())
     inputs.claim_for_execution.assert_not_awaited()
+
+
+def _start_with_streams(streams, events):
+    inputs = AsyncMock()
+    executions = AsyncMock()
+    workflows = AsyncMock()
+
+    async def claim(**kwargs):
+        return _input(kwargs["content"]).model_copy(
+            update={
+                "session_id": kwargs["session_id"],
+                "promoted_execution_id": kwargs["execution_id"],
+            }
+        )
+
+    async def invoke(**kwargs):
+        events.append("invoke")
+
+    inputs.claim_for_execution.side_effect = claim
+    executions.fetch_execution.side_effect = [None, _execution("s", "e")]
+    workflows.invoke_workflow_detached.side_effect = invoke
+    streams.get_by_session_id.return_value = None
+    return SessionStartsService(
+        run_admission=NoopRunAdmission(),
+        inputs_service=inputs,
+        executions_dao=executions,
+        workflows_service=workflows,
+        lock_engine=_MemoryLock(),
+        streams_dao=streams,
+        poll_timeout_seconds=0,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("raced", [False, True])
+async def test_start_creates_the_session_row_with_its_policy_before_the_invoke(raced):
+    """The first session gets the start's policy (the load's requested visibility):
+    the row is created before the invoke, so the first heartbeat finds it and never
+    writes its own default. A row another first touch created is kept."""
+    from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
+    from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+
+    events = []
+    streams = AsyncMock()
+
+    async def create(**kwargs):
+        events.append("create")
+        if raced:
+            raise SessionStreamAlreadyExists("s")
+
+    streams.create.side_effect = create
+    policy = AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=USER_ID)
+
+    result = await _start_with_streams(streams, events).start_once(
+        **_args(), access=policy
+    )
+
+    assert events == ["create", "invoke"]
+    kwargs = streams.create.await_args.kwargs
+    assert kwargs["project_id"] == PROJECT_ID
+    assert kwargs["stream"].session_id == result.session_id
+    assert kwargs["stream"].access == policy
+    assert result.replayed is False
+
+
+@pytest.mark.asyncio
+async def test_start_without_a_policy_creates_no_row():
+    events = []
+    streams = AsyncMock()
+    await _start_with_streams(streams, events).start_once(**_args())
+    streams.create.assert_not_awaited()
+    assert events == ["invoke"]

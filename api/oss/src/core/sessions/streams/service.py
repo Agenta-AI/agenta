@@ -1028,6 +1028,28 @@ class SessionStreamsService:
                     admission_envelope=admission_envelope,
                 )
             except (AdmissionDenied, AgentReferenceUnresolved) as error:
+                # A refused end beat still ends this principal's continuity for the
+                # turn. Otherwise a revoke before the end beat leaves the admission
+                # record (and `running`), and a replayed running beat of the turn would
+                # skip the check. Only the record is dropped: the next beat of the turn
+                # is then fully checked. `running` lapses on its TTL.
+                if (
+                    not request.is_running
+                    and request.turn_id
+                    and await get_turn_admission(
+                        self._lock,
+                        project_id=str(project_id),
+                        session_id=request.session_id,
+                        turn_id=request.turn_id,
+                    )
+                    == principal
+                ):
+                    await forget_turn_admissions(
+                        self._lock,
+                        project_id=str(project_id),
+                        session_id=request.session_id,
+                        turn_ids=[request.turn_id],
+                    )
                 # Without a run credential an unknown session answers
                 # `SessionCreationRequiresRunCredential`. A session this caller cannot
                 # read must answer the same, whatever refused the beat. A caller who

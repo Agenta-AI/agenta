@@ -1179,6 +1179,20 @@ class WorkflowsService:
             archived=workflow is None or workflow.deleted_at is not None,
         )
 
+    async def is_agent_artifact(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+    ) -> bool:
+        """True when the artifact exists in the project and is an agent (one of its
+        revisions carries `flags.is_agent`). A prompt or an evaluator is no agent: it
+        has no sharing. One read, never cached."""
+
+        return await self.workflows_dao.is_agent_artifact(
+            project_id=project_id, artifact_id=artifact_id
+        )
+
     async def resolve_agent_artifact_id(
         self,
         *,

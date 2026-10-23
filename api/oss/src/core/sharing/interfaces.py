@@ -47,7 +47,8 @@ class SharingDAOInterface(ABC):
     ) -> AgentPolicyWriteResult:
         """Lock `workflow_artifacts (project_id, id)`, compare, upsert. A PRIVATE policy
         also sets the artifact's channel agents inactive in the same transaction.
-        Raises `SharedItemNotFound` (no artifact) and `SharingConflict`."""
+        Raises `SharedItemNotFound` (no artifact, or one that is no agent: none of
+        its revisions carries `flags.is_agent`) and `SharingConflict`."""
 
     # -- sessions -----------------------------------------------------------------------
 

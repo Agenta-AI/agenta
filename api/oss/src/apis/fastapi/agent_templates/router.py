@@ -378,6 +378,11 @@ class AgentTemplatesRouter:
                 envelope=envelope,
                 access=access,
                 first_agent_owner_user_id=access.owner_user_id,
+                session_access=policy_for_request(
+                    request,
+                    kind=SharedItemKind.SESSION,
+                    requested=payload.visibility,
+                ),
             )
         except AgentCreationFailed as exc:
             raise agent_creation_failed_exception(exc) from exc

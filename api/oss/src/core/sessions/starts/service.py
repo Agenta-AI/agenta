@@ -15,8 +15,11 @@ from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInte
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.starts.dtos import SessionStartResult
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
+from oss.src.core.sessions.streams.dtos import SessionStreamCreate
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
+from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
 from oss.src.core.sharing.admission import TEMPLATE_START_BOUNDARY, RunAdmission
+from oss.src.core.sharing.dtos import AccessPolicy
 from oss.src.core.shared.idempotency import resource_identity
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.types import invoke_never_dispatched
@@ -176,6 +179,25 @@ class SessionStartsService:
             ),
         )
 
+    async def _create_session_row(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        session_id: str,
+        access: AccessPolicy,
+    ) -> None:
+        """Create the session row with its initial policy, unless a first touch (a
+        heartbeat, a rename) already created it: that row keeps its policy."""
+        try:
+            await self._streams.create(
+                project_id=project_id,
+                user_id=user_id,
+                stream=SessionStreamCreate(session_id=session_id, access=access),
+            )
+        except SessionStreamAlreadyExists:
+            pass
+
     async def _release_dispatch(
         self,
         *,
@@ -256,7 +278,12 @@ class SessionStartsService:
         parameters: dict[str, Any] | None = None,
         request_key: str,
         envelope: RunEnvelope,
+        access: AccessPolicy | None = None,
     ) -> SessionStartResult:
+        """`access` is the first session's initial policy (the caller's requested
+        visibility, through `initial_policy`). When given, the session row is created
+        with it before the invoke, so the first heartbeat finds the row and never
+        writes its own default. A row that already exists keeps its policy."""
         # The start runs as the request's principal; recheck before anything is
         # claimed (AccessDenied -> 403 at the route).
         await get_access_service().require(
@@ -345,6 +372,13 @@ class SessionStartsService:
             # the `claim_dispatch` await after its UPDATE committed, and a cancel during the
             # readback below after a provably never-sent failure. Both need an attempt id on the
             # row to close, which needs a migration, so they are named here and not papered over.
+            if access is not None and self._streams is not None:
+                await self._create_session_row(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    access=access,
+                )
             try:
                 await self._workflows.invoke_workflow_detached(
                     project_id=project_id,

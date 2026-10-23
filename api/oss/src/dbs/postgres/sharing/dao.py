@@ -56,6 +56,23 @@ WHERE project_id = :project_id AND id = :artifact_id
 FOR UPDATE
 """
 
+# `_LOCK_ARTIFACT_SQL` for a policy write: the artifact must be an agent (one of its
+# revisions carries `flags.is_agent`, the backfill's rule). A prompt or an evaluator
+# has no sharing, so it reads as unknown.
+_LOCK_AGENT_ARTIFACT_SQL = """
+SELECT a.id
+FROM workflow_artifacts a
+WHERE a.project_id = :project_id AND a.id = :artifact_id
+  AND EXISTS (
+      SELECT 1
+      FROM workflow_revisions r
+      WHERE r.project_id = a.project_id
+        AND r.artifact_id = a.id
+        AND r.flags @> '{"is_agent": true}'::jsonb
+  )
+FOR UPDATE OF a
+"""
+
 _UPSERT_AGENT_POLICY_SQL = """
 INSERT INTO agent_access
     (project_id, artifact_id, visibility, owner_user_id, created_by_id)
@@ -325,7 +342,7 @@ class SharingDAO(SharingDAOInterface):
         params = {"project_id": project_id, "artifact_id": artifact_id}
         async with self.engine.transaction() as connection:
             locked = (
-                await connection.execute(text(_LOCK_ARTIFACT_SQL), params)
+                await connection.execute(text(_LOCK_AGENT_ARTIFACT_SQL), params)
             ).first()
             if locked is None:
                 raise SharedItemNotFound()

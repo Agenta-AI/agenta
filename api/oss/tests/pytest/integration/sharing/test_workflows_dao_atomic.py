@@ -18,7 +18,11 @@ import oss.src.models.db_models  # noqa: F401  (the ORM tables)
 from oss.src.core.git.dtos import ArtifactCreate
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.sharing.dtos import AccessPolicy, Visibility
-from oss.src.core.sharing.types import AgentCreationFailed, SharingConflict
+from oss.src.core.sharing.types import (
+    AgentCreationFailed,
+    SharedItemNotFound,
+    SharingConflict,
+)
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.dbs.postgres.sharing.dao import SharingDAO
 from oss.src.dbs.postgres.sharing.dbes import AgentAccessDBE
@@ -419,3 +423,48 @@ async def test_ensure_first_agent_access_ownerless_earliest_writes_nothing():
             owner_user_id=alice,
         )
         assert await _access_rows(project_id, artifact_id) == []
+
+
+async def test_only_an_agent_artifact_has_sharing():
+    """An artifact is an agent when one of its revisions carries `flags.is_agent`. A
+    prompt or an evaluator (no such revision) is no agent: `is_agent_artifact` says
+    so, and `set_agent_policy` refuses it as unknown."""
+    async with seeded("alice") as org:
+        project_id = org.project_ids[0]
+        alice = org.user_ids["alice"]
+        dao = _dao()
+        sharing = SharingDAO(engine=get_transactions_engine())
+
+        prompt = await _bare_artifact(project_id)
+        await _revision(project_id, prompt, is_agent=False)
+        agent = await _bare_artifact(project_id)
+        variant_id, _ = await _revision(project_id, agent, is_agent=False)
+        await _revision(project_id, agent, is_agent=True, variant_id=variant_id)
+
+        assert await dao.is_agent_artifact(project_id=project_id, artifact_id=agent)
+        for artifact_id in (prompt, uuid4()):
+            assert not await dao.is_agent_artifact(
+                project_id=project_id, artifact_id=artifact_id
+            )
+        assert not await dao.is_agent_artifact(project_id=uuid4(), artifact_id=agent)
+
+        with pytest.raises(SharedItemNotFound):
+            await sharing.set_agent_policy(
+                project_id=project_id,
+                artifact_id=prompt,
+                expected=None,
+                policy=_private(alice),
+                user_id=alice,
+            )
+        assert await _access_rows(project_id, prompt) == []
+
+        await sharing.set_agent_policy(
+            project_id=project_id,
+            artifact_id=agent,
+            expected=None,
+            policy=_private(alice),
+            user_id=alice,
+        )
+        assert await _access_rows(project_id, agent) == [
+            {"visibility": "private", "owner_user_id": alice}
+        ]

@@ -431,8 +431,12 @@ class AgentTemplateLoader:
         envelope: RunEnvelope,
         access: Optional[AccessPolicy] = None,
         first_agent_owner_user_id: Optional[UUID] = None,
+        session_access: Optional[AccessPolicy] = None,
     ) -> TemplateLoadResult:
-        """Create every declared resource before handing off the first turn."""
+        """Create every declared resource before handing off the first turn.
+
+        `access` is the agent's initial policy and `session_access` the first
+        session's, both from the load's requested visibility."""
         if self._mounts_service is None or self._session_starts_service is None:
             raise RuntimeError("Template loader runtime services are not configured.")
 
@@ -536,6 +540,7 @@ class AgentTemplateLoader:
             parameters=prepared.runtime_parameters,
             request_key=start_key,
             envelope=envelope,
+            access=session_access,
         )
         return TemplateLoadResult(
             workflow_id=prepared.workflow_id,

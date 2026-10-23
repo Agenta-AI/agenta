@@ -92,10 +92,15 @@ def _private(owner: UUID) -> AccessPolicy:
 
 
 class _Workflows:
-    """The agents that exist; every head revision uses one gateway connection."""
+    """The workflows that exist (`artifacts`) and which of them are agents (`agents`);
+    every head revision uses one gateway connection."""
 
     def __init__(self) -> None:
         self.artifacts: set = set()
+        self.agents: set = set()
+
+    async def is_agent_artifact(self, *, project_id, artifact_id):
+        return artifact_id in self.agents
 
     async def fetch_workflow(self, *, project_id, workflow_ref, **_kwargs):
         if workflow_ref.id in self.artifacts:
@@ -132,10 +137,11 @@ class _World:
         self.alice = self.world.add_member(uuid4())
         self.bob = self.world.add_member(uuid4())
         self.vic = self.world.add_member(uuid4())
+        self.dan = self.world.add_member(uuid4(), role="admin")
         for user, email in ((self.alice, "alice@x.io"), (self.bob, "bob@x.io")):
             self.world.memberships_dao.users[user] = (email, None)
         self.principals = InMemoryPrincipalsDAO()
-        for user in (self.alice, self.bob, self.vic):
+        for user in (self.alice, self.bob, self.vic, self.dan):
             self.principals.human(user)
         self.access = AccessService(
             memberships=self.world.service._memberships,
@@ -163,6 +169,16 @@ class _World:
             project_id=self.project_id, policy=policy
         )
         self.workflows.artifacts.add(artifact_id)
+        self.workflows.agents.add(artifact_id)
+        return artifact_id
+
+    def non_agent(self) -> UUID:
+        """A workflow that is not an agent (a prompt or an evaluator): it exists, it
+        has no access row."""
+        artifact_id = uuid4()
+        self.workflows.artifacts.add(artifact_id)
+        # The DAO fake would write its policy: only the router's agent check refuses.
+        self.world.dao.artifacts.add((self.project_id, artifact_id))
         return artifact_id
 
     def request_access(
@@ -342,27 +358,91 @@ async def test_resource_denied_is_403_access_denied():
 # -- hidden == unknown ------------------------------------------------------------------
 
 
-async def test_hidden_agent_is_404_not_found(world):
-    bob = world.client(world.bob)
-    canonical = {"detail": NOT_FOUND_ERROR.model_dump(exclude_none=True)}
+_CANONICAL = {"detail": NOT_FOUND_ERROR.model_dump(exclude_none=True)}
 
-    for path in (
-        f"/workflows/{world.private_agent}/sharing",
-        f"/workflows/{uuid4()}/sharing",
-    ):
-        response = bob.get(path)
-        assert (response.status_code, response.json()) == (404, canonical), path
+# Every route that names a resource (the members query names none): method, path
+# template, body. `{id}` is the agent or session id.
+_AGENT_ROUTES = [
+    ("GET", "/workflows/{id}/sharing", None),
+    ("POST", "/workflows/{id}/sharing/visibility", {"visibility": "project"}),
+    ("POST", "/workflows/{id}/sharing/transfer", "transfer"),
+    ("POST", "/workflows/{id}/sharing/take-ownership", None),
+]
+_SESSION_ROUTES = [
+    ("GET", "/sessions/{id}/sharing", None),
+    ("POST", "/sessions/{id}/sharing/grants", "grant"),
+    ("DELETE", "/sessions/{id}/sharing/grants/{user}", None),
+    ("POST", "/sessions/{id}/sharing/visibility", {"visibility": "project"}),
+    ("POST", "/sessions/{id}/sharing/only-me", None),
+]
 
-    for path in (
-        f"/workflows/{world.private_agent}/sharing/visibility",
-        f"/workflows/{uuid4()}/sharing/visibility",
-    ):
-        response = bob.post(path, json={"visibility": "project"})
-        assert (response.status_code, response.json()) == (404, canonical), path
 
-    for session_id in (world.private_session.session_id, f"s-{uuid4().hex}"):
-        response = bob.get(f"/sessions/{session_id}/sharing")
-        assert (response.status_code, response.json()) == (404, canonical)
+def _call(world, client, method, template, body, resource_id):
+    path = template.format(id=resource_id, user=world.vic)
+    if body == "transfer":
+        body = {"user_id": str(world.vic)}
+    elif body == "grant":
+        body = {"user_id": str(world.vic), "role": "viewer"}
+    return client.request(method, path, json=body)
+
+
+@pytest.mark.parametrize("user", ["bob", "dan"])
+@pytest.mark.parametrize("method, template, body", _AGENT_ROUTES)
+async def test_hidden_agent_answers_like_unknown_on_every_route(
+    world, user, method, template, body
+):
+    client = world.client(getattr(world, user))
+    hidden = _call(world, client, method, template, body, world.private_agent)
+    unknown = _call(world, client, method, template, body, uuid4())
+
+    assert (hidden.status_code, hidden.json()) == (
+        unknown.status_code,
+        unknown.json(),
+    )
+    if user == "bob" and not template.endswith("take-ownership"):
+        # Bob lacks the take-ownership capability: both answer the same 403.
+        assert (hidden.status_code, hidden.json()) == (404, _CANONICAL)
+
+
+@pytest.mark.parametrize("user", ["bob", "dan"])
+@pytest.mark.parametrize("method, template, body", _SESSION_ROUTES)
+async def test_hidden_session_answers_like_unknown_on_every_route(
+    world, user, method, template, body
+):
+    client = world.client(getattr(world, user))
+    session_id = world.private_session.session_id
+    hidden = _call(world, client, method, template, body, session_id)
+    unknown = _call(world, client, method, template, body, f"s-{uuid4().hex}")
+
+    assert (hidden.status_code, hidden.json()) == (
+        unknown.status_code,
+        unknown.json(),
+    )
+    if user == "bob":
+        assert (hidden.status_code, hidden.json()) == (404, _CANONICAL)
+
+
+@pytest.mark.parametrize("user", ["alice", "dan"])
+@pytest.mark.parametrize("method, template, body", _AGENT_ROUTES)
+async def test_non_agent_workflow_answers_like_unknown(
+    world, user, method, template, body
+):
+    """A prompt or an evaluator is no agent: every agent sharing route answers the
+    canonical 404, as for an unknown id, even for an admin (no take-ownership of a
+    prompt, no private prompt)."""
+    client = world.client(getattr(world, user))
+    prompt = world.non_agent()
+    response = _call(world, client, method, template, body, prompt)
+    unknown = _call(world, client, method, template, body, uuid4())
+
+    assert (response.status_code, response.json()) == (
+        unknown.status_code,
+        unknown.json(),
+    )
+    if user == "dan" or not template.endswith("take-ownership"):
+        # Alice lacks the take-ownership capability: both answer the same 403.
+        assert (response.status_code, response.json()) == (404, _CANONICAL)
+    assert (world.project_id, prompt) not in world.world.dao.agents
 
 
 async def test_owner_reads_agent_sharing_with_disclosure(world):
@@ -463,7 +543,7 @@ async def test_members_query_works_for_each_credential(world, credential):
     response = client.post("/sharing/members/query", json={})
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["count"] == 3
+    assert body["count"] == 4
     assert "windowing" not in body
 
     # Query parameters merge with the body; a full page returns the next cursor.
@@ -479,7 +559,9 @@ async def test_members_query_works_for_each_credential(world, credential):
         page = client.post("/sharing/members/query", json={"windowing": cursor}).json()
         seen += [member["user_id"] for member in page["members"]]
         cursor = page.get("windowing")
-    assert sorted(seen) == sorted(str(u) for u in (world.alice, world.bob, world.vic))
+    assert sorted(seen) == sorted(
+        str(u) for u in (world.alice, world.bob, world.vic, world.dan)
+    )
 
 
 # -- OpenAPI ----------------------------------------------------------------------------
