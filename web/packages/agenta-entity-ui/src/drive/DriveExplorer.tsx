@@ -8,6 +8,7 @@ import {
     type ReactNode,
     useCallback,
     useContext,
+    useEffect,
     useMemo,
     useRef,
     useState,
@@ -63,6 +64,7 @@ import {
     useCopyText,
     useDriveItemDownload,
 } from "./DriveItemContextMenu"
+import {DriveLinkContext, type DriveLinkItem} from "./driveLink"
 import {type DriveNameEdit} from "./DriveNameField"
 import {type DriveFileActions, DriveToolbar} from "./DriveToolbar"
 import {DriveTreeList} from "./DriveTreeList"
@@ -109,6 +111,8 @@ export function DriveExplorer({
     scope = "session",
     initialPath,
     initialPathSeq,
+    folderHint,
+    onSelectionChange,
     chrome: chromeProp,
     onClose,
     driveIds,
@@ -131,6 +135,10 @@ export function DriveExplorer({
     initialPath?: string | null
     /** Bump to re-open the same `initialPath`. */
     initialPathSeq?: number
+    /** A path known to be a folder before its level loads (a folder deep link). */
+    folderHint?: string | null
+    /** Every selection, for a host that mirrors it in the URL. */
+    onSelectionChange?: (item: DriveLinkItem) => void
     /** Render rows 1 + 2 and the rail search; defaults to "a close handler was given". */
     chrome?: boolean
     /** Row 1's close: "×" (overlay) or "»" (docked). */
@@ -247,6 +255,7 @@ export function DriveExplorer({
         uploadFiles,
         expanded,
         selectedPath,
+        folderHint,
         searchActive,
         deferredSearch,
         showTemporary,
@@ -284,7 +293,17 @@ export function DriveExplorer({
     // The root and any node flagged a folder render the grid; everything else the preview. In lazy
     // mode a not-yet-loaded selection is treated as a FILE (the preview reads by path), so an initial
     // file target shows its preview immediately instead of a wrong "empty folder" flash.
-    const selectedIsFolder = selectedPath === "" || selectedNode?.isFolder === true
+    const selectedIsFolder =
+        selectedPath === "" ||
+        (selectedNode
+            ? selectedNode.isFolder === true
+            : selectedPath != null && selectedPath === folderHint)
+    const onSelectionChangeRef = useRef(onSelectionChange)
+    onSelectionChangeRef.current = onSelectionChange
+    useEffect(() => {
+        if (selectedPath != null)
+            onSelectionChangeRef.current?.({path: selectedPath, isFolder: selectedIsFolder})
+    }, [selectedPath, selectedIsFolder])
 
     // Where an upload lands: the selection when it's a folder, else the selected file's folder.
     const currentFolder = selectedIsFolder ? (selectedPath ?? "") : parentOf(selectedPath ?? "")
@@ -547,6 +566,11 @@ export function DriveExplorer({
 
     // Row 2's read-side actions: copy path (none at the root), download (file, folder zip, or all).
     const onCopyCurrentPath = selectedPath ? () => copyText(selectedPath, "Path copied") : undefined
+    const copyLink = useContext(DriveLinkContext)
+    const onCopyCurrentLink =
+        copyLink && selectedPath != null
+            ? () => copyLink({path: selectedPath, isFolder: selectedIsFolder})
+            : undefined
     const onDownloadCurrent =
         selectedPath === "" || selectedPath == null
             ? archiveMounts.length
@@ -589,6 +613,7 @@ export function DriveExplorer({
                             }
                           : undefined,
                       onCopyPath: onCopyCurrentPath,
+                      onCopyLink: onCopyCurrentLink,
                       onDownloadAll: onDownloadCurrent,
                       downloadingAll,
                   }
@@ -615,6 +640,7 @@ export function DriveExplorer({
                 onRetry={onSave}
                 actions={fileActions}
                 onCopyPath={onCopyCurrentPath}
+                onCopyLink={onCopyCurrentLink}
                 onDownload={onDownloadCurrent}
             />
         ) : (
@@ -636,6 +662,7 @@ export function DriveExplorer({
                 controlsRef={htmlRunning ? setAppControlsEl : undefined}
                 previewKind={selectedKind === "html" && !htmlRunning ? undefined : selectedKind}
                 onCopyPath={onCopyCurrentPath}
+                onCopyLink={onCopyCurrentLink}
                 onDownload={onDownloadCurrent}
             />
         )

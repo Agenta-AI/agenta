@@ -13,5 +13,12 @@ import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 
 export const driveQuickLookAtomFamily = atomFamily((_sessionId: string) =>
-    atom<{path: string; hideTree?: boolean} | null>(null),
+    atom<{
+        path: string
+        hideTree?: boolean
+        /** Already the drive's presented path (a deep link), so no tail matching. */
+        exact?: boolean
+        /** Known to be a folder before its level loads. */
+        folder?: boolean
+    } | null>(null),
 )

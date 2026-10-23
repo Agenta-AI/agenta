@@ -167,6 +167,7 @@ export const ChatScreen = ({
             workspaceId={workspaceId}
             projectId={projectId}
             chat={chat}
+            deepLinks
         />
     )
 }
