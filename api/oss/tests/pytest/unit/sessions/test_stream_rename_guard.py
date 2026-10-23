@@ -828,7 +828,7 @@ def test_a_body_name_source_cannot_reach_the_service():
         )
 
     assert response.status_code == 422
-    service.set_header.assert_not_awaited()
+    service.set_header.assert_not_called()
 
 
 def test_a_refused_rename_answers_409_with_the_agent_actionable_envelope():
