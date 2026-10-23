@@ -17,6 +17,7 @@ from typing import List, Optional, Sequence
 from uuid import UUID
 
 from oss.src.core.memberships.dtos import (
+    CachedMembership,
     MembershipPolicy,
     MembershipRow,
     MembershipSource,
@@ -27,7 +28,12 @@ from oss.src.core.memberships.dtos import (
 )
 from oss.src.core.memberships.interfaces import MembershipsDAOInterface
 from oss.src.core.memberships.types import MembershipsServiceNotRegistered
-from oss.src.utils.caching import invalidate_cache, invalidate_user_cache
+from oss.src.utils.caching import (
+    get_cache,
+    invalidate_cache,
+    invalidate_user_cache,
+    set_cache,
+)
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -43,6 +49,11 @@ ACCESS_CACHE_NAMESPACES = (
     "verify_bearer_token",
     "resolve_membership",
 )
+
+# The membership cache: one entry per (user, project), with a fixed key, so one entry
+# can be deleted directly by its name.
+RESOLVE_MEMBERSHIP_NAMESPACE = "resolve_membership"
+RESOLVE_MEMBERSHIP_KEY = "membership"
 
 
 async def _invalidate(
@@ -193,8 +204,34 @@ class MembershipsService:
         user_id: UUID,
         project_id: UUID,
     ) -> Optional[ProjectMembership]:
-        # M2 adds the `resolve_membership` cache here, around `_read_membership`.
-        return await self._read_membership(user_id=user_id, project_id=project_id)
+        """The membership of a user in a project, or `None`.
+
+        Reads through the `resolve_membership` cache, which stores a membership and its
+        absence (`CachedMembership(membership=None)`), so a warm decision, an allow or a
+        denial, reads Redis and no Postgres row. Every membership writer clears the
+        entry through `invalidate_access_caches`.
+        """
+
+        cached = await get_cache(
+            namespace=RESOLVE_MEMBERSHIP_NAMESPACE,
+            project_id=str(project_id),
+            user_id=str(user_id),
+            key=RESOLVE_MEMBERSHIP_KEY,
+            model=CachedMembership,
+        )
+        if cached is not None:  # a hit, present or absent
+            return cached.membership
+
+        membership = await self._read_membership(user_id=user_id, project_id=project_id)
+
+        await set_cache(
+            namespace=RESOLVE_MEMBERSHIP_NAMESPACE,
+            project_id=str(project_id),
+            user_id=str(user_id),
+            key=RESOLVE_MEMBERSHIP_KEY,
+            value=CachedMembership(membership=membership),
+        )
+        return membership
 
     async def is_member(
         self,

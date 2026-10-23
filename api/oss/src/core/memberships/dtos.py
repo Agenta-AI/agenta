@@ -52,6 +52,16 @@ class ProjectMembership(BaseModel):
     is_organization_owner: bool = False
 
 
+class CachedMembership(BaseModel):
+    """The `resolve_membership` cache entry, never returned by the service.
+
+    `membership=None` is a cached absence. A bare `None` cannot be the cached value:
+    `get_cache` returns `None` for a miss and for a stored null alike.
+    """
+
+    membership: Optional[ProjectMembership] = None
+
+
 class MembershipRow(BaseModel):
     """DAO output for one (user, project). Never returned by the service."""
 

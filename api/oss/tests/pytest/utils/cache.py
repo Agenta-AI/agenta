@@ -7,12 +7,12 @@ whose required `Optional` field is dropped fails validation on read and is a mis
 production. A stored `None` reads as a miss, as in Redis. Names come from the real
 `_pack`; pattern invalidation matches Redis glob patterns with `fnmatch`.
 
-Use `fake.install(monkeypatch, module, ...)` to patch `get_cache`, `set_cache` and
-`invalidate_cache` in each module under test (the modules import the names directly).
+Use `fake.install(monkeypatch, module, ...)` to patch `get_cache`, `set_cache`,
+`invalidate_cache` and `invalidate_user_cache` in each module under test (the modules import the names directly).
 """
 
 from fnmatch import fnmatchcase
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any, Dict, List, Optional, Sequence, Type, Union
 
 from pydantic import BaseModel
 
@@ -103,11 +103,41 @@ class FakeCache:
             del self.store[name]
         return True
 
+    async def invalidate_user_cache(
+        self,
+        *,
+        user_id: str,
+        project_ids: Sequence[str],
+        namespaces: Sequence[str],
+        projectless_namespaces: Sequence[str] = (),
+    ) -> Optional[bool]:
+        """One scan of the user's keys, then the keys the real helper selects."""
+
+        user_part = caching._pack(user_id=user_id).split(":")[4]
+        pattern = f"cache:p:*:u:{user_part}:*"
+        self.scans.append(pattern)
+        if self.fail:
+            return None
+        keys = [n for n in self.store if fnmatchcase(n, pattern)]
+        for name in caching.user_keys_to_clear(
+            keys,
+            project_ids=project_ids,
+            namespaces=namespaces,
+            projectless_namespaces=projectless_namespaces,
+        ):
+            self.store.pop(name, None)
+        return True
+
     # -- helpers ----------------------------------------------------------------------
 
     def install(self, monkeypatch, *modules) -> "FakeCache":
         for module in modules:
-            for attr in ("get_cache", "set_cache", "invalidate_cache"):
+            for attr in (
+                "get_cache",
+                "set_cache",
+                "invalidate_cache",
+                "invalidate_user_cache",
+            ):
                 if hasattr(module, attr):
                     monkeypatch.setattr(module, attr, getattr(self, attr))
         return self
