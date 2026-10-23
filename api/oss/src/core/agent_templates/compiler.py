@@ -16,8 +16,13 @@ from oss.src.core.skills.dtos import InstalledSkillRef
 from oss.src.core.workflows.dtos import WorkflowRevisionData
 
 
-def skill_embed(skill: InstalledSkillRef) -> dict[str, Any]:
-    return {
+def skill_embed(
+    skill: InstalledSkillRef,
+    *,
+    description: str | None = None,
+) -> dict[str, Any]:
+    # name/description sit beside the embed so the playground row can label it unresolved.
+    embed: dict[str, Any] = {
         "@ag.embed": {
             "@ag.references": {
                 "workflow": {
@@ -26,8 +31,12 @@ def skill_embed(skill: InstalledSkillRef) -> dict[str, Any]:
                 }
             },
             "@ag.selector": {"path": "parameters.skill"},
-        }
+        },
+        "name": skill.name,
     }
+    if description:
+        embed["description"] = description
+    return embed
 
 
 def _fallback_key(value: dict[str, Any]) -> str:
@@ -112,9 +121,13 @@ class TemplateCompiler:
         instructions = copy.deepcopy(instructions)
         instructions["agents_md"] = package.agent.instructions
         agent["instructions"] = instructions
+        descriptions = {skill.name: skill.description for skill in package.skills}
         agent["skills"] = _append_unique(
             agent.get("skills") if isinstance(agent.get("skills"), list) else [],
-            [skill_embed(skill) for skill in installed_skills],
+            [
+                skill_embed(skill, description=descriptions.get(skill.name))
+                for skill in installed_skills
+            ],
             key=_skill_key,
         )
         agent["tools"] = _append_unique(

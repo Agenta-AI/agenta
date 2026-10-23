@@ -87,7 +87,9 @@ export function McpServersSectionBody({
     const [permissionFromAdd, setPermissionFromAdd] = useState(false)
     // The add drawer's panel: a connect started there opens inside it, not over the page.
     const [addPanel, setAddPanel] = useState<HTMLDivElement | null>(null)
-    const journeyContainer = addOpen ? addPanel : null
+    // Same for a reconnect started from the permission drawer.
+    const [permissionPanel, setPermissionPanel] = useState<HTMLDivElement | null>(null)
+    const journeyContainer = addOpen ? addPanel : permissionPanel
 
     const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
     const refreshEndpoints = useSetAtom(refreshMcpEndpointsAtom)
@@ -277,6 +279,7 @@ export function McpServersSectionBody({
                     }
                     agentPolicy={agentPolicy}
                     disabled={disabled}
+                    panelRef={setPermissionPanel}
                 />
             ) : null}
 

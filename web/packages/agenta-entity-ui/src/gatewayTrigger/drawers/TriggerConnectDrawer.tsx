@@ -39,6 +39,8 @@ interface Props {
     authSchemes: string[]
     onClose: () => void
     onSuccess?: () => void
+    /** A drawer panel to open inside, masking only that drawer. Absent = the page. */
+    container?: HTMLElement | null
 }
 
 function resolveAvailableModes(authSchemes: string[]): AuthMode[] {
@@ -87,6 +89,7 @@ export default function TriggerConnectDrawer({
     authSchemes,
     onClose,
     onSuccess,
+    container = null,
 }: Props) {
     const [loading, setLoading] = useState(false)
     const nameTouchedRef = useRef(false)
@@ -230,6 +233,8 @@ export default function TriggerConnectDrawer({
             footer={null}
             width={480}
             destroyOnClose
+            getContainer={container ?? false}
+            contained={!!container}
         >
             <ModalContent>
                 <div className="flex items-center gap-3">

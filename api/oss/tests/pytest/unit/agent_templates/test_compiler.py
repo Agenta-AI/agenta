@@ -106,9 +106,12 @@ def test_skill_embed_matches_current_authoring_contract():
         workflow_slug="prospect-research-abcd1234",
     )
 
-    embed = skill_embed(skill)
+    embed = skill_embed(skill, description="Research a prospect.")
 
-    assert set(embed) == {"@ag.embed"}
+    # The same entry the playground's skill picker writes: the label rides beside the embed.
+    assert set(embed) == {"@ag.embed", "name", "description"}
+    assert embed["name"] == "prospect-research"
+    assert embed["description"] == "Research a prospect."
     assert embed["@ag.embed"]["@ag.references"]["workflow"] == {
         "id": str(skill.workflow_id),
         "slug": skill.workflow_slug,
