@@ -47,6 +47,10 @@ class _FakeWorkflows:
 
     async def resolve_request_target(self, *, project_id: UUID, request):
         self.resolve_target_calls += 1
+        data = getattr(request, "data", None)
+        if data is not None and data.revision:
+            # As `_ensure_request_revision`: an inline revision is not resolved.
+            return None
         slug = request.references["workflow"]["slug"]
         return ResolvedTarget(artifact_id=self.agents[slug], revision_id=uuid4())
 
@@ -211,10 +215,74 @@ async def test_admit_request_resolves_once():
             boundary="api_invoke",
         )
     assert workflows.resolve_target_calls == 1
-    # The stored session references are never read: only the request's target.
+    # The stored session references are never read, and a resolved target needs no
+    # second resolution of the agent.
     assert workflows.resolve_agent_calls == []
     assert [call["resource"].kind for call in access.decide_calls] == [
         ResourceKind.AGENT
+    ]
+
+
+def _inline_request(references):
+    return SimpleNamespace(
+        references=references,
+        data=SimpleNamespace(revision={"data": {"url": "http://runner"}}),
+    )
+
+
+async def test_admit_request_with_inline_revision_checks_the_referenced_agent():
+    """An inline `data.revision` resolves no target; the agent the references name is
+    still resolved (one read) and checked."""
+
+    admission, (access, workflows) = _admission()
+    with pytest.raises(AdmissionDenied) as error:
+        await admission.admit_request(
+            envelope=_bob(),
+            session_id=None,
+            project_id=_PROJECT,
+            request=_inline_request({"workflow": {"slug": "private"}}),
+            boundary="queued_dispatch",
+        )
+    assert error.value.readable is False
+    assert workflows.resolve_target_calls == 1
+    assert len(workflows.resolve_agent_calls) == 1
+    (reference,) = workflows.resolve_agent_calls[0]
+    assert (reference.key, reference.slug) == ("workflow", "private")
+    assert [
+        (call["resource"].kind, call["resource"].id) for call in access.decide_calls
+    ] == [(ResourceKind.AGENT, str(_PRIVATE_AGENT))]
+
+
+async def test_admit_request_with_inline_revision_refuses_an_unresolved_agent():
+    """An agent reference that resolves to nothing is refused like a hidden agent
+    (`AdmissionDenied`, not readable), never run unchecked."""
+
+    admission, (access, _) = _admission()
+    with pytest.raises(AdmissionDenied) as error:
+        await admission.admit_request(
+            envelope=_alice(),
+            session_id=None,
+            project_id=_PROJECT,
+            request=_inline_request({"workflow": {"slug": "archived"}}),
+            boundary="queued_dispatch",
+        )
+    assert error.value.readable is False
+    assert error.value.decision.reason.value == "resource_denied"
+    assert access.decide_calls == []
+
+
+async def test_admit_request_with_inline_revision_and_no_agent_key_checks_session():
+    admission, (access, workflows) = _admission()
+    await admission.admit_request(
+        envelope=_alice(),
+        session_id=_SESSION,
+        project_id=_PROJECT,
+        request=_inline_request({"secret": {"slug": "key"}}),
+        boundary="queued_dispatch",
+    )
+    assert workflows.resolve_agent_calls == []
+    assert [call["resource"].kind for call in access.decide_calls] == [
+        ResourceKind.SESSION
     ]
 
 

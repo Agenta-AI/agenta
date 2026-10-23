@@ -43,6 +43,22 @@ pytestmark = pytest.mark.integration
 EDITIONS = ["oss", "ee"] if is_ee() else ["oss"]
 
 
+@pytest.fixture(autouse=True)
+def _entitlements(monkeypatch):
+    """As `ee/src/main.py` does at startup. Without it the plan read raises and
+    `check_entitlements` fails open, so the RBAC entitlement is never read."""
+
+    if not is_ee():
+        return
+    import ee.src.core.access.entitlements.service as entitlements_module
+
+    for name in ("_meters_service_singleton", "_subscriptions_service_singleton"):
+        monkeypatch.setattr(
+            entitlements_module, name, getattr(entitlements_module, name)
+        )
+    entitlements_module.bootstrap_entitlements_services()
+
+
 @pytest.fixture
 def fake_cache(monkeypatch):
     monkeypatch.setattr(env.agenta.api.caching, "enabled", True, raising=False)

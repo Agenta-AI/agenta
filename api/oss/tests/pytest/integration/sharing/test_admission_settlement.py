@@ -123,8 +123,10 @@ class _Project:
         self.agents = {"shared": self.shared_agent, "alice-agent": self.alice_agent}
         self.resolutions = 0
         self.invoked = []
+        self.agent_resolutions = 0
         self.workflows = SimpleNamespace(
             resolve_request_target=self._resolve,
+            resolve_agent_artifact_id=self._resolve_agent,
             invoke_workflow_detached=self._invoke,
         )
         self.admission = RunAdmission(
@@ -146,9 +148,18 @@ class _Project:
 
     async def _resolve(self, *, project_id, request):
         self.resolutions += 1
+        # As `_ensure_request_revision`: a request that carries an inline revision is
+        # not resolved, so nothing resolves.
+        if request.data and request.data.revision:
+            return None
         workflow = request.references["workflow"]
         slug = workflow["slug"] if isinstance(workflow, dict) else workflow.slug
         return ResolvedTarget(artifact_id=self.agents[slug], revision_id=uuid.uuid4())
+
+    async def _resolve_agent(self, *, project_id, references):
+        self.agent_resolutions += 1
+        (workflow,) = [item for item in references if item.key == "workflow"]
+        return self.agents[workflow.slug]
 
     async def _invoke(self, **kwargs):
         self.invoked.append(kwargs)
@@ -158,14 +169,16 @@ class _Project:
 # -- rows -----------------------------------------------------------------------------
 
 
-def _request(agent):
-    return {
-        "references": {"workflow": {"slug": agent}},
-        "data": {"inputs": {"messages": [{"role": "user", "content": "hi"}]}},
-    }
+def _request(agent, *, inline_revision=False):
+    data = {"inputs": {"messages": [{"role": "user", "content": "hi"}]}}
+    if inline_revision:
+        data["revision"] = {"data": {"url": "http://services/agent"}}
+    return {"references": {"workflow": {"slug": agent}}, "data": data}
 
 
-async def _queued_input(rows, *, envelope, agent="shared", key="k1"):
+async def _queued_input(
+    rows, *, envelope, agent="shared", key="k1", inline_revision=False
+):
     """A promoted input with its continuation execution and `continue_input` command,
     as `_promote_next_input` leaves them."""
 
@@ -213,7 +226,7 @@ async def _queued_input(rows, *, envelope, agent="shared", key="k1"):
                 data={
                     "input_id": str(item.id),
                     "continuation_execution_id": execution_id,
-                    "request": _request(agent),
+                    "request": _request(agent, inline_revision=inline_revision),
                 },
                 idempotency_key=f"input:{item.id}",
                 created_at=datetime.now(timezone.utc),
@@ -446,6 +459,37 @@ async def test_queued_input_into_a_private_agent_settles_failed(
     )
 
 
+async def test_queued_input_with_inline_revision_checks_the_referenced_agent(
+    command_scope,  # noqa: F811
+    monkeypatch,
+):
+    """Bob's queued input names the `shared` agent and also carries an inline
+    `data.revision`, so the target resolution returns nothing. Carol takes the agent
+    over and makes it private before the dispatch: the admission still resolves the
+    agent the references name (rule A2), refuses, settles the work failed with
+    `access_denied`, and nothing is invoked for it."""
+
+    project = _Project(project_id=command_scope["project_id"], monkeypatch=monkeypatch)
+    project.world.add_session(
+        policy=AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=project.bob),
+        session_id=command_scope["session_id"],
+    )
+    bob = project.envelope(project.bob)
+    command, execution_id = await _queued_input(
+        command_scope, envelope=bob, agent="shared", inline_revision=True
+    )
+    project.world.dao.agents[(project.project_id, project.shared_agent)] = _private(
+        project.carol
+    )
+
+    receipt = await _commands_service(command_scope, project)._deliver(command)
+
+    assert receipt.status == "refused"
+    await _assert_refused(command_scope, command=command, execution_id=execution_id)
+    assert project.agent_resolutions == 1
+    assert project.invoked == []
+
+
 async def test_each_boundary_resolves_the_target_once(command_scope, monkeypatch):  # noqa: F811
     """An admitted queued input: the admission resolves the target once, and the
     invoke receives the request it resolved (`_prepare_invoke` finds the revision on
@@ -461,6 +505,8 @@ async def test_each_boundary_resolves_the_target_once(command_scope, monkeypatch
 
     assert receipt is None or receipt.status != "refused"
     assert project.resolutions == 1
+    # The target resolved: no second resolution of the agent.
+    assert project.agent_resolutions == 0
     assert len(project.invoked) == 1
 
 

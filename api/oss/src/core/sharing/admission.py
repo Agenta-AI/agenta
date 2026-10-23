@@ -16,6 +16,7 @@ from uuid import UUID
 from oss.src.core.access.dtos import (
     Action,
     Decision,
+    DecisionReason,
     PrincipalKind,
     ResourceKind,
     ResourceRef,
@@ -24,6 +25,8 @@ from oss.src.core.access.dtos import (
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.sessions.types import SessionReference
 from oss.src.core.sharing.types import AdmissionDenied
+from oss.src.core.workflows.dtos import AGENT_REFERENCE_KEYS
+from oss.src.core.workflows.types import AgentReferenceUnresolved
 from oss.src.utils.logging import get_module_logger
 
 if TYPE_CHECKING:  # pragma: no cover - types only, no import cycle at runtime
@@ -163,21 +166,75 @@ class RunAdmission:
     ) -> None:
         """The server paths' check: resolve the request's target once (it stays on the
         request, so the invoke runs what was checked), then `admit`. A request without
-        references is a draft run: only the session is checked."""
+        references is a draft run: only the session is checked.
+
+        When no target resolves (the request carries an inline `data.revision`, or its
+        references resolve to nothing) but the references name an agent, that agent is
+        resolved on its own (one indexed read) and checked. An agent reference that
+        resolves to nothing is refused like a hidden agent."""
 
         agent_artifact_id: Optional[UUID] = None
-        if getattr(request, "references", None):
+        references = getattr(request, "references", None)
+        if references:
             target = await self._workflows_service.resolve_request_target(
                 project_id=project_id,
                 request=request,
             )
-            agent_artifact_id = target.artifact_id if target is not None else None
+            if target is not None:
+                agent_artifact_id = target.artifact_id
+            elif AGENT_REFERENCE_KEYS.intersection(references):
+                agent_artifact_id = await self._referenced_agent(
+                    envelope=envelope,
+                    project_id=project_id,
+                    references=references,
+                    boundary=boundary,
+                )
         await self.admit(
             envelope=envelope,
             session_id=session_id,
             agent_artifact_id=agent_artifact_id,
             boundary=boundary,
         )
+
+    async def _referenced_agent(
+        self,
+        *,
+        envelope: RunEnvelope,
+        project_id: UUID,
+        references: dict,
+        boundary: str,
+    ) -> Optional[UUID]:
+        """The artifact id of the agent a request's `references` map names. Raises
+        `AdmissionDenied` (not readable) when it resolves to nothing."""
+
+        elements = [
+            SessionReference.model_validate(
+                {
+                    **(
+                        value.model_dump()
+                        if hasattr(value, "model_dump")
+                        else dict(value or {})
+                    ),
+                    "key": key,
+                }
+            )
+            for key, value in references.items()
+            if key in AGENT_REFERENCE_KEYS
+        ]
+        try:
+            return await self._workflows_service.resolve_agent_artifact_id(
+                project_id=project_id,
+                references=elements,
+            )
+        except AgentReferenceUnresolved:
+            self._refuse(
+                envelope=envelope,
+                decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
+                action=Permission.RUN_WORKFLOWS,
+                resource=ResourceRef(kind=ResourceKind.AGENT, id="unresolved"),
+                readable=False,
+                boundary=boundary,
+            )
 
     @staticmethod
     def _refuse(
