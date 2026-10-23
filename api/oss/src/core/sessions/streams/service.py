@@ -34,6 +34,7 @@ from oss.src.dbs.redis.sessions.locks import (
     acquire_running,
     bind_turn,
     displace_turns,
+    forget_turn_admissions,
     get_turn_admission,
     record_turn_admission,
     release_running,
@@ -256,6 +257,12 @@ class SessionStreamsService:
                 actual_turn_id=actual_turn_id,
                 expected_turn_id=expected_turn_id,
             )
+        await forget_turn_admissions(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_ids=displaced,
+        )
         return displaced
 
     async def clock_ms(self) -> int:
@@ -740,6 +747,12 @@ class SessionStreamsService:
                                     session_id=request.session_id,
                                     turn_id=displaced,
                                 )
+                                await forget_turn_admissions(
+                                    self._lock,
+                                    project_id=str(project_id),
+                                    session_id=request.session_id,
+                                    turn_ids=[displaced],
+                                )
                             acquired = await acquire_alive_with_start(
                                 self._lock,
                                 project_id=str(project_id),
@@ -793,6 +806,15 @@ class SessionStreamsService:
                 session_id=request.session_id,
                 turn_id=request.turn_id,
             )
+            if request.turn_id:
+                # The turn is over: its admission record must not open a later write
+                # or beat that replays its id.
+                await forget_turn_admissions(
+                    self._lock,
+                    project_id=str(project_id),
+                    session_id=request.session_id,
+                    turn_ids=[request.turn_id],
+                )
             # Publish only on the actual transition, not on every idle heartbeat.
             if released:
                 await self._publish_lifecycle(

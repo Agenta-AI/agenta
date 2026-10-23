@@ -13,7 +13,6 @@ from typing import AsyncIterator, List, Optional, Tuple
 from uuid import uuid4
 
 from pydantic import ValidationError
-from redis.exceptions import ResponseError
 
 from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
 from oss.src.utils.logging import get_module_logger
@@ -23,6 +22,7 @@ from oss.src.dbs.redis.sessions.contract import (
     ACQUIRE_ALIVE_WITH_START_LUA,
     ATTACHED_TTL_SECONDS,
     BIND_TURN_LUA,
+    CURRENT_TURN_ADMISSION_LUA,
     DISPLACE_TURNS_LUA,
     RECONCILE_STOPPED_TURN_LUA,
     RELEASE_IF_OWNER_LUA,
@@ -665,10 +665,13 @@ async def get_routable_turn_binding(
 # Turn admission — "which principal this turn's heartbeat admitted"
 #
 # Written after a heartbeat passed `RunAdmission`, read by the next running beat of the same
-# turn: when it names the beat's principal, the beat skips the check (verified continuity).
-# Same TTL as the turn binding; every read renews it, like `bind_turn` renews the binding, so
-# a long turn is not rechecked only because the record expired. Any Redis failure reads as
-# "no record", which means a full check, never continuity.
+# turn and by the runner write routes: when it names the caller's principal, the check is
+# skipped (verified continuity). It counts only while its turn holds the session's `running`
+# lock, read in the same script, so an old turn's id never reuses it. Same TTL as the turn
+# binding; every read renews it, like `bind_turn` renews the binding, so a long turn is not
+# rechecked only because the record expired. The turn's end beat, its displacement and its
+# stop delete it. Any Redis failure reads as "no record", which means a full check, never
+# continuity.
 # ---------------------------------------------------------------------------
 
 
@@ -720,20 +723,19 @@ async def get_turn_admission(
     session_id: str,
     turn_id: str,
 ) -> Optional[PrincipalRef]:
-    """The principal this turn's heartbeat admitted, renewing the record's TTL in the same
-    round trip (`GETEX`; a pipelined `GET` + `EXPIRE` on a server without `GETEX`). `None`
-    when there is no record or Redis fails (logged): the caller then runs the full check."""
-    key = turn_admitted_key(project_id, session_id, turn_id)
+    """The principal this turn's heartbeat admitted, when the turn is the session's current
+    one (it holds `running`), renewing the record's TTL in the same round trip (one
+    script). `None` when there is no record, the turn is not current, or Redis fails
+    (logged): the caller then runs the full check."""
     try:
-        try:
-            raw = await engine.getex(key, ex=TURN_BOUND_TTL_SECONDS)
-        except ResponseError as error:
-            if "unknown command" not in str(error).lower():
-                raise
-            pipe = engine.pipeline(transaction=False)
-            pipe.get(key)
-            pipe.expire(key, TURN_BOUND_TTL_SECONDS)
-            raw, _ = await pipe.execute()
+        raw = await engine.eval(
+            CURRENT_TURN_ADMISSION_LUA,
+            2,
+            running_key(project_id, session_id).encode(),
+            turn_admitted_key(project_id, session_id, turn_id).encode(),
+            turn_id.encode(),
+            TURN_BOUND_TTL_SECONDS,
+        )
     except Exception as error:  # noqa: BLE001 - fail closed: a full check
         log.warning(
             "[sharing] admission record unavailable",
@@ -744,6 +746,34 @@ async def get_turn_admission(
         )
         return None
     return _parse_admission_value(raw)
+
+
+async def forget_turn_admissions(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_ids: List[str],
+) -> None:
+    """Delete the admission records of turns that ended, were displaced or stopped. A
+    Redis error is logged and swallowed: a surviving record no longer counts once its
+    turn does not hold `running`."""
+    keys = [
+        turn_admitted_key(project_id, session_id, turn_id).encode()
+        for turn_id in dict.fromkeys(turn_ids)
+        if turn_id
+    ]
+    if not keys:
+        return
+    try:
+        await engine.delete(*keys)
+    except Exception as error:  # noqa: BLE001 - the record is inert without `running`
+        log.warning(
+            "[sharing] admission records not deleted",
+            project_id=project_id,
+            session_id=session_id,
+            error=type(error).__name__,
+        )
 
 
 # ---------------------------------------------------------------------------

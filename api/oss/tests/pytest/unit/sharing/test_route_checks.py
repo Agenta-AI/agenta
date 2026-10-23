@@ -617,13 +617,16 @@ from oss.src.core.sessions.interactions.dtos import SessionInteraction  # noqa: 
 from oss.src.core.sessions.interactions.types import InteractionNotFound  # noqa: E402
 from oss.src.core.sessions.turns.dtos import SessionTurn  # noqa: E402
 from oss.src.core.sessions.turns.types import SessionTurnNotFound  # noqa: E402
+from oss.src.dbs.redis.sessions.contract import running_key  # noqa: E402
 from oss.src.dbs.redis.sessions.locks import record_turn_admission  # noqa: E402
 
 _TURN = str(uuid4())
+_OLD_TURN = str(uuid4())
 
 
 class _Lock:
-    """The lock engine's admission keys: `set` and `getex`, counting round trips."""
+    """The lock engine's admission and `running` keys: `set`, `delete` and the current
+    turn admission script, counting the script's round trips."""
 
     def __init__(self, *, fail: bool = False) -> None:
         self.values: dict = {}
@@ -634,11 +637,24 @@ class _Lock:
         self.values[key] = value
         return True
 
-    async def getex(self, key, ex=None):
+    async def delete(self, *keys):
+        for key in keys:
+            self.values.pop(key.decode() if isinstance(key, bytes) else key, None)
+        return len(keys)
+
+    async def eval(self, script, numkeys, *keys_and_args):
+        assert "AGENTA_CURRENT_TURN_ADMISSION" in script
         self.round_trips += 1
         if self.fail:
             raise ConnectionError("redis down")
-        return self.values.get(key)
+        keys = [k.decode() if isinstance(k, bytes) else k for k in keys_and_args[:2]]
+        turn_id = keys_and_args[2]
+        turn_id = turn_id.decode() if isinstance(turn_id, bytes) else turn_id
+        running = self.values.get(keys[0])
+        running = running.decode() if isinstance(running, bytes) else running
+        if running != turn_id:
+            return None
+        return self.values.get(keys[1])
 
 
 @pytest.fixture
@@ -648,15 +664,26 @@ def lock(monkeypatch) -> _Lock:
     return lock
 
 
-async def _admit(world: _World, lock: _Lock, *, user_id: UUID, session_id: str):
-    """The heartbeat admitted `user_id`'s run for turn `_TURN` of the session."""
+async def _admit(
+    world: _World,
+    lock: _Lock,
+    *,
+    user_id: UUID,
+    session_id: str,
+    turn_id: str = _TURN,
+    current: bool = True,
+):
+    """The heartbeat admitted `user_id`'s run for `turn_id` of the session; with
+    `current`, that turn holds the session's `running` lock."""
     await record_turn_admission(
         lock,
         project_id=str(world.project_id),
         session_id=session_id,
-        turn_id=_TURN,
+        turn_id=turn_id,
         principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=user_id),
     )
+    if current:
+        await lock.set(running_key(str(world.project_id), session_id), turn_id)
 
 
 def _write_request(world: _World, access: RequestAccess) -> Request:
@@ -961,6 +988,71 @@ async def test_admission_record_of_another_session_does_not_open_this_one(
 
     assert answer == (404, NOT_FOUND_ERROR.model_dump(exclude_none=True))
     assert _service_calls(routers) == 0
+
+
+def _replay_writes(routers, session_id: str):
+    """Records ingest and cancel-stale, naming `_OLD_TURN`."""
+    return [
+        (
+            "record_ingest",
+            lambda r: routers.records.ingest_record_event(
+                request=r,
+                body=SessionRecordIngestRequest(
+                    session_id=session_id,
+                    record_type="message",
+                    attributes={"text": "x"},
+                    turn_id=_OLD_TURN,
+                ),
+            ),
+            (404, NOT_FOUND_ERROR.model_dump(exclude_none=True)),
+        ),
+        (
+            "interactions_cancel_stale",
+            lambda r: routers.interactions.cancel_stale_interactions(
+                request=r,
+                body=SessionInteractionCancelStaleRequest(
+                    session_id=session_id, turn_id=_OLD_TURN
+                ),
+            ),
+            (200, {"cancelled": 0}),
+        ),
+    ]
+
+
+@pytest.mark.parametrize("successor", ["new_turn", "ended"])
+@pytest.mark.parametrize("route", range(2))
+async def test_old_turn_replay_after_grant_removal_is_refused(
+    world, lock, monkeypatch, successor, route
+):
+    """Bob was admitted for `_OLD_TURN` while he held a participant grant; the grant is
+    gone now. His old turn's admission record survives, but the turn is not the
+    session's current one (Alice's `_TURN` runs, or nothing runs): his replay of the
+    old turn id takes the full check and is refused, and nothing is written or
+    cancelled."""
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.sessions.router.publish_record", AsyncMock()
+    )
+    private_id = world.private_session.session_id
+    await _admit(
+        world,
+        lock,
+        user_id=world.bob,
+        session_id=private_id,
+        turn_id=_OLD_TURN,
+        current=False,
+    )
+    if successor == "new_turn":
+        await _admit(world, lock, user_id=world.alice, session_id=private_id)
+    routers = _runner_routers(world)
+    name, call, expected = _replay_writes(routers, private_id)[route]
+
+    access = world.request_access(world.bob, "secret")
+    with _as(access):
+        answer = await _answer(call, _write_request(world, access))
+
+    assert answer == expected, name
+    assert _service_calls(routers) == 0, name
+    assert lock.round_trips == 1, name
 
 
 async def test_admission_record_error_fails_closed(world, monkeypatch):

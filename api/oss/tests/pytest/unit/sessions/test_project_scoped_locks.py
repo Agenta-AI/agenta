@@ -75,12 +75,14 @@ class _FakeRedis:
             self._ttl[k] = ex
         return self._values.get(k)
 
-    async def delete(self, key):
-        k = self._norm(key)
-        existed = k in self._values
-        self._values.pop(k, None)
-        self._ttl.pop(k, None)
-        return 1 if existed else 0
+    async def delete(self, *keys):
+        deleted = 0
+        for key in keys:
+            k = self._norm(key)
+            deleted += 1 if k in self._values else 0
+            self._values.pop(k, None)
+            self._ttl.pop(k, None)
+        return deleted
 
     async def expire(self, key, ttl):
         k = self._norm(key)
@@ -159,6 +161,13 @@ class _FakeRedis:
             if current.decode().startswith(argv[1]):
                 self._ttl[keys[0]] = int(argv[2])
             return [0, current]
+        if "AGENTA_CURRENT_TURN_ADMISSION" in script:
+            if self._values.get(keys[0], b"").decode() != argv[0]:
+                return None
+            admitted = self._values.get(keys[1])
+            if admitted is not None:
+                self._ttl[keys[1]] = int(argv[1])
+            return admitted
         if "AGENTA_RECONCILE_STOPPED_TURN" in script:
             self._values[keys[1]] = b"1"
             self._ttl[keys[1]] = int(argv[1])

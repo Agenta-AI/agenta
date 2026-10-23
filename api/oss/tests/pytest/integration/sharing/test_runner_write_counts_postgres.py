@@ -5,10 +5,21 @@ caches are the fake one with the real serializer (`FakeCache` counts its round t
 the lock engine is a fake that counts the admission reads. Every count is of the second
 call, with every cache warm.
 
-- Runner path: the run the heartbeat admitted for the turn writes. The check is one
-  lock round trip (`GETEX` of the admission record), no access decision, no Postgres.
-- Full check (no admission record): no Postgres either; the session decision reads
-  the session policy and the owner's membership from the cache.
+- Runner path: the run the heartbeat admitted for the session's current turn writes.
+  The check is one lock round trip (the script that reads the admission record only
+  while its turn holds `running`, and renews it), no access decision, no Postgres.
+- Full check (no admission record, or a record of a turn that is not the current one):
+  no Postgres either; the session decision reads the session policy and the owner's
+  membership from the cache.
+
+The lock engine is a real Redis, so the real lock script runs. The stack's Redis is
+not published to the host: run these tests with a throwaway one, for example
+
+    docker run -d --rm --name m3-counts-redis -p 127.0.0.1:6391:6379 redis:8
+    REDIS_URI_VOLATILE=redis://127.0.0.1:6391/0 REDIS_URI_DURABLE=redis://127.0.0.1:6391/1 \
+        uv run --no-sync python run-tests.py --env-file <stack env> <this file>
+
+Without a reachable Redis every test that needs the lock engine skips, with the reason.
 
 Alice owns a private session; Bob is a member of the same project.
 """
@@ -52,7 +63,9 @@ from oss.src.dbs.postgres.access.dao import PrincipalsDAO
 from oss.src.dbs.postgres.memberships.dao import MembershipsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.dbs.postgres.sharing.dao import SharingDAO
+from oss.src.dbs.redis.sessions.contract import running_key
 from oss.src.dbs.redis.sessions.locks import record_turn_admission
+from oss.src.dbs.redis.shared.engine import get_lock_engine
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.tests.pytest.utils.cache import FakeCache
@@ -70,20 +83,38 @@ TURN = str(uuid4())
 
 
 class _Lock:
-    """The admission keys of the lock engine, counting round trips."""
+    """The real lock engine, counting the commands it sends to Redis."""
 
-    def __init__(self) -> None:
-        self.values: dict = {}
+    def __init__(self, engine) -> None:
+        self.engine = engine
         self.round_trips = 0
+        client = engine._client()
+        original = client.execute_command
 
-    async def set(self, key, value, ex=None, **_):
-        self.round_trips += 1
-        self.values[key] = value
-        return True
+        async def execute_command(*args, **options):
+            self.round_trips += 1
+            return await original(*args, **options)
 
-    async def getex(self, key, ex=None):
-        self.round_trips += 1
-        return self.values.get(key)
+        client.execute_command = execute_command
+
+    def __getattr__(self, name):
+        return getattr(self.engine, name)
+
+
+@pytest.fixture(autouse=True)
+def _entitlements(monkeypatch):
+    """As `ee/src/main.py` does at startup. Without it the plan read raises and
+    `check_entitlements` fails open, so the RBAC entitlement is never read."""
+
+    if not is_ee():
+        return
+    import ee.src.core.access.entitlements.service as entitlements_module
+
+    for name in ("_meters_service_singleton", "_subscriptions_service_singleton"):
+        monkeypatch.setattr(
+            entitlements_module, name, getattr(entitlements_module, name)
+        )
+    entitlements_module.bootstrap_entitlements_services()
 
 
 @pytest.fixture
@@ -98,10 +129,50 @@ def fake_cache(monkeypatch) -> FakeCache:
 
 
 @pytest.fixture
-def lock(monkeypatch) -> _Lock:
-    lock = _Lock()
+async def lock(monkeypatch):
+    """The real lock engine on a real Redis, or a skip with the reason."""
+
+    from redis.asyncio import Redis
+
+    uri = env.redis.uri_volatile
+    probe = Redis.from_url(uri, socket_connect_timeout=0.5, socket_timeout=0.5)
+    try:
+        await probe.ping()
+    except Exception as error:  # pylint: disable=broad-exception-caught
+        pytest.skip(
+            f"no Redis reachable at REDIS_URI_VOLATILE={uri} "
+            f"({type(error).__name__}); the lock script needs a real Redis. Start a "
+            "throwaway one (docker run -d --rm --name m3-counts-redis -p "
+            "127.0.0.1:6391:6379 redis:8) and set "
+            "REDIS_URI_VOLATILE=redis://127.0.0.1:6391/0."
+        )
+    finally:
+        await probe.aclose()
+
+    engine = get_lock_engine()
+    # The client binds to the event loop that opens it: each test opens its own.
+    await engine.close()
+    lock = _Lock(engine)
     monkeypatch.setattr(sharing_utils, "get_lock_engine", lambda: lock)
-    return lock
+    yield lock
+    await engine.close()
+
+
+async def _admit(
+    lock, *, project_id, session_id, principal, turn_id=TURN, current=True
+):
+    """The heartbeat admitted `principal`'s run for `turn_id`; with `current`, that turn
+    holds the session's `running` lock."""
+
+    await record_turn_admission(
+        lock,
+        project_id=str(project_id),
+        session_id=session_id,
+        turn_id=turn_id,
+        principal=principal,
+    )
+    if current:
+        await lock.set(running_key(str(project_id), session_id), turn_id.encode())
 
 
 @pytest.fixture
@@ -200,22 +271,22 @@ def _request(seeded, access: RequestAccess) -> Request:
     return request
 
 
-def _record(session_id: str) -> SessionRecordIngestRequest:
+def _record(session_id: str, turn_id: str = TURN) -> SessionRecordIngestRequest:
     return SessionRecordIngestRequest(
         session_id=session_id,
         record_type="message",
         attributes={"text": "hello"},
-        turn_id=TURN,
+        turn_id=turn_id,
     )
 
 
-async def _ingest(seeded, access, session_id):
+async def _ingest(seeded, access, session_id, turn_id: str = TURN):
     """One request: its own request access and memo, as the auth middleware sets."""
 
     token = set_request_access(access)
     try:
         return await RecordsRouter(records_service=AsyncMock()).ingest_record_event(
-            request=_request(seeded, access), body=_record(session_id)
+            request=_request(seeded, access), body=_record(session_id, turn_id)
         )
     finally:
         reset_request_access(token)
@@ -263,11 +334,10 @@ async def test_admitted_runner_ingest_is_one_redis_read_and_no_statement(
     project_id = seeded.project_ids[0]
     session_id = await _private_session(project_id, alice)
     access = _access(seeded, alice)
-    await record_turn_admission(
+    await _admit(
         lock,
-        project_id=str(project_id),
+        project_id=project_id,
         session_id=session_id,
-        turn_id=TURN,
         principal=access.principal,
     )
     capability = await _capability_round_trips(seeded, access, fake_cache)
@@ -278,9 +348,42 @@ async def test_admitted_runner_ingest_is_one_redis_read_and_no_statement(
 
     assert answer == {"ok": True}
     assert statements == []
-    # The session check adds no cache read and no decision: one GETEX only.
+    # The session check adds no cache read and no decision: one lock script only.
     assert cache_round_trips == capability
     assert lock_round_trips == 1
+
+
+async def test_old_turn_replay_after_grant_removal_is_refused(
+    seeded, fake_cache, lock, access_service
+):
+    """Bob was admitted for an old turn while he held a participant grant; the grant is
+    gone and Alice's turn is the current one. His old turn's record survives, but a
+    write that names the old turn takes the full check and is refused (hidden)."""
+
+    alice = seeded.user_ids["alice"]
+    bob = seeded.user_ids["bob"]
+    project_id = seeded.project_ids[0]
+    session_id = await _private_session(project_id, alice)
+    old_turn = str(uuid4())
+    await _admit(
+        lock,
+        project_id=project_id,
+        session_id=session_id,
+        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=bob),
+        turn_id=old_turn,
+        current=False,
+    )
+    await _admit(
+        lock,
+        project_id=project_id,
+        session_id=session_id,
+        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=alice),
+    )
+
+    with pytest.raises(HTTPException) as refused:
+        await _ingest(seeded, _access(seeded, bob), session_id, turn_id=old_turn)
+
+    assert refused.value.status_code == 404
 
 
 async def test_full_check_ingest_reads_no_statement_when_warm(
@@ -351,11 +454,10 @@ async def test_bob_is_refused_with_the_not_found_body(
     alice = seeded.user_ids["alice"]
     project_id = seeded.project_ids[0]
     session_id = await _private_session(project_id, alice)
-    await record_turn_admission(
+    await _admit(
         lock,
-        project_id=str(project_id),
+        project_id=project_id,
         session_id=session_id,
-        turn_id=TURN,
         principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=alice),
     )
 

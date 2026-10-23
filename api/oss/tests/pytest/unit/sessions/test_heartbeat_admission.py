@@ -389,15 +389,65 @@ async def test_admission_record_error_fails_closed(
     await _send(service, admission, _beat("t1"), envelope=_BOB_ENVELOPE)
     world.participants.discard(_BOB)
 
-    async def _broken(*_args, **_kwargs):
-        raise ConnectionError("redis down")
+    original_eval = redis.eval
 
-    redis.getex = _broken
+    async def _broken(script, *args, **kwargs):
+        if "AGENTA_CURRENT_TURN_ADMISSION" in script:
+            raise ConnectionError("redis down")
+        return await original_eval(script, *args, **kwargs)
+
+    redis.eval = _broken
     with pytest.raises(AdmissionDenied):
         await _send(service, admission, _beat("t1"), envelope=_BOB_ENVELOPE)
     # Alice's beat is checked too: an unreadable record is never continuity.
     await _send(service, admission, _beat("t1"))
     assert admission.methods() == ["admit_turn", "admit_turn", "admit_turn"]
+
+
+async def test_old_turn_replay_after_grant_removal_is_checked(
+    service, admission, dao, world, redis
+):
+    """Bob ran turn t1 as a participant; it ended, and his grant is gone. A replayed
+    running beat of t1 is no continuity (the turn holds no `running`, and its admission
+    record was dropped at the turn end): it is checked and refused."""
+    world.participants.add(_BOB)
+    dao.seed()
+    await _send(service, admission, _beat("t1"), envelope=_BOB_ENVELOPE)
+    await _send(service, admission, _beat("t1"), envelope=_BOB_ENVELOPE)
+    await _send(service, admission, _beat("t1", running=False), envelope=_BOB_ENVELOPE)
+    assert admission.methods() == ["admit_turn", "admit"]
+    assert await redis.get(turn_admitted_key(str(_PROJECT), _SESSION, "t1")) is None
+    world.participants.discard(_BOB)
+
+    with pytest.raises(AdmissionDenied):
+        await _send(service, admission, _beat("t1"), envelope=_BOB_ENVELOPE)
+    assert admission.methods() == ["admit_turn", "admit", "admit_turn"]
+
+
+async def test_old_turn_replay_with_a_surviving_record_is_checked(
+    service, admission, dao, world, redis
+):
+    """The same replay when the old turn's admission record survived (its delete was
+    lost): the record counts only while its turn holds `running`, so the beat is still
+    checked and refused, whether no turn runs or Alice's new turn runs."""
+    world.participants.add(_BOB)
+    dao.seed()
+    await _send(service, admission, _beat("t1"), envelope=_BOB_ENVELOPE)
+    key = turn_admitted_key(str(_PROJECT), _SESSION, "t1")
+    record = await redis.get(key)
+    await _send(service, admission, _beat("t1", running=False), envelope=_BOB_ENVELOPE)
+    await redis.set(key, record)
+    world.participants.discard(_BOB)
+
+    with pytest.raises(AdmissionDenied):
+        await _send(service, admission, _beat("t1"), envelope=_BOB_ENVELOPE)
+
+    await _send(service, admission, _beat("t2"))
+    await redis.set(key, record)
+    with pytest.raises(AdmissionDenied):
+        await _send(service, admission, _beat("t1"), envelope=_BOB_ENVELOPE)
+    assert admission.methods()[-1] == "admit_turn"
+    assert admission.calls[-1][1]["envelope"] == _BOB_ENVELOPE
 
 
 # -- checked beats ----------------------------------------------------------------------
@@ -806,9 +856,10 @@ async def test_beat_without_an_envelope_answers_not_found(service, dao):
     assert dao.count("get_by_session_id") == 0
 
 
-async def test_admission_record_read_falls_back_without_getex(lock_engine, redis):
-    from redis.exceptions import ResponseError
-
+async def test_admission_record_counts_only_for_the_running_turn(lock_engine, redis):
+    """One script: the record of a turn that holds `running`, renewed; nothing (and no
+    renewal) for a turn that does not."""
+    from oss.src.dbs.redis.sessions.contract import running_key
     from oss.src.dbs.redis.sessions.locks import (
         get_turn_admission,
         record_turn_admission,
@@ -825,37 +876,20 @@ async def test_admission_record_read_falls_back_without_getex(lock_engine, redis
     key = turn_admitted_key(str(_PROJECT), _SESSION, "t1")
     redis.advance(TURN_BOUND_TTL_SECONDS / 2)
 
-    async def _no_getex(*_args, **_kwargs):
-        raise ResponseError("unknown command 'GETEX'")
-
-    class _Pipeline:
-        def __init__(self):
-            self.ops = []
-
-        def get(self, name):
-            self.ops.append(("get", name))
-
-        def expire(self, name, ttl):
-            self.ops.append(("expire", name, ttl))
-
-        async def execute(self):
-            results = []
-            for op in self.ops:
-                if op[0] == "get":
-                    results.append(await redis.get(op[1]))
-                else:
-                    results.append(await redis.expire(op[1], op[2]))
-            return results
-
-    redis.getex = _no_getex
-    redis.pipeline = lambda transaction=True: _Pipeline()
-
-    assert (
-        await get_turn_admission(
+    async def _read():
+        return await get_turn_admission(
             lock_engine, project_id=str(_PROJECT), session_id=_SESSION, turn_id="t1"
         )
-        == principal
-    )
+
+    deadline = redis.deadlines[key]
+    assert await _read() is None
+    assert redis.deadlines[key] == deadline
+
+    await redis.set(running_key(str(_PROJECT), _SESSION), b"t2")
+    assert await _read() is None
+
+    await redis.set(running_key(str(_PROJECT), _SESSION), b"t1")
+    assert await _read() == principal
     assert redis.deadlines[key] == redis.now + TURN_BOUND_TTL_SECONDS
 
 

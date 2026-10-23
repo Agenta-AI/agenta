@@ -26,7 +26,7 @@ loosen the test.
 
 The cost of the session check on the runner write routes (records, interactions,
 turns) is pinned in `test_runner_write_counts_postgres.py`: 0 Postgres statements
-warm on the admitted path, one Redis `GETEX`.
+warm on the admitted path, one Redis script (`EVAL` of the current turn admission).
 """
 
 from dataclasses import dataclass
@@ -527,7 +527,7 @@ async def test_steady_beats_read_no_sharing_cache_key(world, redis_commands):
     assert redis_commands.commands, "the beats must have reached Redis"
     assert redis_commands.touching(b"sharing_") == []
     admission_key = turn_admitted_key(str(world.project_id), session_id, turn)
-    reads = [c for c in redis_commands.named("GETEX") if admission_key in str(c[1:])]
+    reads = [c for c in redis_commands.named("EVAL") if admission_key in str(c[1:])]
     assert len(reads) == 20
 
 

@@ -98,6 +98,7 @@ from oss.src.dbs.redis.sessions.locks import (
     get_running_owner,
     get_routable_turn_binding,
     get_turn_binding,
+    forget_turn_admissions,
     reconcile_stopped_turn,
 )
 from oss.src.utils.env import env
@@ -1942,6 +1943,12 @@ class SessionCommandsService:
             project_id=str(project_id),
             session_id=session_id,
             turn_id=execution_id,
+        )
+        await forget_turn_admissions(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_ids=[execution_id],
         )
         if self._executions is not None:
             await self._executions.mark_redis_reconciled(

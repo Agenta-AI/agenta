@@ -140,7 +140,9 @@ def turn_admitted_key(project_id: str, session_id: str, turn_id: str) -> str:
 
     API-side only: the heartbeat writes it after a beat passed `RunAdmission`, and a later
     running beat of the same turn by the same principal skips the check (verified
-    continuity). It lives as long as the turn binding and each verified beat renews it.
+    continuity). It counts only while the turn holds `running`, lives as long as the turn
+    binding, each verified read renews it, and the turn's end, displacement or stop
+    deletes it.
     """
     return f"admitted:{project_id}:session:{session_id}:turn:{turn_id}"
 
@@ -238,6 +240,25 @@ def make_watch_entity_changed_payload(*, entity: str, id: str) -> dict:
 #   ARGV[1] = the owner value to check
 #   Returns 1 if deleted, 0 if not owner or key gone.
 # ---------------------------------------------------------------------------
+
+# current_turn_admission (API-side only, the runner never runs it):
+#   KEYS[1] = the session's `running` key
+#   KEYS[2] = the turn's `admitted` key
+#   ARGV[1] = the turn id
+#   ARGV[2] = the admission TTL in seconds
+#   Returns the admission value, renewing its TTL, only while the turn holds `running`
+#   (it is the session's current turn). Else nil.
+CURRENT_TURN_ADMISSION_LUA = """
+-- AGENTA_CURRENT_TURN_ADMISSION
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then
+    return false
+end
+local admitted = redis.call('GET', KEYS[2])
+if admitted then
+    redis.call('EXPIRE', KEYS[2], ARGV[2])
+end
+return admitted
+""".strip()
 
 RELEASE_IF_OWNER_LUA = """
 local current = redis.call('GET', KEYS[1])
