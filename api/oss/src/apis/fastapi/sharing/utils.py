@@ -1,4 +1,5 @@
 from enum import Enum
+from functools import wraps
 from typing import Any, Optional, Union
 from uuid import UUID
 
@@ -17,7 +18,7 @@ from oss.src.core.access.dtos import (
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.principals import access_denied_error
 from oss.src.core.access.service import get_access_service
-from oss.src.core.access.types import RequestAccessMissing
+from oss.src.core.access.types import AccessDenied, RequestAccessMissing
 from oss.src.core.mounts.dtos import MountScope
 from oss.src.core.sharing.dtos import (
     OWNERLESS_PROJECT_POLICY,
@@ -28,7 +29,16 @@ from oss.src.core.sharing.dtos import (
     Visibility,
 )
 from oss.src.core.sharing.service import get_sharing_service
-from oss.src.core.sharing.types import AgentCreationFailed
+from oss.src.core.sharing.types import (
+    AgentCreationFailed,
+    InvalidGrantee,
+    InvalidTransferTarget,
+    OwnerStillActive,
+    SessionNotShareable,
+    SharedItemNotFound,
+    SharingConflict,
+    SharingError,
+)
 from oss.src.core.tools.dtos import AgentError
 from oss.src.dbs.redis.sessions.locks import get_turn_admission
 from oss.src.dbs.redis.shared.engine import get_lock_engine
@@ -348,3 +358,71 @@ def agent_creation_failed_exception(error: AgentCreationFailed) -> HTTPException
             next_step="Send the same request again.",
         ).model_dump(exclude_none=True),
     )
+
+
+# The HTTP answer of each sharing error (interfaces section 5): status, retryable and
+# next_step. `SharedItemNotFound` answers the canonical `NOT_FOUND_ERROR`.
+_SHARING_ERRORS = (
+    (SharingConflict, 409, True, "Reload the sharing state and retry."),
+    (InvalidGrantee, 422, False, None),
+    (SessionNotShareable, 409, False, None),
+    (OwnerStillActive, 409, False, None),
+    (InvalidTransferTarget, 422, False, None),
+    (AgentCreationFailed, 500, True, "Send the same request again."),
+)
+
+
+def sharing_error_exception(error: SharingError) -> HTTPException:
+    if isinstance(error, SharedItemNotFound):
+        return not_found_exception()
+    status_code, retryable, next_step = 400, False, None
+    for error_type, status, error_retryable, error_next_step in _SHARING_ERRORS:
+        if isinstance(error, error_type):
+            status_code, retryable, next_step = status, error_retryable, error_next_step
+            break
+    return HTTPException(
+        status_code=status_code,
+        detail=AgentError(
+            code=error.code,
+            message=error.message,
+            retryable=retryable,
+            next_step=next_step,
+            details=error.details or None,
+        ).model_dump(exclude_none=True),
+    )
+
+
+def _access_denied_exception(error: AccessDenied, request: Any) -> HTTPException:
+    """403 `access_denied` for a refused write on an item the caller may read
+    (`resource_denied`), with M2's error body."""
+
+    access = get_request_access()
+    if access is None or request is None:
+        return FORBIDDEN_EXCEPTION
+    return HTTPException(
+        status_code=403,
+        detail=access_denied_error(
+            decision=error.decision,
+            principal_kind=access.principal.kind,
+            project_id=UUID(str(request.state.project_id)),
+        ).model_dump(exclude_none=True),
+    )
+
+
+def handle_sharing_exceptions():
+    """Map every `SharingError` and `AccessDenied` by name to its HTTP answer, before
+    `@intercept_exceptions()` would turn it into a 500."""
+
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except SharingError as error:
+                raise sharing_error_exception(error) from error
+            except AccessDenied as error:
+                raise _access_denied_exception(error, kwargs.get("request")) from error
+
+        return wrapper
+
+    return decorator

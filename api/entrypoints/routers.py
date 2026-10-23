@@ -30,6 +30,8 @@ from oss.src.utils.helpers import (
 from entrypoints.access import bootstrap_access
 from oss.src.core.access.service import get_access_service
 from oss.src.core.sharing.admission import RunAdmission
+from oss.src.core.sharing.service import get_sharing_service
+from oss.src.core.memberships.service import get_memberships_service
 from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
     get_analytics_engine,
@@ -154,6 +156,7 @@ from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
 from oss.src.apis.fastapi.traces.router import SimpleTracesRouter
 from oss.src.apis.fastapi.sessions.router import SessionsRouter
+from oss.src.apis.fastapi.sharing.router import SharingRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.core.annotations.service import AnnotationsService
@@ -1693,6 +1696,13 @@ sessions = SessionsRouter(
     inputs_service=session_inputs_service,
 )
 
+sharing = SharingRouter(
+    sharing_service=get_sharing_service(),
+    memberships_service=get_memberships_service(),
+    workflows_service=workflows_service,
+    streams_service=session_streams_service,
+)
+
 # PLATFORM ADMIN ---------------------------------------------------------------
 
 platform_admin_accounts_service = PlatformAdminAccountsService()
@@ -2259,6 +2269,12 @@ app.include_router(
 app.include_router(
     router=sessions.control.router,
     tags=["Sessions"],
+)
+
+# No prefix: the routes sit beside /workflows/{workflow_id} and /sessions/{session_id}.
+app.include_router(
+    router=sharing.router,
+    tags=["Sharing"],
 )
 
 
