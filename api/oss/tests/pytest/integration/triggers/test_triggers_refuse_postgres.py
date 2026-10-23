@@ -202,16 +202,54 @@ async def test_refuse_delivery_records_and_pauses_a_subscription(scope):
 
 
 async def test_refuse_delivery_keeps_event_dedup(scope):
+    """A repeated event writes nothing: no second delivery and no trigger update, so
+    a trigger resumed after the first refusal stays resumed."""
+
     dao = TriggersDAO(engine=get_transactions_engine())
     schedule = await _schedule(dao, scope)
-    for _ in range(2):
-        await dao.refuse_delivery(
-            project_id=scope["project"],
-            user_id=scope["user"],
-            delivery=_refused(schedule_id=schedule.id, event_id="same-event"),
-            reason="missing_principal",
+    first = await dao.refuse_delivery(
+        project_id=scope["project"],
+        user_id=scope["user"],
+        delivery=_refused(schedule_id=schedule.id, event_id="same-event"),
+        reason="missing_principal",
+    )
+    assert first is not None
+
+    # A person resumes the trigger.
+    async with get_transactions_engine().session() as session:
+        await session.execute(
+            text(
+                "UPDATE trigger_schedules SET flags = '{\"is_active\": true}', "
+                "meta = NULL WHERE id = :id"
+            ),
+            {"id": schedule.id},
         )
+        await session.commit()
+    before = await _updated_at("trigger_schedules", schedule.id)
+
+    again = await dao.refuse_delivery(
+        project_id=scope["project"],
+        user_id=scope["user"],
+        delivery=_refused(schedule_id=schedule.id, event_id="same-event"),
+        reason="missing_principal",
+    )
+
+    assert again is None
     assert len(await _deliveries(scope)) == 1
+    row = await _row("trigger_schedules", schedule.id)
+    assert row["flags"]["is_active"] is True
+    assert row["meta"] is None
+    assert await _updated_at("trigger_schedules", schedule.id) == before
+
+
+async def _updated_at(table, trigger_id):
+    async with get_transactions_engine().session() as session:
+        return (
+            await session.execute(
+                text(f"SELECT updated_at FROM {table} WHERE id = :id"),
+                {"id": trigger_id},
+            )
+        ).scalar_one()
 
 
 async def test_refuse_delivery_with_null_flags_and_meta(scope):

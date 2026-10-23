@@ -15,6 +15,8 @@ from oss.src.core.evaluations.runtime.sources import (
 from oss.src.core.evaluations.runtime.adapters import (
     APIScenarioCreator,
 )
+from oss.src.core.access.types import AccessDenied, MissingPrincipal
+from oss.src.core.evaluations.run_access import require_evaluation_run_access
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.types import (
     EvaluationRun,
@@ -242,6 +244,41 @@ class RunProcessor:
             finalize_run_status=finalize_run_status,
         )
 
+    async def _may_run(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        run: EvaluationRun,
+    ) -> bool:
+        """Recheck the run's principal before any source is read or scenario minted.
+        A run without a principal, or whose principal lost access, ends FAILURE and
+        inactive: every topology (testset, query, queue, batch) stops here."""
+
+        try:
+            await require_evaluation_run_access(project_id=project_id, run=run)
+        except (MissingPrincipal, AccessDenied) as refusal:
+            log.info(
+                "[evaluations] run refused",
+                run_id=str(run.id),
+                project_id=str(project_id),
+                code=(
+                    "missing_principal"
+                    if isinstance(refusal, MissingPrincipal)
+                    else "access_denied"
+                ),
+            )
+            await self._finalize_run_terminal(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                run_id=run.id,
+                #
+                status=EvaluationStatus.FAILURE,
+            )
+            return False
+        return True
+
     async def _finalize_run_terminal(
         self,
         *,
@@ -319,6 +356,9 @@ class RunProcessor:
         )
         if not run:
             log.warning("[EVAL] [process-run] run not found or empty", run_id=run_id)
+            return False
+
+        if not await self._may_run(project_id=project_id, user_id=user_id, run=run):
             return False
 
         topology = classify_run_topology(run)
@@ -657,6 +697,9 @@ class RunProcessor:
             log.warning(
                 "[EVAL] [process-slice] run not found or has no steps", run_id=run_id
             )
+            return False
+
+        if not await self._may_run(project_id=project_id, user_id=user_id, run=run):
             return False
 
         input_keys = _input_step_keys(run)

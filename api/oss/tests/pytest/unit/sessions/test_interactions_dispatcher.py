@@ -1154,7 +1154,7 @@ async def test_original_principal_removed(monkeypatch):
     from oss.tests.pytest.utils.principals import DenyingAccessService
 
     monkeypatch.setattr(access_module, "_access_service", DenyingAccessService())
-    interaction = _make_interaction()
+    interaction = _make_interaction().model_copy(update={"turn_id": "turn-1"})
     interactions_service = MagicMock()
     interactions_service.fetch_interaction = AsyncMock(return_value=interaction)
     workflows_service = MagicMock()
@@ -1163,11 +1163,43 @@ async def test_original_principal_removed(monkeypatch):
         workflows_service=workflows_service,
         interactions_service=interactions_service,
     )
-    with pytest.raises(AccessDenied):
-        await dispatcher.respond(
-            project_id=interaction.project_id,
-            user_id=uuid4(),
-            interaction_id=interaction.id,
-            answer={"approved": True},
-        )
+    interactions_service.cancel_session_pending = AsyncMock(return_value=1)
+    # Not raised: a task retry must not repeat a refusal.
+    await dispatcher.respond(
+        project_id=interaction.project_id,
+        user_id=uuid4(),
+        interaction_id=interaction.id,
+        answer={"approved": True},
+    )
     workflows_service.invoke_workflow.assert_not_awaited()
+    interactions_service.cancel_session_pending.assert_awaited_once_with(
+        project_id=interaction.project_id,
+        session_id=interaction.session_id,
+        only_turn_id=interaction.turn_id,
+    )
+    assert AccessDenied  # the refusal type the dispatcher settles
+
+
+async def test_response_without_envelope_is_settled_not_raised(
+    _allowing_access_service,
+):
+    interaction = _make_interaction().model_copy(
+        update={"run_envelope": None, "turn_id": "turn-1"}
+    )
+    interactions_service = MagicMock()
+    interactions_service.fetch_interaction = AsyncMock(return_value=interaction)
+    interactions_service.cancel_session_pending = AsyncMock(return_value=1)
+    workflows_service = MagicMock()
+    workflows_service.invoke_workflow = AsyncMock()
+    dispatcher = InteractionsDispatcher(
+        workflows_service=workflows_service,
+        interactions_service=interactions_service,
+    )
+    await dispatcher.respond(
+        project_id=interaction.project_id,
+        user_id=uuid4(),
+        interaction_id=interaction.id,
+        answer={"approved": True},
+    )
+    workflows_service.invoke_workflow.assert_not_awaited()
+    interactions_service.cancel_session_pending.assert_awaited_once()

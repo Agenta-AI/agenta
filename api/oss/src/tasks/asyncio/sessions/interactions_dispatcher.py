@@ -39,7 +39,7 @@ from oss.src.core.access.dtos import (
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.principals import resumed_envelope
 from oss.src.core.access.service import get_access_service
-from oss.src.core.access.types import MissingEnvelope
+from oss.src.core.access.types import AccessDenied, MissingEnvelope
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionData,
@@ -409,28 +409,43 @@ class InteractionsDispatcher:
         continuation_execution_id: Optional[str] = None,
     ) -> None:
         """Rebuild the resumed envelope from the interaction row. The approver is
-        `approved_by`, else the task's user. A row without an envelope (parked before
-        M2) raises `MissingEnvelope`."""
+        `approved_by`, else the task's user.
+
+        A refusal is terminal and is not raised, so no task retry repeats it: a row
+        without an envelope (parked before M2) or a principal that lost access cancels
+        the turn's pending interactions and runs nothing."""
 
         interaction = await self.interactions_service.fetch_interaction(
             project_id=project_id,
             interaction_id=interaction_id,
         )
-        if interaction is None or interaction.run_envelope is None:
-            raise MissingEnvelope()
-        envelope = resumed_envelope(
-            asked=interaction.run_envelope,
-            run_id=continuation_execution_id,
-            approved_by=approved_by
-            or RunApproval(
-                principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=user_id),
-                user_id=user_id,
-            ),
-        )
-        # The resume runs as the asked run's principal: recheck it now.
-        await get_access_service().require(
-            envelope=envelope, action=Permission.RUN_SESSIONS
-        )
+        try:
+            if interaction is None or interaction.run_envelope is None:
+                raise MissingEnvelope()
+            envelope = resumed_envelope(
+                asked=interaction.run_envelope,
+                run_id=continuation_execution_id,
+                approved_by=approved_by
+                or RunApproval(
+                    principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=user_id),
+                    user_id=user_id,
+                ),
+            )
+            # The resume runs as the asked run's principal: recheck it now.
+            await get_access_service().require(
+                envelope=envelope, action=Permission.RUN_SESSIONS
+            )
+        except (MissingEnvelope, AccessDenied) as refusal:
+            await self._refuse_response(
+                project_id=project_id,
+                interaction=interaction,
+                code=(
+                    "missing_envelope"
+                    if isinstance(refusal, MissingEnvelope)
+                    else "access_denied"
+                ),
+            )
+            return
         await self.respond_many(
             project_id=project_id,
             user_id=user_id,
@@ -438,6 +453,27 @@ class InteractionsDispatcher:
             envelope=envelope,
             control_command_id=control_command_id,
             continuation_execution_id=continuation_execution_id,
+        )
+
+    async def _refuse_response(
+        self,
+        *,
+        project_id: UUID,
+        interaction: Optional[SessionInteraction],
+        code: str,
+    ) -> None:
+        log.info(
+            "[interactions] response refused",
+            project_id=str(project_id),
+            interaction_id=str(interaction.id) if interaction else None,
+            code=code,
+        )
+        if interaction is None or not interaction.turn_id:
+            return
+        await self.interactions_service.cancel_session_pending(
+            project_id=project_id,
+            session_id=interaction.session_id,
+            only_turn_id=interaction.turn_id,
         )
 
     async def respond_many(

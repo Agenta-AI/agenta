@@ -560,7 +560,7 @@ class TriggersDAO(TriggersDAOInterface):
         """Record a refused delivery and pause its trigger, in one transaction.
 
         The delivery is inserted with the existing dedup key `ON CONFLICT DO NOTHING`, so a
-        repeated event writes nothing. The schedule or subscription (tenant-scoped by
+        repeated event writes nothing (no delivery, no trigger update). The schedule or subscription (tenant-scoped by
         `project_id`) gets `flags.is_active = false` and `meta.paused_reason = reason`.
         No session is created and no provider is synced. `write_subscription_delivery_if_live`
         cannot do this: it needs `is_active = true` and refuses schedules.
@@ -592,13 +592,16 @@ class TriggersDAO(TriggersDAOInterface):
 
         async with self.engine.session() as session:
             delivery_dbe = (await session.execute(insert_stmt)).scalar_one_or_none()
-            await session.execute(
-                _pause_statement(
-                    TriggerDBE=TriggerDBE,
-                    project_id=project_id,
-                    reason=reason,
-                ).where(TriggerDBE.id == trigger_id)
-            )
+            # A repeated event lost the dedup race: another refusal already recorded
+            # it and paused the trigger. Write nothing, so a resume made since is kept.
+            if delivery_dbe is not None:
+                await session.execute(
+                    _pause_statement(
+                        TriggerDBE=TriggerDBE,
+                        project_id=project_id,
+                        reason=reason,
+                    ).where(TriggerDBE.id == trigger_id)
+                )
             await session.commit()
 
         if delivery_dbe is None:
