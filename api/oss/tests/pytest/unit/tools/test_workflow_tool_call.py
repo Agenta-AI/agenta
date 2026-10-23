@@ -254,3 +254,29 @@ async def test_web_direct_parent_has_no_parent_run_id():
     )
 
     assert workflows.calls[0]["envelope"].context.parent_run_id is None
+
+
+async def test_child_run_denied_returns_access_denied(monkeypatch):
+    import json
+
+    import oss.src.core.access.service as access_module
+    from oss.src.core.access.dtos import DecisionReason
+    from oss.tests.pytest.utils.principals import DenyingAccessService
+
+    monkeypatch.setattr(
+        access_module,
+        "_access_service",
+        DenyingAccessService(reason=DecisionReason.MISSING_CAPABILITY),
+    )
+    workflows = FakeWorkflowsService(outputs={"summary": "ok"})
+
+    response = await _router(workflows)._call_workflow_tool(
+        request=_request(),
+        body=_call("workflow.variant.summarize", {"text": "hello"}),
+    )
+
+    assert workflows.calls == []  # nothing invoked
+    assert response.call.status.code == "STATUS_CODE_ERROR"
+    error = json.loads(response.call.data.content)
+    assert error["code"] == "access_denied"
+    assert error["details"]["reason"] == "missing_capability"

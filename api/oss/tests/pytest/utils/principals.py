@@ -282,3 +282,25 @@ def register_allowing_access_service(monkeypatch) -> AllowingAccessService:
     service = AllowingAccessService()
     monkeypatch.setattr(access_module, "_access_service", service)
     return service
+
+
+class DenyingAccessService(AllowingAccessService):
+    """Every recheck is refused with `reason`."""
+
+    def __init__(self, *, reason=None, **kwargs) -> None:
+        super().__init__(**kwargs)
+        from oss.src.core.access.dtos import Decision, DecisionReason  # noqa: PLC0415
+
+        self._deny = Decision(
+            allowed=False, reason=reason or DecisionReason.PRINCIPAL_INACTIVE
+        )
+
+    async def decide(self, **kwargs):
+        self.decisions.append(kwargs)
+        return self._deny
+
+    async def require(self, **kwargs) -> None:
+        from oss.src.core.access.types import AccessDenied  # noqa: PLC0415
+
+        self.required.append(kwargs)
+        raise AccessDenied(decision=self._deny)

@@ -1043,6 +1043,12 @@ PLATFORM_TOOL_DEFINITIONS: Dict[str, Dict[str, Any]] = {
 }
 
 
+def required_envelope(*, call_ref: str) -> bool:
+    """Whether this handler starts a run (and so is rechecked as a child run)."""
+    registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
+    return bool(registration and registration.needs_envelope)
+
+
 def required_elevated_permission(
     *,
     call_ref: str,

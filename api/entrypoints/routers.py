@@ -3,7 +3,6 @@ import asyncio
 import time
 from pathlib import Path
 from urllib.parse import urlsplit
-from uuid import UUID
 
 import agenta as ag
 from fastapi import FastAPI
@@ -14,7 +13,10 @@ from supertokens_python.framework.fastapi import (
     get_middleware as get_supertokens_middleware,
 )
 
-from oss.src.core.sessions.commands.service import deliverable_envelope
+from oss.src.core.sessions.commands.delivery import (
+    deliver_continue_input,
+    deliver_continue_interaction,
+)
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.server_tracing import instrument_fastapi, setup_server_tracing
@@ -104,7 +106,6 @@ from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.service import SimpleWorkflowsService
-from oss.src.core.workflows.dtos import WorkflowServiceRequest
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
@@ -1579,24 +1580,13 @@ session_commands_service = SessionCommandsService(
     interactions_service=interactions_service,
     lock_engine=_lock_engine,
     delivery=DirectControlDelivery(
-        continue_interaction=lambda command: _interactions_dispatcher.respond_many(
-            project_id=command.project_id,
-            user_id=command.created_by_id,
-            interaction_answers=[
-                (UUID(item["interaction_id"]), item["answer"])
-                for item in command.data["answers"]
-            ],
-            envelope=deliverable_envelope(command=command),
-            control_command_id=command.id,
-            continuation_execution_id=command.target_turn_id,
+        continue_interaction=lambda command: deliver_continue_interaction(
+            command=command,
+            interactions_dispatcher=_interactions_dispatcher,
         ),
-        continue_input=lambda command: workflows_service.invoke_workflow_detached(
-            project_id=command.project_id,
-            user_id=command.created_by_id,
-            request=WorkflowServiceRequest.model_validate(command.data["request"]),
-            envelope=deliverable_envelope(command=command),
-            run_id=command.target_turn_id,
-            control_command_id=command.id,
+        continue_input=lambda command: deliver_continue_input(
+            command=command,
+            workflows_service=workflows_service,
         ),
     ),
     executions_dao=session_executions_dao,

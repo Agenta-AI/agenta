@@ -681,3 +681,17 @@ async def test_the_first_turn_request_never_asks_for_session_admission():
     sent = workflows.invoke_workflow_detached.await_args.kwargs["request"]
     assert sent.on_busy is None
     assert "on_busy" not in sent.model_dump(mode="json", exclude_none=True)
+
+
+@pytest.mark.asyncio
+async def test_template_start_is_rechecked_before_any_claim(monkeypatch):
+    import oss.src.core.access.service as access_module
+    from oss.src.core.access.types import AccessDenied
+    from oss.tests.pytest.utils.principals import DenyingAccessService
+
+    monkeypatch.setattr(access_module, "_access_service", DenyingAccessService())
+    inputs = AsyncMock()
+    service = _service(inputs=inputs, executions=AsyncMock(), workflows=AsyncMock())
+    with pytest.raises(AccessDenied):
+        await service.start_once(**_args())
+    inputs.claim_for_execution.assert_not_awaited()

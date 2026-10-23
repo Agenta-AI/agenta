@@ -32,10 +32,14 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 from uuid import UUID, uuid4
 
+
+if TYPE_CHECKING:
+    from oss.src.core.access.service import AccessService
 from oss.src.core.access.dtos import RunApproval, RunEnvelope
+from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.principals import (
     access_denied_error,
     missing_envelope_error,
@@ -2312,13 +2316,19 @@ class SessionCommandsService:
         return settled
 
 
-def deliverable_envelope(*, command: SessionCommand) -> RunEnvelope:
-    """The envelope a continue_input / continue_interaction command runs under.
-    `MissingEnvelope` for a command written before M2; delivery then settles it
-    terminally (`missing_envelope`)."""
+async def deliverable_envelope(
+    *,
+    access: "AccessService",
+    command: SessionCommand,
+) -> RunEnvelope:
+    """The envelope a continue_input / continue_interaction command runs under,
+    rechecked now: `MissingEnvelope` for a command written before M2, `AccessDenied`
+    when the principal may no longer run sessions in the project. Delivery settles
+    both terminally (`missing_envelope`, `access_denied`)."""
 
     if command.run_envelope is None:
         raise MissingEnvelope()
+    await access.require(envelope=command.run_envelope, action=Permission.RUN_SESSIONS)
     return command.run_envelope
 
 
