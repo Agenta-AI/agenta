@@ -105,3 +105,57 @@ describe("ProjectsPage Set as default", () => {
         await waitFor(() => expect(invalidate).toHaveBeenCalledWith({queryKey: ["projects"]}))
     })
 })
+
+describe("ProjectsPage writes in the page's workspace", () => {
+    const showWithDialogs = (projects: ProjectsResponse[] = PROJECTS) => {
+        const client = new QueryClient({defaultOptions: {queries: {retry: false}}})
+        const dialogs: {
+            create?: {onSubmit: (values: {name: string; make_default?: boolean}) => void}
+            delete?: {onSubmit: (values: void) => void}
+        } = {}
+        render(
+            <QueryClientProvider client={client}>
+                <ProjectsPage
+                    projects={projects}
+                    isLoading={false}
+                    workspaceId="ws-1"
+                    currentProjectId="p-default"
+                    onSwitch={vi.fn()}
+                    renderCreateDialog={(state) => {
+                        dialogs.create = state
+                        return null
+                    }}
+                    renderDeleteDialog={(state) => {
+                        dialogs.delete = state
+                        return null
+                    }}
+                />
+            </QueryClientProvider>,
+        )
+        return dialogs
+    }
+
+    it("creates the project in the page's workspace, not the caller's default", async () => {
+        api.createProject.mockResolvedValue({})
+        const dialogs = showWithDialogs()
+        act(() => {
+            dialogs.create?.onSubmit({name: " New ", make_default: false})
+        })
+        await waitFor(() => expect(api.createProject).toHaveBeenCalledTimes(1))
+        expect(api.createProject).toHaveBeenCalledWith({name: "New", make_default: false}, "ws-1")
+    })
+
+    it("deletes with the project's workspace", async () => {
+        api.deleteProject.mockResolvedValue(undefined)
+        const dialogs = showWithDialogs()
+        openRowMenu("Side")
+        act(() => {
+            fireEvent.click(screen.getByRole("menuitem", {name: "Delete project"}))
+        })
+        act(() => {
+            dialogs.delete?.onSubmit(undefined)
+        })
+        await waitFor(() => expect(api.deleteProject).toHaveBeenCalledTimes(1))
+        expect(api.deleteProject).toHaveBeenCalledWith("p-other", "ws-1")
+    })
+})

@@ -113,7 +113,9 @@ export const ProjectsPage = ({
     }, [queryClient, onChanged])
 
     const createMutation = useMutation({
-        mutationFn: (payload: ProjectFormValues) => createProject(payload),
+        // The workspace on the page, not the caller's default: without it the API creates
+        // the project in the caller's default (often personal) organization.
+        mutationFn: (payload: ProjectFormValues) => createProject(payload, workspaceId),
         onSuccess: () => {
             message.success("Project created")
             void invalidateProjects()
@@ -144,7 +146,10 @@ export const ProjectsPage = ({
     })
 
     const deleteMutation = useMutation({
-        mutationFn: (projectId: string) => deleteProject(projectId),
+        // The delete route checks the project against the request's workspace; without one it
+        // uses the caller's default workspace and answers 404 for any other organization.
+        mutationFn: (project: ProjectsResponse) =>
+            deleteProject(project.project_id, project.workspace_id ?? workspaceId),
         onSuccess: () => {
             message.success("Project deleted")
             void invalidateProjects()
@@ -318,7 +323,7 @@ export const ProjectsPage = ({
                 onClose: () => setProjectToDelete(null),
                 onSubmit: () => {
                     if (!projectToDelete) return
-                    deleteMutation.mutate(projectToDelete.project_id)
+                    deleteMutation.mutate(projectToDelete)
                     setProjectToDelete(null)
                 },
                 pending: deleteMutation.isPending,
