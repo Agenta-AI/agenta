@@ -275,7 +275,8 @@ export function installPreviewPicker(
             s.background = "rgba(22, 119, 255, 0.08)"
             s.boxSizing = "border-box"
             s.margin = "0"
-            s.transition = "top 80ms ease-out, left 80ms ease-out, width 80ms ease-out, height 80ms ease-out"
+            s.transition =
+                "top 80ms ease-out, left 80ms ease-out, width 80ms ease-out, height 80ms ease-out"
             document.documentElement.appendChild(highlight)
         }
         // A 3px gap keeps the border off the element's own text.

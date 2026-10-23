@@ -156,10 +156,14 @@ describe("installPreviewPicker: html", () => {
         frames.push(frame)
         const win = frame.contentWindow as Realm["win"]
         win.eval("window.matchMedia = function (q) { return {matches: q === '(hover: none)'} }")
-        const handle = win.eval(`(${installPreviewPicker.toString()})(function () {})`) as Realm["handle"]
+        const handle = win.eval(
+            `(${installPreviewPicker.toString()})(function () {})`,
+        ) as Realm["handle"]
         win.document.body.innerHTML = `<p>a</p>`
         handle({type: "pick-start", format: "html"})
-        win.document.querySelector("p")!.dispatchEvent(new win.MouseEvent("mouseover", {bubbles: true}))
+        win.document
+            .querySelector("p")!
+            .dispatchEvent(new win.MouseEvent("mouseover", {bubbles: true}))
         expect(win.document.querySelector("[data-agenta-picker]")).toBeNull()
     })
 

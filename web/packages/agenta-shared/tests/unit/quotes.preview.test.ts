@@ -239,15 +239,26 @@ describe("readableQuoteText", () => {
     })
 
     it("pairs each header with its value for one row", () => {
-        expect(readableQuoteText(cells([["Plan", "Actual"], ["80", "9|1"]]))).toBe(
-            "Plan: 80, Actual: 9|1",
-        )
+        expect(
+            readableQuoteText(
+                cells([
+                    ["Plan", "Actual"],
+                    ["80", "9|1"],
+                ]),
+            ),
+        ).toBe("Plan: 80, Actual: 9|1")
     })
 
     it("joins cells with dots and rows with slashes for a block", () => {
-        expect(readableQuoteText(cells([["A", "B"], ["1", "2"], ["3", "4"]]))).toBe(
-            "A · B / 1 · 2 / 3 · 4",
-        )
+        expect(
+            readableQuoteText(
+                cells([
+                    ["A", "B"],
+                    ["1", "2"],
+                    ["3", "4"],
+                ]),
+            ),
+        ).toBe("A · B / 1 · 2 / 3 · 4")
     })
 
     it("leaves an element quote unchanged", () => {
