@@ -87,7 +87,6 @@ SUBSCRIPTION_PROVIDER_MODELS = {
         "gpt-5.6-terra",
         "gpt-5.6-luna",
         "gpt-5.5",
-        "gpt-5.3-codex-spark",
     ],
     SubscriptionProviderKind.CLAUDE: [
         "default",
