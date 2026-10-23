@@ -30,6 +30,8 @@ from oss.src.core.sharing.dtos import (
 from oss.src.core.sharing.service import get_sharing_service
 from oss.src.core.sharing.types import AgentCreationFailed
 from oss.src.core.tools.dtos import AgentError
+from oss.src.dbs.redis.sessions.locks import get_turn_admission
+from oss.src.dbs.redis.shared.engine import get_lock_engine
 from oss.src.middlewares.auth import request_run_envelope
 
 
@@ -165,6 +167,38 @@ async def allow_resource(
     if check == ResourceCheck.FORBIDDEN:
         raise resource_denied_exception(request)
     raise FORBIDDEN_EXCEPTION
+
+
+async def allow_session_write(
+    request: Request,
+    *,
+    session_id: str,
+    turn_id: Optional[str],
+) -> bool:
+    """`allow_resource(RUN_SESSIONS)` on a session for a runner write route (records,
+    interactions, turns: rule S2), with the heartbeat's verified continuity as the
+    free path. When the body names a turn and that turn's heartbeat admitted this
+    request's principal on this session (the admission record, one Redis read that
+    renews it), the write is allowed with no decision: it is the run the heartbeat
+    authorized. Any other write (no turn, no record, a record of another principal,
+    session or turn, a Redis error) runs the full check."""
+
+    if turn_id:
+        envelope = request_run_envelope(request)
+        if envelope is not None:
+            admitted = await get_turn_admission(
+                get_lock_engine(),
+                project_id=str(request.state.project_id),
+                session_id=session_id,
+                turn_id=str(turn_id),
+            )
+            if admitted is not None and admitted == envelope.authority.principal:
+                return True
+    return await allow_resource(
+        request,
+        action=Permission.RUN_SESSIONS,
+        resource=session_resource(session_id),
+    )
 
 
 def artifact_id_of(entity: Any) -> Optional[UUID]:

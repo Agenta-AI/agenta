@@ -49,6 +49,7 @@ from oss.src.apis.fastapi.sharing.utils import (
     ResourceCheck,
     allow_mount,
     allow_resource,
+    allow_session_write,
     check_resource_for,
     not_found_exception,
     policy_for_request,
@@ -1267,6 +1268,12 @@ class RecordsRouter:
             raise FORBIDDEN_EXCEPTION
 
         _validate_session_id_http(body.session_id)
+        # An unknown id writes a cursor row, so a hidden session answers the canonical
+        # not-found body.
+        if not await allow_session_write(
+            request, session_id=body.session_id, turn_id=body.turn_id
+        ):
+            raise not_found_exception()
         await self.records_service.mark_records_incomplete(
             project_id=UUID(request.state.project_id),
             session_id=body.session_id,
@@ -1363,6 +1370,11 @@ class RecordsRouter:
             )
             if current_execution_id != first.execution_id:
                 raise FORBIDDEN_EXCEPTION
+            # A hidden session answers what a session with no running turn answers.
+            if not await allow_session_write(
+                request, session_id=first.session_id, turn_id=first.execution_id
+            ):
+                raise FORBIDDEN_EXCEPTION
             for frame in frames:
                 await publish_live_frame(
                     organization_id=UUID(request.state.organization_id),
@@ -1383,6 +1395,12 @@ class RecordsRouter:
             return {"ok": True}
 
         assert not isinstance(body, list)
+        # An unknown id stores the record, so a hidden session answers the canonical
+        # not-found body.
+        if not await allow_session_write(
+            request, session_id=body.session_id, turn_id=body.turn_id
+        ):
+            raise not_found_exception()
         # For a finished continuation, commit the core execution outcome before accepting its
         # terminal record into the asynchronous tracing stream. This closes the cross-database
         # window where the watchdog could see no `done`, expose recovery, and replay work that
@@ -1491,6 +1509,12 @@ class InteractionsRouter:
             permission=Permission.RUN_SESSIONS,
         ):
             raise FORBIDDEN_EXCEPTION
+        # An unknown id creates the interaction, so a hidden session answers the
+        # canonical not-found body.
+        if not await allow_session_write(
+            request, session_id=body.session_id, turn_id=body.turn_id
+        ):
+            raise not_found_exception()
 
         interaction = await self.interactions_service.create_interaction(
             project_id=project_id,
@@ -1525,6 +1549,15 @@ class InteractionsRouter:
             permission=Permission.RUN_SESSIONS,
         ):
             raise FORBIDDEN_EXCEPTION
+        # The body names no turn: always the full check. Hidden answers like an unknown
+        # interaction.
+        if not await allow_session_write(
+            request, session_id=body.session_id, turn_id=None
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Interaction not found or already terminal",
+            )
 
         resolution = body.resolution
         # `resolved` is approval-only whether or not an answer rides along, so the row lookup
@@ -1599,6 +1632,11 @@ class InteractionsRouter:
             permission=Permission.RUN_SESSIONS,
         ):
             raise FORBIDDEN_EXCEPTION
+        # Hidden answers like a session with no pending interaction.
+        if not await allow_session_write(
+            request, session_id=body.session_id, turn_id=body.turn_id
+        ):
+            return {"cancelled": 0}
 
         cancelled = await self.interactions_service.cancel_session_pending(
             project_id=project_id,
@@ -2409,6 +2447,14 @@ class SessionTurnsRouter:
             permission=Permission.RUN_SESSIONS,
         ):
             raise FORBIDDEN_EXCEPTION
+        # An unknown id stores the turn, so a hidden session answers the canonical
+        # not-found body.
+        if not await allow_session_write(
+            request,
+            session_id=body.session_id,
+            turn_id=str(body.turn_id) if body.turn_id else None,
+        ):
+            raise not_found_exception()
 
         # Runtime handles are reused on the next turn, so only the runner may write them.
         runner_verified = has_valid_runner_token(request)
@@ -2452,6 +2498,12 @@ class SessionTurnsRouter:
             raise FORBIDDEN_EXCEPTION
 
         try:
+            # The body names no turn: always the full check. Hidden answers like a
+            # session without that turn.
+            if not await allow_session_write(
+                request, session_id=body.session_id, turn_id=None
+            ):
+                raise SessionTurnNotFound(body.session_id, body.turn_index)
             turn = await self.turns_service.complete_turn(
                 project_id=project_id,
                 turn=SessionTurnComplete(

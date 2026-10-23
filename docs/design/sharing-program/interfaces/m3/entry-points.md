@@ -17,9 +17,17 @@ This file lists every route, handler and worker that reads, lists, exports, stre
 
 Cost: warm checks read Redis only (`sharing_session_access`, `sharing_agent_access`, the membership of an owner). Steps 1 to 3 of the second decision of a request come from the request memo. Routes that fetched by id keep their fetch; four write paths add one read to find the agent of a variant or revision (variant and revision edit, archive, unarchive; commit and initial revision; fork). Mount routes that name a mount by id read the mount's session and agent through the `mount_scope` cache (they never change after creation): warm 0 Postgres statements, cold 1.
 
+## Runner write check
+
+The runner write routes (records ingest and incomplete, interaction create, transition and cancel-stale, turn append and complete) call `allow_session_write(request, *, session_id, turn_id)` in `apis/fastapi/sharing/utils.py`. When the body names a turn and the heartbeat of that turn admitted this request's principal on this session, the write is allowed with no decision: `get_turn_admission` (Task 13), one Redis `GETEX` that also renews the record, must return the principal of the request's envelope (`request_run_envelope`). The record key names the project, the session and the turn, so a record of another session or turn does not match. Every other write runs `allow_resource(RUN_SESSIONS)` on the session: a write without a turn in the body (transition, turn complete), no admission record, a record of another principal, a Bearer or API key request whose principal the heartbeat did not admit, or a Redis error (which reads as no record).
+
+This is the same continuity as the steady heartbeat: a run that the heartbeat admitted keeps writing until its turn ends, and a sharing change applies at the next turn.
+
+Cost, measured in `api/oss/tests/pytest/integration/sharing/test_runner_write_counts_postgres.py` (warm caches, OSS and EE): the runner path adds one Redis round trip (the admission `GETEX`), no access decision and no Postgres statement. The full check adds no Postgres statement and two cache round trips (`sharing_session_access` and the owner's `resolve_membership`; the principal and the caller's membership come from the request memo of the capability check). Using the full check on every write would cost two round trips per frame batch instead of one, so the runner path keeps the admission read. A write that misses the record pays both (three round trips).
+
 ## Exception: routes that create what an unknown id names
 
-A send, a header call, an input admission, a composer upload, a cwd upload, a session mount sign and a mount create on an unknown session id create the session, the file or the mount. A hidden session cannot get that answer, so these routes answer the one canonical body `NOT_FOUND_ERROR` (`{"code": "not_found", "message": "Not found.", "retryable": false}`, 404), the same body as the heartbeat and the sharing routes. This tells the caller that the id is taken, not what it holds.
+A send, a header call, an input admission, a composer upload, a cwd upload, a session mount sign, a mount create, a record ingest, a records incomplete report, an interaction create and a turn append on an unknown session id create the session, the file, the mount or the row. A hidden session cannot get that answer, so these routes answer the one canonical body `NOT_FOUND_ERROR` (`{"code": "not_found", "message": "Not found.", "retryable": false}`, 404), the same body as the heartbeat and the sharing routes. This tells the caller that the id is taken, not what it holds.
 
 ## Sessions (`apis/fastapi/sessions/router.py`)
 
@@ -38,8 +46,12 @@ A send, a header call, an input admission, a composer upload, a cwd upload, a se
 | `GET /sessions/watch` `watch_project` | 1069 | none | project feed | no check: change notices carry only an entity id; content is read through checked routes (open item 3) |
 | `POST /sessions/records/query` | 1161 | `VIEW_SESSIONS` | body `session_id` | hidden: reads an unknown id |
 | `GET /sessions/records/{record_id}` | 1245 | `VIEW_SESSIONS` | fetched record's `session_id` | hidden: `record: null` |
-| `POST /sessions/records/ingest`, `POST /sessions/records/incomplete` | 1270, 1223 | `RUN_SESSIONS` | runner | no check: the runner write path of a run admitted at the heartbeat (Task 13); a check per live frame would add a Redis read on the busiest write path (open item 1) |
-| `POST /sessions/interactions/`, `/transition`, `/cancel-stale` | 1446, 1480, 1554 | `RUN_SESSIONS` | runner | no check: runner write path of an admitted run (open item 1) |
+| `POST /sessions/records/ingest` (a record) | 1304 | `RUN_SESSIONS` (rule S2), runner write check | body `session_id`, `turn_id` | hidden: canonical 404 (an unknown id stores the record); a viewer: 403 `resource_denied` |
+| `POST /sessions/records/ingest` (live frames) | 1304 | `RUN_SESSIONS` (rule S2), runner write check | first frame's `session_id`, `execution_id` (after the running-owner match) | hidden: today's `FORBIDDEN_EXCEPTION`, as for a session with no running turn; a viewer: 403 `resource_denied` |
+| `POST /sessions/records/incomplete` | 1251 | `RUN_SESSIONS` (rule S2), runner write check | body `session_id`, `turn_id` | hidden: canonical 404 (an unknown id writes the cursor row) |
+| `POST /sessions/interactions/` | 1491 | `RUN_SESSIONS` (rule S2), runner write check | body `session_id`, `turn_id` | hidden: canonical 404 (an unknown id creates the interaction) |
+| `POST /sessions/interactions/transition` | 1531 | `RUN_SESSIONS` (rule S2), full check (no turn in the body) | body `session_id` | hidden: the route's `Interaction not found or already terminal` 404 |
+| `POST /sessions/interactions/cancel-stale` | 1614 | `RUN_SESSIONS` (rule S2), runner write check | body `session_id`, `turn_id` | hidden: `{"cancelled": 0}` |
 | `POST /sessions/interactions/query` | 1578 | `VIEW_SESSIONS` | body `query.session_id`, or the whole project | with a session: hidden reads an unknown id; across sessions: the interactions of hidden sessions are dropped (one cached check per session; a page can be shorter than its limit) |
 | `GET /sessions/interactions/{id}` | 1617 | `VIEW_SESSIONS` | fetched interaction's `session_id` | hidden: the route's `Interaction not found` 404 |
 | `POST /sessions/interactions/{id}/respond` | 1654 | `RUN_SESSIONS` (rule S2) | the anchor interaction's `session_id` (one added read) | hidden: `InteractionNotFound`, as for an unknown anchor; a viewer: 403 `resource_denied` |
@@ -50,7 +62,8 @@ A send, a header call, an input admission, a composer upload, a cwd upload, a se
 | `POST /sessions/mounts/sign` | 2191 | `RUN_SESSIONS` and `USE_MOUNTS` | query `session_id` | hidden: canonical 404 (an unknown id creates the mount); a viewer: 403 |
 | `POST /sessions/mounts/files/upload` (cwd) | 2233 | `RUN_SESSIONS` | query `session_id` | hidden: canonical 404 (an unknown id creates the mount) |
 | `POST /sessions/mounts/{mount_id}/files/upload`, `GET .../download` | 2275, 2299 | `RUN_SESSIONS`, `VIEW_MOUNTS` | the mount's scope (`mount_scope` cache) | hidden: `Mount not found.` 404 |
-| `POST /sessions/turns/`, `/complete` | 2364, 2402 | `RUN_SESSIONS` | runner | no check: runner write path of an admitted run (open item 1) |
+| `POST /sessions/turns/` | 2429 | `RUN_SESSIONS` (rule S2), runner write check | body `session_id`, `turn_id` | hidden: canonical 404 (an unknown id stores the turn) |
+| `POST /sessions/turns/complete` | 2475 | `RUN_SESSIONS` (rule S2), full check (no turn in the body) | body `session_id` | hidden: the route's `SessionTurnNotFound` 404, as for an unknown session |
 | `POST /sessions/turns/query` | 2436 | `VIEW_SESSIONS` | body `query.session_id`, or the whole project | with a session: hidden reads an unknown id; across sessions: turns of hidden sessions are dropped |
 | `GET /sessions/turns/{turn_id}` | 2473 | `VIEW_SESSIONS` | fetched turn's `session_id` | hidden: `count: 0` |
 | `GET /sessions/{session_id}` `get_session_snapshot` | 2598 | `VIEW_SESSIONS` | path | hidden: the snapshot of an unknown id (200, empty) |
@@ -153,6 +166,6 @@ An agent is a workflow, so these routes reach agents by id too. Each gets the sa
 
 ## Open items
 
-1. Runner write routes (record ingest and incomplete, interaction create, transition and cancel-stale, turn append and complete) check the capability only. They are called with the run credential of a run that the heartbeat admitted. An API key or a person with `RUN_SESSIONS` can still call them with any session id of the project. A check per call adds one Redis read on the live-frame path.
+1. Closed: the runner write routes check rule S2 (see "Runner write check").
 2. Embedded references: a configuration that embeds a reference to a private agent's revision resolves it (resolve routes, invoke). The check belongs in the embeds resolver, not at the route.
 3. `GET /sessions/watch` sends the id of every changed session in the project to every member who may view sessions, private ones included. It sends no content.

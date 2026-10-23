@@ -587,3 +587,418 @@ async def test_session_delete_invalidates_policy_and_grantee_caches(world, monke
         }
     ]
     dao.hard_delete_by_session_id.assert_awaited_once()
+
+
+# -- runner write routes (rule S2) -------------------------------------------------------
+#
+# Records ingest and incomplete, interaction create, transition and cancel-stale, turn
+# append and complete. The admitted runner of a turn passes on its admission record (one
+# Redis read, no decision); every other caller is checked with RUN_SESSIONS.
+
+import oss.src.apis.fastapi.sharing.utils as sharing_utils  # noqa: E402
+from datetime import datetime, timezone  # noqa: E402
+
+from fastapi import HTTPException  # noqa: E402
+
+from oss.src.apis.fastapi.sessions.models import (  # noqa: E402
+    SessionInteractionCancelStaleRequest,
+    SessionInteractionCreateRequest,
+    SessionInteractionTransitionRequest,
+    SessionRecordIngestRequest,
+    SessionRecordsIncompleteRequest,
+    SessionTurnAppendRequest,
+    SessionTurnCompleteRequest,
+)
+from oss.src.apis.fastapi.sessions.router import (  # noqa: E402
+    InteractionsRouter,
+    SessionTurnsRouter,
+)
+from oss.src.core.sessions.interactions.dtos import SessionInteraction  # noqa: E402
+from oss.src.core.sessions.interactions.types import InteractionNotFound  # noqa: E402
+from oss.src.core.sessions.turns.dtos import SessionTurn  # noqa: E402
+from oss.src.core.sessions.turns.types import SessionTurnNotFound  # noqa: E402
+from oss.src.dbs.redis.sessions.locks import record_turn_admission  # noqa: E402
+
+_TURN = str(uuid4())
+
+
+class _Lock:
+    """The lock engine's admission keys: `set` and `getex`, counting round trips."""
+
+    def __init__(self, *, fail: bool = False) -> None:
+        self.values: dict = {}
+        self.round_trips = 0
+        self.fail = fail
+
+    async def set(self, key, value, ex=None, **_):
+        self.values[key] = value
+        return True
+
+    async def getex(self, key, ex=None):
+        self.round_trips += 1
+        if self.fail:
+            raise ConnectionError("redis down")
+        return self.values.get(key)
+
+
+@pytest.fixture
+def lock(monkeypatch) -> _Lock:
+    lock = _Lock()
+    monkeypatch.setattr(sharing_utils, "get_lock_engine", lambda: lock)
+    return lock
+
+
+async def _admit(world: _World, lock: _Lock, *, user_id: UUID, session_id: str):
+    """The heartbeat admitted `user_id`'s run for turn `_TURN` of the session."""
+    await record_turn_admission(
+        lock,
+        project_id=str(world.project_id),
+        session_id=session_id,
+        turn_id=_TURN,
+        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=user_id),
+    )
+
+
+def _write_request(world: _World, access: RequestAccess) -> Request:
+    request = Request({"type": "http", "method": "POST", "path": "/", "headers": []})
+    state = request.state
+    state.project_id = str(world.project_id)
+    state.user_id = str(access.acting_user_id)
+    state.organization_id = str(world.world.organization_id)
+    state.principal = access.principal
+    state.authority = access.authority
+    state.credential_kind = access.credential_kind
+    state.run_envelope = access.envelope
+    return request
+
+
+def _runner_routers(world: _World):
+    records = AsyncMock()
+    interactions = AsyncMock()
+    interactions.create_interaction.return_value = SessionInteraction.model_construct()
+    interactions.transition_interaction.side_effect = InteractionNotFound("unknown")
+    interactions.cancel_session_pending.return_value = 0
+    turns = AsyncMock()
+    turns.append_turn.return_value = SessionTurn.model_construct()
+
+    async def _complete(*, project_id, turn):
+        raise SessionTurnNotFound(turn.session_id, turn.turn_index)
+
+    turns.complete_turn.side_effect = _complete
+    return SimpleNamespace(
+        records=RecordsRouter(records_service=records),
+        interactions=InteractionsRouter(
+            interactions_service=interactions, commands_service=AsyncMock()
+        ),
+        turns=SessionTurnsRouter(turns_service=turns),
+        records_service=records,
+        interactions_service=interactions,
+        turns_service=turns,
+    )
+
+
+def _runner_writes(routers, session_id: str):
+    """(name, call) per runner write route; every body names `_TURN` where it can."""
+    now = datetime.now(timezone.utc)
+    return [
+        (
+            "record_ingest",
+            lambda r: routers.records.ingest_record_event(
+                request=r,
+                body=SessionRecordIngestRequest(
+                    session_id=session_id,
+                    record_type="message",
+                    attributes={"text": "x"},
+                    turn_id=_TURN,
+                ),
+            ),
+        ),
+        (
+            "records_incomplete",
+            lambda r: routers.records.mark_records_incomplete(
+                request=r,
+                body=SessionRecordsIncompleteRequest(
+                    session_id=session_id, turn_id=_TURN
+                ),
+            ),
+        ),
+        (
+            "interaction_create",
+            lambda r: routers.interactions.create_interaction(
+                request=r,
+                body=SessionInteractionCreateRequest(
+                    session_id=session_id,
+                    turn_id=_TURN,
+                    token="t1",
+                    kind="user_input",
+                ),
+            ),
+        ),
+        (
+            "interaction_transition",
+            lambda r: routers.interactions.transition_interaction(
+                request=r,
+                body=SessionInteractionTransitionRequest(
+                    session_id=session_id, token="t1", status="cancelled"
+                ),
+            ),
+        ),
+        (
+            "interactions_cancel_stale",
+            lambda r: routers.interactions.cancel_stale_interactions(
+                request=r,
+                body=SessionInteractionCancelStaleRequest(
+                    session_id=session_id, turn_id=_TURN
+                ),
+            ),
+        ),
+        (
+            "turn_append",
+            lambda r: routers.turns.append_turn(
+                request=r,
+                body=SessionTurnAppendRequest(
+                    session_id=session_id,
+                    turn_id=_TURN,
+                    stream_id=uuid4(),
+                    turn_index=0,
+                    harness_kind="mock",
+                ),
+            ),
+        ),
+        (
+            "turn_complete",
+            lambda r: routers.turns.complete_turn(
+                request=r,
+                body=SessionTurnCompleteRequest(
+                    session_id=session_id, turn_index=0, end_time=now
+                ),
+            ),
+        ),
+    ]
+
+
+async def _answer(call, request):
+    try:
+        return 200, await call(request)
+    except HTTPException as error:
+        return error.status_code, error.detail
+
+
+def _service_calls(routers) -> int:
+    return sum(
+        len(service.mock_calls)
+        for service in (
+            routers.records_service,
+            routers.interactions_service,
+            routers.turns_service,
+        )
+    )
+
+
+# The answer of each route for an id that names no session (today's answer), or the
+# canonical not-found body where an unknown id creates something (Task 12 decision).
+_UNKNOWN_ANSWERS = {
+    "interaction_transition": (404, "Interaction not found or already terminal"),
+    "interactions_cancel_stale": (200, {"cancelled": 0}),
+}
+
+
+@pytest.mark.parametrize("credential", ["bearer", "api_key", "secret"])
+@pytest.mark.parametrize("route", range(7))
+async def test_bob_cannot_write_into_alice_private_session(
+    world, lock, monkeypatch, credential, route
+):
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.sessions.router.publish_record", AsyncMock()
+    )
+    private_id = world.private_session.session_id
+    # Alice's run is admitted for the turn Bob names; Bob's own credential is not.
+    await _admit(world, lock, user_id=world.alice, session_id=private_id)
+    routers = _runner_routers(world)
+    name, call = _runner_writes(routers, private_id)[route]
+
+    access = world.request_access(world.bob, credential)
+    with _as(access):
+        status_code, detail = await _answer(call, _write_request(world, access))
+
+    if name == "turn_complete":
+        expected = (404, SessionTurnNotFound(private_id, 0).message)
+    else:
+        expected = _UNKNOWN_ANSWERS.get(
+            name, (404, NOT_FOUND_ERROR.model_dump(exclude_none=True))
+        )
+    assert (status_code, detail) == expected, name
+    assert _service_calls(routers) == 0, name
+
+
+@pytest.mark.parametrize("route", ["interaction_transition", "turn_complete"])
+async def test_hidden_write_answers_what_an_unknown_id_answers(world, lock, route):
+    """The routes that answer an unknown id without creating anything: Bob's answer
+    for Alice's private id equals his answer for an id that does not exist."""
+    routers = _runner_routers(world)
+    access = world.request_access(world.bob, "secret")
+    private_id = world.private_session.session_id
+    unknown_id = f"s-{uuid4().hex}"
+
+    def call_for(session_id):
+        return dict(_runner_writes(routers, session_id))[route]
+
+    with _as(access):
+        private = await _answer(call_for(private_id), _write_request(world, access))
+        unknown = await _answer(call_for(unknown_id), _write_request(world, access))
+
+    def normalized(answer, session_id):
+        return answer[0], str(answer[1]).replace(session_id, "<id>")
+
+    assert normalized(private, private_id) == normalized(unknown, unknown_id)
+
+
+async def test_bob_frames_into_alice_running_turn_are_refused(world, lock, monkeypatch):
+    """Bob names the running execution of Alice's private session: the same 403 an
+    unknown session answers (no running owner), and nothing is published."""
+    import oss.src.apis.fastapi.sessions.router as router_module  # noqa: PLC0415
+
+    private_id = world.private_session.session_id
+    await _admit(world, lock, user_id=world.alice, session_id=private_id)
+    monkeypatch.setattr(
+        router_module, "get_running_owner", AsyncMock(return_value=_TURN)
+    )
+    publish = AsyncMock(return_value=True)
+    monkeypatch.setattr(router_module, "publish_live_frame", publish)
+    routers = _runner_routers(world)
+    frame = SessionRecordIngestRequest(
+        version=1,
+        kind="frame",
+        session_id=private_id,
+        execution_id=_TURN,
+        frame_or_event_id=f"{_TURN}:0",
+        frame_index=0,
+        entity_id="m1",
+        type="text-delta",
+        payload={"delta": "x"},
+        created_at=datetime.now(timezone.utc),
+    )
+
+    access = world.request_access(world.bob, "secret")
+    with _as(access):
+        bob = await _answer(
+            lambda r: routers.records.ingest_record_event(request=r, body=frame),
+            _write_request(world, access),
+        )
+    monkeypatch.setattr(
+        router_module, "get_running_owner", AsyncMock(return_value=None)
+    )
+    with _as(access):
+        unknown = await _answer(
+            lambda r: routers.records.ingest_record_event(request=r, body=frame),
+            _write_request(world, access),
+        )
+
+    assert bob == unknown
+    assert bob[0] == 403
+    publish.assert_not_awaited()
+
+    # Alice's admitted run publishes the same frame.
+    monkeypatch.setattr(
+        router_module, "get_running_owner", AsyncMock(return_value=_TURN)
+    )
+    alice = world.request_access(world.alice, "secret")
+    with _as(alice):
+        answer = await routers.records.ingest_record_event(
+            request=_write_request(world, alice), body=frame
+        )
+    assert answer == {"ok": True}
+    publish.assert_awaited_once()
+
+
+@pytest.mark.parametrize("route", range(7))
+async def test_admitted_runner_writes_without_a_decision(
+    world, lock, monkeypatch, route
+):
+    """Alice's run, admitted at the heartbeat for this turn, writes with one Redis read
+    of the admission record where the body names the turn, and no access decision."""
+    publish = AsyncMock(return_value=True)
+    monkeypatch.setattr("oss.src.apis.fastapi.sessions.router.publish_record", publish)
+    private_id = world.private_session.session_id
+    await _admit(world, lock, user_id=world.alice, session_id=private_id)
+    routers = _runner_routers(world)
+    name, call = _runner_writes(routers, private_id)[route]
+    recording = _RecordingAccess(world.access)
+    monkeypatch.setattr(access_module, "_access_service", recording)
+
+    access = world.request_access(world.alice, "secret")
+    with _as(access):
+        status_code, _ = await _answer(call, _write_request(world, access))
+
+    resource_checks = [c for c in recording.calls if c.get("resource") is not None]
+    if name in ("interaction_transition", "turn_complete"):
+        # No turn id in the body: the plain check, which allows the owner.
+        assert len(resource_checks) == 1, name
+        assert lock.round_trips == 0, name
+    else:
+        assert status_code == 200, name
+        assert resource_checks == [], name
+        assert lock.round_trips == 1, name
+    assert _service_calls(routers) + publish.await_count >= 1, name
+
+
+async def test_admission_record_of_another_session_does_not_open_this_one(
+    world, lock, monkeypatch
+):
+    """Bob's run is admitted for turn `_TURN` of his own session; that record names
+    another session, so his write into Alice's private session is checked and hidden."""
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.sessions.router.publish_record", AsyncMock()
+    )
+    bob_session = world.world.add_session(policy=_private(world.bob))
+    await _admit(world, lock, user_id=world.bob, session_id=bob_session.session_id)
+    routers = _runner_routers(world)
+    _, call = _runner_writes(routers, world.private_session.session_id)[0]
+
+    access = world.request_access(world.bob, "secret")
+    with _as(access):
+        answer = await _answer(call, _write_request(world, access))
+
+    assert answer == (404, NOT_FOUND_ERROR.model_dump(exclude_none=True))
+    assert _service_calls(routers) == 0
+
+
+async def test_admission_record_error_fails_closed(world, monkeypatch):
+    """A Redis error on the admission read is a full check, never continuity: Bob is
+    refused, Alice is allowed by the check."""
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.sessions.router.publish_record",
+        AsyncMock(return_value=True),
+    )
+    broken = _Lock(fail=True)
+    monkeypatch.setattr(sharing_utils, "get_lock_engine", lambda: broken)
+    private_id = world.private_session.session_id
+    routers = _runner_routers(world)
+    _, call = _runner_writes(routers, private_id)[0]
+
+    bob = world.request_access(world.bob, "secret")
+    with _as(bob):
+        assert (await _answer(call, _write_request(world, bob)))[0] == 404
+    alice = world.request_access(world.alice, "secret")
+    with _as(alice):
+        assert await _answer(call, _write_request(world, alice)) == (
+            200,
+            {"ok": True},
+        )
+
+
+@pytest.mark.parametrize("route", range(7))
+async def test_viewer_write_is_403_access_denied(world, lock, route):
+    """Vic holds a viewer grant on Alice's private session: he reads it, so a write is
+    403 `access_denied` (`resource_denied`), and nothing is written."""
+    routers = _runner_routers(world)
+    name, call = _runner_writes(routers, world.private_session.session_id)[route]
+
+    access = world.request_access(world.vic, "secret")
+    with _as(access):
+        status_code, detail = await _answer(call, _write_request(world, access))
+
+    assert status_code == 403, name
+    assert detail["code"] == "access_denied", name
+    assert detail["details"]["reason"] == "resource_denied", name
+    assert _service_calls(routers) == 0, name

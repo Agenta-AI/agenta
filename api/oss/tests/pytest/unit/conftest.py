@@ -96,3 +96,12 @@ def _allow_resource_checks(request, monkeypatch):
         _allowed,
         raising=False,
     )
+
+    async def _write_allowed(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.sessions.router.allow_session_write",
+        _write_allowed,
+        raising=False,
+    )
