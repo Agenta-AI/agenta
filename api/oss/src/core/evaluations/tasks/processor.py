@@ -19,10 +19,11 @@ from agenta.sdk.evaluations.runtime.status import (
     ProcessedScenario,
 )
 
-from oss.src.core.access.dtos import RunEnvelope, RunOrigin
-from oss.src.core.access.principals import stored_work_envelope
+from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import get_access_service
-from oss.src.core.access.types import MissingPrincipal
+from oss.src.core.access.types import AccessDenied, MissingPrincipal
+from oss.src.core.evaluations.run_access import evaluation_run_envelope
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.testcases.service import TestcasesService
@@ -503,27 +504,7 @@ class APISliceProcessor:
     async def _run_envelope(
         self, *, project_id: UUID, run: EvaluationRun
     ) -> RunEnvelope:
-        if run.principal is None:
-            log.info(
-                "[evaluations] run refused",
-                run_id=str(run.id),
-                project_id=str(project_id),
-                code="missing_principal",
-            )
-            raise MissingPrincipal()
-        organization_id = await get_access_service().project_organization_id(
-            project_id=project_id
-        )
-        if organization_id is None:
-            raise MissingPrincipal("The run's project has no organization")
-        return stored_work_envelope(
-            principal=run.principal,
-            organization_id=organization_id,
-            project_id=project_id,
-            origin=RunOrigin.EVALUATION,
-            origin_id=str(run.id),
-            created_by_id=run.created_by_id,
-        )
+        return await evaluation_run_envelope(project_id=project_id, run=run)
 
     async def _resolve_runners_and_revisions(
         self,
@@ -786,6 +767,24 @@ class APISliceProcessor:
         # pod before M2) fails; the principal is never rebuilt from created_by_id.
         try:
             envelope = await self._run_envelope(project_id=project_id, run=run)
+            await get_access_service().require(
+                envelope=envelope, action=Permission.EDIT_EVALUATION_RUNS
+            )
+        except AccessDenied as denied:
+            log.info(
+                "[evaluations] run refused",
+                run_id=str(run.id),
+                project_id=str(project_id),
+                code="access_denied",
+                reason=denied.decision.reason.value,
+            )
+            await _close_refused_run(
+                project_id=project_id,
+                user_id=user_id,
+                run=run,
+                evaluations_service=self.evaluations_service,
+            )
+            return ProcessSummary()
         except MissingPrincipal:
             # Close the run (failed, inactive) so no path leaves it active: the rerun
             # and direct-batch flows do not catch errors, and a live run would

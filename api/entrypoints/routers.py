@@ -1035,6 +1035,8 @@ triggers_adapter_registry = TriggersGatewayRegistry(
 )
 
 triggers_dao = TriggersDAO(engine=_transactions_engine)
+# Archiving an agent pauses its triggers.
+workflows_service.set_triggers_dao(triggers_dao)
 
 interactions_dao = SessionInteractionsDAO(engine=_transactions_engine)
 

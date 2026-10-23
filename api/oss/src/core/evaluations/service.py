@@ -115,6 +115,8 @@ from oss.src.core.evaluations.runtime.runner import TaskiqEvaluationTaskRunner
 from oss.src.core.evaluations.runtime.types import RunSlice
 from oss.src.core.evaluations.runtime.operations import SliceOperations
 
+from oss.src.core.access.types import AccessDenied, MissingPrincipal
+from oss.src.core.evaluations.run_access import require_evaluation_run_access
 
 log = get_module_logger(__name__)
 
@@ -294,6 +296,28 @@ class EvaluationsService:
                         "[LIVE] Closing invalid live run (null data or non-invocation trace_type).",
                         project_id=project_id,
                         run_id=run.id,
+                    )
+                    await self._close_live_run(
+                        project_id=project_id,
+                        user_id=user_id,
+                        run=run,
+                    )
+                    continue
+
+                # Each tick rechecks the run's principal. A run without one, or whose
+                # principal lost access, is closed: it never runs again.
+                try:
+                    await require_evaluation_run_access(project_id=project_id, run=run)
+                except (MissingPrincipal, AccessDenied) as refusal:
+                    log.info(
+                        "[LIVE] Closing live run: access refused.",
+                        project_id=project_id,
+                        run_id=run.id,
+                        code=(
+                            "missing_principal"
+                            if isinstance(refusal, MissingPrincipal)
+                            else "access_denied"
+                        ),
                     )
                     await self._close_live_run(
                         project_id=project_id,
