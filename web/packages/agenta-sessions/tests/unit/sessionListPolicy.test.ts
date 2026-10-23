@@ -28,7 +28,7 @@ describe("sessionListRequestFilters", () => {
             sessionListRequestFilters({origin: "exclude-trigger", expansions: ["last_message"]}),
         ).toEqual({
             origins: undefined,
-            excludeOrigins: ["trigger"],
+            excludeOrigins: ["trigger", "agent"],
             expand: ["last_message"],
         })
         expect(
@@ -52,6 +52,17 @@ describe("sessionListRequestFilters", () => {
             origins: ["trigger"],
             excludeOrigins: undefined,
             expand: ["trigger"],
+        })
+    })
+
+    it("reveals agent-created sessions without including automations", () => {
+        expect(
+            sessionListRequestFilters({origin: "exclude-trigger", expansions: []}, true),
+        ).toEqual({origins: undefined, excludeOrigins: ["trigger"], expand: []})
+        expect(sessionListRequestFilters({origin: "trigger-only", expansions: []}, true)).toEqual({
+            origins: ["trigger"],
+            excludeOrigins: undefined,
+            expand: [],
         })
     })
 

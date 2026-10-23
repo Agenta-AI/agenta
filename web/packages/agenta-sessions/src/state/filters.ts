@@ -31,6 +31,7 @@ export const sessionArchivedOnlyAtom = atom(false)
 /** Automation runs are sessions too, so without this they sit in the list indistinguishable from
  * your own work. Hidden by default; the chip opts back in. */
 export const sessionShowTriggeredAtom = atom(false)
+export const sessionShowAgentCreatedAtom = atom(false)
 
 /** Everything the agent-scoped page can still narrow by — its agent comes from the route. */
 export const sessionFiltersActiveExceptAgentAtom = atom(
@@ -39,7 +40,8 @@ export const sessionFiltersActiveExceptAgentAtom = atom(
         get(sessionStatusFilterAtom) !== "all" ||
         get(sessionShowArchivedAtom) ||
         get(sessionArchivedOnlyAtom) ||
-        get(sessionShowTriggeredAtom),
+        get(sessionShowTriggeredAtom) ||
+        get(sessionShowAgentCreatedAtom),
 )
 
 export const sessionFiltersActiveAtom = atom(
@@ -53,6 +55,7 @@ export const resetSessionFiltersAtom = atom(null, (_get, set) => {
     set(sessionShowArchivedAtom, false)
     set(sessionArchivedOnlyAtom, false)
     set(sessionShowTriggeredAtom, false)
+    set(sessionShowAgentCreatedAtom, false)
 })
 
 export interface SessionScope {

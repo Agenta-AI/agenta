@@ -2,4 +2,4 @@
 
 import typing
 
-SessionOrigin = typing.Union[typing.Literal["manual", "trigger"], typing.Any]
+SessionOrigin = typing.Union[typing.Literal["manual", "trigger", "agent"], typing.Any]

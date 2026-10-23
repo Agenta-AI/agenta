@@ -54,6 +54,7 @@ describe("startAliveWatchdog", () => {
     assert.equal(body["is_running"], true);
     assert.equal(body["session_id"], "sess-1");
     assert.equal(body["turn_id"], "turn-abc");
+    assert.ok(!("run_kind" in body));
     // replica_id is the stable container id — distinct from the turn id, not "turn-abc".
     assert.ok(body["replica_id"], "expected a replica_id");
     assert.notEqual(body["replica_id"], "turn-abc");

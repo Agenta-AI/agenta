@@ -1258,6 +1258,7 @@ tools = ToolsRouter(
     workflows_service=workflows_service,
     tracing_service=tracing_service,
     mounts_service=mounts_service,
+    session_streams_dao=session_streams_dao,
 )
 
 triggers = TriggersRouter(

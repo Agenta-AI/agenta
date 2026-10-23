@@ -3,5 +3,6 @@
 export const SessionOrigin = {
     Manual: "manual",
     Trigger: "trigger",
+    Agent: "agent",
 } as const;
 export type SessionOrigin = (typeof SessionOrigin)[keyof typeof SessionOrigin];
