@@ -3,6 +3,8 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import JSONResponse
 
+from oss.src.core.access.principals import access_denied_error
+from oss.src.core.access.types import AccessDenied
 from oss.src.middlewares.auth import request_run_envelope
 from oss.src.apis.fastapi.agent_templates.exceptions import (
     SCAN_UNAVAILABLE_NEXT_STEP,
@@ -318,6 +320,17 @@ class AgentTemplatesRouter:
                 user_id=user_id,
                 command=payload.to_domain(request_key=request_key),
                 envelope=envelope,
+            )
+        except AccessDenied as exc:
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={
+                    "detail": access_denied_error(
+                        decision=exc.decision,
+                        principal_kind=envelope.authority.principal.kind,
+                        project_id=project_id,
+                    ).model_dump(exclude_none=True)
+                },
             )
         except Exception as exc:
             response = template_load_error_response(exc)

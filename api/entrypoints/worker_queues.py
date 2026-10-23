@@ -28,7 +28,7 @@ import signal
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from taskiq import AsyncBroker, TaskiqEvents
 from taskiq.receiver import Receiver
@@ -36,7 +36,9 @@ from taskiq.receiver import Receiver
 from contextlib import suppress
 
 from entrypoints.access import bootstrap_access
-from oss.src.core.sessions.commands.service import deliverable_envelope
+from oss.src.core.sessions.commands.delivery import (
+    deliver_continue_interaction,
+)
 from oss.src.utils import heartbeat
 from taskiq.cli.worker.run import shutdown_broker
 
@@ -373,16 +375,9 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
         lock_engine=get_lock_engine(),
         executions_dao=SessionExecutionsDAO(engine=transactions_engine),
         delivery=DirectControlDelivery(
-            continue_interaction=lambda command: interactions_dispatcher.respond_many(
-                project_id=command.project_id,
-                user_id=command.created_by_id,
-                interaction_answers=[
-                    (UUID(item["interaction_id"]), item["answer"])
-                    for item in command.data["answers"]
-                ],
-                envelope=deliverable_envelope(command=command),
-                control_command_id=command.id,
-                continuation_execution_id=command.target_turn_id,
+            continue_interaction=lambda command: deliver_continue_interaction(
+                command=command,
+                interactions_dispatcher=interactions_dispatcher,
             ),
         ),
     )

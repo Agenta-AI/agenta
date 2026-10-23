@@ -13,6 +13,9 @@ from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from oss.src.core.access.principals import access_denied_error
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import AccessDenied
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.principals import child_envelope
 from oss.src.middlewares.auth import request_run_envelope
@@ -81,6 +84,7 @@ from oss.src.core.mounts.service import MountsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tools.exceptions import PlatformToolHandlerError
 from oss.src.core.tools.platform_handlers import (
+    required_envelope,
     dispatch_platform_tool_handler,
     is_reserved_agenta_call_ref,
     required_elevated_permission,
@@ -230,6 +234,30 @@ def _agent_error_result(*, body: ToolCall, error: AgentError) -> ToolCallRespons
         successful=False,
         message=error.message,
     )
+
+
+async def _deny_child_run(
+    *,
+    body: ToolCall,
+    child: RunEnvelope,
+) -> Optional[ToolCallResponse]:
+    """A child run is rechecked as the parent's principal (`RUN_WORKFLOWS`). A refusal
+    is a tool result the model can read, not an HTTP error."""
+
+    try:
+        await get_access_service().require(
+            envelope=child, action=Permission.RUN_WORKFLOWS
+        )
+        return None
+    except AccessDenied as denied:
+        return _agent_error_result(
+            body=body,
+            error=access_denied_error(
+                decision=denied.decision,
+                principal_kind=child.authority.principal.kind,
+                project_id=child.authority.project_id,
+            ),
+        )
 
 
 def _child_run_envelope(request: Request) -> Optional[RunEnvelope]:
@@ -1400,6 +1428,11 @@ class ToolsRouter:
             if not has_permission:
                 raise FORBIDDEN_EXCEPTION
 
+        envelope = _child_run_envelope(request)
+        if envelope is not None and required_envelope(call_ref=call_ref):
+            denied = await _deny_child_run(body=body, child=envelope)
+            if denied is not None:
+                return denied
         try:
             response = await dispatch_platform_tool_handler(
                 call_ref=call_ref,
@@ -1410,7 +1443,7 @@ class ToolsRouter:
                 workflows_service=self.workflows_service,
                 tracing_service=self.tracing_service,
                 mounts_service=self.mounts_service,
-                envelope=_child_run_envelope(request),
+                envelope=envelope,
             )
         except PlatformToolHandlerError as e:
             raise HTTPException(status_code=e.status_code, detail=e.message) from e
@@ -1761,6 +1794,9 @@ class ToolsRouter:
         child = _child_run_envelope(request)
         if child is None:
             raise HTTPException(status_code=401, detail="Unauthorized")
+        denied = await _deny_child_run(body=body, child=child)
+        if denied is not None:
+            return denied
 
         try:
             response = await self.workflows_service.invoke_workflow(

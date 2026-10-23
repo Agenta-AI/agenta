@@ -27,7 +27,9 @@ from oss.src.core.access.dtos import (
     RunOrigin,
     RunSender,
 )
+from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import AccessDenied
 from oss.src.core.channels.commands import (
     COMMAND_NEW,
     COMMAND_SESSIONS,
@@ -1018,6 +1020,17 @@ class InboxDispatcher:
                     status=Status(code="202", message="Queued behind the running turn"),
                 )
                 return
+            if envelope is not None and not await self._may_run(
+                project_id=project_id,
+                resolution=resolution,
+                turn_id=turn_id,
+                trigger_id=trigger_id,
+                envelope=envelope,
+                connection=connection,
+                capabilities=capabilities,
+                request_locator=request_locator,
+            ):
+                return
             try:
                 # user_id is passed only when identity resolved a linked
                 # account; an injected invoke_fn keeps its four-argument shape.
@@ -1117,6 +1130,57 @@ class InboxDispatcher:
                     state=ChannelTriggerState.SETTLED,
                 )
                 return
+
+    async def _may_run(
+        self,
+        *,
+        project_id: UUID,
+        resolution: ChannelResolution,
+        turn_id: str,
+        trigger_id: UUID,
+        envelope: RunEnvelope,
+        connection: Optional[ChannelConnection],
+        capabilities: Optional[ChannelCapabilities],
+        request_locator: Optional[Dict],
+    ) -> bool:
+        """The turn runs as the installation: recheck it before the invoke. A refusal
+        (an archived binding is `principal_inactive`, a linked user without the
+        capability is `missing_capability`) settles the trigger failed and posts the
+        failed-start reply; nothing is invoked."""
+
+        try:
+            await get_access_service().require(
+                envelope=envelope, action=Permission.RUN_SESSIONS
+            )
+            return True
+        except AccessDenied as denied:
+            reason = denied.decision.reason.value
+            log.info(
+                "[INBOX DISPATCHER] turn refused",
+                turn_id=turn_id,
+                binding_id=str(resolution.agent.id),
+                reason=reason,
+            )
+            await self.channels_service.settle_turn(
+                project_id=project_id,
+                trigger_id=trigger_id,
+                state=ChannelTriggerState.FAILED,
+                status=Status(code="access_denied", message=reason),
+            )
+            if connection and connection.channel == "slack" and request_locator:
+                adapter = self.channels_service.adapter_registry.get(connection.channel)
+                await adapter.set_message_status(
+                    connection=connection, locator=request_locator, status="failed"
+                )
+            await self._notify_not_started(
+                project_id=project_id,
+                resolution=resolution,
+                turn_id=turn_id,
+                connection=connection,
+                capabilities=capabilities,
+                render=render_failed_start,
+            )
+            return False
 
     async def _notify_not_started(
         self,

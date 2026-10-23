@@ -1144,3 +1144,30 @@ async def test_client_tool_answer_replays_questionnaire_result(outcome):
         )
         == 1
     )
+
+
+async def test_original_principal_removed(monkeypatch):
+    """The resume runs as the asked run's principal; when it lost access the resume
+    is refused before anything is invoked."""
+    import oss.src.core.access.service as access_module
+    from oss.src.core.access.types import AccessDenied
+    from oss.tests.pytest.utils.principals import DenyingAccessService
+
+    monkeypatch.setattr(access_module, "_access_service", DenyingAccessService())
+    interaction = _make_interaction()
+    interactions_service = MagicMock()
+    interactions_service.fetch_interaction = AsyncMock(return_value=interaction)
+    workflows_service = MagicMock()
+    workflows_service.invoke_workflow = AsyncMock()
+    dispatcher = InteractionsDispatcher(
+        workflows_service=workflows_service,
+        interactions_service=interactions_service,
+    )
+    with pytest.raises(AccessDenied):
+        await dispatcher.respond(
+            project_id=interaction.project_id,
+            user_id=uuid4(),
+            interaction_id=interaction.id,
+            answer={"approved": True},
+        )
+    workflows_service.invoke_workflow.assert_not_awaited()

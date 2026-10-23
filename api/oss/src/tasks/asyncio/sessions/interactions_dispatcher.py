@@ -36,7 +36,9 @@ from oss.src.core.access.dtos import (
     RunApproval,
     RunEnvelope,
 )
+from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.principals import resumed_envelope
+from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import MissingEnvelope
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
@@ -424,6 +426,10 @@ class InteractionsDispatcher:
                 principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=user_id),
                 user_id=user_id,
             ),
+        )
+        # The resume runs as the asked run's principal: recheck it now.
+        await get_access_service().require(
+            envelope=envelope, action=Permission.RUN_SESSIONS
         )
         await self.respond_many(
             project_id=project_id,
