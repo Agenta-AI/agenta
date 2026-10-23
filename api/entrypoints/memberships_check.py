@@ -307,13 +307,19 @@ async def _rbac_enforced(organization_id: UUID) -> bool:
 
     from ee.src.core.access.entitlements.service import (  # noqa: PLC0415
         Flag,
-        check_entitlements,
+        _check_entitlements,
         scope_from,
     )
 
-    check, _, _ = await check_entitlements(
+    # Not `check_entitlements`: it fails open, (True, None, None) on a Redis or
+    # database error, which would read as "RBAC enforced" and silently skip the P2b
+    # rows of that organization. An operator job must stop on the error instead.
+    check, _, _ = await _check_entitlements(
         key=Flag.RBAC,
+        delta=None,
+        cache=False,
         scope=scope_from(organization_id=organization_id),
+        period=None,
     )
     return bool(check)
 
