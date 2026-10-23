@@ -29,6 +29,8 @@ const loadViewerScript = (kind: OfficeViewerKind): Promise<string> =>
         : import("./generated/pptxViewer").then((m) => m.PPTX_VIEWER_SCRIPT)
 
 const RENDER_TIMEOUT_MS = 60_000
+// Narrower than this, a Word page scaled to fit is too small to read, so text reflows instead.
+const REFLOW_BELOW_PX = 480
 
 type ViewerState =
     | {status: "loading"}
@@ -65,6 +67,7 @@ export function OfficeViewerFrame({
     const {enabled, setEnabled} = usePreviewCommentMode()
     const enabledRef = useRef(enabled)
     enabledRef.current = enabled
+    const [reflow, setReflow] = useState(false)
     const format = kind === "document" ? "document" : "presentation"
 
     useEffect(() => {
@@ -94,12 +97,19 @@ export function OfficeViewerFrame({
             })
             if (!message) return
             switch (message.type) {
-                case "ready":
+                case "ready": {
+                    // Comments anchor to page layout, so comment mode always renders pages.
+                    const narrow =
+                        kind === "document" &&
+                        !enabledRef.current &&
+                        (rootRef.current?.clientWidth ?? 0) < REFLOW_BELOW_PX
+                    setReflow(narrow)
                     blob.arrayBuffer().then(
-                        (bytes) => send({type: "render", kind, bytes}, [bytes]),
+                        (bytes) => send({type: "render", kind, bytes, reflow: narrow}, [bytes]),
                         onFailed,
                     )
                     return
+                }
                 case "rendered":
                     targetRef.current = 0
                     setState({status: "rendered", slideCount: message.slideCount, index: 0})
@@ -108,6 +118,8 @@ export function OfficeViewerFrame({
                 case "slide":
                     targetRef.current = message.index
                     setState((s) => (s.status === "rendered" ? {...s, index: message.index} : s))
+                    // A document's page report only moves the counter; its pins span every page.
+                    if (kind === "document") return
                     setPinRects([])
                     setShown({slide: message.index})
                     return
@@ -184,7 +196,20 @@ export function OfficeViewerFrame({
         return () => clearTimeout(timer)
     }, [loading, onFailed])
 
-    const slides = kind === "presentation" && state.status === "rendered" ? state : null
+    const layout = useCallback(
+        (next: boolean) => {
+            setReflow(next)
+            send({type: "layout", reflow: next})
+        },
+        [send],
+    )
+    useEffect(() => {
+        if (enabled && reflow) layout(false)
+    }, [enabled, reflow, layout])
+
+    const rendered = state.status === "rendered" ? state : null
+    const slides = kind === "presentation" ? rendered : null
+    const pages = kind === "document" ? rendered : null
     const step = (delta: number) => {
         if (!slides) return
         const index = Math.min(Math.max(targetRef.current + delta, 0), slides.slideCount - 1)
@@ -222,10 +247,10 @@ export function OfficeViewerFrame({
                 />
             ) : null}
             {slides ? (
-                <div className="flex shrink-0 items-center justify-center gap-2 border-0 border-t border-solid border-colorBorderSecondary px-2 py-1">
+                <div className="flex shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-colorBorderSecondary px-2 py-1">
                     <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon"
                         aria-label="Previous slide"
                         disabled={slides.index <= 0}
                         onClick={() => step(-1)}
@@ -237,13 +262,48 @@ export function OfficeViewerFrame({
                     </span>
                     <Button
                         variant="ghost"
-                        size="icon-sm"
+                        size="icon"
                         aria-label="Next slide"
                         disabled={slides.index >= slides.slideCount - 1}
                         onClick={() => step(1)}
                     >
                         <CaretRight />
                     </Button>
+                </div>
+            ) : null}
+            {pages ? (
+                <div className="flex shrink-0 items-center justify-between gap-2 border-0 border-t border-solid border-colorBorderSecondary px-3 py-1">
+                    <span className="text-xs tabular-nums text-colorTextSecondary">
+                        {reflow || !pages.slideCount
+                            ? ""
+                            : `Page ${pages.index + 1} of ${pages.slideCount}`}
+                    </span>
+                    <div
+                        role="group"
+                        aria-label="Layout"
+                        className="flex rounded-md bg-colorFillTertiary p-0.5"
+                    >
+                        {(["Reflow", "Pages"] as const).map((label) => {
+                            const on = (label === "Reflow") === reflow
+                            return (
+                                <button
+                                    key={label}
+                                    type="button"
+                                    aria-pressed={on}
+                                    disabled={enabled && label === "Reflow"}
+                                    title={
+                                        enabled && label === "Reflow"
+                                            ? "Comments need the page layout"
+                                            : undefined
+                                    }
+                                    onClick={() => !on && layout(label === "Reflow")}
+                                    className={`cursor-pointer rounded border-0 px-2 py-0.5 text-xs disabled:cursor-not-allowed disabled:opacity-50 ${on ? "bg-colorBgContainer text-colorText shadow-sm" : "bg-transparent text-colorTextSecondary"}`}
+                                >
+                                    {label}
+                                </button>
+                            )
+                        })}
+                    </div>
                 </div>
             ) : null}
         </div>

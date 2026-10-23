@@ -109,14 +109,25 @@ describe("parseViewerMessage picker messages", () => {
 })
 
 describe("parseHostMessage", () => {
-    it("accepts render with an ArrayBuffer and goto with an index", () => {
+    it("accepts render with bytes and a layout, goto with an index, and layout", () => {
         const bytes = new ArrayBuffer(4)
-        expect(parseHostMessage({type: "render", kind: "document", bytes})).toEqual({
+        expect(parseHostMessage({type: "render", kind: "document", bytes, reflow: true})).toEqual({
             type: "render",
             kind: "document",
             bytes,
+            reflow: true,
         })
         expect(parseHostMessage({type: "goto", index: 0})).toEqual({type: "goto", index: 0})
+        expect(parseHostMessage({type: "layout", reflow: false})).toEqual({
+            type: "layout",
+            reflow: false,
+        })
+    })
+
+    it("rejects a render or layout without a boolean reflow", () => {
+        const bytes = new ArrayBuffer(4)
+        expect(parseHostMessage({type: "render", kind: "document", bytes})).toBeNull()
+        expect(parseHostMessage({type: "layout", reflow: "yes"})).toBeNull()
     })
 
     it("rejects render without bytes or with an unknown kind", () => {

@@ -12,8 +12,9 @@ import {
 export type OfficeViewerKind = "document" | "presentation"
 
 export type HostToViewer =
-    | {type: "render"; kind: OfficeViewerKind; bytes: ArrayBuffer}
+    | {type: "render"; kind: OfficeViewerKind; bytes: ArrayBuffer; reflow: boolean}
     | {type: "goto"; index: number}
+    | {type: "layout"; reflow: boolean}
     | HostToPicker
 
 export type ViewerToHost =
@@ -89,12 +90,15 @@ export function parseViewerMessage(
 export function parseHostMessage(data: unknown): Exclude<HostToViewer, HostToPicker> | null {
     if (!isRecord(data)) return null
     if (data.type === "goto") return isIndex(data.index) ? {type: "goto", index: data.index} : null
+    if (data.type === "layout")
+        return typeof data.reflow === "boolean" ? {type: "layout", reflow: data.reflow} : null
     if (
         data.type === "render" &&
         (data.kind === "document" || data.kind === "presentation") &&
-        data.bytes instanceof ArrayBuffer
+        data.bytes instanceof ArrayBuffer &&
+        typeof data.reflow === "boolean"
     )
-        return {type: "render", kind: data.kind, bytes: data.bytes}
+        return {type: "render", kind: data.kind, bytes: data.bytes, reflow: data.reflow}
     return null
 }
 
