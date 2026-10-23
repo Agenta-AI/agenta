@@ -74,6 +74,10 @@ describe("cellsToTable", () => {
         )
     })
 
+    it("escapes backslashes so a trailing one cannot escape the cell's pipe", () => {
+        expect(cellsToTable(["Path"], [["C:\\dir\\"]])).toBe("| Path |\n| --- |\n| C:\\\\dir\\\\ |")
+    })
+
     it("pads short rows to the widest row", () => {
         expect(cellsToTable(["A"], [["1", "2"]])).toBe("| A |  |\n| --- | --- |\n| 1 | 2 |")
     })

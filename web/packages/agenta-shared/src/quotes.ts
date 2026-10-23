@@ -326,7 +326,7 @@ export const formatPreviewChipLocation = (anchor: PreviewAnchor): string => {
 const tableCell = (value: string): string =>
     value
         .replace(/\r\n?|\n/g, " ")
-        .replace(/\|/g, "\\|")
+        .replace(/[\\|]/g, "\\$&")
         .trim()
 
 /** Cells as a markdown pipe table; a null header makes the first row the header. */
@@ -344,7 +344,7 @@ const tableRow = (line: string): string[] =>
     line
         .replace(/^\|\s?|\s?\|$/g, "")
         .split(" | ")
-        .map((cell) => cell.replace(/\\\|/g, "|").trim())
+        .map((cell) => cell.replace(/\\([\\|])/g, "$1").trim())
 
 /** A quote's text for people: a cell quote reads "Plan: 80", not its Markdown table. */
 export const readableQuoteText = (quote: Quote): string => {
