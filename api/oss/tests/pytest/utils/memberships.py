@@ -237,6 +237,24 @@ class FakeAccessCache:
             del self.store[cached]
         return True
 
+    async def invalidate_user_cache(
+        self, *, user_id, project_ids, namespaces, projectless_namespaces=()
+    ):
+        from fnmatch import fnmatchcase
+
+        from oss.src.utils.caching import _pack, user_keys_to_clear
+
+        user_part = _pack(user_id=user_id).split(":")[4]
+        mine = [k for k in self.store if fnmatchcase(k, f"cache:p:*:u:{user_part}:*")]
+        for cached in user_keys_to_clear(
+            mine,
+            project_ids=project_ids,
+            namespaces=namespaces,
+            projectless_namespaces=projectless_namespaces,
+        ):
+            del self.store[cached]
+        return True
+
     def install(self, monkeypatch) -> "FakeAccessCache":
         import oss.src.core.access.permissions.service as wrapper_module
         import oss.src.core.memberships.service as memberships_module
@@ -247,5 +265,8 @@ class FakeAccessCache:
         monkeypatch.setattr(wrapper_module, "set_cache", self.set_cache)
         monkeypatch.setattr(
             memberships_module, "invalidate_cache", self.invalidate_cache
+        )
+        monkeypatch.setattr(
+            memberships_module, "invalidate_user_cache", self.invalidate_user_cache
         )
         return self

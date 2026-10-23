@@ -12,16 +12,42 @@ from oss.tests.pytest.utils.memberships import InMemoryMembershipsDAO, make_summ
 NAMESPACES = ("check_action_access", "verify_bearer_token", "resolve_membership")
 
 
+class _Calls(list):
+    """Every cleared (namespace, project, user), plus the user-scoped calls."""
+
+    def __init__(self):
+        super().__init__()
+        self.user_calls: list = []
+
+
 @pytest.fixture
 def recorded(monkeypatch):
-    calls = []
+    calls = _Calls()
 
     async def _invalidate_cache(**kwargs):
         calls.append(kwargs)
         return True
 
+    async def _invalidate_user_cache(
+        *, user_id, project_ids, namespaces, projectless_namespaces=()
+    ):
+        # One call clears what these per-pair calls would clear.
+        user_calls.append(user_id)
+        for p in project_ids:
+            for namespace in namespaces:
+                calls.append(
+                    {"namespace": namespace, "project_id": p, "user_id": user_id}
+                )
+        for namespace in projectless_namespaces:
+            calls.append(
+                {"namespace": namespace, "project_id": None, "user_id": user_id}
+            )
+        return True
+
+    user_calls = calls.user_calls
     monkeypatch.setattr(env.agenta.api.caching, "enabled", True, raising=False)
     monkeypatch.setattr(service_module, "invalidate_cache", _invalidate_cache)
+    monkeypatch.setattr(service_module, "invalidate_user_cache", _invalidate_user_cache)
     return calls
 
 
@@ -116,6 +142,7 @@ async def test_invalidation_failure_does_not_fail_the_writer(monkeypatch):
 
     monkeypatch.setattr(env.agenta.api.caching, "enabled", True, raising=False)
     monkeypatch.setattr(service_module, "invalidate_cache", _failing)
+    monkeypatch.setattr(service_module, "invalidate_user_cache", _failing)
     monkeypatch.setattr(service_module, "log", _Log())
 
     dao = InMemoryMembershipsDAO()
@@ -186,3 +213,20 @@ async def test_set_member_role_skipped_by_must_be_absent_invalidates_nothing(rec
 
     assert joined is False
     assert recorded == []
+
+
+async def test_a_role_change_in_a_large_organization_scans_once_per_user(recorded):
+    dao = InMemoryMembershipsDAO()
+    organization, project_ids = _organization(dao, projects=72)
+    service = MembershipsService(
+        memberships_dao=dao, policy=MembershipPolicy.ORGANIZATION_WIDE
+    )
+    user = uuid4()
+
+    await service.set_member_role(
+        organization_id=organization, user_id=user, role="editor"
+    )
+
+    # One user-scoped call, not 72 x 3 + 1 pattern scans; it covers every pair.
+    assert recorded.user_calls == [str(user)]
+    assert _normalized(recorded) == _normalized(_expected_for(user, project_ids))

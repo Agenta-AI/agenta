@@ -451,11 +451,13 @@ One helper in `oss/src/core/memberships/service.py`, the only place that knows t
 
 ```python
 async def invalidate_access_caches(*, user_ids: Sequence[UUID], project_ids: Sequence[UUID]) -> None:
-    # for each user u and project p:
-    #   invalidate_cache(namespace="check_action_access", project_id=str(p), user_id=str(u))
-    #   invalidate_cache(namespace="verify_bearer_token", project_id=str(p), user_id=str(u))
-    #   invalidate_cache(namespace="resolve_membership", project_id=str(p), user_id=str(u))
-    # for each user u, once: invalidate_cache(namespace="verify_bearer_token", user_id=str(u))
+    # for each user u, ONE call (one Redis scan of u's keys, whatever the project count):
+    #   invalidate_user_cache(user_id=str(u), project_ids=[str(p) ...],
+    #       namespaces=("check_action_access", "verify_bearer_token", "resolve_membership"),
+    #       projectless_namespaces=("verify_bearer_token",))
+    # It clears exactly the keys of the per-pair calls
+    #   invalidate_cache(namespace=n, project_id=str(p), user_id=str(u)) for every (n, p),
+    # plus invalidate_cache(namespace="verify_bearer_token", user_id=str(u)).
 ```
 
 The admin simple-accounts organization membership writer stores the role it is given (it used to store `viewer`), because OSS now reads the organization role.
