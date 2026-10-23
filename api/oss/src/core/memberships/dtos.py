@@ -41,6 +41,15 @@ class ProjectMember(BaseModel):
     role: Optional[str] = None  # the column is nullable (an EE row with a null role)
 
 
+class ProjectMemberProfile(BaseModel):
+    """One person the share picker lists for a project (M3)."""
+
+    user_id: UUID
+    email: str
+    name: Optional[str] = None
+    role: Optional[str] = None  # None: an EE project row with a null role
+
+
 class ProjectMembership(BaseModel):
     """The resolver output. M2 caches it, so every nullable field has a default."""
 

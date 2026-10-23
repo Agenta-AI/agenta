@@ -133,6 +133,27 @@ class SessionReadScope(BaseModel):
     granted_stream_ids: List[UUID]  # grants whose owner is an active member
 
 
+# -- share disclosure (the sharing routes) ------------------------------------------------
+
+
+class DisclosedConnection(BaseModel):
+    """One gateway connection the agent's tools use (`build_share_disclosure`)."""
+
+    provider: str
+    integration: str
+    connection: str  # the connection slug in the revision's tools
+
+
+class ShareDisclosure(BaseModel):
+    """What sharing an agent or a session lets others reach. The three statements are
+    always true; the UI owns their text."""
+
+    connections: List[DisclosedConnection]
+    turns_use_run_credentials: bool = True
+    files_and_tool_results_shared: bool = True
+    trace_readers_can_read: bool = True
+
+
 # -- sharing state (the sharing routes) ---------------------------------------------------
 
 
