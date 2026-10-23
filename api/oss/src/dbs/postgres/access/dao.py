@@ -7,11 +7,17 @@ key, binding, connection or user change.
 """
 
 from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 
-from oss.src.core.access.dtos import PrincipalKind, PrincipalRecord, PrincipalRef
+from oss.src.core.access.dtos import (
+    PrincipalKind,
+    PrincipalRecord,
+    PrincipalRef,
+    UserPrincipals,
+)
 from oss.src.core.access.interfaces import PrincipalsDAOInterface
 from oss.src.dbs.postgres.access.mappings import (
     map_api_key_dbe_to_principal_record,
@@ -65,6 +71,22 @@ WHERE a.id = :id
 """
 
 
+_LIST_USER_PRINCIPALS_SQL = """
+SELECT
+  ARRAY(SELECT k.id FROM api_keys k WHERE k.created_by_id = :u) AS api_key_ids,
+  ARRAY(SELECT a.id FROM channel_agents a WHERE a.created_by_id = :u) AS binding_ids,
+  ARRAY(
+    SELECT pm.project_id FROM project_members pm WHERE pm.user_id = :u
+    UNION
+    SELECT p.id FROM projects p
+    JOIN organization_members om ON om.organization_id = p.organization_id
+    WHERE om.user_id = :u
+    UNION
+    SELECT k.project_id FROM api_keys k WHERE k.created_by_id = :u
+  ) AS project_ids
+"""
+
+
 class PrincipalsDAO(PrincipalsDAOInterface):
     def __init__(self, *, engine):
         self.engine = engine
@@ -90,6 +112,18 @@ class PrincipalsDAO(PrincipalsDAOInterface):
             value=_CachedPrincipal(record=record),
         )
         return record
+
+    async def list_user_principals(self, *, user_id: UUID) -> UserPrincipals:
+        async with self.engine.session() as session:
+            row = (
+                await session.execute(text(_LIST_USER_PRINCIPALS_SQL), {"u": user_id})
+            ).first()
+        return UserPrincipals(
+            user_id=user_id,
+            api_key_ids=list(row.api_key_ids or []),
+            binding_ids=list(row.binding_ids or []),
+            project_ids=list(row.project_ids or []),
+        )
 
     async def _read(self, *, principal: PrincipalRef) -> Optional[PrincipalRecord]:
         if principal.kind == PrincipalKind.HUMAN:

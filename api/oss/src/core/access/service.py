@@ -38,6 +38,7 @@ from oss.src.core.access.dtos import (
     RunAuthority,
     RunContext,
     RunEnvelope,
+    UserPrincipals,
 )
 from oss.src.core.access.interfaces import (
     PrincipalsDAOInterface,
@@ -53,6 +54,7 @@ from oss.src.core.access.types import (
 )
 from oss.src.core.memberships.dtos import ProjectMembership
 from oss.src.core.memberships.service import MembershipsService
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 
@@ -278,13 +280,56 @@ class AccessService:
         if not decision.allowed:
             raise AccessDenied(decision=decision)
 
+    async def read_user_principals(self, *, user_id: UUID) -> UserPrincipals:
+        """Read before a user deletion: what `invalidate_user` must clear after it."""
+
+        return await self._principals.list_user_principals(user_id=user_id)
+
+    async def invalidate_user(
+        self,
+        *,
+        snapshot: UserPrincipals,
+        memberships: bool = True,
+    ) -> None:
+        """After a user deletion committed: the user, their keys, their bindings, and
+        (unless the caller cleared them already) their cached memberships."""
+
+        await self.invalidate_principals(
+            principals=[
+                PrincipalRef(kind=PrincipalKind.HUMAN, id=snapshot.user_id),
+                *(
+                    PrincipalRef(kind=PrincipalKind.API_KEY, id=key_id)
+                    for key_id in snapshot.api_key_ids
+                ),
+                *(
+                    PrincipalRef(kind=PrincipalKind.INSTALLATION, id=binding_id)
+                    for binding_id in snapshot.binding_ids
+                ),
+            ]
+        )
+        if memberships and snapshot.project_ids:
+            from oss.src.core.memberships.service import (  # noqa: PLC0415
+                invalidate_access_caches,
+            )
+
+            await invalidate_access_caches(
+                user_ids=[snapshot.user_id], project_ids=snapshot.project_ids
+            )
+
+    async def invalidate_principals(self, *, principals) -> None:
+        for principal in principals:
+            await self.invalidate_principal(principal=principal)
+
     async def invalidate_principal(self, *, principal: PrincipalRef) -> None:
         from oss.src.dbs.postgres.access.dao import (  # noqa: PLC0415
             invalidate_principal_cache,
         )
 
-        cleared = await invalidate_principal_cache(principal=principal)
-        if cleared is None:
+        try:
+            cleared = await invalidate_principal_cache(principal=principal)
+        except Exception:  # pylint: disable=broad-exception-caught
+            cleared = None
+        if cleared is None and env.agenta.api.caching.enabled:
             log.warning(
                 "[access] principal invalidation failed",
                 principal_kind=principal.kind.value,
@@ -436,6 +481,57 @@ class AccessService:
 
 
 _access_service: Optional[AccessService] = None
+
+
+async def read_user_principals_before_delete(
+    *,
+    user_id: UUID,
+) -> Optional[UserPrincipals]:
+    """Read what a user deletion must invalidate, before the delete. `None` (logged)
+    when the read fails; the deletion goes on."""
+
+    try:
+        return await get_access_service().read_user_principals(user_id=user_id)
+    except Exception:  # pylint: disable=broad-exception-caught
+        log.warning("[access] user principals read failed", user_id=str(user_id))
+        return None
+
+
+async def invalidate_user_after_delete(
+    *,
+    snapshot: Optional[UserPrincipals],
+) -> None:
+    """After a user deletion committed. A failure is logged and never fails it."""
+
+    if snapshot is None:
+        return
+    try:
+        await get_access_service().invalidate_user(snapshot=snapshot)
+    except Exception:  # pylint: disable=broad-exception-caught
+        log.warning(
+            "[access] principal invalidation failed",
+            source="user_deletion",
+            user_id=str(snapshot.user_id),
+        )
+
+
+async def invalidate_principals_after_write(*, principals, source: str) -> None:
+    """For writers outside the access domain (keys, bindings, connections, users):
+    clear the cached principal records after the commit. A failure, or a process that
+    never registered the service, is logged and never fails the writer."""
+
+    principals = list(principals)
+    if not principals:
+        return
+    try:
+        service = get_access_service()
+        await service.invalidate_principals(principals=principals)
+    except Exception:  # pylint: disable=broad-exception-caught
+        log.warning(
+            "[access] principal invalidation failed",
+            source=source,
+            principal_count=len(principals),
+        )
 
 
 def register_access_service(*, access_service: AccessService) -> None:
