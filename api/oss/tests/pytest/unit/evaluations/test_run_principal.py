@@ -153,3 +153,116 @@ def test_routes_take_the_principal_from_the_request_never_the_body():
     )
     with pytest.raises(HTTPException):
         _caller(SimpleNamespace(state=SimpleNamespace()))
+
+
+# -- C12: recheck before each run -----------------------------------------------------
+
+
+async def test_worker_denial_fails_with_access_denied(monkeypatch):
+    """A batch or rerun worker whose run principal lost access ends the run failed and
+    inactive; no scenario executes."""
+
+    import oss.src.core.access.service as access_module
+    from oss.src.core.access.dtos import DecisionReason
+    from oss.src.core.evaluations.runtime.types import RunSlice
+    from oss.src.core.evaluations.types import (
+        EvaluationRunData,
+        EvaluationRunDataStep,
+        EvaluationStatus,
+    )
+    from oss.tests.pytest.utils.principals import DenyingAccessService
+
+    monkeypatch.setattr(
+        access_module,
+        "_access_service",
+        DenyingAccessService(reason=DecisionReason.NOT_MEMBER),
+    )
+    run = EvaluationRun(
+        id=uuid4(),
+        name="r",
+        created_by_id=uuid4(),
+        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4()),
+        flags=EvaluationRunFlags(is_active=True),
+        status=EvaluationStatus.RUNNING,
+        data=EvaluationRunData(
+            steps=[
+                EvaluationRunDataStep(
+                    key="input", type="input", origin="custom", references={}
+                )
+            ],
+            mappings=[],
+        ),
+    )
+    service = SimpleNamespace(
+        fetch_run=AsyncMock(return_value=run),
+        edit_run=AsyncMock(),
+        query_results=AsyncMock(side_effect=AssertionError("must not execute")),
+    )
+    processor = _processor()
+    processor.evaluations_service = service
+
+    await processor.process(
+        project_id=uuid4(), user_id=uuid4(), run_slice=RunSlice(run_id=run.id)
+    )
+
+    edited = service.edit_run.await_args.kwargs["run"]
+    assert edited.status == EvaluationStatus.FAILURE
+    assert edited.flags.is_active is False
+
+
+def _live_service(run):
+    from oss.src.core.evaluations.service import EvaluationsService
+
+    service = EvaluationsService.__new__(EvaluationsService)
+    service.fetch_live_runs = AsyncMock(return_value=[(uuid4(), run)])
+    service.evaluations_task_runner = SimpleNamespace(
+        process_run_from_source=AsyncMock()
+    )
+    service._is_live_run_valid = AsyncMock(return_value=True)
+    service._ensure_human_annotation_queue = AsyncMock()
+    service._close_live_run = AsyncMock()
+    return service
+
+
+@pytest.mark.parametrize("lost", ["access", "principal"])
+async def test_live_run_closed_when_principal_lost(monkeypatch, lost):
+    from datetime import datetime, timezone
+
+    import oss.src.core.access.service as access_module
+    from oss.tests.pytest.utils.principals import DenyingAccessService
+
+    monkeypatch.setattr(access_module, "_access_service", DenyingAccessService())
+    run = EvaluationRun(
+        id=uuid4(),
+        created_by_id=uuid4(),
+        principal=(
+            None
+            if lost == "principal"
+            else PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4())
+        ),
+    )
+    service = _live_service(run)
+
+    await service.refresh_runs(timestamp=datetime.now(timezone.utc))
+
+    service._close_live_run.assert_awaited_once()
+    service.evaluations_task_runner.process_run_from_source.assert_not_awaited()
+
+
+async def test_live_run_with_access_keeps_ticking(_allowing_access_service):
+    from datetime import datetime, timezone
+
+    run = EvaluationRun(
+        id=uuid4(),
+        created_by_id=uuid4(),
+        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4()),
+    )
+    service = _live_service(run)
+
+    await service.refresh_runs(timestamp=datetime.now(timezone.utc))
+
+    service._close_live_run.assert_not_awaited()
+    service.evaluations_task_runner.process_run_from_source.assert_awaited_once()
+    assert _allowing_access_service.required[-1]["action"].value == (
+        "edit_evaluation_runs"
+    )

@@ -15,8 +15,10 @@ from uuid import UUID, uuid4
 
 import uuid_utils.compat as uuid_compat
 
-from oss.src.core.access.dtos import RunOrigin
+from oss.src.core.access.dtos import ResourceKind, ResourceRef, RunOrigin
+from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.principals import (
+    access_denied_error,
     missing_principal_error,
     stored_work_envelope,
 )
@@ -45,6 +47,15 @@ from agenta.sdk.models.workflows import WorkflowRequestData
 from agenta.sdk.utils.resolvers import resolve_target_fields
 
 log = get_module_logger(__name__)
+
+
+def _agent_deleted_error() -> AgentError:
+    return AgentError(
+        code="agent_deleted",
+        message="The trigger's agent was deleted, so the trigger is paused.",
+        retryable=False,
+        next_step="Point the trigger at another agent, then turn it on again.",
+    )
 
 
 class TriggersDispatcher:
@@ -280,27 +291,13 @@ class TriggersDispatcher:
             else SessionTriggerKind.schedule
         )
 
-        claimed = await self.session_claims_dao.claim_trigger_delivery(
-            project_id=project_id,
-            user_id=user_id,
-            event_id=event_id,
-            session_id=session_id,
-            attribution=SessionTriggerAttribution(
-                configuration_id=entity.id,
-                kind=kind,
-                delivery_id=delivery_id,
-            ),
-        )
-        if not claimed:
-            log.info(
-                "[TRIGGERS DISPATCHER] claim lost for entity=%s event=%s — already "
-                "claimed/delivered, skipping invoke",
-                entity.id,
-                event_id,
-            )
-            return
-
+        # Build the request and resolve its target BEFORE the claim, so the principal
+        # is checked against the revision that will run. A build or resolution failure
+        # is still recorded on a claimed delivery (400), as before.
         delivery_data = TriggerDeliveryData(session_id=session_id)
+        request: Optional[WorkflowServiceRequest] = None
+        failure: Optional[str] = None
+        target = None
         try:
             context = self._build_context(
                 event=event,
@@ -340,26 +337,90 @@ class TriggersDispatcher:
                     inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
                 ),
             )
+            target = await self.workflows_service.resolve_request_target(
+                project_id=project_id,
+                request=request,
+            )
+            if target is None:
+                raise ValueError("The bound workflow reference resolves to no revision")
         except Exception as e:
+            failure = str(e)
+
+        if failure is None and target is not None and target.archived:
+            await self._refuse(
+                project_id=project_id,
+                entity=entity,
+                event_id=event_id,
+                reason="agent_deleted",
+                error=_agent_deleted_error(),
+            )
+            return
+
+        envelope = None
+        if failure is None:
+            envelope = stored_work_envelope(
+                principal=entity.principal,
+                organization_id=await self._organization_id(project_id=project_id),
+                project_id=project_id,
+                origin=(
+                    RunOrigin.SUBSCRIPTION if is_subscription else RunOrigin.SCHEDULE
+                ),
+                origin_id=str(entity.id),
+                created_by_id=entity.created_by_id,
+            )
+            decision = await self.access_service.decide(
+                authority=envelope.authority,
+                principal=envelope.authority.principal,
+                action=Permission.RUN_WORKFLOWS,
+                resource=ResourceRef(
+                    kind=ResourceKind.AGENT, id=str(target.artifact_id)
+                ),
+            )
+            if not decision.allowed:
+                await self._refuse(
+                    project_id=project_id,
+                    entity=entity,
+                    event_id=event_id,
+                    reason="access_denied",
+                    error=access_denied_error(
+                        decision=decision,
+                        principal_kind=entity.principal.kind,
+                        project_id=project_id,
+                    ),
+                )
+                return
+
+        claimed = await self.session_claims_dao.claim_trigger_delivery(
+            project_id=project_id,
+            user_id=user_id,
+            event_id=event_id,
+            session_id=session_id,
+            attribution=SessionTriggerAttribution(
+                configuration_id=entity.id,
+                kind=kind,
+                delivery_id=delivery_id,
+            ),
+        )
+        if not claimed:
+            log.info(
+                "[TRIGGERS DISPATCHER] claim lost for entity=%s event=%s — already "
+                "claimed/delivered, skipping invoke",
+                entity.id,
+                event_id,
+            )
+            return
+
+        if failure is not None:
             await self._complete_delivery(
                 project_id=project_id,
                 delivery_id=delivery_id,
                 status=Status(code="400", message="failed"),
-                data=delivery_data.model_copy(update={"error": str(e)}),
+                data=delivery_data.model_copy(update={"error": failure}),
             )
             await self._abandon_claimed_session(
                 project_id=project_id, session_id=session_id
             )
             return
-
-        envelope = stored_work_envelope(
-            principal=entity.principal,
-            organization_id=await self._organization_id(project_id=project_id),
-            project_id=project_id,
-            origin=RunOrigin.SUBSCRIPTION if is_subscription else RunOrigin.SCHEDULE,
-            origin_id=str(entity.id),
-            created_by_id=entity.created_by_id,
-        )
 
         if self._dispatch_fn is not None:
             # Detached completion means the runner accepted ownership. The API has no durable

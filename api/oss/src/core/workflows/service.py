@@ -83,6 +83,7 @@ from oss.src.core.git.dtos import (
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.workflows.dtos import (
     JsonSchemas,
+    ResolvedTarget,
     WorkflowArtifactFlags,
     WorkflowArtifactQueryFlags,
     WorkflowVariantFlags,
@@ -362,6 +363,13 @@ class WorkflowsService:
         self._session_context_resolver: Optional[
             Callable[..., Awaitable[tuple[Optional[str], bool]]]
         ] = None
+        # Archiving an agent pauses the triggers that target it. Set by the composition
+        # root that serves the archive routes (the triggers DAO is built after this
+        # service there).
+        self._triggers_dao: Optional[Any] = None
+
+    def set_triggers_dao(self, triggers_dao: Any) -> None:
+        self._triggers_dao = triggers_dao
 
     def set_session_continuation_resumer(
         self, callback: Callable[..., Awaitable[Optional[str]]]
@@ -1108,17 +1116,46 @@ class WorkflowsService:
 
         return WorkflowServiceBatchResponse.model_validate(payload)
 
+    async def resolve_request_target(
+        self,
+        *,
+        project_id: UUID,
+        request: WorkflowServiceRequest,
+    ) -> Optional[ResolvedTarget]:
+        """Resolve the request's references to one revision, once, and leave the
+        revision on the request, so the invoke runs the target that was checked.
+        `None` when nothing resolves. `archived` is true when the target's artifact is
+        archived (the artifact read is cached)."""
+
+        revision = await self._ensure_request_revision(
+            project_id=project_id, request=request
+        )
+        if revision is None or revision.artifact_id is None or revision.id is None:
+            return None
+        workflow = await self.fetch_workflow(
+            project_id=project_id,
+            workflow_ref=Reference(id=revision.artifact_id),
+        )
+        return ResolvedTarget(
+            artifact_id=revision.artifact_id,
+            revision_id=revision.id,
+            archived=workflow is None or workflow.deleted_at is not None,
+        )
+
     async def _ensure_request_revision(
         self,
         *,
         project_id: UUID,
         request: WorkflowServiceRequest,
-    ) -> None:
+    ) -> Optional[WorkflowRevision]:
+        """Embed the resolved revision in the request. A request that already carries
+        one is not resolved again. Returns the revision it resolved, else `None`."""
+
         if request.data and request.data.revision:
-            return
+            return None
 
         if not request.references:
-            return
+            return None
 
         refs = request.references
         (
@@ -1175,6 +1212,8 @@ class WorkflowsService:
             family=family or "workflow",
             retrieval_info=retrieval_info,
         )
+
+        return workflow_revision
 
     @staticmethod
     def _write_back_resolved_references(
@@ -1494,6 +1533,25 @@ class WorkflowsService:
             project_id=project_id,
             workflow=_workflow,
         )
+
+        # Its schedules and subscriptions stop. Unarchiving does not resume them.
+        if self._triggers_dao is not None:
+            paused = await self._triggers_dao.pause_triggers_for_artifact(
+                project_id=project_id,
+                artifact_id=workflow_id,
+                reason="agent_deleted",
+            )
+            if paused:
+                log.info(
+                    "[triggers] paused",
+                    trigger_kind="artifact",
+                    trigger_id=str(workflow_id),
+                    project_id=str(project_id),
+                    principal_kind=None,
+                    principal_id=None,
+                    reason="agent_deleted",
+                    count=paused,
+                )
 
         return _workflow
 
