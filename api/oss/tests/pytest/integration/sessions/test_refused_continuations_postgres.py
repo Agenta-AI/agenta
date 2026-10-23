@@ -199,36 +199,103 @@ async def test_refusal_is_not_a_transport_retry(command_scope):  # noqa: F811
     assert after.state == SessionCommandState.obsolete
 
 
+async def _pending_input(scope, *, envelope, message, key):
+    """An input admitted while a turn runs: pending, not promoted yet."""
+
+    return await SessionInputsDAO(engine=scope["engine"]).create_input(
+        user_id=scope["user_id"],
+        pending_input=PendingInputCreate(
+            project_id=scope["project_id"],
+            session_id=scope["session_id"],
+            content={"message": message},
+            policy="queue",
+            idempotency_key=key,
+            request_fingerprint=key.ljust(64, "0"),
+            run_envelope=envelope,
+        ),
+    )
+
+
+def _service_with(scope, *, continue_input, continue_interaction=None):
+    engine = scope["engine"]
+    return SessionCommandsService(
+        commands_dao=SessionCommandsDAO(engine=engine),
+        streams_service=None,
+        interactions_service=SessionInteractionsService(
+            interactions_dao=SessionInteractionsDAO(engine=engine)
+        ),
+        lock_engine=None,
+        delivery=DirectControlDelivery(
+            continue_input=continue_input,
+            continue_interaction=continue_interaction,
+        ),
+        executions_dao=SessionExecutionsDAO(engine=engine),
+        inputs_dao=SessionInputsDAO(engine=engine),
+    )
+
+
 async def test_refused_input_is_not_an_active_successor_and_the_next_input_proceeds(
     command_scope,  # noqa: F811
 ):
+    """QA D1. A member queues a message, Alice queues one after it, the member is
+    removed: the member's input is refused and Alice's input is promoted and
+    delivered at once, with no other event. (The first version of this test promoted
+    the second input by hand, so it never covered the automatic promotion.)"""
+
+    member = make_envelope()
+    alice = make_envelope()
     command, _, inputs, _, commands = await _queued_input(
+        command_scope, envelope=member
+    )
+    queued = await _pending_input(
+        command_scope, envelope=alice, message="alice next", key="k-alice"
+    )
+    delivered = []
+
+    async def _deny_member_only(command):
+        if command.run_envelope == member:
+            await _deny(command)
+        delivered.append(command)
+
+    receipt = await _service_with(
+        command_scope, continue_input=_deny_member_only
+    )._deliver(command)
+
+    assert receipt.status == "refused"
+    assert len(delivered) == 1
+    promoted = delivered[0]
+    assert promoted.kind == SessionCommandKind.continue_input
+    assert promoted.data["input_id"] == str(queued.id)
+    assert promoted.run_envelope == alice
+    item = await inputs.fetch_input(
+        project_id=command_scope["project_id"],
+        session_id=command_scope["session_id"],
+        input_id=queued.id,
+    )
+    assert item.state == "promoted"
+
+
+async def test_every_refused_input_in_a_row_drains_the_queue(command_scope):  # noqa: F811
+    command, _, inputs, _, _ = await _queued_input(
         command_scope, envelope=make_envelope()
     )
-    async with commands.transaction() as transaction:
-        before = await inputs.fetch_active_successor(
+    later = [
+        await _pending_input(
+            command_scope, envelope=make_envelope(), message=f"m{i}", key=f"k{i}"
+        )
+        for i in range(2)
+    ]
+
+    receipt = await _service_with(command_scope, continue_input=_deny)._deliver(command)
+
+    assert receipt.status == "refused"
+    for item in later:
+        stored = await inputs.fetch_input(
             project_id=command_scope["project_id"],
             session_id=command_scope["session_id"],
-            transaction=transaction,
+            input_id=item.id,
         )
-    assert before is not None
-
-    await _service(command_scope, continue_input=_deny)._deliver(command)
-
-    async with commands.transaction() as transaction:
-        after = await inputs.fetch_active_successor(
-            project_id=command_scope["project_id"],
-            session_id=command_scope["session_id"],
-            transaction=transaction,
-        )
-    assert after is None
-
-    # The next input queues and is promoted as the session's next execution.
-    second, _, _, _, _ = await _queued_input(
-        command_scope, envelope=make_envelope(), message="next", key="k2"
-    )
-    assert second.kind == SessionCommandKind.continue_input
-    assert second.state == SessionCommandState.pending
+        assert stored.state == "promoted"
 
 
 async def _interaction(scope, *, envelope, token):
@@ -379,3 +446,36 @@ async def test_resume_of_a_refused_continuation_reports_not_resumed(
     )
     assert execution.state == SessionExecutionState.terminal
     assert execution.error["code"] == "missing_envelope"
+
+
+async def test_refused_approval_resume_promotes_the_queued_input(command_scope):  # noqa: F811
+    """QA D1, repro B. The removed member's parked run is approved; its resume is
+    refused, and the input queued behind it is promoted and delivered."""
+
+    from oss.tests.pytest.utils.principals import any_approval
+
+    member = make_envelope(run_id="turn-A")
+    interaction_id = await _interaction(command_scope, envelope=member, token="d1b")
+    alice = make_envelope()
+    queued = await _pending_input(
+        command_scope, envelope=alice, message="after approval", key="k-d1b"
+    )
+    delivered = []
+
+    async def _record(command):
+        delivered.append(command)
+
+    await _service_with(
+        command_scope, continue_input=_record, continue_interaction=_deny
+    ).respond_interaction(
+        project_id=command_scope["project_id"],
+        user_id=command_scope["user_id"],
+        interaction_id=interaction_id,
+        answer={"approved": True},
+        expected_execution_id=None,
+        idempotency_key="answer-d1b",
+        approved_by=any_approval(),
+    )
+
+    assert [c.data["input_id"] for c in delivered] == [str(queued.id)]
+    assert delivered[0].run_envelope == alice

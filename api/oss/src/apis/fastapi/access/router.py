@@ -18,6 +18,7 @@ from oss.src.utils.exceptions import intercept_exceptions
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.context import get_request_access
+from oss.src.core.access.principals import access_denied_error
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.permissions.controls import SCOPES
 from oss.src.core.access.controls import get_roles
@@ -44,10 +45,10 @@ class Allow(JSONResponse):
 
 
 class Deny(HTTPException):
-    def __init__(self) -> None:
+    def __init__(self, detail: Any = "Forbidden") -> None:
         super().__init__(
             status_code=403,
-            detail="Forbidden",
+            detail=detail,
         )
 
 
@@ -224,7 +225,14 @@ class AccessRouter:
             )
             if not decision.allowed:
                 log.warn("Action access denied")
-                raise Deny()
+                # The refusal says why (`not_member`, `principal_inactive`, ...).
+                raise Deny(
+                    access_denied_error(
+                        decision=decision,
+                        principal_kind=access.principal.kind,
+                        project_id=ctx.scope.project_id,
+                    ).model_dump(exclude_none=True)
+                )
 
             # CHECK PERMISSION 3/3: RESOURCE
             allow_resource = await _check_resource_access(

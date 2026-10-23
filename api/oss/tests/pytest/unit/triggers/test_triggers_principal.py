@@ -380,3 +380,98 @@ async def test_dispatch_resolves_target_once():
     setup = _dispatch_setup(access_service=AllowingAccessService())
     await _tick(setup)
     setup.workflows.resolve_request_target.assert_awaited_once()
+
+
+# -- QA D3/D4: resume of a paused trigger -----------------------------------------
+
+
+def _resume_service(schedule):
+    dao = MagicMock()
+    dao.fetch_schedule = AsyncMock(return_value=schedule)
+    dao.edit_schedule = AsyncMock(side_effect=lambda **kw: kw["schedule"])
+    service = TriggersService(
+        adapter_registry=MagicMock(),
+        catalog_service=MagicMock(),
+        triggers_dao=dao,
+        connections_service=MagicMock(),
+        workflows_service=MagicMock(),
+    )
+    return service, dao
+
+
+def _paused_schedule(principal):
+    from oss.src.core.triggers.dtos import TriggerScheduleFlags
+
+    return TriggerSchedule(
+        id=uuid4(),
+        created_by_id=uuid4(),
+        principal=principal,
+        flags=TriggerScheduleFlags(is_active=False),
+        meta={"paused_reason": "access_denied", "note": "kept"},
+        data=_schedule_data({"workflow": {"slug": "agent"}}),
+    )
+
+
+async def test_resume_clears_the_paused_reason(_allowing_access_service):
+    schedule = _paused_schedule(PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4()))
+    service, dao = _resume_service(schedule)
+    await service.set_schedule_active(
+        project_id=uuid4(), user_id=uuid4(), schedule_id=schedule.id, is_active=True
+    )
+    edit = dao.edit_schedule.await_args.kwargs["schedule"]
+    assert edit.flags.is_active is True
+    assert edit.meta == {"note": "kept"}
+
+
+async def test_resume_of_a_trigger_whose_principal_is_gone_is_refused(monkeypatch):
+    import oss.src.core.access.service as access_module
+    from oss.src.core.access.types import AccessDenied
+    from oss.tests.pytest.utils.principals import DenyingAccessService
+
+    monkeypatch.setattr(access_module, "_access_service", DenyingAccessService())
+    schedule = _paused_schedule(PrincipalRef(kind=PrincipalKind.API_KEY, id=uuid4()))
+    service, dao = _resume_service(schedule)
+    with pytest.raises(AccessDenied) as refused:
+        await service.set_schedule_active(
+            project_id=uuid4(), user_id=uuid4(), schedule_id=schedule.id, is_active=True
+        )
+    assert refused.value.principal_kind == PrincipalKind.API_KEY
+    dao.edit_schedule.assert_not_awaited()
+
+
+async def test_resume_of_a_trigger_without_principal_is_refused(
+    _allowing_access_service,
+):
+    from oss.src.core.access.types import MissingPrincipal
+
+    schedule = _paused_schedule(None)
+    service, dao = _resume_service(schedule)
+    with pytest.raises(MissingPrincipal):
+        await service.set_schedule_active(
+            project_id=uuid4(), user_id=uuid4(), schedule_id=schedule.id, is_active=True
+        )
+    dao.edit_schedule.assert_not_awaited()
+
+
+async def test_stop_needs_no_principal(_allowing_access_service):
+    schedule = _paused_schedule(None)
+    service, dao = _resume_service(schedule)
+    await service.set_schedule_active(
+        project_id=uuid4(), user_id=uuid4(), schedule_id=schedule.id, is_active=False
+    )
+    dao.edit_schedule.assert_awaited_once()
+
+
+def test_refusal_names_the_reason():
+    """QA D5: a deleted key or creator reads as such, not as a generic denial."""
+
+    from oss.src.core.access.dtos import Decision, DecisionReason
+    from oss.src.core.access.principals import access_denied_error
+
+    error = access_denied_error(
+        decision=Decision(allowed=False, reason=DecisionReason.PRINCIPAL_INACTIVE),
+        principal_kind=PrincipalKind.API_KEY,
+        project_id=uuid4(),
+    )
+    assert "no longer exists" in error.message
+    assert error.details["reason"] == "principal_inactive"

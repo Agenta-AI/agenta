@@ -13,7 +13,6 @@ from typing import Any, Dict, Optional
 import pytest
 
 from agenta.sdk.middlewares.routing import auth as auth_module
-from agenta.sdk.utils.cache import TTLLRUCache
 
 
 class _FakeRequest:
@@ -56,8 +55,6 @@ class _FakeAsyncClient:
 @pytest.fixture
 def platform(monkeypatch):
     monkeypatch.setattr(auth_module, "_AUTH_ENABLED", True)
-    monkeypatch.setattr(auth_module, "_CACHE_ENABLED", True)
-    monkeypatch.setattr(auth_module, "_cache", TTLLRUCache())
     _FakeAsyncClient.call_count = 0
     _FakeAsyncClient.body = {}
     _FakeAsyncClient.last_headers = None
@@ -150,3 +147,35 @@ def test_runtime_key_placeholder_is_treated_as_unconfigured(monkeypatch):
     )
 
     assert auth_module._runtime_key_from_environment() == ""
+
+
+async def test_every_call_asks_the_platform(platform):
+    """No cache: a removed member or a deleted key is refused on the next request,
+    before a run starts with a credential minted earlier (M2, QA D7)."""
+
+    platform.body = {"effect": "allow", "credentials": "Secret general-token"}
+    await _get_credentials()
+    platform.body = {"effect": "deny"}
+    with pytest.raises(auth_module.DenyException) as denied:
+        await _get_credentials()
+    assert denied.value.status_code == 403
+    assert platform.call_count == 2
+
+
+async def test_a_structured_refusal_is_passed_through(platform, monkeypatch):
+    denial = {
+        "code": "access_denied",
+        "message": "no",
+        "details": {"reason": "not_member"},
+    }
+
+    async def _get(self, *args, **kwargs):
+        response = _FakeResponse({"detail": denial})
+        response.status_code = 403
+        return response
+
+    monkeypatch.setattr(platform, "get", _get)
+    with pytest.raises(auth_module.DenyException) as denied:
+        await _get_credentials()
+    assert denied.value.status_code == 403
+    assert denied.value.content == denial

@@ -377,3 +377,40 @@ async def test_refused_run_without_steps_is_closed_through_process(data):
     edited = service.edit_run.await_args.kwargs["run"]
     assert edited.status == EvaluationStatus.FAILURE
     assert edited.flags.is_active is False
+
+
+@pytest.mark.parametrize("lost", ["access", "principal"])
+async def test_live_run_refusal_ends_failed_with_the_reason(monkeypatch, lost):
+    """QA D6: a live run closed because its principal is gone or lost access ends
+    FAILURE, with the refusal in meta.closed_reason."""
+
+    from datetime import datetime, timezone
+
+    import oss.src.core.access.service as access_module
+    from oss.src.core.evaluations.types import EvaluationStatus
+    from oss.tests.pytest.utils.principals import DenyingAccessService
+
+    monkeypatch.setattr(access_module, "_access_service", DenyingAccessService())
+    run = EvaluationRun(
+        id=uuid4(),
+        name="live",
+        created_by_id=uuid4(),
+        status=EvaluationStatus.RUNNING,
+        flags=EvaluationRunFlags(is_active=True, is_live=True),
+        principal=(
+            None
+            if lost == "principal"
+            else PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4())
+        ),
+    )
+    service = _live_service(run)
+    del service._close_live_run  # the real one
+    service.edit_run = AsyncMock()
+
+    await service.refresh_runs(timestamp=datetime.now(timezone.utc))
+
+    edited = service.edit_run.await_args.kwargs["run"]
+    assert edited.status == EvaluationStatus.FAILURE
+    assert edited.flags.is_active is False and edited.flags.is_closed is True
+    code = "missing_principal" if lost == "principal" else "access_denied"
+    assert edited.meta["closed_reason"]["code"] == code
