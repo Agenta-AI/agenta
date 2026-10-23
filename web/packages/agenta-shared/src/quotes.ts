@@ -74,6 +74,20 @@ export type PreviewQuote = Quote & {source: PreviewQuoteSource}
 export const isPreviewQuote = (quote: Quote): quote is PreviewQuote =>
     quote.source.kind === "preview"
 
+/** A staged comment's number on its document, in store order: the label of its pin and chip. */
+export const previewCommentNumber = (quotes: Quote[], quote: Quote): number | null => {
+    if (!quote.staged || !isPreviewQuote(quote)) return null
+    const {path, mountId} = quote.source
+    let number = 0
+    for (const held of quotes) {
+        if (!held.staged || !isPreviewQuote(held)) continue
+        if (held.source.path !== path || held.source.mountId !== mountId) continue
+        number++
+        if (held.id === quote.id) return number
+    }
+    return null
+}
+
 /** Excerpts go straight into the prompt, so an unbounded drag-select is a token-cost regression. */
 export const QUOTE_EXCERPT_CAP = 2000
 /** What a chip or a quote card shows before it truncates. */

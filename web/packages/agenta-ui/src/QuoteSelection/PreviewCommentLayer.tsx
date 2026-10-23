@@ -3,6 +3,7 @@ import {useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject} f
 
 import {
     isPreviewQuote,
+    previewCommentNumber,
     truncateQuoteText,
     type PreviewAnchor,
     type PreviewQuote,
@@ -226,7 +227,9 @@ export const PreviewCommentLayer = ({
 
     return (
         <>
-            {comments.map((quote, index) => {
+            {comments.map((quote) => {
+                const number = previewCommentNumber(comments, quote)
+                if (number === null) return null
                 const rect = rectOf(quote.id)
                 if (!rect || quote.stale) return null
                 const {top, left} = pinPoint(quote, rect)
@@ -248,13 +251,13 @@ export const PreviewCommentLayer = ({
                     <button
                         type="button"
                         data-quote-ignore="true"
-                        aria-label={`Comment ${index + 1}`}
+                        aria-label={`Comment ${number}`}
                         className={`absolute z-20 flex -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-0 bg-primary p-0 text-[11px] font-semibold leading-none text-btn-primary-fg shadow-md ring-2 ring-background ${
                             isTouch ? "size-7" : "size-5"
                         }`}
                         style={{top, left}}
                     >
-                        {index + 1}
+                        {number}
                     </button>
                 )
                 const open = openPin === quote.id

@@ -4,6 +4,7 @@ import {useState} from "react"
 import {
     formatLineRange,
     formatPreviewChipLocation,
+    previewCommentNumber,
     truncateQuoteText,
     type Quote,
 } from "@agenta/shared/quotes"
@@ -69,11 +70,14 @@ const quoteOrigin = (quote: Quote) => {
 
 const QuoteChip = ({
     quote,
+    number,
     onRemove,
     onEdit,
     touch,
 }: {
     quote: Quote
+    /** The comment's pin number on its document; null for other quotes. */
+    number: number | null
     onRemove: () => void
     onEdit?: (note: string) => void
     touch?: boolean
@@ -84,7 +88,18 @@ const QuoteChip = ({
     const Icon = preview ? ChatCircleText : origin ? FileText : Quotes
     const label = (
         <>
-            <Icon size={touch ? 14 : 12} className="shrink-0 text-colorTextTertiary" />
+            {number !== null ? (
+                <span
+                    aria-label={`Comment ${number}`}
+                    className={`flex shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-semibold leading-none text-btn-primary-fg ${
+                        touch ? "size-[18px]" : "size-4"
+                    }`}
+                >
+                    {number}
+                </span>
+            ) : (
+                <Icon size={touch ? 14 : 12} className="shrink-0 text-colorTextTertiary" />
+            )}
             <span className="min-w-6 truncate text-xs text-colorText">
                 {truncateQuoteText(preview && quote.note ? quote.note : quote.text, 48)}
             </span>
@@ -185,6 +200,7 @@ export const ComposerQuotes = ({quotes, onRemove, onEdit, touch}: ComposerQuotes
                             >
                                 <QuoteChip
                                     quote={quote}
+                                    number={previewCommentNumber(quotes, quote)}
                                     onRemove={() => onRemove(quote.id)}
                                     onEdit={onEdit ? (note) => onEdit(quote.id, note) : undefined}
                                     touch={touch}

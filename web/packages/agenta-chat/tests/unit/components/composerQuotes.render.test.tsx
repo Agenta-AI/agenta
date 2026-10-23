@@ -73,4 +73,12 @@ describe("ComposerQuotes", () => {
         expect(screen.queryByRole("textbox")).toBeNull()
         expect(onEdit).not.toHaveBeenCalled()
     })
+
+    it("labels preview chips with their pin numbers per document", () => {
+        const second = {...comment, id: "c2"}
+        render(<ComposerQuotes quotes={[comment, textQuote, second]} onRemove={vi.fn()} />)
+        expect(screen.getByLabelText("Comment 1").textContent).toBe("1")
+        expect(screen.getByLabelText("Comment 2").textContent).toBe("2")
+        expect(screen.queryByLabelText("Comment 3")).toBeNull()
+    })
 })

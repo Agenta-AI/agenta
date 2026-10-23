@@ -4,6 +4,7 @@ import {
     cellsToTable,
     formatPreviewChipLocation,
     inlineCode,
+    previewCommentNumber,
     quotesToMarkdown,
     splitQuotedMessage,
     type PreviewAnchor,
@@ -183,5 +184,38 @@ describe("splitQuotedMessage reads preview comments back", () => {
     it("keeps a text quote's line range out of location", () => {
         const markdown = "> **`a.md`** (L3)  \n> hello"
         expect(splitQuotedMessage(markdown).quotes).toEqual([{origin: "a.md", text: "hello"}])
+    })
+})
+
+describe("previewCommentNumber", () => {
+    const on = (id: string, path: string, staged = true): Quote => ({
+        id,
+        text: "x",
+        note: "",
+        staged,
+        stale: false,
+        source: {kind: "preview", path, displayPath: path, fileName: path, anchor: element({})},
+    })
+
+    it("counts staged comments on the same document in store order", () => {
+        const quotes = [
+            on("a", "deck.pptx"),
+            on("b", "memo.docx"),
+            on("c", "deck.pptx"),
+            on("d", "deck.pptx", false),
+        ]
+        expect(quotes.map((q) => previewCommentNumber(quotes, q))).toEqual([1, 1, 2, null])
+    })
+
+    it("has no number for a text quote", () => {
+        const text: Quote = {
+            id: "t",
+            text: "x",
+            note: "",
+            staged: true,
+            stale: false,
+            source: {kind: "message", messageId: "m"},
+        }
+        expect(previewCommentNumber([text], text)).toBeNull()
     })
 })
