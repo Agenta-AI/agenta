@@ -11,6 +11,7 @@ on the existing quote-to-reply feature instead of adding a second system.
 | [context.md](context.md) | What the user can do today, what we want, goals and non-goals. |
 | [research.md](research.md) | How the current previews and the quote store work, with file references, and what other products do. |
 | [OpenSpec change `preview-comments`](../../../openspec/changes/preview-comments/) | The binding plan: proposal, behavior spec, design (data shapes, picker, messages, agent format) and tasks. |
+| [qa.md](qa.md) | The break-it test matrix, what it fixed, and the open findings. |
 | [status.md](status.md) | Current progress, decisions taken, and open questions. Source of truth for state. |
 
 ## Terms used in every file
