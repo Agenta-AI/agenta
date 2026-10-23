@@ -38,6 +38,53 @@ async def test_null_principal_run_fails():
         await _processor()._run_envelope(project_id=uuid4(), run=run)
 
 
+async def test_null_principal_run_is_closed_through_process():
+    """The rerun and direct-batch worker paths call `process` and catch nothing. A run
+    without a principal ends failed and inactive, never left active."""
+
+    from oss.src.core.evaluations.types import (  # noqa: PLC0415
+        EvaluationRunData,
+        EvaluationRunDataStep,
+        EvaluationStatus,
+    )
+    from oss.src.core.evaluations.runtime.types import RunSlice  # noqa: PLC0415
+
+    run = EvaluationRun(
+        id=uuid4(),
+        name="r",
+        created_by_id=uuid4(),
+        flags=EvaluationRunFlags(is_active=True),
+        status=EvaluationStatus.RUNNING,
+        data=EvaluationRunData(
+            steps=[
+                EvaluationRunDataStep(
+                    key="input", type="input", origin="custom", references={}
+                )
+            ],
+            mappings=[],
+        ),
+    )
+    service = SimpleNamespace(
+        fetch_run=AsyncMock(return_value=run),
+        edit_run=AsyncMock(),
+        query_results=AsyncMock(side_effect=AssertionError("must not execute")),
+    )
+    processor = _processor()
+    processor.evaluations_service = service
+
+    summary = await processor.process(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        run_slice=RunSlice(run_id=run.id),
+    )
+
+    assert summary is not None
+    edited = service.edit_run.await_args.kwargs["run"]
+    assert edited.status == EvaluationStatus.FAILURE
+    assert edited.flags.is_active is False
+    service.query_results.assert_not_awaited()
+
+
 def _simple(evaluations_service):
     return SimpleEvaluationsService(
         testsets_service=None,  # type: ignore[arg-type]
