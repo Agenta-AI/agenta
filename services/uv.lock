@@ -8,7 +8,7 @@ resolution-markers = [
 
 [[package]]
 name = "agenta"
-version = "0.122.10"
+version = "0.123.0"
 source = { editable = "../sdks/python" }
 dependencies = [
     { name = "agenta-client" },
@@ -47,7 +47,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.139,<0.140" },
     { name = "httpx", specifier = ">=0.28,<0.29" },
     { name = "jinja2", specifier = ">=3,<4" },
-    { name = "litellm", specifier = ">=1,<2" },
+    { name = "litellm", specifier = ">=1,!=1.107.0,<2" },
     { name = "mystace", specifier = ">=1,<2" },
     { name = "openai", specifier = ">=2,<3" },
     { name = "opentelemetry-api", specifier = ">=1,<2" },
@@ -87,7 +87,7 @@ dev = [
 
 [[package]]
 name = "agenta-client"
-version = "0.122.10"
+version = "0.123.0"
 source = { editable = "../clients/python" }
 dependencies = [
     { name = "httpx" },
@@ -2437,7 +2437,7 @@ wheels = [
 
 [[package]]
 name = "services"
-version = "0.122.10"
+version = "0.123.0"
 source = { virtual = "." }
 dependencies = [
     { name = "agenta", extra = ["server-tracing"] },

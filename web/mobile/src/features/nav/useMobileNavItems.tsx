@@ -44,6 +44,7 @@ import {
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
 
+import {agentEntryHref} from "@/features/agents/agentEntry"
 import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
 import {whatsNewAtom} from "@/features/education/whatsNewAtom"
@@ -115,11 +116,11 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         groupsAtom: sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
         // An agent heading's "+" opens a blank session with that agent — the same start every
         // other "+" in the app makes. The session id is minted on the click, so the anchor's
-        // own href is the agent's page: what a long-press / open-in-new-tab lands on.
+        // own href is the agent entry link: what a long-press / open-in-new-tab lands on.
         groupAdd: (group, projectURL) =>
             group.agentId
                 ? {
-                      link: `${projectURL}/agents/${group.agentId}`,
+                      link: agentEntryHref(projectURL, group.agentId),
                       label: `New session with ${group.label}`,
                       onClick: (event) => {
                           event.preventDefault()

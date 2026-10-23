@@ -641,6 +641,7 @@ function IntegrationCatalogContent({
             {connectTarget ? (
                 <ConnectDrawer
                     open
+                    container={container}
                     integrationKey={connectTarget.key}
                     integrationName={connectTarget.name}
                     integrationLogo={connectTarget.logo ?? undefined}

@@ -54,6 +54,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
     const [connectIntegration, setConnectIntegration] = useState<CatalogIntegrationItem | null>(
         null,
     )
+    const [panel, setPanel] = useState<HTMLDivElement | null>(null)
 
     const setIntegrationsSearch = useSetAtom(toolIntegrationsSearchAtom)
     const setActionsSearch = useSetAtom(toolActionsSearchAtom)
@@ -88,6 +89,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
                 title={selectedIntegration ? "Browse Actions" : "Browse Integrations"}
                 size="large"
                 destroyOnClose
+                panelRef={setPanel}
                 styles={{
                     body: {
                         padding: 0,
@@ -111,6 +113,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
             {connectIntegration && (
                 <ConnectDrawer
                     open={!!connectIntegration}
+                    container={panel}
                     integrationKey={connectIntegration.key}
                     integrationName={connectIntegration.name}
                     integrationLogo={connectIntegration.logo ?? undefined}

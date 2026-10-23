@@ -62,6 +62,8 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
      */
     const [connecting, setConnecting] = useState<"new" | "reconnect" | null>(null)
     const [permissionsOpen, setPermissionsOpen] = useState(false)
+    // The permission drawer's panel: a reconnect started there opens inside it, not over the page.
+    const [permissionsPanel, setPermissionsPanel] = useState<HTMLDivElement | null>(null)
 
     const endpoints = useMemo(() => endpointsQuery.data ?? [], [endpointsQuery.data])
     const selectedSlug = readMcpConnectionSlug(value)
@@ -212,12 +214,14 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     status={selected ? getMcpConnectionStatus(selected) : undefined}
                     cachedToolCount={selected ? readMcpToolCount(selected) : null}
                     disabled={disabled}
+                    panelRef={setPermissionsPanel}
                 />
             ) : null}
 
             {connecting ? (
                 <McpConnectJourney
                     open
+                    container={permissionsOpen ? permissionsPanel : null}
                     onClose={() => setConnecting(null)}
                     existingNames={endpoints.map((endpoint) => endpoint.name)}
                     reconnect={connecting === "reconnect" ? mcpReconnectTarget(selected) : null}

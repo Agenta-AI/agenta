@@ -158,6 +158,8 @@ export default function McpServersSection({
     const [viewingKey, setViewingKey] = useState<string | null>(null)
     /** "View tools", tracked by key for the same reason as the connection above. */
     const [toolsKey, setToolsKey] = useState<string | null>(null)
+    // The tools drawer's panel: a reconnect started there opens inside it, not over the page.
+    const [toolsPanel, setToolsPanel] = useState<HTMLDivElement | null>(null)
     const [renamingKey, setRenamingKey] = useState<string | null>(null)
     const projectId = useAtomValue(projectIdAtom)
 
@@ -484,6 +486,7 @@ export default function McpServersSection({
                 existingNames={names}
                 reconnect={mcpReconnectTarget(reconnecting)}
                 onConnected={() => void refresh()}
+                container={viewingTools ? toolsPanel : null}
             />
 
             {/*
@@ -510,6 +513,7 @@ export default function McpServersSection({
                 onChange={() => undefined}
                 onReconnect={viewingTools ? () => openReconnect(viewingTools) : undefined}
                 readOnly
+                panelRef={setToolsPanel}
             />
 
             <McpConnectionDetail

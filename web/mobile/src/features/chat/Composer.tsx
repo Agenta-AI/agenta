@@ -55,6 +55,7 @@ export const Composer = ({
     inputBusy = streaming,
     inputRef,
     placeholder,
+    hasTurns,
     onNewSession,
 }: {
     /** The agent revision the `/` palette reads and writes (model, permissions, skills). */
@@ -89,6 +90,8 @@ export const Composer = ({
     inputRef?: MutableRefObject<RichChatInputHandle | null>
     /** Full placeholder override — used when the composer is gated (no model key). */
     placeholder?: string
+    /** The session already has turns: the key hints move from chips into the placeholder. */
+    hasTurns?: boolean
     /** Starts a fresh session — the palette offers no /new row without it. */
     onNewSession?: () => void
 }) => {
@@ -371,6 +374,7 @@ export const Composer = ({
                             dictating={dictating}
                             dictationAnalyserRef={voice.dictationAnalyserRef}
                             placeholder={placeholder}
+                            hasTurns={hasTurns}
                             waitingOnUser={waitingOnUser}
                             streaming={stoppable}
                             stopping={stopping}

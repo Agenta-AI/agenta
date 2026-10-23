@@ -131,6 +131,7 @@ GENERAL_CREDIT_KINDS = frozenset(
         "plan_allowance",
         "purchase",
         "promotion",
+        # The retired starter-credits program's transferred budgets. Those rows remain.
         "starter_credits",
         "contribution_award",
         "referral_bonus",
