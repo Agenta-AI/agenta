@@ -466,8 +466,8 @@ class SlackAdapter(ChannelAdapterInterface):
         """Download a shared file. Two calls: files.info resolves the file id
         to its current size and private URL (the stored part carries only the
         id, so a URL rotated since the event still resolves), then the URL is
-        fetched with the bot token. None when Slack reports the file larger
-        than `max_bytes`. An HTML response is Slack's login page, meaning the
+        fetched with the bot token. None when the file is larger than
+        `max_bytes`. An HTML response is Slack's login page, meaning the
         token cannot read files."""
 
         body = await self._call(
@@ -481,20 +481,32 @@ class SlackAdapter(ChannelAdapterInterface):
         if not url:
             # An external or tombstoned file has no downloadable copy.
             raise _SlackApiError(error="file_not_downloadable", status_code=200)
-        response = await self._client.get(
+        async with self._client.stream(
+            "GET",
             url,
             headers={"Authorization": f"Bearer {_bot_token(connection)}"},
             follow_redirects=True,
             timeout=_MEDIA_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()
-        if response.headers.get("content-type", "").startswith("text/html"):
-            raise _SlackApiError(
-                error="file_download_denied", status_code=response.status_code
-            )
-        if max_bytes is not None and len(response.content) > max_bytes:
-            return None
-        return response.content, media.get("mime_type") or entry.get("mimetype")
+        ) as response:
+            response.raise_for_status()
+            if response.headers.get("content-type", "").startswith("text/html"):
+                raise _SlackApiError(
+                    error="file_download_denied", status_code=response.status_code
+                )
+            content_length = response.headers.get("content-length", "")
+            if (
+                max_bytes is not None
+                and not response.headers.get("content-encoding")
+                and content_length.isdecimal()
+                and int(content_length) > max_bytes
+            ):
+                return None
+            data = bytearray()
+            async for chunk in response.aiter_bytes():
+                if max_bytes is not None and len(data) + len(chunk) > max_bytes:
+                    return None
+                data.extend(chunk)
+            return bytes(data), media.get("mime_type") or entry.get("mimetype")
 
     # --- egress --- #
 

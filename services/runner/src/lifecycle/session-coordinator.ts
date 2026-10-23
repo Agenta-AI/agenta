@@ -196,8 +196,9 @@ export interface KeepaliveEngine {
    * Today's cold path (acquire -> runTurn -> teardown). Used when a request must not park.
    * `presignedMount` threads an already-signed mount in (null = signed, no mount — do not sign
    * again; undefined = not signed — acquire signs itself), so the mount is signed exactly once.
-   * `clientGone` feeds the same `shouldPark` policy the warm path uses: a remote sandbox is
-   * parked to warm only on a completed turn.
+   * The sandbox is always deleted, never stopped: no pool entry would own a stopped one, so
+   * nothing would reconnect it or delete its Daytona Secrets. `clientGone` only names the
+   * teardown reason in the log.
    */
   runCold(
     request: AgentRunRequest,
