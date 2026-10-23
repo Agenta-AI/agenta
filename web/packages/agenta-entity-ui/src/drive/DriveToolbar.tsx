@@ -253,7 +253,6 @@ const FileActionsMenu = ({
     </DropdownMenu>
 )
 
-/** The 36px row frame with the hairline the rail's search header shares. */
 const isTyping = (target: EventTarget | null): boolean =>
     target instanceof HTMLElement &&
     (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
@@ -286,6 +285,7 @@ const CommentToggle = () => {
     )
 }
 
+/** The 36px row frame with the hairline the rail's search header shares. */
 const Row = ({children}: {children: ReactNode}) => (
     <div className="flex h-9 shrink-0 items-center gap-1 border-0 border-b border-solid border-colorBorderSecondary px-2.5">
         {children}

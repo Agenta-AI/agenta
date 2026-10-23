@@ -135,7 +135,7 @@ describe("quotesToMarkdown for preview comments", () => {
 })
 
 describe("splitQuotedMessage reads preview comments back", () => {
-    it("returns origin, text and location", () => {
+    it("lifts a preview head into a quote card", () => {
         const quote = previewQuote(
             element({format: "presentation", page: 3}),
             "Q3 revenue grew 40%",
@@ -146,7 +146,6 @@ describe("splitQuotedMessage reads preview comments back", () => {
                 {
                     origin: "agent-files/app/index.html",
                     text: "Q3 revenue grew 40%",
-                    location: "slide 3",
                 },
             ],
             text: "Fix it",
@@ -164,7 +163,6 @@ describe("splitQuotedMessage reads preview comments back", () => {
             {
                 origin: "agent-files/app/index.html",
                 text: "| x |\n| --- |",
-                location: 'sheet `Q3 "final" (v2)`, A1',
             },
         ])
     })
@@ -176,12 +174,11 @@ describe("splitQuotedMessage reads preview comments back", () => {
             {
                 origin: "agent-files/app/index.html",
                 text: 'Hi\n``<p title="a`b">``',
-                location: "element `main > h2:nth-of-type(2)`",
             },
         ])
     })
 
-    it("keeps a text quote's line range out of location", () => {
+    it("still reads a text quote's line range head", () => {
         const markdown = "> **`a.md`** (L3)  \n> hello"
         expect(splitQuotedMessage(markdown).quotes).toEqual([{origin: "a.md", text: "hello"}])
     })

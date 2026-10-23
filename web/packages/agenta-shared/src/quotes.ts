@@ -290,10 +290,7 @@ export const formatLineRange = (start?: number, end?: number): string => {
     return `L${start}–L${end}`
 }
 
-/**
- * A CommonMark code span that holds any text: the fence is one backtick longer than the
- * longest run inside, padded when the content would otherwise merge with it or lose a space.
- */
+/** A CommonMark code span for any text: fence one backtick longer than the longest run inside. */
 export const inlineCode = (text: string): string => {
     const flat = text.replace(/\r\n?|\n/g, " ")
     const longest = (flat.match(/`+/g) ?? []).reduce((max, run) => Math.max(max, run.length), 0)
@@ -397,14 +394,12 @@ export interface QuotedExcerpt {
     /** The quote's origin: a drive path, or "Agent reply". */
     origin: string
     text: string
-    /** A preview comment's location, as `formatPreviewLocation` wrote it. */
-    location?: string
 }
 
 // The whole origin line `quotesToMarkdown` writes, so a hand-written blockquote is not taken for one.
 // A preview location's greedy `.+` runs to the line's last `)`, so brackets inside it are safe.
 const QUOTE_HEAD =
-    /^> \*\*(?:`([^`]+)`|(Agent reply))\*\*(?: \((?:L\d+(?:–L\d+)?|((?:element|page|slide|sheet) .+))\))? *$/
+    /^> \*\*(?:`([^`]+)`|(Agent reply))\*\*(?: \((?:L\d+(?:–L\d+)?|(?:element|page|slide|sheet) .+)\))? *$/
 
 /** A sent message's leading quotes and the user's own words; inverts `quotesToMarkdown`. */
 export const splitQuotedMessage = (markdown: string): {quotes: QuotedExcerpt[]; text: string} => {
@@ -423,11 +418,7 @@ export const splitQuotedMessage = (markdown: string): {quotes: QuotedExcerpt[]; 
         const head = blockStart ? QUOTE_HEAD.exec(line) : null
         if (head) {
             current = []
-            quotes.push({
-                origin: head[1] ?? head[2],
-                text: "",
-                ...(head[3] ? {location: head[3]} : {}),
-            })
+            quotes.push({origin: head[1] ?? head[2], text: ""})
         } else {
             current = null
             rest.push(line)
