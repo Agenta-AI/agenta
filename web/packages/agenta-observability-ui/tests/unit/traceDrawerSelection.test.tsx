@@ -5,7 +5,6 @@ import {act} from "react"
 import {createStore, Provider, type Atom, type WritableAtom} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, expect, it, vi} from "vitest"
-
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const SPAN_A = "span-a"
