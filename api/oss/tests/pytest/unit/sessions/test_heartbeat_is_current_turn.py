@@ -1,6 +1,6 @@
 """WP7 (W7.4): the control signal from cancel/steer/kill must reach the runner's heartbeat.
 
-Before this, `heartbeat(envelope=make_envelope())`'s acquire-then-refresh fallback silently re-acquired a lost alive
+Before this, `heartbeat()`'s acquire-then-refresh fallback silently re-acquired a lost alive
 lock under the SAME turn_id (nx=True is a no-op only when the key is gone) — a cancel/steer/
 kill that raced a heartbeat was invisible to the runner: the beat still looked like a normal
 `ok` heartbeat. `is_current_turn` on `SessionHeartbeatResult` surfaces the interruption so the

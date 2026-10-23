@@ -59,14 +59,17 @@ class EvaluationsDAOInterface(ABC):
     ) -> List[EvaluationRun]:
         raise NotImplementedError
 
+    @abstractmethod
     async def set_run_principal(
         self,
         *,
         project_id: UUID,
         run_id: UUID,
         principal: PrincipalRef,
+        user_id: Optional[UUID] = None,
     ) -> None:
-        """Set the principal the run executes as: an explicit start or rerun."""
+        """Set the principal the run executes as (an explicit start or rerun), with
+        the acting user of the request that set it."""
         raise NotImplementedError
 
     @abstractmethod

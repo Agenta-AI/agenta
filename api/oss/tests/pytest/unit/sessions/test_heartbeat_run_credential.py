@@ -108,3 +108,20 @@ async def test_the_route_maps_the_refusal_to_403():
             await router.heartbeat_session_stream(request, _beat("s"))
     assert error.value.status_code == 403
     assert error.value.detail["code"] == "session_requires_run_credential"
+
+
+async def test_a_refused_create_binds_no_turn(lock_engine):
+    """The refusal comes before the first-writer-wins turn binding, so a refused
+    beat cannot claim the turn for its replica."""
+
+    import oss.src.core.sessions.streams.service as service_module
+
+    dao = _DAO()
+    service = SessionStreamsService(streams_dao=dao, lock_engine=lock_engine)
+    bind = AsyncMock()
+    with patch.object(service_module, "bind_turn", bind):
+        with pytest.raises(SessionCreationRequiresRunCredential):
+            await service.heartbeat(
+                project_id=_PROJECT, request=_beat("browser-2"), envelope=None
+            )
+    bind.assert_not_awaited()

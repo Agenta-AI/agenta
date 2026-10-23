@@ -1135,6 +1135,15 @@ class WorkflowsService:
         )
         if revision is None or revision.artifact_id is None or revision.id is None:
             return None
+        # A static revision has a synthetic artifact with no row: it is never archived.
+        slug = getattr(revision, "slug", None)
+        flags = getattr(revision, "flags", None)
+        if (slug and is_static_workflow_slug(slug)) or getattr(
+            flags, "is_static", False
+        ):
+            return ResolvedTarget(
+                artifact_id=revision.artifact_id, revision_id=revision.id
+            )
         workflow = await self.fetch_workflow(
             project_id=project_id,
             workflow_ref=Reference(id=revision.artifact_id),
@@ -1539,11 +1548,22 @@ class WorkflowsService:
 
         # Its schedules and subscriptions stop. Unarchiving does not resume them.
         if self._triggers_dao is not None:
-            paused = await self._triggers_dao.pause_triggers_for_artifact(
-                project_id=project_id,
-                artifact_id=workflow_id,
-                reason="agent_deleted",
-            )
+            # Best effort: the archive is committed. A tick refuses an archived target
+            # anyway (`agent_deleted`), so a failed pause here is caught up there.
+            try:
+                paused = await self._triggers_dao.pause_triggers_for_artifact(
+                    project_id=project_id,
+                    artifact_id=workflow_id,
+                    reason="agent_deleted",
+                )
+            except Exception:  # pylint: disable=broad-except
+                log.warning(
+                    "[triggers] pause after archive failed",
+                    project_id=str(project_id),
+                    artifact_id=str(workflow_id),
+                    exc_info=True,
+                )
+                paused = 0
             if paused:
                 log.info(
                     "[triggers] paused",

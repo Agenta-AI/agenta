@@ -1020,18 +1020,21 @@ class InboxDispatcher:
                     status=Status(code="202", message="Queued behind the running turn"),
                 )
                 return
-            if envelope is not None and not await self._may_run(
-                project_id=project_id,
-                resolution=resolution,
-                turn_id=turn_id,
-                trigger_id=trigger_id,
-                envelope=envelope,
-                connection=connection,
-                capabilities=capabilities,
-                request_locator=request_locator,
-            ):
-                return
             try:
+                # Inside the try: a transient failure of the recheck (not a denial)
+                # settles the trigger FAILED below, as an invoke failure does, instead
+                # of escaping after the trigger was claimed.
+                if envelope is not None and not await self._may_run(
+                    project_id=project_id,
+                    resolution=resolution,
+                    turn_id=turn_id,
+                    trigger_id=trigger_id,
+                    envelope=envelope,
+                    connection=connection,
+                    capabilities=capabilities,
+                    request_locator=request_locator,
+                ):
+                    return
                 # user_id is passed only when identity resolved a linked
                 # account; an injected invoke_fn keeps its four-argument shape.
                 extra = {"user_id": user_id} if user_id is not None else {}
