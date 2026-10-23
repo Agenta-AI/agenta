@@ -8,6 +8,7 @@ import pytest
 from oss.tests.pytest.utils.membership_accounts import (
     PERMISSION_DENIED,
     Team,
+    api_key_for_project,
     create_account,
     delete_account,
     headers,
@@ -29,6 +30,14 @@ def _projects(admin_api, team, label):
     resp = admin_api("GET", "/projects/", headers=team.headers(label))
     assert resp.status_code == 200, resp.text
     return resp.json()
+
+
+def _key_in(admin_api, team, label, project_id):
+    return headers(
+        api_key_for_project(
+            admin_api, project_id=project_id, user_id=team.user_ids[label]
+        )
+    )
 
 
 def _create(admin_api, team, label, name):
@@ -53,10 +62,19 @@ def test_admin_can_create_and_rename_a_project(admin_api, team):
     project_id = resp.json()["project_id"]
     assert resp.json()["user_role"] == "admin"
 
+    # An API key stays in its own project (M2): rename with the admin's key of the
+    # new project. The admin's key of the first project is refused there.
     resp = admin_api(
         "PATCH",
         f"/projects/{project_id}",
         headers=team.headers("admin"),
+        json={"name": "admin-project-renamed"},
+    )
+    assert resp.status_code == 403, resp.text
+    resp = admin_api(
+        "PATCH",
+        f"/projects/{project_id}",
+        headers=_key_in(admin_api, team, "admin", project_id),
         json={"name": "admin-project-renamed"},
     )
     assert resp.status_code == 200, resp.text
@@ -83,7 +101,12 @@ def test_admin_cannot_delete_a_project(admin_api, team):
     assert resp.status_code == 201, resp.text
     project_id = resp.json()["project_id"]
 
-    resp = admin_api("DELETE", f"/projects/{project_id}", headers=team.headers("admin"))
+    # The admin's key of that project, so the refusal is the role's, not the key's.
+    resp = admin_api(
+        "DELETE",
+        f"/projects/{project_id}",
+        headers=_key_in(admin_api, team, "admin", project_id),
+    )
     assert resp.status_code == 403, resp.text
 
 
@@ -92,7 +115,11 @@ def test_owner_can_delete_a_project(admin_api, team):
     assert resp.status_code == 201, resp.text
     project_id = resp.json()["project_id"]
 
-    resp = admin_api("DELETE", f"/projects/{project_id}", headers=team.headers("owner"))
+    resp = admin_api(
+        "DELETE",
+        f"/projects/{project_id}",
+        headers=_key_in(admin_api, team, "owner", project_id),
+    )
     assert resp.status_code == 200, resp.text
     assert resp.json() == {"detail": "Project deleted"}
 
