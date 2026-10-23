@@ -355,9 +355,8 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                         // somewhere to type. A FILL token rather than an opaque surface — it lifts off the
                         // page in dark and settles into it in light, where "elevated" is the page colour.
                         "relative flex flex-col overflow-hidden rounded-lg border border-solid bg-[var(--ag-colorFillTertiary)] shadow-[var(--ag-surface-chat-shadow)] transition-colors",
-                        // The primary input reads as a defined, slightly-lifted field: a visible edge
-                        // + soft shadow, then the accent border on focus (1px, no glow).
-                        "border-[var(--ag-composer-border)] focus-within:border-[var(--ag-composer-focus)]",
+                        // Focus is the kit's control ring: a softer edge plus a 3px halo.
+                        "border-[var(--ag-composer-border)] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-[color:var(--ag-controlOutline)]",
                         disabled && "opacity-60",
                         className,
                     )}
