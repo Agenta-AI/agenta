@@ -42,11 +42,10 @@ import {
     useDriveObjectUrl,
 } from "./driveFileSource"
 import {DriveCodeBlock, DriveMarkdown} from "./driveMarkdown"
-import {useDriveSessionId} from "./driveSessionContext"
 import {HtmlAppBody} from "./htmlApp"
 import {OfficeViewerFrame} from "./officeViewer/OfficeViewerFrame"
 import type {OfficeViewerKind} from "./officeViewer/protocol"
-import {usePreviewCommentMode} from "./previewCommentMode"
+import {previewTarget, usePreviewCommentMode, usePreviewCommentSession} from "./previewCommentMode"
 import {useQuotableFile} from "./quotable"
 import {
     isInBox,
@@ -585,7 +584,7 @@ export const SpreadsheetView = ({
     const [active, setActive] = useState(0)
     const index = Math.min(active, workbook.sheets.length - 1)
     const sheet = workbook.sheets[index]
-    const sessionId = useDriveSessionId()
+    const sessionId = usePreviewCommentSession()
     const {enabled} = usePreviewCommentMode()
     const rootRef = useRef<HTMLDivElement>(null)
     const comments = usePreviewComments(sessionId, target)
@@ -674,12 +673,7 @@ const SpreadsheetBody = ({
         <SpreadsheetView
             workbook={parsed.workbook}
             addressing={parsed.addressing}
-            target={{
-                path,
-                displayPath: displayPath ?? path,
-                fileName: path.split("/").pop() ?? path,
-                mountId: mount?.id,
-            }}
+            target={previewTarget(path, displayPath, mount?.id)}
         />
     )
 }
@@ -714,12 +708,7 @@ const OfficeFrameBody = ({
                 blob={blob}
                 onFailed={onFailed}
                 placeholder={<MediaLoading />}
-                target={{
-                    path,
-                    displayPath: displayPath ?? path,
-                    fileName: path.split("/").pop() ?? path,
-                    mountId: mount?.id,
-                }}
+                target={previewTarget(path, displayPath, mount?.id)}
             />
         </Inset>
     )

@@ -14,7 +14,9 @@ export {
     useStagedQuotes,
 } from "./store"
 export {
+    frameRectToRoot,
     PreviewCommentLayer,
+    toPinQueries,
     usePreviewComments,
     type PreviewCommentLayerProps,
     type PreviewCommentTarget,

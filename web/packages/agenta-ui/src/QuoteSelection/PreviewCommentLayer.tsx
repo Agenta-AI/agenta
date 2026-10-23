@@ -1,10 +1,12 @@
 // Comments on a rendered preview: note box at a pick, numbered pins, pin card with Edit and Delete.
 import {useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject} from "react"
 
+import type {PinQuery} from "@agenta/shared/previewPicker"
 import {
     isPreviewQuote,
     previewCommentNumber,
     truncateQuoteText,
+    type ElementAnchor,
     type PreviewAnchor,
     type PreviewQuote,
     type Quote,
@@ -71,10 +73,7 @@ type Editor =
     | {kind: "draft"; quote: Quote; rect: PreviewRect; note: string}
     | {kind: "edit"; id: string}
 
-/**
- * Preview comments on this target, in store order: the staged ones and the open draft. The
- * bridges report a position for each, so the draft's note box follows its element too.
- */
+/** Staged comments and the open draft on this target; the bridges track each one's element. */
 export const usePreviewComments = (
     sessionId: string | null,
     target: PreviewCommentTarget,
@@ -92,6 +91,26 @@ export const usePreviewComments = (
         [quotes, path, mountId],
     )
 }
+
+/** A rect in an iframe's viewport, moved into the root's coordinates. */
+export const frameRectToRoot = (
+    rect: PreviewRect,
+    frame: HTMLElement,
+    root: HTMLElement,
+): PreviewRect => {
+    const f = frame.getBoundingClientRect()
+    const r = root.getBoundingClientRect()
+    return {...rect, top: rect.top + f.top - r.top, left: rect.left + f.left - r.left}
+}
+
+/** Element comments as the picker's pin queries; `keep` narrows them (a slide's comments). */
+export const toPinQueries = (
+    comments: PreviewQuote[],
+    keep: (anchor: ElementAnchor) => boolean = () => true,
+): PinQuery[] =>
+    comments.flatMap(({id, text, source: {anchor}}) =>
+        anchor.type === "element" && keep(anchor) ? [{id, selector: anchor.selector, text}] : [],
+    )
 
 const draftField = (root: HTMLElement | null) =>
     root?.querySelector<HTMLTextAreaElement>("[role=dialog] textarea") ?? null

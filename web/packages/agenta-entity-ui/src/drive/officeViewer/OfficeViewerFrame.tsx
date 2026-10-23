@@ -1,19 +1,18 @@
 import {type ReactNode, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import type {PinQuery} from "@agenta/shared/previewPicker"
 import {
+    frameRectToRoot,
     PreviewCommentLayer,
+    toPinQueries,
     usePreviewComments,
     type PreviewCommentTarget,
     type PreviewPick,
     type PreviewPinRect,
-    type PreviewRect,
 } from "@agenta/ui/quote-selection"
 import {Button} from "@agenta/ui/ui"
 import {CaretLeft, CaretRight} from "@phosphor-icons/react"
 
-import {useDriveSessionId} from "../driveSessionContext"
-import {usePreviewCommentMode} from "../previewCommentMode"
+import {usePreviewCommentMode, usePreviewCommentSession} from "../previewCommentMode"
 
 import {
     buildViewerSrcdoc,
@@ -35,13 +34,6 @@ type ViewerState =
     | {status: "loading"}
     | {status: "rendered"; slideCount: number; index: number}
     | {status: "failed"}
-
-/** A frame-viewport rect moved into the root's coordinates. */
-const toRoot = (rect: PreviewRect, frame: HTMLIFrameElement, root: HTMLElement): PreviewRect => {
-    const f = frame.getBoundingClientRect()
-    const r = root.getBoundingClientRect()
-    return {...rect, top: rect.top + f.top - r.top, left: rect.left + f.left - r.left}
-}
 
 /** Renders a DOCX or PPTX in the sandboxed viewer frame; slide controls stay in the app. */
 export function OfficeViewerFrame({
@@ -69,8 +61,10 @@ export function OfficeViewerFrame({
     const [shown, setShown] = useState<{slide: number} | null>(null)
     const [pick, setPick] = useState<PreviewPick | null>(null)
     const [pinRects, setPinRects] = useState<PreviewPinRect[]>([])
-    const sessionId = useDriveSessionId()
+    const sessionId = usePreviewCommentSession()
     const {enabled, setEnabled} = usePreviewCommentMode()
+    const enabledRef = useRef(enabled)
+    enabledRef.current = enabled
     const format = kind === "document" ? "document" : "presentation"
 
     useEffect(() => {
@@ -126,12 +120,12 @@ export function OfficeViewerFrame({
                     return
                 case "picked": {
                     const root = rootRef.current
-                    if (!enabled || !box || !root) return
+                    if (!enabledRef.current || !box || !root) return
                     const {selector, tag, page, point} = message.element
                     setPick({
                         anchor: {type: "element", format, selector, tag, page, point},
                         text: message.text,
-                        rect: toRoot(message.rect, box, root),
+                        rect: frameRectToRoot(message.rect, box, root),
                     })
                     return
                 }
@@ -144,7 +138,7 @@ export function OfficeViewerFrame({
                     setPinRects(
                         message.rects.map(({id, rect}) => ({
                             id,
-                            rect: rect ? toRoot(rect, box, root) : null,
+                            rect: rect ? frameRectToRoot(rect, box, root) : null,
                         })),
                     )
                     return
@@ -153,7 +147,7 @@ export function OfficeViewerFrame({
         }
         window.addEventListener("message", onMessage)
         return () => window.removeEventListener("message", onMessage)
-    }, [blob, kind, onFailed, send, enabled, setEnabled, format])
+    }, [blob, kind, onFailed, send, setEnabled, format])
 
     // A frame that has not rendered yet ignores the mode.
     const picking = useRef(false)
@@ -173,14 +167,7 @@ export function OfficeViewerFrame({
     const comments = usePreviewComments(sessionId, target)
     const pins = useMemo(() => {
         const slide = shown ? shown.slide + 1 : null
-        const list: PinQuery[] = []
-        for (const quote of comments) {
-            const {anchor} = quote.source
-            if (anchor.type !== "element") continue
-            if (format === "presentation" && anchor.page !== slide) continue
-            list.push({id: quote.id, selector: anchor.selector, text: quote.text})
-        }
-        return list
+        return toPinQueries(comments, (a) => format !== "presentation" || a.page === slide)
     }, [comments, shown, format])
     useEffect(() => {
         if (shown) send({type: "pins", pins})

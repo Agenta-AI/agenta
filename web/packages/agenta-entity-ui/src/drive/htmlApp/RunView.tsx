@@ -9,11 +9,12 @@ import {
     type HtmlAppHostError,
     type PickedPayload,
 } from "@agenta/entities/drive"
-import type {PinQuery, PickerRect} from "@agenta/shared/previewPicker"
+import type {PickerRect} from "@agenta/shared/previewPicker"
 import {
+    frameRectToRoot,
     PreviewCommentLayer,
+    toPinQueries,
     usePreviewComments,
-    type PreviewCommentTarget,
     type PreviewPick,
     type PreviewPinRect,
     type PreviewRect,
@@ -23,8 +24,7 @@ import {ArrowsClockwise, CaretLeft, Copy, LockSimple, Warning} from "@phosphor-i
 import {createPortal} from "react-dom"
 
 import {ROW_ICON_BTN} from "../DriveHeader"
-import {useDriveSessionId} from "../driveSessionContext"
-import {usePreviewCommentMode} from "../previewCommentMode"
+import {previewTarget, usePreviewCommentMode, usePreviewCommentSession} from "../previewCommentMode"
 
 import {
     assembleRunDocument,
@@ -106,13 +106,6 @@ const describeError = (e: HtmlAppHostError): string => {
     if (e.kind === "script") return `Script error${e.line ? ` (line ${e.line})` : ""}: ${e.message}`
     const where = [e.method, e.path].filter(Boolean).join(" ")
     return `${where ? `${where}: ` : ""}${e.message}`
-}
-
-/** A rect in the app frame's viewport, moved into the root's coordinates. */
-const toRoot = (rect: PickerRect, frame: HTMLElement, root: HTMLElement): PreviewRect => {
-    const f = frame.getBoundingClientRect()
-    const r = root.getBoundingClientRect()
-    return {...rect, top: rect.top + f.top - r.top, left: rect.left + f.left - r.left}
 }
 
 const toPick = ({element, text, rect}: PickedPayload, at: PreviewRect): PreviewPick => ({
@@ -275,31 +268,17 @@ export function RunView({
     )
 
     // Preview comments: the page on screen is the comment's target.
-    const sessionId = useDriveSessionId()
+    const sessionId = usePreviewCommentSession()
     const {enabled: commenting, setEnabled: setCommenting} = usePreviewCommentMode()
     const [pick, setPick] = useState<PreviewPick | null>(null)
     const [pinRects, setPinRects] = useState<PreviewPinRect[]>([])
     const displayPath = toDisplayPath(currentPath)
-    const target = useMemo<PreviewCommentTarget>(
-        () => ({
-            path: currentPath,
-            displayPath,
-            fileName: currentPath.split("/").pop() ?? currentPath,
-            mountId,
-        }),
+    const target = useMemo(
+        () => previewTarget(currentPath, displayPath, mountId),
         [currentPath, displayPath, mountId],
     )
     const comments = usePreviewComments(sessionId, target)
-    const pins = useMemo(() => {
-        const list: PinQuery[] = []
-        for (const quote of comments) {
-            const {anchor} = quote.source
-            if (anchor.type === "element") {
-                list.push({id: quote.id, selector: anchor.selector, text: quote.text})
-            }
-        }
-        return list
-    }, [comments])
+    const pins = useMemo(() => toPinQueries(comments), [comments])
 
     useEffect(() => host.setPins?.(pins), [host, pins])
 
@@ -319,7 +298,7 @@ export function RunView({
     const inRoot = useCallback((rect: PickerRect): PreviewRect | null => {
         const frame = frameRef.current
         const root = rootRef.current
-        return frame && root ? toRoot(rect, frame, root) : null
+        return frame && root ? frameRectToRoot(rect, frame, root) : null
     }, [])
 
     useEffect(
