@@ -27,7 +27,7 @@ from oss.src.core.memberships.dtos import (
 )
 from oss.src.core.memberships.interfaces import MembershipsDAOInterface
 from oss.src.core.memberships.types import MembershipsServiceNotRegistered
-from oss.src.utils.caching import invalidate_cache
+from oss.src.utils.caching import invalidate_cache, invalidate_user_cache
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -72,6 +72,28 @@ async def _invalidate(
         )
 
 
+async def _invalidate_user(*, user_id: str, project_ids: Sequence[UUID]) -> None:
+    if not env.agenta.api.caching.enabled:
+        return
+    try:
+        cleared = await invalidate_user_cache(
+            user_id=user_id,
+            project_ids=[str(p) for p in project_ids],
+            namespaces=ACCESS_CACHE_NAMESPACES,
+            # The Bearer state cached without a project (the default-project request).
+            projectless_namespaces=("verify_bearer_token",),
+        )
+    except Exception:  # pylint: disable=broad-exception-caught
+        cleared = None
+    if cleared is None:
+        log.warning(
+            "[memberships] cache invalidation failed",
+            namespace="*",
+            user_id=user_id,
+            project_count=len(project_ids),
+        )
+
+
 async def invalidate_access_caches(
     *,
     user_ids: Sequence[UUID],
@@ -97,21 +119,10 @@ async def invalidate_access_caches(
                 )
         return
 
+    # One scan of each user's keys clears every (project, namespace) pair, so a
+    # write costs the same in an organization with 4 or 400 projects.
     for user_id in user_ids:
-        for project_id in project_ids:
-            for namespace in ACCESS_CACHE_NAMESPACES:
-                await _invalidate(
-                    namespace=namespace,
-                    project_id=str(project_id),
-                    user_id=str(user_id),
-                    project_count=project_count,
-                )
-        # The Bearer state cached without a project (the default-project request).
-        await _invalidate(
-            namespace="verify_bearer_token",
-            user_id=str(user_id),
-            project_count=project_count,
-        )
+        await _invalidate_user(user_id=str(user_id), project_ids=project_ids)
 
 
 class MembershipsService:
