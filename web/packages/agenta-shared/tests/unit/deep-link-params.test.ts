@@ -44,8 +44,8 @@ describe("withQueryParam", () => {
     })
 
     it("removes the param when given null", () => {
-        expect(withQueryParam(`${base.replace("#turn", "")}&automation=x`, "automation", null)).toBe(
-            "/m/w/1/p/2/sessions/s1?agent=a1",
-        )
+        expect(
+            withQueryParam(`${base.replace("#turn", "")}&automation=x`, "automation", null),
+        ).toBe("/m/w/1/p/2/sessions/s1?agent=a1")
     })
 })
