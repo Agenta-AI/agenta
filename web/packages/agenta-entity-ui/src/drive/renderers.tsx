@@ -47,9 +47,10 @@ import {OfficeViewerFrame} from "./officeViewer/OfficeViewerFrame"
 import type {OfficeViewerKind} from "./officeViewer/protocol"
 import {previewTarget, usePreviewCommentMode, usePreviewCommentSession} from "./previewCommentMode"
 import {useQuotableFile} from "./quotable"
-import {isInBox, useSheetComments, type CellSelection} from "./spreadsheetComments"
+import {SheetFooter, SheetGrid} from "./SheetGrid"
+import {useSheetComments} from "./spreadsheetComments"
 import {useDriveAnchorClickCapture} from "./useDriveLinkClick"
-import type {Sheet, SheetCell, Truncation, Workbook} from "./workbook"
+import type {Sheet, Workbook} from "./workbook"
 
 // The host's code viewer (see `registerDriveCodeBlock`). The desktop registers a Lexical +
 // lazy-Shiki block — an ~8.7 MB chunk it keeps out of first load — so the indirection is also
@@ -271,102 +272,6 @@ const TableSkeleton = () => (
     </Inset>
 )
 
-// One huge cell would otherwise widen its column past every other column.
-const CELL_CHAR_CAP = 500
-const capText = (text: string): string =>
-    text.length > CELL_CHAR_CAP ? `${text.slice(0, CELL_CHAR_CAP)}…` : text
-
-const PreviewCell = ({cell}: {cell: SheetCell}) =>
-    "formula" in cell ? (
-        <span className="italic text-colorTextTertiary" title="Formula with no stored value">
-            {capText(cell.formula)}
-        </span>
-    ) : (
-        <>{capText(cell.value)}</>
-    )
-
-function truncationNote(
-    truncated: Truncation,
-    shownRows: number,
-    shownColumns: number,
-): string | null {
-    const parts = [
-        truncated.rows ? `the first ${shownRows} rows` : null,
-        truncated.totalColumns !== null
-            ? `${shownColumns} of ${truncated.totalColumns} columns`
-            : null,
-    ].filter(Boolean)
-    return parts.length ? `Showing ${parts.join(" and ")} — download for the full file.` : null
-}
-
-/** A row-capped table whose first row is the header; CSV and spreadsheet previews share it. */
-const PreviewTable = ({
-    rows,
-    truncated,
-    comments,
-}: {
-    rows: SheetCell[][]
-    truncated: Truncation
-    /** Comment mode: cells carry their `rows` index and select by pointer. */
-    comments?: CellSelection
-}) => {
-    const [header, ...body] = rows
-    const note = truncationNote(truncated, body.length, header.length)
-    const at = (row: number, col: number) =>
-        comments ? {"data-row": row, "data-col": col} : undefined
-    const selected = (row: number, col: number) =>
-        !!comments?.box && isInBox(comments.box, row, col)
-    // The same blue outline the iframe picker draws over the element under the pointer.
-    const hover = comments
-        ? "hover:outline hover:outline-2 hover:-outline-offset-2 hover:outline-colorPrimary"
-        : ""
-    return (
-        <>
-            <div className="min-h-0 flex-1 overflow-auto">
-                <table
-                    className={`w-full border-collapse font-mono text-xs ${comments ? "cursor-cell select-none" : ""}`}
-                    onPointerDown={comments?.onPointerDown}
-                    onPointerOver={comments?.onPointerOver}
-                >
-                    <thead>
-                        <tr>
-                            {header.map((h, i) => (
-                                <th
-                                    key={i}
-                                    {...at(0, i)}
-                                    className={`sticky top-0 max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1.5 text-left font-medium text-colorTextSecondary ${hover} ${selected(0, i) ? "bg-colorInfoBg" : "bg-colorFillTertiary"}`}
-                                >
-                                    <PreviewCell cell={h} />
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {body.map((r, i) => (
-                            <tr key={i}>
-                                {r.map((c, j) => (
-                                    <td
-                                        key={j}
-                                        {...at(i + 1, j)}
-                                        className={`max-w-80 break-words border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1 align-top ${hover} ${selected(i + 1, j) ? "bg-colorInfoBg" : ""}`}
-                                    >
-                                        <PreviewCell cell={c} />
-                                    </td>
-                                ))}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            {note ? (
-                <div className="border-0 border-t border-solid border-colorBorderSecondary px-2.5 py-1 text-xs text-colorTextTertiary">
-                    {note}
-                </div>
-            ) : null}
-        </>
-    )
-}
-
 const CsvBody = ({
     mount,
     path,
@@ -378,11 +283,11 @@ const CsvBody = ({
 }) => {
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
-    // +2 (header + CSV_ROW_CAP body + 1 probe): one row past the cap tells "exactly the cap" from "more".
+    // One row past the cap tells "exactly the cap" from "more".
     const rows = useMemo(
         () =>
             typeof content === "string"
-                ? parseCsv(content, CSV_ROW_CAP + 2, /\.tsv$/i.test(path) ? "\t" : ",").map((r) =>
+                ? parseCsv(content, CSV_ROW_CAP + 1, /\.tsv$/i.test(path) ? "\t" : ",").map((r) =>
                       r.map((value) => ({value})),
                   )
                 : [],
@@ -395,8 +300,8 @@ const CsvBody = ({
             sheets: [
                 {
                     name: "",
-                    rows: rows.slice(0, CSV_ROW_CAP + 1),
-                    truncated: {rows: rows.length > CSV_ROW_CAP + 1, totalColumns: null},
+                    rows: rows.slice(0, CSV_ROW_CAP),
+                    truncated: {rows: rows.length > CSV_ROW_CAP, totalColumns: null},
                     origin: {r: 0, c: 0},
                 },
             ],
@@ -415,6 +320,7 @@ const CsvBody = ({
                 sheet={workbook.sheets[0]}
                 target={previewTarget(path, displayPath, mount?.id)}
             />
+            <SheetFooter sheet={workbook.sheets[0]} />
         </Inset>
     )
 }
@@ -617,7 +523,7 @@ const CommentableTable = ({
     return (
         <div ref={rootRef} className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
             {sheet.rows.length > 0 ? (
-                <PreviewTable rows={sheet.rows} truncated={sheet.truncated} comments={selection} />
+                <SheetGrid rows={sheet.rows} origin={sheet.origin} comments={selection} />
             ) : (
                 <div className="p-3 text-xs text-colorTextTertiary">This sheet is empty.</div>
             )}
@@ -647,19 +553,21 @@ export const SpreadsheetView = ({
     const sheet = workbook.sheets[index]
     return (
         <Inset flush>
-            <Tabs value={String(index)} onValueChange={(v) => setActive(Number(v))}>
-                <TabsList
-                    aria-label="Sheets"
-                    className="w-full shrink-0 justify-start overflow-x-auto px-2.5"
-                >
-                    {workbook.sheets.map((s, i) => (
-                        <TabsTrigger key={i} value={String(i)} className="flex-none text-xs">
-                            {s.name}
-                        </TabsTrigger>
-                    ))}
-                </TabsList>
-            </Tabs>
             <CommentableTable key={index} workbook={workbook} sheet={sheet} target={target} />
+            <SheetFooter sheet={sheet}>
+                <Tabs value={String(index)} onValueChange={(v) => setActive(Number(v))}>
+                    <TabsList
+                        aria-label="Sheets"
+                        className="w-full shrink-0 justify-start overflow-x-auto px-2.5"
+                    >
+                        {workbook.sheets.map((s, i) => (
+                            <TabsTrigger key={i} value={String(i)} className="flex-none text-xs">
+                                {s.name}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </Tabs>
+            </SheetFooter>
         </Inset>
     )
 }

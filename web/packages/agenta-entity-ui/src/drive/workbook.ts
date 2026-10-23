@@ -3,8 +3,8 @@ import {read, utils, type CellObject, type WorkSheet} from "xlsx"
 
 import type {CellOrigin} from "./cellAddress"
 
-/** A stored value, or the formula text of a formula cell that has no stored value. */
-export type SheetCell = {value: string} | {formula: string}
+/** A stored value with its formula if any, or the formula of a cell that has no stored value. */
+export type SheetCell = {value: string; formula?: string; numeric?: true} | {formula: string}
 
 /** Which caps cut the sheet; `totalColumns` is set only when columns were cut. */
 export interface Truncation {
@@ -26,8 +26,7 @@ export interface Workbook {
     sheets: Sheet[]
 }
 
-/** Header row plus 500 data rows. */
-export const ROW_CAP = 501
+export const ROW_CAP = 500
 export const COL_CAP = 50
 
 const EMPTY: SheetCell = {value: ""}
@@ -35,8 +34,13 @@ const EMPTY: SheetCell = {value: ""}
 /** The closed mapping table of D5. */
 export function toSheetCell(cell: CellObject | undefined): SheetCell {
     if (!cell) return EMPTY
-    if (cell.t === "z") return cell.f ? {formula: `=${cell.f}`} : EMPTY
-    return {value: cell.w ?? String(cell.v ?? "")}
+    const formula = cell.f ? `=${cell.f}` : undefined
+    if (cell.t === "z") return formula ? {formula} : EMPTY
+    return {
+        value: cell.w ?? String(cell.v ?? ""),
+        ...(formula ? {formula} : {}),
+        ...(cell.t === "n" || cell.t === "d" ? {numeric: true as const} : {}),
+    }
 }
 
 const isEmpty = (cell: SheetCell): boolean => "value" in cell && cell.value === ""

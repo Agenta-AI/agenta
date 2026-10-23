@@ -15,7 +15,7 @@ import type {PreviewPick, PreviewPinRect, PreviewRect} from "@agenta/ui/quote-se
 import {boxToRange, rangeToBox, type CellBox} from "./cellAddress"
 import type {Sheet, SheetCell, Workbook} from "./workbook"
 
-/** What `PreviewTable` needs in comment mode. */
+/** What `SheetGrid` needs in comment mode. */
 export interface CellSelection {
     box: CellBox | null
     onPointerDown: (e: ReactPointerEvent<HTMLElement>) => void
@@ -52,9 +52,9 @@ const pointOf = (target: EventTarget): CellPoint | null => {
     return {r: Number(cell.dataset.row), c: Number(cell.dataset.col)}
 }
 
-/** A table cell's box relative to the root; header row is 0, as in `Sheet.rows`. */
+/** The cell at `Sheet.rows[r][c]`; the grid's letter row and number column are not cells. */
 const cellRect = (root: HTMLElement, r: number, c: number): DOMRect | null =>
-    root.querySelector("table")?.rows[r]?.cells[c]?.getBoundingClientRect() ?? null
+    root.querySelector(`[data-row="${r}"][data-col="${c}"]`)?.getBoundingClientRect() ?? null
 
 function boxRect(root: HTMLElement, box: CellBox): PreviewRect | null {
     const start = cellRect(root, box.top, box.left)

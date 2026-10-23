@@ -14,14 +14,14 @@ export interface CellBox {
     right: number
 }
 
-const columnName = (c: number): string => {
+export const columnName = (c: number): string => {
     let name = ""
     for (let n = c + 1; n > 0; n = Math.floor((n - 1) / 26))
         name = String.fromCharCode(65 + ((n - 1) % 26)) + name
     return name
 }
 
-const encodeCell = (r: number, c: number): string => `${columnName(c)}${r + 1}`
+export const encodeCell = (r: number, c: number): string => `${columnName(c)}${r + 1}`
 
 const decodeCell = (ref: string): CellOrigin | null => {
     const match = /^([A-Z]{1,3})([1-9]\d*)$/.exec(ref)
