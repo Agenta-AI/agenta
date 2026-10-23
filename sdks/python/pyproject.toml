@@ -28,7 +28,7 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-http>=1,<2",
     "fastapi>=0.139,<0.140",
     "pyyaml>=6,<7",
-    "litellm>=1,<2,!=1.107.0",
+    "litellm>=1.94,<2,!=1.107.0",
     "openai>=2,<3",
     "jinja2>=3,<4",
     "mystace>=1,<2",
