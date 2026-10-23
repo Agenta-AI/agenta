@@ -317,6 +317,17 @@ async def remove_user_from_workspace(
             },
         )
 
+    # An owner-role member is not removed here (as before M1), and the refusal
+    # comes before the EE user gauge moves.
+    target = await db_manager.get_user_with_email(email)
+    if target is not None:
+        member = await get_memberships_service().fetch_organization_member(
+            organization_id=UUID(str(project.organization_id)),
+            user_id=UUID(str(target.id)),
+        )
+        if member is not None and member.role == "owner":
+            raise _owner_protected()
+
     if is_ee():
         # Decrement the user gauge in the *target* workspace's owning org
         # (loaded via the path-param `{workspace_id}`), not the caller's

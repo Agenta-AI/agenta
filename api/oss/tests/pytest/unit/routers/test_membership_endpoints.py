@@ -324,6 +324,22 @@ async def test_remove_user_calls_remove_member(wired, project):
     ]
 
 
+async def test_remove_user_refuses_an_owner_role_member(wired, project):
+    service = _MembershipsService(organization_role="owner")
+    wired(service)
+
+    with pytest.raises(Exception) as error:
+        await workspace_router.remove_user_from_workspace(
+            email="member@test.agenta.ai",
+            workspace_id=str(project.workspace_id),
+            request=_request(),
+        )
+
+    assert getattr(error.value, "status_code", None) == 403
+    assert error.value.detail == {"message": DENIED}
+    assert service.calls == []
+
+
 async def test_owner_protected_errors_keep_todays_body_shape(wired, project):
     protected = OrganizationOwnerProtected(organization_id=uuid4(), user_id=uuid4())
 
