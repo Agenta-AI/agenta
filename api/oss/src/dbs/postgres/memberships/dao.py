@@ -255,6 +255,21 @@ _UPDATE_WORKSPACE_ROW_SQL = """
 UPDATE workspace_members SET role = :role, updated_at = now() WHERE id = :id
 """
 
+# One statement: the FROM side reads the rows before the update, so the two roles
+# swap. Only projects where both users have a row, as the admin transfer tool does
+# (`db_manager.admin_swap_project_memberships`).
+_SWAP_PROJECT_ROLES_OF_TWO_SQL = """
+UPDATE project_members pm
+SET role = other.role, updated_at = now()
+FROM project_members other
+JOIN projects p ON p.id = other.project_id
+WHERE p.organization_id = :organization_id
+  AND other.project_id = pm.project_id
+  AND pm.user_id = ANY(CAST(:user_ids AS uuid[]))
+  AND other.user_id = ANY(CAST(:user_ids AS uuid[]))
+  AND other.user_id <> pm.user_id
+"""
+
 _SEED_OWNER_PROJECT_ROWS_SQL = """
 INSERT INTO project_members (id, user_id, project_id, role, created_at, updated_at)
 SELECT gen_random_uuid(), :user_id, p.id, 'owner', now(), now()
@@ -613,8 +628,19 @@ class MembershipsDAO(MembershipsDAOInterface):
                     {"id": new_ws.id, "role": current_ws.role},
                 )
 
+            # Swap the project roles where both have a row, exactly like the admin
+            # transfer tool: the former owner keeps access with the new owner's
+            # previous role (owner decision, 2026-10-23).
+            await connection.execute(
+                text(_SWAP_PROJECT_ROLES_OF_TWO_SQL),
+                {
+                    "organization_id": organization_id,
+                    "user_ids": [current_owner_id, new_owner_id],
+                },
+            )
+
             # After M1 the owner shortcut runs only for a member: seed the new owner
-            # into every project. Existing rows keep their roles, as today.
+            # into every project where they still have no row.
             seeded = await connection.execute(
                 text(_SEED_OWNER_PROJECT_ROWS_SQL),
                 {"organization_id": organization_id, "user_id": new_owner_id},

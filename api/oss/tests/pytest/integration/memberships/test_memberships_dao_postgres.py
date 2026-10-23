@@ -510,13 +510,72 @@ async def test_transfer_ownership_seeds_the_new_owner_in_every_project():
         assert await _workspace_roles(seeded.workspace_ids, new_owner) == {
             seeded.workspace_ids[0]: "owner"
         }
+        # p1: both had a row, so the roles swap (as the admin transfer tool does);
+        # p2: only the former owner had one, so the new owner is seeded as owner.
         assert await _project_roles(seeded.project_ids, new_owner) == {
+            p1: ["owner"],
+            p2: ["owner"],
+        }
+        assert await _project_roles(seeded.project_ids, seeded.owner_id) == {
             p1: ["admin"],
             p2: ["owner"],
         }
         assert result.inserted_count == 1
     finally:
         await delete_seeded_organization(seeded)
+
+
+async def test_app_and_admin_transfers_leave_the_same_rows():
+    import oss.src.services.db_manager as db_manager
+
+    shapes = []
+    for _ in range(2):
+        seeded = await seed_organization(
+            members={"a": "editor"}, projects_per_workspace=3
+        )
+        # p2: only the former owner has a row; p3: neither changed.
+        await execute(
+            "DELETE FROM project_members WHERE project_id = :p AND user_id = :u",
+            {"p": seeded.project_ids[1], "u": seeded.user_ids["a"]},
+        )
+        shapes.append(seeded)
+    app, admin = shapes
+    try:
+        await _dao().transfer_ownership(
+            organization_id=app.organization_id,
+            new_owner_id=app.user_ids["a"],
+            current_owner_id=app.owner_id,
+        )
+        await db_manager.admin_transfer_ownership(
+            org_ids=[admin.organization_id],
+            source_id=admin.owner_id,
+            target_id=admin.user_ids["a"],
+            workspace_ids=admin.workspace_ids,
+            project_ids=admin.project_ids,
+        )
+
+        async def _shape(seeded):
+            users = {"old": seeded.owner_id, "new": seeded.user_ids["a"]}
+            return {
+                label: (
+                    await _organization_roles(seeded.organization_id, user),
+                    sorted(
+                        (seeded.project_ids.index(p), roles)
+                        for p, roles in (
+                            await _project_roles(seeded.project_ids, user)
+                        ).items()
+                    ),
+                    sorted(
+                        (await _workspace_roles(seeded.workspace_ids, user)).values()
+                    ),
+                )
+                for label, user in users.items()
+            }
+
+        assert await _shape(app) == await _shape(admin)
+    finally:
+        for seeded in shapes:
+            await delete_seeded_organization(seeded)
 
 
 async def test_transfer_ownership_leaves_nothing_when_a_step_fails(monkeypatch):
