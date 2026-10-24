@@ -1283,17 +1283,35 @@ class ChannelsService:
         #
         agent: ChannelAgentEdit,
     ) -> Optional[ChannelAgent]:
-        """Every binding edit: guarded when the written flags leave it active (the
-        edit writes the whole flags, so a stale active flag would reactivate a
-        binding that a make-private just turned off)."""
+        """Every binding write. The write names its references and its whole flags,
+        taken from the stored row when the edit sends none, and it is guarded when
+        those flags leave the binding active. The references the guard checks are
+        the references the write stores, so a write that sends only flags (or
+        nothing) cannot reactivate a private agent's binding. The edit writes the
+        whole flags, so a stale active flag is guarded too: it would otherwise
+        reactivate a binding that a make-private just turned off."""
 
-        guard_artifact_id = None
-        if agent.data is not None and agent.data.references is not None:
-            guard_artifact_id = await self._activation_guard(
+        if agent.data is None or agent.data.references is None or agent.flags is None:
+            stored = await self.channels_dao.fetch_agent(
                 project_id=project_id,
-                references=agent.data.references,
-                is_active=agent.flags is None or agent.flags.is_active,
+                agent_id=agent.id,
             )
+            if stored is None:
+                return None
+            data = agent.data
+            if data is None:
+                data = ChannelAgentDataEdit.model_validate(stored.data)
+            elif data.references is None:
+                data = data.model_copy(update={"references": stored.data.references})
+            agent = agent.model_copy(
+                update={"data": data, "flags": agent.flags or stored.flags}
+            )
+
+        guard_artifact_id = await self._activation_guard(
+            project_id=project_id,
+            references=agent.data.references,
+            is_active=agent.flags.is_active,
+        )
         return await self.channels_dao.edit_agent(
             project_id=project_id,
             user_id=user_id,

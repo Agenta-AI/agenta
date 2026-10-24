@@ -803,6 +803,84 @@ async def test_activation_guard_refuses_a_private_agent():
         assert await _active_bindings(project_id, private) == []
 
 
+class _ResolvedWorkflows:
+    """`resolve_agent_artifact_id` that names one artifact (the binding's agent)."""
+
+    def __init__(self, artifact_id: UUID):
+        self.artifact_id = artifact_id
+
+    async def resolve_agent_artifact_id(self, *, project_id, references):
+        return self.artifact_id
+
+
+async def test_flags_only_reactivation_is_guarded(monkeypatch):
+    """A write that sends only `flags.is_active: true` is guarded with the stored
+    references, through `edit_agent` (the route) and the internal row write."""
+
+    from unittest.mock import AsyncMock, MagicMock
+
+    from oss.src.core.channels.service import ChannelsService
+
+    monkeypatch.setattr(
+        "oss.src.core.channels.service.invalidate_principals_after_write",
+        AsyncMock(),
+    )
+
+    async with seeded("alice") as org:
+        project_id, alice = _project(org), org.user_ids["alice"]
+        private, *_ = await _artifact(project_id, owner=alice)
+        await execute(
+            "UPDATE agent_access SET visibility = 'private' "
+            "WHERE project_id = :p AND artifact_id = :a",
+            {"p": project_id, "a": private},
+        )
+        shared, *_ = await _artifact(project_id, owner=alice)
+
+        def _service(artifact_id: UUID) -> ChannelsService:
+            return ChannelsService(
+                channels_dao=_channels_dao(),
+                adapter_registry=MagicMock(),
+                workflows_service=_ResolvedWorkflows(artifact_id),
+            )
+
+        inactive = await _channels_dao().create_agent(
+            project_id=project_id,
+            user_id=alice,
+            agent=_binding(private, is_active=False),
+        )
+        service = _service(private)
+        for write in (service.edit_agent, service._edit_agent_row):
+            with pytest.raises(SharedItemNotFound):
+                await write(
+                    project_id=project_id,
+                    user_id=alice,
+                    agent=ChannelAgentEdit(
+                        id=inactive.id, flags=ChannelAgentFlags(is_active=True)
+                    ),
+                )
+            assert (await _channel_agent_flags(project_id, inactive.id))[
+                "is_active"
+            ] is False
+        assert await _active_bindings(project_id, private) == []
+
+        # A project agent's flags-only reactivation works and keeps its references.
+        inactive = await _channels_dao().create_agent(
+            project_id=project_id,
+            user_id=alice,
+            agent=_binding(shared, is_active=False),
+        )
+        edited = await _service(shared).edit_agent(
+            project_id=project_id,
+            user_id=alice,
+            agent=ChannelAgentEdit(
+                id=inactive.id, flags=ChannelAgentFlags(is_active=True)
+            ),
+        )
+        assert edited.flags.is_active is True
+        assert edited.data.references == {"workflow": Reference(id=shared)}
+        assert len(await _active_bindings(project_id, shared)) == 1
+
+
 async def test_activation_against_make_private():
     """A binding activation and a make-private of the same agent, 20 times: whatever
     the order, the agent never ends private with an active binding."""

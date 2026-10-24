@@ -153,6 +153,43 @@ def test_activate_private_agent_rejected(sharing_cast):
     assert binding.json()["agent"]["flags"]["is_active"] is False
 
 
+def _set_active(caller, binding_id, is_active):
+    return caller(
+        "PUT",
+        f"/channels/agents/{binding_id}",
+        json={"agent": {"id": binding_id, "flags": {"is_active": is_active}}},
+    )
+
+
+def test_flags_only_reactivation_of_a_private_agent_rejected(sharing_cast):
+    alice = sharing_cast["alice"]
+
+    # A project agent's binding: a flags-only edit turns it off and on again.
+    shared = new_agent(alice, visibility="project")
+    bound = _bind(
+        alice, sharing_cast, {"workflow_revision": {"id": shared["revision_id"]}}
+    )
+    assert bound.status_code == 200, bound.text
+    binding_id = bound.json()["agent"]["id"]
+    for is_active in (False, True):
+        response = _set_active(alice, binding_id, is_active)
+        assert response.status_code == 200, response.text
+        assert response.json()["agent"]["flags"]["is_active"] is is_active
+
+    # Made private, the binding is off, and a flags-only edit cannot turn it on.
+    response = alice(
+        "POST",
+        f"/workflows/{shared['id']}/sharing/visibility",
+        json={"visibility": "private"},
+    )
+    assert response.status_code == 200, response.text
+    refused = _set_active(alice, binding_id, True)
+    assert (refused.status_code, refused.json()) == (404, NOT_FOUND_BODY)
+    binding = alice("GET", f"/channels/agents/{binding_id}")
+    assert binding.status_code == 200, binding.text
+    assert binding.json()["agent"]["flags"]["is_active"] is False
+
+
 def test_application_family_reference_is_resolved(sharing_cast):
     alice = sharing_cast["alice"]
     private = new_agent(alice, visibility="private")
