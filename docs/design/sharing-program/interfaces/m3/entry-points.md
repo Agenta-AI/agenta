@@ -1,6 +1,6 @@
 # M3 entry points: the agent and session checks
 
-Status: built in M3 Task 12 (plan step 1). Code read on the M3 lane after Task 11. Paths are relative to `api/oss/src/` unless they start with `api/` or `web/`. Line numbers are the function definitions at the time of writing and move with later edits.
+Status: built in M3 Task 12 (plan step 1). Code read on the M3 lane after Task 11, checked again after the last API commit (Task 22). Paths are relative to `api/oss/src/` unless they start with `api/` or `web/`. Line numbers are the function definitions at the time of writing and move with later edits.
 
 This file lists every route, handler and worker that reads, lists, exports, streams, writes or runs an agent or a session, and what M3 checks there. Every row has a check or a one-line reason why it needs none (openspec task 1.2).
 
@@ -19,11 +19,11 @@ Cost: warm checks read Redis only (`sharing_session_access`, `sharing_agent_acce
 
 ## Runner write check
 
-The runner write routes (records ingest and incomplete, interaction create, transition and cancel-stale, turn append and complete) call `allow_session_write(request, *, session_id, turn_id)` in `apis/fastapi/sharing/utils.py`. When the body names a turn and the heartbeat of that turn admitted this request's principal on this session, the write is allowed with no decision: `get_turn_admission` (Task 13), one Redis `GETEX` that also renews the record, must return the principal of the request's envelope (`request_run_envelope`). The record key names the project, the session and the turn, so a record of another session or turn does not match. Every other write runs `allow_resource(RUN_SESSIONS)` on the session: a write without a turn in the body (transition, turn complete), no admission record, a record of another principal, a Bearer or API key request whose principal the heartbeat did not admit, or a Redis error (which reads as no record).
+The runner write routes (records ingest and incomplete, interaction create, transition and cancel-stale, turn append and complete) call `allow_session_write(request, *, session_id, turn_id)` in `apis/fastapi/sharing/utils.py`. When the body names a turn and the heartbeat of that turn admitted this request's principal on this session, the write is allowed with no decision: `get_turn_admission` (Task 13), one Redis `EVAL` that returns and renews the record only while the turn is the session's current turn (its `running` key), must return the principal of the request's envelope (`request_run_envelope`). The record key names the project, the session and the turn, so a record of another session or turn does not match, and a turn that ended (its record is deleted at the end beat, on displacement, handover and stop) does not match either. Every other write runs `allow_resource(RUN_SESSIONS)` on the session: a write without a turn in the body (transition, turn complete), no admission record, a record of another principal, a Bearer or API key request whose principal the heartbeat did not admit, or a Redis error (which reads as no record).
 
 This is the same continuity as the steady heartbeat: a run that the heartbeat admitted keeps writing until its turn ends, and a sharing change applies at the next turn.
 
-Cost, measured in `api/oss/tests/pytest/integration/sharing/test_runner_write_counts_postgres.py` (warm caches, OSS and EE): the runner path adds one Redis round trip (the admission `GETEX`), no access decision and no Postgres statement. The full check adds no Postgres statement and two cache round trips (`sharing_session_access` and the owner's `resolve_membership`; the principal and the caller's membership come from the request memo of the capability check). Using the full check on every write would cost two round trips per frame batch instead of one, so the runner path keeps the admission read. A write that misses the record pays both (three round trips).
+Cost, measured in `api/oss/tests/pytest/integration/sharing/test_runner_write_counts_postgres.py` (warm caches, OSS and EE): the runner path adds one Redis round trip (the admission `EVAL`), no access decision and no Postgres statement. The full check adds no Postgres statement and two cache round trips (`sharing_session_access` and the owner's `resolve_membership`; the principal and the caller's membership come from the request memo of the capability check). Using the full check on every write would cost two round trips per frame batch instead of one, so the runner path keeps the admission read. A write that misses the record pays both (three round trips).
 
 ## Embedded references
 
@@ -110,7 +110,7 @@ Session delete (`core/sessions/streams/service.py::hard_delete`): reads the row 
 | `POST /simple/workflows/` | 2508 | `EDIT_WORKFLOWS` | new | Task 10 |
 | `GET /simple/workflows/{id}` | 2549 | `VIEW_WORKFLOWS` | path | hidden: `count: 0` |
 | `PUT /simple/workflows/{id}`, `/archive`, `/unarchive` | 2579, 2614, 2646 | `EDIT_WORKFLOWS` | path | hidden: `count: 0` |
-| Invoke (`api_invoke` boundary, services layer) | | `RUN_WORKFLOWS` | resolved target | Task 14 (`RunAdmission.admit_request`) |
+| Invoke (`api_invoke` boundary, services layer) | | `RUN_WORKFLOWS` | resolved target | no API route: those turns are admitted by the heartbeat (Task 13) |
 
 ## Agents through the applications, evaluators and legacy routes
 
@@ -129,7 +129,7 @@ An agent is a workflow, so these routes reach agents by id too. Each gets the sa
 | --- | --- | --- |
 | `apis/fastapi/agent_templates/router.py` `query`, `/{key}`, `/sources/scan` | `VIEW_WORKFLOWS` | no check: catalog and public sources, no agent or session |
 | `POST /agent-templates/validate` with an `upload` or `session_file` source | `VIEW_SESSIONS`, `VIEW_MOUNTS` | the source's session; hidden: `template_source_not_found` 404, as for an unknown session |
-| `POST /agent-templates/load` (source and `attachment_ids` of `staging_session_id`) | `VIEW_SESSIONS` | the source's session as above; staged attachments of a hidden session: `attachment_source_invalid`, as for an unknown session. The start of the new session: Task 14 (`template_start`) |
+| `POST /agent-templates/load` (source and `attachment_ids` of `staging_session_id`) | `VIEW_SESSIONS` | the source's session as above; staged attachments of a hidden session: `attachment_source_invalid`, as for an unknown session. The start of the new session: Task 14 (`template_start`), admitted before anything is claimed; the first session row is created with the requested `visibility` before the invoke |
 | Clones (`fork` routes of workflows, applications, evaluators) | `EDIT_*` | the source agent, see above |
 | `apis/fastapi/skills/router.py` (all routes) | `VIEW_WORKFLOWS`, `EDIT_WORKFLOWS` | no check: a skill is not an agent (no `agent_access` row; by-id routes refuse a non-skill workflow); the agent scans of `core/skills/service.py` pass `AgentReadScope(owner_user_id=None)` (deviation 7) |
 
@@ -171,6 +171,8 @@ An agent is a workflow, so these routes reach agents by id too. Each gets the sa
 | Heartbeat | Task 13 |
 
 ## Open items
+
+All closed.
 
 1. Closed: the runner write routes check rule S2 (see "Runner write check").
 2. Closed: embedded references check rules A1 and A2 in the embeds resolver (see "Embedded references").

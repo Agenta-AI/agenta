@@ -1,0 +1,116 @@
+---
+title: "Share agents and chats"
+sidebar_label: "Share agents and chats"
+description: "Keep an agent or a chat private, share it with your project, invite project members to a chat, and change the owner of an agent."
+---
+
+New agents and chats that you create in Agenta are private. Only you can see them. You can share an agent with your project, and you can invite members of your project to a chat, as people who can view it or as people who can send to it.
+
+## Who can see what
+
+| Item | Visibility | Owner |
+|---|---|---|
+| An agent you create in Agenta | Private | You |
+| A chat you start in Agenta | Private | You |
+| An agent or chat created with an API key | Shared with the project | None |
+| A chat that comes from Slack | Shared with the project | None |
+| Agents and chats that existed before sharing was released | Shared with the project | The person who created them |
+
+- A private agent or chat is hidden from everyone except its owner and, for a chat, the people the owner added. It does not appear in lists. A link to it opens the same page as a link to a chat that does not exist: "This chat does not exist, or you do not have access to it."
+- Project roles do not open private items. An organization owner or a project admin cannot see another member's private agent or chat.
+- An item with no owner is always shared with the project. An API key cannot create a private item, even when the request asks for one.
+- Skills, prompts and evaluators are always shared with the project. A private agent can use a skill that other members can see and edit. Those members still cannot see the agent or its chats.
+
+## Make an agent private or shared
+
+Only the owner of an agent can change who sees it.
+
+1. Open the agent in the playground.
+2. In the top bar, between **Templates** and **Publish**, click the privacy menu. It shows **Private** or **Shared**.
+3. Click **Change**. The **Privacy and owner** dialog opens.
+4. Under **Who can see this agent**, pick **Private** (only you can see and use it) or **Shared with project** (everyone in the project can see and use it).
+5. Confirm with **Make private** or **Share with project**.
+
+When you make an agent private:
+
+- Other members no longer see or run it. They can still read the chats they already had with it, but they cannot send to them.
+- If the agent is connected to Slack or another channel, the connection turns off, and messages there get no answer. If you share the agent again, turn the connection back on in **Channels**. See [Connect an agent to Slack](/guides/connect-slack).
+
+When you share an agent with the project, everyone in the project can run it and make it use its connected accounts.
+
+People who are not the owner always see **Shared** in the top bar.
+
+## Change the owner of an agent
+
+1. Open the **Privacy and owner** dialog (steps 1 to 3 above).
+2. Under **Owner**, click **Transfer ownership**.
+3. Pick the **New owner**. Only members of this project can own the agent.
+4. Confirm.
+
+If the agent is private, after the transfer only the new owner can see it, and you lose access. You cannot undo this yourself. Your chats with the agent stay yours: you can read them, but you cannot send to them.
+
+If the agent is shared, the new owner decides who can see it. You can no longer make it private or change its owner.
+
+## Share a chat
+
+Only the owner of a chat can share it. You can share a chat after its first message.
+
+1. Open the chat.
+2. Click **Share** at the right end of the chat's tab strip. The **Share this chat** dialog opens.
+3. In **Add people by name or email**, pick one or more members of the project. The list shows only members of the project.
+4. Pick a role, **Can view** or **Can send**, and click **Invite**.
+5. Agenta shows a notice. Read it and click **Share**.
+
+The roles are:
+
+| Role in Agenta | Name in the API | What the person can do |
+|---|---|---|
+| **Can view** | `viewer` | Read the chat. Cannot send or answer approvals. |
+| **Can send** | `participant` | Read, send messages and answer approvals. |
+
+- **Can send** works only for a person whose project role can run chats (Editor or above). A person with the Viewer or Annotator role can only read the chat, whatever role you give them. See [Role-Based Access Control](/administration/access-control/rbac).
+- A message that a person sends runs with that person's access. If that person cannot run the agent, the message does not run.
+- Only the owner can rename, share, archive or delete the chat.
+
+To share the chat with the whole project, set **General access** to **Shared with project**. Everyone in the project can then view the chat. Only the people in **People with access** can send.
+
+### Change or remove access
+
+- To change a role, open the role menu next to the person and pick **Can view** or **Can send**.
+- To remove one person, open the role menu next to the person and click **Remove access**.
+- To remove everyone, click **Stop sharing** and confirm. The chat becomes private, and every person you added loses access. This is the "Only me" action of the API.
+
+Removing access and lowering a role apply at once, with no notice.
+
+### Copy the share link
+
+Click **Copy share link** in the dialog, or in the chat's menu in the chat list. The link gives no access by itself. It opens the chat only for people who can already see it. A person without access sees the same not-found page as for a chat that does not exist.
+
+## What the share notice says
+
+Before a change that lets more people see or use a chat (an invite, a change to **Can send**, or **Shared with project**), Agenta shows a notice that names who you share with. It says:
+
+- If the agent has connected accounts, the notice ends with their names. For example: "They will see everything in this chat, and anyone who can send can make the agent use its connected accounts: Gmail and Shopify."
+- If the agent has no connected accounts: "They will see everything in this chat."
+
+"Everything" includes the messages, the files of the chat and the results of the agent's tool calls.
+
+Before you share an agent with the project, Agenta shows a similar notice: everyone in the project will be able to run the agent and make it use its connected accounts.
+
+## When the owner leaves the project
+
+- The owner's private agents and private chats lock. No one can open them, including the people the owner added. If the owner joins the project again, access comes back.
+- The owner's shared agents stay shared and have no owner. A project admin can take ownership: open the privacy menu of the agent and click **Take ownership**. The admin becomes the owner and can make the agent private.
+- The owner's shared chats stay readable by everyone in the project. No one can send to them.
+
+## Limits
+
+- **Credentials already issued.** When you remove someone's access, file storage and gateway credentials that Agenta already issued to them keep working until they expire, after up to 12 hours. Their next request is refused.
+- **Traces.** Project members who can read traces can read the traces of a private chat. This changes in a later release.
+- **Delay.** A sharing change applies to the next request. If Agenta cannot clear its cache, a change can take up to 300 seconds. An open chat stream checks access again every 60 seconds.
+- **Running turns.** A turn that is already running finishes. The change applies to the next turn.
+- **API keys and Slack.** Agents and chats created with an API key or from Slack are always shared with the project and have no owner.
+
+:::warning[Self-hosted deployments]
+If you roll back Agenta to a release from before sharing, private agents and chats become visible to everyone in their project.
+:::

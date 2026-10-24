@@ -106,6 +106,18 @@ Access layer invariants (run principal):
 - `integration/access/test_run_principal_query_counts_postgres.py` pins the hot paths at
   zero access-decision statements on warm caches.
 
+Access layer invariants (agent and session sharing):
+
+- Every agent or session access calls `AccessService.decide` with a `ResourceRef`, and
+  lists pass a read scope in SQL. List queries take a required read scope; there is no
+  unrestricted scope.
+- Every point where a run starts or resumes calls `RunAdmission` (`admit`, `admit_turn` or
+  `admit_request`) with the stored or request envelope.
+- `AccessService` requires a resource policy; every composition root passes
+  `SharingService`.
+- Never treat a null owner as "not migrated".
+- Audit events carry identifiers, never credential values.
+
 Primary references:
 - `api/entrypoints/routers.py`
 - `api/ee/src/main.py`

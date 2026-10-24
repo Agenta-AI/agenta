@@ -52,11 +52,15 @@ Only the owner or a Participant SHALL answer an approval in Agenta. Before the r
 - **THEN** the action runs under Alice's authority and Bob is recorded as `approved_by`, or the run stops if Alice lost access to the agent
 
 ### Requirement: Share step disclosure
-Before an owner shares a session or makes an agent project-visible, the system SHALL show the agent's connections, and SHALL state that each turn uses the credentials available to that run, that session files and tool results are visible to all participants, and that project trace readers can read the session. Trace storage, queries, and permissions SHALL NOT change.
+Before an owner widens who can see a session or makes an agent project-visible, the system SHALL show the agent's connected accounts and SHALL state that the people added will see everything in the session. The user documentation SHALL state that project members who can read traces can read the session. Trace storage, queries, and permissions SHALL NOT change.
 
 #### Scenario: Shared session disclosure
-- **WHEN** Alice opens the share step of a session
-- **THEN** she sees the connections and the three statements before she confirms
+- **WHEN** Alice invites Bob to a session whose agent uses a Gmail connection
+- **THEN** before the invite is saved she sees one sentence that names the connected accounts and says that Bob will see everything in the session
+
+#### Scenario: Disclosure flags in the API
+- **WHEN** a client reads a session's sharing state
+- **THEN** the response carries the connections and the three disclosure flags (run credentials, files and tool results, trace readers), and the UI leaves out the trace readers statement
 
 ### Requirement: Session files follow the session
 Session file reads, downloads, exports, and storage credentials SHALL require read access to the session. Unexpired credentials SHALL NOT be recalled, and the documentation SHALL say so.

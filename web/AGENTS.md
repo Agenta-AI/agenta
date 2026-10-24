@@ -7,6 +7,9 @@ edit, run, or copy from them. The one exception is the theme source in
 `web/oss/src/styles/theme/` (see below). This file loads when you work in the frontend. The
 repo-wide root conventions live in `/AGENTS.md`.
 
+Exception (M3 sharing): `/w` sends `visibility: "project"` on new chats and agents. Do not add
+other `/w` edits.
+
 For deep `@agenta/*` package reference (package vs app placement, molecules, bridges, the
 EntityPicker, package unit tests), use the **`agenta-package-practices`** skill. It holds
 the detail this file only summarizes.
