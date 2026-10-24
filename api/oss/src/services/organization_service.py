@@ -519,12 +519,12 @@ async def get_workspace(workspace_id: str) -> WorkspaceDB:
 
 
 async def create_new_workspace(
-    payload: CreateWorkspace, organization_id: str, user_uid: str
+    payload: CreateWorkspace, organization_id: str, user_id: str
 ) -> WorkspaceResponse:
     """Create a new workspace (with owner membership, default project, seeds)."""
 
     return await db_manager.create_workspace_with_defaults(
-        payload, organization_id, user_uid
+        payload, organization_id, user_id
     )
 
 

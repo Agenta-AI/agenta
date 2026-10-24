@@ -2828,7 +2828,7 @@ async def create_workspace_db_object(
     return workspace
 
 
-async def create_workspace_with_defaults(payload, organization_id: str, user_uid: str):
+async def create_workspace_with_defaults(payload, organization_id: str, user_id: str):
     """Create a new workspace (rich form, with owner/project/seeds).
 
     Renamed from the EE `create_workspace` to avoid colliding with the OSS
@@ -2838,13 +2838,19 @@ async def create_workspace_with_defaults(payload, organization_id: str, user_uid
     engine = get_transactions_engine()
 
     async with engine.session() as session:
-        user_result = await session.execute(select(UserDB).filter_by(uid=user_uid))
+        user_result = await session.execute(
+            select(UserDB).filter_by(id=uuid.UUID(user_id))
+        )
         user = user_result.scalars().first()
+        if user is None:
+            raise NoResultFound(f"User with id {user_id} not found")
 
         organization_result = await session.execute(
             select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
         )
         organization = organization_result.scalars().first()
+        if organization is None:
+            raise NoResultFound(f"Organization with id {organization_id} not found")
 
         workspace_db = await create_workspace_db_object(
             session, payload, organization, user

@@ -1,6 +1,7 @@
 from typing import List
 from uuid import UUID
 
+from sqlalchemy.exc import NoResultFound
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request
 
@@ -610,6 +611,8 @@ async def create_workspace(
             payload, organization_id, request.state.user_id
         )
 
+    except NoResultFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception:
         log.error(
             "Unexpected error while creating workspace",
