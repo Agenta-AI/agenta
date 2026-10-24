@@ -34,6 +34,41 @@ def _create_member_account(admin_api, *, email):
     return next(iter(response.json()["accounts"].values()))
 
 
+def _owner_key_headers(authed_api, admin_api, organization_id):
+    """An API key of the organization's default project for its owner.
+
+    An organization-level write by an API key must come from that organization's
+    default project. The account's own key belongs to its first organization, so a
+    write on an organization created here needs a key of the new one.
+    """
+    projects = authed_api("GET", "/projects/")
+    assert projects.status_code == 200, projects.text
+    candidates = [
+        p for p in projects.json() if p["organization_id"] == str(organization_id)
+    ]
+    assert candidates, projects.text
+    project = next((p for p in candidates if p["is_default_project"]), candidates[0])
+
+    details = authed_api("GET", f"/organizations/{organization_id}")
+    assert details.status_code == 200, details.text
+
+    response = admin_api(
+        "POST",
+        "/admin/simple/accounts/api-keys/",
+        json={
+            "options": {"return_api_keys": True},
+            "api_key": {
+                "project_ref": {"id": project["project_id"]},
+                "user_ref": {"id": details.json()["owner_id"]},
+            },
+        },
+    )
+    assert response.status_code == 200, response.text
+    account = response.json()["accounts"][0]
+    key = next(iter(account["api_keys"].values()))["value"]
+    return {"Authorization": f"ApiKey {key}"}
+
+
 @pytest.mark.usefixtures("cls_account")
 class TestOrganizationLifecycle:
     def test_create_organization(self, authed_api):
@@ -53,13 +88,17 @@ class TestOrganizationLifecycle:
         listed_ids = {organization["id"] for organization in response.json()}
         assert created["id"] in listed_ids
 
-    def test_rename_organization(self, authed_api):
+    def test_rename_organization(self, authed_api, admin_api):
         created = _create_org(authed_api, f"org-{uuid4().hex[:8]}")
         new_name = f"renamed-{uuid4().hex[:8]}"
+        path = f"/organizations/{created['id']}"
 
-        response = authed_api(
-            "PUT", f"/organizations/{created['id']}", json={"name": new_name}
-        )
+        # A key of another organization's project is refused.
+        refused = authed_api("PUT", path, json={"name": new_name})
+        assert refused.status_code == 403, refused.text
+
+        headers = _owner_key_headers(authed_api, admin_api, created["id"])
+        response = admin_api("PUT", path, json={"name": new_name}, headers=headers)
         assert response.status_code == 200, response.text
         assert response.json()["name"] == new_name
 
@@ -69,10 +108,15 @@ class TestOrganizationLifecycle:
         response = authed_api("PUT", f"/organizations/{created['id']}", json={})
         assert response.status_code == 400, response.text
 
-    def test_delete_organization(self, authed_api):
+    def test_delete_organization(self, authed_api, admin_api):
         created = _create_org(authed_api, f"org-{uuid4().hex[:8]}")
+        path = f"/organizations/{created['id']}"
 
-        response = authed_api("DELETE", f"/organizations/{created['id']}")
+        refused = authed_api("DELETE", path)
+        assert refused.status_code == 403, refused.text
+
+        headers = _owner_key_headers(authed_api, admin_api, created["id"])
+        response = admin_api("DELETE", path, headers=headers)
         assert response.status_code == 200, response.text
 
         listing = authed_api("GET", "/organizations/")
@@ -98,9 +142,17 @@ class TestOrganizationLifecycle:
         )
         assert membership.status_code == 200, membership.text
 
-        response = authed_api(
-            "POST", f"/organizations/{created['id']}/transfer/{target_user_id}"
+        path = f"/organizations/{created['id']}/transfer/{target_user_id}"
+        refused = authed_api("POST", path)
+        assert refused.status_code == 403, refused.text
+        # The caller is the owner: the refusal is the key rule's, as for the other
+        # organization writes.
+        assert refused.json()["detail"] == (
+            "You do not have permission to perform this action"
         )
+
+        headers = _owner_key_headers(authed_api, admin_api, created["id"])
+        response = admin_api("POST", path, headers=headers)
         assert response.status_code == 200, response.text
         assert response.json()["owner_id"] == target_user_id
 

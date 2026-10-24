@@ -3,7 +3,7 @@ from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
 
-from oss.src.core.access.dtos import RoleRequirement
+from oss.src.core.access.dtos import RequestCredentialKind, RoleRequirement
 from oss.src.core.access.permissions.types import Permission, RequiredRole
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.types import RequestAccessMismatch, RequestAccessMissing
@@ -90,3 +90,34 @@ async def check_action_access(
         project_id=target_project_id,
     )
     return decision.allowed
+
+
+async def check_organization_write(
+    user_uid: str,
+    organization_id: str,
+    permission: Permission,
+) -> bool:
+    """An organization-level write by an API key or a run credential must come from
+    the organization's default project, as the workspace routes require: each checks
+    `check_action_access` on the default project, and a credential of another project
+    is refused there. The route still runs its own owner or admin check.
+
+    A browser session is not confined to a project, so it passes here unchanged.
+    """
+
+    access = get_request_access()
+    if access is None:
+        raise RequestAccessMissing()
+    if access.credential_kind == RequestCredentialKind.BEARER_SESSION:
+        return True
+
+    project = await db_manager.get_default_project_by_organization_id(
+        str(organization_id)
+    )
+    if project is None:
+        return False
+    return await check_action_access(
+        user_uid=user_uid,
+        project_id=str(project.id),
+        permission=permission,
+    )

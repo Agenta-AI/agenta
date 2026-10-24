@@ -453,3 +453,68 @@ class TestWorkspaceRoutesWithKeys:
             headers={"Authorization": team["owner_key"]},
         )
         assert allowed.status_code == 200, allowed.text
+
+    def test_organization_writes_need_a_key_of_the_default_project(
+        self, admin_api, team
+    ):
+        """Organization-level writes follow the same rule as the workspace routes: a
+        key of a non-default project of the organization is refused."""
+
+        created = admin_api(
+            "POST",
+            "/projects/",
+            json={"name": f"m2-o-{uuid4().hex[:6]}"},
+            headers={"Authorization": team["owner_key"]},
+        )
+        assert created.status_code == 201, created.text
+        other_key, _ = _project_key(
+            admin_api,
+            project_id=created.json()["project_id"],
+            user_id=team["owner_id"],
+        )
+        other = {"Authorization": f"ApiKey {other_key}"}
+        default = {"Authorization": team["owner_key"]}
+        organization = f"/organizations/{team['organization_id']}"
+
+        rename = {"name": f"m2-org-{uuid4().hex[:6]}"}
+        refused = admin_api("PATCH", organization, json=rename, headers=other)
+        assert refused.status_code == 403, refused.text
+        allowed = admin_api("PATCH", organization, json=rename, headers=default)
+        assert allowed.status_code == 200, allowed.text
+
+        refused = admin_api(
+            "POST",
+            f"{organization}/transfer/{team['member_id']}",
+            headers=other,
+        )
+        assert refused.status_code == 403, refused.text
+
+        refused = admin_api("DELETE", organization, headers=other)
+        assert refused.status_code == 403, refused.text
+
+        refused = admin_api(
+            "POST",
+            f"{organization}/workspaces/",
+            json={"name": "m2-ws"},
+            headers=other,
+        )
+        assert refused.status_code == 403, refused.text
+
+        if is_ee():
+            refused = admin_api(
+                "POST",
+                "/organizations/domains/",
+                json={"domain": f"m2-{uuid4().hex[:8]}.example.com"},
+                headers=other,
+            )
+            assert refused.status_code == 403, refused.text
+            # The default project's key passes the key rule; the route may still
+            # refuse on its own validation or entitlement, never with the
+            # permission refusal the other key got.
+            allowed = admin_api(
+                "POST",
+                "/organizations/domains/",
+                json={"domain": f"m2-{uuid4().hex[:8]}.example.com"},
+                headers=default,
+            )
+            assert allowed.text != refused.text, allowed.text

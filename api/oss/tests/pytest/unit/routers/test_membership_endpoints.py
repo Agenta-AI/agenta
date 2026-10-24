@@ -606,7 +606,7 @@ async def test_transfer_route_calls_the_service_and_maps_errors(monkeypatch):
             if self.raises:
                 raise self.raises
 
-    async def _is_owner(organization_id, user_id):
+    async def _is_owner(organization_id, user_id, permission):
         return True
 
     monkeypatch.setattr(organization_router, "_check_org_owner", _is_owner)

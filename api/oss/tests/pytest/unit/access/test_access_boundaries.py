@@ -189,6 +189,9 @@ _REVIEWED = {
     ("oss/src/apis/fastapi/gateways/llms/router.py", "str(scope.user_id)"),
     ("oss/src/apis/fastapi/gateways/mcps/router.py", "str(scope.user_id)"),
     ("oss/src/core/gateways/policy/service.py", "str(scope.user_id)"),
+    # `check_organization_write` forwards its own `user_uid`; every caller passes
+    # `request.state.user_id` (organization, EE organizations and billing routers).
+    ("oss/src/core/access/permissions/service.py", "user_uid"),
 }
 
 
