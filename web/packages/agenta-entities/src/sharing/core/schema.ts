@@ -72,6 +72,8 @@ export const sessionSharingStateSchema = z.object({
     shareable: z.boolean(),
     /** Absent when the session is shareable. */
     not_shareable_reason: notShareableReasonSchema.nullable().optional(),
+    /** On the one-session row read only: the session's agent is hidden from the reader. */
+    agent_hidden: z.boolean().nullable().optional(),
 })
 
 export const agentSharingResponseSchema = z.object({

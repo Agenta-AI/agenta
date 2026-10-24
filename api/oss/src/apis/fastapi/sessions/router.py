@@ -1607,6 +1607,17 @@ class InteractionsRouter:
         project_id: UUID = request.state.project_id
         user_id: UUID = request.state.user_id
 
+        # The capability check stays ahead of the continuity shortcut of
+        # `allow_session_write`: a role that lost RUN_SESSIONS is refused with 403 even
+        # when its turn's admission record would let the write through. The session entry
+        # rides in this check's one cache read.
+        prefetch_session(request, body.session_id)
+        if not await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
         # An unknown id creates the interaction, so a hidden session answers the
         # canonical not-found body.
         if not await allow_session_write(
@@ -1640,6 +1651,17 @@ class InteractionsRouter:
     ) -> SessionInteractionResponse:
         project_id: UUID = request.state.project_id
 
+        # The capability check stays ahead of the continuity shortcut of
+        # `allow_session_write`: a role that lost RUN_SESSIONS is refused with 403 even
+        # when its turn's admission record would let the write through. The session entry
+        # rides in this check's one cache read.
+        prefetch_session(request, body.session_id)
+        if not await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
         # The body names no turn: always the full check. Hidden answers like an unknown
         # interaction.
         if not await allow_session_write(
@@ -1716,6 +1738,17 @@ class InteractionsRouter:
     ) -> dict:
         project_id: UUID = request.state.project_id
 
+        # The capability check stays ahead of the continuity shortcut of
+        # `allow_session_write`: a role that lost RUN_SESSIONS is refused with 403 even
+        # when its turn's admission record would let the write through. The session entry
+        # rides in this check's one cache read.
+        prefetch_session(request, body.session_id)
+        if not await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
         # Hidden answers like a session with no pending interaction.
         if not await allow_session_write(
             request, session_id=body.session_id, turn_id=body.turn_id
@@ -2530,6 +2563,17 @@ class SessionTurnsRouter:
         project_id: UUID = request.state.project_id
         user_id: UUID = request.state.user_id
 
+        # The capability check stays ahead of the continuity shortcut of
+        # `allow_session_write`: a role that lost RUN_SESSIONS is refused with 403 even
+        # when its turn's admission record would let the write through. The session entry
+        # rides in this check's one cache read.
+        prefetch_session(request, body.session_id)
+        if not await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
         # An unknown id stores the turn, so a hidden session answers the canonical
         # not-found body.
         if not await allow_session_write(

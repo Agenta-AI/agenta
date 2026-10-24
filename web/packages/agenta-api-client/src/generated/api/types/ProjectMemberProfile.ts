@@ -8,4 +8,5 @@ export interface ProjectMemberProfile {
     email: string;
     name?: (string | null) | undefined;
     role?: (string | null) | undefined;
+    can_run_sessions?: (boolean | null) | undefined;
 }

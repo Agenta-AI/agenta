@@ -28,6 +28,7 @@ from oss.src.core.sharing.dtos import (
     SharedItemKind,
     Visibility,
 )
+from oss.src.core.access.prefetch import forget as forget_prefetch
 from oss.src.core.access.prefetch import register as register_prefetch
 from oss.src.core.workflows.dtos import AGENT_REFERENCE_KEYS
 from oss.src.core.sharing.service import (
@@ -239,6 +240,27 @@ async def stream_sharing_for_request(request: Request, *, stream) -> Any:
         )
         if run != ResourceCheck.ALLOWED:
             sharing = sharing.model_copy(update={"can_send": False})
+    if sharing is not None:
+        # The chat's agent made private while the chat is open: the screen learns it from
+        # this read (it polls), instead of a revision read of its own. One cached read.
+        agent_id = next(
+            (
+                getattr(reference, "id", None)
+                for reference in (stream.references or ())
+                if getattr(reference, "key", None) == "workflow"
+            ),
+            None,
+        )
+        if agent_id is not None:
+            seen = await check_resource(
+                request,
+                action=Permission.VIEW_WORKFLOWS,
+                resource=agent_resource(agent_id),
+            )
+            if seen in (ResourceCheck.ALLOWED, ResourceCheck.HIDDEN):
+                sharing = sharing.model_copy(
+                    update={"agent_hidden": seen == ResourceCheck.HIDDEN}
+                )
     return sharing
 
 
@@ -266,6 +288,13 @@ class SessionRecheck:
         self.checked = False
 
     async def __call__(self) -> None:
+        # The row this recheck is about appeared after this request read the session:
+        # read it again, never from what this request already read.
+        forget_prefetch(
+            session_access_entry(
+                UUID(str(self._request.state.project_id)), self._session_id
+            )
+        )
         if not await allow_resource(
             self._request,
             action=self._action,

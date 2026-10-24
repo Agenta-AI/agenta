@@ -10,4 +10,5 @@ export interface SessionSharingState {
     can_send: boolean;
     shareable: boolean;
     not_shareable_reason?: (AgentaApi.NotShareableReason | null) | undefined;
+    agent_hidden?: (boolean | null) | undefined;
 }

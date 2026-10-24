@@ -80,17 +80,31 @@ export const ChatScreen = ({
         resolving,
         refetchLatest,
         unreachable,
-        agentHidden,
+        agentHidden: entityAgentHidden,
         retry,
         retrying,
     } = useAgentEntity(sessionId, projectId, agentId)
-    const access = useChatAccess({sessionId, projectId, routeAgentId: agentId, agentHidden})
-    // An agent made private while this screen is open goes hidden at the next sharing recheck.
+    const access = useChatAccess({
+        sessionId,
+        projectId,
+        routeAgentId: agentId,
+        agentHidden: entityAgentHidden,
+    })
+    // An agent made private while this screen is open: the session row read says so (one
+    // request per recheck). Only a row that names no workflow re-reads the agent's revision.
     useAgentVisibilityRecheck({
         checkedAt: access.checkedAt,
-        enabled: Boolean(resolvedAgentId),
+        enabled: Boolean(resolvedAgentId) && access.rowAgentHidden === null,
         refetch: refetchLatest,
     })
+    // Shared again after it was hidden: read the agent's revision once to show it again.
+    const rowHiddenBefore = useRef(access.rowAgentHidden)
+    useEffect(() => {
+        const before = rowHiddenBefore.current
+        rowHiddenBefore.current = access.rowAgentHidden
+        if (before === true && access.rowAgentHidden === false) void refetchLatest()
+    }, [access.rowAgentHidden, refetchLatest])
+    const agentHidden = access.agentHidden
     // A revision picked in the top bar pins the workspace to it — config AND the conversation's
     // invocation target, as on the desktop.
     const [pinnedRevisionId, pinRevision] = useAtom(selectedRevisionAtomFamily(sessionId))

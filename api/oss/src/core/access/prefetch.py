@@ -78,6 +78,17 @@ def remember(entry: Dict[str, Any], value: Any) -> None:
     store([entry], [value])
 
 
+def forget(entry: Dict[str, Any]) -> None:
+    """Drop what this request read for the entry: its next reader reads Redis again."""
+
+    memo = get_request_memo()
+    if memo is None:
+        return
+    name = memo_key(entry)
+    memo.get(_VALUES, {}).pop(name, None)
+    memo.get(_PENDING, {}).pop(name, None)
+
+
 def lookup(entry: Dict[str, Any]) -> Tuple[bool, Optional[Any]]:
     """(found, value): whether this request already read the entry, and its value."""
 

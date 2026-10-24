@@ -58,7 +58,7 @@ from oss.src.core.sharing.dtos import (
     Visibility,
 )
 from oss.src.core.access import prefetch
-from oss.src.core.access.context import get_request_memo
+from oss.src.core.access.context import clear_request_memo, get_request_memo
 from oss.src.core.sharing.interfaces import SharingDAOInterface
 from oss.src.core.sharing.types import (
     InvalidGrantee,
@@ -267,7 +267,13 @@ class SharingService(ResourcePolicyInterface):
         memo = get_request_memo()
         if memo is not None and ("membership", user_id, project_id) in memo:
             return memo[("membership", user_id, project_id)] is not None
-        return await self._memberships.is_member(user_id=user_id, project_id=project_id)
+        membership = await self._memberships.resolve(
+            user_id=user_id, project_id=project_id
+        )
+        if memo is not None:
+            # Kept for this request's later decisions (absence included).
+            memo[("membership", user_id, project_id)] = membership
+        return membership is not None
 
     async def _active_owners(self, *, owners: Sequence[UUID], project_id: UUID) -> set:
         """The owners that are active members. The ones this request has not read are read
@@ -295,13 +301,14 @@ class SharingService(ResourcePolicyInterface):
             )
         for owner, value in zip(unread, values):
             if value is not None:
-                is_active = value.membership is not None
+                membership = value.membership
             else:
-                is_active = await self._memberships.is_member(
+                membership = await self._memberships.resolve(
                     user_id=owner, project_id=project_id
                 )
-            if memo is not None and value is not None:
-                memo[("membership", owner, project_id)] = value.membership
+            if memo is not None:
+                memo[("membership", owner, project_id)] = membership
+            is_active = membership is not None
             if is_active:
                 active.add(owner)
         return active
@@ -412,7 +419,7 @@ class SharingService(ResourcePolicyInterface):
         session_id: str,
     ) -> Optional[CachedSessionAccess]:
         """The session's policy and grants through `sharing_session_access`. None when
-        no row exists; that answer is cached too (`missing`). A legacy row is assigned by
+        no row exists; that answer is never cached. A legacy row is assigned by
         `fetch_session_policy` before it is cached."""
 
         key = {"s": session_id}
@@ -422,22 +429,16 @@ class SharingService(ResourcePolicyInterface):
             key=key,
             model=CachedSessionAccess,
         )
-        if cached is not None:
-            return None if cached.missing else cached
+        if cached is not None and not cached.missing:
+            return cached
 
+        # "No row" is never cached: a cached absence would authorize a row an insert
+        # created since (an insert path, an older pod or a lost write that does not
+        # replace it). A missing session costs one indexed read, never a lock wait.
         state = await self._dao.fetch_session_policy(
             project_id=project_id, session_id=session_id
         )
         if state is None:
-            # "No row", cached with SET NX: the insert that creates the row writes the
-            # row's entry with a plain SET after its commit, so this never outlives it.
-            await _set(
-                namespace=SESSION_ACCESS_NAMESPACE,
-                project_id=project_id,
-                key=key,
-                value=CachedSessionAccess(missing=True),
-                nx=True,
-            )
             return None
 
         entry = CachedSessionAccess(
@@ -644,8 +645,8 @@ class SharingService(ResourcePolicyInterface):
         """The caller's sharing state of a session, for the stream fetch the chat
         screen already makes: from the cached policy and grants (the route's decision
         read them, so no round trip), with `references_agent` from the row the route
-        returns (it changes on the first beat, so it is never cached). `grants` is
-        empty (the Share dialog reads them). None when the session has no row or the
+        returns (it changes on the first beat, so it is never cached). `grants` only for
+        the owner, as `fetch_session_sharing`. None when the session has no row or the
         caller may not read it."""
 
         access = await self._session_access(
@@ -654,13 +655,20 @@ class SharingService(ResourcePolicyInterface):
         if access is None:
             return None
         is_channel = access.is_channel
-        if is_channel is None:  # an entry written before `is_channel` was cached
+        if is_channel is None:  # an ownerless session's first read of this field
             state = await self._dao.fetch_session_policy(
                 project_id=project_id, session_id=session_id
             )
             if state is None:
                 return None
             is_channel = state.is_channel
+            # Kept in the entry, so the next read of the session makes no SQL read.
+            await _set(
+                namespace=SESSION_ACCESS_NAMESPACE,
+                project_id=project_id,
+                key={"s": session_id},
+                value=access.model_copy(update={"is_channel": is_channel}),
+            )
         state = SessionPolicyState(
             stream_id=access.stream_id,
             session_id=session_id,
@@ -677,7 +685,8 @@ class SharingService(ResourcePolicyInterface):
             )
         except SharedItemNotFound:
             return None
-        return sharing.model_copy(update={"grants": []})
+        # `grants` is the owner's only (the Share button shows how many people were added).
+        return sharing
 
     async def set_session_sharing(
         self,
@@ -1141,7 +1150,14 @@ async def cache_created_session_access(
     try:
         if stream_id is None:
             raise ValueError("no stream id")
-        value = CachedSessionAccess(stream_id=stream_id, policy=policy, grants=[])
+        value = CachedSessionAccess(
+            stream_id=stream_id,
+            policy=policy,
+            grants=[],
+            # A channel session is always ownerless, so an owned one is never a channel
+            # session; an ownerless one is read once from its row.
+            is_channel=False if policy.owner_user_id is not None else None,
+        )
     except Exception:  # pylint: disable=broad-exception-caught
         log.warning("[sharing] created session entry not built", session_id=session_id)
         await _invalidate(
@@ -1253,6 +1269,19 @@ async def _set(
         )
     except Exception:  # pylint: disable=broad-exception-caught
         written = False
+    if written is False:
+        # Not stored (a Redis error, or an `nx` write that found a value): this request
+        # must not treat its value as what the cache holds.
+        prefetch.forget(
+            _entry(
+                namespace=namespace,
+                project_id=project_id,
+                key=key,
+                model=type(value),
+                user_id=user_id,
+            )
+        )
+        return False
     prefetch.remember(
         _entry(
             namespace=namespace,
@@ -1305,6 +1334,9 @@ async def invalidate_sharing_caches(
     """Clear the policy entries of these agents and sessions and the grant entries of
     these users in the project. Called after the commit of every sharing write and
     every session delete. A failure is logged and never fails the writer."""
+
+    # This request's later decisions read the written state, not what it read before.
+    clear_request_memo()
 
     if not env.agenta.api.caching.enabled:
         # Nothing is cached, so nothing can be stale.

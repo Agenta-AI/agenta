@@ -180,6 +180,9 @@ class SessionSharingState(BaseModel):
     can_send: bool
     shareable: bool  # False for channel, ownerless and non-agent sessions
     not_shareable_reason: Optional[NotShareableReason] = None  # None when shareable
+    # On the one-session stream read only: whether the session's agent (its `workflow`
+    # reference) is hidden from the caller. None when not computed.
+    agent_hidden: Optional[bool] = None
 
 
 # -- cache entries (never returned to callers) --------------------------------------------

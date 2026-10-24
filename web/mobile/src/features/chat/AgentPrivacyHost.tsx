@@ -110,9 +110,9 @@ const useAgentPrivacyProps = ({
     const me = useAtomValue(userAtom)
     const queryClient = useQueryClient()
     // Until the panel or dialog opens, nothing is read: the trigger uses the list row's policy.
-    const sharingQuery = useAtomValue(
-        engaged || access === undefined ? agentSharingQueryAtomFamily(agentId) : IDLE_QUERY,
-    )
+    // While the list row is still loading the trigger waits (a skeleton); it never reads
+    // the sharing state itself before the panel opens.
+    const sharingQuery = useAtomValue(engaged ? agentSharingQueryAtomFamily(agentId) : IDLE_QUERY)
     const sharing = sharingQuery.data?.sharing ?? previewSharing(access, me?.id)
     const labels = useDisclosureProviderLabel(sharingQuery.data?.disclosure)
 
@@ -188,8 +188,7 @@ const useAgentPrivacyProps = ({
  * state of the agent and the project's members.
  */
 export const AgentPrivacyHost = (options: AgentPrivacyHostOptions) => {
-    // The sharing state and the members are read when the panel opens (or at once when the
-    // list row's policy is not known yet).
+    // The sharing state and the members are read when the panel opens.
     const [engaged, setEngaged] = useState(false)
     return (
         <AgentPrivacyControl

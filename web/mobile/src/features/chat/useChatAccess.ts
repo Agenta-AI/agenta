@@ -65,7 +65,15 @@ export const useChatAccess = ({
     const fresh = isSessionFresh(sessionId)
     const failed = query.isError
     const known = sessionAccessKnown({fresh, loaded: Boolean(sharing), failed})
-    const sharingReason = sessionReadOnlyReason({sharing: failed ? null : sharing, agentHidden})
+    // The row read says whether the chat's agent is hidden from this reader (it polls, so an
+    // agent made private while the chat is open is seen within the recheck bound). Null when
+    // the row names no workflow: the agent's own revision read decides then.
+    const rowAgentHidden = sharing?.agent_hidden ?? null
+    const effectiveAgentHidden = agentHidden || rowAgentHidden === true
+    const sharingReason = sessionReadOnlyReason({
+        sharing: failed ? null : sharing,
+        agentHidden: effectiveAgentHidden,
+    })
     // A failed read says so in the composer's place; a session whose row is not readable yet
     // waits like a load.
     const reason = sharingReason ?? (!fresh && failed && !blocked ? "access_unknown" : null)
@@ -85,5 +93,12 @@ export const useChatAccess = ({
     const canSend = !blocked && !readOnly && known
     // The recheck's clock: the agent's visibility is re-read on the same beat.
     const checkedAt = Math.max(query.dataUpdatedAt ?? 0, query.errorUpdatedAt ?? 0)
-    return {blocked, readOnly, canSend, checkedAt}
+    return {
+        blocked,
+        readOnly,
+        canSend,
+        checkedAt,
+        agentHidden: effectiveAgentHidden,
+        rowAgentHidden,
+    }
 }

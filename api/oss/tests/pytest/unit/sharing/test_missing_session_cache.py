@@ -6,10 +6,9 @@ and a session with no row was never cached, so every later reader of a new sessi
 (the services' parallel `GET /sessions/streams/` and `POST /sessions/turns/query` on the
 first send) failed the lock and slept through 4 retries (about 1.3 s).
 
-The fix: the sharing reads never take the lock (`retry=False`), and "no row" is cached as
-a negative entry with the same TTL, written with `SET NX`; the insert that creates the
-row writes the positive entry with a plain `SET`, so a reader racing the insert can never
-leave a stale "no row" behind.
+The fix: the sharing reads never take the lock (`retry=False`). "No row" is never cached
+(Codex fix review: a cached absence would authorize a row an insert created since); the
+insert that creates a row writes its entry after the commit, so the next read is a hit.
 """
 
 import asyncio
@@ -111,29 +110,50 @@ async def test_a_missing_session_read_takes_no_lock_and_never_sleeps(cache):
     assert cache.slept == []
 
 
-async def test_no_row_is_cached_so_a_missing_session_is_read_once(cache):
+async def test_no_row_is_never_cached(cache):
     world = SharingWorld()
     alice = world.add_member(uuid4())
     session_id = f"s-{uuid4().hex}"
 
     await _evaluate(world, alice, session_id)
-    reads_after_first = world.dao.reads.count("fetch_session_policy")
     await _evaluate(world, alice, session_id)
-    await _evaluate(world, alice, session_id, Permission.RUN_SESSIONS)
 
-    assert reads_after_first == 1
-    assert world.dao.reads.count("fetch_session_policy") == 1
-    negative = [
+    # Every read of a missing session reads the row (one indexed read), never a cached
+    # absence, and nothing is written for it.
+    assert world.dao.reads.count("fetch_session_policy") == 2
+    assert [
         c
         for c in cache.calls
         if c[0] == "SET" and "sharing_session_access" in str(c[1])
-    ]
-    assert negative and negative[0][2] == "NX"
+    ] == []
 
 
-async def test_the_insert_replaces_a_cached_no_row_with_the_row(cache):
-    """A reader caches "no row"; the insert that creates the private row writes its
-    entry after the commit, so the next read sees the private row and refuses Bob."""
+async def test_an_entry_written_by_an_earlier_build_as_no_row_is_a_miss(cache):
+    """A `missing` entry (written by the build before this fix) never authorizes: the row
+    is read, and a private row refuses Bob."""
+    world = SharingWorld()
+    alice = world.add_member(uuid4())
+    bob = world.add_member(uuid4())
+    session_id = f"s-{uuid4().hex}"
+    name = caching._pack(
+        namespace="sharing_session_access",
+        key={"s": session_id},
+        project_id=str(world.project_id),
+        user_id=None,
+    )
+    cache.values[name] = b'{"grants":[],"missing":true}'
+    world.dao.add_session(
+        project_id=world.project_id,
+        policy=AccessPolicy(visibility=Visibility.PRIVATE, owner_user_id=alice),
+        session_id=session_id,
+    )
+
+    assert await _evaluate(world, bob, session_id) is not None  # RESOURCE_DENIED
+
+
+async def test_the_insert_writes_the_row_entry(cache):
+    """The insert that creates the private row writes its entry after the commit: the next
+    read is a hit, and it refuses Bob."""
     from oss.src.core.sharing.service import cache_created_session_access
 
     world = SharingWorld()

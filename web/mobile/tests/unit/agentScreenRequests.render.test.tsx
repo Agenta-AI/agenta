@@ -114,3 +114,35 @@ describe("the agent screen's privacy control", () => {
         expect(sharing.querySharingMembers).toHaveBeenCalled()
     })
 })
+
+describe("the agent screen's privacy control on a cold load", () => {
+    it("reads nothing while the agent list row is still loading", async () => {
+        const client = new QueryClient({defaultOptions: {queries: {retry: false}}})
+        const store = createStore()
+        store.set(queryClientAtom, client)
+        store.set(projectIdAtom, "proj-1")
+        act(() =>
+            root.render(
+                createElement(
+                    QueryClientProvider,
+                    {client},
+                    createElement(
+                        Provider,
+                        {store},
+                        createElement(AgentPrivacyHost, {
+                            agentId: "agent-1",
+                            agentName: "Support triage",
+                            workspaceId: "w-1",
+                            projectId: "proj-1",
+                            access: undefined,
+                        }),
+                    ),
+                ),
+            ),
+        )
+        await act(async () => undefined)
+        expect(controlProps.at(-1)!.sharing).toBeUndefined()
+        expect(sharing.fetchAgentSharing).not.toHaveBeenCalled()
+        expect(sharing.querySharingMembers).not.toHaveBeenCalled()
+    })
+})

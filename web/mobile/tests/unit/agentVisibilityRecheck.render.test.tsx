@@ -66,16 +66,21 @@ let host: HTMLDivElement
 let root: Root
 let seen: {agentHidden: boolean; entityId: string | null; canSend: boolean}
 
-/** What ChatScreen wires: the agent entity, the access gate, and the recheck between them. */
+/** What ChatScreen wires: the agent entity, the access gate (with the row's agent visibility),
+ * and the revision recheck, which runs only when the row does not say. */
 const Probe = ({sessionId}: {sessionId: string}) => {
     const agent = useAgentEntity(sessionId, PROJECT)
     const access = useChatAccess({sessionId, projectId: PROJECT, agentHidden: agent.agentHidden})
     useAgentVisibilityRecheck({
         checkedAt: access.checkedAt,
-        enabled: Boolean(agent.agentId),
+        enabled: Boolean(agent.agentId) && access.rowAgentHidden === null,
         refetch: agent.refetchLatest,
     })
-    seen = {agentHidden: agent.agentHidden, entityId: agent.entityId, canSend: access.canSend}
+    seen = {
+        agentHidden: access.agentHidden,
+        entityId: access.agentHidden ? null : agent.entityId,
+        canSend: access.canSend,
+    }
     return null
 }
 
@@ -152,5 +157,25 @@ describe("an agent made private while its chat is open", () => {
         expect(rows.querySessionStreams).toHaveBeenCalledTimes(2)
         expect(sharing.fetchSessionSharing).not.toHaveBeenCalled()
         expect(seen.agentHidden).toBe(false)
+    })
+})
+
+describe("when the session row says whether its agent is hidden", () => {
+    it("the recheck is the row read alone: no revision read, and the agent hides", async () => {
+        const withAgent = (hidden: boolean) => [
+            {...row[0], sharing: {...row[0].sharing, agent_hidden: hidden}},
+        ]
+        rows.querySessionStreams.mockResolvedValue(withAgent(false))
+        await mount("row-says")
+        await advance(0)
+        expect(retrieveWorkflowRevision).toHaveBeenCalledTimes(1)
+        expect(seen.agentHidden).toBe(false)
+
+        rows.querySessionStreams.mockResolvedValue(withAgent(true))
+        await advance(60_500)
+        await advance(0)
+        expect(rows.querySessionStreams).toHaveBeenCalledTimes(2)
+        expect(retrieveWorkflowRevision).toHaveBeenCalledTimes(1)
+        expect(seen.canSend).toBe(false)
     })
 })
