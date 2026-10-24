@@ -538,3 +538,158 @@ async def test_migration_and_lazy_assignment_agree():
             "project",
             alice,
         )
+
+
+# The batch statement as it shipped before the LATERAL rewrite (first turn as an
+# inlined DISTINCT ON). Kept here as the reference the rewrite must agree with.
+_PRE_LATERAL_BATCH_SQL = """
+WITH batch AS (
+    SELECT s.project_id, s.id, s.session_id, s.created_by_id
+    FROM session_streams s
+    WHERE s.visibility IS NULL
+      AND (s.project_id, s.id) > (CAST(:last_p AS uuid), CAST(:last_id AS uuid))
+    ORDER BY s.project_id, s.id
+    LIMIT :batch_size
+), first_turn AS (
+    SELECT DISTINCT ON (t.project_id, t.session_id)
+           t.project_id, t.session_id, t.principal_kind, t.principal_id,
+           t.sender_user_id, t.origin, t.created_by_id
+    FROM session_turns t
+    JOIN batch b ON t.project_id = b.project_id AND t.session_id = b.session_id
+    ORDER BY t.project_id, t.session_id, t.created_at, t.turn_index
+), owner AS (
+    SELECT b.project_id, b.id,
+        CASE
+            WHEN EXISTS (
+                SELECT 1 FROM channel_threads c
+                WHERE c.project_id = b.project_id AND c.session_id = b.session_id
+            ) THEN NULL
+            WHEN f.principal_kind IS NOT NULL THEN
+                CASE
+                    WHEN f.origin = 'installation' THEN NULL
+                    WHEN f.sender_user_id IS NOT NULL AND f.origin IN ('web', 'api')
+                        THEN f.sender_user_id
+                    WHEN f.principal_kind = 'human' AND f.origin IN ('web', 'schedule')
+                        THEN f.principal_id
+                    ELSE NULL
+                END
+            ELSE COALESCE(b.created_by_id, f.created_by_id)
+        END AS owner_user_id
+    FROM batch b
+    LEFT JOIN first_turn f
+      ON f.project_id = b.project_id AND f.session_id = b.session_id
+), changed AS (
+    UPDATE session_streams s
+    SET visibility = 'project', owner_user_id = o.owner_user_id
+    FROM owner o
+    WHERE s.project_id = o.project_id AND s.id = o.id AND s.visibility IS NULL
+    RETURNING s.project_id, s.id
+)
+SELECT (SELECT count(*) FROM changed) AS changed, last.project_id, last.id
+FROM (
+    SELECT b.project_id, b.id FROM batch b
+    ORDER BY b.project_id DESC, b.id DESC
+    LIMIT 1
+) last
+"""
+
+
+async def _walk_pre_lateral(connection, *, batch_size):
+    key = {
+        "last_p": "00000000-0000-0000-0000-000000000000",
+        "last_id": "00000000-0000-0000-0000-000000000000",
+    }
+    updated = 0
+    while True:
+        row = (
+            await connection.execute(
+                text(_PRE_LATERAL_BATCH_SQL), {**key, "batch_size": batch_size}
+            )
+        ).first()
+        if row is None:
+            return updated
+        updated += int(row.changed or 0)
+        key = {"last_p": str(row.project_id), "last_id": str(row.id)}
+
+
+async def test_lateral_batch_keeps_the_owner_rule():
+    """The rewritten batch assigns every row the owner the shipped statement assigned,
+    on mixed synthetic data walked in several batches."""
+
+    import random
+
+    rng = random.Random(4049)
+    async with shadowed() as connection:
+        people = [uuid4() for _ in range(6)]
+        kinds = ["human", "api_key", "installation", None]
+        origins = [
+            "web",
+            "api",
+            "schedule",
+            "subscription",
+            "installation",
+            "child",
+            "evaluation",
+            None,
+        ]
+        streams = []
+        for project_id in (uuid4(), uuid4(), uuid4()):
+            for _ in range(60):
+                stream = await _stream(
+                    connection,
+                    project_id=project_id,
+                    created_by_id=rng.choice(people + [None]),
+                )
+                streams.append(stream)
+                turns = rng.choice([0, 1, 2, 3])
+                for turn_index in range(turns):
+                    kind = rng.choice(kinds)
+                    await _turn(
+                        connection,
+                        project_id=project_id,
+                        stream=stream,
+                        turn_index=turn_index,
+                        principal_kind=kind,
+                        principal_id=rng.choice(people) if kind else None,
+                        sender_user_id=rng.choice(people + [None]) if kind else None,
+                        origin=rng.choice(origins) if kind else None,
+                        created_by_id=rng.choice(people + [None]),
+                    )
+                if turns > 1 and rng.random() < 0.5:
+                    # A later turn at the first turn's instant: turn_index decides.
+                    await connection.execute(
+                        text(
+                            "UPDATE session_turns SET created_at = :at "
+                            "WHERE session_id = :s AND turn_index = 1"
+                        ),
+                        {"at": _T0, "s": stream[1]},
+                    )
+                if rng.random() < 0.1:
+                    await connection.execute(
+                        text(
+                            "INSERT INTO channel_threads (project_id, id, space_id, "
+                            "agent_id, session_id) VALUES (:p, :id, :sp, :ag, :s)"
+                        ),
+                        {
+                            "p": project_id,
+                            "id": uuid4(),
+                            "sp": uuid4(),
+                            "ag": uuid4(),
+                            "s": stream[1],
+                        },
+                    )
+
+        assert await _walk_pre_lateral(connection, batch_size=7) == len(streams)
+        before = [await _policy(connection, stream_id) for stream_id, _ in streams]
+
+        await connection.execute(
+            text("UPDATE session_streams SET visibility = NULL, owner_user_id = NULL")
+        )
+        _, sessions = await _backfill(connection, batch_size=7)
+        assert sessions == len(streams)
+        after = [await _policy(connection, stream_id) for stream_id, _ in streams]
+
+        assert after == before
+        # The data exercises both branches and ownerless rows.
+        assert len({owner for _, owner in after}) > 3
+        assert any(owner is None for _, owner in after)

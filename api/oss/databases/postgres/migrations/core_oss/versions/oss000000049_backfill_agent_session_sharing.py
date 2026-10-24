@@ -37,6 +37,10 @@ backfill. Sessions are walked in keyset batches of 5,000 by the primary key
 `(project_id, id)`. Both statements only touch rows that are not done, so a rerun after
 a timeout resumes, and a second run changes no row. `downgrade()` is a no-op.
 
+The walk starts with `ANALYZE session_streams` (the new column has no statistics yet), and
+each batch reads a session's first turn with a `LATERAL ... LIMIT 1` (one index read per
+row). Tested on 50k and 1M synthetic sessions.
+
 The same session statement, for one row, is `SharingDAO.assign_legacy_session_access`:
 the first direct access on a new pod to a row an old pod wrote during the rolling deploy.
 """
@@ -84,13 +88,6 @@ WITH batch AS (
       AND (s.project_id, s.id) > (CAST(:last_p AS uuid), CAST(:last_id AS uuid))
     ORDER BY s.project_id, s.id
     LIMIT :batch_size
-), first_turn AS (
-    SELECT DISTINCT ON (t.project_id, t.session_id)
-           t.project_id, t.session_id, t.principal_kind, t.principal_id,
-           t.sender_user_id, t.origin, t.created_by_id
-    FROM session_turns t
-    JOIN batch b ON t.project_id = b.project_id AND t.session_id = b.session_id
-    ORDER BY t.project_id, t.session_id, t.created_at, t.turn_index
 ), owner AS (
     SELECT b.project_id, b.id,
         CASE
@@ -112,8 +109,16 @@ WITH batch AS (
             ELSE COALESCE(b.created_by_id, f.created_by_id)
         END AS owner_user_id
     FROM batch b
-    LEFT JOIN first_turn f
-      ON f.project_id = b.project_id AND f.session_id = b.session_id
+    -- The first turn, one index read per batch row. A first-turn CTE inlined here let
+    -- the planner rerun the whole first-turn subquery for every row of the batch.
+    LEFT JOIN LATERAL (
+        SELECT t.principal_kind, t.principal_id, t.sender_user_id, t.origin,
+               t.created_by_id
+        FROM session_turns t
+        WHERE t.project_id = b.project_id AND t.session_id = b.session_id
+        ORDER BY t.created_at, t.turn_index
+        LIMIT 1
+    ) f ON true
 ), changed AS (
     UPDATE session_streams s
     SET visibility = 'project', owner_user_id = o.owner_user_id
@@ -138,6 +143,9 @@ def _backfill_sessions(connection) -> int:
     """Walk the legacy sessions batch after batch. In an autocommit block each batch is
     its own transaction. Returns the number of rows updated."""
 
+    # `oss000000048` added `visibility` with no statistics, so the planner would guess
+    # that few rows are NULL. Fresh statistics keep the batch plan an index walk.
+    connection.execute(text("ANALYZE session_streams"))
     updated = 0
     key = dict(_START_KEY)
     while True:
