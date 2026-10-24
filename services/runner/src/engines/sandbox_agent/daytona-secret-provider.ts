@@ -35,6 +35,18 @@ interface RegistryEntry {
   generation: number;
   operation: Promise<void>;
   cleanupTimer?: ReturnType<typeof setTimeout>;
+  /**
+   * Run the cleanup `cleanupTimer` would run, now, and cancel the timer. Set and cleared together
+   * with `cleanupTimer`. The shutdown flush calls it: the timer lives only in this process, so a
+   * runner that exits before it fires would leave the Secrets behind. See
+   * `flushPendingDaytonaSecretCleanups`.
+   */
+  runPendingCleanup?: () => Promise<void>;
+  /**
+   * The timer's cleanup while it runs (a timer that already fired, or a flush). The shutdown
+   * flush waits for it, so a runner does not exit halfway through deleting the Secrets.
+   */
+  cleanupInFlight?: Promise<void>;
 }
 
 export interface ProcessLocalDaytonaSecretProvider extends DaytonaProviderLike {
@@ -110,6 +122,40 @@ const PROVIDER_NAME = "daytona";
  */
 export function holdsProcessLocalSecretAllocation(sandboxId: string): boolean {
   return processLocalRegistry.has(rawSandboxId(sandboxId));
+}
+
+/**
+ * Run now every cleanup still waiting on its timer: delete the sandbox, then its Secrets.
+ *
+ * A stopped sandbox with no keep-alive pool entry (an idle-expiry stop, or a turn that ran with
+ * keep-alive off) is held only by the timer `pause` armed. The timer lives in this process, so a
+ * runner that exits before it fires orphans the Secrets: Daytona's autodelete removes the
+ * sandbox, but not the Secrets it mounted. The shutdown teardown calls this so the process hands
+ * nothing to that gap. Each cleanup keeps the hard order (sandbox first, Secrets after) and its
+ * own retry on failure. Never rejects: one failed cleanup must not skip the others.
+ */
+export async function flushPendingDaytonaSecretCleanups(
+  registry: Map<string, RegistryEntry> = processLocalRegistry,
+  log: (message: string) => void = () => {},
+): Promise<void> {
+  const pending = [...registry.entries()].flatMap(([sandboxId, entry]) => {
+    const pendingRun = entry.runPendingCleanup;
+    if (pendingRun) return [{ sandboxId, run: pendingRun }];
+    // A cleanup the timer already started: wait for it instead of skipping the entry.
+    const inFlight = entry.cleanupInFlight;
+    return inFlight ? [{ sandboxId, run: () => inFlight }] : [];
+  });
+  await Promise.all(
+    pending.map(({ sandboxId, run }) =>
+      run().catch((error: unknown) => {
+        log(
+          `process-local Daytona cleanup at shutdown failed sandbox=${sandboxId}: ${String(
+            error instanceof Error ? error.message : error,
+          ).slice(0, 200)}`,
+        );
+      }),
+    ),
+  );
 }
 
 function plansMatch(entry: RegistryEntry, createFingerprint: string): boolean {
@@ -273,7 +319,55 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
       cancel(entry.cleanupTimer);
       entry.cleanupTimer = undefined;
     }
+    entry.runPendingCleanup = undefined;
     entry.generation += 1;
+  };
+
+  /**
+   * Arm the timer that cleans up this sandbox later, and the `runPendingCleanup` that runs the
+   * same cleanup now. Bumps the generation, so the cleanup is a no-op once any later lifecycle
+   * operation drops it. `onError` decides what a failed cleanup reports; its retry is already
+   * armed by `cleanupAfterSandbox`.
+   */
+  const armCleanupTimer = (
+    sandboxId: string,
+    entry: RegistryEntry,
+    activeProvider: T,
+    onError: (error: unknown) => void,
+  ): void => {
+    entry.generation += 1;
+    const scheduledGeneration = entry.generation;
+    const run = (): Promise<void> =>
+      serialize(entry, async () => {
+        if (
+          registry.get(sandboxId) !== entry ||
+          entry.generation !== scheduledGeneration
+        ) {
+          return;
+        }
+        entry.cleanupTimer = undefined;
+        entry.runPendingCleanup = undefined;
+        const cleanup = cleanupAfterSandbox(sandboxId, entry, activeProvider);
+        entry.cleanupInFlight = cleanup;
+        try {
+          await cleanup;
+        } finally {
+          if (entry.cleanupInFlight === cleanup)
+            entry.cleanupInFlight = undefined;
+        }
+      });
+    entry.cleanupTimer = schedule(() => {
+      void run().catch(onError);
+    }, dependencies.cleanupDelayMilliseconds);
+    entry.cleanupTimer.unref?.();
+    entry.runPendingCleanup = async () => {
+      if (entry.cleanupTimer) {
+        cancel(entry.cleanupTimer);
+        entry.cleanupTimer = undefined;
+      }
+      entry.runPendingCleanup = undefined;
+      await run();
+    };
   };
 
   /**
@@ -298,23 +392,9 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
         `retrying in ${dependencies.cleanupDelayMilliseconds}ms`,
     );
     if (entry.cleanupTimer) return;
-    entry.generation += 1;
-    const scheduledGeneration = entry.generation;
-    entry.cleanupTimer = schedule(() => {
-      void serialize(entry, async () => {
-        if (
-          registry.get(sandboxId) !== entry ||
-          entry.generation !== scheduledGeneration
-        ) {
-          return;
-        }
-        entry.cleanupTimer = undefined;
-        await cleanupAfterSandbox(sandboxId, entry, activeProvider);
-      }).catch(() => {
-        // The retry arms its own next attempt, so there is nothing to add here.
-      });
-    }, dependencies.cleanupDelayMilliseconds);
-    entry.cleanupTimer.unref?.();
+    armCleanupTimer(sandboxId, entry, activeProvider, () => {
+      // The retry arms its own next attempt, so there is nothing to add here.
+    });
   };
 
   const cleanupAfterSandbox = async (
@@ -565,26 +645,13 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
         // pause waited would delete the sandbox it is about to park.
         dropPendingCleanup(entry);
         await activeProvider.pause?.(sandboxId);
-        const scheduledGeneration = entry.generation;
-        entry.cleanupTimer = schedule(() => {
-          void serialize(entry, async () => {
-            if (
-              registry.get(sandboxId) !== entry ||
-              entry.generation !== scheduledGeneration
-            ) {
-              return;
-            }
-            entry.cleanupTimer = undefined;
-            await cleanupAfterSandbox(sandboxId, entry, activeProvider);
-          }).catch((error) => {
-            log(
-              `process-local Daytona Secret cleanup failed sandbox=${sandboxId}: ${String(
-                error instanceof Error ? error.message : error,
-              ).slice(0, 200)}`,
-            );
-          });
-        }, dependencies.cleanupDelayMilliseconds);
-        entry.cleanupTimer.unref?.();
+        armCleanupTimer(sandboxId, entry, activeProvider, (error) => {
+          log(
+            `process-local Daytona Secret cleanup failed sandbox=${sandboxId}: ${String(
+              error instanceof Error ? error.message : error,
+            ).slice(0, 200)}`,
+          );
+        });
       });
     },
     async destroy(sandboxId: string): Promise<void> {

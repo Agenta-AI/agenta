@@ -18,7 +18,7 @@
  * Nothing here is saved on Done. Every change writes to the agent draft as it is made, so Done and
  * the close X do the same thing.
  */
-import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref} from "react"
 
 import {
     askWritesPolicy,
@@ -118,6 +118,8 @@ export interface McpPermissionDrawerProps {
     /** Settings' "View tools": the same drawer with nothing to set. */
     readOnly?: boolean
     disabled?: boolean
+    /** The drawer's panel element, so a reconnect opened from it can open inside it. */
+    panelRef?: Ref<HTMLDivElement>
 }
 
 type ToolsState =
@@ -267,6 +269,7 @@ export default function McpPermissionDrawer({
     agentPolicy,
     readOnly,
     disabled,
+    panelRef,
 }: McpPermissionDrawerProps) {
     const projectId = useAtomValue(projectIdAtom) ?? undefined
     const [tools, setTools] = useState<ToolsState>({status: "idle"})
@@ -517,6 +520,7 @@ export default function McpPermissionDrawer({
         <IntegrationPermissionDrawer
             open={open}
             onClose={onClose}
+            panelRef={panelRef}
             // The MCP source supplies its own header and catalog, so neither field reaches a
             // Composio query. They are still required by the shared props.
             target={{provider: "mcp", integration: slug ?? ""}}

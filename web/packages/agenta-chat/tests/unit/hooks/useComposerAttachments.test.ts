@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import {act, renderHook, waitFor} from "@testing-library/react"
 import {projectIdAtom} from "@agenta/shared/state"
+import {act, cleanup, renderHook, waitFor} from "@testing-library/react"
 import {getDefaultStore} from "jotai"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
@@ -45,7 +45,10 @@ const setupSwitchable = (sessionId: string) =>
         },
     )
 
+// No vitest globals, so Testing Library cannot auto-clean. Unmount every hook after each test:
+// a hook left mounted keeps React scheduling work after the file's jsdom environment is gone.
 afterEach(() => {
+    cleanup()
     attachmentsBySession.clear()
 })
 
@@ -268,7 +271,7 @@ describe("files over the attachment cap", () => {
         vi.mocked(uploadFileToSessionDrive).mockResolvedValue({
             drive: {path: "uploads/huge.txt", filename: "huge.txt", size: overCap},
         })
-        const {result, sessionId, unmount} = setupUploads(true)
+        const {result, sessionId} = setupUploads(true)
 
         act(() => {
             result.current.addFiles([
@@ -292,9 +295,6 @@ describe("files over the attachment cap", () => {
         expect(withDriveFileNote("Summarize these", result.current.files)).toBe(
             "Summarize these\n\nUploaded to the session drive (too large to attach): `uploads/huge.txt` (10.0 MB)",
         )
-        // The upload settled through async state updates; unmount so no React work outlives the
-        // test file's jsdom environment.
-        unmount()
     })
 
     it("still rejects an oversized file when the host does not opt in", () => {

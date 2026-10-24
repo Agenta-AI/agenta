@@ -855,3 +855,58 @@ def test_mustache_unresolved_jsonpath_error_names_mustache_not_curly():
         prompt.format()
     assert "mustache template" in str(exc.value)
     assert "curly template" not in str(exc.value)
+
+
+def _json_schema_template(json_schema):
+    return PromptTemplate(
+        messages=[{"role": "user", "content": "hi"}],
+        llm_config=ModelConfig(
+            model="gpt-4o-mini",
+            response_format={"type": "json_schema", "json_schema": json_schema},
+        ),
+    )
+
+
+def test_to_openai_kwargs_omits_unset_response_format_fields():
+    template = _json_schema_template(
+        {
+            "name": "answer_schema",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {"answer": {"type": "string", "default": None}},
+            },
+        }
+    )
+
+    response_format = template.to_openai_kwargs()["response_format"]
+
+    assert response_format == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "answer_schema",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {"answer": {"type": "string", "default": None}},
+            },
+        },
+    }
+
+
+def test_to_openai_kwargs_keeps_response_format_description_when_set():
+    template = _json_schema_template(
+        {
+            "name": "answer_schema",
+            "description": "The answer",
+            "schema": {"type": "object"},
+        }
+    )
+
+    json_schema = template.to_openai_kwargs()["response_format"]["json_schema"]
+
+    assert json_schema == {
+        "name": "answer_schema",
+        "description": "The answer",
+        "schema": {"type": "object"},
+    }

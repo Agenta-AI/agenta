@@ -163,10 +163,13 @@ export const ChatScreen = ({
             entityId={heldEntityId}
             agentId={heldAgentId}
             agentResolving={resolving}
+            linkEntityId={entityId}
+            linkAgentId={resolvedAgentId}
             sessionId={sessionId}
             workspaceId={workspaceId}
             projectId={projectId}
             chat={chat}
+            deepLinks
         />
     )
 }

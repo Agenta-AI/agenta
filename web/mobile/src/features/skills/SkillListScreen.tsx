@@ -25,6 +25,7 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
+import {agentEntryHref} from "../agents/agentEntry"
 import {useAgentOwners} from "../agents/useAgentOwners"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {FeatureOnboarding} from "../education/FeatureOnboarding"
@@ -129,8 +130,8 @@ export const SkillListScreen = ({
         setDetailOpen(true)
     }, [])
     const closeDetail = useCallback(() => setDetailOpen(false), [])
-    // The drawer's Used-by names lead to the agent's own page.
-    const agentHref = useCallback((agentId: string) => `${base}/agents/${agentId}`, [base])
+    // The drawer's Used-by names lead to the agent.
+    const agentHref = useCallback((agentId: string) => agentEntryHref(base, agentId), [base])
     const [importOpen, setImportOpen] = useState(false)
     const openImport = useCallback(() => setImportOpen(true), [])
     const closeImport = useCallback(() => setImportOpen(false), [])

@@ -2,6 +2,13 @@ import type {ToolUIPart, UIMessage} from "ai"
 
 import {isToolPart, partToolName} from "./parts"
 
+/** Approval history survives after the tool settles or its gate is hidden. */
+export const toolHadApproval = (part: ToolUIPart): boolean =>
+    part.state === "approval-requested" ||
+    part.state === "approval-responded" ||
+    part.state === "output-denied" ||
+    part.approval !== undefined
+
 export interface PendingApproval {
     approvalId: string
     toolName: string

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "actions": [
+    {"id":"knowledge.update","label":"Update knowledge","skills":["learn-business-context"]},
+    {"id":"discovery.investigate","label":"Investigate discovery","skills":["content-planning"],"select_by_scope":true},
+    {"id":"competitors.research","label":"Research competitors","skills":["market-competitor-research"]},
+    {"id":"site.audit","label":"Audit technical SEO","skills":["technical-seo-audit"]},
+    {"id":"content.plan","label":"Plan content","skills":["content-planning"]},
+    {"id":"brief.create","label":"Create brief","skills":["content-briefing"]},
+    {"id":"article.draft","label":"Draft article","skills":["content-production"],"approval":"brief"},
+    {"id":"article.revise","label":"Revise article","skills":["content-production"]},
+    {"id":"brief.explore","label":"Explore related briefs","skills":["content-planning","content-briefing"]},
+    {"id":"article.review","label":"Review for publication","skills":["editorial-seo-review"],"approval":"draft"},
+    {"id":"publication.handoff","label":"Prepare publishing handoff","skills":["editorial-seo-review"],"playbooks":["agent-files/00-context/publishing-spec.md"],"requires_reviewed_package":true},
+    {"id":"article.refresh","label":"Refresh article","skills":["content-refresh"],"companions":["content-briefing","content-production","editorial-seo-review"]},
+    {"id":"setup.research","label":"Configure research","skills":[],"procedure":"shared-first-use-setup"},
+    {"id":"setup.publishing","label":"Configure publishing","skills":[],"procedure":"shared-first-use-setup","playbooks":["agent-files/00-context/publishing-spec.md"]},
+    {"id":"setup.help","label":"Help with setup","skills":[],"procedure":"shared-first-use-setup"},
+    {"id":"task.custom","label":"Custom task","skills":[],"select_by_scope":true}
+  ]
+}
