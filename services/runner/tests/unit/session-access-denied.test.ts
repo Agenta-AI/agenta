@@ -396,30 +396,65 @@ describe("the runner ends the turn with access_denied", () => {
   });
 });
 
-describe("the LLM gateway refused the model call on its permission check", () => {
-  it("classifies policy_denied as access_denied, not as a provider refusal", async () => {
-    const { classifyRunError } = await import(
-      "../../src/engines/sandbox_agent/errors.ts"
-    );
-    const raw =
-      '403 {"error":{"message":"Denied use_llm_endpoints on standard/openai ⟦agenta_code:policy_denied⟧","type":"permission_error","code":"policy_denied"}}';
-    for (const text of [raw, "Denied use_llm_endpoints on standard/openai ⟦agenta_code:policy_denied⟧"]) {
-      const classified = classifyRunError(new Error(text), "claude", "openai");
-      assert.equal(classified.code, ACCESS_DENIED_CODE);
-      assert.equal(classified.message, ACCESS_DENIED_MESSAGE);
-      assert.deepEqual(classified.detail, {
+describe("the LLM gateway's own policy_denied refusals", () => {
+  // Pi unwraps `error` before it reports, so its text carries the bare body.
+  const piBody = (message: string, code: string) =>
+    `403 ${JSON.stringify({ message: `${message} \u27e6agenta_code:${code}\u27e7`, type: "permission_error", code })}`;
+  // The OpenAI SDKs fold the wrapped body into their message.
+  const wrappedBody = (message: string, code: string) =>
+    `403 ${JSON.stringify({ error: { message: `${message} \u27e6agenta_code:${code}\u27e7`, type: "permission_error", code } })}`;
+  // Codex keeps only the message line.
+  const markerOnly = (message: string, code: string) =>
+    `unexpected status 403 Forbidden: ${message} \u27e6agenta_code:${code}\u27e7, url: https://example.test/v1/responses`;
+  const shapes = { piBody, wrappedBody, markerOnly };
+
+  for (const [shape, render] of Object.entries(shapes)) {
+    it(`a permission denial (use_llm_endpoints) is access_denied (${shape})`, async () => {
+      const { classifyRunError } = await import("../../src/engines/sandbox_agent/errors.ts");
+      const classified = classifyRunError(
+        new Error(render("Denied use_llm_endpoints on standard/openai", "policy_denied")),
+        "claude",
+        "openai",
+      );
+      assert.deepEqual(classified, {
         code: ACCESS_DENIED_CODE,
         message: ACCESS_DENIED_MESSAGE,
-        retryable: false,
+        detail: { code: ACCESS_DENIED_CODE, message: ACCESS_DENIED_MESSAGE, retryable: false },
       });
-      assert.doesNotMatch(classified.message, /keep going/);
-    }
+    });
+
+    it(`a spending-check denial (Entitlement) is not access_denied and not "keep going" (${shape})`, async () => {
+      const { classifyRunError, GATEWAY_ENTITLEMENT_DENIED_MESSAGE } = await import(
+        "../../src/engines/sandbox_agent/errors.ts"
+      );
+      const classified = classifyRunError(
+        new Error(render("Entitlement wallet_balance exceeded for builtin/openai", "policy_denied")),
+        "claude",
+        "openai",
+      );
+      assert.notEqual(classified.code, ACCESS_DENIED_CODE);
+      assert.equal(classified.message, GATEWAY_ENTITLEMENT_DENIED_MESSAGE);
+      assert.doesNotMatch(classified.message, /keep going|access/i);
+      assert.equal(classified.detail?.code, "policy_denied");
+    });
+  }
+
+  it("leaves an MCP-plane policy denial to the rules that read it", async () => {
+    const { classifyRunError } = await import("../../src/engines/sandbox_agent/errors.ts");
+    const jsonRpc = JSON.stringify({
+      jsonrpc: "2.0",
+      error: {
+        code: -32000,
+        message: "Denied use_mcp_endpoints on standard/github",
+        data: { cause: "policy_denied" },
+      },
+    });
+    const classified = classifyRunError(new Error(jsonRpc), "claude", "anthropic");
+    assert.notEqual(classified.code, ACCESS_DENIED_CODE);
   });
 
   it("keeps a provider's own 403 a provider refusal", async () => {
-    const { classifyRunError } = await import(
-      "../../src/engines/sandbox_agent/errors.ts"
-    );
+    const { classifyRunError } = await import("../../src/engines/sandbox_agent/errors.ts");
     const classified = classifyRunError(
       new Error('403 {"error":{"message":"Your organization is not allowed","type":"permission_error"}}'),
       "claude",

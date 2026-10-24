@@ -70,4 +70,25 @@ describe("a person-facing gateway refusal keeps its own sentence and class", () 
     assert.equal(error.code, "wallet_balance_exhausted");
     assert.equal(error.message, "You've used all your organization's credits.");
   });
+
+  it("a permission denial folded into a Codex answer ends the turn as access_denied", async () => {
+    const { ACCESS_DENIED_CODE, ACCESS_DENIED_MESSAGE } = await import(
+      "../../src/engines/sandbox_agent/errors.ts"
+    );
+    const { deps, events } = fakeHarness({
+      output: markerOnly("Denied use_llm_endpoints on standard/openai", "policy_denied"),
+    });
+    const result = await runSandboxAgent(
+      { harness: "codex", messages: [{ role: "user", content: "say hello" }] },
+      undefined,
+      undefined,
+      deps,
+    );
+    assert.equal(result.ok, false);
+    assert.equal(result.error, ACCESS_DENIED_MESSAGE);
+    assert.equal(result.errorDetail?.code, ACCESS_DENIED_CODE);
+    const errors = events.filter((event: AgentEvent) => event.type === "error") as Array<Extract<AgentEvent, { type: "error" }>>;
+    assert.equal(errors.length, 1);
+    assert.equal(errors[0].code, ACCESS_DENIED_CODE);
+  });
 });

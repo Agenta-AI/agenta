@@ -116,13 +116,30 @@ export const ACCESS_DENIED_CODE: RunErrorCode = "access_denied";
 export const ACCESS_DENIED_MESSAGE =
   "You no longer have access to this project, so the agent run was stopped.";
 
+/** The line the person reads when the LLM gateway's spending check refused the model call. */
+export const GATEWAY_ENTITLEMENT_DENIED_MESSAGE =
+  "Agenta's spending check refused this model call, so the turn was stopped. Check your organization's credits and plan, then send the message again.";
+
 /**
- * The LLM gateway refused a model call on its permission check (`policy_denied`, "Denied
- * use_llm_endpoints ..."). Every role that may run a session may use the LLM endpoints, so during
- * a turn this means the caller lost access to the project.
+ * The LLM gateway answers two different refusals with code `policy_denied`
+ * (`api/oss/src/apis/fastapi/gateways/llms/proxy.py`), told apart by the sentence it writes:
+ *
+ * - "Denied use_llm_endpoints on <target>": the permission check refused. Every role that may run
+ *   a session may use the LLM endpoints, so during a turn this means the caller lost access to
+ *   the project: `access_denied`.
+ * - "Entitlement <key> exceeded for <target>": the spending check refused (or could not answer).
+ *   Not a provider refusal, so it does not get the provider's "you can keep going" advice.
+ *
+ * Any other `policy_denied` (the MCP plane's tool refusals included) keeps the rules below.
  */
-export function isGatewayAccessDenial(detail: AgentErrorDetail | undefined): boolean {
-  return detail?.code === "policy_denied";
+export function classifyGatewayPolicyDenial(
+  detail: AgentErrorDetail | undefined,
+): ClassifiedRunError | undefined {
+  if (detail?.code !== "policy_denied") return undefined;
+  if (/\bDenied use_llm_endpoints\b/.test(detail.message)) return accessDeniedClassified();
+  if (/\bEntitlement \S+ exceeded\b/.test(detail.message))
+    return { message: GATEWAY_ENTITLEMENT_DENIED_MESSAGE, code: "runner_error", detail };
+  return undefined;
 }
 
 /** The classified form of a lost access, with its structured detail. */
@@ -534,10 +551,10 @@ export function classifyRunError(
   if (isPublicError(err))
     return { message: sanitizeErrorText(err.message), code: err.publicCode };
   const raw = err instanceof Error ? err.message : String(err);
-  // The LLM gateway refused the model call on its permission check (`policy_denied`): the caller
-  // lost access to the project while the turn ran (every role that may run a session may use the
-  // LLM endpoints). That is not a provider refusal, and "you can keep going" would be wrong.
-  if (isGatewayAccessDenial(parseGatewayErrorDetail(raw))) return accessDeniedClassified();
+  // The LLM gateway's own `policy_denied` refusals: a lost access, or its spending check. Neither
+  // is a provider refusal, and "you can keep going" would be wrong for both.
+  const policyDenial = classifyGatewayPolicyDenial(parseGatewayErrorDetail(raw));
+  if (policyDenial) return policyDenial;
   // The gateway refused a model call with a sentence written for the person (out of credit,
   // built-in models not enabled): that sentence and its class, never the raw text and marker.
   const refusal = personFacingGatewayRefusal(raw);

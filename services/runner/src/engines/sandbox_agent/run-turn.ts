@@ -87,8 +87,7 @@ import {
   TURN_TIME_LIMIT_CODE,
   withinCredentialPropagationWindow,
   withPublicCode,
-  accessDeniedClassified,
-  isGatewayAccessDenial,
+  classifyGatewayPolicyDenial,
 } from "./errors.ts";
 import { noteExecutionSettled } from "../../sessions/execution-registry.ts";
 import {
@@ -1931,9 +1930,10 @@ export async function runTurn(
         : undefined;
     let swallowedError: string | undefined;
     let swallowedDetail = swallowedGatewayRefusal;
-    if (swallowedGatewayRefusal && isGatewayAccessDenial(swallowedGatewayRefusal)) {
-      // The gateway's permission check refused the model call: the caller lost access.
-      const denied = accessDeniedClassified();
+    // The gateway's own `policy_denied` (a lost access, or its spending check) gets its sentence.
+    const swallowedPolicyDenial = classifyGatewayPolicyDenial(swallowedGatewayRefusal);
+    if (swallowedPolicyDenial) {
+      const denied = swallowedPolicyDenial;
       swallowedError = denied.message;
       swallowedDetail = denied.detail;
       run.recordError(swallowedError, request.modelConnection?.provider);
