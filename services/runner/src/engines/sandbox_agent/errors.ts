@@ -186,6 +186,10 @@ export type RunErrorCode =
   // rebuilt from it. Not retryable: every later turn of the session fails the same way, and the
   // user has to start a new session. See `sessions/persist.ts`.
   | "session_records_incomplete"
+  // The caller lost access to the project while the turn ran (removed from it, a lower role, a
+  // deleted key): a session call of the turn answered 403. Not retryable. See
+  // `sessions/access-denied.ts`.
+  | "access_denied"
   // A failure no rule recognized, whose text the runner withholds (it may hold paths, ids or
   // credentials): the message is one sentence with a reference to the runner's log. A client must
   // not show any other text for it in its place (a trace's error text included). Only runs whose

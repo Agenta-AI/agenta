@@ -18,6 +18,9 @@
  *    with a non-transient error, is lost: it is COUNTED (see `takePersistFailures`) and the
  *    session is marked incomplete, so the turn-end drain reports it and no turn rebuilds model
  *    context from a log with a hole in it.
+ *  - A 403 is not a lost record: the caller lost access to the project mid-turn. The turn ends
+ *    with `access_denied` (see `access-denied.ts`), the record is not counted, and the session is
+ *    not marked incomplete. The turn's later records are not sent.
  *  - `record_source` marks who authored the record: "agent" for engine-emitted events,
  *    "user" for the inbound user turn persisted at run start.
  */
@@ -30,6 +33,11 @@ import type { Redactor } from "../redaction.ts";
 import { stableRecordId } from "./record-id.ts";
 import { LiveFramePublisher } from "./live-frames.ts";
 import { fetchControlPlane } from "./control-plane-fetch.ts";
+import {
+  accessDenied,
+  isAccessDeniedStatus,
+  noteAccessDenied,
+} from "./access-denied.ts";
 
 const INGEST_RETRY_BASE_MS = 100;
 // Ceiling on one wait between attempts. Without it the doubling backoff would leave a long gap
@@ -104,7 +112,14 @@ interface IngestRecord {
 
 type IngestOutcome =
   | { ok: true }
-  | { ok: false; transient: boolean; attempts: number; error: string };
+  | {
+      ok: false;
+      transient: boolean;
+      attempts: number;
+      error: string;
+      /** The api answered 403: the caller lost access, nothing was lost to an outage. */
+      accessDenied?: boolean;
+    };
 
 /** Map session_id → tail of the per-session persist chain. */
 const persistChains = new Map<string, Promise<void>>();
@@ -161,6 +176,8 @@ async function sendRecord(
       // Prefixed so a runner-side 401 is distinguishable from a provider refusal; see
       // `RUNNER_INTERNAL_401` in engines/sandbox_agent/errors.ts.
       error = `session records persist failed: HTTP ${res.status}`;
+      if (isAccessDeniedStatus(res.status))
+        return { ok: false, transient: false, attempts: attempt, error, accessDenied: true };
       transient = transientStatus(res.status);
     } catch (err) {
       // No answer at all: a network error or a timeout.
@@ -194,9 +211,23 @@ async function persistRecord(
   auth: () => string,
 ): Promise<void> {
   const sessionId = record.session_id;
+  // The turn already lost access: the api refuses every record of it the same way.
+  if (accessDenied(sessionId, record.turn_id)) {
+    log(
+      `ingest SKIPPED (access denied) session=${sessionId} idx=${record.record_index} type=${record.record_type}`,
+    );
+    return;
+  }
   const budgetMs = recordsIncomplete(sessionId) ? 0 : ingestRetryBudgetMs();
   const outcome = await sendRecord(record, auth, budgetMs);
   if (outcome.ok) return;
+  if (outcome.accessDenied) {
+    log(
+      `ingest REFUSED (access denied) session=${sessionId} idx=${record.record_index} type=${record.record_type}`,
+    );
+    noteAccessDenied(sessionId, record.turn_id, "records-ingest");
+    return;
+  }
   noteRecordsIncomplete(sessionId);
   countLost(sessionId, 1);
   logDrop({
