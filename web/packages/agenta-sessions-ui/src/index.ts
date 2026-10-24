@@ -69,3 +69,5 @@ export {default as InlineRenameInput} from "./InlineRenameInput"
 export {useInlineRename, type InlineRename} from "./useInlineRename"
 export {useDeferredMenuSelect, type MenuSelect} from "./useDeferredMenuSelect"
 export {useSessionRowChrome, type SessionRowChrome} from "./useSessionRowChrome"
+// Chat sharing: the Share dialog, its button and chip, and the shared sharing parts.
+export * from "./sharing"
