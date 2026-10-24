@@ -340,6 +340,18 @@ class SessionStartsService:
                     replayed=True,
                 )
 
+            # The session row comes before the one-shot dispatch claim, so a database
+            # failure here leaves the claim free and a retry with the same key can still
+            # invoke. A start that loses the claim below finds the row already there,
+            # which is fine: the create keeps any row that exists.
+            if access is not None and self._streams is not None:
+                await self._create_session_row(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    access=access,
+                )
+
             dispatch = await self._inputs.claim_dispatch(
                 project_id=project_id,
                 session_id=session_id,
@@ -372,13 +384,6 @@ class SessionStartsService:
             # the `claim_dispatch` await after its UPDATE committed, and a cancel during the
             # readback below after a provably never-sent failure. Both need an attempt id on the
             # row to close, which needs a migration, so they are named here and not papered over.
-            if access is not None and self._streams is not None:
-                await self._create_session_row(
-                    project_id=project_id,
-                    user_id=user_id,
-                    session_id=session_id,
-                    access=access,
-                )
             try:
                 await self._workflows.invoke_workflow_detached(
                     project_id=project_id,

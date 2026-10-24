@@ -826,3 +826,43 @@ async def test_start_without_a_policy_creates_no_row():
     await _start_with_streams(streams, events).start_once(**_args())
     streams.create.assert_not_awaited()
     assert events == ["invoke"]
+
+
+@pytest.mark.asyncio
+async def test_a_failed_session_row_create_holds_no_claim_and_a_retry_dispatches():
+    """The session row is created before the one-shot dispatch claim. A database failure
+    on that create leaves the claim free, so a retry with the same key can still invoke."""
+    from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+
+    inputs = _ClaimFlag()
+    executions = AsyncMock()
+    executions.fetch_execution.return_value = None
+    workflows = AsyncMock()
+    streams = AsyncMock()
+    streams.create.side_effect = [RuntimeError("database is down"), None]
+    policy = AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=USER_ID)
+
+    def service():
+        return SessionStartsService(
+            run_admission=NoopRunAdmission(),
+            inputs_service=inputs,
+            executions_dao=executions,
+            workflows_service=workflows,
+            lock_engine=_MemoryLock(),
+            streams_dao=streams,
+            poll_timeout_seconds=0,
+        )
+
+    with pytest.raises(RuntimeError):
+        await service().start_once(**_args(), access=policy)
+
+    assert inputs.claimed is False
+    assert [kind for kind, _ in inputs.scopes] == []
+    workflows.invoke_workflow_detached.assert_not_awaited()
+
+    executions.fetch_execution.side_effect = [None, _execution("session", "execution")]
+    result = await service().start_once(**_args(), access=policy)
+
+    assert result.replayed is False
+    assert [kind for kind, _ in inputs.scopes] == ["claim"]
+    workflows.invoke_workflow_detached.assert_awaited_once()

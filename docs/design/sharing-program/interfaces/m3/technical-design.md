@@ -41,7 +41,8 @@ Owner decisions applied (2026-10-22): one release with no rollout flag (decision
 | `oss/src/core/sessions/streams/dtos.py`, `interfaces.py`, `service.py` | MODIFIED | `SessionStream` fields; `SessionStreamCreate.access`; `access` on `command`, `_start_turn`, `set_header`, `heartbeat`, `_heartbeat_locked`; `run_admission` and `admission_envelope` on `heartbeat`; the `prior_stream` read moves before `bind_turn` and drives admission (section 2); session delete calls `invalidate_sharing_caches`; `read_scope` on `query_streams`, `count_streams`. |
 | `oss/src/core/sessions/service.py` | MODIFIED | `query_sessions_page(read_scope=)` and `query_sessions(read_scope=)`. |
 | `oss/src/core/workflows/dtos.py`, `interfaces.py`, `service.py` | MODIFIED | `access`, `visibility`, `AGENT_REFERENCE_KEYS`, `WorkflowsDAOInterface`, `resolve_agent_artifact_id`, `AgentReferenceUnresolved` (`types.py`), required `read_scope` on the four query methods and `SimpleWorkflowsService.query`, `first_agent_owner_user_id` on `commit_workflow_revision` and `commit_workflow_revision_checked`. |
-| `oss/src/core/applications/service.py`, `core/evaluators/service.py`, `core/skills/service.py`, `core/skills/import_service.py` | MODIFIED | Pass `AgentReadScope(owner_user_id=None)`, which hides every private agent. |
+| `oss/src/core/applications/service.py`, `core/evaluators/service.py` | MODIFIED | Required `read_scope` on the query methods; the query routes pass the caller's scope. The commit and simple create and edit paths forward `first_agent_owner_user_id`. |
+| `oss/src/core/skills/service.py`, `core/skills/import_service.py` | MODIFIED | Pass `AgentReadScope(owner_user_id=None)`, which hides every private agent. |
 | `oss/src/core/agent_templates/loader.py` | MODIFIED | Forwards `access`, `first_agent_owner_user_id` and the first session's policy (`session_access`). |
 | `oss/src/core/embeds/service.py`, `core/embeds/utils.py` | MODIFIED | `embedded_agent_visible`: the universal resolver checks rules A1 and A2 on each embedded workflow, application or evaluator revision (entry-points.md, "Embedded references"). |
 | `oss/src/core/channels/dtos.py`, `interfaces.py`, `service.py`, `commands.py` | MODIFIED | `channel_agent_references`; `guard_artifact_id` on `ChannelsDAOInterface.create_agent` and `edit_agent`; refuse activation of a private agent; channel sessions pass `OWNERLESS_PROJECT_POLICY`. |
@@ -174,7 +175,7 @@ RETURNING artifact_id
 
 The committer of the earliest agent revision owns the agent, whatever order the calls run in: two first agent revisions can commit before either call runs, and only the call for the earliest one inserts. When the earliest agent revision has no owner (an API key commit never calls this), no row is written. This is the only access write in a commit. It is safe in its own transaction because the artifact was already project-visible.
 
-Open: `SimpleWorkflowsService.edit` and the builder tool commit (`core/tools/platform_handlers.py`) pass no `first_agent_owner_user_id`, so an agent that becomes an agent through those paths stays ownerless.
+Callers: the workflow revision create and commit routes, `SimpleWorkflowsService.edit`, the application and evaluator revision create and commit routes and their simple create and edit routes, the template load, and the builder tool commit (`core/tools/platform_handlers.py`, through the `needs_agent_owner` flag on its registration) all pass `first_agent_owner_user_id`.
 
 ### 4.3 Read scopes in SQL
 
@@ -442,7 +443,7 @@ Run on the local stack (`run.sh --oss --dev` and `--ee --dev`) as real users in 
 - Latency. A warm agent or session decision reads Redis only (principal, membership, sharing entry). A cold one adds one or two indexed Postgres reads. Steady heartbeats of the admitted run add no Postgres read and no access decision; a checked beat that names an agent adds one indexed read. Measure p99 of the session routes and the heartbeat on the QA stack against the previous release.
 - Accepted limits: traces until M9; issued credentials until they expire; old pods and rollback show private items; a read that races a sharing or membership write can refill the old cache entry for at most `AGENTA_CACHE_TTL`.
 - Accepted as built: the routes where an unknown id creates something (send, header, input admit, uploads, mount sign and create, runner writes) answer the canonical 404 for a hidden id. This tells a project member who already holds the id that it is taken, not what it holds. Cross-session lists (interactions, turns and mounts queries without a session filter, mounts query) drop hidden items after the query, so a page can be shorter than its limit.
-- Known gaps as built: `/applications` queries pass `AgentReadScope(owner_user_id=None)`, so they hide a private agent from its own owner too (deviation 7; `/m` does not use them). A running create beat that is not the current turn keeps the `turn_id` it inserted. The mobile archived-agents query key is not invalidated by the sharing mutations (UI group).
+- Known gaps as built: A running create beat that is not the current turn keeps the `turn_id` it inserted. The mobile archived-agents query key is not invalidated by the sharing mutations (UI group).
 
 ### Out of scope / follow-ups
 

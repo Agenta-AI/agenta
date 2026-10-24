@@ -118,7 +118,7 @@ An agent is a workflow, so these routes reach agents by id too. Each gets the sa
 
 | Router | Routes | Check added |
 | --- | --- | --- |
-| `apis/fastapi/applications/router.py` | fetch, edit, archive, unarchive (653-773); variant create, fetch, edit, archive, unarchive, fork (853-1130); revision deploy, retrieve, create, fetch, edit, archive, unarchive, commit, log, resolve (1204-1901); simple fetch, edit, archive, unarchive (2084-2232) | as the workflows table; lists keep deviation 7 (`AgentReadScope(owner_user_id=None)`) |
+| `apis/fastapi/applications/router.py` | fetch, edit, archive, unarchive (653-773); variant create, fetch, edit, archive, unarchive, fork (853-1130); revision deploy, retrieve, create, fetch, edit, archive, unarchive, commit, log, resolve (1204-1901); simple fetch, edit, archive, unarchive (2084-2232) | as the workflows table; lists pass the caller's read scope |
 | `apis/fastapi/evaluators/router.py` | fetch, edit, archive, unarchive (671-806); variant create, fetch, edit, archive, unarchive, fork (884-1147); revision deploy, retrieve, create, fetch, edit, archive, unarchive, commit, log, resolve (1214-1887); simple fetch, edit, archive, unarchive (2078-2216) | as the workflows table; the edit checks run before the rename guard, whose 400 names the current name |
 | `apis/fastapi/legacy_variants/router.py` `POST /variants/configs/fetch` | 326 | hidden: `Config not found.` 404 |
 | catalog, template and preset routes of both routers | | no check: static catalog |
