@@ -106,6 +106,14 @@ import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
 import { admissionRefusal } from "./sessions/admission.ts";
 import {
+  ACCESS_DENIED_ABORT_REASON,
+  ACCESS_DENIED_CODE,
+  ACCESS_DENIED_MESSAGE,
+  accessDenied,
+  accessDeniedDetail,
+  watchAccessDenied,
+} from "./sessions/access-denied.ts";
+import {
   REPLICA_ADDRESS,
   REPLICA_ID,
   startAliveWatchdog,
@@ -937,6 +945,8 @@ async function runAndStreamWithApiBaseResolved(
   let turnClosed = false;
   const gatedEmit: EmitEvent = (event) => {
     if (turnClosed) return;
+    if (event.type === "error" && event.code === ACCESS_DENIED_CODE)
+      accessDeniedEventEmitted = true;
     emitFn(event);
   };
   let flushPersist: (() => Promise<void>) | undefined;
@@ -945,6 +955,9 @@ async function runAndStreamWithApiBaseResolved(
     | undefined;
   let persistTerminal: ((stopReason?: string) => void) | undefined;
   let terminalRecordEmitted = false;
+  // Watches this turn for a 403 on its session calls (`sessions/access-denied.ts`).
+  let stopAccessWatch: (() => void) | undefined;
+  let accessDeniedEventEmitted = false;
 
   try {
     if (sessionOwned) {
@@ -1040,6 +1053,14 @@ async function runAndStreamWithApiBaseResolved(
         abort: (reason = USER_STOP_ABORT_REASON) => controller.abort(reason),
       });
 
+      // From here on, a 403 on any session call of this turn (a record write, a heartbeat, the
+      // record-log read) means the caller lost access to the project: end the turn now. The
+      // outcome is rewritten to `access_denied` below, once the run has stopped.
+      stopAccessWatch = watchAccessDenied(sessionId, turnId, () => {
+        controller.abort(ACCESS_DENIED_ABORT_REASON);
+        markInterrupted?.("the caller lost access to the project");
+      });
+
       // Admitted. Tell the client which execution it is watching, before anything else streams.
       //
       // The runner mints the turn id (`resolveTurnId`), and until now it never told anyone: the
@@ -1127,6 +1148,7 @@ async function runAndStreamWithApiBaseResolved(
       };
     }
   } catch (error) {
+    stopAccessWatch?.();
     if (aliveWatchdog) await aliveWatchdog.release().catch(() => {});
     if (sessionOwned) unregisterExecution(sessionId, turnId);
     throw error;
@@ -1318,6 +1340,20 @@ async function runAndStreamWithApiBaseResolved(
         );
       }
     }
+    // The caller lost access while the turn ran. Whatever the run ended with (a cancel from the
+    // abort, an abandoned run, a failed step), the turn's outcome is that, said plainly. Nothing
+    // is persisted for it: the platform refuses this credential's writes.
+    if (sessionOwned && accessDenied(sessionId, turnId)) {
+      if (!accessDeniedEventEmitted)
+        liveEmit({ type: "error", message: ACCESS_DENIED_MESSAGE, code: ACCESS_DENIED_CODE });
+      result = {
+        ok: false,
+        error: ACCESS_DENIED_MESSAGE,
+        errorDetail: accessDeniedDetail(),
+        events: [],
+      };
+    }
+    stopAccessWatch?.();
     if (aliveWatchdog) await aliveWatchdog.release().catch(() => {});
     // Same `finally` as the watchdog release, so a run that threw still leaves the registry
     // clean. Scoped to this turn id, so a turn that finishes after its successor registered

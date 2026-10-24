@@ -87,6 +87,7 @@ import {
   TURN_TIME_LIMIT_CODE,
   withinCredentialPropagationWindow,
   withPublicCode,
+  classifyGatewayPolicyDenial,
 } from "./errors.ts";
 import { noteExecutionSettled } from "../../sessions/execution-registry.ts";
 import {
@@ -155,6 +156,11 @@ import {
 } from "../../gateway-error.ts";
 import { mcpHandshakeFailureMessage } from "./mcp-handshake.ts";
 import { reconstructHistoryIfNeeded } from "./reconstruct-history.ts";
+import {
+  ACCESS_DENIED_CODE,
+  accessDeniedDetail,
+  isAccessDeniedError,
+} from "../../sessions/access-denied.ts";
 import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText, priorMessages } from "./transcript.ts";
 import {
@@ -568,7 +574,8 @@ export async function runTurn(
           : undefined,
       );
     } catch (err) {
-      if (!opts.resume) throw err;
+      // A caller who lost access cannot continue a live resume either.
+      if (!opts.resume || isAccessDeniedError(err)) throw err;
       const detail = err instanceof Error ? err.message : String(err);
       logger(
         `[reconstruct] live resume: keeping the inbound history (${detail})`,
@@ -1923,7 +1930,15 @@ export async function runTurn(
         : undefined;
     let swallowedError: string | undefined;
     let swallowedDetail = swallowedGatewayRefusal;
-    if (swallowedGatewayRefusal) {
+    // The gateway's own `policy_denied` (a lost access, or its spending check) gets its sentence.
+    const swallowedPolicyDenial = classifyGatewayPolicyDenial(swallowedGatewayRefusal);
+    if (swallowedPolicyDenial) {
+      const denied = swallowedPolicyDenial;
+      swallowedError = denied.message;
+      swallowedDetail = denied.detail;
+      run.recordError(swallowedError, request.modelConnection?.provider);
+      run.emitEvent(errorEventWithDetail(denied.message, denied.code, denied.detail));
+    } else if (swallowedGatewayRefusal) {
       const personFacing = personFacingGatewayRefusal(visibleOutput);
       swallowedError = personFacing?.message ?? swallowedGatewayRefusal.message;
       run.recordError(swallowedError, request.modelConnection?.provider);
@@ -2168,6 +2183,8 @@ export async function runTurn(
         : {}),
       // Structured so the dispatch can tell this refusal from a broken session: it must not
       // delete the environment or retry cold, and the caller may send the message again.
+      // Structured so a client reads the class, not the prose (the SDK takes `failure_code` from it).
+      ...(classified.code === ACCESS_DENIED_CODE ? { errorDetail: accessDeniedDetail() } : {}),
       ...(classified.code === TURN_INDEX_TAKEN_CODE
         ? {
             errorDetail: {

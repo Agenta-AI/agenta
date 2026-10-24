@@ -19,6 +19,11 @@
 import type { AgentRunRequest, ChatMessage } from "../../protocol.ts";
 import { fetchSessionRecords } from "../../sessions/records-query.ts";
 import { recordsIncomplete } from "../../sessions/persist.ts";
+import {
+  accessDenied,
+  accessDeniedError,
+  noteAccessDenied,
+} from "../../sessions/access-denied.ts";
 import { reconstructMessages } from "../../sessions/reconstruct.ts";
 import {
   SESSION_RECORDS_INCOMPLETE_CODE,
@@ -98,9 +103,18 @@ export async function reconstructHistoryIfNeeded(
       SESSION_RECORDS_INCOMPLETE_CODE,
     );
   };
+  // The caller lost access while the turn started: say that, not "unreadable".
+  if (accessDenied(sessionId, request.turnId)) throw accessDeniedError();
   if (recordsIncomplete(sessionId)) incomplete();
 
-  const recordLog = await fetchSessionRecords(sessionId, auth);
+  let recordLog: Awaited<ReturnType<typeof fetchSessionRecords>>;
+  try {
+    recordLog = await fetchSessionRecords(sessionId, auth);
+  } catch (err) {
+    // Only the 403 throws (`access_denied`); every other failure returns null below.
+    noteAccessDenied(sessionId, request.turnId, "records-query");
+    throw err;
+  }
   if (!recordLog) {
     throw new Error(
       `session ${sessionId} record log is unreadable; cannot rebuild the conversation`,

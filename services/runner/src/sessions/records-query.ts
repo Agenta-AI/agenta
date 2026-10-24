@@ -8,6 +8,7 @@ import { fetchControlPlane } from "./control-plane-fetch.ts";
 import { apiBase } from "../apiBase.ts";
 import { envTimerMs } from "../env.ts";
 import type { SessionRecordRow } from "./reconstruct.ts";
+import { accessDeniedError, isAccessDeniedStatus } from "./access-denied.ts";
 
 function log(msg: string): void {
   process.stderr.write(`[sessions/records-query] ${msg}\n`);
@@ -39,12 +40,16 @@ export interface SessionRecordLog {
  * Fetch a session's durable record log, ordered for reconstruction (the endpoint returns records
  * by ingest time, then per-turn `record_index`). Returns `null` on failure so the caller can fall
  * back to the inbound history rather than run with an empty context.
+ *
+ * Throws the `access_denied` public error on 403: the caller lost access to the project, which
+ * is not an unreadable log, and the turn must say so.
  */
 export async function fetchSessionRecords(
   sessionId: string,
   auth: () => string,
 ): Promise<SessionRecordLog | null> {
   const url = `${apiBase()}/sessions/records/query`;
+  let denied = false;
   try {
     const res = await fetchControlPlane(
       (signal) =>
@@ -60,8 +65,11 @@ export async function fetchSessionRecords(
     );
     // Prefixed so a runner-side 401 is distinguishable from a provider refusal; see
     // `RUNNER_INTERNAL_401` in engines/sandbox_agent/errors.ts.
-    if (!res.ok)
+    if (!res.ok) {
+      denied = isAccessDeniedStatus(res.status);
+      await res.body?.cancel().catch(() => {});
       throw new Error(`session records query failed: HTTP ${res.status}`);
+    }
     const body = (await res.json()) as {
       records?: SessionRecordRow[];
       records_incomplete?: boolean;
@@ -76,6 +84,7 @@ export async function fetchSessionRecords(
       120,
     );
     log(`query FAILED session=${sessionId}: ${detail}`);
+    if (denied) throw accessDeniedError();
     return null;
   }
 }

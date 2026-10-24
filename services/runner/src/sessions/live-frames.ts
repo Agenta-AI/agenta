@@ -1,5 +1,10 @@
 import type { AgentEvent } from "../protocol.ts";
 import { apiBase } from "../apiBase.ts";
+import {
+  accessDenied,
+  isAccessDeniedStatus,
+  noteAccessDenied,
+} from "./access-denied.ts";
 
 export const LIVE_FRAMES_ENV = "AGENTA_RUNNER_LIVE_FRAMES";
 export const LIVE_FRAME_BUFFER_CAPACITY = 256;
@@ -73,6 +78,10 @@ async function postFrames(
     body: JSON.stringify(frames),
   });
   if (!response.ok) {
+    await response.body?.cancel().catch(() => {});
+    // The caller lost access to the project while the turn ran: end the turn (`access-denied.ts`).
+    if (isAccessDeniedStatus(response.status) && frames[0])
+      noteAccessDenied(frames[0].session_id, frames[0].execution_id, "records-ingest");
     throw new Error(`HTTP ${response.status}`);
   }
 }
@@ -213,7 +222,11 @@ export class LiveFramePublisher {
     );
     this.send =
       options.send ??
-      ((frames) => postFrames(options.auth, frames, postTimeoutMs));
+      ((frames) =>
+        // The turn lost access: the api refuses its frames the same way, so do not send them.
+        accessDenied(options.sessionId, options.executionId)
+          ? Promise.reject(new Error("access denied"))
+          : postFrames(options.auth, frames, postTimeoutMs));
     this.now = options.now ?? (() => new Date().toISOString());
     this.log =
       options.log ??
