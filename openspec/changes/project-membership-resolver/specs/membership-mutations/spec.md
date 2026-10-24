@@ -21,6 +21,10 @@ Write memberships through the service writers, with defined meanings for the leg
 - **WHEN** a user accepts an invitation with role `annotator`
 - **THEN** the organization row, the workspace mirror row and a row in every team project of the organization SHALL carry `annotator`
 
+#### Scenario: Auto-join keeps an existing role
+- **WHEN** domain auto-join adds a user with `set_member_role(..., must_be_absent=True)` and an invitation for the same user was accepted first, under the organization lock
+- **THEN** the writer SHALL find the existing organization row, write nothing, and the accepted role SHALL stay; `must_be_absent` and `must_exist` SHALL NOT both be set
+
 #### Scenario: Remove the organization owner
 - **WHEN** a caller removes the organization owner
 - **THEN** `remove_member` SHALL refuse and change nothing

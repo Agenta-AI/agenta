@@ -38,7 +38,7 @@ Status: proposed, round 3 (plan review 2026-10-22). Names and signatures: `inter
 
 | File | Change |
 | --- | --- |
-| `oss/databases/postgres/migrations/core_oss/versions/oss000000044_repair_memberships_for_resolver.py` | NEW. Demo rows, P1, P2a, P6 (section 3.2). |
+| `oss/databases/postgres/migrations/core_oss/versions/oss000000044_repair_memberships_for_resolver.py` | NEW. Demo rows, P1, owner role, P2a, owner workspace rows, P6 (section 3.2). |
 | `oss/databases/postgres/migrations/core_oss/versions/oss000000045_add_project_members_unique_index.py` | NEW. Guarded concurrent unique index (section 3.3). |
 
 ## 2. Key flows
@@ -83,12 +83,14 @@ The workspace-create route follows steps 3 to 5 for its default project after it
 
 ### 2.5 Role change, invite accept, remove member
 
-Each: router permission check (unchanged permission) → service writer → DAO transaction under the lock → commit → `invalidate_access_caches` for the user and every project of the organization.
+Role change and remove member: router permission check (unchanged permission) → service writer → DAO transaction under the lock → commit → `invalidate_access_caches` for the user and every project of the organization.
+
+Invite accept is not a permission check: the invitee is not a member yet, so `check_action_access` would answer `not_member`. The route validates the invitation (token, email, not expired) and then calls the writer, with the same transaction and invalidation.
 
 ### 2.6 Ownership transfer
 
 1. Router: caller is the organization owner (unchanged).
-2. `transfer_ownership` → DAO transaction: lock → organization and new-owner checks → swap organization, workspace and project roles (project rows where both have one, as the admin transfer tool) → insert `owner` project rows for the new owner in every project → set `owner_id` → commit.
+2. `transfer_ownership` → DAO transaction: lock → organization and new-owner checks → the former owner takes the new owner's organization, workspace and project roles (rows where both have one, as the admin transfer tool) → insert `owner` project rows and workspace rows for the new owner where missing → set every organization, workspace and project row of the new owner in the organization to `owner` → set `owner_id` → commit. The admin transfer tool runs the same final statements.
 3. `invalidate_access_caches(user_ids=[current, new], project_ids=<all projects of the organization>)`.
 
 Reason for step 2's insert: after M1 the owner shortcut runs only for a member. In EE, a new owner without project rows would be `not_member` in those projects.
@@ -116,7 +118,7 @@ uv run --no-sync python -m entrypoints.memberships_check --materialize   # EE on
 | P2b (EE) | workspace member of an organization without the RBAC entitlement, with an organization row and no row in a project of that workspace | `--apply` inserts the oldest workspace role |
 | P3 (EE) | user with organization and project rows but no workspace row for that project (denied today, allowed after) | report only (accepted) |
 | P4 (EE) | organization with more than one workspace, with member and project counts | report only (accepted) |
-| P5 | duplicate `(project_id, user_id)` groups, with ids and roles in `(created_at, id)` order | blocks `oss000000045`; `--apply` deletes all rows but the oldest |
+| P5 | duplicate `(project_id, user_id)` groups over non-demo rows, with ids and roles in `(created_at, id)` order | blocks `oss000000045`; `--apply` deletes all non-demo rows but the oldest non-demo row; demo rows are left to `oss000000044` |
 | P6 | organization role differs from the workspace role, single-workspace organizations | `oss000000044` copies it |
 | P7 (OSS) | project row role differs from the effective organization role | report only, for release notes |
 | P8 (OSS) | organization member without a row in a project of the organization (gains access) | report only, for release notes |
@@ -129,7 +131,7 @@ uv run --no-sync python -m entrypoints.memberships_check --materialize   # EE on
 
 ### 3.2 Revision `oss000000044`
 
-Five SQL constants in the revision file, run in order in `op.execute(text(...))` inside the hook transaction. Tests load them from the file (migrations do not import app code).
+Seven SQL constants in the revision file, run in order in `op.execute(text(...))` inside the hook transaction, after `SET LOCAL lock_timeout = '5s'` (as `oss000000046`: a long-held row lock of an old pod fails the hook after 5 s; every statement is idempotent, so the hook is re-run). Tests load them from the file (migrations do not import app code). Every statement is set-based: no correlated count, because `workspaces` has no index on `organization_id` and a per-row count scans it once per row.
 
 ```sql
 -- _DELETE_DEMO_ONLY_MEMBERSHIPS_SQL: organization and workspace rows of demo-only users
@@ -171,6 +173,14 @@ FROM organizations o
 WHERE NOT EXISTS (SELECT 1 FROM organization_members om
                   WHERE om.organization_id = o.id AND om.user_id = o.owner_id);
 
+-- _SET_OWNER_ORGANIZATION_ROLE_SQL: the owner's organization rows hold `owner`
+UPDATE organization_members om
+SET role = 'owner', updated_at = now()
+FROM organizations o
+WHERE om.organization_id = o.id
+  AND om.user_id = o.owner_id
+  AND om.role IS DISTINCT FROM 'owner';
+
 -- _ADD_OWNER_PROJECT_ROWS_SQL (P2a)
 INSERT INTO project_members (id, user_id, project_id, role, created_at, updated_at)
 SELECT gen_random_uuid(), o.owner_id, p.id, 'owner', now(), now()
@@ -178,23 +188,44 @@ FROM projects p JOIN organizations o ON o.id = p.organization_id
 WHERE NOT EXISTS (SELECT 1 FROM project_members pm
                   WHERE pm.project_id = p.id AND pm.user_id = o.owner_id);
 
+-- _ADD_OWNER_WORKSPACE_ROWS_SQL: the owner's missing workspace rows
+INSERT INTO workspace_members (id, user_id, workspace_id, role, created_at, updated_at)
+SELECT gen_random_uuid(), o.owner_id, w.id, 'owner', now(), now()
+FROM workspaces w JOIN organizations o ON o.id = w.organization_id
+WHERE NOT EXISTS (SELECT 1 FROM workspace_members wm
+                  WHERE wm.workspace_id = w.id AND wm.user_id = o.owner_id);
+
 -- _COPY_WORKSPACE_ROLE_SQL (P6)
+WITH single_workspace_organizations AS (
+    SELECT organization_id
+    FROM workspaces
+    WHERE organization_id IS NOT NULL
+    GROUP BY organization_id
+    HAVING count(*) = 1
+),
+single_workspace_rows AS (
+    SELECT workspace_id, user_id
+    FROM workspace_members
+    WHERE workspace_id IS NOT NULL AND user_id IS NOT NULL
+    GROUP BY workspace_id, user_id
+    HAVING count(*) = 1
+)
 UPDATE organization_members om
 SET role = wm.role, updated_at = now()
 FROM workspace_members wm
+JOIN single_workspace_rows s
+  ON s.workspace_id = wm.workspace_id AND s.user_id = wm.user_id
 JOIN workspaces w ON w.id = wm.workspace_id
+JOIN single_workspace_organizations sw ON sw.organization_id = w.organization_id
 JOIN organizations o ON o.id = w.organization_id
 WHERE om.organization_id = w.organization_id
   AND om.user_id = wm.user_id
   AND om.user_id <> o.owner_id
   AND wm.role IS NOT NULL
-  AND om.role IS DISTINCT FROM wm.role
-  AND (SELECT count(*) FROM workspaces w2 WHERE w2.organization_id = w.organization_id) = 1
-  AND (SELECT count(*) FROM workspace_members wm2
-       WHERE wm2.workspace_id = w.id AND wm2.user_id = wm.user_id) = 1;
+  AND om.role IS DISTINCT FROM wm.role;
 ```
 
-Demo enrollment wrote an organization row and a workspace row next to the demo project row. OSS reads the organization row, and an EE project created later seeds every organization member, so a demo-only user would keep a path into the organization; the first statement removes those rows (a user with any real project row in the organization keeps every row). It runs before the demo delete, which removes the evidence. The demo delete runs before the owner steps, so a user with a demo row and a real row in one project is no longer a duplicate. P2a gives the owner a row in every project; in an organization with several workspaces this is wider than today, which the owner accepted (P4). Organizations with several workspaces keep their organization roles (P6 skips them), and new projects there are seeded with those roles. Accepted, as P4.
+Demo enrollment wrote an organization row and a workspace row next to the demo project row. OSS reads the organization row, and an EE project created later seeds every organization member, so a demo-only user would keep a path into the organization; the first statement removes those rows (a user with any real project row in the organization keeps every row). It runs before the demo delete, which removes the evidence. The demo delete runs before the owner steps, so a user with a demo row and a real row in one project is no longer a duplicate. The owner-role step fixes owner rows that the admin accounts path wrote with the column default `viewer` (OSS now reads the organization role). The owner workspace step adds the row the auth middleware checks for a request that names a workspace, and that the default workspace and the workspace lists read. P2a gives the owner a row in every project; in an organization with several workspaces this is wider than today, which the owner accepted (P4). Organizations with several workspaces keep their organization roles (P6 skips them), and new projects there are seeded with those roles. Accepted, as P4.
 
 ### 3.3 Revision `oss000000045`
 
