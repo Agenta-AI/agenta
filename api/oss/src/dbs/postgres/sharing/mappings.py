@@ -5,6 +5,7 @@ from oss.src.core.sharing.dtos import (
     OWNERLESS_PROJECT_POLICY,
     AccessPolicy,
     SessionGrant,
+    SessionPolicyState,
     SessionRole,
     UserSessionGrant,
     Visibility,
@@ -50,6 +51,19 @@ def map_agent_access_dto_to_dbe(
         visibility=policy.visibility.value,
         owner_user_id=policy.owner_user_id,
         created_by_id=user_id,
+    )
+
+
+def map_session_state_row_to_dto(row) -> SessionPolicyState:
+    """A session policy read row (`stream_id`, `session_id`, `visibility`,
+    `owner_user_id`, `is_channel`, `references_agent`)."""
+
+    return SessionPolicyState(
+        stream_id=row.stream_id,
+        session_id=row.session_id,
+        policy=map_agent_access_dbe_to_dto(row),
+        is_channel=bool(row.is_channel),
+        references_agent=bool(row.references_agent),
     )
 
 

@@ -37,6 +37,7 @@ from oss.src.core.workflows.dtos import AGENT_REFERENCE_KEYS
 from oss.src.dbs.postgres.sharing.mappings import (
     map_agent_access_dbe_to_dto,
     map_session_grant_dbe_to_dto,
+    map_session_state_row_to_dto,
     map_user_session_grant_to_dto,
 )
 
@@ -271,16 +272,6 @@ def _session_params(*, project_id: UUID, session_id: str) -> dict:
     }
 
 
-def _map_session_state(row) -> SessionPolicyState:
-    return SessionPolicyState(
-        stream_id=row.stream_id,
-        session_id=row.session_id,
-        policy=map_agent_access_dbe_to_dto(row),
-        is_channel=bool(row.is_channel),
-        references_agent=bool(row.references_agent),
-    )
-
-
 def _grant_delta(
     *,
     old: Dict[UUID, SessionGrant],
@@ -401,7 +392,7 @@ class SharingDAO(SharingDAOInterface):
             row = await self._fetch_session_state(params)
         if row is None:
             return None
-        return _map_session_state(row)
+        return map_session_state_row_to_dto(row)
 
     async def _fetch_session_state(self, params: dict):
         async with self.engine.session() as session:
@@ -479,7 +470,7 @@ class SharingDAO(SharingDAOInterface):
             if row is None:
                 raise SharedItemNotFound()
 
-            state = _map_session_state(row)
+            state = map_session_state_row_to_dto(row)
             before = state.policy
             if before != expected:
                 raise SharingConflict(current=before)
