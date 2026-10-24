@@ -2,6 +2,7 @@ import os
 import importlib.metadata
 import re
 from typing import Dict, Tuple
+from urllib.parse import urlsplit, urlunsplit
 
 
 def get_current_version():
@@ -45,6 +46,39 @@ def parse_url(url: str) -> str:
         return url
 
     return url
+
+
+def strip_trailing_api_segment(url: str) -> str:
+    """Strip a trailing ``/api`` PATH segment from a URL.
+
+    Unlike a plain string ``replace("/api", "")``, this only removes ``/api``
+    when it is a trailing path segment, so it never corrupts a host literally
+    named ``api`` (e.g. ``http://api:8000/api`` -> ``http://api:8000``, not
+    ``http://:8000``).
+
+    Query string and fragment are deliberately DROPPED (not preserved): callers
+    use the result as a plain string-concatenation base (e.g.
+    ``f"{host}/api/otlp/v1/traces"``), not as a proper URL-join target. If a
+    query were preserved here, an appended path would be swallowed into the
+    query string instead of becoming a real path segment.
+    """
+    parts = urlsplit(url)
+    path = parts.path.rstrip("/").removesuffix("/api")
+    return urlunsplit((parts.scheme, parts.netloc, path, "", ""))
+
+
+def strip_query_and_fragment(url: str) -> str:
+    """Drop any query string and fragment from a URL, keeping the path intact.
+
+    Callers use the result as a plain string-concatenation base (e.g.
+    ``f"{api_url}/projects/current"``), not as a proper URL-join target. If a
+    query were preserved here, an appended path would be swallowed into the
+    query string instead of becoming a real path segment. Unlike
+    ``strip_trailing_api_segment``, the path (including a trailing ``/api``
+    segment) is kept unchanged.
+    """
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path.rstrip("/"), "", ""))
 
 
 _PLACEHOLDER_RE = re.compile(r"\{\{\s*(.*?)\s*\}\}")
