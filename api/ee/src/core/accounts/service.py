@@ -6,6 +6,7 @@ fails open: a lookup failure grants as normal and logs a warning, so a database
 hiccup never costs a real user the free credits.
 """
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from uuid import UUID
@@ -129,6 +130,29 @@ class AccountTombstonesService:
                 )
         return True
 
+    async def is_email_variant(self, *, email: str) -> bool:
+        """True when another live user already has the same normalized email, so the
+        new account is a second sign-up into the same inbox. Gmail ignores dots and
+        `+tag`s, so one inbox can sign up many times. A lookup failure returns False
+        and logs a warning."""
+        try:
+            async with asyncio.timeout(5):
+                variant = await self.tombstones_dao.exists_live_email_variant(
+                    email=email
+                )
+        except Exception as exc:
+            log.warning(
+                "[accounts] email variant lookup failed; granting as normal",
+                reason=type(exc).__name__,
+            )
+            return False
+        if variant:
+            log.info(
+                "[accounts] email variant of a live account; no signup grant",
+                domain=_domain(email),
+            )
+        return variant
+
     async def discard(self, *, tombstone_ids: List[UUID]) -> None:
         """Best effort: drop tombstones of a batch deletion that did not happen."""
         try:
@@ -159,6 +183,19 @@ def _get_account_tombstones_service() -> AccountTombstonesService:
             "Call register_account_tombstones_service() from the composition root."
         )
     return _account_tombstones_service
+
+
+async def email_variant_blocks_grant(*, email: str) -> bool:
+    """The signup seam for email variants. Never raises: any failure grants as
+    normal."""
+    try:
+        return await _get_account_tombstones_service().is_email_variant(email=email)
+    except Exception as exc:
+        log.warning(
+            "[accounts] email variant check failed; granting as normal",
+            reason=type(exc).__name__,
+        )
+        return False
 
 
 async def write_account_tombstone(
