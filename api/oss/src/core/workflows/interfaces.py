@@ -23,7 +23,7 @@ from oss.src.core.git.dtos import (
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.sharing.dtos import AccessPolicy, AgentReadScope
-from oss.src.core.workflows.dtos import WorkflowRevision
+from oss.src.core.workflows.dtos import WorkflowArtifact, WorkflowRevision
 
 
 class StaticWorkflowProvider(ABC):
@@ -162,7 +162,9 @@ class WorkflowsDAOInterface(GitDAOInterface):
         windowing: Optional[Windowing] = None,
         #
         read_scope: AgentReadScope,
-    ) -> List[Artifact]: ...
+    ) -> List[WorkflowArtifact]:
+        """The artifacts in the read scope, each with its agent access policy, in one
+        statement (a LEFT JOIN on the `agent_access` primary key)."""
 
     @abstractmethod
     async def query_variants(  # type: ignore[override]

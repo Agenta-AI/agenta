@@ -45,6 +45,7 @@ from oss.src.core.sharing.dtos import (
     CachedSessionAccess,
     CachedUserGrants,
     EffectiveRole,
+    NotShareableReason,
     SessionGrant,
     SessionPolicyState,
     SessionReadScope,
@@ -569,7 +570,7 @@ class SharingService(ResourcePolicyInterface):
         )
         reason = _not_shareable_reason(state)
         if reason is not None:
-            raise SessionNotShareable(reason=reason)
+            raise SessionNotShareable(reason=reason.value)
 
         expected = state.policy
         result: Optional[SessionSharingWriteResult] = None
@@ -847,13 +848,15 @@ class SharingService(ResourcePolicyInterface):
                 is_owner or grant_role == SessionRole.PARTICIPANT
             )
 
+        not_shareable_reason = _not_shareable_reason(state)
         return SessionSharingState(
             policy=policy,
             owner_is_active=owner_is_active,
             grants=list(grants) if is_owner else [],
             my_role=my_role,
             can_send=can_send,
-            shareable=_not_shareable_reason(state) is None,
+            shareable=not_shareable_reason is None,
+            not_shareable_reason=not_shareable_reason,
         )
 
     # -- ownership rule -------------------------------------------------------------------
@@ -913,13 +916,13 @@ def _require_visible_agent(
         raise SharedItemNotFound()
 
 
-def _not_shareable_reason(state: SessionPolicyState) -> Optional[str]:
+def _not_shareable_reason(state: SessionPolicyState) -> Optional[NotShareableReason]:
     if state.is_channel:
-        return "channel"
+        return NotShareableReason.CHANNEL
     if state.policy.owner_user_id is None:
-        return "ownerless"
+        return NotShareableReason.OWNERLESS
     if not state.references_agent:
-        return "no_agent"
+        return NotShareableReason.NO_AGENT
     return None
 
 

@@ -512,11 +512,14 @@ class WorkflowsService:
             project_id=str(project_id),
             key=cache_key,
         )
+        # Never cache the access policy: a sharing write does not clear this
+        # namespace, so a cached policy would go stale. Lists read it in their own
+        # statement; direct reads leave it unset.
         await set_cache(
             namespace="artifact",
             project_id=str(project_id),
             key=cache_key,
-            value=workflow,
+            value=workflow.model_copy(update={"access": None}),
             ttl=self.WORKFLOW_ARTIFACT_CACHE_TTL,
         )
 
@@ -4925,7 +4928,10 @@ class SimpleWorkflowsService:
                 ):
                     continue
 
-                simple_workflows.append(simple_workflow)
+                # The policy read by the list statement (`fetch` leaves it unset).
+                simple_workflows.append(
+                    simple_workflow.model_copy(update={"access": workflow.access})
+                )
 
         return simple_workflows
 

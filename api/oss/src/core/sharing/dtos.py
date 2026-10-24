@@ -164,6 +164,14 @@ class AgentSharingState(BaseModel):
     can_take_ownership: bool
 
 
+class NotShareableReason(str, Enum):
+    """Why a session cannot be shared (the reason of `SessionNotShareable`)."""
+
+    CHANNEL = "channel"  # a channel session (for example Slack)
+    OWNERLESS = "ownerless"  # no owner (an API key or an automation started it)
+    NO_AGENT = "no_agent"  # no agent reference yet (before its first turn)
+
+
 class SessionSharingState(BaseModel):
     policy: AccessPolicy
     owner_is_active: bool
@@ -171,6 +179,7 @@ class SessionSharingState(BaseModel):
     my_role: EffectiveRole
     can_send: bool
     shareable: bool  # False for channel, ownerless and non-agent sessions
+    not_shareable_reason: Optional[NotShareableReason] = None  # None when shareable
 
 
 # -- cache entries (never returned to callers) --------------------------------------------

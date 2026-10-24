@@ -211,10 +211,18 @@ class WorkflowCatalogFlags(WorkflowArtifactFlags):
 # workflows --------------------------------------------------------------------
 
 
+class WorkflowArtifact(Artifact):
+    """An artifact row of a workflow list query, with the agent's access policy read
+    in the same statement."""
+
+    access: Optional[AccessPolicy] = None
+
+
 class Workflow(Artifact):
     flags: Optional[WorkflowArtifactFlags] = None
 
-    # The applied policy on create. Reads leave it unset.
+    # The applied policy on create, and the policy on list queries (`query_workflows`).
+    # Direct reads (`fetch_workflow`, served from the artifact cache) leave it unset.
     access: Optional[AccessPolicy] = None
 
 
@@ -490,7 +498,8 @@ class SimpleWorkflow(Identifier, Slug, Lifecycle, Header, Metadata):
     variant_id: Optional[UUID] = None
     revision_id: Optional[UUID] = None
 
-    # The applied policy on create. Reads leave it unset.
+    # The applied policy on create, and the policy on list queries (`query`). Direct
+    # reads leave it unset.
     access: Optional[AccessPolicy] = None
 
 

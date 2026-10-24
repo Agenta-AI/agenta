@@ -2,7 +2,7 @@ from typing import Any, Callable, Optional, List, Sequence, TypeVar, Type
 from uuid import UUID
 from datetime import datetime, timezone
 
-from sqlalchemy import or_, select, func, text, update
+from sqlalchemy import Select, or_, select, func, text, update
 from sqlalchemy.orm import selectinload
 
 from oss.src.utils.env import env
@@ -412,94 +412,16 @@ class GitDAO(GitDAOInterface):
         #
         scope_filters: Sequence[Any] = (),
     ) -> List[Artifact]:
+        stmt = self._artifacts_statement(
+            project_id=project_id,
+            artifact_query=artifact_query,
+            artifact_refs=artifact_refs,
+            include_archived=include_archived,
+            windowing=windowing,
+            scope_filters=scope_filters,
+        )
+
         async with self.engine.session() as session:
-            stmt = select(self.ArtifactDBE).filter(
-                self.ArtifactDBE.project_id == project_id,  # type: ignore
-                *scope_filters,
-            )
-
-            if artifact_refs:
-                artifact_ids = [
-                    artifact.id for artifact in artifact_refs if artifact.id
-                ]
-
-                if artifact_ids:
-                    stmt = stmt.filter(
-                        self.ArtifactDBE.id.in_(artifact_ids)  # type: ignore
-                    )
-
-                artifact_slugs = [
-                    artifact.slug for artifact in artifact_refs if artifact.slug
-                ]
-
-                if artifact_slugs:
-                    stmt = stmt.filter(
-                        self.ArtifactDBE.slug.in_(artifact_slugs)  # type: ignore
-                    )
-
-            artifact_query_slugs = []
-            if artifact_query.slug:
-                artifact_query_slugs.append(artifact_query.slug)
-            if artifact_query.slugs:
-                artifact_query_slugs.extend(artifact_query.slugs)
-
-            if artifact_query_slugs:
-                stmt = stmt.filter(
-                    self.ArtifactDBE.slug.in_(artifact_query_slugs)  # type: ignore
-                )
-
-            if "folder_id" in artifact_query.model_fields_set:
-                if artifact_query.folder_id is None:
-                    stmt = stmt.filter(
-                        self.ArtifactDBE.folder_id.is_(None)  # type: ignore
-                    )
-                else:
-                    stmt = stmt.filter(
-                        self.ArtifactDBE.folder_id == artifact_query.folder_id  # type: ignore
-                    )
-
-            if artifact_query.flags:
-                stmt = stmt.filter(
-                    self.ArtifactDBE.flags.contains(artifact_query.flags)  # type: ignore
-                )
-
-            if artifact_query.tags:
-                stmt = stmt.filter(
-                    self.ArtifactDBE.tags.contains(artifact_query.tags)  # type: ignore
-                )
-
-            # meta is JSON (not JSONB) — containment (@>) is not supported
-            # if artifact_query.meta:
-            #     stmt = stmt.filter(
-            #         self.ArtifactDBE.meta.contains(artifact_query.meta)
-            #     )
-
-            if artifact_query.name:
-                stmt = stmt.filter(
-                    self.ArtifactDBE.name.ilike(f"%{artifact_query.name}%"),  # type: ignore
-                )
-
-            if artifact_query.description:
-                stmt = stmt.filter(
-                    self.ArtifactDBE.description.ilike(
-                        f"%{artifact_query.description}%"
-                    ),  # type: ignore
-                )
-
-            if include_archived is not True:
-                stmt = stmt.filter(
-                    self.ArtifactDBE.deleted_at.is_(None)  # type: ignore
-                )
-
-            if windowing:
-                stmt = apply_windowing(
-                    stmt=stmt,
-                    DBE=self.ArtifactDBE,
-                    attribute="id",  # UUID7
-                    order="descending",  # jobs-style
-                    windowing=windowing,
-                )
-
             result = await session.execute(stmt)
 
             artifact_dbes = result.scalars().all()
@@ -513,6 +435,109 @@ class GitDAO(GitDAOInterface):
             ]
 
             return artifacts
+
+    def _artifacts_statement(
+        self,
+        *,
+        project_id: UUID,
+        #
+        artifact_query: ArtifactQuery,
+        #
+        artifact_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+        #
+        scope_filters: Sequence[Any] = (),
+    ) -> Select:
+        """The artifact query of `_query_artifacts`, not yet executed: a subclass
+        may join columns of its own into the same statement."""
+
+        stmt = select(self.ArtifactDBE).filter(
+            self.ArtifactDBE.project_id == project_id,  # type: ignore
+            *scope_filters,
+        )
+
+        if artifact_refs:
+            artifact_ids = [artifact.id for artifact in artifact_refs if artifact.id]
+
+            if artifact_ids:
+                stmt = stmt.filter(
+                    self.ArtifactDBE.id.in_(artifact_ids)  # type: ignore
+                )
+
+            artifact_slugs = [
+                artifact.slug for artifact in artifact_refs if artifact.slug
+            ]
+
+            if artifact_slugs:
+                stmt = stmt.filter(
+                    self.ArtifactDBE.slug.in_(artifact_slugs)  # type: ignore
+                )
+
+        artifact_query_slugs = []
+        if artifact_query.slug:
+            artifact_query_slugs.append(artifact_query.slug)
+        if artifact_query.slugs:
+            artifact_query_slugs.extend(artifact_query.slugs)
+
+        if artifact_query_slugs:
+            stmt = stmt.filter(
+                self.ArtifactDBE.slug.in_(artifact_query_slugs)  # type: ignore
+            )
+
+        if "folder_id" in artifact_query.model_fields_set:
+            if artifact_query.folder_id is None:
+                stmt = stmt.filter(
+                    self.ArtifactDBE.folder_id.is_(None)  # type: ignore
+                )
+            else:
+                stmt = stmt.filter(
+                    self.ArtifactDBE.folder_id == artifact_query.folder_id  # type: ignore
+                )
+
+        if artifact_query.flags:
+            stmt = stmt.filter(
+                self.ArtifactDBE.flags.contains(artifact_query.flags)  # type: ignore
+            )
+
+        if artifact_query.tags:
+            stmt = stmt.filter(
+                self.ArtifactDBE.tags.contains(artifact_query.tags)  # type: ignore
+            )
+
+        # meta is JSON (not JSONB) — containment (@>) is not supported
+        # if artifact_query.meta:
+        #     stmt = stmt.filter(
+        #         self.ArtifactDBE.meta.contains(artifact_query.meta)
+        #     )
+
+        if artifact_query.name:
+            stmt = stmt.filter(
+                self.ArtifactDBE.name.ilike(f"%{artifact_query.name}%"),  # type: ignore
+            )
+
+        if artifact_query.description:
+            stmt = stmt.filter(
+                self.ArtifactDBE.description.ilike(f"%{artifact_query.description}%"),  # type: ignore
+            )
+
+        if include_archived is not True:
+            stmt = stmt.filter(
+                self.ArtifactDBE.deleted_at.is_(None)  # type: ignore
+            )
+
+        if windowing:
+            stmt = apply_windowing(
+                stmt=stmt,
+                DBE=self.ArtifactDBE,
+                attribute="id",  # UUID7
+                order="descending",  # jobs-style
+                windowing=windowing,
+            )
+
+        return stmt
 
     # ──────────────────────────────────────────────────────────────────────────
 

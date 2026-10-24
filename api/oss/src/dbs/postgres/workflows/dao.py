@@ -8,7 +8,8 @@ Lock order (the same as `SharingDAO.set_agent_policy`): an agent access write lo
 from typing import List, Literal, Optional
 from uuid import UUID
 
-from sqlalchemy import exists, select, text
+from sqlalchemy import and_, exists, select, text
+from sqlalchemy.orm import aliased
 
 from oss.src.core.git.dtos import (
     Artifact,
@@ -24,10 +25,15 @@ from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.sharing.dtos import AccessPolicy, AgentReadScope, Visibility
 from oss.src.core.sharing.types import AgentCreationFailed
+from oss.src.core.workflows.dtos import WorkflowArtifact
 from oss.src.core.workflows.interfaces import WorkflowsDAOInterface
 from oss.src.dbs.postgres.git.dao import GitDAO
 from oss.src.dbs.postgres.sharing.dbes import AgentAccessDBE
-from oss.src.dbs.postgres.sharing.mappings import map_agent_access_dto_to_dbe
+from oss.src.dbs.postgres.git.mappings import map_dbe_to_dto
+from oss.src.dbs.postgres.sharing.mappings import (
+    map_agent_access_dto_to_dbe,
+    map_joined_agent_access_to_dto,
+)
 from oss.src.utils.exceptions import suppress_exceptions
 from oss.src.utils.logging import get_module_logger
 
@@ -129,8 +135,8 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
         windowing: Optional[Windowing] = None,
         #
         read_scope: AgentReadScope,
-    ) -> List[Artifact]:
-        return await self._query_artifacts(
+    ) -> List[WorkflowArtifact]:
+        stmt = self._artifacts_statement(
             project_id=project_id,
             artifact_query=artifact_query,
             artifact_refs=artifact_refs,
@@ -144,6 +150,31 @@ class WorkflowsDAO(GitDAO, WorkflowsDAOInterface):
                 ),
             ),
         )
+        # The access policy rides in the same statement: a LEFT JOIN on the
+        # `agent_access` primary key (no added statement, WQ stays 1). An alias, so
+        # the scope's NOT EXISTS keeps its own `agent_access` (no auto-correlation).
+        access = aliased(AgentAccessDBE)
+        stmt = stmt.outerjoin(
+            access,
+            and_(
+                access.project_id == self.ArtifactDBE.project_id,
+                access.artifact_id == self.ArtifactDBE.id,
+            ),
+        ).add_columns(access.visibility, access.owner_user_id)
+
+        async with self.engine.session() as session:
+            rows = (await session.execute(stmt)).all()
+
+        return [
+            map_dbe_to_dto(DTO=WorkflowArtifact, dbe=artifact_dbe).model_copy(
+                update={
+                    "access": map_joined_agent_access_to_dto(
+                        visibility=visibility, owner_user_id=owner_user_id
+                    )
+                }
+            )
+            for artifact_dbe, visibility, owner_user_id in rows
+        ]
 
     @suppress_exceptions(default=[])
     async def query_variants(

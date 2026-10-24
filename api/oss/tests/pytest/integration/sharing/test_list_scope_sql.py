@@ -44,7 +44,13 @@ from oss.src.core.sessions.streams.dtos import (
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.shared.dtos import Reference, Windowing
-from oss.src.core.sharing.dtos import AgentReadScope, SessionReadScope, Visibility
+from oss.src.core.sharing.dtos import (
+    OWNERLESS_PROJECT_POLICY,
+    AccessPolicy,
+    AgentReadScope,
+    SessionReadScope,
+    Visibility,
+)
 from oss.src.core.sharing.service import SharingService
 from oss.src.core.sharing.types import AgentCreationFailed
 from oss.src.core.workflows.dtos import WorkflowRevisionQuery
@@ -203,6 +209,37 @@ async def test_agent_queries_hide_other_owners_private():
         )
         for name, ids in seen.items():
             assert ids == {bobs, shared, legacy}, name
+
+
+async def test_agent_queries_carry_access():
+    """Workflow and simple-workflow list rows carry the agent's access policy, read
+    in the list's own statement (a LEFT JOIN on the `agent_access` primary key). No
+    row is the ownerless project policy."""
+
+    async with seeded("alice", "bob") as org:
+        project_id = org.project_ids[0]
+        alice, bob = org.user_ids["alice"], org.user_ids["bob"]
+        alices = await _agent(project_id, policy=("private", alice))
+        shared = await _agent(project_id, policy=("project", bob))
+        legacy = await _agent(project_id)
+        expected = {
+            alices: AccessPolicy(visibility=Visibility.PRIVATE, owner_user_id=alice),
+            shared: AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=bob),
+            legacy: OWNERLESS_PROJECT_POLICY,
+        }
+        service = _service()
+        scope = AgentReadScope(owner_user_id=alice)
+        refs = [Reference(id=agent) for agent in expected]
+
+        workflows = await service.query_workflows(
+            project_id=project_id, read_scope=scope, workflow_refs=refs
+        )
+        simple = await SimpleWorkflowsService(workflows_service=service).query(
+            project_id=project_id, read_scope=scope, workflow_refs=refs
+        )
+
+        assert {w.id: w.access for w in workflows} == expected
+        assert {w.id: w.access for w in simple} == expected
 
 
 async def test_agent_scope_applies_before_windowing():

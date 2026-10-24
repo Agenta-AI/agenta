@@ -416,6 +416,7 @@ async def test_session_not_shareable_reasons(people):
             session_id=state.session_id,
         )
         assert sharing.shareable is False
+        assert sharing.not_shareable_reason == reason
 
     with pytest.raises(SharedItemNotFound):
         await people.service.set_session_sharing(
@@ -524,6 +525,7 @@ async def test_fetch_session_sharing_roles_and_grants(people):
         True,
         True,
     )
+    assert owner.not_shareable_reason is None
 
     viewer = await _fetch(_human(people.bob))
     assert (viewer.my_role, viewer.can_send, viewer.grants) == (

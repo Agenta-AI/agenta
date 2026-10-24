@@ -109,6 +109,7 @@ def test_linked_sender_session_ownerless_readable(sharing_cast):
     sharing = fetch_sharing(sharing_cast["alice"], session_id)
     assert sharing.status_code == 200, sharing.text
     assert sharing.json()["sharing"]["shareable"] is False
+    assert sharing.json()["sharing"]["not_shareable_reason"] == "channel"
 
 
 def _bind(caller, cast, references):

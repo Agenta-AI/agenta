@@ -1,6 +1,8 @@
+from typing import Optional
 from uuid import UUID
 
 from oss.src.core.sharing.dtos import (
+    OWNERLESS_PROJECT_POLICY,
     AccessPolicy,
     SessionGrant,
     SessionRole,
@@ -18,6 +20,19 @@ def map_agent_access_dbe_to_dto(row) -> AccessPolicy:
         visibility=Visibility(row.visibility),
         owner_user_id=row.owner_user_id,
     )
+
+
+def map_joined_agent_access_to_dto(
+    *,
+    visibility: Optional[str],
+    owner_user_id: Optional[UUID],
+) -> AccessPolicy:
+    """The `agent_access` columns of a LEFT JOIN: no row (NULL visibility) is the
+    ownerless project policy."""
+
+    if visibility is None:
+        return OWNERLESS_PROJECT_POLICY
+    return AccessPolicy(visibility=Visibility(visibility), owner_user_id=owner_user_id)
 
 
 def map_agent_access_dto_to_dbe(
