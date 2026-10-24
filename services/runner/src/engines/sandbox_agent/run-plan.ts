@@ -16,10 +16,7 @@ import { attachmentCountError } from "../../sessions/attachments.ts";
 import { harnessKindOf } from "../../harness-kind.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
 import { piGatewayMcpServersFromWire } from "../../extensions/pi-mcp.ts";
-import {
-  INTERNAL_TOOL_MCP_SERVER_NAME,
-  RESERVED_MCP_SERVER_NAME_MESSAGE,
-} from "./mcp.ts";
+import { reservedUserMcpNameError } from "./mcp.ts";
 import {
   permissionsFromRequest,
   piBuiltinIdentity,
@@ -747,6 +744,17 @@ export function buildRunPlan(
       error: "platformInstructions must be a string when provided.",
     };
   }
+  // The internal gateway-tool channel's name is reserved on every transport: the Python
+  // Claude adapter renders permission rules against `agenta-tools`, so a user server with
+  // that name would collide with the internal channel and inherit/steal its rendered rules.
+  // Object-key specials (`__proto__`, ...) are refused too, because runner maps are keyed by
+  // server name, so this runs before any of them is built. Refuse at declaration time;
+  // `buildSessionMcpServers` repeats the check at session materialization as defense in depth.
+  const reservedNameError = reservedUserMcpNameError(request.mcpServers);
+  if (reservedNameError) {
+    return { ok: false, error: reservedNameError };
+  }
+
   const harness = request.harness || "pi_core";
   const sandboxId = resolveSandboxProviderId(request, sandboxProvider);
 
@@ -974,19 +982,6 @@ export function buildRunPlan(
         error: error instanceof Error ? error.message : String(error),
       };
     }
-  }
-
-  // The internal gateway-tool channel's name is reserved on every transport: the Python
-  // Claude adapter renders permission rules against `agenta-tools`, so a user server with
-  // that name would collide with the internal channel and inherit/steal its rendered rules.
-  // Refuse at declaration time; `buildSessionMcpServers` repeats the check at session
-  // materialization as defense in depth.
-  if (
-    (request.mcpServers ?? []).some(
-      (server) => server.name === INTERNAL_TOOL_MCP_SERVER_NAME,
-    )
-  ) {
-    return { ok: false, error: RESERVED_MCP_SERVER_NAME_MESSAGE };
   }
 
   // Non-Pi + remote + tools: executable and client tools are both deliverable on Daytona via the

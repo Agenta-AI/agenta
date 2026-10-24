@@ -23,7 +23,10 @@ import {
   type SubscriptionPublisher,
   type SubscriptionPublishState,
 } from "../../src/engines/sandbox_agent/subscription-login/publisher.ts";
-import type { SubscriptionSandboxFs } from "../../src/engines/sandbox_agent/subscription-login/files.ts";
+import {
+  SUBSCRIPTION_FILE_MAX_BYTES,
+  type SubscriptionSandboxFs,
+} from "../../src/engines/sandbox_agent/subscription-login/files.ts";
 import type {
   ModelConnectionSubscription,
   SubscriptionLogin,
@@ -529,6 +532,65 @@ describe("a Daytona session", () => {
     assert.deepEqual(api.pushed, [REFRESHED]);
   });
 
+  /** A sandbox that reports each file's size through `statFs` and counts every read. */
+  function statSandbox(files: Record<string, { size: number; text: string }>) {
+    const reads: string[] = [];
+    const sandbox: SubscriptionSandboxFs = {
+      mkdirFs: async () => undefined,
+      writeFsFile: async () => undefined,
+      statFs: async ({ path }) => {
+        const found = files[path];
+        if (found === undefined) throw new Error("ENOENT");
+        return { path, entryType: "file", size: found.size };
+      },
+      readFsFile: async ({ path }) => {
+        reads.push(path);
+        const found = files[path];
+        if (found === undefined) throw new Error("ENOENT");
+        return Buffer.from(found.text, "utf-8");
+      },
+    };
+    return { sandbox, reads };
+  }
+
+  it("refuses an auth.json over the size limit without reading it", async () => {
+    const { sandbox, reads } = statSandbox({
+      [`${home}/auth.json`]: {
+        size: SUBSCRIPTION_FILE_MAX_BYTES + 1,
+        text: JSON.stringify({ "openai-codex": REFRESHED }),
+      },
+    });
+    const lines: string[] = [];
+    const api = fakeApi();
+    const publisher = start({
+      home,
+      api,
+      sandbox,
+      intervalMs: 60_000,
+      log: (line) => lines.push(line),
+    });
+
+    await publisher.reconcile("interval");
+    assert.deepEqual(api.pushed, []);
+    assert.ok(!reads.includes(`${home}/auth.json`), reads.join(","));
+    assert.match(
+      lines.join("\n"),
+      /decision=unreadable error=SubscriptionFileTooLargeError/,
+    );
+  });
+
+  it("still publishes an auth.json under the size limit", async () => {
+    const text = JSON.stringify({ "openai-codex": REFRESHED });
+    const { sandbox } = statSandbox({
+      [`${home}/auth.json`]: { size: Buffer.byteLength(text), text },
+    });
+    const api = fakeApi();
+    const publisher = start({ home, api, sandbox, intervalMs: 60_000 });
+
+    await publisher.reconcile("interval");
+    assert.deepEqual(api.pushed, [REFRESHED]);
+  });
+
   it("does nothing while the run has no sandbox", async () => {
     const api = fakeApi();
     const publisher = startSubscriptionPublisher({
@@ -550,6 +612,30 @@ describe("a Daytona session", () => {
     await publisher.reconcile("interval");
     await publisher.stop();
     assert.deepEqual(api.pushed, []);
+  });
+});
+
+describe("a local login file over the size limit", () => {
+  it("is refused and publishes nothing", async () => {
+    const home = tempHome();
+    const text = JSON.stringify({ "openai-codex": REFRESHED });
+    writeFileSync(
+      join(home, "auth.json"),
+      text + " ".repeat(SUBSCRIPTION_FILE_MAX_BYTES),
+      { mode: 0o600 },
+    );
+    const lines: string[] = [];
+    const api = fakeApi();
+    const publisher = start({
+      home,
+      api,
+      intervalMs: 60_000,
+      log: (line) => lines.push(line),
+    });
+
+    await publisher.reconcile("interval");
+    assert.deepEqual(api.pushed, []);
+    assert.match(lines.join("\n"), /error=SubscriptionFileTooLargeError/);
   });
 });
 

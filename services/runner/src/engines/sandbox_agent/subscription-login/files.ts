@@ -19,6 +19,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -50,6 +51,28 @@ export const SUBSCRIPTION_AUTH_FILE = "auth.json";
  * integers and no credential.
  */
 export const SUBSCRIPTION_META_FILE = "meta.json";
+
+/**
+ * The largest login file the runner reads into memory. A real `auth.json` is a few KB; the file is
+ * written by the harness, so its size is not ours to trust.
+ */
+export const SUBSCRIPTION_FILE_MAX_BYTES = 1024 * 1024;
+
+/** A login file over {@link SUBSCRIPTION_FILE_MAX_BYTES}. The name is the whole log reason. */
+export class SubscriptionFileTooLargeError extends Error {
+  constructor(size: number) {
+    super(
+      `subscription file is ${size} bytes, over the ${SUBSCRIPTION_FILE_MAX_BYTES} byte limit`,
+    );
+    this.name = "SubscriptionFileTooLargeError";
+  }
+}
+
+function assertSubscriptionFileSize(size: unknown): void {
+  if (typeof size === "number" && size > SUBSCRIPTION_FILE_MAX_BYTES) {
+    throw new SubscriptionFileTooLargeError(size);
+  }
+}
 
 /** Pi's file mode for `auth.json`, applied on create and re-applied after every write. */
 const AUTH_FILE_MODE = 0o600;
@@ -252,6 +275,8 @@ export interface SubscriptionSandboxFs {
   /** BYTES, NOT TEXT. The sandbox file API answers with a buffer; `sandboxFileText` decodes it. */
   readFsFile?: (input: { path: string }) => Promise<unknown>;
   downloadFiles?: (input: { path: string }) => Promise<unknown>;
+  /** Checked before every read, so an oversized file is refused without downloading it. */
+  statFs?: (input: { path: string }) => Promise<unknown>;
 }
 
 /**
@@ -269,22 +294,51 @@ export function sandboxFileText(value: unknown): string | undefined {
   return undefined;
 }
 
-/** Read one file out of a sandbox, or undefined when it is absent or unreadable. */
+/**
+ * Read one file out of a sandbox, or undefined when it is absent or unreadable.
+ *
+ * Throws {@link SubscriptionFileTooLargeError} for a file over the limit, checked by stat before
+ * the read and again on the bytes for a sandbox without `statFs`.
+ */
 async function readSandboxFile(
   sandbox: SubscriptionSandboxFs,
   path: string,
 ): Promise<string | undefined> {
+  let bytes: unknown;
   try {
+    if (typeof sandbox.statFs === "function") {
+      let stat: unknown;
+      try {
+        stat = await sandbox.statFs({ path });
+      } catch {
+        // A daemon that cannot stat still answers the read; the bytes are checked below.
+        stat = undefined;
+      }
+      assertSubscriptionFileSize((stat as { size?: unknown } | null)?.size);
+    }
     if (typeof sandbox.readFsFile === "function") {
-      return sandboxFileText(await sandbox.readFsFile({ path }));
+      bytes = await sandbox.readFsFile({ path });
+    } else if (typeof sandbox.downloadFiles === "function") {
+      bytes = await sandbox.downloadFiles({ path });
     }
-    if (typeof sandbox.downloadFiles === "function") {
-      return sandboxFileText(await sandbox.downloadFiles({ path }));
-    }
-  } catch {
+  } catch (err) {
+    if (err instanceof SubscriptionFileTooLargeError) throw err;
     // Absent, unreadable, or a sandbox that is already gone. All the same answer here.
+    return undefined;
   }
-  return undefined;
+  assertSubscriptionFileSize(
+    typeof bytes === "string"
+      ? Buffer.byteLength(bytes)
+      : (bytes as { byteLength?: unknown } | undefined)?.byteLength,
+  );
+  return sandboxFileText(bytes);
+}
+
+/** A local file's text under the size limit, or undefined when it is absent. */
+function readLocalSubscriptionFile(path: string): string | undefined {
+  if (!existsSync(path)) return undefined;
+  assertSubscriptionFileSize(statSync(path).size);
+  return readFileSync(path, "utf-8");
 }
 
 /** What a mutation asks the file layer to persist, alongside whatever the caller wants back. */
@@ -372,16 +426,12 @@ async function mutateLocal<T>(
   });
   try {
     if (compromised) throw compromised;
-    const currentRaw = existsSync(authPath)
-      ? readFileSync(authPath, "utf-8")
-      : undefined;
+    const currentRaw = readLocalSubscriptionFile(authPath);
     // The sidecar is read under the SAME lock as the login it describes. Read outside it and a
     // concurrent materialize could pair one writer's lineage with the other writer's token.
     let currentMetaRaw: string | undefined;
     try {
-      currentMetaRaw = existsSync(metaPath)
-        ? readFileSync(metaPath, "utf-8")
-        : undefined;
+      currentMetaRaw = readLocalSubscriptionFile(metaPath);
     } catch {
       // An unreadable sidecar is the same as none: fall back to the expiry-only rule.
     }

@@ -190,6 +190,9 @@ class MCPPolicy(BaseModel):
         return self
 
 
+_OBJECT_KEY_SERVER_NAMES = frozenset({"__proto__", "constructor", "prototype"})
+
+
 class MCPServerConfig(BaseModel):
     """Saved author intent. This model never contains resolved secret values.
 
@@ -218,6 +221,9 @@ class MCPServerConfig(BaseModel):
     def _reject_reserved_name(cls, value: str) -> str:
         if value == "agenta-tools":
             raise ValueError("MCP server name 'agenta-tools' is reserved")
+        # The runner keys JavaScript objects by server name.
+        if value in _OBJECT_KEY_SERVER_NAMES:
+            raise ValueError(f"MCP server name '{value}' is reserved")
         return value
 
 

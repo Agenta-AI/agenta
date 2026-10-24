@@ -374,7 +374,11 @@ export async function allocateDaytonaSecrets(
   const startedAt = Date.now();
   const created: DaytonaSecretRecord[] = [];
   const attachments: Record<string, string> = {};
-  const mcpHeaderPlaceholders: Record<string, Record<string, string>> = {};
+  // Keyed by user-supplied server name, so no inherited keys.
+  const mcpHeaderPlaceholders: Record<
+    string,
+    Record<string, string>
+  > = Object.create(null);
   const bySlot = new Map<CredentialSlotKey, DaytonaSecretRecord>();
   try {
     for (const candidate of plan.candidates) {
