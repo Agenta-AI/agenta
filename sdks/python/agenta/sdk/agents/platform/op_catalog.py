@@ -970,6 +970,23 @@ Text comes back exactly as stored, so an `old_text` you copy from it will match.
 larger than the limit is refused, never shortened: the answer then lists `children`, and
 you read one of those instead."""
 
+# Inline, never a $ref: Moonshot (Kimi) rejects a $ref in a tool schema as
+# "infinite recursion", which fails every turn that offers the tool.
+_TARGET_SEGMENT_SCHEMA: Dict[str, Any] = {
+    "oneOf": [
+        {"type": "string", "minLength": 1},
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["list", "key"],
+            "properties": {
+                "list": {"type": "string", "minLength": 1},
+                "key": {"type": "string", "minLength": 1},
+            },
+        },
+    ]
+}
+
 _READ_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -993,7 +1010,7 @@ _READ_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
                 "path": {
                     "type": "array",
                     "maxItems": 12,
-                    "items": {"$ref": "#/$defs/read_config_segment"},
+                    "items": _TARGET_SEGMENT_SCHEMA,
                     "description": (
                         "Segments from the configuration root. Omit to read everything."
                     ),
@@ -1007,37 +1024,6 @@ _READ_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
             "description": "Largest answer to return before refusing. Default 65536.",
         },
     },
-    "$defs": {
-        "read_config_segment": {
-            "oneOf": [
-                {"type": "string", "minLength": 1},
-                {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": ["list", "key"],
-                    "properties": {
-                        "list": {"type": "string", "minLength": 1},
-                        "key": {"type": "string", "minLength": 1},
-                    },
-                },
-            ]
-        }
-    },
-}
-
-_TARGET_SEGMENT_SCHEMA: Dict[str, Any] = {
-    "oneOf": [
-        {"type": "string", "minLength": 1},
-        {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["list", "key"],
-            "properties": {
-                "list": {"type": "string", "minLength": 1},
-                "key": {"type": "string", "minLength": 1},
-            },
-        },
-    ]
 }
 
 _OPERATION_SCHEMA: Dict[str, Any] = {
