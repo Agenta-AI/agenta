@@ -44,14 +44,32 @@ describe("the composer notice per state", () => {
         )
     })
 
-    it("no owner (API key, automation, Slack)", () => {
+    it("no owner (API key, automation)", () => {
         expect(
             noticeFor(
-                state({policy: {visibility: "project", owner_user_id: null}, my_role: "viewer"}),
+                state({
+                    policy: {visibility: "project", owner_user_id: null},
+                    my_role: "viewer",
+                    shareable: false,
+                    not_shareable_reason: "ownerless",
+                }),
             ),
         ).toBe(
             "An API key or an automation started this chat. You can read it, but you cannot send to it here.",
         )
+    })
+
+    it("Slack chat: reply in the Slack thread", () => {
+        expect(
+            noticeFor(
+                state({
+                    policy: {visibility: "project", owner_user_id: null},
+                    my_role: "viewer",
+                    shareable: false,
+                    not_shareable_reason: "channel",
+                }),
+            ),
+        ).toBe("This chat comes from Slack. Reply in the Slack thread to continue it.")
     })
 
     it("owner left", () => {

@@ -494,6 +494,7 @@ export * from "./MountFolderCreatedResponse.js";
 export * from "./MountQuery.js";
 export * from "./MountResponse.js";
 export * from "./MountsResponse.js";
+export * from "./NotShareableReason.js";
 export * from "./NumericOperator.js";
 export * from "./OAuthGrantDto.js";
 export * from "./OAuthGrantSettingsDto.js";

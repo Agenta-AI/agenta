@@ -39,6 +39,7 @@ import {
     querySharingMembers,
     revokeSessionGrant,
     sessionSharingResponseSchema,
+    sessionSharingStateSchema,
     setAgentVisibilityAtom,
     sharingKeys,
     sharingMembersResponseSchema,
@@ -121,6 +122,29 @@ describe("sharing schemas", () => {
 
         expect(parsed.disclosure).toBeNull()
         expect(parsed.sharing.grants[0]?.role).toBe("participant")
+    })
+
+    it("parses the reason a session cannot be shared, absent when shareable", () => {
+        const sharing = {
+            policy: {visibility: "project"},
+            owner_is_active: false,
+            grants: [],
+            my_role: "viewer",
+            can_send: false,
+            shareable: false,
+        }
+        for (const reason of ["channel", "ownerless", "no_agent"] as const) {
+            const parsed = sessionSharingStateSchema.parse({
+                ...sharing,
+                not_shareable_reason: reason,
+            })
+            expect(parsed.not_shareable_reason).toBe(reason)
+        }
+        expect(sessionSharingStateSchema.parse(sharing).not_shareable_reason).toBeUndefined()
+        expect(
+            sessionSharingStateSchema.safeParse({...sharing, not_shareable_reason: "other"})
+                .success,
+        ).toBe(false)
     })
 
     it("parses a members response with an optional windowing", () => {

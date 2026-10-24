@@ -49,6 +49,8 @@ export const sharingCopy = {
     ownerYou: "You",
     ownerNone: "No owner",
     ownerFormer: "Former member",
+    // The lock on the reader's own private agent (the privacy panel's line for a private agent).
+    agentPrivateMarker: "Only you can see and use it.",
 } as const
 
 /** The display name of a channel platform, as the agent privacy warning names it. */

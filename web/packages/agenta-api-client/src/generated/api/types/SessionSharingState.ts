@@ -9,4 +9,5 @@ export interface SessionSharingState {
     my_role: AgentaApi.EffectiveRole;
     can_send: boolean;
     shareable: boolean;
+    not_shareable_reason?: (AgentaApi.NotShareableReason | null) | undefined;
 }

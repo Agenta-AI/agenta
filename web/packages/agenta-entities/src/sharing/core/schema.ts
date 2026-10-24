@@ -50,6 +50,10 @@ export const shareDisclosureSchema = z.object({
     trace_readers_can_read: z.boolean(),
 })
 
+/** Why a session cannot be shared: a channel (Slack) chat, an ownerless chat (an API key or
+ *  an automation started it), or a chat with no agent reference yet (before its first turn). */
+export const notShareableReasonSchema = z.enum(["channel", "ownerless", "no_agent"])
+
 export const agentSharingStateSchema = z.object({
     policy: accessPolicySchema,
     owner_is_active: z.boolean(),
@@ -66,6 +70,8 @@ export const sessionSharingStateSchema = z.object({
     can_send: z.boolean(),
     /** False for channel, ownerless and non-agent sessions. */
     shareable: z.boolean(),
+    /** Absent when the session is shareable. */
+    not_shareable_reason: notShareableReasonSchema.nullable().optional(),
 })
 
 export const agentSharingResponseSchema = z.object({
@@ -111,6 +117,7 @@ export type AccessPolicy = z.infer<typeof accessPolicySchema>
 export type SessionGrant = z.infer<typeof sessionGrantSchema>
 export type DisclosedConnection = z.infer<typeof disclosedConnectionSchema>
 export type ShareDisclosure = z.infer<typeof shareDisclosureSchema>
+export type NotShareableReason = z.infer<typeof notShareableReasonSchema>
 export type AgentSharingState = z.infer<typeof agentSharingStateSchema>
 export type SessionSharingState = z.infer<typeof sessionSharingStateSchema>
 export type AgentSharingResponse = z.infer<typeof agentSharingResponseSchema>

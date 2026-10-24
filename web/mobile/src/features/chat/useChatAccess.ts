@@ -21,8 +21,9 @@ import {useSessionSharing} from "./useSessionSharing"
  * for a private and an unknown chat. A session minted here a moment ago has no row yet, so its
  * 404 means nothing.
  *
- * `readOnly`: the reader may read but not send (a Viewer, an ownerless chat, an owner who left,
- * a private agent), with the texts for the composer's place and the approval card.
+ * `readOnly`: the reader may read but not send (a Viewer, a Slack chat, an ownerless chat, an
+ * owner who left, a private agent), with the texts for the composer's place and the approval
+ * card.
  */
 export const useChatAccess = ({
     sessionId,
