@@ -16,7 +16,7 @@ import uuid_utils.compat as uuid
 from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, Tuple
 from uuid import UUID
 
-from oss.src.core.access.dtos import PrincipalRef, RunEnvelope
+from oss.src.core.access.dtos import PrincipalRef, RunEnvelope, RunOrigin
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.redis.shared.engine import LockEngine
@@ -1064,6 +1064,8 @@ class SessionStreamsService:
                         references=request.references or None,
                         access=access,
                     ),
+                    # A channel session is the one its installation's run creates.
+                    is_channel=envelope.context.origin == RunOrigin.INSTALLATION,
                 )
             except SessionStreamAlreadyExists:
                 # Another first touch (`_start_turn`, a rename, another beat) won: check
@@ -1598,9 +1600,11 @@ class SessionStreamsService:
         project_id: UUID,
         user_id: Optional[UUID],
         stream: SessionStreamCreate,
+        is_channel: bool = False,
     ) -> SessionStream:
-        """Insert the session row, then write its sharing cache entry over a cached "no
-        row" (once per session; the next decision on it reads the entry it just wrote)."""
+        """Insert the session row, then write its sharing cache entry (once per session;
+        the next decision on it reads the entry it just wrote). `is_channel`: the row is
+        created by a channel installation's run (only a beat can be that)."""
         created = await self._dao.create(
             project_id=project_id, user_id=user_id, stream=stream
         )
@@ -1609,6 +1613,7 @@ class SessionStreamsService:
             session_id=stream.session_id,
             stream_id=getattr(created, "id", None),
             policy=stream.access,
+            is_channel=is_channel,
         )
         return created
 

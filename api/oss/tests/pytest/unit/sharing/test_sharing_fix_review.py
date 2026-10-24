@@ -112,3 +112,67 @@ async def test_a_sharing_write_clears_what_the_request_read(fake_cache, memo):
     await invalidate_sharing_caches(project_id=world.project_id, session_ids=["s-1"])
 
     assert prefetch.lookup(entry)[0] is False
+
+
+# -- round 2 of the review -------------------------------------------------------------------
+
+
+async def test_a_failed_cache_write_is_not_kept_for_the_request(monkeypatch, memo):
+    """A Redis error on the write (`set_cache` answers None) is a failure: the value is not
+    kept as what the cache holds."""
+    monkeypatch.setattr(env.agenta.api.caching, "enabled", True, raising=False)
+    FakeCache(fail=True).install(monkeypatch, sharing_module, memberships_module)
+    world = SharingWorld()
+    alice = world.add_member(uuid4())
+    policy = AccessPolicy(visibility=Visibility.PRIVATE, owner_user_id=alice)
+    state = world.add_session(policy=policy)
+
+    await cache_created_session_access(
+        project_id=world.project_id,
+        session_id=state.session_id,
+        stream_id=state.stream_id,
+        policy=policy,
+    )
+
+    assert (
+        prefetch.lookup(session_access_entry(world.project_id, state.session_id))[0]
+        is False
+    )
+
+
+async def test_absent_owner_memberships_are_kept_for_the_request(fake_cache, memo):
+    world = SharingWorld()
+    gone_a, gone_b = uuid4(), uuid4()  # not members
+    first = await world.service._active_owners(
+        owners=[gone_a, gone_b], project_id=world.project_id
+    )
+    after_first = fake_cache.read_round_trips
+    second = await world.service._active_owners(
+        owners=[gone_a, gone_b], project_id=world.project_id
+    )
+    assert first == second == set()
+    # The absences read the first time are kept: the second time reads nothing.
+    assert fake_cache.read_round_trips == after_first
+
+
+async def test_a_channel_session_entry_says_so_at_creation(fake_cache):
+    world = SharingWorld()
+    state = world.add_session(policy=AccessPolicy(visibility=Visibility.PROJECT))
+    world.dao.reads.clear()
+    await cache_created_session_access(
+        project_id=world.project_id,
+        session_id=state.session_id,
+        stream_id=state.stream_id,
+        policy=AccessPolicy(visibility=Visibility.PROJECT),
+        is_channel=True,
+    )
+
+    sharing = await world.service.cached_session_sharing(
+        project_id=world.project_id,
+        principal=_human(uuid4()),
+        session_id=state.session_id,
+        references_agent=True,
+    )
+
+    assert sharing.not_shareable_reason.value == "channel"
+    assert world.dao.reads == []  # no fallback read of the row

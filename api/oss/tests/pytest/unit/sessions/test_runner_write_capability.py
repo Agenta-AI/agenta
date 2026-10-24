@@ -65,3 +65,44 @@ async def test_a_role_without_run_sessions_is_refused_despite_continuity(
 
     assert refused.value.status_code == 403
     assert interactions.mock_calls == []
+
+
+async def test_append_turn_is_refused_without_run_sessions(monkeypatch):
+    from oss.src.apis.fastapi.sessions.models import SessionTurnAppendRequest
+    from oss.src.apis.fastapi.sessions.router import SessionTurnsRouter
+
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr(
+        router_module, "allow_session_write", AsyncMock(return_value=True)
+    )
+    turns = AsyncMock()
+    router = SessionTurnsRouter(turns_service=turns)
+
+    with pytest.raises(HTTPException) as refused:
+        await router.append_turn(
+            request=_request(),
+            body=SessionTurnAppendRequest(
+                session_id="s", stream_id=uuid4(), turn_index=0, harness_kind="mock"
+            ),
+        )
+    assert refused.value.status_code == 403
+    assert turns.mock_calls == []
+
+
+async def test_a_create_race_recheck_reads_the_session_again(monkeypatch):
+    """`SessionRecheck` drops what the request read for the session before it checks the
+    row that appeared, so it never decides from a value read before the row existed."""
+    from oss.src.apis.fastapi.sharing import utils as sharing_utils
+
+    forgotten = []
+    monkeypatch.setattr(sharing_utils, "forget_prefetch", forgotten.append)
+    monkeypatch.setattr(sharing_utils, "allow_resource", AsyncMock(return_value=True))
+    request = _request()
+    recheck = sharing_utils.session_recheck(
+        request, action=router_module.Permission.RUN_SESSIONS, session_id="s-race"
+    )
+    await recheck()
+    assert [entry["key"] for entry in forgotten] == [{"s": "s-race"}]
+    assert recheck.checked is True

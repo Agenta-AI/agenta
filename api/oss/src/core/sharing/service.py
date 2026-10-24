@@ -1142,6 +1142,7 @@ async def cache_created_session_access(
     session_id: str,
     stream_id: Optional[UUID],
     policy: AccessPolicy,
+    is_channel: Optional[bool] = None,
 ) -> None:
     """After the commit of the insert that created a session row: write its entry with a
     plain SET, over a cached "no row" (a new row has no grants). A failure is logged and
@@ -1154,9 +1155,13 @@ async def cache_created_session_access(
             stream_id=stream_id,
             policy=policy,
             grants=[],
-            # A channel session is always ownerless, so an owned one is never a channel
-            # session; an ownerless one is read once from its row.
-            is_channel=False if policy.owner_user_id is not None else None,
+            # The insert path knows it (a channel session is created by its installation's
+            # run); an owned session is never one. None: read once from the row.
+            is_channel=(
+                is_channel
+                if is_channel is not None
+                else (False if policy.owner_user_id is not None else None)
+            ),
         )
     except Exception:  # pylint: disable=broad-exception-caught
         log.warning("[sharing] created session entry not built", session_id=session_id)
@@ -1269,7 +1274,7 @@ async def _set(
         )
     except Exception:  # pylint: disable=broad-exception-caught
         written = False
-    if written is False:
+    if written is False or (written is None and _caching_enabled()):
         # Not stored (a Redis error, or an `nx` write that found a value): this request
         # must not treat its value as what the cache holds.
         prefetch.forget(

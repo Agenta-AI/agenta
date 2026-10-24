@@ -252,16 +252,35 @@ async def stream_sharing_for_request(request: Request, *, stream) -> Any:
             None,
         )
         if agent_id is not None:
-            seen = await check_resource(
-                request,
-                action=Permission.VIEW_WORKFLOWS,
-                resource=agent_resource(agent_id),
+            sharing = sharing.model_copy(
+                update={"agent_hidden": await _agent_hidden(request, agent_id=agent_id)}
             )
-            if seen in (ResourceCheck.ALLOWED, ResourceCheck.HIDDEN):
-                sharing = sharing.model_copy(
-                    update={"agent_hidden": seen == ResourceCheck.HIDDEN}
-                )
     return sharing
+
+
+async def _agent_hidden(request: Request, *, agent_id) -> Optional[bool]:
+    """Whether the chat's agent is hidden from the caller, for the chat's row read. Fails
+    closed: a hidden agent and a caller who may not view agents read True. An allowed
+    agent reads False only when it has an access row (it exists); an agent without one
+    (an ownerless agent, or an id with no agent) reads None, and the screen reads the
+    agent's revision itself, which answers an unknown id like a hidden one."""
+
+    seen = await check_resource(
+        request,
+        action=Permission.VIEW_WORKFLOWS,
+        resource=agent_resource(agent_id),
+    )
+    if seen != ResourceCheck.ALLOWED:
+        return True
+    try:
+        artifact_id = UUID(str(agent_id))
+    except ValueError:
+        return True
+    # The decision read this entry: no round trip.
+    cached = await get_sharing_service().fetch_agent_policy_cached(
+        project_id=UUID(str(request.state.project_id)), artifact_id=artifact_id
+    )
+    return False if cached.policy is not None else None
 
 
 def prefetch_session_list(request: Request) -> None:
