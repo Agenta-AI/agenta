@@ -2083,6 +2083,9 @@ class SessionTurnsRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
+        # Runtime handles are reused on the next turn, so only the runner may write them.
+        runner_verified = has_valid_runner_token(request)
+
         turn = await self.turns_service.append_turn(
             project_id=project_id,
             user_id=user_id,
@@ -2092,8 +2095,8 @@ class SessionTurnsRouter:
                 stream_id=body.stream_id,
                 turn_index=body.turn_index,
                 harness_kind=body.harness_kind,
-                agent_session_id=body.agent_session_id,
-                sandbox_id=body.sandbox_id,
+                agent_session_id=body.agent_session_id if runner_verified else None,
+                sandbox_id=body.sandbox_id if runner_verified else None,
                 references=body.references,
                 trace_id=body.trace_id,
                 span_id=body.span_id,
@@ -2125,7 +2128,11 @@ class SessionTurnsRouter:
                 turn=SessionTurnComplete(
                     session_id=body.session_id,
                     turn_index=body.turn_index,
-                    agent_session_id=body.agent_session_id,
+                    agent_session_id=(
+                        body.agent_session_id
+                        if has_valid_runner_token(request)
+                        else None
+                    ),
                     end_time=body.end_time,
                 ),
             )
