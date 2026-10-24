@@ -15,8 +15,10 @@ import uuid_utils.compat as uuid_utils
 import ee.src.core.accounts.service as tombstones_module
 import ee.src.core.fraud.service as fraud_service_module
 import ee.src.core.organizations.service as organizations_service_module
+import ee.src.core.wallets.signup_policy as signup_policy_module
 import oss.src.core.accounts.service as accounts_service_module
 from ee.src.core.accounts.service import AccountTombstonesService
+from oss.src.core.auth.emails import normalize_email
 from ee.src.core.fraud.service import FraudService
 from ee.src.core.accounts.types import (
     AccountTombstone,
@@ -24,7 +26,6 @@ from ee.src.core.accounts.types import (
     AccountTombstonesDAOInterface,
     WalletTotals,
     email_hash,
-    normalize_email,
 )
 from ee.src.core.fraud.types import (
     BillingFacts,
@@ -57,6 +58,8 @@ class FakeTombstonesDAO(AccountTombstonesDAOInterface):
         self.rows: List[AccountTombstone] = []
         self.create_error: Optional[Exception] = None
         self.find_error: Optional[Exception] = None
+        self.live_emails: List[str] = []
+        self.variant_error: Optional[Exception] = None
 
     async def read_wallet_totals(self, *, organization_ids):
         granted = sum(self.totals.get(oid, (0, 0))[0] for oid in organization_ids)
@@ -82,6 +85,16 @@ class FakeTombstonesDAO(AccountTombstonesDAOInterface):
             if row.email_hash == email_hash and row.account_deleted_at >= deleted_since
         ]
         return max(matches, key=lambda row: row.account_deleted_at, default=None)
+
+    async def exists_live_email_variant(self, *, email):
+        if self.variant_error is not None:
+            raise self.variant_error
+        own = email.strip().lower()
+        return any(
+            live.strip().lower() != own
+            and normalize_email(live) == normalize_email(email)
+            for live in self.live_emails
+        )
 
 
 class FakeFraudDAO(FraudDAOInterface):
@@ -768,3 +781,99 @@ async def test_a_flagged_owner_marker_write_failure_still_raises_the_floor(
     floors = await run()
 
     assert floors == [REFUSED_EMAIL_FLOOR_MUSD]
+
+
+# ---------------------------------------------------------------------------
+# Signup: a Gmail dot or +tag variant of a live account gets no signup grant
+# ---------------------------------------------------------------------------
+
+
+_REAL_FREE_CREDITS_CHECK = organizations_service_module._free_credits_check
+
+
+@pytest.fixture
+def variant_signup(signup, monkeypatch):
+    """`signup` with the real `_free_credits_check` and a mint policy that allows."""
+    tombstones, fraud, run = signup
+
+    async def _resolve():
+        return object()
+
+    async def _no_refusal(organization_email, policy):
+        return None
+
+    monkeypatch.setattr(signup_policy_module, "resolve_mint_policy", _resolve)
+    monkeypatch.setattr(signup_policy_module, "mint_policy_refusal", _no_refusal)
+    monkeypatch.setattr(
+        organizations_service_module,
+        "_free_credits_check",
+        _REAL_FREE_CREDITS_CHECK,
+    )
+    return tombstones, fraud, run
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "farmerone@gmail.com",
+        "farm.er.one@gmail.com",
+        "farmer.one+x@gmail.com",
+        "Farmer.One@googlemail.com",
+    ],
+)
+async def test_a_gmail_variant_of_a_live_account_gets_no_grant(variant_signup, variant):
+    tombstones, fraud, run = variant_signup
+    tombstones.live_emails.append("f.armer.one@gmail.com")
+
+    calls = await run(variant)
+
+    assert calls == [("provision", REFUSED_EMAIL_FLOOR_MUSD)]
+    assert fraud.marks == []
+
+
+async def test_the_signup_does_not_count_its_own_user_as_a_variant(variant_signup):
+    tombstones, fraud, run = variant_signup
+    tombstones.live_emails.append("farmer.one@gmail.com")
+
+    calls = await run(" Farmer.One@Gmail.com ")
+
+    assert calls == [("provision", None), ("award", NEW_ORG)]
+
+
+async def test_dots_outside_gmail_are_a_different_address(variant_signup):
+    tombstones, fraud, run = variant_signup
+    tombstones.live_emails.append("first.last@acme.test")
+
+    calls = await run("firstlast@acme.test")
+
+    assert calls == [("provision", None), ("award", NEW_ORG)]
+
+
+async def test_a_plus_tag_outside_gmail_is_still_a_variant(variant_signup):
+    tombstones, fraud, run = variant_signup
+    tombstones.live_emails.append("first.last@acme.test")
+
+    calls = await run("first.last+promo@acme.test")
+
+    assert calls == [("provision", REFUSED_EMAIL_FLOOR_MUSD)]
+
+
+async def test_a_variant_lookup_failure_fails_open(variant_signup):
+    tombstones, fraud, run = variant_signup
+    tombstones.live_emails.append("farmer.one@gmail.com")
+    tombstones.variant_error = RuntimeError("database down")
+
+    calls = await run("farmerone@gmail.com")
+
+    assert calls == [("provision", None), ("award", NEW_ORG)]
+
+
+async def test_a_missing_service_lets_the_variant_check_fail_open(
+    variant_signup, monkeypatch
+):
+    monkeypatch.setattr(tombstones_module, "_account_tombstones_service", None)
+    tombstones, fraud, run = variant_signup
+
+    calls = await run("farmerone@gmail.com")
+
+    assert calls == [("provision", None), ("award", NEW_ORG)]
