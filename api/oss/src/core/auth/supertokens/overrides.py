@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict, Any, List, Optional, Union
 from urllib.parse import urlparse, urlunparse
 
@@ -275,7 +276,8 @@ async def _fetch_checked_oidc_endpoints(issuer_url: str) -> Optional[Dict[str, s
     it with no egress check. The issuer is pinned to the checked address, as in
     `test_oidc_connection`, and each endpoint must pass the same check.
     """
-    resolved_ip = resolve_validated_webhook_ip(issuer_url)
+    # The resolver is blocking DNS, so it runs off the event loop.
+    resolved_ip = await asyncio.to_thread(resolve_validated_webhook_ip, issuer_url)
     parsed = urlparse(issuer_url)
     host_literal = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
     pinned_netloc = f"{host_literal}:{parsed.port}" if parsed.port else host_literal
@@ -300,7 +302,7 @@ async def _fetch_checked_oidc_endpoints(issuer_url: str) -> Optional[Dict[str, s
             if field == "jwks_uri":
                 continue
             return None
-        resolve_validated_webhook_ip(url)
+        await asyncio.to_thread(resolve_validated_webhook_ip, url)
         endpoints[field] = url
     return endpoints
 

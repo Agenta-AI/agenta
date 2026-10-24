@@ -374,6 +374,7 @@ class SecretsManager:
         )
         extras = provider_info.get("extras", {})
         if extras:
+            _check_vertex_credentials(extras)
             provider_settings.update(extras)
 
         if len(provider_settings.keys()) <= 1:

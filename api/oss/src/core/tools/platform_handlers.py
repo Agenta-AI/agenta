@@ -236,7 +236,11 @@ async def _build_test_workflow_request(
         )
 
     if request.delta is not None:
-        from oss.src.core.workflows.change_set import PARAMETERS_ONLY, ChangeSetError
+        from oss.src.core.workflows.change_set import (
+            PARAMETERS_ONLY,
+            ChangeSetError,
+            Reason,
+        )
 
         # `test_run` previews an AGENT's delta, so it gets the agent's transformations.
         try:
@@ -257,6 +261,8 @@ async def _build_test_workflow_request(
                 agent_context=True,
             )
         except ChangeSetError as e:
+            if e.reason != Reason.OUT_OF_SCOPE:
+                raise
             raise PlatformToolHandlerRefused(
                 f"test_run delta may only change the revision's "
                 f"'{_DELTA_ALLOWED_ROOT}' tree: {e}"

@@ -39,3 +39,38 @@ def test_extras_without_vertex_credentials_pass():
     _check_vertex_credentials(
         {"aws_region_name": "us-east-1", "vertex_credentials": None}
     )
+
+
+def _custom_connection(extras):
+    return {
+        "kind": "custom_provider",
+        "slug": "my-vertex",
+        "data": {
+            "kind": "vertex_ai",
+            "provider_slug": "my-vertex",
+            "models": ["my-vertex/vertex_ai/gemini-2.5-flash"],
+            "provider": {"extras": extras},
+        },
+    }
+
+
+def test_explicit_connection_refuses_other_credential_formats():
+    from agenta.sdk.managers.secrets import SecretsManager
+
+    with pytest.raises(InvalidConfigurationParameterV0Error):
+        SecretsManager._settings_by_connection(
+            secrets=[_custom_connection({"vertex_ai_credentials": "/etc/hostname"})],
+            model="my-vertex/vertex_ai/gemini-2.5-flash",
+            connection="my-vertex",
+        )
+
+
+def test_explicit_connection_accepts_a_service_account_document():
+    from agenta.sdk.managers.secrets import SecretsManager
+
+    settings = SecretsManager._settings_by_connection(
+        secrets=[_custom_connection({"vertex_ai_credentials": SERVICE_ACCOUNT})],
+        model="my-vertex/vertex_ai/gemini-2.5-flash",
+        connection="my-vertex",
+    )
+    assert settings["vertex_ai_credentials"] == SERVICE_ACCOUNT

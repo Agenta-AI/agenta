@@ -901,3 +901,29 @@ async def test_test_run_ordered_delta_outside_parameters_is_refused(monkeypatch)
 
     assert workflows.scope_policies == [PARAMETERS_ONLY]
     assert not http.calls
+
+
+async def test_test_run_non_scope_delta_error_is_not_reported_as_scope(monkeypatch):
+    from oss.src.core.workflows.change_set import ChangeSetError, Reason
+
+    class _RejectingWorkflowsService(FakeWorkflowsService):
+        async def _resolve_revision_delta(self, **kwargs):
+            raise ChangeSetError(Reason.INVALID_DELTA, "the delta must be an object")
+
+    http = HttpxController(monkeypatch, response=_response({"messages": []}))
+
+    with pytest.raises(ChangeSetError) as exc:
+        await handle_test_run(
+            arguments=_args(
+                terminal_tool=None,
+                delta={"set": {"parameters": {"agent": {"instructions": "hi"}}}},
+            ),
+            headers={},
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflows_service=_RejectingWorkflowsService(),
+            tracing_service=FakeTracingService(),
+        )
+
+    assert exc.value.reason == Reason.INVALID_DELTA
+    assert not http.calls
