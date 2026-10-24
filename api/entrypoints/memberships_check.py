@@ -41,6 +41,7 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from time import monotonic
 from typing import Any, Dict, List, Optional, Sequence
 from uuid import UUID
 
@@ -60,6 +61,27 @@ REPAIR_REVISION = "oss000000044"
 UNIQUE_INDEX_NAME = "ux_project_members_project_id_user_id"
 
 _ZERO_UUID = UUID(int=0)
+
+# The job runs the same statements once per batch or page, through prepared
+# statements. After five executions Postgres may switch a statement to a cached
+# generic plan, which ignores the batch's organization ids: on the batch that holds
+# a very large organization the P2b candidate query then took about 15 minutes
+# instead of 0.3 s. Every transaction of the job plans each statement for its own
+# parameters. LOCAL ends with the transaction, so a pooled connection keeps nothing.
+FORCE_CUSTOM_PLANS_SQL = "SET LOCAL plan_cache_mode = force_custom_plan"
+
+
+# One entitlement read per organization (P2b needs it). Printed at the end of a run,
+# so an operator sees whether the reads or the queries take the time.
+ENTITLEMENT_READS: Dict[str, float] = {"organizations": 0, "seconds": 0.0}
+
+
+@asynccontextmanager
+async def _job_transaction(engine):
+    async with engine.transaction() as job_connection:
+        await job_connection.execute(text(FORCE_CUSTOM_PLANS_SQL))
+        yield job_connection
+
 
 # Every check returns (organization_id, item) rows for the organizations in :orgs.
 # "Oldest" orders by created_at ASC NULLS LAST, id ASC everywhere.
@@ -387,6 +409,7 @@ async def _no_rbac_organizations(
     cannot answer is left out and appended to `undecided`."""
 
     result = []
+    started = monotonic()
     for organization_id in organization_ids:
         enforced = await _rbac_enforced(organization_id)
         if enforced is None:
@@ -395,6 +418,8 @@ async def _no_rbac_organizations(
             continue
         if not enforced:
             result.append(organization_id)
+    ENTITLEMENT_READS["organizations"] += len(organization_ids)
+    ENTITLEMENT_READS["seconds"] += monotonic() - started
     return result
 
 
@@ -422,7 +447,7 @@ async def run_report(
 
     undecided: List[UUID] = []
 
-    async with get_transactions_engine().transaction() as connection:
+    async with _job_transaction(get_transactions_engine()) as connection:
         async for batch in _organization_batches(connection, organization_ids):
             for check, sql, edition in CHECKS:
                 if not _applies(edition):
@@ -554,9 +579,10 @@ async def run_apply(
     @asynccontextmanager
     async def _transaction():
         if connection is not None:
+            await connection.execute(text(FORCE_CUSTOM_PLANS_SQL))
             yield connection
         else:
-            async with engine.transaction() as own:
+            async with _job_transaction(engine) as own:
                 yield own
 
     async with _transaction() as reader:
@@ -617,7 +643,7 @@ async def run_materialize(
 
     engine = get_transactions_engine()
 
-    async with engine.transaction() as connection:
+    async with _job_transaction(engine) as connection:
         index = (
             await connection.execute(
                 text("SELECT to_regclass(:name)"), {"name": UNIQUE_INDEX_NAME}
@@ -640,7 +666,7 @@ async def run_materialize(
             while True:
                 # One transaction per page, so a large organization never holds
                 # one long transaction.
-                async with engine.transaction() as connection:
+                async with _job_transaction(engine) as connection:
                     page = (
                         await connection.execute(
                             text(_MEMBER_PAGE_SQL),
@@ -705,38 +731,48 @@ async def _main(args) -> int:
         bootstrap_entitlements_services()
 
     try:
-        if args.report:
-            out_dir = args.out or _default_out_dir()
-            report = await run_report(out_dir=out_dir)
-            for check, entry in report.items():
-                print(f"{check}: {entry['count']}")
-            print(f"report: {out_dir / 'report.json'}")
-            return 0
-
-        if args.apply:
-            result = await run_apply()
-            print(f"deleted duplicates: {len(result['deleted_duplicates'])}")
-            if result["p2b_skipped"]:
-                print(
-                    "P2b skipped: oss000000044 has run, so former demo-only users "
-                    "can no longer be told apart."
-                )
-            elif is_ee():
-                print(f"P2b rows added: {result['added_p2b']}")
-                print(
-                    "P2b organizations with an undecided RBAC entitlement (skipped): "
-                    f"{len(result['p2b_undecided'])}"
-                )
-            return 0
-
-        if not is_ee():
-            print("--materialize runs only on EE (AGENTA_LICENSE=ee).")
-            return 1
-        result = await run_materialize()
-        print(f"materialize: inserted={result['inserted']} updated={result['updated']}")
-        return 0
+        return await _run_command(args)
     finally:
+        if ENTITLEMENT_READS["organizations"]:
+            print(
+                "entitlement reads: "
+                f"{int(ENTITLEMENT_READS['organizations'])} organizations in "
+                f"{ENTITLEMENT_READS['seconds']:.1f} s"
+            )
         await get_transactions_engine().close()
+
+
+async def _run_command(args) -> int:
+    if args.report:
+        out_dir = args.out or _default_out_dir()
+        report = await run_report(out_dir=out_dir)
+        for check, entry in report.items():
+            print(f"{check}: {entry['count']}")
+        print(f"report: {out_dir / 'report.json'}")
+        return 0
+
+    if args.apply:
+        result = await run_apply()
+        print(f"deleted duplicates: {len(result['deleted_duplicates'])}")
+        if result["p2b_skipped"]:
+            print(
+                "P2b skipped: oss000000044 has run, so former demo-only users "
+                "can no longer be told apart."
+            )
+        elif is_ee():
+            print(f"P2b rows added: {result['added_p2b']}")
+            print(
+                "P2b organizations with an undecided RBAC entitlement (skipped): "
+                f"{len(result['p2b_undecided'])}"
+            )
+        return 0
+
+    if not is_ee():
+        print("--materialize runs only on EE (AGENTA_LICENSE=ee).")
+        return 1
+    result = await run_materialize()
+    print(f"materialize: inserted={result['inserted']} updated={result['updated']}")
+    return 0
 
 
 def main(argv=None) -> int:
