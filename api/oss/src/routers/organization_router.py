@@ -29,15 +29,14 @@ from oss.src.models.api.workspace_models import (
     UpdateWorkspace,
     WorkspaceResponse,
 )
-from oss.src.core.access.permissions.service import (
-    check_action_access,
-    check_rbac_permission,
-)
+from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.organizations.exceptions import (
     OrganizationCreationNotAllowedError,
 )
 from oss.src.services.db_manager import get_user_org_and_workspace_id
+from oss.src.core.memberships.service import get_memberships_service
+from oss.src.core.memberships.types import MemberNotFound, OrganizationNotFound
 
 
 if is_ee():
@@ -494,21 +493,21 @@ async def transfer_organization_ownership(
         )
 
     try:
-        organization = await db_manager.transfer_organization_ownership(
-            organization_id=organization_id,
-            new_owner_id=new_owner_id,
-            current_user_id=str(request.state.user_id),
+        await get_memberships_service().transfer_ownership(
+            organization_id=UUID(organization_id),
+            new_owner_id=UUID(new_owner_id),
+            current_owner_id=UUID(str(request.state.user_id)),
         )
 
         return JSONResponse(
             {
-                "organization_id": str(organization.id),
-                "owner_id": str(organization.owner_id),
+                "organization_id": organization_id,
+                "owner_id": new_owner_id,
             },
             status_code=200,
         )
 
-    except ValueError:
+    except (OrganizationNotFound, MemberNotFound, ValueError):
         log.warning(
             "Invalid organization ownership transfer request",
             exc_info=True,
@@ -634,12 +633,21 @@ async def update_workspace(
 ) -> WorkspaceResponse:
     """Update a workspace's details (requires EDIT_WORKSPACE permission)."""
     try:
-        user_org_workspace_data = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
+        workspace = await db_manager.get_workspace(workspace_id)
         project = await db_manager.get_project_by_workspace(workspace_id)
-        has_permission = await check_rbac_permission(
-            user_org_workspace_data=user_org_workspace_data,
+        # The permission is checked on a project, and membership follows the
+        # project's organization. A legacy project can point at a workspace of
+        # another organization, so the workspace, the project and the URL must
+        # name one organization before that check means anything.
+        if (
+            workspace is None
+            or str(workspace.organization_id) != organization_id
+            or str(project.organization_id) != organization_id
+        ):
+            return JSONResponse({"detail": "Workspace not found"}, status_code=404)
+
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
             project_id=str(project.id),
             permission=Permission.EDIT_WORKSPACE,
         )

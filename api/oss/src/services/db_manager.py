@@ -1,5 +1,6 @@
 import os
 import uuid
+from contextlib import asynccontextmanager
 import json
 from pathlib import Path
 from datetime import datetime, timezone
@@ -7,15 +8,15 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 from fastapi import HTTPException
 from sqlalchemy.future import select
-from sqlalchemy import delete, func, or_, update
+from sqlalchemy import delete, func, or_, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, load_only
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 
+from oss.src.core.memberships.service import get_memberships_service
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
-from oss.src.utils.caching import invalidate_cache
 from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
 )
@@ -50,9 +51,7 @@ from oss.src.models.db_models import (
     ProjectMemberDB,
 )
 from oss.src.dbs.postgres.webhooks.dbes import WebhookSubscriptionDBE
-from oss.src.models.api.workspace_models import UserRole
 from oss.src.core.access.permissions.types import (
-    DefaultRole,
     Permission,
     RequiredRole,
 )
@@ -142,45 +141,6 @@ async def get_project_by_workspace(
         if project is None:
             raise NoResultFound(f"No project with workspace IDs ({workspace_id}) found")
         return project
-
-
-async def fetch_project_memberships_by_user_id(
-    user_id: str,
-) -> List[ProjectMemberDB]:
-    """Retrieve every project membership for a user across all organizations."""
-
-    engine = get_transactions_engine()
-    async with engine.session() as session:
-        result = await session.execute(
-            select(ProjectMemberDB)
-            .filter_by(user_id=uuid.UUID(user_id))
-            .options(
-                joinedload(ProjectMemberDB.project).joinedload(ProjectDB.workspace),
-                joinedload(ProjectMemberDB.project).joinedload(ProjectDB.organization),
-            )
-        )
-        return result.scalars().all()
-
-
-async def project_member_exists(
-    *,
-    project_id: str,
-    user_id: str,
-) -> bool:
-    """Check whether a user is a member of a project (EXISTS sub-query)."""
-
-    engine = get_transactions_engine()
-    async with engine.session() as session:
-        stmt = select(
-            select(ProjectMemberDB.id)
-            .filter(
-                ProjectMemberDB.project_id == uuid.UUID(project_id),
-                ProjectMemberDB.user_id == uuid.UUID(user_id),
-            )
-            .exists()
-        )
-        result = await session.execute(stmt)
-        return result.scalar() or False
 
 
 async def workspace_member_exists(
@@ -755,205 +715,6 @@ async def get_user_organizations(user_id: str) -> List[OrganizationDB]:
         return list(organizations)
 
 
-async def add_user_to_organization(
-    organization_id: str,
-    user_id: str,
-    role: str = "viewer",
-) -> None:
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        organization_member = OrganizationMemberDB(
-            user_id=user_id,
-            organization_id=organization_id,
-            role=role,
-        )
-
-        session.add(organization_member)
-
-        await session.commit()
-
-        log.info(
-            "[scopes] organization membership created",
-            organization_id=organization_id,
-            user_id=user_id,
-            role=role,
-            membership_id=organization_member.id,
-        )
-
-
-async def add_user_to_workspace(
-    workspace_id: str,
-    user_id: str,
-    role: str,
-) -> None:
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        stmt = select(WorkspaceDB).filter_by(id=workspace_id)
-        workspace = await session.execute(stmt)
-        workspace = workspace.scalars().first()
-
-        if not workspace:
-            raise Exception(f"No workspace found with ID {workspace_id}")
-
-        workspace_member = WorkspaceMemberDB(
-            user_id=user_id,
-            workspace_id=workspace_id,
-            role=role,
-        )
-
-        session.add(workspace_member)
-
-        await session.commit()
-
-        log.info(
-            "[scopes] workspace membership created",
-            organization_id=workspace.organization_id,
-            workspace_id=workspace_id,
-            user_id=user_id,
-            membership_id=workspace_member.id,
-        )
-
-
-async def add_user_to_project(
-    project_id: str,
-    user_id: str,
-    role: str,
-    is_demo: bool = False,
-) -> None:
-    project = await fetch_project_by_id(
-        project_id=project_id,
-    )
-
-    if not project:
-        raise Exception(f"No project found with ID {project_id}")
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        project_member = ProjectMemberDB(
-            user_id=user_id,
-            project_id=project_id,
-            role=role,
-            is_demo=is_demo,
-        )
-
-        session.add(project_member)
-
-        await session.commit()
-
-        log.info(
-            "[scopes] project membership created",
-            organization_id=project.organization_id,
-            workspace_id=project.workspace_id,
-            project_id=project_id,
-            user_id=user_id,
-            membership_id=project_member.id,
-        )
-
-    await invalidate_cache(
-        namespace="check_action_access",
-        project_id=str(project_id),
-    )
-
-
-async def add_user_to_workspace_and_org(
-    organization: OrganizationDB,
-    workspace: WorkspaceDB,
-    user: UserDB,
-    project_id: str,
-    role: str,
-) -> bool:
-    project = await get_project_by_id(project_id=project_id)
-    if project and str(project.workspace_id) != str(workspace.id):
-        raise ValueError("Project does not belong to the provided workspace")
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        user_organization = OrganizationMemberDB(
-            user_id=user.id, organization_id=organization.id, role=role
-        )
-
-        session.add(user_organization)
-
-        await session.commit()
-
-        log.info(
-            "[scopes] organization membership created",
-            organization_id=organization.id,
-            user_id=user.id,
-            membership_id=user_organization.id,
-        )
-
-        workspace_member = WorkspaceMemberDB(
-            user_id=user.id,
-            workspace_id=workspace.id,
-            role=role,
-        )
-
-        session.add(workspace_member)
-
-        await session.commit()
-
-        log.info(
-            "[scopes] workspace membership created",
-            organization_id=organization.id,
-            workspace_id=workspace.id,
-            user_id=user.id,
-            membership_id=workspace_member.id,
-        )
-
-        projects = await fetch_projects_by_workspace(str(workspace.id))
-        if not projects:
-            raise NoResultFound(
-                f"No projects found for workspace_id {str(workspace.id)}"
-            )
-
-        existing_members_result = await session.execute(
-            select(ProjectMemberDB).filter(
-                ProjectMemberDB.project_id.in_([project.id for project in projects]),
-                ProjectMemberDB.user_id == user.id,
-            )
-        )
-        existing_members = {
-            member.project_id: member
-            for member in existing_members_result.scalars().all()
-        }
-
-        for project in projects:
-            if project.id in existing_members:
-                continue
-
-            project_member = ProjectMemberDB(
-                user_id=user.id,
-                project_id=project.id,
-                role=role,
-            )
-
-            session.add(project_member)
-
-            await session.commit()
-
-            log.info(
-                "[scopes] project membership created",
-                organization_id=str(project.organization_id),
-                workspace_id=str(project.workspace_id),
-                project_id=str(project.id),
-                user_id=str(user.id),
-                membership_id=project_member.id,
-            )
-
-    for project in projects:
-        await invalidate_cache(
-            namespace="check_action_access",
-            project_id=str(project.id),
-        )
-
-    return True
-
-
 async def count_organizations_by_owner(owner_id: str) -> int:
     """Count the number of organizations owned by a user."""
 
@@ -999,124 +760,6 @@ async def delete_organization(organization_id: str) -> bool:
         return True
 
 
-async def transfer_organization_ownership(
-    organization_id: str,
-    new_owner_id: str,
-    current_user_id: str,
-) -> OrganizationDB:
-    """Transfer organization ownership to another member, swapping the two
-    users' org and workspace roles.
-
-    Raises:
-        ValueError: If new owner is not a member of the organization
-    """
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        org_result = await session.execute(
-            select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
-        )
-        organization = org_result.scalars().first()
-        if not organization:
-            raise ValueError(f"Organization {organization_id} not found")
-
-        member_result = await session.execute(
-            select(OrganizationMemberDB).filter_by(
-                user_id=uuid.UUID(new_owner_id),
-                organization_id=uuid.UUID(organization_id),
-            )
-        )
-        member = member_result.scalars().first()
-        if not member:
-            raise ValueError("The new owner must be a member of the organization")
-
-        current_owner_org_member_result = await session.execute(
-            select(OrganizationMemberDB).filter_by(
-                user_id=uuid.UUID(current_user_id),
-                organization_id=uuid.UUID(organization_id),
-            )
-        )
-        current_owner_org_member = current_owner_org_member_result.scalars().first()
-
-        if current_owner_org_member:
-            current_owner_org_old_role = current_owner_org_member.role
-            new_owner_org_old_role = member.role
-
-            current_owner_org_member.role = new_owner_org_old_role
-            member.role = current_owner_org_old_role
-
-            log.info(
-                "[organization] roles swapped",
-                organization_id=organization_id,
-                current_owner_id=current_user_id,
-                new_owner_id=new_owner_id,
-            )
-
-        workspaces_result = await session.execute(
-            select(WorkspaceDB).filter_by(organization_id=uuid.UUID(organization_id))
-        )
-        workspaces = workspaces_result.scalars().all()
-
-        for workspace in workspaces:
-            current_owner_member_result = await session.execute(
-                select(WorkspaceMemberDB).filter_by(
-                    user_id=uuid.UUID(current_user_id),
-                    workspace_id=workspace.id,
-                )
-            )
-            current_owner_member = current_owner_member_result.scalars().first()
-
-            new_owner_member_result = await session.execute(
-                select(WorkspaceMemberDB).filter_by(
-                    user_id=uuid.UUID(new_owner_id),
-                    workspace_id=workspace.id,
-                )
-            )
-            new_owner_member = new_owner_member_result.scalars().first()
-
-            if current_owner_member and new_owner_member:
-                current_owner_old_role = current_owner_member.role
-                new_owner_old_role = new_owner_member.role
-
-                current_owner_member.role = new_owner_old_role
-                new_owner_member.role = current_owner_old_role
-
-                log.info(
-                    "[workspace] roles swapped",
-                    workspace_id=str(workspace.id),
-                    current_owner_id=current_user_id,
-                    new_owner_id=new_owner_id,
-                )
-            elif current_owner_member:
-                log.info(
-                    "[workspace] new owner not a member",
-                    workspace_id=str(workspace.id),
-                    user_id=new_owner_id,
-                )
-            elif new_owner_member:
-                log.info(
-                    "[workspace] current owner not a member",
-                    workspace_id=str(workspace.id),
-                    user_id=current_user_id,
-                )
-
-        organization.owner_id = uuid.UUID(new_owner_id)
-        organization.updated_at = datetime.now(timezone.utc)
-        organization.updated_by_id = uuid.UUID(current_user_id)
-
-        await session.commit()
-        await session.refresh(organization)
-
-        log.info(
-            "[organization] ownership transferred",
-            organization_id=organization_id,
-            old_owner_id=current_user_id,
-            new_owner_id=new_owner_id,
-        )
-
-        return organization
-
-
 async def get_workspace(workspace_id: str) -> WorkspaceDB:
     """
     Retrieve a workspace.
@@ -1152,97 +795,6 @@ async def get_workspaces() -> List[WorkspaceDB]:
         result = await session.execute(select(WorkspaceDB))
         workspaces = result.scalars().all()
         return workspaces
-
-
-async def remove_user_from_workspace(workspace_id: str, email: str) -> bool:
-    """Remove a user's memberships (and pending invitations) from a workspace.
-
-    Deletes the user's workspace/project/organization membership rows for this
-    workspace — NOT the global UserDB. The workspace owner cannot be removed.
-    """
-
-    user = await get_user_with_email(email)
-    workspace = await get_workspace(workspace_id=workspace_id)
-    if workspace is None:
-        raise NoResultFound(f"Workspace with ID {workspace_id} not found")
-
-    projects = await fetch_projects_by_workspace(workspace_id)
-    if not projects:
-        raise NoResultFound(
-            f"No projects found for the provided workspace_id {workspace_id}"
-        )
-    project_ids = [project.id for project in projects]
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        if user is not None:
-            workspace_owner_result = await session.execute(
-                select(WorkspaceMemberDB)
-                .filter_by(workspace_id=workspace.id, user_id=user.id, role="owner")
-                .options(
-                    load_only(
-                        WorkspaceMemberDB.user_id,  # type: ignore
-                        WorkspaceMemberDB.role,  # type: ignore
-                    )
-                )
-            )
-            workspace_owner = workspace_owner_result.scalars().first()
-            if workspace_owner is not None and workspace_owner.role == "owner":
-                raise HTTPException(
-                    status_code=403,
-                    detail={
-                        "message": "You do not have permission to perform this action. Please contact your Organization Owner"
-                    },
-                )
-
-            workspace_member_result = await session.execute(
-                select(WorkspaceMemberDB).filter(
-                    WorkspaceMemberDB.workspace_id == workspace.id,
-                    WorkspaceMemberDB.user_id == user.id,
-                )
-            )
-            workspace_member = workspace_member_result.scalars().first()
-            if workspace_member and workspace_member.role != "owner":
-                await session.delete(workspace_member)
-
-            project_member_result = await session.execute(
-                select(ProjectMemberDB).filter(
-                    ProjectMemberDB.project_id.in_(project_ids),
-                    ProjectMemberDB.user_id == user.id,
-                    ProjectMemberDB.role != "owner",
-                )
-            )
-            for project_member in project_member_result.scalars().all():
-                await session.delete(project_member)
-
-            joined_org_result = await session.execute(
-                select(OrganizationMemberDB).filter_by(
-                    user_id=user.id, organization_id=workspace.organization_id
-                )
-            )
-            member_joined_org = joined_org_result.scalars().first()
-            if member_joined_org:
-                await session.delete(member_joined_org)
-
-        user_invitations_query = await session.execute(
-            select(InvitationDB).filter(
-                InvitationDB.project_id.in_(project_ids),
-                InvitationDB.email == email,
-            )
-        )
-        for invitation in user_invitations_query.scalars().all():
-            await session.delete(invitation)
-
-        await session.commit()
-
-    for project_id in project_ids:
-        await invalidate_cache(
-            namespace="check_action_access",
-            project_id=str(project_id),
-        )
-
-    return True
 
 
 async def get_user_with_id(user_id: str) -> UserDB:
@@ -1431,285 +983,6 @@ async def get_default_project_id_from_workspace(
                 f"No default project for the provided workspace_id {workspace_id} found"
             )
         return str(project.id)
-
-
-async def create_workspace_project(
-    project_name: str,
-    workspace_id: str,
-    organization_id: Optional[str] = None,
-    *,
-    set_default: bool = False,
-    session: Optional[AsyncSession] = None,
-) -> ProjectDB:
-    """
-    Create a project scoped to the provided workspace.
-
-    Args:
-        project_name (str): Display name for the project.
-        workspace_id (str): Workspace identifier.
-        organization_id (Optional[str]): Explicit organization id. If omitted it will be
-            inferred from the workspace.
-        set_default (bool): Whether the project should become the workspace default.
-        session (Optional[AsyncSession]): Existing db session reuse.
-
-    Returns:
-        ProjectDB: Newly created project.
-    """
-
-    workspace_uuid = uuid.UUID(workspace_id)
-
-    async def _create(
-        db_session: AsyncSession,
-    ) -> ProjectDB:
-        workspace = await db_session.get(WorkspaceDB, workspace_uuid)
-        if workspace is None:
-            raise NoResultFound(f"Workspace with ID {workspace_id} not found")
-
-        org_uuid = (
-            uuid.UUID(organization_id) if organization_id else workspace.organization_id
-        )
-
-        should_be_default = set_default
-        if not should_be_default:
-            result = await db_session.execute(
-                select(ProjectDB.id).filter(
-                    ProjectDB.workspace_id == workspace_uuid,
-                    ProjectDB.is_default == True,  # noqa: E712
-                )
-            )
-            has_default = result.scalars().first() is not None
-            should_be_default = not has_default
-
-        if should_be_default:
-            await db_session.execute(
-                update(ProjectDB)
-                .where(
-                    ProjectDB.workspace_id == workspace_uuid,
-                    ProjectDB.is_default == True,  # noqa: E712
-                )
-                .values(is_default=False)
-            )
-
-        project_db = ProjectDB(
-            project_name=project_name,
-            is_default=should_be_default,
-            organization_id=org_uuid,
-            workspace_id=workspace_uuid,
-        )
-
-        db_session.add(project_db)
-        await db_session.commit()
-        await db_session.refresh(project_db)
-
-        log.info(
-            "[scopes] project created",
-            organization_id=str(org_uuid),
-            workspace_id=str(workspace_uuid),
-            project_id=str(project_db.id),
-            is_default=project_db.is_default,
-        )
-
-        return project_db
-
-    if session is not None:
-        project_db = await _create(session)
-        await sync_workspace_members_to_project(str(project_db.id), session=session)
-        return project_db
-
-    engine = get_transactions_engine()
-    async with engine.session() as new_session:
-        project_db = await _create(new_session)
-        await sync_workspace_members_to_project(str(project_db.id), session=new_session)
-        return project_db
-
-
-async def check_user_in_workspace_with_email(email: str, workspace_id: str) -> bool:
-    """Check whether a user (by email) is a member of the given workspace."""
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(WorkspaceMemberDB)
-            .join(UserDB, UserDB.id == WorkspaceMemberDB.user_id)
-            .where(
-                UserDB.email == email,
-                WorkspaceMemberDB.workspace_id == uuid.UUID(workspace_id),
-            )
-        )
-        return result.scalars().first() is not None
-
-
-async def sync_workspace_members_to_project(
-    project_id: str,
-    session: Optional[AsyncSession] = None,
-) -> None:
-    """Ensure all workspace members are mirrored as project members."""
-
-    async def _sync(db_session: AsyncSession) -> None:
-        project = await db_session.get(ProjectDB, uuid.UUID(project_id))
-        if project is None:
-            raise NoResultFound(f"Project with ID {project_id} not found")
-
-        workspace_members_result = await db_session.execute(
-            select(WorkspaceMemberDB).filter_by(workspace_id=project.workspace_id)
-        )
-        workspace_members = workspace_members_result.scalars().all()
-        if not workspace_members:
-            return
-
-        user_ids = [member.user_id for member in workspace_members]
-        existing_members_result = await db_session.execute(
-            select(ProjectMemberDB).filter(
-                ProjectMemberDB.project_id == project.id,
-                ProjectMemberDB.user_id.in_(user_ids),
-            )
-        )
-        existing_members = {
-            member.user_id: member for member in existing_members_result.scalars().all()
-        }
-
-        for member in workspace_members:
-            project_member = existing_members.get(member.user_id)
-            if project_member:
-                if project_member.role != member.role:
-                    project_member.role = member.role
-                continue
-
-            db_session.add(
-                ProjectMemberDB(
-                    user_id=member.user_id,
-                    project_id=project.id,
-                    role=member.role,
-                )
-            )
-
-        # Flush (not commit) so a caller-provided session keeps a single
-        # transaction: the caller owns the commit and can roll the sync back
-        # together with its own writes on failure.
-        await db_session.flush()
-
-    if session is not None:
-        await _sync(session)
-        return
-
-    engine = get_transactions_engine()
-    async with engine.session() as new_session:
-        # Standalone use: the engine.session() context manager commits on exit.
-        await _sync(new_session)
-
-
-async def update_user_roles(
-    workspace_id: str,
-    payload: UserRole,
-    delete: bool = False,
-) -> bool:
-    """
-    Update a user's roles in a workspace (and mirror onto its projects).
-
-    Args:
-        workspace_id (str): The ID of the workspace.
-        payload (UserRole): The user email and role to update.
-        delete (bool): Whether to clear the role assignment instead of setting it.
-
-    Returns:
-        bool: True if the user's roles were successfully updated.
-    """
-
-    user = await get_user_with_email(payload.email)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found.")
-
-    projects = await fetch_projects_by_workspace(workspace_id)
-    if not projects:
-        raise NoResultFound(
-            f"No projects found for the provided workspace_id {workspace_id}"
-        )
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        workspace_member_result = await session.execute(
-            select(WorkspaceMemberDB).filter_by(
-                workspace_id=uuid.UUID(workspace_id), user_id=user.id
-            )
-        )
-        workspace_member = workspace_member_result.scalars().first()
-        if not workspace_member:
-            raise NoResultFound(
-                f"User with id {str(user.id)} is not part of the workspace member."
-            )
-
-        if workspace_member.role == "owner":
-            raise HTTPException(
-                403,
-                {
-                    "message": "You do not have permission to perform this action. Please contact your Organization Owner"
-                },
-            )
-
-        project_ids = [project.id for project in projects]
-        project_members_result = await session.execute(
-            select(ProjectMemberDB).filter(
-                ProjectMemberDB.project_id.in_(project_ids),
-                ProjectMemberDB.user_id == user.id,
-            )
-        )
-        project_members = project_members_result.scalars().all()
-        if len(project_members) != len(project_ids):
-            for project in projects:
-                await sync_workspace_members_to_project(
-                    str(project.id), session=session
-                )
-
-            project_members_result = await session.execute(
-                select(ProjectMemberDB).filter(
-                    ProjectMemberDB.project_id.in_(project_ids),
-                    ProjectMemberDB.user_id == user.id,
-                )
-            )
-            project_members = project_members_result.scalars().all()
-
-        if len(project_members) != len(project_ids):
-            raise NoResultFound(
-                f"User with id {str(user.id)} is not part of all project memberships."
-            )
-
-        if not delete:
-            workspace_member.role = payload.role
-            for member in project_members:
-                member.role = payload.role
-        elif workspace_member.role == payload.role:
-            # Removing the active role reverts the member to the default floor role.
-            workspace_member.role = DefaultRole.VIEWER.value
-            for member in project_members:
-                if member.role == payload.role:
-                    member.role = DefaultRole.VIEWER.value
-
-        await session.commit()
-
-        default_project_id = next(
-            (project.id for project in projects if project.is_default),
-            projects[0].id,
-        )
-        default_project_member = next(
-            (
-                member
-                for member in project_members
-                if member.project_id == default_project_id
-            ),
-            None,
-        )
-        if default_project_member:
-            await session.refresh(default_project_member)
-
-    for project in projects:
-        await invalidate_cache(
-            namespace="check_action_access",
-            project_id=str(project.id),
-        )
-
-    return True
 
 
 async def delete_project(project_id: str) -> None:
@@ -2458,9 +1731,22 @@ async def admin_delete_user_with_cascade(user_id: uuid.UUID) -> List[uuid.UUID]:
     return org_ids
 
 
+@asynccontextmanager
+async def _admin_session(session: Optional[AsyncSession]):
+    """The caller's session (the caller commits), or a new one committed on exit."""
+    if session is not None:
+        yield session
+        return
+    async with get_transactions_engine().session() as own:
+        yield own
+        await own.commit()
+
+
 async def admin_transfer_org_ownership_batch(
     org_ids: List[uuid.UUID],
     target_id: uuid.UUID,
+    *,
+    session: Optional[AsyncSession] = None,
 ) -> None:
     """Update owner_id and created_by_id on multiple orgs.
 
@@ -2470,9 +1756,7 @@ async def admin_transfer_org_ownership_batch(
     of that user does not destroy orgs now owned by the target.
     """
     now = datetime.now(timezone.utc)
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
+    async with _admin_session(session) as session:
         for org_id in org_ids:
             await session.execute(
                 update(OrganizationDB)
@@ -2484,7 +1768,6 @@ async def admin_transfer_org_ownership_batch(
                     updated_by_id=target_id,
                 )
             )
-        await session.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -2532,31 +1815,6 @@ async def get_project_members(project_id: str):
         )
         project_members = members_query.scalars().all()
         return project_members
-
-
-async def get_project_member(
-    project_id: str,
-    user_id: str,
-) -> Optional[ProjectMemberDB]:
-    """Return one user's membership row in a project, or None.
-
-    An access check needs this row, not the project's whole member list: the
-    Demo Workspace projects hold 17,008 rows and the check reads one.
-
-    Soft-deleted rows are returned, as `get_project_members` returns them, so a
-    caller that switched from filtering that list sees the same membership.
-    """
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(ProjectMemberDB).where(
-                ProjectMemberDB.project_id == uuid.UUID(project_id),
-                ProjectMemberDB.user_id == uuid.UUID(user_id),
-            )
-        )
-        return result.scalars().first()
 
 
 async def get_user_org_and_workspace_id(
@@ -2702,51 +1960,6 @@ async def create_project(
     return project_db
 
 
-async def create_default_project(
-    organization_id: str, workspace_id: str, session: AsyncSession
-) -> ProjectDB:
-    """Create a default project for an organization."""
-
-    project_db = await create_project(
-        "Default",
-        workspace_id=workspace_id,
-        organization_id=organization_id,
-        session=session,
-        is_default=True,
-    )
-    return project_db
-
-
-async def create_project_member(
-    user_id: str, project_id: str, role: str, session: AsyncSession
-) -> None:
-    """Create a new project member."""
-
-    project = await fetch_project_by_id(project_id=project_id)
-
-    if not project:
-        raise Exception(f"No project found with ID {project_id}")
-
-    project_member = ProjectMemberDB(
-        user_id=uuid.UUID(user_id),
-        project_id=uuid.UUID(project_id),
-        role=role,
-    )
-
-    session.add(project_member)
-
-    await session.commit()
-
-    log.info(
-        "[scopes] project membership created",
-        organization_id=project.organization_id,
-        workspace_id=project.workspace_id,
-        project_id=project_id,
-        user_id=user_id,
-        membership_id=project_member.id,
-    )
-
-
 async def create_workspace_db_object(
     session: AsyncSession,
     payload,
@@ -2792,18 +2005,16 @@ async def create_workspace_db_object(
         membership_id=workspace_member.id,
     )
 
-    project_db = await create_default_project(
-        organization_id=str(organization.id),
-        workspace_id=str(workspace.id),
-        session=session,
+    # The default project, seeded with every organization member, in one
+    # transaction (MembershipsService.create_project).
+    scope = await get_memberships_service().create_project(
+        organization_id=organization.id,
+        workspace_id=workspace.id,
+        name="Default",
+        is_default=True,
+        actor_user_id=user.id,
     )
-
-    await create_project_member(
-        user_id=str(user.id),
-        project_id=str(project_db.id),
-        role=workspace_member.role,
-        session=session,
-    )
+    project_db = await fetch_project_by_id(project_id=str(scope.project_id))
 
     await add_default_simple_testsets(
         project_id=str(project_db.id),
@@ -3016,11 +2227,11 @@ async def admin_swap_org_memberships(
     org_ids: List[uuid.UUID],
     source_id: uuid.UUID,
     target_id: uuid.UUID,
+    *,
+    session: Optional[AsyncSession] = None,
 ) -> None:
     """Swap org membership roles between source and target."""
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
+    async with _admin_session(session) as session:
         source_rows = (
             (
                 await session.execute(
@@ -3068,18 +2279,16 @@ async def admin_swap_org_memberships(
                 .values(role=target_by_org[org_id])
             )
 
-        await session.commit()
-
 
 async def admin_swap_workspace_memberships(
     workspace_ids: List[uuid.UUID],
     source_id: uuid.UUID,
     target_id: uuid.UUID,
+    *,
+    session: Optional[AsyncSession] = None,
 ) -> None:
     """Swap workspace membership roles between source and target."""
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
+    async with _admin_session(session) as session:
         source_rows = (
             (
                 await session.execute(
@@ -3127,18 +2336,16 @@ async def admin_swap_workspace_memberships(
                 .values(role=target_by_ws[ws_id])
             )
 
-        await session.commit()
-
 
 async def admin_swap_project_memberships(
     project_ids: List[uuid.UUID],
     source_id: uuid.UUID,
     target_id: uuid.UUID,
+    *,
+    session: Optional[AsyncSession] = None,
 ) -> None:
     """Swap project membership roles between source and target."""
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
+    async with _admin_session(session) as session:
         source_rows = (
             (
                 await session.execute(
@@ -3186,7 +2393,143 @@ async def admin_swap_project_memberships(
                 .values(role=target_by_proj[proj_id])
             )
 
-        await session.commit()
+
+async def admin_seed_owner_project_rows(
+    org_ids: List[uuid.UUID],
+    owner_id: uuid.UUID,
+    *,
+    session: Optional[AsyncSession] = None,
+) -> int:
+    """Add an `owner` project row for `owner_id` in every project of `org_ids` where
+    the user has none; existing rows keep their roles.
+
+    The membership resolver checks membership before the organization owner
+    shortcut, so an EE owner without a project row would be denied in that project.
+    `MembershipsService.transfer_ownership` seeds the same rows.
+    """
+    if not org_ids:
+        return 0
+
+    async with _admin_session(session) as session:
+        result = await session.execute(
+            text(
+                "INSERT INTO project_members "
+                "(id, user_id, project_id, role, created_at, updated_at) "
+                "SELECT gen_random_uuid(), :owner_id, p.id, 'owner', now(), now() "
+                "FROM projects p "
+                "WHERE p.organization_id = ANY(CAST(:org_ids AS uuid[])) "
+                "ON CONFLICT (project_id, user_id) DO NOTHING"
+            ),
+            {"owner_id": owner_id, "org_ids": list(org_ids)},
+        )
+        return result.rowcount or 0
+
+
+async def admin_transfer_ownership(
+    *,
+    org_ids: List[uuid.UUID],
+    source_id: uuid.UUID,
+    target_id: uuid.UUID,
+    workspace_ids: List[uuid.UUID],
+    project_ids: List[uuid.UUID],
+) -> List[uuid.UUID]:
+    """The admin ownership transfer in one transaction, under the membership lock of
+    each organization (the lock `MembershipsDAO` writers take).
+
+    Under the locks it checks again that the source owns each organization and that
+    the target has an organization row there; other organizations are left out.
+    Then it moves the ownership, swaps the organization, workspace and project roles
+    (workspaces and projects of the transferred organizations only), and seeds the
+    new owner into every project. Returns the transferred organization ids.
+    """
+    from oss.src.dbs.postgres.memberships.dao import (  # noqa: PLC0415
+        ORGANIZATION_LOCK_SQL,
+    )
+
+    if not org_ids:
+        return []
+
+    async with _admin_session(None) as session:
+        for org_id in sorted(org_ids, key=str):
+            await session.execute(
+                text(ORGANIZATION_LOCK_SQL), {"organization_id": str(org_id)}
+            )
+
+        owned = set(
+            (
+                await session.execute(
+                    select(OrganizationDB.id).where(
+                        OrganizationDB.id.in_(org_ids),
+                        OrganizationDB.owner_id == source_id,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        members = set(
+            (
+                await session.execute(
+                    select(OrganizationMemberDB.organization_id).where(
+                        OrganizationMemberDB.user_id == target_id,
+                        OrganizationMemberDB.organization_id.in_(org_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        eligible = [o for o in org_ids if o in owned and o in members]
+        if not eligible:
+            return []
+
+        ws_scope = (
+            (
+                await session.execute(
+                    select(WorkspaceDB.id).where(
+                        WorkspaceDB.id.in_(workspace_ids),
+                        WorkspaceDB.organization_id.in_(eligible),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+            if workspace_ids
+            else []
+        )
+        proj_scope = (
+            (
+                await session.execute(
+                    select(ProjectDB.id).where(
+                        ProjectDB.id.in_(project_ids),
+                        ProjectDB.organization_id.in_(eligible),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+            if project_ids
+            else []
+        )
+
+        await admin_transfer_org_ownership_batch(eligible, target_id, session=session)
+        # Both editions: OSS reads the organization role, so the source must not
+        # keep `owner`.
+        await admin_swap_org_memberships(
+            eligible, source_id, target_id, session=session
+        )
+        if ws_scope:
+            await admin_swap_workspace_memberships(
+                list(ws_scope), source_id, target_id, session=session
+            )
+        if proj_scope:
+            await admin_swap_project_memberships(
+                list(proj_scope), source_id, target_id, session=session
+            )
+        # The resolver checks membership before the owner shortcut.
+        await admin_seed_owner_project_rows(eligible, target_id, session=session)
+
+    return eligible
 
 
 async def admin_delete_user_memberships(user_id: uuid.UUID) -> None:

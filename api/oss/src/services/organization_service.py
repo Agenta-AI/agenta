@@ -7,10 +7,10 @@ from fastapi import HTTPException
 
 from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
-from oss.src.utils.caching import invalidate_cache
 from oss.src.utils.logging import get_module_logger
 from oss.src.models.db_models import UserDB, WorkspaceDB
 from oss.src.services import db_manager
+from oss.src.core.memberships.service import get_memberships_service
 from oss.src.utils import emailing
 from oss.src.models.api.workspace_models import (
     InviteRequest,
@@ -420,8 +420,13 @@ async def accept_organization_invitation(
     project_pre = await db_manager.get_project_by_id(
         project_id=str(invitation.project_id),
     )
-    if project_pre and await db_manager.check_user_in_workspace_with_email(
-        email, str(project_pre.workspace_id)
+    if (
+        project_pre
+        and await get_memberships_service().fetch_organization_member(
+            organization_id=project_pre.organization_id,
+            user_id=user_exists.id,
+        )
+        is not None
     ):
         raise InviteAlreadyAcceptedError()
 
@@ -439,27 +444,26 @@ async def accept_organization_invitation(
     if project is None:
         raise HTTPException(status_code=400, detail="Invited project no longer exists")
 
-    organization = await db_manager.get_organization_by_id(
-        organization_id=str(project.organization_id)
-    )
     workspace = await db_manager.get_workspace(
         workspace_id=str(project.workspace_id),
     )
 
     log.info(
         "[invite] accepting invitation",
-        email=email,
+        user_id=str(user_exists.id),
         invitation_role=invitation.role,
         project_id=str(project.id),
         organization_id=str(project.organization_id),
     )
 
-    await db_manager.add_user_to_workspace_and_org(
-        organization=organization,
-        workspace=workspace,
-        user=user_exists,
-        project_id=str(project.id),
+    # Writes the organization, workspace and project rows in one transaction and
+    # clears the caches of the user in every project of the organization.
+    await get_memberships_service().set_member_role(
+        organization_id=project.organization_id,
+        user_id=user_exists.id,
         role=invitation.role,
+        join_all_projects=True,
+        actor_user_id=user_exists.id,
     )
 
     await db_manager.update_invitation(
@@ -468,13 +472,6 @@ async def accept_organization_invitation(
             "user_id": str(user_exists.id),
             "used": True,
         },
-    )
-
-    # Invalidate any cached auth deny so the user can access the project
-    # immediately after accepting.
-    await invalidate_cache(
-        namespace="verify_bearer_token",
-        user_id=str(user_exists.id),
     )
 
     await notify_org_admin_invitation(workspace, user_exists)
@@ -542,9 +539,3 @@ async def get_all_workspace_permissions() -> List[Permission]:
     """Return the full permission catalog."""
 
     return list(Permission)
-
-
-async def remove_user_from_workspace(workspace_id: str, email: str) -> bool:
-    """Remove a user (or pending invite) from a workspace."""
-
-    return await db_manager.remove_user_from_workspace(workspace_id, email)

@@ -104,13 +104,13 @@ export const Settings: React.FC<SettingsProps> = ({AuditLogComponent}) => {
     const {redirectUrl} = useURL()
     const settingsKey = `${selectedOrg?.id ?? "org"}:${project?.project_id ?? "project"}`
 
+    const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
+
     useEffect(() => {
-        if (project?.is_demo) {
+        if (project && isDemoOrg) {
             redirectUrl()
         }
-    }, [project, redirectUrl])
-
-    const isDemoOrg = selectedOrg?.flags?.is_demo ?? false
+    }, [project, isDemoOrg, redirectUrl])
 
     // The org ID has its own column now; the title only carries the demo marker.
     const buildOrganizationTitle = useCallback(
