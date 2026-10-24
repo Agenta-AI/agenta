@@ -9,6 +9,7 @@
  */
 import {getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
+import type {Query, QueryClient} from "@tanstack/react-query"
 import {atom, type Getter} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -44,6 +45,31 @@ const SHARING_STALE_TIME = 30_000
  */
 export const SESSION_SHARING_RECHECK_MS = 60_000
 
+type SessionSharingQuery = Query<
+    SessionSharingResponse,
+    Error,
+    SessionSharingResponse,
+    readonly unknown[]
+>
+
+/** When the session's sharing state was last read, answered or failed (0 = never). */
+const lastSessionSharingRead = (query: Pick<SessionSharingQuery, "state">): number =>
+    Math.max(query.state.dataUpdatedAt, query.state.errorUpdatedAt)
+
+/**
+ * The open session's one recheck budget: a read, answered or failed, holds for
+ * `SESSION_SHARING_RECHECK_MS`. Focus and remount re-read only once it has run out (the stale
+ * time counts from the last read, a failed one included) and the poll runs once per budget.
+ * A 4xx answer is not retried; another failure is retried once.
+ */
+const sessionSharingStaleTime = (query: SessionSharingQuery): number =>
+    lastSessionSharingRead(query) + SESSION_SHARING_RECHECK_MS - query.state.dataUpdatedAt
+
+const isClientError = (error: unknown): boolean => {
+    const status = (error as {statusCode?: unknown} | null | undefined)?.statusCode
+    return typeof status === "number" && status >= 400 && status < 500
+}
+
 // -- queries ---------------------------------------------------------------------------------
 
 export const agentSharingQueryAtomFamily = atomFamily((workflowId: string) =>
@@ -68,13 +94,45 @@ export const sessionSharingQueryAtomFamily = atomFamily((sessionId: string) =>
             queryFn: ({signal}: {signal?: AbortSignal}) =>
                 fetchSessionSharing({projectId, sessionId, abortSignal: signal}),
             enabled: Boolean(projectId && sessionId),
-            staleTime: SHARING_STALE_TIME,
-            // Only the open session subscribes, so only it polls.
+            staleTime: sessionSharingStaleTime,
+            // Only the open session subscribes, so only it polls. The poll restarts at every
+            // read, so a focus or forced read does not add a second one inside the budget.
             refetchInterval: SESSION_SHARING_RECHECK_MS,
             refetchOnWindowFocus: true,
+            retry: (failureCount: number, error: Error) =>
+                !isClientError(error) && failureCount < 1,
         }
     }),
 )
+
+/**
+ * Re-read the session's sharing state now, inside the same budget as the poll: nothing when a
+ * read is running or the last one (answered or failed) is younger than
+ * `SESSION_SHARING_RECHECK_MS`. For a signal that access may have changed (the watch stream
+ * closing) that must not turn into a request storm.
+ */
+export const recheckSessionSharing = async ({
+    queryClient,
+    sessionId,
+    projectId,
+}: {
+    queryClient: QueryClient
+    sessionId: string
+    projectId: string
+}): Promise<void> => {
+    const query = queryClient.getQueryCache().find<SessionSharingResponse>({
+        queryKey: sharingKeys.session(sessionId, projectId),
+        exact: true,
+    })
+    if (!query || query.getObserversCount() === 0) return
+    if (query.state.fetchStatus === "fetching") return
+    if (Date.now() - lastSessionSharingRead(query) < SESSION_SHARING_RECHECK_MS) return
+    await queryClient.refetchQueries({
+        queryKey: sharingKeys.session(sessionId, projectId),
+        exact: true,
+        type: "active",
+    })
+}
 
 /** The first page of the member picker for one search text. */
 export const sharingMembersQueryAtomFamily = atomFamily((search: string) =>

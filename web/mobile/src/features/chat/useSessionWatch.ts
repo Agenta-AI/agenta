@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 
 import {shouldRefreshLegacyObserverLiveness} from "@agenta/chat/model"
-import {sharingKeys} from "@agenta/entities/sharing"
+import {recheckSessionSharing} from "@agenta/entities/sharing"
 import {actionableInteractionsQueryKey} from "@agenta/sessions/state"
 import {useQueryClient} from "@tanstack/react-query"
 
@@ -161,10 +161,9 @@ export const useSessionWatch = ({
                 // CONNECTING = built-in auto-reconnect; only a fatal CLOSED needs us.
                 if (es.readyState === EventSource.CLOSED) {
                     // The stream refuses a reader who lost the chat: re-read the sharing state
-                    // now rather than at its next 60 s recheck.
-                    void queryClient.invalidateQueries({
-                        queryKey: sharingKeys.session(sessionId, projectId),
-                    })
+                    // now, inside the same 60 s budget as its poll (a reconnect loop must not
+                    // turn into one sharing read per attempt).
+                    void recheckSessionSharing({queryClient, sessionId, projectId})
                     close()
                     scheduleRetry()
                 }

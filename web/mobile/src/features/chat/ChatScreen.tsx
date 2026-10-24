@@ -31,6 +31,7 @@ import {ChatUnreachable} from "./states/ChatUnreachable"
 import {TranscriptTurns} from "./TranscriptTurns"
 import {mergeAssistantRuns} from "./turnRuns"
 import {useAgentEntity} from "./useAgentEntity"
+import {useAgentVisibilityRecheck} from "./useAgentVisibilityRecheck"
 import {useApprovalActions} from "./useApprovalActions"
 import {useChatAccess} from "./useChatAccess"
 import {useReferenceToolDisplays} from "./useReferenceToolDisplays"
@@ -84,6 +85,12 @@ export const ChatScreen = ({
         retrying,
     } = useAgentEntity(sessionId, projectId, agentId)
     const access = useChatAccess({sessionId, projectId, routeAgentId: agentId, agentHidden})
+    // An agent made private while this screen is open goes hidden at the next sharing recheck.
+    useAgentVisibilityRecheck({
+        checkedAt: access.checkedAt,
+        enabled: Boolean(resolvedAgentId),
+        refetch: refetchLatest,
+    })
     // A revision picked in the top bar pins the workspace to it — config AND the conversation's
     // invocation target, as on the desktop.
     const [pinnedRevisionId, pinRevision] = useAtom(selectedRevisionAtomFamily(sessionId))

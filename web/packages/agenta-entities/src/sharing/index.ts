@@ -68,6 +68,7 @@ export {
     sharingMembersQueryAtomFamily,
     sharingMemberRosterQueryAtom,
     SESSION_SHARING_RECHECK_MS,
+    recheckSessionSharing,
     setAgentVisibilityAtom,
     transferAgentAtom,
     takeAgentOwnershipAtom,

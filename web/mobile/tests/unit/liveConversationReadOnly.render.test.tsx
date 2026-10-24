@@ -22,7 +22,9 @@ const calls = vi.hoisted(() => ({
     sendQueuedNow: vi.fn(),
     steerRespond: vi.fn(),
     sendPendingTask: vi.fn(),
+    rewind: vi.fn(),
 }))
+const dialog = vi.hoisted(() => ({confirm: vi.fn()}))
 
 const approval = {approvalId: "gate-1", toolName: "send_email"}
 
@@ -60,7 +62,7 @@ vi.mock("@agenta/chat/hooks", () => ({
         stop: vi.fn(),
         voidPendingResume: vi.fn(),
         interactionChanged: vi.fn(),
-        rewind: vi.fn(),
+        rewind: calls.rewind,
         steer: vi.fn(),
         keepRefusedSend: vi.fn(),
         commitEdit: vi.fn(),
@@ -163,7 +165,7 @@ vi.mock("@agenta/entity-ui/onboarding", () => ({AgentSetupCard: () => null}))
 vi.mock("@agenta/shared/utils", () => ({isOnScreen: () => true, isOverlayOpen: () => false}))
 vi.mock("@agenta/ui/app-message", () => ({
     message: {warning: vi.fn()},
-    modal: {confirm: vi.fn()},
+    modal: dialog,
 }))
 vi.mock("@agenta/ui/components/presentational", () => ({ChatBubble: () => null}))
 vi.mock("@agenta/ui/quote-selection", () => ({QuoteSelectionLayer: () => null}))
@@ -252,9 +254,12 @@ vi.mock("@/features/chat/TranscriptTurns", () => ({
         onRewind,
     }: {
         onClientToolOutput?: (output: unknown) => void
-        onRewind?: unknown
+        onRewind?: (turn: {message: object}) => void
     }) => (
         <div data-testid="transcript" data-rewind={onRewind ? "true" : "false"}>
+            {onRewind ? (
+                <button data-testid="rewind" onClick={() => onRewind({message: {}})} />
+            ) : null}
             {onClientToolOutput ? (
                 <button data-testid="tool-answer" onClick={() => onClientToolOutput({})} />
             ) : null}
@@ -283,6 +288,7 @@ let root: Root
 
 beforeEach(() => {
     for (const fn of Object.values(calls)) fn.mockReset()
+    dialog.confirm.mockReset()
     host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
@@ -389,5 +395,33 @@ describe("the live chat for a reader who can send", () => {
         expect(calls.sendQueuedNow).toHaveBeenCalledWith("q1")
         await click("tool-answer")
         expect(calls.sendToolOutput).toHaveBeenCalled()
+    })
+})
+
+describe("a rewind confirmation open when access goes", () => {
+    it("its OK re-runs nothing", async () => {
+        const confirm = vi.fn()
+        calls.rewind.mockReturnValue({confirm, sideEffects: ["send_email"], restoreText: undefined})
+        await render({readOnly: null, canSend: true})
+        await click("rewind")
+        expect(dialog.confirm).toHaveBeenCalledTimes(1)
+        const {onOk} = dialog.confirm.mock.calls[0][0] as {onOk: () => void}
+
+        // The recheck lowers the reader to a Viewer while the dialog is open.
+        await render({readOnly: viewer, canSend: false})
+        await act(async () => onOk())
+
+        expect(confirm).not.toHaveBeenCalled()
+    })
+
+    it("with access kept, its OK re-runs the turn", async () => {
+        const confirm = vi.fn()
+        calls.rewind.mockReturnValue({confirm, sideEffects: ["send_email"], restoreText: undefined})
+        await render({readOnly: null, canSend: true})
+        await click("rewind")
+        const {onOk} = dialog.confirm.mock.calls[0][0] as {onOk: () => void}
+        await act(async () => onOk())
+
+        expect(confirm).toHaveBeenCalledTimes(1)
     })
 })

@@ -297,6 +297,10 @@ export const LiveConversation = ({
     // the queued messages, the parked question, connection and secret docks, tool answers from
     // the transcript, rewind and retry, the setup card and a held Home task.
     const locked = !canSend || Boolean(readOnly)
+    // For a callback that runs later than the render that offered it (a confirm dialog's OK):
+    // it asks the gate as it is then, not as it was when the dialog opened.
+    const lockedRef = useRef(locked)
+    lockedRef.current = locked
     const disabled = conversation.isHydrating || modelBlocked || walletPending || locked
     useEffect(() => {
         if (disabled) return
@@ -723,6 +727,8 @@ export const LiveConversation = ({
             const plan = rewind(turn.message)
             if (!plan) return
             const run = () => {
+                // Access can go while the confirmation is open: the OK then writes nothing.
+                if (lockedRef.current) return
                 plan.confirm()
                 if (plan.restoreText === undefined) return
                 composerRef.current?.setMarkdown(plan.restoreText)

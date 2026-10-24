@@ -111,7 +111,11 @@ describe("until the sharing state of an existing chat is known", () => {
     it("failed: nothing may write, and the composer's place says the read failed", async () => {
         sharing.fetchSessionSharing.mockRejectedValue(serverError)
         await mount("existing-failed")
+        // A server error is retried once before the read counts as failed.
         await advance(0)
+        expect(seen.canSend).toBe(false)
+        expect(seen.readOnly).toBeNull()
+        await advance(1_500)
 
         expect(seen.canSend).toBe(false)
         expect(seen.readOnly?.reason).toBe("access_unknown")
@@ -154,6 +158,41 @@ describe("a sharing change while the chat stays open", () => {
 
         expect(seen.blocked).toBe("removed")
         expect(seen.canSend).toBe(false)
+    })
+
+    it("a background re-read keeps the last answer until it answers", async () => {
+        // Conductor decision (Codex r8 #2, partly rejected): the composer does not flicker off
+        // once a minute. A re-read that answers without send access, or fails, takes it away.
+        sharing.fetchSessionSharing.mockResolvedValueOnce(state("participant"))
+        await mount("refetching")
+        await advance(0)
+        expect(seen.canSend).toBe(true)
+
+        let answer: (value: unknown) => void = () => undefined
+        sharing.fetchSessionSharing.mockReturnValueOnce(
+            new Promise((resolve) => (answer = resolve)),
+        )
+        await advance(60_500)
+        expect(sharing.fetchSessionSharing).toHaveBeenCalledTimes(2)
+        expect(seen.canSend).toBe(true)
+
+        await act(async () => answer(state("viewer")))
+        await advance(0)
+        expect(seen.canSend).toBe(false)
+        expect(seen.readOnly?.reason).toBe("viewer")
+    })
+
+    it("a background re-read that fails takes the controls away", async () => {
+        sharing.fetchSessionSharing.mockResolvedValueOnce(state("participant"))
+        await mount("refetch-fails")
+        await advance(0)
+        expect(seen.canSend).toBe(true)
+
+        sharing.fetchSessionSharing.mockRejectedValue(serverError)
+        await advance(60_500)
+        await advance(1_500)
+        expect(seen.canSend).toBe(false)
+        expect(seen.readOnly?.reason).toBe("access_unknown")
     })
 
     it("a lowered role takes the controls away", async () => {

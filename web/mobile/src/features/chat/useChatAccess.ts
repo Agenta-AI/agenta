@@ -31,6 +31,13 @@ import {useSessionSharing} from "./useSessionSharing"
  * session that exists on the server is still loading: no notice then, the controls just wait.
  * The query re-reads every 60 s and on focus, so a revoked grant blocks the chat, and a lowered
  * role takes the controls away, within that bound.
+ *
+ * During a background re-read the last answer holds: the controls stay as they were until the
+ * re-read answers. One that answers without send access, or fails, takes them away. The API
+ * refuses a send from someone who lost access in any case; blocking on every re-read would
+ * flicker the composer once a minute.
+ *
+ * `checkedAt`: when the sharing state was last read, answered or failed.
  */
 export const useChatAccess = ({
     sessionId,
@@ -78,5 +85,7 @@ export const useChatAccess = ({
         [owner, reason],
     )
     const canSend = !blocked && !readOnly && known
-    return {blocked, readOnly, canSend}
+    // The recheck's clock: the agent's visibility is re-read on the same beat.
+    const checkedAt = Math.max(query.dataUpdatedAt ?? 0, query.errorUpdatedAt ?? 0)
+    return {blocked, readOnly, canSend, checkedAt}
 }

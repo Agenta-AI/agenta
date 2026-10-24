@@ -4,7 +4,7 @@ import {toolIntegrationDetailQueryFamily} from "@agenta/entities/gatewayTool"
 import type {DisclosedConnection, ShareDisclosure} from "@agenta/entities/sharing"
 import {PROVIDERS} from "@agenta/entities/workflow"
 import {defaultProviderLabel} from "@agenta/sessions-ui/sharing"
-import {atom, useAtomValue} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 /** The gateway whose catalog the integration detail query reads. */
 const CATALOG_PROVIDER = "composio"
@@ -22,7 +22,14 @@ export const disclosureProviderLabel = (
     PROVIDERS[connection.integration]?.label ??
     defaultProviderLabel(connection)
 
-/** The label function both sharing dialogs take, for the connections of one disclosure. */
+/**
+ * The label function both sharing dialogs take, for the connections of one disclosure, and
+ * whether the dialogs may show it yet. The design names accounts by display name, never by
+ * slug, so a dialog waits (`pending`) while a catalog name is still loading, and shows its load
+ * error (`failed`, with `retry`) when the catalog read failed for an integration the app's own
+ * provider table cannot name either. The title-cased slug is left only for a catalog that
+ * answered without a name.
+ */
 export const useDisclosureProviderLabel = (disclosure: ShareDisclosure | null | undefined) => {
     const integrations = useMemo(
         () => [
@@ -36,22 +43,40 @@ export const useDisclosureProviderLabel = (disclosure: ShareDisclosure | null | 
         [disclosure],
     )
     const key = integrations.join("\n")
-    const namesAtom = useMemo(
+    const catalogAtom = useMemo(
         () =>
             atom((get) => {
                 const names = new Map<string, string>()
+                const failedIntegrations: string[] = []
+                let pending = false
                 for (const integration of key ? key.split("\n") : []) {
-                    const name = get(toolIntegrationDetailQueryFamily(integration)).data
-                        ?.integration?.name
+                    const query = get(toolIntegrationDetailQueryFamily(integration))
+                    const name = query.data?.integration?.name
                     if (name?.trim()) names.set(integration, name.trim())
+                    else if (query.isPending) pending = true
+                    else if (query.isError && !PROVIDERS[integration]?.label) {
+                        failedIntegrations.push(integration)
+                    }
                 }
-                return names
+                return {names, pending, failedIntegrations}
             }),
         [key],
     )
-    const names = useAtomValue(namesAtom)
-    return useCallback(
+    const {names, pending, failedIntegrations} = useAtomValue(catalogAtom)
+    const failedKey = failedIntegrations.join("\n")
+    const retryAtom = useMemo(
+        () =>
+            atom(null, (get) => {
+                for (const integration of failedKey ? failedKey.split("\n") : []) {
+                    void get(toolIntegrationDetailQueryFamily(integration)).refetch()
+                }
+            }),
+        [failedKey],
+    )
+    const retry = useSetAtom(retryAtom)
+    const label = useCallback(
         (connection: DisclosedConnection) => disclosureProviderLabel(connection, names),
         [names],
     )
+    return {label, pending, failed: failedIntegrations.length > 0, retry}
 }

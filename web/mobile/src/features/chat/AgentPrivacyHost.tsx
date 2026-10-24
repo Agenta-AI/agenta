@@ -78,7 +78,7 @@ const useAgentPrivacyProps = ({
     const queryClient = useQueryClient()
     const sharingQuery = useAtomValue(agentSharingQueryAtomFamily(agentId))
     const sharing = sharingQuery.data?.sharing
-    const providerLabel = useDisclosureProviderLabel(sharingQuery.data?.disclosure)
+    const labels = useDisclosureProviderLabel(sharingQuery.data?.disclosure)
 
     const [search, setSearch] = useState("")
     const [typed, setTyped] = useDebounceInput<string>(search, setSearch, 250, "")
@@ -119,10 +119,14 @@ const useAgentPrivacyProps = ({
         projectName: project?.project_name ?? "",
         sharing,
         disclosure: sharingQuery.data?.disclosure,
-        providerLabel,
-        loading: sharingQuery.isPending,
-        loadError: sharingQuery.isError && !sharingQuery.data,
-        onRetry: () => void sharingQuery.refetch(),
+        providerLabel: labels.label,
+        // The accounts are named by display name: the dialog waits for them like for the state.
+        loading: sharingQuery.isPending || labels.pending,
+        loadError: (sharingQuery.isError && !sharingQuery.data) || labels.failed,
+        onRetry: () => {
+            if (sharingQuery.isError) void sharingQuery.refetch()
+            labels.retry()
+        },
         owner,
         channelConnections,
         channelsOff,
