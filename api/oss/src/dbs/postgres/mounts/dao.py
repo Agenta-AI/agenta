@@ -2,18 +2,20 @@ from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
 
+import sqlalchemy as sa
 from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID, insert
+from sqlalchemy.sql.elements import ColumnElement
 import uuid_utils.compat as uuid_utils
 
 from oss.src.core.mounts.dtos import Mount, MountCreate, MountEdit, MountQuery
 from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.mounts.types import (
     ATTACHMENTS_MOUNT_PURPOSE,
+    MOUNTS_KEY_ROOT,
     PROTECTED_MOUNT_SLUG_LIKE_ESCAPE,
     MountSlugConflict,
-    project_storage_prefix,
     protected_mount_slug_like_pattern,
 )
 from oss.src.core.shared.dtos import Windowing
@@ -30,6 +32,35 @@ from oss.src.dbs.postgres.mounts.mappings import (
     map_mount_dto_to_dbe_edit,
     map_mount_dto_to_dbe_upsert,
 )
+
+
+_projects = sa.table(
+    "projects",
+    sa.column("id", PG_UUID(as_uuid=True)),
+    sa.column("organization_id", PG_UUID(as_uuid=True)),
+)
+
+
+def _organization_storage_prefix_sql(
+    *,
+    project_id: UUID,
+    mount_id: UUID,
+) -> ColumnElement[str]:
+    """`organization_storage_prefix(...)`, with the organization id read inside the insert.
+
+    `||` keeps the value NULL when the project does not exist, so NOT NULL refuses the row
+    instead of storing `mounts//<mount_id>`.
+    """
+    organization_id = (
+        sa.select(sa.cast(_projects.c.organization_id, sa.String))
+        .where(_projects.c.id == project_id)
+        .scalar_subquery()
+    )
+    return (
+        sa.literal(f"{MOUNTS_KEY_ROOT}/", sa.String)
+        + organization_id
+        + sa.literal(f"/{mount_id}", sa.String)
+    )
 
 
 class MountsDAO(MountsDAOInterface):
@@ -52,7 +83,7 @@ class MountsDAO(MountsDAOInterface):
             project_id=project_id,
             user_id=user_id,
             mount_id=mount_id,
-            storage_prefix=project_storage_prefix(
+            storage_prefix=_organization_storage_prefix_sql(
                 project_id=project_id,
                 mount_id=mount_id,
             ),
@@ -88,7 +119,7 @@ class MountsDAO(MountsDAOInterface):
             user_id=user_id,
             now=now,
             mount_id=mount_id,
-            storage_prefix=project_storage_prefix(
+            storage_prefix=_organization_storage_prefix_sql(
                 project_id=project_id,
                 mount_id=mount_id,
             ),
