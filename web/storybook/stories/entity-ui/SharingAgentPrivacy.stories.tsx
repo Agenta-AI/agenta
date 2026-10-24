@@ -175,3 +175,13 @@ export const SlackStillOff: Story = {
 }
 export const Loading: Story = {args: {initial: null, loading: true}}
 export const LoadError: Story = {args: {initial: null, loadError: true}}
+export const ControlLoadError: Story = {
+    args: {initial: null, loadError: true, showDialog: false},
+    parameters: {
+        docs: {
+            description: {
+                story: "The top bar control alone after a failed load: open it to see the load error and Try again.",
+            },
+        },
+    },
+}

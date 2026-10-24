@@ -45,7 +45,11 @@ afterEach(() => {
     document.body.innerHTML = ""
 })
 
-const render = (sharing: AgentSharingState | null, loading = false) => {
+const render = (
+    sharing: AgentSharingState | null,
+    loading = false,
+    extra: Partial<AgentPrivacyProps> = {},
+) => {
     const props: AgentPrivacyProps = {
         agentName: "Support triage",
         projectName: "Acme support",
@@ -59,6 +63,7 @@ const render = (sharing: AgentSharingState | null, loading = false) => {
         onSetVisibility: async () => "ok",
         onTransfer: async () => "ok",
         onTakeOwnership: async () => "ok",
+        ...extra,
     }
     act(() => root.render(createElement(AgentPrivacyControl, props)))
     return document.querySelector<HTMLButtonElement>('[data-testid="agent-privacy-trigger"]')!
@@ -86,6 +91,44 @@ describe("AgentPrivacyControl", () => {
             expect(trigger.textContent).toContain(agentSharingCopy.triggerShared)
             expect(trigger.textContent).not.toContain(agentSharingCopy.triggerPrivate)
         }
+    })
+
+    it("after a failed load, the panel shows the load error and Try again, never the project line", () => {
+        const onRetry = vi.fn()
+        const trigger = render(null, false, {loadError: true, onRetry})
+        expect(trigger.disabled).toBe(false)
+        act(() => trigger.click())
+        const text = document.body.textContent ?? ""
+        expect(text).toContain(agentSharingCopy.loadError)
+        expect(text).not.toContain(agentSharingCopy.lineProject("Acme support"))
+        expect(text).not.toContain(agentSharingCopy.linePrivate)
+        const retry = Array.from(document.querySelectorAll("button")).find(
+            (button) => button.textContent === agentSharingCopy.retry,
+        )
+        expect(retry).toBeDefined()
+        act(() => retry!.click())
+        expect(onRetry).toHaveBeenCalledTimes(1)
+    })
+
+    it("a failed re-read with cached data still shows the load error, not the cached visibility", () => {
+        const trigger = render(
+            state({policy: {visibility: "project", owner_user_id: alice.user_id}}),
+            false,
+            {loadError: true, onRetry: () => {}},
+        )
+        act(() => trigger.click())
+        const text = document.body.textContent ?? ""
+        expect(text).toContain(agentSharingCopy.loadError)
+        expect(text).not.toContain(agentSharingCopy.lineProject("Acme support"))
+        expect(text).not.toContain(agentSharingCopy.change)
+    })
+
+    it("while the state is not known, the panel never says the project can see the agent", () => {
+        const trigger = render(null, false)
+        act(() => trigger.click())
+        expect(document.body.textContent ?? "").not.toContain(
+            agentSharingCopy.lineProject("Acme support"),
+        )
     })
 })
 
