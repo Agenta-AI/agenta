@@ -749,6 +749,31 @@ async def test_template_start_denied_is_403_access_denied(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_a_hidden_replay_answers_like_an_unknown_id(monkeypatch):
+    """A refused replay of a load whose session or agent is hidden from the caller
+    answers the one canonical not-found body, never 403 or the stored ids."""
+    from oss.src.core.access.dtos import Decision, DecisionReason
+    from oss.src.core.sharing.types import AdmissionDenied
+
+    loader = AsyncMock()
+    loader.load.side_effect = AdmissionDenied(
+        decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
+        readable=False,
+        boundary="template_start",
+    )
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader))
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": {"code": "not_found", "message": "Not found.", "retryable": False}
+    }
+
+
+@pytest.mark.asyncio
 async def test_load_passes_the_ownership_policy_and_requested_visibility(monkeypatch):
     loader = AsyncMock()
     loader.load.return_value = _result()

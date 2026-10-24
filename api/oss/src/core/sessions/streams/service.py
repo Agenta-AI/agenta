@@ -13,7 +13,7 @@ Command matrix (inputs/data × force):
 """
 
 import uuid_utils.compat as uuid
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, Tuple
 from uuid import UUID
 
 from oss.src.core.access.dtos import RunEnvelope
@@ -88,9 +88,15 @@ from oss.src.core.workflows.types import AgentReferenceUnresolved
 from oss.src.core.sharing.service import (
     get_sharing_service,
     invalidate_sharing_caches,
+    session_was_missing,
 )
 
 log = get_module_logger(__name__)
+
+# A route's check of the session, run again on a row the route did not check: one that a
+# concurrent request created after the route found no row. It raises when the caller may
+# not do the route's action on that row.
+SessionRecheck = Callable[[], Awaitable[None]]
 
 # Longest server-filled session title. Matches the browser's `AUTO_TITLE_MAX_CHARS`
 # (web/oss/src/components/AgentChatSlice/state/sessions.ts) so the two writers cannot
@@ -334,10 +340,26 @@ class SessionStreamsService:
         request: SessionStreamCommandRequest,
         access: AccessPolicy,
         arrived_at_ms: Optional[int] = None,
+        recheck: Optional[SessionRecheck] = None,
     ) -> SessionStreamCommandResponse:
         """`access` is the policy a send or steer writes when it creates the row; an
-        existing row keeps its policy."""
+        existing row keeps its policy.
+
+        `recheck` is the route's session check. When that check found no row and a row
+        exists now (a concurrent request created it), the row is checked before any
+        liveness read, displacement or lock: one row read, only on that path. A create
+        that loses its race in `_start_turn` checks the winning row too."""
         _validate_session_id(request.session_id)
+        if recheck is not None and session_was_missing(
+            project_id=project_id, session_id=request.session_id
+        ):
+            if (
+                await self._dao.get_by_session_id(
+                    project_id=project_id, session_id=request.session_id
+                )
+                is not None
+            ):
+                await recheck()
 
         # When the request reached the process, for the stale-cancel guard. The router stamps it
         # before its permission and concurrency checks, which are database round trips; stamping
@@ -365,6 +387,7 @@ class SessionStreamsService:
                 session_id=session_id,
                 name=proposed_name,
                 access=access,
+                recheck=recheck,
             )
             return SessionStreamCommandResponse(
                 mode=mode,
@@ -381,6 +404,7 @@ class SessionStreamsService:
                 session_id=session_id,
                 name=proposed_name,
                 access=access,
+                recheck=recheck,
             )
             return SessionStreamCommandResponse(
                 mode=mode,
@@ -1168,6 +1192,7 @@ class SessionStreamsService:
         header: SessionStreamHeaderEdit,
         access: AccessPolicy,
         name_source: SessionNameSource = SessionNameSource.manual,
+        recheck: Optional[SessionRecheck] = None,
     ) -> Optional[SessionStream]:
         """The rename edit: full-PUT {name, description} onto the merged stream row.
 
@@ -1184,15 +1209,24 @@ class SessionStreamsService:
         holds no name to protect, and the concurrent-create arm re-enters the guarded update.
 
         `access` is written only by the create arm; a rename never changes the policy.
+
+        `recheck` is the route's session check. When that check found no row, the call
+        creates first and never edits a row it did not check: a row that a concurrent
+        request created in the meantime is checked before the edit.
         """
         _validate_session_id(session_id)
-        updated = await self._dao.update_header(
-            project_id=project_id,
-            user_id=user_id,
-            session_id=session_id,
-            header=header,
-            name_source=name_source,
+        unchecked = recheck is not None and session_was_missing(
+            project_id=project_id, session_id=session_id
         )
+        updated = None
+        if not unchecked:
+            updated = await self._dao.update_header(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                header=header,
+                name_source=name_source,
+            )
         if updated is None:
             try:
                 updated = await self._dao.create(
@@ -1208,7 +1242,10 @@ class SessionStreamsService:
                 )
             except SessionStreamAlreadyExists:
                 # A concurrent first touch (heartbeat/rename) won the race; the row now
-                # exists — apply the header edit onto it, under the same guard.
+                # exists. Check it, then apply the header edit onto it, under the same
+                # guard.
+                if recheck is not None:
+                    await recheck()
                 updated = await self._dao.update_header(
                     project_id=project_id,
                     user_id=user_id,
@@ -1382,6 +1419,7 @@ class SessionStreamsService:
         session_id: str,
         access: AccessPolicy,
         name: Optional[str] = None,
+        recheck: Optional[SessionRecheck] = None,
     ) -> str:
         turn_id = str(uuid.uuid7())
         acquired = await acquire_alive_with_start(
@@ -1391,6 +1429,12 @@ class SessionStreamsService:
             turn_id=turn_id,
         )
         if not acquired:
+            if recheck is not None and session_was_missing(
+                project_id=project_id, session_id=session_id
+            ):
+                # A concurrent request's turn holds the session the route found no row
+                # for: its liveness is told only to a caller that passes the check.
+                await recheck()
             liveness = await get_session_liveness(
                 self._lock, project_id=str(project_id), session_id=session_id
             )
@@ -1408,6 +1452,18 @@ class SessionStreamsService:
             project_id=project_id,
             session_id=session_id,
         )
+        if (
+            stream is not None
+            and recheck is not None
+            and session_was_missing(project_id=project_id, session_id=session_id)
+        ):
+            # The route found no row, and a concurrent request created it since.
+            await self._recheck_row(
+                project_id=project_id,
+                session_id=session_id,
+                turn_id=turn_id,
+                recheck=recheck,
+            )
         created = False
         # Set by every branch that puts the row back in front of a list: a fresh create, a killed
         # tombstone re-nested, an archived row un-hidden. Each is once-per-session, unlike the
@@ -1432,7 +1488,13 @@ class SessionStreamsService:
                 # The unique slot is held by either a concurrent first touch (live row) or a
                 # soft-deleted tombstone (STOP_KILLS_SESSION / archive). The update reconciles
                 # the live case; a None result means the tombstone case, handled below.
-                pass
+                # The winning row was never checked: check it before it is touched.
+                await self._recheck_row(
+                    project_id=project_id,
+                    session_id=session_id,
+                    turn_id=turn_id,
+                    recheck=recheck,
+                )
         if not created:
             updated = await self._dao.update(
                 project_id=project_id,
@@ -1480,6 +1542,35 @@ class SessionStreamsService:
         if listed:
             await self._publish_changed(project_id=project_id, session_id=session_id)
         return turn_id
+
+    async def _recheck_row(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        recheck: Optional[SessionRecheck],
+    ) -> None:
+        """Run the route's check on a row it did not check. A refusal hands back the
+        `alive` and `running` locks this turn took, then propagates."""
+        if recheck is None:
+            return
+        try:
+            await recheck()
+        except BaseException:
+            await release_running(
+                self._lock,
+                project_id=str(project_id),
+                session_id=session_id,
+                turn_id=turn_id,
+            )
+            await release_alive(
+                self._lock,
+                project_id=str(project_id),
+                session_id=session_id,
+                turn_id=turn_id,
+            )
+            raise
 
     async def mirror_liveness(
         self,

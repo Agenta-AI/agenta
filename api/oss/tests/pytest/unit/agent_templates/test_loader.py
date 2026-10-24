@@ -317,6 +317,15 @@ class _Starts:
         started = self.started.get((project_id, request_key))
         return started.model_copy(update={"replayed": True}) if started else None
 
+    # Who may resume a completed start: (envelope, session_id, workflow_id) -> raise.
+    refuse_replay = None
+    replay_checks: list = []
+
+    async def admit_replay(self, *, envelope, session_id, workflow_id):
+        self.replay_checks.append((envelope, session_id, workflow_id))
+        if self.refuse_replay is not None:
+            self.refuse_replay(envelope, session_id, workflow_id)
+
     async def start_once(self, **kwargs):
         self.events.append("session")
         self.calls.append(kwargs)
@@ -1036,3 +1045,55 @@ async def test_load_forwards_the_session_policy_to_the_session_start():
     )
 
     assert starts.calls[0]["access"] == session_access
+
+
+def _hidden_refusal():
+    from oss.src.core.access.dtos import Decision, DecisionReason
+    from oss.src.core.sharing.types import AdmissionDenied
+
+    return AdmissionDenied(
+        decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
+        readable=False,
+        boundary="template_start",
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_completed_replay_is_checked_before_it_returns_stored_ids():
+    """Codex spec check finding 2: a completed load replays from stored records keyed
+    by project and request key only. Another member with the same key and payload, or a
+    former owner after a transfer made the agent private to someone else, must not get
+    the stored workflow and session ids: the replay is admitted (session and agent)
+    before it returns."""
+    from oss.src.core.sharing.types import AdmissionDenied
+
+    loader, _, _, workflows, _, _, starts = _loader()
+    starts.replay_checks = []
+    command = _command()
+    alice = make_envelope()
+    first = await loader.load(
+        project_id=PROJECT_ID, user_id=USER_ID, command=command, envelope=alice
+    )
+
+    # The owner's own replay is admitted and returns the stored ids.
+    replay = await loader.load(
+        project_id=PROJECT_ID, user_id=USER_ID, command=command, envelope=alice
+    )
+    assert replay.replayed is True
+    assert starts.replay_checks[-1] == (alice, first.session_id, first.workflow_id)
+
+    # Another caller (or the former owner after the transfer) is refused: nothing of
+    # the stored load comes back, and nothing new is created.
+    def refuse(envelope, session_id, workflow_id):
+        raise _hidden_refusal()
+
+    starts.refuse_replay = refuse
+    created_before = len(workflows.records)
+    with pytest.raises(AdmissionDenied):
+        await loader.load(
+            project_id=PROJECT_ID,
+            user_id=uuid4(),
+            command=command,
+            envelope=make_envelope(),
+        )
+    assert len(workflows.records) == created_before

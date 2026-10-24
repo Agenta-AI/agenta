@@ -186,9 +186,10 @@ class SessionStartsService:
         user_id: UUID,
         session_id: str,
         access: AccessPolicy,
-    ) -> None:
+    ) -> bool:
         """Create the session row with its initial policy, unless a first touch (a
-        heartbeat, a rename) already created it: that row keeps its policy."""
+        heartbeat, a rename, another start with the same key) already created it: that
+        row keeps its policy. True when this call created the row."""
         try:
             await self._streams.create(
                 project_id=project_id,
@@ -196,7 +197,8 @@ class SessionStartsService:
                 stream=SessionStreamCreate(session_id=session_id, access=access),
             )
         except SessionStreamAlreadyExists:
-            pass
+            return False
+        return True
 
     async def _release_dispatch(
         self,
@@ -267,6 +269,22 @@ class SessionStartsService:
             replayed=True,
         )
 
+    async def admit_replay(
+        self,
+        *,
+        envelope: RunEnvelope,
+        session_id: str,
+        workflow_id: UUID,
+    ) -> None:
+        """Admit the replay of a completed start: the caller may run the session and
+        the agent. Raises `AdmissionDenied` (a hidden item is not readable)."""
+        await self._run_admission.admit(
+            envelope=envelope,
+            session_id=session_id,
+            agent_artifact_id=workflow_id,
+            boundary=TEMPLATE_START_BOUNDARY,
+        )
+
     async def start_once(
         self,
         *,
@@ -306,9 +324,12 @@ class SessionStartsService:
         # target on `request` (after `content` is taken, so the stored input keeps its
         # references only); the invoke below sends this request, so it runs the target
         # that was checked without resolving it again.
+        # The session the key names is checked too: a row that exists is another
+        # start's (or a chat with the same id), and a retry may not run in a session
+        # this caller cannot send to.
         await self._run_admission.admit_request(
             envelope=envelope,
-            session_id=None,
+            session_id=session_id,
             project_id=project_id,
             request=request,
             boundary=TEMPLATE_START_BOUNDARY,
@@ -318,6 +339,25 @@ class SessionStartsService:
             project_id=project_id,
             execution_id=execution_id,
         ):
+            # The session row comes before every claim, so a database failure here
+            # leaves nothing claimed and a retry with the same key can still invoke. A
+            # row that a concurrent first touch created after the admission above was
+            # never checked: it is checked here, before anything is claimed.
+            if access is not None and self._streams is not None:
+                created = await self._create_session_row(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    access=access,
+                )
+                if not created:
+                    await self._run_admission.admit(
+                        envelope=envelope,
+                        session_id=session_id,
+                        agent_artifact_id=None,
+                        boundary=TEMPLATE_START_BOUNDARY,
+                    )
+
             claimed = await self._inputs.claim_for_execution(
                 project_id=project_id,
                 user_id=user_id,
@@ -338,18 +378,6 @@ class SessionStartsService:
                     execution_id=execution_id,
                     input_id=claimed.id,
                     replayed=True,
-                )
-
-            # The session row comes before the one-shot dispatch claim, so a database
-            # failure here leaves the claim free and a retry with the same key can still
-            # invoke. A start that loses the claim below finds the row already there,
-            # which is fine: the create keeps any row that exists.
-            if access is not None and self._streams is not None:
-                await self._create_session_row(
-                    project_id=project_id,
-                    user_id=user_id,
-                    session_id=session_id,
-                    access=access,
                 )
 
             dispatch = await self._inputs.claim_dispatch(

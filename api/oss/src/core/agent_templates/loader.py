@@ -188,11 +188,17 @@ class AgentTemplateLoader:
         command: TemplateLoadCommand,
         request_key: str,
         request_fingerprint: str,
+        envelope: RunEnvelope,
     ) -> TemplateLoadResult | None:
         """Replay a finished load from stored records, without reading its source.
 
         An upload can expire and a session file can change after a load completes;
         neither may turn a completed retry into a failure or new bytes.
+
+        The records are found by project and request key, not by caller, so the replay
+        is admitted first (the session and the agent, as a start would be): another
+        member with the same key, or a former owner after a transfer, gets the refusal
+        and never the stored ids.
         """
         if self._session_starts_service is None:
             return None
@@ -223,6 +229,11 @@ class AgentTemplateLoader:
             (workflow.id, workflow.slug, workflow.variant_id, workflow.revision_id)
         ):
             raise TemplateWorkflowCreationFailed()
+        await self._session_starts_service.admit_replay(
+            envelope=envelope,
+            session_id=start.session_id,
+            workflow_id=workflow.id,
+        )
         return TemplateLoadResult(
             workflow_id=workflow.id,
             workflow_slug=workflow.slug,
@@ -447,6 +458,7 @@ class AgentTemplateLoader:
             command=command,
             request_key=request_key,
             request_fingerprint=template_request_fingerprint(command),
+            envelope=envelope,
         )
         if completed is not None:
             return completed

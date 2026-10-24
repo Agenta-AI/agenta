@@ -1,6 +1,6 @@
 from enum import Enum
 from functools import wraps
-from typing import Any, Optional, Union
+from typing import Any, Awaitable, Callable, Optional, Union
 from uuid import UUID
 
 from fastapi import HTTPException, Request
@@ -177,6 +177,25 @@ async def allow_resource(
     if check == ResourceCheck.FORBIDDEN:
         raise resource_denied_exception(request)
     raise FORBIDDEN_EXCEPTION
+
+
+def session_recheck(
+    request: Request,
+    *,
+    action: Permission,
+    session_id: str,
+) -> Callable[[], Awaitable[None]]:
+    """The route's `allow_resource` check of a session, for the service to run again
+    on a row the route did not check (a concurrent request created it after the route
+    found no row). A hidden row raises the one canonical not-found body."""
+
+    async def _recheck() -> None:
+        if not await allow_resource(
+            request, action=action, resource=session_resource(session_id)
+        ):
+            raise not_found_exception()
+
+    return _recheck
 
 
 async def allow_session_write(

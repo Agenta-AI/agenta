@@ -56,6 +56,7 @@ from oss.src.apis.fastapi.sharing.utils import (
     not_found_exception,
     policy_for_request,
     session_read_scope_for_request,
+    session_recheck,
     session_resource,
 )
 from oss.src.core.sharing.admission import RunAdmission
@@ -704,6 +705,11 @@ class SessionStreamsRouter:
             user_id=user_id,
             request=payload,
             access=policy_for_request(request, kind=SharedItemKind.SESSION),
+            recheck=session_recheck(
+                request,
+                action=Permission.RUN_SESSIONS,
+                session_id=payload.session_id,
+            ),
         )
 
         if mode == CommandMode.cancel:
@@ -1021,6 +1027,9 @@ class SessionStreamsRouter:
             name_source=resolved_source,
             access=policy_for_request(
                 request, kind=SharedItemKind.SESSION, requested=visibility
+            ),
+            recheck=session_recheck(
+                request, action=Permission.EDIT_SESSIONS, session_id=session_id
             ),
         )
         return SessionStreamResponse(stream=sanitize_session_stream(stream))
@@ -1869,19 +1878,24 @@ class InteractionsRouter:
             else [(interaction_id, body.answer)]
         )
         # Answering continues the session's run: rule S2 on the anchor's session. An
-        # unknown anchor raises `InteractionNotFound` here as it does in the service, so
-        # a hidden one raises the same.
+        # unknown anchor and a hidden one answer the same 404 as the interaction read.
         anchor_id = interaction_answers[0][0]
-        anchor = await self.interactions_service.fetch_interaction(
-            project_id=UUID(str(project_id)),
-            interaction_id=anchor_id,
-        )
-        if not await allow_resource(
+        try:
+            anchor = await self.interactions_service.fetch_interaction(
+                project_id=UUID(str(project_id)),
+                interaction_id=anchor_id,
+            )
+        except InteractionNotFound:
+            anchor = None
+        if anchor is None or not await allow_resource(
             request,
             action=Permission.RUN_SESSIONS,
             resource=session_resource(anchor.session_id),
         ):
-            raise InteractionNotFound(f"Interaction {anchor_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Interaction not found",
+            )
         # The approver is the answering request's principal and acting user.
         approved_by = RunApproval(
             principal=request.state.principal,

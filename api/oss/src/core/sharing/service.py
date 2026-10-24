@@ -57,6 +57,7 @@ from oss.src.core.sharing.dtos import (
     UserSessionGrant,
     Visibility,
 )
+from oss.src.core.access.context import get_request_memo
 from oss.src.core.sharing.interfaces import SharingDAOInterface
 from oss.src.core.sharing.types import (
     InvalidGrantee,
@@ -91,6 +92,26 @@ _USER_GRANTS_KEY = "grants"
 _SESSION_READ_ACTIONS = frozenset(
     {Permission.VIEW_SESSIONS, Permission.USE_MOUNTS, Permission.VIEW_MOUNTS}
 )
+
+
+# The request memo key of a session the resource check found no row for. A route whose
+# write creates the session checks the missing row, so a row that a concurrent request
+# creates afterwards was never checked: the write rechecks it before it touches it.
+_MISSING_SESSION_MEMO = "sharing_session_missing"
+
+
+def _note_missing_session(*, project_id: UUID, session_id: str) -> None:
+    memo = get_request_memo()
+    if memo is not None:
+        memo[(_MISSING_SESSION_MEMO, str(project_id), session_id)] = True
+
+
+def session_was_missing(*, project_id: UUID, session_id: str) -> bool:
+    """True when a resource check of this request found no row for the session. Free
+    (the request memo, no read)."""
+
+    memo = get_request_memo()
+    return bool(memo and memo.get((_MISSING_SESSION_MEMO, str(project_id), session_id)))
 
 
 # The origins where a turn's sender owns what the turn creates.
@@ -190,6 +211,7 @@ class SharingService(ResourcePolicyInterface):
             project_id=project_id, session_id=session_id
         )
         if access is None:
+            _note_missing_session(project_id=project_id, session_id=session_id)
             return None  # no such session
 
         policy = access.policy

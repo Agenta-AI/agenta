@@ -394,3 +394,60 @@ async def test_session_stream_response_advertises_capabilities(monkeypatch):
     # Kept pinned true for one release so older web bundles still read them.
     assert response.capabilities.queue is True
     assert response.capabilities.steer is True
+
+
+async def _respond_over_http(router, interaction_id, project_id, user_id):
+    from fastapi import FastAPI, Request
+    from httpx import ASGITransport, AsyncClient
+
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def add_state(request: Request, call_next):
+        request.state.project_id = str(project_id)
+        request.state.user_id = str(user_id)
+        request.state.principal = PrincipalRef(kind="human", id=user_id)
+        return await call_next(request)
+
+    app.include_router(router.router, prefix="/api/sessions/interactions")
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        return await client.post(
+            f"/api/sessions/interactions/{interaction_id}/respond",
+            headers={"Idempotency-Key": "answer-1"},
+            json={"answer": {"approved": True}},
+        )
+
+
+@pytest.mark.parametrize("case", ["missing", "hidden"])
+async def test_a_missing_or_hidden_anchor_answers_the_same_404(monkeypatch, case):
+    """Codex spec check finding 4: the anchor check runs before the command, outside
+    the service's error mapping. A missing anchor and a hidden one answer the same 404
+    body over HTTP, never a 500, and nothing is admitted."""
+    from oss.src.core.sessions.interactions.types import InteractionNotFound
+
+    project_id, user_id, interaction_id = uuid4(), uuid4(), uuid4()
+    interactions = AsyncMock()
+    if case == "missing":
+        interactions.fetch_interaction.side_effect = InteractionNotFound(
+            f"Interaction {interaction_id} not found"
+        )
+    else:
+        interactions.fetch_interaction.return_value = SimpleNamespace(
+            session_id="alice-private"
+        )
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(router_module, "allow_resource", AsyncMock(return_value=False))
+    commands = SimpleNamespace(respond_interaction=AsyncMock())
+    router = InteractionsRouter(
+        interactions_service=interactions, commands_service=commands
+    )
+
+    response = await _respond_over_http(router, interaction_id, project_id, user_id)
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Interaction not found"}
+    commands.respond_interaction.assert_not_awaited()

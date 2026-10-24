@@ -6,11 +6,12 @@ from fastapi.responses import JSONResponse
 from oss.src.apis.fastapi.sharing.utils import (
     agent_creation_failed_exception,
     allow_resource,
+    not_found_exception,
     policy_for_request,
     session_resource,
 )
 from oss.src.core.sharing.dtos import SharedItemKind
-from oss.src.core.sharing.types import AgentCreationFailed
+from oss.src.core.sharing.types import AdmissionDenied, AgentCreationFailed
 from oss.src.core.access.principals import access_denied_error
 from oss.src.core.access.types import AccessDenied
 from oss.src.middlewares.auth import request_run_envelope
@@ -386,6 +387,20 @@ class AgentTemplatesRouter:
             )
         except AgentCreationFailed as exc:
             raise agent_creation_failed_exception(exc) from exc
+        except AdmissionDenied as exc:
+            if not exc.readable:
+                # A hidden session or agent answers like an unknown one.
+                raise not_found_exception() from exc
+            return JSONResponse(
+                status_code=status.HTTP_403_FORBIDDEN,
+                content={
+                    "detail": access_denied_error(
+                        decision=exc.decision,
+                        principal_kind=envelope.authority.principal.kind,
+                        project_id=project_id,
+                    ).model_dump(exclude_none=True)
+                },
+            )
         except AccessDenied as exc:
             return JSONResponse(
                 status_code=status.HTTP_403_FORBIDDEN,

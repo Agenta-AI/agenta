@@ -207,7 +207,11 @@ async def test_the_admitted_request_is_invoked_and_the_input_stores_no_target():
     assert admission.methods() == ["admit_request"]
     admitted = admission.calls[0][1]
     assert admitted["boundary"] == "template_start"
-    assert admitted["session_id"] is None
+    # The start checks the session its key names (an existing row is another
+    # caller's start or chat with the same id).
+    assert admitted["session_id"] == SessionStartsService.session_id_for(
+        project_id=PROJECT_ID, request_key="load-1"
+    )
     assert admitted["envelope"] == ENVELOPE
     request = workflows.invoke_workflow_detached.await_args.kwargs["request"]
     assert request is admitted["request"]
@@ -866,3 +870,84 @@ async def test_a_failed_session_row_create_holds_no_claim_and_a_retry_dispatches
     assert result.replayed is False
     assert [kind for kind, _ in inputs.scopes] == ["claim"]
     workflows.invoke_workflow_detached.assert_awaited_once()
+
+
+def _refusing_session_admission(session_id):
+    def refuse(method, kwargs):
+        if method == "admit" and kwargs.get("session_id") == session_id:
+            return AdmissionDenied(
+                decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
+                readable=False,
+                boundary=kwargs["boundary"],
+            )
+        return None
+
+    return RecordingRunAdmission(refuse=refuse)
+
+
+@pytest.mark.asyncio
+async def test_a_start_whose_row_was_created_concurrently_checks_it_before_any_claim():
+    """Codex spec check finding 3: the admission saw no row, then another caller's start
+    with the same key created the session first. The winning row is checked before
+    anything is claimed or dispatched."""
+    from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
+    from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+
+    session_id = SessionStartsService.session_id_for(
+        project_id=PROJECT_ID, request_key="load-1"
+    )
+    streams = AsyncMock()
+    streams.create.side_effect = SessionStreamAlreadyExists(session_id)
+    inputs = AsyncMock()
+    workflows = AsyncMock()
+    admission = _refusing_session_admission(session_id)
+    service = SessionStartsService(
+        run_admission=admission,
+        inputs_service=inputs,
+        executions_dao=AsyncMock(),
+        workflows_service=workflows,
+        lock_engine=_MemoryLock(),
+        streams_dao=streams,
+        poll_timeout_seconds=0,
+    )
+    policy = AccessPolicy(visibility=Visibility.PRIVATE, owner_user_id=USER_ID)
+
+    with pytest.raises(AdmissionDenied):
+        await service.start_once(**_args(), access=policy)
+
+    assert admission.methods() == ["admit_request", "admit"]
+    assert admission.calls[1][1]["session_id"] == session_id
+    inputs.claim_for_execution.assert_not_awaited()
+    inputs.claim_dispatch.assert_not_awaited()
+    workflows.invoke_workflow_detached.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_retry_into_a_session_the_caller_cannot_send_to_claims_nothing():
+    """A retry with the same key from a caller who may not run the existing session is
+    refused by the first admission (it names the session), before any claim."""
+
+    session_id = SessionStartsService.session_id_for(
+        project_id=PROJECT_ID, request_key="load-1"
+    )
+
+    def refuse(method, kwargs):
+        if method == "admit_request" and kwargs.get("session_id") == session_id:
+            return AdmissionDenied(
+                decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
+                readable=True,
+                boundary=kwargs["boundary"],
+            )
+        return None
+
+    inputs = AsyncMock()
+    workflows = AsyncMock()
+    service = _service(
+        inputs=inputs,
+        workflows=workflows,
+        admission=RecordingRunAdmission(refuse=refuse),
+    )
+    with pytest.raises(AdmissionDenied):
+        await service.start_once(**_args())
+    inputs.claim_for_execution.assert_not_awaited()
+    workflows.invoke_workflow_detached.assert_not_awaited()
