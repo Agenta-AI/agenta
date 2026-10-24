@@ -824,8 +824,13 @@ async def handle_commit_revision(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
+    first_agent_owner_user_id: Optional[UUID] = None,
 ) -> PlatformHandlerResult:
     """The agent's commit. Confined to `parameters.agent`, minus the platform-owned paths.
+
+    `first_agent_owner_user_id` is the owner the ownership rule gives the calling run
+    (CONTRACT section 7): it owns the artifact when this commit writes its first agent
+    revision.
 
     The confinement is a property of THIS ENTRY POINT, not of anything in the request, and
     that is what makes it unforgeable: the agent never picks the call_ref (it comes from the
@@ -902,6 +907,7 @@ async def handle_commit_revision(
             # The agent's own commit: selector normalization, the build-kit rejection and
             # the derived message all apply here and nowhere else.
             agent_context=True,
+            first_agent_owner_user_id=first_agent_owner_user_id,
         )
     except ChangeSetError as e:
         return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
@@ -1017,6 +1023,9 @@ class PlatformToolHandlerRegistration:
     needs_mounts: bool = False
     # Handlers that start a child run take its run envelope as `envelope`.
     needs_envelope: bool = False
+    # Handlers that commit a revision take the calling run's agent owner as
+    # `first_agent_owner_user_id`.
+    needs_agent_owner: bool = False
 
 
 PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
@@ -1047,6 +1056,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         timeout_ms=COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
         handler=handle_commit_revision,
         elevated_permission=Permission.EDIT_WORKFLOWS,
+        needs_agent_owner=True,
     ),
     # Agent HTML apps. Both touch the session's drive, so they demand what the mount routes
     # demand for the same act: writing a file needs EDIT_MOUNTS, reading one VIEW_MOUNTS.
@@ -1083,6 +1093,13 @@ def required_envelope(*, call_ref: str) -> bool:
     return bool(registration and registration.needs_envelope)
 
 
+def required_agent_owner(*, call_ref: str) -> bool:
+    """Whether this handler commits a revision (and so takes the calling run's agent
+    owner)."""
+    registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
+    return bool(registration and registration.needs_agent_owner)
+
+
 def required_elevated_permission(
     *,
     call_ref: str,
@@ -1113,6 +1130,7 @@ async def dispatch_platform_tool_handler(
     run_admission: RunAdmission,
     mounts_service: Any = None,
     envelope: Optional[RunEnvelope] = None,
+    agent_owner_user_id: Optional[UUID] = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:
@@ -1123,6 +1141,8 @@ async def dispatch_platform_tool_handler(
     extra: Dict[str, Any] = (
         {"mounts_service": mounts_service} if registration.needs_mounts else {}
     )
+    if registration.needs_agent_owner:
+        extra["first_agent_owner_user_id"] = agent_owner_user_id
     if registration.needs_envelope:
         if envelope is None:
             raise PlatformToolHandlerRefused(

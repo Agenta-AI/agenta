@@ -288,14 +288,16 @@ async def _interaction(rows, *, envelope, agent, token):
     return interaction_id
 
 
-def _commands_service(rows, project, *, interactions_dispatcher=None):
+def _commands_service(
+    rows, project, *, interactions_dispatcher=None, streams_service=None
+):
     """The real commands service; its direct delivery runs the real delivery
     functions, which admit through the project's `RunAdmission`."""
 
     engine = rows["engine"]
     return SessionCommandsService(
         commands_dao=SessionCommandsDAO(engine=engine),
-        streams_service=None,
+        streams_service=streams_service,
         interactions_service=SessionInteractionsService(
             interactions_dao=SessionInteractionsDAO(engine=engine)
         ),
@@ -400,6 +402,40 @@ async def test_queued_input_stops_after_grant_revoked(command_scope, monkeypatch
     await _assert_next_input_delivered(
         command_scope, project, queued=queued, envelope=alice
     )
+
+
+async def test_refused_queued_input_mirrors_the_ended_turn_onto_the_row(
+    command_scope,  # noqa: F811
+    monkeypatch,
+):
+    """A refused continuation never runs, so no beat of its own writes the session's
+    liveness to the row. The parent turn's final `is_running=false` beat is refused
+    by the tombstone `settle_execution_completed` writes before the delivery, so the
+    settlement mirrors the Redis liveness onto the row and announces the end itself,
+    as a durable Stop does. Without it the row kept `is_running: true` until the
+    orphan sweep, and the next Send queued behind a turn that was not running."""
+
+    project = _Project(project_id=command_scope["project_id"], monkeypatch=monkeypatch)
+    _private_session(command_scope, project)
+    command, execution_id = await _queued_input(
+        command_scope, envelope=project.envelope(project.bob)
+    )
+    streams = SimpleNamespace(
+        mirror_liveness=AsyncMock(), publish_session_ended=AsyncMock()
+    )
+
+    receipt = await _commands_service(
+        command_scope, project, streams_service=streams
+    )._deliver(command)
+
+    assert receipt.status == "refused"
+    await _assert_refused(command_scope, command=command, execution_id=execution_id)
+    where = {
+        "project_id": command_scope["project_id"],
+        "session_id": command_scope["session_id"],
+    }
+    streams.mirror_liveness.assert_awaited_once_with(**where)
+    streams.publish_session_ended.assert_awaited_once_with(**where)
 
 
 async def test_queued_input_stops_after_owner_left(command_scope, monkeypatch):  # noqa: F811

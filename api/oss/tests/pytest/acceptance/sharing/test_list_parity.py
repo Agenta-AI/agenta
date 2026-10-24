@@ -186,3 +186,82 @@ def test_parity_installation(sharing_cast):
         expect_sessions={"alice_project_session"},
         expect_agents={"alice_project_agent"},
     )
+
+
+def _listed_applications(caller):
+    """The artifact ids every person-facing application list shows the caller."""
+
+    listed = {}
+    for path, key, id_key in (
+        ("/applications/query", "applications", "id"),
+        ("/applications/variants/query", "application_variants", "application_id"),
+        ("/applications/revisions/query", "application_revisions", "application_id"),
+        ("/simple/applications/query", "applications", "id"),
+    ):
+        response = caller("POST", path, json={})
+        assert response.status_code == 200, response.text
+        listed[path] = {item[id_key] for item in response.json().get(key) or []}
+    return listed
+
+
+def _readable_application(caller, artifact_id):
+    response = caller("GET", f"/applications/{artifact_id}")
+    assert response.status_code == 200, response.text
+    return response.json().get("count") == 1
+
+
+def test_application_lists_match_direct_reads(sharing_team):
+    """CONTRACT section 6: the application lists show a person the agents a direct
+    read shows them. The owner sees their private agent in every list and by direct
+    read; another member sees it in neither."""
+
+    alice = sharing_team["alice"]
+    bob = sharing_team["bob"]
+    response = alice(
+        "POST",
+        "/workflows/",
+        json={
+            "workflow": {
+                "slug": f"m3-parity-app-{uuid4().hex[:12]}",
+                "name": "alice private application agent",
+                "flags": {"is_agent": True, "is_application": True},
+                "visibility": "private",
+            }
+        },
+    )
+    assert response.status_code == 200, response.text
+    artifact_id = response.json()["workflow"]["id"]
+    variant = alice(
+        "POST",
+        "/workflows/variants/",
+        json={
+            "workflow_variant": {
+                "slug": f"m3-parity-var-{uuid4().hex[:12]}",
+                "workflow_id": artifact_id,
+                "flags": {"is_agent": True, "is_application": True},
+            }
+        },
+    )
+    assert variant.status_code == 200, variant.text
+    commit = alice(
+        "POST",
+        "/workflows/revisions/commit",
+        json={
+            "workflow_revision": {
+                "slug": f"m3-parity-rev-{uuid4().hex[:12]}",
+                "workflow_id": artifact_id,
+                "workflow_variant_id": variant.json()["workflow_variant"]["id"],
+                "flags": {"is_agent": True, "is_application": True},
+                "data": {"uri": "agenta:builtin:agent:v0", "parameters": {}},
+            }
+        },
+    )
+    assert commit.status_code == 200, commit.text
+
+    assert _readable_application(alice, artifact_id)
+    for path, ids in _listed_applications(alice).items():
+        assert artifact_id in ids, path
+
+    assert not _readable_application(bob, artifact_id)
+    for path, ids in _listed_applications(bob).items():
+        assert artifact_id not in ids, path

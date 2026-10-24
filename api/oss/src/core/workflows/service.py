@@ -4666,6 +4666,8 @@ class SimpleWorkflowsService:
         user_id: UUID,
         #
         simple_workflow_edit: SimpleWorkflowEdit,
+        #
+        first_agent_owner_user_id: Optional[UUID] = None,
     ) -> Optional[SimpleWorkflow]:
         # Before any write: a refusal at the final commit would leave earlier writes behind.
         _reject_unreadable_agent_instructions(simple_workflow_edit.data)
@@ -4772,6 +4774,7 @@ class SimpleWorkflowsService:
                 project_id=project_id,
                 user_id=user_id,
                 workflow_revision_commit=workflow_revision_commit,
+                first_agent_owner_user_id=first_agent_owner_user_id,
             )
         else:
             workflow_revision = await self.workflows_service.fetch_workflow_revision(

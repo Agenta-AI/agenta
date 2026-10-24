@@ -998,6 +998,7 @@ class SessionCommandsService:
             project_id=str(command.project_id),
             code=error.code,
         )
+        await self._mirror_refused_turn_end(command=command)
         if admission is not None:
             # Delivered like any promoted input. Its own refusal settles it the same
             # way and promotes the one after it, so the queue always drains.
@@ -1008,6 +1009,36 @@ class SessionCommandsService:
             ):
                 await self._mark_continuation_recoverable(admission, next_receipt)
         return DeliveryReceipt(status="refused", detail=error.code)
+
+    async def _mirror_refused_turn_end(self, *, command: SessionCommand) -> None:
+        """Write the session's liveness to the row after a refused continuation.
+
+        The refused continuation never runs, so no beat of its own mirrors the row. The
+        parent turn's final `is_running=false` beat cannot either: `settle_execution_completed`
+        tombstones the parent before it delivers the promoted input, and the heartbeat
+        refuses a tombstoned turn's beat before its mirror write. Without this the row keeps
+        `is_running: true` until the orphan sweep collapses it, and the next Send queues
+        behind a turn that is not running. As a durable Stop does, it re-reads Redis (a newer
+        turn that holds `running` is reported, not erased) and announces the end. Best
+        effort: the settlement is committed, and the sweep still repairs the row.
+        """
+        if self._streams is None:
+            return
+        try:
+            await self._streams.mirror_liveness(
+                project_id=command.project_id,
+                session_id=command.session_id,
+            )
+            await self._streams.publish_session_ended(
+                project_id=command.project_id,
+                session_id=command.session_id,
+            )
+        except Exception as failure:  # noqa: BLE001 - the orphan sweep repairs the row
+            log.warning(
+                "refused continuation liveness mirror failed command=%s: %s",
+                command.id,
+                failure,
+            )
 
     async def _mark_continuation_recoverable(
         self,

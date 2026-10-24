@@ -86,6 +86,7 @@ from oss.src.core.mounts.service import MountsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tools.exceptions import PlatformToolHandlerError
 from oss.src.core.tools.platform_handlers import (
+    required_agent_owner,
     required_envelope,
     dispatch_platform_tool_handler,
     is_reserved_agenta_call_ref,
@@ -101,6 +102,7 @@ from oss.src.utils.env import env
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.sharing.utils import agent_owner_for_request
 
 # A workflow referenced as an agent tool (a ``type:"reference"`` tool) carries this call_ref
 # prefix. Distinct from the Composio 5-segment grammar (``tools.{provider}.{integration}.
@@ -1469,6 +1471,11 @@ class ToolsRouter:
                 mounts_service=self.mounts_service,
                 envelope=envelope,
                 run_admission=self.run_admission,
+                agent_owner_user_id=(
+                    agent_owner_for_request(request)
+                    if required_agent_owner(call_ref=call_ref)
+                    else None
+                ),
             )
         except AdmissionDenied as refusal:
             return _admission_error_result(body=body, child=envelope, refusal=refusal)

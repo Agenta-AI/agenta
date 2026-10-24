@@ -99,6 +99,8 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.apis.fastapi.sharing.utils import (
+    agent_owner_for_request,
+    agent_read_scope_for_request,
     allow_agent,
     artifact_id_of,
     visible_by_agent,
@@ -861,6 +863,7 @@ class EvaluatorsRouter:
 
         evaluators = await self.evaluators_service.query_evaluators(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             evaluator_query=evaluator_query_request.evaluator,
             #
@@ -1124,6 +1127,7 @@ class EvaluatorsRouter:
 
         evaluator_variants = await self.evaluators_service.query_evaluator_variants(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             evaluator_variant_query=workflow_variant_query_request.evaluator_variant,
             #
@@ -1568,6 +1572,8 @@ class EvaluatorsRouter:
             ),
             #
             initial=True,
+            #
+            first_agent_owner_user_id=agent_owner_for_request(request),
         )
 
         return EvaluatorRevisionResponse(
@@ -1762,6 +1768,7 @@ class EvaluatorsRouter:
 
         evaluator_revisions = await self.evaluators_service.query_evaluator_revisions(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             evaluator_revision_query=evaluator_revision_query_request.evaluator_revision,
             #
@@ -1827,6 +1834,8 @@ class EvaluatorsRouter:
             user_id=UUID(request.state.user_id),
             #
             evaluator_revision_commit=evaluator_revision_commit_request.evaluator_revision,
+            #
+            first_agent_owner_user_id=agent_owner_for_request(request),
         )
 
         response = EvaluatorRevisionResponse(
@@ -2064,6 +2073,8 @@ class SimpleEvaluatorsRouter:
             evaluator_id=evaluator_id,
             #
             simple_evaluator_create=simple_evaluator_create_request.evaluator,
+            #
+            first_agent_owner_user_id=agent_owner_for_request(request),
         )
 
         simple_evaluator_response = SimpleEvaluatorResponse(
@@ -2166,6 +2177,8 @@ class SimpleEvaluatorsRouter:
             user_id=UUID(request.state.user_id),
             #
             simple_evaluator_edit=simple_evaluator_edit_request.evaluator,
+            #
+            first_agent_owner_user_id=agent_owner_for_request(request),
         )
 
         simple_evaluator_response = SimpleEvaluatorResponse(
@@ -2295,6 +2308,7 @@ class SimpleEvaluatorsRouter:
 
         simple_evaluators = await self.simple_evaluators_service.query(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             simple_evaluator_query=simple_evaluator_query_request.evaluator,
             simple_evaluator_refs=simple_evaluator_query_request.evaluator_refs,

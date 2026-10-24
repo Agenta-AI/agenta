@@ -94,6 +94,8 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.apis.fastapi.sharing.utils import (
+    agent_owner_for_request,
+    agent_read_scope_for_request,
     allow_agent,
     artifact_id_of,
     visible_by_agent,
@@ -830,6 +832,7 @@ class ApplicationsRouter:
 
         applications = await self.applications_service.query_applications(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             application_query=application_query_request.application,
             #
@@ -1107,6 +1110,7 @@ class ApplicationsRouter:
 
         application_variants = await self.applications_service.query_application_variants(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             application_variant_query=workflow_variant_query_request.application_variant,
             #
@@ -1566,6 +1570,8 @@ class ApplicationsRouter:
             ),
             #
             initial=True,
+            #
+            first_agent_owner_user_id=agent_owner_for_request(request),
         )
 
         return ApplicationRevisionResponse(
@@ -1773,6 +1779,7 @@ class ApplicationsRouter:
 
         application_revisions = await self.applications_service.query_application_revisions(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             application_revision_query=application_revision_query_request.application_revision,
             #
@@ -1840,6 +1847,8 @@ class ApplicationsRouter:
             user_id=UUID(request.state.user_id),
             #
             application_revision_commit=application_revision_commit_request.application_revision,
+            #
+            first_agent_owner_user_id=agent_owner_for_request(request),
         )
 
         response = ApplicationRevisionResponse(
@@ -2070,6 +2079,8 @@ class SimpleApplicationsRouter:
             simple_application_create=simple_application_create_request.application,
             #
             application_id=application_id,
+            #
+            first_agent_owner_user_id=agent_owner_for_request(request),
         )
 
         simple_application_response = SimpleApplicationResponse(
@@ -2180,6 +2191,8 @@ class SimpleApplicationsRouter:
             user_id=UUID(request.state.user_id),
             #
             simple_application_edit=simple_application_edit_request.application,
+            #
+            first_agent_owner_user_id=agent_owner_for_request(request),
         )
 
         simple_application_response = SimpleApplicationResponse(
@@ -2290,6 +2303,7 @@ class SimpleApplicationsRouter:
 
         simple_applications = await self.simple_applications_service.query(
             project_id=UUID(request.state.project_id),
+            read_scope=await agent_read_scope_for_request(request),
             #
             simple_application_query=simple_application_query_request.application,
             #

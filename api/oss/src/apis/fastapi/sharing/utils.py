@@ -318,6 +318,15 @@ def policy_for_request(
     )
 
 
+def agent_owner_for_request(request: Request) -> Optional[UUID]:
+    """The owner a commit through this request gives an artifact whose first agent
+    revision it writes (CONTRACT section 7): the ownership rule applied to the
+    request's run envelope. None for an API key, an installation, a child run or a
+    request without an envelope."""
+
+    return policy_for_request(request, kind=SharedItemKind.AGENT).owner_user_id
+
+
 async def agent_read_scope_for_request(request: Request) -> AgentReadScope:
     """The agents a list shows to this request's principal: the principal's own
     private agents (a human only), and every project-visible agent. A request without

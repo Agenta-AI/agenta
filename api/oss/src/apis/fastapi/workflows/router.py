@@ -113,6 +113,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.apis.fastapi.sharing.utils import (
+    agent_owner_for_request,
     agent_read_scope_for_request,
     allow_agent,
     artifact_id_of,
@@ -2603,6 +2604,8 @@ class SimpleWorkflowsRouter:
             user_id=UUID(request.state.user_id),
             #
             simple_workflow_edit=simple_workflow_edit_request.workflow,
+            #
+            first_agent_owner_user_id=agent_owner_for_request(request),
         )
 
         return SimpleWorkflowResponse(
