@@ -19,9 +19,13 @@ import {useAtomValue, useStore} from "jotai"
 import {useAgentPublishPanel} from "../agents/useAgentPublishPanel"
 import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
 
+import {AgentPrivacyHost} from "./AgentPrivacyHost"
 import {ShareMenuItem} from "./ShareMenuItem"
 
-/** The session header's share actions: a Templates menu with the two template requests, then Publish. */
+/**
+ * The session header's share actions: a Templates menu with the two template requests, the
+ * agent's privacy control, then Publish. Templates only for someone who can send here.
+ */
 export const ShareMenu = ({
     agentId,
     sessionId,
@@ -119,6 +123,14 @@ export const ShareMenu = ({
             {canRequestTemplate ? (
                 <span aria-hidden className="h-5 w-px shrink-0 bg-colorBorderSecondary" />
             ) : null}
+            {/* Who can see this agent: between Templates and Publish, at every width. */}
+            <AgentPrivacyHost
+                agentId={agentId}
+                agentName={agent?.name || agent?.slug || "Agent"}
+                workspaceId={workspaceId}
+                projectId={projectId}
+                connections={publish.connections}
+            />
             <Button
                 variant="ghost"
                 size="sm"

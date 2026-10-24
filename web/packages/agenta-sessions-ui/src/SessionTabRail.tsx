@@ -53,6 +53,7 @@ import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {SessionTab} from "./SessionTab"
 import {SessionTabDragItem} from "./SessionTabDragItem"
 import {SessionTabStrip, TAB_DIVIDER} from "./SessionTabStrip"
+import {SessionPrivacyMarker} from "./sharing/SessionPrivacyMarker"
 import {useInlineRename} from "./useInlineRename"
 
 /** A rename asked for from outside the rail (Alt+R) — the tab for this session opens its editor. */
@@ -91,6 +92,8 @@ export interface SessionTabRailProps extends UseSessionCardListArgs {
      * "Rename" and Alt+R all open the same editor; without it none of them mount.
      */
     onRenameTab?: (vm: SessionRowVm, name: string) => Promise<boolean>
+    /** False for a tab the reader may not rename (someone else's chat): no pencil, no editor. */
+    canRenameTab?: (vm: SessionRowVm) => boolean
     /**
      * Close one tab. The rail supplies the RENDERED order alongside it, because the survivor a
      * host routes to is defined over what is on screen and only the rail knows that. Omit and no
@@ -244,6 +247,12 @@ const RailTab = ({
                     )
                 }
                 onSelect={handleSelect}
+                marker={
+                    <SessionPrivacyMarker
+                        visibility={vm.stream.visibility}
+                        ownerUserId={vm.stream.owner_user_id}
+                    />
+                }
                 renderActions={
                     onClose || onRename
                         ? () =>
@@ -406,6 +415,7 @@ export const SessionTabRail = ({
     onCloseMany,
     onSelectUnlisted,
     onRenameTab,
+    canRenameTab,
     reorderable = true,
     className,
     ...listArgs
@@ -537,7 +547,11 @@ export const SessionTabRail = ({
                           onSelect={onSelect}
                           draggable={reorderable}
                           onClose={onClose && closable ? () => onClose(vm, renderedIds) : undefined}
-                          onRename={onRenameTab ? (name) => onRenameTab(vm, name) : undefined}
+                          onRename={
+                              onRenameTab && (canRenameTab?.(vm) ?? true)
+                                  ? (name) => onRenameTab(vm, name)
+                                  : undefined
+                          }
                           menuFor={(row) => [
                               ...(menuFor?.(row) ?? []),
                               ...(onClose

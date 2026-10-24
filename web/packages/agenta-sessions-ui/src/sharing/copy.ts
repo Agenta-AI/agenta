@@ -27,6 +27,9 @@ export const sessionSharingCopy = {
     tooltipPeople: (count: number) => `Shared with ${count} people`,
     tooltipProject: "Everyone in the project can view",
     tooltipNotShareable: "You can share this chat after its first message.",
+    lockOwner: "Private: only you and the people you add",
+    lockShared: (owner: string) => `Private: shared with you by ${owner}`,
+    sharedBy: (owner: string) => `Shared by ${owner}`,
     chipViewOnly: "View only",
     chipCanSend: "Can send",
 

@@ -70,7 +70,9 @@ import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
 import {hasUnsavedConfigEdits} from "./hasUnsavedConfigEdits"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
+import {ReadOnlyComposerNotice} from "./ReadOnlyComposerNotice"
 import {heldCommitAtomFamily, selectedRevisionAtomFamily} from "./selectedRevision"
+import type {SessionReadOnly} from "./sessionReadOnly"
 import {ChatLoading} from "./states/ChatStates"
 import {PendingTaskError} from "./states/PendingTaskError"
 import {cancelledStopAction} from "./stopHereState"
@@ -112,6 +114,7 @@ export const LiveConversation = ({
     stoppingTurnId,
     sharedReader,
     agentId,
+    readOnly = null,
     embedded = false,
 }: {
     entityId: string
@@ -129,6 +132,8 @@ export const LiveConversation = ({
     /** React Query timestamp used to reject the sender's stale post-settle liveness snapshot. */
     /** Scopes the session tab rail to this agent's sessions. */
     agentId?: string | null
+    /** The reader cannot send (`!sharing.can_send`): a notice takes the composer's place. */
+    readOnly?: SessionReadOnly | null
     /** Rendered inside a workspace pane — the shell and its rail belong to the parent. */
     embedded?: boolean
 }) => {
@@ -282,7 +287,7 @@ export const LiveConversation = ({
     // Landing on a session — a new one from `+` or the shortcut, or a switch to an existing one —
     // puts the caret in the composer, once it can take input. Not while the caret is already in
     // some other field: a self-commit remounts this screen mid-edit in the config pane.
-    const disabled = conversation.isHydrating || modelBlocked || walletPending
+    const disabled = conversation.isHydrating || modelBlocked || walletPending || Boolean(readOnly)
     useEffect(() => {
         if (disabled) return
         const frame = requestAnimationFrame(() => {
@@ -822,7 +827,8 @@ export const LiveConversation = ({
                     resuming={resumingAfterAnswer}
                     pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
                     onClientToolOutput={conversation.sendToolOutput}
-                    onRewind={handleRewind}
+                    // A rewind sends: someone who cannot send here cannot re-run a turn either.
+                    onRewind={readOnly ? undefined : handleRewind}
                 />
             </ContentRail>
         )
@@ -873,6 +879,7 @@ export const LiveConversation = ({
                                 actions={approvalActions}
                                 entityId={entityId}
                                 bottomMost={false}
+                                readOnlyNote={readOnly?.approvalNote}
                             />
                         ) : null}
                         {/* Parked question forms, between approval and connect — the same order as
@@ -956,71 +963,77 @@ export const LiveConversation = ({
                                 }
                             />
                         ) : null}
-                        <Composer
-                            entityId={entityId}
-                            sessionId={sessionId}
-                            attachments={attachments}
-                            onRefusedOverDraft={({text, parts}) =>
-                                conversation.keepRefusedSend({text, fileParts: parts})
-                            }
-                            onSend={async ({text, parts, stagedFiles}) => {
-                                setStoppingHere(false)
-                                // An open edit rewrites its held message instead of sending. The
-                                // input clears on submit, so the displaced draft goes back after.
-                                if (!conversation.editingId) {
-                                    // A message typed over a parked question or connection
-                                    // request replaces it: the cards settle exactly as their own
-                                    // ✕ / "Not now" would, then the message steers into the
-                                    // resumed run so the agent reads it next, not after. A
-                                    // dismiss that fails throws here, and the composer's catch
-                                    // puts the text back with the cards intact. `steer` rather
-                                    // than `send`: the session has already run, so there is no
-                                    // fresh-session registration to do.
-                                    //
-                                    // Settled together, not in sequence: a failure after one dock
-                                    // had already gone would hand the text back with that dock's
-                                    // request silently cancelled. Both writes go out, and the
-                                    // first rejection is what the composer reports.
-                                    if (elicits.open || connects.open) {
-                                        await Promise.all([
-                                            elicits.open ? elicits.dismiss() : null,
-                                            connects.open ? connects.dismiss() : null,
-                                        ])
-                                        await conversation.steer({text, parts, stagedFiles})
+                        {readOnly ? (
+                            <ReadOnlyComposerNotice text={readOnly.notice} />
+                        ) : (
+                            <Composer
+                                entityId={entityId}
+                                sessionId={sessionId}
+                                attachments={attachments}
+                                onRefusedOverDraft={({text, parts}) =>
+                                    conversation.keepRefusedSend({text, fileParts: parts})
+                                }
+                                onSend={async ({text, parts, stagedFiles}) => {
+                                    setStoppingHere(false)
+                                    // An open edit rewrites its held message instead of sending. The
+                                    // input clears on submit, so the displaced draft goes back after.
+                                    if (!conversation.editingId) {
+                                        // A message typed over a parked question or connection
+                                        // request replaces it: the cards settle exactly as their own
+                                        // ✕ / "Not now" would, then the message steers into the
+                                        // resumed run so the agent reads it next, not after. A
+                                        // dismiss that fails throws here, and the composer's catch
+                                        // puts the text back with the cards intact. `steer` rather
+                                        // than `send`: the session has already run, so there is no
+                                        // fresh-session registration to do.
+                                        //
+                                        // Settled together, not in sequence: a failure after one dock
+                                        // had already gone would hand the text back with that dock's
+                                        // request silently cancelled. Both writes go out, and the
+                                        // first rejection is what the composer reports.
+                                        if (elicits.open || connects.open) {
+                                            await Promise.all([
+                                                elicits.open ? elicits.dismiss() : null,
+                                                connects.open ? connects.dismiss() : null,
+                                            ])
+                                            await conversation.steer({text, parts, stagedFiles})
+                                            return
+                                        }
+                                        await send({text, parts, stagedFiles})
                                         return
                                     }
-                                    await send({text, parts, stagedFiles})
-                                    return
+                                    const draft = await conversation.commitEdit({
+                                        text,
+                                        fileParts: parts,
+                                    })
+                                    if (draft)
+                                        requestAnimationFrame(() =>
+                                            composerRef.current?.setMarkdown(draft),
+                                        )
+                                }}
+                                onSteer={({text, parts, stagedFiles}) =>
+                                    conversation.steer({text, parts, stagedFiles})
                                 }
-                                const draft = await conversation.commitEdit({
-                                    text,
-                                    fileParts: parts,
-                                })
-                                if (draft)
-                                    requestAnimationFrame(() =>
-                                        composerRef.current?.setMarkdown(draft),
-                                    )
-                            }}
-                            onSteer={({text, parts, stagedFiles}) =>
-                                conversation.steer({text, parts, stagedFiles})
-                            }
-                            disabled={disabled}
-                            placeholder={
-                                modelBlocked ? "Connect a model to start chatting…" : undefined
-                            }
-                            hasTurns={!conversation.isEmpty}
-                            waitingOnUser={parkedOnUser}
-                            streaming={shouldShowStopControl({
-                                busy: streamingHere,
-                                hitlPending: conversation.hitlPending,
-                            })}
-                            stopping={stopping}
-                            onStop={stopHere}
-                            inputBusy={conversation.inputBusy}
-                            inputRef={composerRef}
-                            // Same gate the rail's `+` uses: starting one needs an agent.
-                            onNewSession={agentId ? () => startBlankSession(agentId) : undefined}
-                        />
+                                disabled={disabled}
+                                placeholder={
+                                    modelBlocked ? "Connect a model to start chatting…" : undefined
+                                }
+                                hasTurns={!conversation.isEmpty}
+                                waitingOnUser={parkedOnUser}
+                                streaming={shouldShowStopControl({
+                                    busy: streamingHere,
+                                    hitlPending: conversation.hitlPending,
+                                })}
+                                stopping={stopping}
+                                onStop={stopHere}
+                                inputBusy={conversation.inputBusy}
+                                inputRef={composerRef}
+                                // Same gate the rail's `+` uses: starting one needs an agent.
+                                onNewSession={
+                                    agentId ? () => startBlankSession(agentId) : undefined
+                                }
+                            />
+                        )}
                     </div>
                 }
             >

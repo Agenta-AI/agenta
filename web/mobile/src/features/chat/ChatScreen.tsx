@@ -21,14 +21,18 @@ import {useLivenessPoll} from "../sessions/useLivenessPoll"
 import {ApprovalDock} from "./ApprovalDock"
 import {conversationKey} from "./conversationKey"
 import {LiveConversation} from "./LiveConversation"
+import {ReadOnlyComposerNotice} from "./ReadOnlyComposerNotice"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
+import type {SessionReadOnly} from "./sessionReadOnly"
 import {SessionWorkspace} from "./SessionWorkspace"
+import {ChatNoAccess} from "./states/ChatNoAccess"
 import {ChatEmpty, ChatLoading} from "./states/ChatStates"
 import {ChatUnreachable} from "./states/ChatUnreachable"
 import {TranscriptTurns} from "./TranscriptTurns"
 import {mergeAssistantRuns} from "./turnRuns"
 import {useAgentEntity} from "./useAgentEntity"
 import {useApprovalActions} from "./useApprovalActions"
+import {useChatAccess} from "./useChatAccess"
 import {useReferenceToolDisplays} from "./useReferenceToolDisplays"
 import {useSessionTranscript} from "./useSessionTranscript"
 import {useSessionWatch} from "./useSessionWatch"
@@ -75,9 +79,11 @@ export const ChatScreen = ({
         resolving,
         refetchLatest,
         unreachable,
+        agentHidden,
         retry,
         retrying,
     } = useAgentEntity(sessionId, projectId, agentId)
+    const access = useChatAccess({sessionId, projectId, routeAgentId: agentId, agentHidden})
     // A revision picked in the top bar pins the workspace to it — config AND the conversation's
     // invocation target, as on the desktop.
     const [pinnedRevisionId, pinRevision] = useAtom(selectedRevisionAtomFamily(sessionId))
@@ -124,7 +130,12 @@ export const ChatScreen = ({
     // Until the agent query settles, `entityId` is null for an agent-backed session too — so
     // committing to the replay branch here would tell the user the session is read-only when it
     // is not. `resolving` is query-PENDING, not fetching: a cached answer renders immediately.
-    const chat = showLoading ? (
+    const chat = access.blocked ? (
+        <ChatNoAccess
+            kind={access.blocked}
+            sessionsHref={`/w/${workspaceId}/p/${projectId}/sessions`}
+        />
+    ) : showLoading ? (
         <ChatLoading />
     ) : unreachable ? (
         <ChatUnreachable onRetry={retry} retrying={retrying} />
@@ -144,6 +155,7 @@ export const ChatScreen = ({
             stoppingTurnId={liveStream?.stopping_turn_id}
             sharedReader={sharedReader}
             agentId={heldAgentId}
+            readOnly={access.readOnly}
         />
     ) : (
         <ReplayScreen
@@ -153,6 +165,7 @@ export const ChatScreen = ({
             workspaceId={workspaceId}
             running={running}
             agentId={heldAgentId}
+            readOnly={access.readOnly}
         />
     )
 
@@ -165,6 +178,8 @@ export const ChatScreen = ({
             agentResolving={resolving}
             linkEntityId={entityId}
             linkAgentId={resolvedAgentId}
+            agentHidden={agentHidden}
+            canSend={!access.readOnly}
             sessionId={sessionId}
             workspaceId={workspaceId}
             projectId={projectId}
@@ -181,6 +196,7 @@ const ReplayScreen = ({
     workspaceId,
     running,
     agentId,
+    readOnly = null,
     embedded = false,
 }: {
     sessionId: string
@@ -189,6 +205,8 @@ const ReplayScreen = ({
     running: boolean
     /** Scopes the session tab rail to this agent's sessions. */
     agentId?: string | null
+    /** Why the reader cannot send, when the reason is sharing (a private agent, a Viewer). */
+    readOnly?: SessionReadOnly | null
     /** Rendered inside a workspace pane — the shell belongs to the parent. */
     embedded?: boolean
 }) => {
@@ -272,11 +290,13 @@ const ReplayScreen = ({
                 <>
                     {/* Why there is no composer. The session may still name an agent (the link
                         carries it) and only be missing a revision — don't claim it has none. */}
-                    <p className="text-muted-foreground border-colorBorderSecondary m-0 shrink-0 border-x-0 border-t-0 border-b border-solid px-4 py-1.5 text-xs">
-                        {agentId
-                            ? "Read-only — this agent has no revision to message yet."
-                            : "Read-only — this session has no agent to message yet."}
-                    </p>
+                    {readOnly ? null : (
+                        <p className="text-muted-foreground border-colorBorderSecondary m-0 shrink-0 border-x-0 border-t-0 border-b border-solid px-4 py-1.5 text-xs">
+                            {agentId
+                                ? "Read-only — this agent has no revision to message yet."
+                                : "Read-only — this session has no agent to message yet."}
+                        </p>
+                    )}
                     {running ? (
                         <div className="border-border shrink-0 border-b px-4 py-2">
                             <ContentRail className="flex items-center justify-between">
@@ -291,7 +311,18 @@ const ReplayScreen = ({
             // Only a rendering dock counts as a footer — it owns the safe-area inset, and
             // ApprovalDock renders nothing when no gate is pending.
             footer={
-                pendingApprovals.length > 0 ? (
+                readOnly ? (
+                    // A sharing reason has its notice in the composer's place, under any gate.
+                    <>
+                        <ApprovalDock
+                            approvals={pendingApprovals}
+                            actions={approvals}
+                            bottomMost={false}
+                            readOnlyNote={readOnly.approvalNote}
+                        />
+                        <ReadOnlyComposerNotice text={readOnly.notice} />
+                    </>
+                ) : pendingApprovals.length > 0 ? (
                     <ApprovalDock approvals={pendingApprovals} actions={approvals} />
                 ) : undefined
             }

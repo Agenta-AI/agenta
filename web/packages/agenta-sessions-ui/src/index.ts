@@ -56,7 +56,9 @@ export {
 export {withSessionShortcutKeys, withShortcutKey} from "./menuShortcut"
 export {
     useSessionActions,
+    sessionMenuAccess,
     type SessionActionTarget,
+    type SessionMenuAccess,
     type SessionLocalCache,
     type UseSessionActionsOptions,
 } from "./useSessionActions"

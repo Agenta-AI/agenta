@@ -59,7 +59,8 @@ export interface SessionShareDialogProps {
     onSetVisibility: (visibility: Visibility) => Promise<SharingWriteResult>
     /** The only-me route: private, every grant removed. */
     onOnlyMe: () => Promise<SharingWriteResult>
-    onCopyLink?: () => void | Promise<void>
+    /** Copies the link; answer `false` when the copy failed (the host says so, not the toast). */
+    onCopyLink?: () => void | boolean | Promise<void | boolean>
     /** Shows a toast. */
     onNotify?: (message: string) => void
     /** Refetches the sharing state after a 409. */
@@ -198,7 +199,7 @@ export const SessionShareDialog = ({
     }
 
     const copyLink = async () => {
-        await onCopyLink?.()
+        if ((await onCopyLink?.()) === false) return
         onNotify?.(copy.linkCopied)
     }
 

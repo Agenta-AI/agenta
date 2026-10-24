@@ -2,6 +2,8 @@ export {SessionShareDialog, type SessionShareDialogProps} from "./SessionShareDi
 export {SessionShareButton, type SessionShareButtonProps} from "./SessionShareButton"
 export {SessionAccessChip, type SessionAccessChipProps} from "./SessionAccessChip"
 export {SessionGrantRoleMenu, type SessionGrantRoleMenuProps} from "./SessionGrantRoleMenu"
+export {SessionPrivacyMarker, type SessionPrivacyMarkerProps} from "./SessionPrivacyMarker"
+export {useSharingPerson} from "./useSharingPerson"
 export {MemberPicker, type MemberPickerProps} from "./MemberPicker"
 export {
     ShareDisclosureNotice,

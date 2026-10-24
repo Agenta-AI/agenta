@@ -1,6 +1,8 @@
 import {timeAgo} from "@agenta/shared/utils"
 import type {ListTableView} from "@agenta/ui/list-table"
 
+import {sharingCopy} from "@/lib/sharingCopy"
+
 /**
  * How the agents roster is CUT and NARROWED — the half of the view the filter menu owns, kept
  * out of the screen so the screen renders what these return rather than deriving it mid-render.
@@ -109,6 +111,22 @@ const GROUP_ORDER: Record<AgentGrouping, readonly string[]> = {
     owner: [],
     status: STATUS_BUCKETS,
     activity: ACTIVITY_BUCKETS,
+}
+
+/**
+ * The Owner cell and heading: "You", the owner's name, "No owner" (an API key or an automation
+ * made it), or "Former member" (an id the project roster no longer holds). The owner is the
+ * agent's creator: the list rows carry no sharing state, and a new agent's owner is the person
+ * who made it.
+ */
+export const agentOwnerLabel = (
+    ownerId: string | null | undefined,
+    currentUserId: string | null | undefined,
+    names: ReadonlyMap<string, string>,
+): string => {
+    if (!ownerId) return sharingCopy.ownerNone
+    if (currentUserId && ownerId === currentUserId) return sharingCopy.ownerYou
+    return names.get(ownerId)?.trim() || sharingCopy.ownerFormer
 }
 
 /** What a row and a cell both say where an agent has never been described. */

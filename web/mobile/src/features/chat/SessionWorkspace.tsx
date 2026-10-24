@@ -17,6 +17,7 @@ import {
     useFilesPaneLayout,
 } from "@agenta/chat/state"
 import {useDriveDirtyGuard} from "@agenta/entities/drive"
+import {sharingKeys, type SessionSharingResponse} from "@agenta/entities/sharing"
 import {
     DriveLinkContext,
     DriveSessionProvider,
@@ -28,6 +29,7 @@ import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {renderedSessionTabsAtomFamily, sessionTabScope} from "@agenta/sessions/state"
 import {useRequestSessionTabRename, useSessionActions} from "@agenta/sessions-ui"
+import {getHostQueryClient} from "@agenta/shared/api"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {useSessionShortcuts} from "@agenta/ui/shortcuts"
@@ -100,6 +102,8 @@ export const SessionWorkspace = ({
     agentResolving = false,
     linkEntityId = entityId,
     linkAgentId = agentId,
+    agentHidden = false,
+    canSend = true,
     sessionId,
     workspaceId,
     projectId,
@@ -120,6 +124,10 @@ export const SessionWorkspace = ({
      */
     linkEntityId?: string | null
     linkAgentId?: string | null
+    /** The session's agent is one the reader cannot see (a private agent). */
+    agentHidden?: boolean
+    /** False when the reader may not send here: the top bar drops what only a sender uses. */
+    canSend?: boolean
     sessionId: string
     workspaceId: string
     projectId: string
@@ -286,6 +294,16 @@ export const SessionWorkspace = ({
     const closeTabs = useSessionTabClose({agentId, sessionId, base})
     // Archiving the session you are on has to move you off it.
     const sessionActions = useSessionActions({onRemoved: useLeaveSession(base)})
+    // Read from the cache the tab strip fills, not fetched here: the first-run draft has no row.
+    const isNotOwner = useCallback(
+        (id: string) => {
+            const cached = getHostQueryClient().getQueryData<SessionSharingResponse>(
+                sharingKeys.session(id, projectId),
+            )?.sharing
+            return Boolean(cached?.policy.owner_user_id) && cached?.my_role !== "owner"
+        },
+        [projectId],
+    )
     // Alt+R opens the active TAB's inline editor — the rail listens for this request.
     const requestTabRename = useRequestSessionTabRename()
     const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
@@ -300,13 +318,16 @@ export const SessionWorkspace = ({
         ),
         onRename: requestTabRename,
         onArchive: useCallback(
-            (id: string) =>
+            (id: string) => {
+                // Archiving an owned chat is its owner's verb; the shortcut follows the menu.
+                if (isNotOwner(id)) return
                 void sessionActions.setArchived({
                     sessionId: id,
                     appId: agentId ?? null,
                     archived: false,
-                }),
-            [agentId, sessionActions],
+                })
+            },
+            [agentId, isNotOwner, sessionActions],
         ),
         onNewSession: useCallback(() => {
             if (agentId) startBlank(agentId)
@@ -384,6 +405,8 @@ export const SessionWorkspace = ({
                         sessionId={sessionId}
                         onUpdate={pinRevision}
                         agentId={agentId}
+                        agentHidden={agentHidden}
+                        canSend={canSend}
                         workspaceId={workspaceId}
                         projectId={projectId}
                     />

@@ -7,6 +7,7 @@ import {
     type Workflow,
 } from "@agenta/entities/workflow"
 import {useWaitingByAgent} from "@agenta/sessions/state"
+import {userAtom} from "@agenta/shared/state"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
@@ -29,6 +30,7 @@ import {isAgentOverviewEnabled} from "./agentEntry"
 import {AgentFilterMenu} from "./AgentFilterMenu"
 import {AgentListTable} from "./AgentListTable"
 import {
+    agentOwnerLabel,
     DEFAULT_AGENT_LIST_VIEW,
     deriveAgentList,
     isDefaultAgentFilters,
@@ -95,6 +97,7 @@ export const AgentListScreen = ({
     // One cached request, shared with the settings screen: the Created by column and the facet
     // both name creators, and neither can from an id alone.
     const {owners, ownerNames} = useAgentOwners({workspaceId, projectId})
+    const me = useAtomValue(userAtom)
 
     // This list is already resolved client-side, so the term filters it in place — no refetch.
     // Matched on the WORKFLOW, not on the row: the shared rule reads the slug too, and the row
@@ -107,11 +110,11 @@ export const AgentListScreen = ({
             .map((workflow) =>
                 toRow(
                     workflow,
-                    ownerNames.get(workflow.created_by_id ?? "")?.trim() ?? "",
+                    agentOwnerLabel(workflow.created_by_id, me?.id, ownerNames),
                     waitingByAgent.get(workflow.id) ?? 0,
                 ),
             )
-    }, [archived.agents, ownerNames, query.data, search, showArchived, waitingByAgent])
+    }, [archived.agents, me?.id, ownerNames, query.data, search, showArchived, waitingByAgent])
 
     const groups = useMemo(() => deriveAgentList(rows, view), [rows, view])
     const term = search.trim()

@@ -20,6 +20,7 @@ export const ApprovalDock = ({
     actions,
     entityId,
     bottomMost = true,
+    readOnlyNote,
 }: {
     /** Pending gates for the paused turn (index 0 is acted on first). */
     approvals: PendingApproval[]
@@ -28,6 +29,8 @@ export const ApprovalDock = ({
     entityId?: string
     /** False when the composer renders below — only the bottom-most element pads the safe area. */
     bottomMost?: boolean
+    /** Set when the reader cannot send (`!sharing.can_send`): the card shows, but answers nothing. */
+    readOnlyNote?: string | null
 }) => {
     const busy = actions.phase === "resuming"
     const answered = actions.phase === "answered" || actions.phase === "recoverable"
@@ -50,6 +53,8 @@ export const ApprovalDock = ({
                     entityId={entityId}
                     steerEnabled={isSteerEnabled()}
                     touch
+                    readOnly={Boolean(readOnlyNote)}
+                    readOnlyNote={readOnlyNote}
                     errorText={actions.phase === "error" ? actions.errorText : null}
                     onRespond={({approvalId, approved, message}) =>
                         actions.respond({approvalId, approved, message})
