@@ -176,7 +176,15 @@ def upgrade() -> None:
     # statement is idempotent). LOCAL ends with this revision's transaction.
     op.execute("SET LOCAL lock_timeout = '5s'")
     for statement in REPAIR_STATEMENTS:
-        op.execute(text(statement))
+        if statement is _COPY_WORKSPACE_ROLE_SQL:
+            # The planner misestimates the single-workspace CTEs and picks nested loops
+            # that rescan a large organization once per member. LOCAL is safe: env.py
+            # sets transaction_per_migration.
+            op.execute("SET LOCAL enable_nestloop = off")
+            op.execute(text(statement))
+            op.execute("SET LOCAL enable_nestloop = on")
+        else:
+            op.execute(text(statement))
 
 
 def downgrade() -> None:
