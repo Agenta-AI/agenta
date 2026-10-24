@@ -40,6 +40,7 @@ broke Stop for the whole window after every deploy, which is worse than the fail
 from typing import Awaitable, Callable, Optional
 from uuid import UUID
 
+from oss.src.core.access.types import AccessDenied, MissingEnvelope
 from oss.src.core.sessions.commands.dtos import SessionCommand, SessionCommandKind
 from oss.src.core.sessions.commands.interfaces import (
     ControlDeliveryPort,
@@ -88,6 +89,9 @@ class DirectControlDelivery(ControlDeliveryPort):
                 )
             try:
                 await self._continue_interaction(command)
+            except (MissingEnvelope, AccessDenied):
+                # A refusal, not a transport failure: the service settles it terminally.
+                raise
             except Exception as error:  # noqa: BLE001 - transport maps failures to receipts
                 return DeliveryReceipt(status="unreachable", detail=str(error))
             return DeliveryReceipt(status="accepted", replica_id="direct")
@@ -100,6 +104,9 @@ class DirectControlDelivery(ControlDeliveryPort):
                 )
             try:
                 await self._continue_input(command)
+            except (MissingEnvelope, AccessDenied):
+                # A refusal, not a transport failure: the service settles it terminally.
+                raise
             except Exception as error:  # noqa: BLE001 - transport maps failures to receipts
                 return DeliveryReceipt(status="unreachable", detail=str(error))
             return DeliveryReceipt(status="accepted", replica_id="direct")

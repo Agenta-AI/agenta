@@ -30,7 +30,10 @@ from oss.src.models.api.workspace_models import (
     UpdateWorkspace,
     WorkspaceResponse,
 )
-from oss.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.permissions.service import (
+    check_action_access,
+    check_organization_write,
+)
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.organizations.exceptions import (
     OrganizationCreationNotAllowedError,
@@ -343,11 +346,28 @@ async def accept_organization_invitation(
     return JSONResponse({"message": "Added user to workspace"}, status_code=200)
 
 
-async def _check_org_owner(organization_id: str, user_id: str) -> bool:
+async def _is_org_owner(organization_id: str, user_id: str) -> bool:
     organization = await db_manager.get_organization_by_id(
         organization_id=organization_id
     )
     return organization is not None and str(organization.owner_id) == str(user_id)
+
+
+async def _check_org_owner(
+    organization_id: str,
+    user_id: str,
+    permission: Permission,
+) -> bool:
+    """The organization owner, and, for an API key or a run credential, a credential
+    of the organization's default project (as the workspace routes require)."""
+
+    if not await _is_org_owner(organization_id, user_id):
+        return False
+    return await check_organization_write(
+        user_uid=str(user_id),
+        organization_id=organization_id,
+        permission=permission,
+    )
 
 
 @router.post("/", operation_id="create_organization")
@@ -419,7 +439,9 @@ async def update_organization(
             status_code=400,
         )
 
-    if not await _check_org_owner(organization_id, request.state.user_id):
+    if not await _check_org_owner(
+        organization_id, request.state.user_id, Permission.EDIT_ORGANIZATION
+    ):
         return JSONResponse(
             {"detail": "You do not have permission to perform this action"},
             status_code=403,
@@ -487,11 +509,17 @@ async def transfer_organization_ownership(
     new_owner_id: str,
 ):
     """Transfer organization ownership to another member."""
-    if not await _check_org_owner(organization_id, request.state.user_id):
-        return JSONResponse(
-            {"detail": "Only the organization owner can transfer ownership"},
-            status_code=403,
+    if not await _check_org_owner(
+        organization_id, request.state.user_id, Permission.EDIT_ORGANIZATION
+    ):
+        # The owner whose key is of another project gets the same refusal as the
+        # other organization writes.
+        detail = (
+            "You do not have permission to perform this action"
+            if await _is_org_owner(organization_id, request.state.user_id)
+            else "Only the organization owner can transfer ownership"
         )
+        return JSONResponse({"detail": detail}, status_code=403)
 
     try:
         await get_memberships_service().transfer_ownership(
@@ -534,7 +562,9 @@ async def delete_organization(
     organization_id: str,
 ):
     """Delete an organization (owner only)."""
-    if not await _check_org_owner(organization_id, request.state.user_id):
+    if not await _check_org_owner(
+        organization_id, request.state.user_id, Permission.DELETE_ORGANIZATION
+    ):
         return JSONResponse(
             {"detail": "You do not have permission to perform this action"},
             status_code=403,
@@ -588,7 +618,9 @@ async def create_workspace(
 ) -> WorkspaceResponse:
     """Create a new workspace in an organization (owner only)."""
     try:
-        if not await _check_org_owner(organization_id, request.state.user_id):
+        if not await _check_org_owner(
+            organization_id, request.state.user_id, Permission.CREATE_WORKSPACE
+        ):
             return JSONResponse(
                 {"detail": "You do not have permission to perform this action"},
                 status_code=403,

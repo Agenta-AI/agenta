@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+
+from oss.tests.pytest.utils.principals import any_approval
 from entrypoints import worker_queues
 
 
@@ -35,11 +37,13 @@ async def test_worker_answers_through_durable_admission(monkeypatch):
     respond = captured["dispatcher"]._respond_interaction_fn
     project_id, user_id, interaction_id = uuid4(), uuid4(), uuid4()
     answer = {"approved": True, "message": "Approve"}
+    approved_by = any_approval()
     await respond(
         project_id=project_id,
         user_id=user_id,
         interaction_id=interaction_id,
         answer=answer,
+        approved_by=approved_by,
     )
     commands.respond_interaction.assert_awaited_once_with(
         project_id=project_id,
@@ -48,4 +52,5 @@ async def test_worker_answers_through_durable_admission(monkeypatch):
         answer=answer,
         expected_execution_id=None,
         idempotency_key=f"channels:{interaction_id}",
+        approved_by=approved_by,
     )

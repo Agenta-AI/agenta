@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
+from oss.src.core.access.dtos import PrincipalRef
 from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.core.triggers.dtos import (
     TriggerCatalogEventDetails,
@@ -20,6 +21,10 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionEdit,
     TriggerSubscriptionQuery,
 )
+
+
+# An edit that does not touch the references keeps the stored target agent.
+KEEP_ARTIFACT_ID = object()
 
 
 class TriggersGatewayInterface(ABC):
@@ -105,6 +110,8 @@ class TriggersDAOInterface(ABC):
         subscription: TriggerSubscriptionCreate,
         #
         trigger_id: str,
+        principal: PrincipalRef,
+        artifact_id: Optional[UUID],
     ) -> TriggerSubscription: ...
 
     @abstractmethod
@@ -135,6 +142,8 @@ class TriggersDAOInterface(ABC):
         user_id: UUID,
         #
         subscription: TriggerSubscriptionEdit,
+        #
+        artifact_id: Any = KEEP_ARTIFACT_ID,
     ) -> Optional[TriggerSubscription]: ...
 
     @abstractmethod
@@ -222,6 +231,40 @@ class TriggersDAOInterface(ABC):
     ) -> TriggerDelivery:
         """Upsert a delivery row (idempotent on event_id)."""
         ...
+
+    async def refuse_delivery(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        #
+        delivery: TriggerDeliveryCreate,
+        reason: str,
+    ) -> Optional[TriggerDelivery]:
+        """Record a refused delivery and pause its trigger in one transaction; the dedup
+        key keeps a repeated event from writing twice. No session, no provider sync."""
+        raise NotImplementedError
+
+    async def pause_trigger(
+        self,
+        *,
+        project_id: UUID,
+        schedule_id: Optional[UUID] = None,
+        subscription_id: Optional[UUID] = None,
+        reason: str,
+    ) -> None:
+        """`flags.is_active = false` and `meta.paused_reason = reason`."""
+        raise NotImplementedError
+
+    async def pause_triggers_for_artifact(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+        reason: str,
+    ) -> int:
+        """Pause the live triggers whose direct target is this agent."""
+        raise NotImplementedError
 
     @abstractmethod
     async def write_subscription_delivery_if_live(
@@ -317,6 +360,8 @@ class TriggersDAOInterface(ABC):
         user_id: UUID,
         #
         schedule: TriggerScheduleCreate,
+        principal: PrincipalRef,
+        artifact_id: Optional[UUID],
     ) -> TriggerSchedule: ...
 
     @abstractmethod
@@ -347,6 +392,8 @@ class TriggersDAOInterface(ABC):
         user_id: UUID,
         #
         schedule: TriggerScheduleEdit,
+        #
+        artifact_id: Any = KEEP_ARTIFACT_ID,
     ) -> Optional[TriggerSchedule]: ...
 
     @abstractmethod

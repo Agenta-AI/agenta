@@ -30,11 +30,22 @@ before giving up.
 from typing import Any, Callable, Dict, List, Optional
 from uuid import UUID
 
+from oss.src.core.access.dtos import (
+    RunApproval,
+    RunEnvelope,
+)
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.principals import resumed_envelope
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import AccessDenied, MissingEnvelope
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionData,
     SessionInteractionKind,
+    SessionInteractionStatus,
+    SessionInteractionTransition,
 )
+from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.interactions.references import (
     keyed_references as keyed_references,
     resolve_interaction_references,
@@ -394,16 +405,88 @@ class InteractionsDispatcher:
         #
         interaction_id: UUID,
         answer: Any,
+        approved_by: RunApproval,
         control_command_id: Optional[UUID] = None,
         continuation_execution_id: Optional[str] = None,
     ) -> None:
+        """Rebuild the resumed envelope from the interaction row. The approver is
+        `approved_by`, from the trusted caller; it is never rebuilt from a user id.
+
+        A refusal is terminal and is not raised, so no task retry repeats it: a row
+        without an envelope (parked before M2) or a principal that lost access cancels
+        the turn's pending interactions and runs nothing."""
+
+        interaction = await self.interactions_service.fetch_interaction(
+            project_id=project_id,
+            interaction_id=interaction_id,
+        )
+        try:
+            if interaction is None or interaction.run_envelope is None:
+                raise MissingEnvelope()
+            envelope = resumed_envelope(
+                asked=interaction.run_envelope,
+                run_id=continuation_execution_id,
+                approved_by=approved_by,
+            )
+            # The resume runs as the asked run's principal: recheck it now.
+            await get_access_service().require(
+                envelope=envelope, action=Permission.RUN_SESSIONS
+            )
+        except (MissingEnvelope, AccessDenied) as refusal:
+            await self._refuse_response(
+                project_id=project_id,
+                interaction=interaction,
+                code=(
+                    "missing_envelope"
+                    if isinstance(refusal, MissingEnvelope)
+                    else "access_denied"
+                ),
+            )
+            return
         await self.respond_many(
             project_id=project_id,
             user_id=user_id,
             interaction_answers=[(interaction_id, answer)],
+            envelope=envelope,
             control_command_id=control_command_id,
             continuation_execution_id=continuation_execution_id,
         )
+
+    async def _refuse_response(
+        self,
+        *,
+        project_id: UUID,
+        interaction: Optional[SessionInteraction],
+        code: str,
+    ) -> None:
+        log.info(
+            "[interactions] response refused",
+            project_id=str(project_id),
+            interaction_id=str(interaction.id) if interaction else None,
+            code=code,
+        )
+        if interaction is None:
+            return
+        if interaction.turn_id:
+            await self.interactions_service.cancel_session_pending(
+                project_id=project_id,
+                session_id=interaction.session_id,
+                only_turn_id=interaction.turn_id,
+            )
+            return
+        # No turn: cancel this interaction only.
+        try:
+            await self.interactions_service.transition_interaction(
+                transition=SessionInteractionTransition(
+                    project_id=project_id,
+                    session_id=interaction.session_id,
+                    token=interaction.token,
+                    status=SessionInteractionStatus.cancelled,
+                )
+            )
+        except InteractionNotFound:
+            # Already terminal: nothing is waiting on it.
+            return
 
     async def respond_many(
         self,
@@ -411,6 +494,7 @@ class InteractionsDispatcher:
         project_id: UUID,
         user_id: UUID,
         interaction_answers: List[tuple[UUID, Any]],
+        envelope: RunEnvelope,
         control_command_id: Optional[UUID] = None,
         continuation_execution_id: Optional[str] = None,
     ) -> None:
@@ -482,6 +566,7 @@ class InteractionsDispatcher:
                 "project_id": project_id,
                 "user_id": user_id,
                 "request": invoke_request,
+                "envelope": envelope,
             }
             if continuation_execution_id is not None:
                 kwargs["run_id"] = continuation_execution_id
@@ -492,4 +577,5 @@ class InteractionsDispatcher:
             project_id=project_id,
             user_id=user_id,
             request=invoke_request,
+            envelope=envelope,
         )

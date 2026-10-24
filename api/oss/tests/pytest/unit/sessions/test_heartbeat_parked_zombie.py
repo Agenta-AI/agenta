@@ -41,6 +41,7 @@ from oss.src.dbs.redis.sessions.locks import (
 )
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.tests.pytest.utils.principals import make_envelope
 
 
 _PROJECT = uuid4()
@@ -126,10 +127,22 @@ async def _superseded(lock_engine, turn: str) -> bool:
 async def _park_a_session(svc, lock_engine) -> None:
     """Drive the session to: turn-old ran and was handed over to turn-live, which then
     parked awaiting approval (its run returned, so `release()` beat is_running=false)."""
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-old"))
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-old", running=False))
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-live"))
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-live", running=False))
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-old"), envelope=make_envelope()
+    )
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-old", running=False),
+        envelope=make_envelope(),
+    )
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-live"), envelope=make_envelope()
+    )
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-live", running=False),
+        envelope=make_envelope(),
+    )
     assert await _alive(lock_engine) == "turn-live"
     assert await _running(lock_engine) is None
 
@@ -158,7 +171,9 @@ async def test_zombie_beat_cannot_take_the_nest_of_a_parked_session(lock_engine)
     svc = _service(lock_engine, dao)
     await _park_a_session(svc, lock_engine)
 
-    zombie = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-old"))
+    zombie = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-old"), envelope=make_envelope()
+    )
 
     assert zombie.is_current_turn is False, (
         "a turn that already lost the nest must be told it is not current"
@@ -181,9 +196,13 @@ async def test_approval_resume_survives_a_zombie_beat(lock_engine):
     """End to end: park, zombie beat, then the user approves and the resume turn starts."""
     svc = _service(lock_engine)
     await _park_a_session(svc, lock_engine)
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-old"))
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-old"), envelope=make_envelope()
+    )
 
-    resumed = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-resume"))
+    resumed = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-resume"), envelope=make_envelope()
+    )
 
     assert resumed.is_current_turn is True, (
         "the approval resume must not be aborted — this is the user-visible failure"
@@ -197,12 +216,24 @@ async def test_zombie_turn_end_beat_cannot_clear_the_live_turns_running(lock_eng
     """`clear_running` is unconditional, so a superseded turn's own is_running=false beat
     used to end the LIVE turn's run. Refusing the beat before the branch fixes that too."""
     svc = _service(lock_engine)
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-old"))
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-old", running=False))
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-live"))
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-old"), envelope=make_envelope()
+    )
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-old", running=False),
+        envelope=make_envelope(),
+    )
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-live"), envelope=make_envelope()
+    )
     assert await _running(lock_engine) == "turn-live"
 
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-old", running=False))
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-old", running=False),
+        envelope=make_envelope(),
+    )
 
     assert await _running(lock_engine) == "turn-live"
     assert await _alive(lock_engine) == "turn-live"
@@ -216,7 +247,9 @@ async def test_repeated_zombie_beats_stay_refused(lock_engine):
     await _park_a_session(svc, lock_engine)
 
     for _ in range(3):
-        beat = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-old"))
+        beat = await svc.heartbeat(
+            project_id=_PROJECT, request=_beat("turn-old"), envelope=make_envelope()
+        )
         assert beat.is_current_turn is False
     assert await _alive(lock_engine) == "turn-live"
 
@@ -232,10 +265,18 @@ async def test_a_never_displaced_turn_still_takes_a_lapsed_nest(lock_engine):
     take the previous turn's stale `alive`, every follow-up turn would abort."""
     svc = _service(lock_engine)
 
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1", running=False))
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+    )
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-1", running=False),
+        envelope=make_envelope(),
+    )
 
-    second = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-2"))
+    second = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-2"), envelope=make_envelope()
+    )
 
     assert second.is_current_turn is True
     assert await _alive(lock_engine) == "turn-2"
@@ -248,8 +289,12 @@ async def test_a_live_different_turn_is_still_a_real_takeover(lock_engine):
     genuinely live one still learns it lost, without any tombstone being involved."""
     svc = _service(lock_engine)
 
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-2"))
-    old = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-2"), envelope=make_envelope()
+    )
+    old = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+    )
 
     assert old.is_current_turn is False
     assert await _alive(lock_engine) == "turn-2"
@@ -261,9 +306,15 @@ async def test_two_overlapping_beats_of_one_turn_stay_current(lock_engine):
     """A turn is never tombstoned by its own beats, however they interleave."""
     svc = _service(lock_engine)
 
-    first = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
-    second = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
-    third = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
+    first = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+    )
+    second = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+    )
+    third = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+    )
 
     assert (first.is_current_turn, second.is_current_turn, third.is_current_turn) == (
         True,
@@ -281,7 +332,9 @@ async def test_two_overlapping_beats_of_one_turn_stay_current(lock_engine):
 @pytest.mark.asyncio
 async def test_cancel_tombstones_the_cancelled_turn(lock_engine):
     svc = _service(lock_engine)
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+    )
 
     await svc.command(
         project_id=_PROJECT,
@@ -292,7 +345,9 @@ async def test_cancel_tombstones_the_cancelled_turn(lock_engine):
     )
 
     assert await _superseded(lock_engine, "turn-1") is True
-    beat = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
+    beat = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+    )
     assert beat.is_current_turn is False
     assert await _alive(lock_engine) is None, (
         "a cancelled turn's beat must not re-nest the session it was just cancelled out of"
@@ -302,7 +357,9 @@ async def test_cancel_tombstones_the_cancelled_turn(lock_engine):
 @pytest.mark.asyncio
 async def test_steer_tombstones_the_displaced_turn_and_frees_the_new_one(lock_engine):
     svc = _service(lock_engine)
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+    )
 
     steered = await svc.command(
         project_id=_PROJECT,
@@ -318,7 +375,9 @@ async def test_steer_tombstones_the_displaced_turn_and_frees_the_new_one(lock_en
     assert steered.turn_id is not None
     assert await _superseded(lock_engine, steered.turn_id) is False
     assert (
-        await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
+        await svc.heartbeat(
+            project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+        )
     ).is_current_turn is False
     # The steered-in turn owns the nest and keeps it.
     assert await _alive(lock_engine) == steered.turn_id
@@ -328,7 +387,9 @@ async def test_steer_tombstones_the_displaced_turn_and_frees_the_new_one(lock_en
 @pytest.mark.asyncio
 async def test_kill_tombstones_the_killed_turn(lock_engine):
     svc = _service(lock_engine)
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+    )
 
     with patch(
         "oss.src.core.sessions.streams.service.kill_runner_sandbox",
@@ -337,7 +398,9 @@ async def test_kill_tombstones_the_killed_turn(lock_engine):
         await svc.kill(project_id=_PROJECT, user_id=_USER, session_id=_SESSION)
 
     assert await _superseded(lock_engine, "turn-1") is True
-    beat = await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
+    beat = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+    )
     assert beat.is_current_turn is False
     assert await _alive(lock_engine) is None
 

@@ -565,12 +565,15 @@ export class GatewayMcpClient {
      * A connect sheet abandoning the row it made sends `pending_auth_mode`, the mode it
      * made the row in, after it cancelled its own sign-in. The row is then deleted only
      * while it is still in that mode with no credential bound and no sign-in in flight,
-     * decided under the connection's lock. A row that another tab took over since, or is
-     * signing in on, is kept, and the answer is 409.
+     * decided under the connection's lock. The answer is 409 only when the row's
+     * `auth_mode` no longer matches `pending_auth_mode`, a credential is bound, or a
+     * sign-in is in flight. A change to another field, such as the name or URL, does not
+     * by itself keep the row.
      *
      * @param {AgentaApi.DeleteMcpEndpointRequest} request
      * @param {GatewayMcpClient.RequestOptions} requestOptions - Request-specific configuration.
      *
+     * @throws {@link AgentaApi.ConflictError}
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
@@ -622,6 +625,8 @@ export class GatewayMcpClient {
 
         if (_response.error.reason === "status-code") {
             switch (_response.error.statusCode) {
+                case 409:
+                    throw new AgentaApi.ConflictError(_response.error.body as unknown, _response.rawResponse);
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
                         _response.error.body as unknown,
@@ -645,9 +650,11 @@ export class GatewayMcpClient {
     }
 
     /**
-     * Record the result of a check the connect sheet ran, so the connection's row can
-     * say when it was last checked and how that went. The check itself is the sheet's
-     * handshake through the relay; agent calls never write this.
+     * Record the result of a check the connect sheet ran.
+     *
+     * The connection's row can then say when it was last checked and how that went. The
+     * check itself is the sheet's handshake through the relay; agent calls never write
+     * this.
      *
      * @param {AgentaApi.McpEndpointCheckRequest} request
      * @param {GatewayMcpClient.RequestOptions} requestOptions - Request-specific configuration.
@@ -903,6 +910,7 @@ export class GatewayMcpClient {
      * @param {AgentaApi.FetchMcpConnectAttemptRequest} request
      * @param {GatewayMcpClient.RequestOptions} requestOptions - Request-specific configuration.
      *
+     * @throws {@link AgentaApi.NotFoundError}
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
@@ -952,6 +960,8 @@ export class GatewayMcpClient {
 
         if (_response.error.reason === "status-code") {
             switch (_response.error.statusCode) {
+                case 404:
+                    throw new AgentaApi.NotFoundError(_response.error.body as unknown, _response.rawResponse);
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
                         _response.error.body as unknown,

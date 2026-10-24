@@ -13,6 +13,8 @@ from sqlalchemy.orm import joinedload
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.models.db_models import APIKeyDB, UserDB
+from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
+from oss.src.core.access.service import invalidate_principals_after_write
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 
 log = get_module_logger(__name__)
@@ -247,5 +249,13 @@ async def delete_api_key(user_id: str, key_prefix: str):
         if not existing_key:
             raise NoResultFound("API key not found or does not belong to the user.")
 
+        key_id = existing_key.id
         await session.delete(existing_key)
         await session.commit()
+
+    # The key's cached principal record would let `decide` allow it for up to
+    # AGENTA_CACHE_TTL; clear it after the commit.
+    await invalidate_principals_after_write(
+        principals=[PrincipalRef(kind=PrincipalKind.API_KEY, id=key_id)],
+        source="api_key_service.delete_api_key",
+    )

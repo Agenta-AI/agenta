@@ -1,7 +1,7 @@
 """Composition helper for membership and access.
 
 `bootstrap_access()` is the only place that picks the edition's membership policy and
-RBAC adapter. Every process that checks access calls it at startup: the API
+RBAC adapter, and builds the principals DAO. Every process that checks access calls it at startup: the API
 (`entrypoints/routers.py`) and both workers (`worker_streams.py`, `worker_queues.py`).
 """
 
@@ -12,6 +12,7 @@ from oss.src.core.memberships.service import (
     MembershipsService,
     register_memberships_service,
 )
+from oss.src.dbs.postgres.access.dao import PrincipalsDAO
 from oss.src.dbs.postgres.memberships.dao import MembershipsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.utils.common import is_ee
@@ -37,7 +38,11 @@ def bootstrap_access() -> AccessService:
     else:
         rbac = AlwaysEnforcedRbac()
 
-    access_service = AccessService(memberships=memberships_service, rbac=rbac)
+    access_service = AccessService(
+        memberships=memberships_service,
+        rbac=rbac,
+        principals=PrincipalsDAO(engine=get_transactions_engine()),
+    )
 
     register_memberships_service(memberships_service=memberships_service)
     register_access_service(access_service=access_service)

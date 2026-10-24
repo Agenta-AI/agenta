@@ -21,6 +21,16 @@ class SessionStreamNotFound(SessionStreamError):
         super().__init__(self.message)
 
 
+class SessionCreationRequiresRunCredential(SessionStreamError):
+    """A heartbeat would create a session but carries no run credential: only a run
+    (the runner, with its Secret) may create a session by heartbeat."""
+
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        self.message = "Creating a session by heartbeat needs a run credential."
+        super().__init__(self.message)
+
+
 class SessionStreamAlreadyExists(SessionStreamError):
     def __init__(self, session_id: str):
         self.session_id = session_id

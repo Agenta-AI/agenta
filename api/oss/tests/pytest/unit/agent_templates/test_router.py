@@ -7,6 +7,7 @@ import pytest
 from fastapi import FastAPI, Request
 from httpx import ASGITransport, AsyncClient
 
+from oss.tests.pytest.utils.principals import make_envelope
 from oss.src.apis.fastapi.agent_templates import router as router_module
 from oss.src.apis.fastapi.agent_templates.router import AgentTemplatesRouter
 from oss.src.core.agent_templates.catalog import AgentTemplateCatalog
@@ -78,6 +79,7 @@ def _app(loader, catalog=CATALOG):
     async def add_state(request: Request, call_next):
         request.state.project_id = str(PROJECT_ID)
         request.state.user_id = str(USER_ID)
+        request.state.run_envelope = make_envelope()
         return await call_next(request)
 
     app.include_router(
@@ -452,6 +454,7 @@ def _validation_app(validator, loader=None):
     async def add_state(request: Request, call_next):
         request.state.project_id = str(PROJECT_ID)
         request.state.user_id = str(USER_ID)
+        request.state.run_envelope = make_envelope()
         return await call_next(request)
 
     app.include_router(
@@ -656,6 +659,7 @@ def _scan_app(monkeypatch, scanner, access=None):
     async def add_state(request: Request, call_next):
         request.state.project_id = str(PROJECT_ID)
         request.state.user_id = str(USER_ID)
+        request.state.run_envelope = make_envelope()
         return await call_next(request)
 
     app.include_router(
@@ -720,3 +724,25 @@ async def test_scan_requires_view_and_maps_unavailable_to_404(monkeypatch):
     assert response.json()["details"]["reason"] == "template_source_github_unavailable"
     # The scan names no commit or package directory, so its next step must not either.
     assert "commit" not in response.json()["next_step"]
+
+
+@pytest.mark.asyncio
+async def test_template_start_denied_is_403_access_denied(monkeypatch):
+    from oss.src.core.access.dtos import Decision, DecisionReason
+    from oss.src.core.access.types import AccessDenied
+
+    loader = AsyncMock()
+    loader.load.side_effect = AccessDenied(
+        decision=Decision(allowed=False, reason=DecisionReason.MISSING_CAPABILITY)
+    )
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader))
+
+    assert response.status_code == 403
+    detail = response.json()["detail"]
+    assert detail["code"] == "access_denied"
+    assert detail["details"]["reason"] == "missing_capability"
+    assert detail["next_step"] == "Ask a project admin for access."

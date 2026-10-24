@@ -256,13 +256,14 @@ class FakeAccessCache:
         return True
 
     def install(self, monkeypatch) -> "FakeAccessCache":
-        import oss.src.core.access.permissions.service as wrapper_module
         import oss.src.core.memberships.service as memberships_module
         from oss.src.utils.env import env
 
+        # M2: no decision is cached; the cached answer is the membership itself
+        # (`resolve_membership`), read and written by `MembershipsService.resolve`.
         monkeypatch.setattr(env.agenta.api.caching, "enabled", True, raising=False)
-        monkeypatch.setattr(wrapper_module, "get_cache", self.get_cache)
-        monkeypatch.setattr(wrapper_module, "set_cache", self.set_cache)
+        monkeypatch.setattr(memberships_module, "get_cache", self.get_cache)
+        monkeypatch.setattr(memberships_module, "set_cache", self.set_cache)
         monkeypatch.setattr(
             memberships_module, "invalidate_cache", self.invalidate_cache
         )

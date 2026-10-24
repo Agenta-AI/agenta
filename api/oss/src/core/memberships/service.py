@@ -17,6 +17,7 @@ from typing import List, Optional, Sequence
 from uuid import UUID
 
 from oss.src.core.memberships.dtos import (
+    CachedMembership,
     MembershipPolicy,
     MembershipRow,
     MembershipSource,
@@ -27,7 +28,12 @@ from oss.src.core.memberships.dtos import (
 )
 from oss.src.core.memberships.interfaces import MembershipsDAOInterface
 from oss.src.core.memberships.types import MembershipsServiceNotRegistered
-from oss.src.utils.caching import invalidate_cache, invalidate_user_cache
+from oss.src.utils.caching import (
+    get_cache,
+    invalidate_cache,
+    invalidate_user_cache,
+    set_cache,
+)
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -39,10 +45,14 @@ log = get_module_logger(__name__)
 # `resolve_membership` is the M2 membership cache; clearing it here means every M1
 # writer already clears it on the day M2 ships.
 ACCESS_CACHE_NAMESPACES = (
-    "check_action_access",
     "verify_bearer_token",
     "resolve_membership",
 )
+
+# The membership cache: one entry per (user, project), with a fixed key, so one entry
+# can be deleted directly by its name.
+RESOLVE_MEMBERSHIP_NAMESPACE = "resolve_membership"
+RESOLVE_MEMBERSHIP_KEY = "membership"
 
 
 async def _invalidate(
@@ -106,6 +116,10 @@ async def invalidate_access_caches(
     every user in the projects are cleared (a new project). A failure is logged and
     does not fail the writer.
     """
+    from oss.src.core.access.context import clear_request_memo  # noqa: PLC0415
+
+    # A write in this request: later decisions of the same request read again.
+    clear_request_memo()
 
     project_count = len(project_ids)
 
@@ -187,14 +201,53 @@ class MembershipsService:
         )
         return self._apply_policy(user_id=user_id, row=row)
 
+    @staticmethod
+    def cache_entry(*, user_id: UUID, project_id: UUID) -> dict:
+        """The `resolve_membership` cache entry (`get_cache_many` arguments). Its value
+        is a `CachedMembership`: a membership or its cached absence."""
+
+        return {
+            "namespace": RESOLVE_MEMBERSHIP_NAMESPACE,
+            "project_id": str(project_id),
+            "user_id": str(user_id),
+            "key": RESOLVE_MEMBERSHIP_KEY,
+            "model": CachedMembership,
+        }
+
     async def resolve(
         self,
         *,
         user_id: UUID,
         project_id: UUID,
     ) -> Optional[ProjectMembership]:
-        # M2 adds the `resolve_membership` cache here, around `_read_membership`.
-        return await self._read_membership(user_id=user_id, project_id=project_id)
+        """The membership of a user in a project, or `None`.
+
+        Reads through the `resolve_membership` cache, which stores a membership and its
+        absence (`CachedMembership(membership=None)`), so a warm decision, an allow or a
+        denial, reads Redis and no Postgres row. Every membership writer clears the
+        entry through `invalidate_access_caches`.
+        """
+
+        cached = await get_cache(
+            namespace=RESOLVE_MEMBERSHIP_NAMESPACE,
+            project_id=str(project_id),
+            user_id=str(user_id),
+            key=RESOLVE_MEMBERSHIP_KEY,
+            model=CachedMembership,
+        )
+        if cached is not None:  # a hit, present or absent
+            return cached.membership
+
+        membership = await self._read_membership(user_id=user_id, project_id=project_id)
+
+        await set_cache(
+            namespace=RESOLVE_MEMBERSHIP_NAMESPACE,
+            project_id=str(project_id),
+            user_id=str(user_id),
+            key=RESOLVE_MEMBERSHIP_KEY,
+            value=CachedMembership(membership=membership),
+        )
+        return membership
 
     async def is_member(
         self,

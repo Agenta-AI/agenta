@@ -1,6 +1,7 @@
 """The first-party channel adapter set, built once for every composition root."""
 
 from typing import Optional
+from uuid import UUID
 
 from oss.src.core.channels.adapters.agenta.adapter import AgentaAdapter
 from oss.src.core.channels.adapters.bridge.adapter import BridgeAdapter
@@ -13,7 +14,8 @@ from oss.src.core.channels.adapters.telegram_hosted.adapter import (
     HostedTelegramAdapter,
 )
 from oss.src.core.channels.adapters.whatsapp.adapter import WhatsAppAdapter
-from oss.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
+from oss.src.core.access.service import get_access_service
 from oss.src.core.access.permissions.types import Permission
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.services.api_key_service import use_api_key
@@ -35,12 +37,15 @@ async def _resolve_agenta_api_key_project(raw_key: str) -> Optional[str]:
     if api_key.created_by_id is None:
         return None
 
-    may_run = await check_action_access(
-        user_uid=str(api_key.created_by_id),
-        project_id=project_id,
-        permission=Permission.RUN_CHANNELS,
+    # The key is the principal: its record must be active (a key whose creator is
+    # gone is refused, as today) and its creator's role must allow RUN_CHANNELS.
+    decision = await get_access_service().decide(
+        authority=None,
+        principal=PrincipalRef(kind=PrincipalKind.API_KEY, id=UUID(str(api_key.id))),
+        action=Permission.RUN_CHANNELS,
+        project_id=UUID(project_id),
     )
-    if not may_run:
+    if not decision.allowed:
         return None
 
     return project_id

@@ -40,6 +40,42 @@ def project():
     return SimpleNamespace(id=uuid4(), organization_id=uuid4(), workspace_id=uuid4())
 
 
+@pytest.fixture(autouse=True)
+def organization_write(monkeypatch):
+    """The organization-level key rule passes unless a test says otherwise (a browser
+    session, or a key of the organization's default project)."""
+    recorder = _Recorder(result=True)
+    monkeypatch.setattr(workspace_router, "check_organization_write", recorder)
+    return recorder
+
+
+async def test_member_writes_refuse_a_key_outside_the_default_project(
+    monkeypatch, project, organization_write
+):
+    """Role changes and removals act on the whole organization: a key that passes the
+    workspace check but is not of the organization's default project is refused."""
+    organization_write.result = False
+
+    async def _get_project_by_workspace(workspace_id):
+        return project
+
+    monkeypatch.setattr(workspace_router, "check_action_access", _Recorder(True))
+    monkeypatch.setattr(
+        workspace_router, "get_project_by_workspace", _get_project_by_workspace
+    )
+    monkeypatch.setattr(workspace_router, "is_ee", lambda: False)
+
+    response = await workspace_router.remove_user_from_workspace(
+        email="x@test.agenta.ai",
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+    assert response.status_code == 403
+    assert organization_write.calls[-1]["organization_id"] == str(
+        project.organization_id
+    )
+
+
 async def test_remove_user_by_a_non_admin_answers_403(monkeypatch, project):
     access = _Recorder(result=False)
     removed = []
@@ -606,7 +642,7 @@ async def test_transfer_route_calls_the_service_and_maps_errors(monkeypatch):
             if self.raises:
                 raise self.raises
 
-    async def _is_owner(organization_id, user_id):
+    async def _is_owner(organization_id, user_id, permission):
         return True
 
     monkeypatch.setattr(organization_router, "_check_org_owner", _is_owner)

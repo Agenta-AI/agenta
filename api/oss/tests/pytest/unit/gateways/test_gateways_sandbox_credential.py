@@ -34,6 +34,7 @@ from oss.src.middlewares import auth
 from oss.src.utils.env import env
 from oss.src.utils.context import AuthScope
 from oss.src.utils.exceptions import UnauthorizedException
+from oss.tests.pytest.utils.principals import envelope_for_claims
 
 SECRET_KEY = "unit-test-secret-key-with-32-bytes"
 
@@ -80,6 +81,17 @@ def _request(path: str, *, credentials: str) -> StarletteRequest:
     )
 
 
+def _envelope_claims() -> dict:
+    """The run-envelope claims every Secret carries (M2), for hand-encoded tokens."""
+    from oss.src.core.access.principals import envelope_to_claims
+
+    return envelope_to_claims(
+        envelope=envelope_for_claims(
+            user_id=USER_ID, project_id=PROJECT_ID, organization_id=ORGANIZATION_ID
+        )
+    )
+
+
 def _claims(token: str) -> dict:
     return decode(
         jwt=token,
@@ -98,6 +110,9 @@ async def _runtime_credential() -> str:
         organization_id=ORGANIZATION_ID,
         gateway_run_id=RUN_ID,
         grants=[auth.SECRET_RESOLVE_GRANT],
+        envelope=envelope_for_claims(
+            user_id=USER_ID, project_id=PROJECT_ID, organization_id=ORGANIZATION_ID
+        ),
     )
     return f"Secret {token}"
 
@@ -110,6 +125,9 @@ async def _granted_credential_without_run() -> str:
         workspace_id=WORKSPACE_ID,
         organization_id=ORGANIZATION_ID,
         grants=[auth.SECRET_RESOLVE_GRANT],
+        envelope=envelope_for_claims(
+            user_id=USER_ID, project_id=PROJECT_ID, organization_id=ORGANIZATION_ID
+        ),
     )
     return f"Secret {token}"
 
@@ -122,6 +140,9 @@ async def _ungranted_credential() -> str:
         workspace_id=WORKSPACE_ID,
         organization_id=ORGANIZATION_ID,
         gateway_run_id=RUN_ID,
+        envelope=envelope_for_claims(
+            user_id=USER_ID, project_id=PROJECT_ID, organization_id=ORGANIZATION_ID
+        ),
     )
     return f"Secret {token}"
 
@@ -176,6 +197,11 @@ def _exchange(monkeypatch, llm_service):
     async def _authenticate(request: Request, call_next):
         if request.headers.get(USER_PRINCIPAL_HEADER):
             request.state.project_id = PROJECT_ID
+            request.state.run_envelope = envelope_for_claims(
+                user_id=USER_ID,
+                project_id=PROJECT_ID,
+                organization_id=ORGANIZATION_ID,
+            )
             return await call_next(request)
         try:
             await auth._check_authentication_token(request)
@@ -364,6 +390,9 @@ async def test_an_audience_and_a_grant_cannot_be_minted_onto_one_token():
             project_id=PROJECT_ID,
             grants=[auth.SECRET_RESOLVE_GRANT],
             audience=auth.GATEWAY_TOKEN_AUDIENCE,
+            envelope=envelope_for_claims(
+                user_id=USER_ID, project_id=PROJECT_ID, organization_id=None
+            ),
         )
 
 
@@ -395,7 +424,13 @@ async def test_a_forged_token_claiming_both_is_refused_rather_than_downgraded():
 @pytest.mark.asyncio
 async def test_an_unknown_audience_is_refused_at_issuance_and_at_consumption():
     with pytest.raises(ValueError, match="unsupported audience"):
-        await auth.sign_secret_token(user_id=USER_ID, audience="anything-else")
+        await auth.sign_secret_token(
+            user_id=USER_ID,
+            audience="anything-else",
+            envelope=envelope_for_claims(
+                user_id=USER_ID, project_id=None, organization_id=None
+            ),
+        )
 
     expiry = datetime.now(timezone.utc) + timedelta(seconds=600)
     forged = encode(
@@ -569,9 +604,11 @@ async def test_a_mark_that_is_not_exactly_true_is_refused(exchange, claim):
         payload={
             "user_id": USER_ID,
             "project_id": PROJECT_ID,
+            "organization_id": ORGANIZATION_ID,
             "aud": auth.GATEWAY_TOKEN_AUDIENCE,
             "gateway_platform_run": claim,
             "exp": int(expiry.timestamp()),
+            **_envelope_claims(),
         },
         key=SECRET_KEY,
         algorithm="HS256",
@@ -592,8 +629,10 @@ async def test_the_mark_on_a_token_without_the_gateway_audience_is_ignored(excha
         payload={
             "user_id": USER_ID,
             "project_id": PROJECT_ID,
+            "organization_id": ORGANIZATION_ID,
             "gateway_platform_run": True,
             "exp": int(expiry.timestamp()),
+            **_envelope_claims(),
         },
         key=SECRET_KEY,
         algorithm="HS256",
@@ -608,7 +647,13 @@ async def test_the_mark_on_a_token_without_the_gateway_audience_is_ignored(excha
 @pytest.mark.asyncio
 async def test_only_a_gateway_audience_token_can_be_minted_with_the_mark():
     with pytest.raises(ValueError, match="gateway-audience"):
-        await auth.sign_secret_token(user_id=USER_ID, gateway_platform_run=True)
+        await auth.sign_secret_token(
+            user_id=USER_ID,
+            gateway_platform_run=True,
+            envelope=envelope_for_claims(
+                user_id=USER_ID, project_id=None, organization_id=None
+            ),
+        )
 
     with pytest.raises(ValueError, match="cannot carry grants"):
         await auth.sign_secret_token(
@@ -616,6 +661,9 @@ async def test_only_a_gateway_audience_token_can_be_minted_with_the_mark():
             grants=[auth.SECRET_RESOLVE_GRANT],
             audience=auth.GATEWAY_TOKEN_AUDIENCE,
             gateway_platform_run=True,
+            envelope=envelope_for_claims(
+                user_id=USER_ID, project_id=None, organization_id=None
+            ),
         )
 
 

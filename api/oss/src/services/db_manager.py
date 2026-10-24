@@ -1287,10 +1287,14 @@ async def get_default_project_by_organization_id(organization_id: str):
 
     async with engine.session() as session:
         result = await session.execute(
-            select(ProjectDB).filter_by(
+            select(ProjectDB)
+            .filter_by(
                 organization_id=uuid.UUID(organization_id),
                 is_default=True,
             )
+            # An organization with several workspaces has a default project in
+            # each: the oldest one is the organization's.
+            .order_by(ProjectDB.created_at.asc(), ProjectDB.id.asc())
         )
         return result.scalars().first()
 
