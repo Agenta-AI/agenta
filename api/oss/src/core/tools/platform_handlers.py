@@ -236,19 +236,37 @@ async def _build_test_workflow_request(
         )
 
     if request.delta is not None:
-        # `test_run` previews an AGENT's delta, so it gets the agent's transformations.
-        resolution = await workflows_service._resolve_revision_delta(
-            project_id=project_id,
-            workflow_revision_commit=WorkflowRevisionCommit(
-                workflow_variant_id=request.target.workflow_variant_id,
-                delta=request.delta,
-            ),
-            # A test run applies the delta in memory and stores nothing, so it carries no
-            # base revision id. Without this an ordered delta could never be previewed:
-            # the commit path requires that id, and it exists to protect a write.
-            preview=True,
-            agent_context=True,
+        from oss.src.core.workflows.change_set import (
+            PARAMETERS_ONLY,
+            ChangeSetError,
+            Reason,
         )
+
+        # `test_run` previews an AGENT's delta, so it gets the agent's transformations.
+        try:
+            resolution = await workflows_service._resolve_revision_delta(
+                project_id=project_id,
+                workflow_revision_commit=WorkflowRevisionCommit(
+                    workflow_variant_id=request.target.workflow_variant_id,
+                    delta=request.delta,
+                ),
+                # The engine enforces the parameters-only scope for every delta form;
+                # `_validate_delta_scope` only gives `set`/`remove` an earlier message.
+                scope_policy=PARAMETERS_ONLY,
+                # A test run applies the delta in memory and stores nothing, so it carries
+                # no base revision id. Without this an ordered delta could never be
+                # previewed: the commit path requires that id, and it exists to protect a
+                # write.
+                preview=True,
+                agent_context=True,
+            )
+        except ChangeSetError as e:
+            if e.reason != Reason.OUT_OF_SCOPE:
+                raise
+            raise PlatformToolHandlerRefused(
+                f"test_run delta may only change the revision's "
+                f"'{_DELTA_ALLOWED_ROOT}' tree: {e}"
+            ) from e
         resolved = resolution.commit
         if resolved.data is None:
             raise PlatformToolHandlerError(

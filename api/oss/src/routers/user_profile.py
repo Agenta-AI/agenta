@@ -167,6 +167,20 @@ async def reset_user_password(request: Request, user_id: str):
             status_code=403,
         )
 
+    # The permission is checked on this project, so the target must be one of its members.
+    try:
+        member = await db_manager.get_project_member(
+            project_id=str(request.state.project_id),
+            user_id=str(user_id),
+        )
+    except ValueError:
+        member = None
+    if member is None or getattr(member, "deleted_at", None) is not None:
+        return JSONResponse(
+            {"detail": "User not found in this project."},
+            status_code=404,
+        )
+
     project = await db_manager.get_project_by_id(request.state.project_id)
     owner = await db_manager.get_organization_owner(str(project.organization_id))
     if owner and str(owner.id) == str(user_id):

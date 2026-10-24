@@ -850,3 +850,80 @@ async def test_test_run_previews_a_delta_in_the_agents_context(monkeypatch):
     )
 
     assert workflows.agent_context_calls == [True]
+
+
+class _EngineScopedWorkflowsService(FakeWorkflowsService):
+    """Resolves the delta with the real change-set engine and the scope the handler passes."""
+
+    async def _resolve_revision_delta(self, *, scope_policy=None, **kwargs):
+        from oss.src.core.workflows.change_set import apply_change_set
+
+        self.scope_policies = getattr(self, "scope_policies", []) + [scope_policy]
+        delta = kwargs["workflow_revision_commit"].delta.model_dump(exclude_none=True)
+        result = apply_change_set(
+            {"url": "https://agent.internal", "parameters": {"agent": {}}},
+            delta,
+            scope_policy,
+        )
+        return SimpleNamespace(
+            commit=SimpleNamespace(data=WorkflowRevisionData(**result.data)),
+            head=None,
+            warnings=[],
+        )
+
+
+async def test_test_run_ordered_delta_outside_parameters_is_refused(monkeypatch):
+    from oss.src.core.workflows.change_set import PARAMETERS_ONLY
+
+    http = HttpxController(monkeypatch, response=_response({"messages": []}))
+    workflows = _EngineScopedWorkflowsService()
+
+    with pytest.raises(PlatformToolHandlerRefused):
+        await handle_test_run(
+            arguments=_args(
+                terminal_tool=None,
+                delta={
+                    "operations": [
+                        {
+                            "operation": "set",
+                            "target": ["url"],
+                            "value": "https://elsewhere.example",
+                        }
+                    ]
+                },
+            ),
+            headers={},
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflows_service=workflows,
+            tracing_service=FakeTracingService(),
+        )
+
+    assert workflows.scope_policies == [PARAMETERS_ONLY]
+    assert not http.calls
+
+
+async def test_test_run_non_scope_delta_error_is_not_reported_as_scope(monkeypatch):
+    from oss.src.core.workflows.change_set import ChangeSetError, Reason
+
+    class _RejectingWorkflowsService(FakeWorkflowsService):
+        async def _resolve_revision_delta(self, **kwargs):
+            raise ChangeSetError(Reason.INVALID_DELTA, "the delta must be an object")
+
+    http = HttpxController(monkeypatch, response=_response({"messages": []}))
+
+    with pytest.raises(ChangeSetError) as exc:
+        await handle_test_run(
+            arguments=_args(
+                terminal_tool=None,
+                delta={"set": {"parameters": {"agent": {"instructions": "hi"}}}},
+            ),
+            headers={},
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflows_service=_RejectingWorkflowsService(),
+            tracing_service=FakeTracingService(),
+        )
+
+    assert exc.value.reason == Reason.INVALID_DELTA
+    assert not http.calls

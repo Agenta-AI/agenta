@@ -668,6 +668,14 @@ class AuthService:
         session_identities = [
             identity for identity in session_identities if identity in known_methods
         ]
+        # `sso:*` must mean this organization's own active, tested providers.
+        if any(identity.startswith("sso:") for identity in session_identities):
+            own_sso = await self._own_sso_identities(organization_id)
+            session_identities = [
+                identity
+                for identity in session_identities
+                if not identity.startswith("sso:") or identity in own_sso
+            ]
 
         # Check if identities satisfy allowed_methods
         matches = self._matches_policy(session_identities, allowed_methods)
@@ -837,6 +845,23 @@ class AuthService:
             result = await session.execute(stmt)
             flags = result.scalar()
             return flags or {}
+
+    async def _own_sso_identities(self, organization_id: UUID) -> set:
+        """`sso:{org_slug}:{provider_slug}` for each active and valid provider of the org."""
+        if not self.providers_dao:
+            return set()
+        org_slug = await self._get_organization_slug(organization_id)
+        if not org_slug:
+            return set()
+        providers = await self.providers_dao.list_by_organization(
+            organization_id=str(organization_id)
+        )
+        return {
+            f"sso:{org_slug}:{provider.slug}"
+            for provider in providers
+            if (provider.flags or {}).get("is_active")
+            and (provider.flags or {}).get("is_valid")
+        }
 
     async def _get_organization_slug(self, organization_id: UUID) -> Optional[str]:
         if not is_ee():

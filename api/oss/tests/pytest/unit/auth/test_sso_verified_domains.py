@@ -207,7 +207,75 @@ async def test_dynamic_provider_needs_active_and_valid(monkeypatch, flags, loade
     vault = SimpleNamespace(get_secret_by_id=AsyncMock(return_value=secret))
     monkeypatch.setattr(overrides, "VaultService", lambda *_args: vault, raising=False)
     monkeypatch.setattr(overrides, "SecretsDAO", lambda: None, raising=False)
+    monkeypatch.setattr(
+        overrides,
+        "_fetch_checked_oidc_endpoints",
+        AsyncMock(
+            return_value={
+                "authorization_endpoint": "https://idp.test.agenta.ai/authorize",
+                "token_endpoint": "https://idp.test.agenta.ai/token",
+                "userinfo_endpoint": "https://idp.test.agenta.ai/userinfo",
+            }
+        ),
+    )
 
     result = await overrides._get_dynamic_oidc_provider("sso:acme:okta")
 
     assert (result is not None) is loaded
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("session_identity", "allowed"),
+    [
+        ("sso:acme:okta", True),
+        ("sso:other-org:okta", False),
+        ("sso:acme:inactive", False),
+        ("sso:acme:untested", False),
+    ],
+)
+async def test_sso_policy_counts_only_the_orgs_own_providers(
+    monkeypatch, session_identity, allowed
+):
+    service = AuthService()
+    monkeypatch.setattr(auth_service_module, "is_ee", lambda: True)
+    monkeypatch.setattr(
+        service,
+        "_get_organization_flags",
+        AsyncMock(
+            return_value={
+                "allow_email": False,
+                "allow_social": False,
+                "allow_sso": True,
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        service, "_is_organization_owner", AsyncMock(return_value=False)
+    )
+    monkeypatch.setattr(
+        service, "_get_organization_slug", AsyncMock(return_value="acme")
+    )
+    monkeypatch.setattr(
+        service, "_get_active_sso_providers", AsyncMock(return_value=[])
+    )
+    service.identities_dao = SimpleNamespace(
+        list_by_user=AsyncMock(return_value=[SimpleNamespace(method=session_identity)])
+    )
+    providers = [
+        SimpleNamespace(slug="okta", flags={"is_active": True, "is_valid": True}),
+        SimpleNamespace(slug="inactive", flags={"is_active": False, "is_valid": True}),
+        SimpleNamespace(slug="untested", flags={"is_active": True, "is_valid": False}),
+    ]
+    service.providers_dao = SimpleNamespace(
+        list_by_organization=AsyncMock(return_value=providers)
+    )
+
+    result = await service.check_organization_access(
+        uuid4(), ORG_ID, [session_identity]
+    )
+
+    service.providers_dao.list_by_organization.assert_awaited_once_with(
+        organization_id=str(ORG_ID)
+    )
+    assert (result is None) is allowed
