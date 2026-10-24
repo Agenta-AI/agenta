@@ -6,7 +6,6 @@ one it can read directly is listed: the list scope (SQL) and the direct-read che
 absent from the list and reads exactly like an unknown id.
 """
 
-import os
 from uuid import uuid4
 
 import pytest
@@ -161,23 +160,28 @@ def test_parity_api_key_excludes_creator_private(sharing_team, items):
     )
 
 
-def test_parity_installation(sharing_team, items):
-    """A channel installation sees project items only. The installation credential
-    comes from a connected channel (`AGENTA_TEST_INSTALLATION_CREDENTIALS`, a run
-    credential of an installation of the team's project); without one the test
-    cannot run."""
+def test_parity_installation(sharing_cast):
+    """A channel installation sees project items only: not Alice's private session
+    or agent, although Alice created its binding. The installation acts with the run
+    credential a channel turn carries."""
 
-    credentials = os.getenv("AGENTA_TEST_INSTALLATION_CREDENTIALS")
-    if not credentials:
-        pytest.skip("No channel installation credential for this deployment.")
-    installation = sharing_team["alice_key"].__class__(
-        api_url=sharing_team["alice_key"].api_url,
-        credentials=credentials,
-        project_id=sharing_team["project_id"],
-        user_id=None,
-    )
+    alice = sharing_cast["alice"]
+    items = {
+        "alice_private_session": _new_session(
+            alice, visibility="private", name="alice private"
+        ),
+        "alice_project_session": _new_session(
+            alice, visibility="project", name="alice project"
+        ),
+        "alice_private_agent": _new_agent(
+            alice, visibility="private", name="alice private agent"
+        ),
+        "alice_project_agent": _new_agent(
+            alice, visibility="project", name="alice project agent"
+        ),
+    }
     _assert_parity(
-        installation,
+        sharing_cast.installation.caller,
         items,
         expect_sessions={"alice_project_session"},
         expect_agents={"alice_project_agent"},

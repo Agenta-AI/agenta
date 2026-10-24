@@ -1,5 +1,6 @@
 """Test helpers for the sharing domain (M3): an in-memory `SharingDAOInterface`, a
-one-project `SharingWorld` and `AllowAllResourcePolicy`."""
+one-project `SharingWorld`, `AllowAllResourcePolicy`, and the run credentials the
+acceptance tests sign (`human_run_credential`, `installation_run_credential`)."""
 
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple
@@ -447,3 +448,121 @@ class RuleAccessService:
         if self._rule(principal, action, resource):
             return Decision(allowed=True, reason=DecisionReason.ROLE)
         return Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED)
+
+
+# -- run credentials for the acceptance tests --------------------------------------------
+
+
+def sign_run_credential(*, envelope, user_id, workspace_id) -> str:
+    """A `Secret` run credential carrying `envelope`, signed with the deployment's key
+    (`AGENTA_AUTH_KEY` of the stack's env file) by the same `sign_secret_token` the API
+    uses. Returns the `Authorization` value."""
+
+    import asyncio  # noqa: PLC0415
+    from concurrent.futures import ThreadPoolExecutor  # noqa: PLC0415
+
+    from oss.src.middlewares.auth import sign_secret_token  # noqa: PLC0415
+
+    async def sign() -> str:
+        return await sign_secret_token(
+            user_id=str(user_id),
+            project_id=str(envelope.authority.project_id),
+            workspace_id=str(workspace_id),
+            organization_id=str(envelope.authority.organization_id),
+            envelope=envelope,
+        )
+
+    # A private thread carries no event loop, so this works from sync and async tests.
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        token = pool.submit(lambda: asyncio.run(sign())).result()
+    return f"Secret {token}"
+
+
+def human_run_credential(
+    *,
+    user_id,
+    project_id,
+    organization_id,
+    workspace_id,
+    origin=None,
+) -> str:
+    """The run credential of a run a person started: principal `human(user_id)`, the
+    person as sender for origin `web` (the default) and `api`, no sender otherwise
+    (a schedule). Requests with it act as that person's browser run."""
+
+    from oss.src.core.access.dtos import (  # noqa: PLC0415
+        PrincipalKind,
+        RunAuthority,
+        RunContext,
+        RunEnvelope,
+        RunOrigin,
+        RunSender,
+    )
+
+    origin = origin or RunOrigin.WEB
+    principal = PrincipalRef(kind=PrincipalKind.HUMAN, id=UUID(str(user_id)))
+    envelope = RunEnvelope(
+        authority=RunAuthority(
+            principal=principal,
+            organization_id=UUID(str(organization_id)),
+            project_id=UUID(str(project_id)),
+        ),
+        context=RunContext(origin=origin),
+        sender=(
+            RunSender(user_id=principal.id)
+            if origin in (RunOrigin.WEB, RunOrigin.API)
+            else None
+        ),
+    )
+    return sign_run_credential(
+        envelope=envelope, user_id=user_id, workspace_id=workspace_id
+    )
+
+
+def installation_run_credential(
+    *,
+    installation_id,
+    acting_user_id,
+    project_id,
+    organization_id,
+    workspace_id,
+    linked_user_id=None,
+    external_key=None,
+) -> str:
+    """The run credential a channel turn runs with (the inbox dispatcher's envelope):
+    principal `installation(installation_id)`, origin `installation`, the linked user
+    (if any) as the authority's `linked_user_id` and as the sender."""
+
+    from oss.src.core.access.dtos import (  # noqa: PLC0415
+        PrincipalKind,
+        RunAuthority,
+        RunContext,
+        RunEnvelope,
+        RunOrigin,
+        RunSender,
+    )
+
+    linked = UUID(str(linked_user_id)) if linked_user_id else None
+    envelope = RunEnvelope(
+        authority=RunAuthority(
+            principal=PrincipalRef(
+                kind=PrincipalKind.INSTALLATION, id=UUID(str(installation_id))
+            ),
+            organization_id=UUID(str(organization_id)),
+            project_id=UUID(str(project_id)),
+            linked_user_id=linked,
+        ),
+        context=RunContext(
+            run_id=str(uuid4()),
+            origin=RunOrigin.INSTALLATION,
+            origin_id=str(installation_id),
+        ),
+        sender=(
+            RunSender(user_id=linked, external_key=external_key)
+            if linked is not None or external_key
+            else None
+        ),
+    )
+    return sign_run_credential(
+        envelope=envelope, user_id=linked or acting_user_id, workspace_id=workspace_id
+    )
