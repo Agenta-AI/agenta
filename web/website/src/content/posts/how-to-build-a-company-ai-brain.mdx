@@ -1,0 +1,304 @@
+---
+slug: "how-to-build-a-company-ai-brain"
+title: "How to Build a Company AI Brain: The Ultimate Guide for Teams & CTOs (2026)"
+description: "Learn how to build a company AI brain in 2026: combine two-tier shared agent files (AI Drive), reusable skills, sandboxed harnesses (Claude Code, Codex, Pi), tool approvals, and Slack or web embeds."
+category: "Article"
+date: 2026-10-24
+readingTime: "16 min read"
+heroImage: "/blog/how-to-build-a-company-ai-brain/hero.webp"
+ogImage: "/blog/how-to-build-a-company-ai-brain/hero.webp"
+author: "mahmoud-mabrouk"
+featured: false
+tags:
+  [
+    "AI agents",
+    "AI coworkers",
+    "company AI brain",
+    "open source",
+    "enterprise AI",
+  ]
+faq:
+  - question: "What is a company AI brain?"
+    answer: "A company AI brain is a shared, governed operating layer that combines durable organizational memory (shared files, product truth, and decision logs), reusable procedural skills, sandboxed agent execution harnesses, tool permissions, and team-wide delivery channels. Unlike a passive enterprise search engine that only finds documents, an active company AI brain lets agents read canonical context, execute multi-step tasks across connected apps, pause for human approval, and write new findings back to shared memory."
+  - question: "How is a company AI brain different from RAG or enterprise search?"
+    answer: "Standard Retrieval-Augmented Generation (RAG) and enterprise search portals index documents into a vector database so employees can ask questions in a chat box. They are read-only systems: they cannot run code in a sandbox computer, follow multi-step department playbooks, pause for human approval before sending an email or opening a pull request, or update a shared decision log after a task finishes. A company AI brain pairs curated file memory with active execution harnesses and governed tools."
+  - question: "Why do shared agent files work better than giant system prompts for a company brain?"
+    answer: "Putting all company knowledge into a system prompt sends thousands of tokens on every turn, driving up latency and cost while diluting model attention. Storing organizational knowledge in shared Markdown files inside an AI Drive adds zero tokens to the conversation until an agent actually opens a file. That lets a company brain scale to hundreds of brand guides, playbooks, and research reports while keeping every turn fast and focused."
+  - question: "Who should be able to build and update agents inside a company AI brain?"
+    answer: "Both engineers and non-technical domain experts. When marketing, operations, customer support, sales, product, and finance teams have to file engineering tickets every time a playbook or workflow changes, the company brain quickly falls out of date. On an open-source AI coworker platform like Agenta, any teammate can write plain-language instructions, attach reusable skills, and curate shared files directly in chat while engineering governs credentials, models, and permissions."
+  - question: "What is the difference between a model and a harness in a company AI brain?"
+    answer: "A language model only takes messages and returns text or a request to call a tool. A harness is the runtime program that drives the model in a loop, executes tool calls inside an isolated sandbox computer and browser, loads instructions and folder rules, and compacts long conversations. Agenta decouples the harness (Claude Code, Codex, or Pi), the model (15+ providers), and the credential so you can switch models or cloud gateways without rebuilding your company brain."
+  - question: "How do permissions and human approvals work when agents run on a schedule?"
+    answer: "Every tool action can be configured to run automatically, ask a human first, or stay blocked. In interactive chat or Slack threads, setting external writes and sends to ask first pauses the run and displays an approval card that takes a second to review. For unattended cron schedules or webhook automations that run when nobody is watching, you pre-authorize safe read and draft actions and have the agent deliver its output to a Slack channel or shared folder for team review."
+  - question: "Can we self-host our company AI brain on our own infrastructure?"
+    answer: "Yes. Agenta is open-source under the permissive MIT License and deploys on your own infrastructure via Docker Compose with unlimited users, projects, agents, automations, role-based access control, and SSO. If you prefer managed hosting without per-seat fees, Agenta Cloud offers a free Hobby plan, a $29/month Starter plan, and a $299/month Business plan, all with unlimited team members on paid tiers."
+---
+
+Every growing company eventually hits the same wall with AI.
+
+At first, giving employees individual ChatGPT or Claude accounts feels like a productivity breakthrough. Six months later, the limitations are obvious. Institutional knowledge is splintered across Slack threads, Notion pages, Google Drive folders, GitHub pull requests, and CRM notes. Meanwhile, every department is prompting in isolated browser tabs that forget everything the moment a conversation ends.
+
+Marketing re-explains the product positioning and brand voice rules on every campaign draft. Customer support copies and pastes answers from three different wikis. Operations maintains fragile webhook scripts that break whenever a schema changes. And when a senior teammate goes on vacation, the prompts, workflows, and edge-case rules they refined in their personal chat history vanish with them.
+
+That fragmentation is why CTOs, operations leaders, and founders are searching for **how to build a company AI brain**.
+
+A real **company AI brain** in 2026 is not a read-only search bar bolted onto a vector database, and it is not a static company wiki. It is a **shared, governed operating layer** where organizational memory, repeatable team skills, sandboxed execution harnesses, tool approvals, and multi-surface AI coworkers live together in one system.
+
+Most importantly, a company AI brain only works when **every department can contribute to it directly**. If non-technical teammates in marketing, operations, customer support, sales, product, and finance have to file tickets with a central engineering team just to teach an agent a new playbook or update a pricing rule, the brain goes stale in weeks.
+
+This guide walks through what a modern company AI brain actually looks like, why first-generation RAG projects stall out, the 5-layer reference architecture behind a compounding system, and how to build one step by step using an **[open-source AI coworker platform](https://agenta.ai)** like **Agenta**.
+
+---
+
+## What Is a Company AI Brain (And What It Is Not)?
+
+When teams say they want a "company brain," they usually want three things to happen at once:
+
+1. **Shared organizational memory:** Every AI coworker should know what the company builds, how it talks to customers, what leadership decided last week, and where canonical records live, without a human pasting five pages of background into every prompt.
+2. **Procedural know-how (skills):** The system should remember _how_ your team does recurring work, such as qualifying an inbound lead, running a pre-publish SEO review, triaging a support escalation, or preparing a Monday pipeline digest.
+3. **Governed execution and write-back:** Agents should be able to act on that context inside an isolated computer and browser, call connected SaaS tools with human approval boundaries, deliver work inside Slack, Telegram, WhatsApp, or internal web apps, and write new lessons back into shared files so the next run starts smarter.
+
+Most off-the-shelf tools only solve one fragment of this puzzle.
+
+| Approach                                                                              | How Memory Works                                                                                            | Who Can Build & Update It                                                                            | Execution Capability                                                                                                                                                                                                                             | Governance & Pricing Model                                                              |
+| :------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------- |
+| **1. Individual Chat & Desktop Assistants** (ChatGPT Plus, Claude Pro, Claude Cowork) | Trapped in one user's personal chat history or local desktop folder                                         | Individual user only; no shared team state                                                           | Single-user chat or local laptop session                                                                                                                                                                                                         | Per-seat subscriptions ($20 to $200/user/mo); no shared workspace governance            |
+| **2. Passive Enterprise Search & RAG Portals** (Glean, Guru, custom vector DBs)       | Bulk-indexes docs and tickets into embeddings for read-only Q&A                                             | IT admins configure connectors; end users only run searches                                          | **Read-only retrieval**; cannot run code, use a browser, or execute multi-step workflows                                                                                                                                                         | High per-seat enterprise contracts ($30 to $60+/user/mo)                                |
+| **3. Code Frameworks & Node Flow Builders** (LangGraph, CrewAI, n8n, Dify)            | Developer-managed state graphs, vector stores, or JSON node variables                                       | Software engineers or technical automation specialists                                               | Strong API automation, but requires engineering tickets to update prompts or logic                                                                                                                                                               | OSS + usage or per-workflow cloud tiers; creates a central dev bottleneck               |
+| **4. Active Company AI Brain** (**[Agenta](https://agenta.ai)**)                      | **Two-tier file memory** (Temporary Session Files + Shared Agent Files in AI Drive) + standing instructions | **Non-technical & technical teams** in plain language (marketing, ops, support, sales, product, dev) | **Full sandbox computer & browser** via [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview), [Codex](https://github.com/openai/codex), or [Pi](https://agenta.ai/docs/concepts/harnesses-and-models) harnesses + 1,000+ tools | **MIT-licensed self-hosting** (Free) or Cloud from **$29/mo with unlimited team seats** |
+
+![Passive RAG search vs. an active company AI brain](/blog/how-to-build-a-company-ai-brain/passive-rag-vs-active-company-brain.webp)
+
+As the comparison shows, a passive search index and an active company brain solve fundamentally different problems. Search helps a human find a document so the human can do the work. A company AI brain gives **shared AI coworkers** the context, skills, and sandboxed runtime to complete the work alongside your team and record the outcome.
+
+---
+
+## Why Most "Company Brain" Projects Fail After 60 Days
+
+Over the past two years, hundreds of engineering teams tried to build an internal company brain by wiring a vector database to Slack, Notion, and Google Drive. Most of those projects quietly stalled within two months. Four architectural mistakes explain why.
+
+### 1. Bulk-Indexing Uncurated Noise Into a Vector Database
+
+The most common mistake is treating every Slack message, draft Google Doc, and three-year-old wiki page as equal truth. When you dump 50,000 raw documents into a vector store, semantic similarity will happily retrieve a deprecated 2024 pricing sheet right alongside yesterday's founder decision.
+
+Because a standard RAG pipeline lacks a concept of canonical authority, the assistant blends outdated drafts with live policy and answers with confident hallucinations. Once teammates get burned by two or three wrong answers, they stop trusting the system.
+
+### 2. The Central Engineering Bottleneck
+
+When the company brain is built as a custom Python service in LangGraph or a tangled 40-node workflow graph, domain experts cannot touch it.
+
+If the head of marketing wants to update the editorial checklist, or the support lead wants to change how billing refund requests are triaged, they have to file a ticket with platform engineering. Engineers do not want to spend their sprint copy-editing department prompts, and business teams do not want to wait two weeks for a two-sentence rule change. Any company brain that non-technical teammates cannot update in plain language will decay.
+
+### 3. Read-Only Retrieval Without Execution or Write-Back
+
+Finding information is only the first 15% of a real business task. Suppose an account executive asks the company brain to prepare a security questionnaire response or a competitive deal brief.
+
+A read-only RAG portal returns five paragraphs of text and stops. It cannot open a sandbox browser to inspect the prospect's public stack, format a clean document, post the draft to a Slack thread for legal review, or save the approved answer back into the team's shared library for the next deal. Without action and write-back, institutional knowledge never compounds.
+
+### 4. Hardcoding Your Brain to a Single Model or Vendor
+
+Many teams lock their prompts, memory, and workflows inside a single model vendor's proprietary assistant API or a closed SaaS builder. Six months later, when a newer model offers better reasoning, when security requires routing traffic through AWS Bedrock or Google Vertex AI, or when per-seat SaaS pricing triples at renewal, migrating means rebuilding every agent from scratch.
+
+---
+
+## The 5-Layer Reference Architecture of a Modern Company AI Brain
+
+To build a company AI brain that stays accurate, empowers non-technical teams, and survives model changes, you need five distinct layers working together.
+
+![The 5-layer architecture of a company AI brain](/blog/how-to-build-a-company-ai-brain/company-ai-brain-architecture.webp)
+
+### Layer 1: Two-Tier File Memory (Session Files vs. Shared Agent Files)
+
+A reliable company brain separates the scratchpad for today's task from the durable knowledge shelf shared across every run. In Agenta's [files and knowledge architecture](https://agenta.ai/docs/concepts/files-and-knowledge), every agent operates with two distinct file scopes:
+
+- **Temporary Session Files (Today's Desk):** Files uploaded or generated for a single request, such as this month's campaign CSV, an intermediate chart, or a one-off export. When you start a new conversation, the next session is not cluttered with yesterday's scratch files.
+- **Persistent Shared Agent Files / AI Drive (The Shared Shelf):** Files that belong to the agent and persist across every session, user, and scheduled run. This is where your team stores canonical product facts, ICP definitions, brand voice guides, approved examples, finished reports, living indexes, and owner decision logs.
+
+This file-based memory model solves one of the biggest cost and reliability traps in LLM engineering: **files cost zero tokens until an agent opens them**.
+
+When you stuff all of your company knowledge into a giant system prompt, every single message sends tens of thousands of tokens to the model, driving up cost and degrading instruction-following. When knowledge lives in structured Markdown files inside shared agent storage, your company brain can grow to hundreds of reference files without making every turn larger. Your standing instructions stay short and simply tell the agent which file or folder to read when a specific task begins.
+
+### Layer 2: Procedural Memory (Plain-Language Instructions, Skills, and Folder Rules)
+
+Facts alone do not tell an agent how to do a job. A company brain also needs **procedural memory**: the repeatable methods your best teammates follow.
+
+Instead of forcing teams to write Python state machines, a modern company brain separates procedural know-how into three human-readable building blocks:
+
+1. **Standing Instructions:** A concise plain-language document defining who the coworker is, how it communicates, what boundaries it respects, and where to look in its shared files for truth.
+2. **Reusable On-Demand Skills:** Modular, step-by-step playbooks for recurring jobs, such as running a technical SEO audit, drafting a comparison article, reviewing a vendor contract, or triaging an incident. The harness sends only the name and short description of each skill to the model, and loads the full skill playbook only when the task matches.
+3. **Subfolder-Scoped Rules:** When a shared folder grows across multiple workstreams, individual subfolders can carry their own local rule files. When an agent works inside a paid-ads subfolder or a release-QA subfolder, the harness automatically reads those local rules alongside the main instructions, while agents working elsewhere never load them.
+
+Because all three are written in plain Markdown and natural language, a marketing manager, operations lead, or support director can refine a skill in seconds through chat or the workspace UI.
+
+### Layer 3: Decoupled Execution Runtime (Harness + Model + Credential + Sandbox)
+
+A language model on its own can only read messages and return text. It cannot open a file, run a script, inspect a live web page, or send a Slack message. The **harness** is the runtime program that drives the model in a loop: it sends the conversation and tool list to the model, executes the tools the model asks for inside an isolated sandbox computer and browser, feeds the results back, and compacts long conversations when they approach context limits.
+
+In [Agenta's harness and model architecture](https://agenta.ai/docs/concepts/harnesses-and-models), you configure three pieces separately:
+
+- **The Harness:** Choose **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)**, **[Codex](https://github.com/openai/codex)** ([Codex harness](https://agenta.ai/docs/changelog/codex-harness)), or **[Pi](https://agenta.ai/docs/concepts/harnesses-and-models)**. All three run the full agent loop with isolated sandbox computers, headless Chromium browsers, shared files, skills, and connected MCP servers.
+- **The Model:** Pick the model that fits the job's quality, speed, and cost profile across 15+ providers, including Anthropic Claude, OpenAI, Google Gemini, Mistral, Groq, DeepInfra, Together AI, OpenRouter, xAI, MiniMax, and local models via Ollama.
+- **The Credential:** Choose where model traffic routes, whether through Agenta Cloud's included credit pool, your own provider API keys (BYOK), enterprise cloud gateways like AWS Bedrock or Google Vertex AI, or even an existing [Claude Pro/Max subscription](https://agenta.ai/docs/guides/connect-a-claude-subscription) (and mounted personal subscriptions on self-hosted runners).
+
+| Harness in Agenta                                                                                     | Supported Model Ecosystem                                                                                                                         | Best Fit Inside Your Company AI Brain                                                              |
+| :---------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------- |
+| **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview)**                            | Anthropic Claude models via Anthropic API, AWS Bedrock, Google Vertex AI, custom gateways, or Claude Pro/Max subscriptions                        | Deep research, multi-file writing, browser verification, coding, and long-horizon coworker tasks   |
+| **[Pi](https://agenta.ai/docs/concepts/harnesses-and-models)**                                        | Multi-provider models: OpenAI, Anthropic, Google Gemini, Mistral, Groq, MiniMax, Together AI, OpenRouter, xAI, and any OpenAI-compatible endpoint | Teams that want maximum model flexibility across providers and custom gateways on a single harness |
+| **[Codex](https://github.com/openai/codex)** ([docs](https://agenta.ai/docs/changelog/codex-harness)) | OpenAI's Codex-optimized models (including GPT-5.6 Sol, Terra, and Luna, plus GPT-5.5 and GPT-5.2) directly via OpenAI                            | Fast software engineering, repository analysis, data scripts, and structured tool execution        |
+
+Because the harness, model, and credential are decoupled, switching from one model provider to another, or moving from direct API keys to AWS Bedrock, is a two-click configuration change. Your company brain's instructions, skills, shared files, and permissions remain completely untouched.
+
+### Layer 4: Governed Connectivity & Tool Approvals
+
+A company brain needs live hands in your systems of record: GitHub, HubSpot, Notion, Linear, Google Search Console, Slack, Postgres, and internal APIs. Agenta connects agents to **1,000+ pre-built integrations and custom [MCP servers](https://agenta.ai/docs/guides/add-an-mcp-server)** while enforcing strict [permission boundaries](https://agenta.ai/docs/concepts/permissions).
+
+Reading a record and changing a record carry very different risks. Pulling last week's campaign metrics or searching a CRM changes nothing in the source system. Sending an email to a customer, updating a deal stage, or publishing a post is visible to the outside world.
+
+In Agenta, every tool action resolves to one of three permission policies before it runs:
+
+- **Go ahead (`allow`):** Safe, reversible actions such as reading analytics, searching docs, or writing draft files in the agent's workspace run automatically.
+- **Ask you first (`ask`):** High-impact actions such as sending an external message, modifying production records, or triggering a deployment pause the run mid-execution and present a human approval card showing the exact arguments. Approve it, and the agent continues right where it stopped; reject it, and the action never fires.
+- **Refuse (`deny`):** Destructive actions you never want the agent to invoke remain hard-blocked.
+
+### Layer 5: Multi-Surface Delivery & Unattended Automations
+
+Even the smartest company brain fails if employees have to open a separate developer console to talk to it. Your coworkers should meet every team where they already work:
+
+- **[Slack Channels & Threads](https://agenta.ai/docs/guides/connect-slack):** Install an agent into your Slack workspace from a pre-filled manifest. Teammates `@mention` the coworker in `#team-marketing`, `#support-triage`, or `#revops`, and it reacts with 👀, works through the task, replies in the thread, and marks completion with ✅.
+- **Telegram & [WhatsApp Business](https://agenta.ai/docs/guides/connect-whatsapp):** Connect coworkers to Telegram groups for internal ops or a WhatsApp Cloud API business number to handle customer conversations.
+- **[Website & Internal Tool Embeds](https://agenta.ai/docs/guides/embed-an-agent):** Click **Publish > Embed** to generate an `<iframe>` widget you can drop into your documentation site, customer portal, or internal Retool/admin dashboard. You can lock the widget to specific allowed domains, customize the theme and starter prompts, and pass a cryptographic per-user visitor key (`32` to `256` characters) plus host-page context so each signed-in user keeps their own persistent conversation history across devices.
+- **[Scheduled & Event-Driven Automations](https://agenta.ai/docs/concepts/automations):** Once an interactive workflow proves reliable, trigger the exact same agent on a UTC cron schedule (for example, every day at 6:00 AM) or from an incoming app webhook event, with results delivered straight to Slack and saved to shared files.
+
+![Agenta AI coworker workspace](/blog/how-to-build-a-company-ai-brain/agenta.webp)
+
+---
+
+## How to Build Your Company AI Brain in 6 Practical Steps
+
+You do not need a six-month data-lake migration to launch a working company AI brain. Teams that succeed start with one high-leverage workflow, structure a clean shared file foundation, and expand department by department.
+
+### Step 1: Curate Canonical Foundation Files (Skip the 50,000-Doc Dump)
+
+Instead of indexing every historical folder in Google Drive, create a clean foundational folder in your agent's shared files with five short, authoritative Markdown documents:
+
+1. **`product-facts.md`:** What your product actually does today, verified capabilities, pricing tiers, and hard boundaries on what it does _not_ do.
+2. **`positioning-and-icp.md`:** Who your buyers and users are, the problems you solve for each persona, and how you compare honestly against alternatives.
+3. **`voice-and-style.md`:** Plain-spoken writing rules, terminology preferences, and formatting standards based on work your team already approved.
+4. **`decisions.md`:** A newest-first log of owner and leadership decisions. Whenever a founder or department lead corrects an assumption in chat, the agent records that decision here so no teammate ever has to repeat the correction.
+5. **`INDEX.md`:** A lightweight map of the folders and files in the workspace so the agent always knows where to look before answering a recall question.
+
+Point your agent's instructions at `INDEX.md` and `decisions.md`. Because shared files cost zero tokens until opened, your agent starts every session with a lightweight prompt and reads only the reference files relevant to the request in front of it.
+
+### Step 2: Choose Your Hosting Model, Harness, and Credentials
+
+Next, decide where your company brain runs and how model access is governed:
+
+- **Self-Hosted (MIT Open Source):** If your security posture requires keeping all files, prompts, and run logs inside your own VPC, deploy Agenta via Docker Compose. You get unlimited users, projects, agents, and automations with role-based access control and SSO at zero software licensing cost.
+- **Agenta Cloud:** If you want zero infrastructure maintenance without paying a per-seat tax, start on Agenta Cloud Hobby (Free) or Starter ($29/month), which includes **unlimited team members**, unlimited projects, and shared team credentials billed purely on runtime and model credits.
+
+Select your default harness (`Claude Code`, `Pi`, or `Codex`), connect your provider API keys or cloud gateway (AWS Bedrock, Vertex AI, OpenRouter), and store shared API credentials at the workspace level so non-technical builders never have to handle raw secret keys.
+
+### Step 3: Turn One Repeatable Team Workflow Into an On-Demand Skill
+
+Pick one recurring weekly or daily workflow that currently eats hours of manual coordination, such as:
+
+- Researching, briefing, drafting, and verifying SEO content with live preview checks.
+- Enriching new CRM signups, researching their company stack, and drafting personalized outreach in Slack.
+- Auditing weekly support tickets against product docs to flag documentation gaps and bug clusters.
+
+Have the person who actually owns that outcome (the content lead, RevOps manager, or support lead) work with the agent in chat to complete one real task end to end. Once the output matches their bar, ask the agent to package the procedure, quality checks, and output template into a reusable **Skill** and save a gold-standard example into shared agent files.
+
+### Step 4: Set Permission Boundaries for Interactive vs. Unattended Runs
+
+Review the tools attached to your coworker and match permissions to how the agent will be triggered:
+
+- **For interactive coworkers (Chat, Slack, Web Embeds):** Use the default safety posture where read actions (`search`, `fetch`, `list`, file reads) run automatically, and external write or send actions (`send_email`, `post_message`, `update_crm_record`) pause and ask for human approval. In a live chat or Slack thread, clicking **Approve** takes one second and eliminates the risk of an unwanted external send.
+- **For unattended automations (Cron Schedules & Webhooks):** When an agent runs at 6:00 AM with nobody in the chat, an interactive approval card would stall the run. Scope unattended agents so they can autonomously read sources, generate drafts, open non-destructive branches or save reports to shared files, and post a review summary to a team Slack channel where a human makes the final publishing call.
+
+### Step 5: Publish to Slack, Messaging Channels, and Internal Embeds
+
+Once your first coworker is working reliably in the playground, put it in front of the rest of the team:
+
+1. **Connect Slack (`Publish > Slack`):** Copy the generated Slack app manifest, install the bot to your workspace, and invite it to your team channel (`/invite @your-agent`). Now any teammate can `@mention` the coworker in a thread, see its results in public, and learn how to prompt it by watching colleagues.
+2. **Embed in Internal Tools (`Publish > Embed`):** If your support, operations, or account management team lives inside an internal web dashboard or wiki, paste the Agenta `<iframe>` snippet into that page. Enable **Specific domains** to restrict where the widget can render, and pass a server-generated per-user visitor key so every employee sees their own ongoing conversation threads.
+
+### Step 6: Compound Institutional Memory With Every Run
+
+The difference between a static tool and a living company AI brain is what happens _after_ a task finishes. Build three simple habits into your agent's instructions:
+
+- **Check shared files before answering recall questions:** Whenever someone asks _"What did we decide about X?"_ or _"How do we handle Y?"_, the agent checks `INDEX.md` and `decisions.md` before answering.
+- **Turn corrections into durable memory:** When a domain lead says _"Do not frame our pricing that way; always include the self-hosted tier alongside Cloud,"_ the agent fixes the current draft _and_ appends the standing rule to `decisions.md` or its instructions so the next session gets it right on the first try.
+- **Keep raw evidence next to synthesis:** When an agent researches competitors, pulls analytics, or audits a site, have it save the raw captures in a `raw/` subfolder beside the readable report. Six months later, anyone on the team can verify what was measured and when.
+
+---
+
+## How Every Department Uses the Same Company AI Brain
+
+When organizational memory and execution harnesses are shared in one workspace without per-seat licensing barriers, non-technical and technical teams stop working in silos. Here is how five departments operate on the same company brain:
+
+| Department               | Shared Memory It Reads & Updates                                                             | Reusable Skills & Tools                                                                           | How the Team Runs It                                                                    |
+| :----------------------- | :------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------- |
+| **Marketing & Content**  | Product truth, ICP positioning, voice guide, published inventory, owner decision log         | Search demand research, brief validation, article drafting, cover & diagram rendering, preview QA | Daily 6:00 AM scheduled runs + interactive feedback in `#team-marketing` Slack threads  |
+| **Sales & RevOps**       | ICP qualification rules, competitor battlecards, case studies, pricing & security FAQs       | Lead enrichment, account research, security questionnaire drafting, CRM note updates              | Webhook trigger on new HubSpot signup + `@mention` deal prep in `#sales-deals`          |
+| **Customer Support**     | Docs index, known issue tracker, escalation policies, approved resolution templates          | Ticket triage, reproduction check, doc gap detection, draft reply generation                      | WhatsApp Business / Slack threads + embedded chat widget inside internal support admin  |
+| **Product & Operations** | Roadmap priorities, customer interview summaries, weekly KPI definitions, open-items tracker | Weekly metric synthesis, feedback clustering, SOP drafting, vendor comparison                     | Monday morning cron schedule posting a comparison digest to `#ops-weekly`               |
+| **Engineering**          | Architecture docs, API conventions, release checklists, incident postmortems                 | PR review helpers, migration verification, trace inspection, docs sync                            | `Claude Code` or `Codex` harness in isolated sandbox containers with GitHub integration |
+
+Notice the compounding effect: when Product updates `product-facts.md` after shipping a new capability, Marketing's content agent, Sales's battlecard agent, and Support's triage agent immediately work from the updated truth on their very next turn.
+
+---
+
+## Build vs. Buy vs. Open-Source: TCO for a 50 to 250-Person Company
+
+For CTOs and finance leaders, the total cost of ownership (TCO) of a company AI brain comes down to two numbers: **engineering maintenance hours** and **how software licensing scales as you roll it out to the whole company**.
+
+| Cost Dimension                         | DIY Custom Code Stack (LangGraph + Vector DB + Custom UI)                           | Per-Seat Enterprise Search / SaaS AI Portals                                                    | **[Agenta](https://agenta.ai)** (Open-Source AI Coworker Platform)                                              |
+| :------------------------------------- | :---------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------- |
+| **Initial Setup Time**                 | 2 to 4 months of senior AI engineering to build sandboxes, auth, Slack bots, and UI | 2 to 6 weeks of IT connector setup                                                              | **Under 1 hour** on Agenta Cloud or self-hosted via Docker Compose                                              |
+| **Software License for 100 Employees** | $0 license, but **$15,000 to $30,000+/mo** in ongoing engineering maintenance       | **$3,000 to $6,000/month** ($30 to $60/seat/mo, whether employees use it daily or once a month) | **$0** (Self-hosted MIT) or **$29/mo** (Cloud Starter) to **$299/mo** (Cloud Business) with **unlimited seats** |
+| **Who Maintains Prompts & Playbooks?** | Engineers must ship code changes for every department update                        | Mostly read-only search; limited custom workflow depth                                          | **Domain leads in every team** update instructions, skills, and shared files in plain language                  |
+| **Model & Compute Billing**            | Direct provider API bills + custom container hosting                                | Bundled or opaque per-seat action caps                                                          | Transparent credits (plus 75 free daily credits up to 10 days/mo) or **BYOK / your own cloud gateway**          |
+| **Data Sovereignty & Exit Path**       | Full control, high maintenance burden                                               | Locked into vendor cloud; exporting agents is impossible                                        | **Permissive MIT License**; move between Agenta Cloud and self-hosted infrastructure anytime                    |
+
+With per-seat SaaS portals, rolling your company brain out from a 5-person pilot to a 120-person company multiplies your software bill by 24x, which forces IT to ration seats and exclude the very operations, support, and marketing teammates who benefit most.
+
+Agenta flips that model:
+
+- **Hobby ($0 forever):** 500 bonus signup credits, 75 free credits a day (on up to 10 days a month), 2 concurrent tasks, 1 project, 2 team members, AI Drive, 1,000+ integrations, and publishing to Slack, WhatsApp, and Telegram.
+- **Starter ($29/month):** 2,900 monthly credits (with optional top-ups at $10 per 1,000 credits), 20 concurrent tasks, unlimited projects, **unlimited team members with no per-seat price**, unlimited schedules and event triggers, and shared team credentials.
+- **Business ($299/month):** 32,000 monthly credits, 50 concurrent tasks, SSO and role-based access control (RBAC), SOC 2 Type II report, and priority support in a private Slack channel.
+- **Open-Source Self-Hosted (Free forever, MIT License):** Unlimited users, projects, agents, automations, schedules, triggers, AI Drive, RBAC, and SSO running on your own infrastructure via Docker Compose.
+
+If you are comparing broader orchestration and coworker options, see our guides to the [best AI coworker platforms for business](/blog/ai-coworker-platforms-for-business), [best AI agent orchestration platforms](/blog/best-ai-agent-orchestration-platforms), and [open-source Claude Cowork alternatives](/blog/open-source-claude-cowork-alternative).
+
+---
+
+## Frequently Asked Questions
+
+### What is a company AI brain?
+
+A company AI brain is a shared, governed operating layer that combines durable organizational memory (shared files, product truth, and decision logs), reusable procedural skills, sandboxed agent execution harnesses, tool permissions, and team-wide delivery channels. Unlike a passive enterprise search engine that only finds documents, an active company AI brain lets agents read canonical context, execute multi-step tasks across connected apps, pause for human approval, and write new findings back to shared memory.
+
+### How is a company AI brain different from RAG or enterprise search?
+
+Standard Retrieval-Augmented Generation (RAG) and enterprise search portals index documents into a vector database so employees can ask questions in a chat box. They are read-only systems: they cannot run code in a sandbox computer, follow multi-step department playbooks, pause for human approval before sending an email or opening a pull request, or update a shared decision log after a task finishes. A company AI brain pairs curated file memory with active execution harnesses and governed tools.
+
+### Why do shared agent files work better than giant system prompts for a company brain?
+
+Putting all company knowledge into a system prompt sends thousands of tokens on every turn, driving up latency and cost while diluting model attention. Storing organizational knowledge in shared Markdown files inside an AI Drive adds zero tokens to the conversation until an agent actually opens a file. That lets a company brain scale to hundreds of brand guides, playbooks, and research reports while keeping every turn fast and focused.
+
+### Who should be able to build and update agents inside a company AI brain?
+
+Both engineers and non-technical domain experts. When marketing, operations, customer support, sales, product, and finance teams have to file engineering tickets every time a playbook or workflow changes, the company brain quickly falls out of date. On an open-source AI coworker platform like Agenta, any teammate can write plain-language instructions, attach reusable skills, and curate shared files directly in chat while engineering governs credentials, models, and permissions.
+
+### What is the difference between a model and a harness in a company AI brain?
+
+A language model only takes messages and returns text or a request to call a tool. A harness is the runtime program that drives the model in a loop, executes tool calls inside an isolated sandbox computer and browser, loads instructions and folder rules, and compacts long conversations. Agenta decouples the harness (Claude Code, Codex, or Pi), the model (15+ providers), and the credential so you can switch models or cloud gateways without rebuilding your company brain.
+
+### How do permissions and human approvals work when agents run on a schedule?
+
+Every tool action can be configured to run automatically, ask a human first, or stay blocked. In interactive chat or Slack threads, setting external writes and sends to ask first pauses the run and displays an approval card that takes a second to review. For unattended cron schedules or webhook automations that run when nobody is watching, you pre-authorize safe read and draft actions and have the agent deliver its output to a Slack channel or shared folder for team review.
+
+### Can we self-host our company AI brain on our own infrastructure?
+
+Yes. Agenta is open-source under the permissive MIT License and deploys on your own infrastructure via Docker Compose with unlimited users, projects, agents, automations, role-based access control, and SSO. If you prefer managed hosting without per-seat fees, Agenta Cloud offers a free Hobby plan, a $29/month Starter plan, and a $299/month Business plan, all with unlimited team members on paid tiers.
