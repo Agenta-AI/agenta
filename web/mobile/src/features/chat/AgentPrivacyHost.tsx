@@ -10,12 +10,14 @@ import {
 } from "@agenta/entities/sharing"
 import {
     AgentPrivacyControl,
+    AgentPrivacyDialog,
     sharingWriteResultFromError,
     type AgentChannelConnection,
+    type AgentPrivacyProps,
     type SharingPerson,
     type SharingWriteResult,
 } from "@agenta/entity-ui/sharing"
-import {agentConnectionsOf, type ChannelConnections} from "@agenta/settings-ui"
+import {EMPTY_CONNECTIONS, agentConnectionsOf, type ChannelConnections} from "@agenta/settings-ui"
 import {useDebounceInput} from "@agenta/shared/hooks"
 import {userAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
@@ -28,33 +30,47 @@ import {useCurrentProject} from "../context/useCurrentProject"
 
 const PLATFORMS = ["slack", "telegram", "whatsapp"] as const
 
-/** One entry per channel app bound to the agent (a Slack app in one workspace), never a channel. */
+/** One entry per channel app bound to the agent (a Slack app in one workspace), never a channel.
+ *  Only the ones that answer now: make-private turns these off. */
 const channelConnectionsOf = (connections: ChannelConnections): AgentChannelConnection[] =>
     PLATFORMS.flatMap((platform) =>
-        agentConnectionsOf(connections, platform).map((connection) => ({
-            platform: channelPlatformLabel[platform],
-            workspace: connection.workspaceName ?? null,
-        })),
+        agentConnectionsOf(connections, platform)
+            .filter((connection) => !connection.agentOff)
+            .map((connection) => ({
+                platform: channelPlatformLabel[platform],
+                workspace: connection.workspaceName ?? null,
+            })),
     )
 
-/**
- * The agent's "Private" / "Shared" control in the playground top bar, wired to the sharing
- * state of the agent and the project's members. `connections` are the agent's channel apps the
- * Publish panel already read, so the make-private warning costs no request of its own.
- */
-export const AgentPrivacyHost = ({
-    agentId,
-    agentName,
-    workspaceId,
-    projectId,
-    connections,
-}: {
+/** The platforms with a connection of this agent that is still off. */
+const channelsOffOf = (connections: ChannelConnections): string[] =>
+    PLATFORMS.filter((platform) =>
+        agentConnectionsOf(connections, platform).some((connection) => connection.agentOff),
+    ).map((platform) => channelPlatformLabel[platform])
+
+export interface AgentPrivacyHostOptions {
     agentId: string
     agentName: string
     workspaceId: string
     projectId: string
-    connections: ChannelConnections
-}) => {
+    /** The agent's channel apps, as the Publish panel already read them (no request here). */
+    connections?: ChannelConnections
+    /** Opens the agent's Publish panel; "Open Channels" links to it. */
+    onOpenChannels?: () => void
+    /** Runs after a successful write; make-private turns channel connections off. */
+    onChanged?: () => void
+}
+
+/** The sharing state of the agent and the project's members, as the privacy UI reads them. */
+const useAgentPrivacyProps = ({
+    agentId,
+    agentName,
+    workspaceId,
+    projectId,
+    connections = EMPTY_CONNECTIONS,
+    onOpenChannels,
+    onChanged,
+}: AgentPrivacyHostOptions): AgentPrivacyProps => {
     const project = useCurrentProject(workspaceId, projectId)
     const me = useAtomValue(userAtom)
     const queryClient = useQueryClient()
@@ -78,6 +94,7 @@ export const AgentPrivacyHost = ({
     }, [everyoneQuery.data, me, ownerId])
 
     const channelConnections = useMemo(() => channelConnectionsOf(connections), [connections])
+    const channelsOff = useMemo(() => channelsOffOf(connections), [connections])
 
     const outcome = async (write: () => Promise<unknown>): Promise<SharingWriteResult> => {
         try {
@@ -87,35 +104,58 @@ export const AgentPrivacyHost = ({
             void queryClient.invalidateQueries({
                 queryKey: ["agent-workflows", "archived", projectId],
             })
+            onChanged?.()
             return "ok"
         } catch (error) {
             return sharingWriteResultFromError(error)
         }
     }
 
-    return (
-        <AgentPrivacyControl
-            agentName={agentName}
-            projectName={project?.project_name ?? ""}
-            sharing={sharing}
-            disclosure={sharingQuery.data?.disclosure}
-            loading={sharingQuery.isPending}
-            loadError={sharingQuery.isError && !sharingQuery.data}
-            onRetry={() => void sharingQuery.refetch()}
-            owner={owner}
-            channelConnections={channelConnections}
-            members={membersQuery.data?.members ?? []}
-            membersSearch={typed}
-            onMembersSearch={setTyped}
-            membersLoading={membersQuery.isPending}
-            membersError={membersQuery.isError}
-            onSetVisibility={(visibility: Visibility) =>
-                outcome(() => setVisibility({workflowId: agentId, visibility}))
-            }
-            onTransfer={(userId: string) => outcome(() => transfer({workflowId: agentId, userId}))}
-            onTakeOwnership={() => outcome(() => takeOwnership({workflowId: agentId}))}
-            onNotify={(text) => message.success(text)}
-            onReload={() => void sharingQuery.refetch()}
-        />
-    )
+    return {
+        agentName,
+        projectName: project?.project_name ?? "",
+        sharing,
+        disclosure: sharingQuery.data?.disclosure,
+        loading: sharingQuery.isPending,
+        loadError: sharingQuery.isError && !sharingQuery.data,
+        onRetry: () => void sharingQuery.refetch(),
+        owner,
+        channelConnections,
+        channelsOff,
+        onOpenChannels,
+        members: membersQuery.data?.members ?? [],
+        membersSearch: typed,
+        onMembersSearch: setTyped,
+        membersLoading: membersQuery.isPending,
+        membersError: membersQuery.isError,
+        onSetVisibility: (visibility: Visibility) =>
+            outcome(() => setVisibility({workflowId: agentId, visibility})),
+        onTransfer: (userId: string) => outcome(() => transfer({workflowId: agentId, userId})),
+        onTakeOwnership: () => outcome(() => takeOwnership({workflowId: agentId})),
+        onNotify: (text) => message.success(text),
+        onReload: () => void sharingQuery.refetch(),
+    }
 }
+
+/**
+ * The agent's "Private" / "Shared" control in the playground top bar, wired to the sharing
+ * state of the agent and the project's members.
+ */
+export const AgentPrivacyHost = (options: AgentPrivacyHostOptions) => (
+    <AgentPrivacyControl {...useAgentPrivacyProps(options)} />
+)
+
+/**
+ * "Privacy and owner" on its own, for the channel screens' Share links. Mount it only while it
+ * is open: it reads the agent's sharing state.
+ */
+export const AgentPrivacyDialogHost = ({
+    onClose,
+    ...options
+}: AgentPrivacyHostOptions & {onClose: () => void}) => (
+    <AgentPrivacyDialog
+        {...useAgentPrivacyProps(options)}
+        open
+        onOpenChange={(open) => !open && onClose()}
+    />
+)

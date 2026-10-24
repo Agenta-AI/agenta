@@ -1,10 +1,11 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, useState} from "react"
 
 import {
     agentWorkflowsListQueryStateAtom,
     SAVE_AS_TEMPLATE_MESSAGE,
     SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE,
 } from "@agenta/entities/workflow"
+import {userAtom} from "@agenta/shared/state"
 import {
     Button,
     DropdownMenu,
@@ -16,10 +17,11 @@ import {
 import {Broadcast, ExportIcon, FileZip, Storefront} from "@phosphor-icons/react"
 import {useAtomValue, useStore} from "jotai"
 
+import {isMyPrivateAgent} from "../agents/myPrivateAgent"
 import {useAgentPublishPanel} from "../agents/useAgentPublishPanel"
 import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
 
-import {AgentPrivacyHost} from "./AgentPrivacyHost"
+import {AgentPrivacyDialogHost, AgentPrivacyHost} from "./AgentPrivacyHost"
 import {ShareMenuItem} from "./ShareMenuItem"
 
 /**
@@ -57,6 +59,10 @@ export const ShareMenu = ({
         [agentsQuery.data],
     )
 
+    const me = useAtomValue(userAtom)
+    const agentName = agent?.name || agent?.slug || "Agent"
+    // The Publish panel's share links open "Privacy and owner" on its own.
+    const [privacyOpen, setPrivacyOpen] = useState(false)
     const publish = useAgentPublishPanel({
         agentId,
         agentName: agent?.name || agent?.slug || undefined,
@@ -65,7 +71,12 @@ export const ShareMenu = ({
         projectId,
         workspaceId,
         side: "right",
+        agentPrivate: isMyPrivateAgent(agent, me?.id),
+        onShareAgent: () => setPrivacyOpen(true),
     })
+    const {reload} = publish
+    // Make-private turns the agent's channel connections off: read them again after a write.
+    const reloadChannels = useCallback(() => void reload().catch(() => null), [reload])
 
     const sendTemplateRequest = (text: string) => {
         // Read the store, not the render: a double tap lands before the re-render.
@@ -126,10 +137,12 @@ export const ShareMenu = ({
             {/* Who can see this agent: between Templates and Publish, at every width. */}
             <AgentPrivacyHost
                 agentId={agentId}
-                agentName={agent?.name || agent?.slug || "Agent"}
+                agentName={agentName}
                 workspaceId={workspaceId}
                 projectId={projectId}
                 connections={publish.connections}
+                onOpenChannels={publish.openHub}
+                onChanged={reloadChannels}
             />
             <Button
                 variant="ghost"
@@ -141,6 +154,17 @@ export const ShareMenu = ({
                 Publish
             </Button>
             {publish.panel}
+            {privacyOpen ? (
+                <AgentPrivacyDialogHost
+                    agentId={agentId}
+                    agentName={agentName}
+                    workspaceId={workspaceId}
+                    projectId={projectId}
+                    connections={publish.connections}
+                    onChanged={reloadChannels}
+                    onClose={() => setPrivacyOpen(false)}
+                />
+            ) : null}
         </>
     )
 }
