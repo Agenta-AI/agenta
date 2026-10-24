@@ -163,7 +163,10 @@ export const MemberPicker = ({
                                 setActive(0)
                                 setOpen(true)
                             }}
-                            onFocus={() => setOpen(true)}
+                            // A focus alone (the dialog focuses this input when it opens) does
+                            // not open the list: it would cover the dialog's footer (QA D9).
+                            // A click, typing or the arrow key opens it.
+                            onClick={() => setOpen(true)}
                             onKeyDown={onKeyDown}
                             className="min-w-[80px] flex-1 border-0 bg-transparent p-0 text-sm text-foreground outline-none [font-family:inherit] placeholder:text-muted-foreground"
                         />

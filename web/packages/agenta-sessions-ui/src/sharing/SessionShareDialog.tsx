@@ -28,7 +28,7 @@ import {
 } from "@agenta/ui/ui"
 import {LinkIcon, LockSimpleIcon, UsersIcon} from "@phosphor-icons/react"
 
-import {sessionRoleCopy, sessionSharingCopy as copy} from "./copy"
+import {joinNames, sessionRoleCopy, sessionSharingCopy as copy} from "./copy"
 import {MemberPicker} from "./MemberPicker"
 import {PersonAvatar, personName, type SharingPerson} from "./people"
 import type {SharingWriteResult} from "./result"
@@ -327,6 +327,18 @@ export const SessionShareDialog = ({
                                         {copy.inviteButton}
                                     </LoadingButton>
                                 </div>
+                                {inviteRole === "participant" &&
+                                picked.some((p) => p.can_run_sessions === false) ? (
+                                    <span className="text-xs text-muted-foreground">
+                                        {copy.inviteViewOnly(
+                                            joinNames(
+                                                picked
+                                                    .filter((p) => p.can_run_sessions === false)
+                                                    .map((p) => personName(p)),
+                                            ),
+                                        )}
+                                    </span>
+                                ) : null}
                                 {invalidIds.map((userId) => (
                                     <p key={userId} className="m-0 text-xs text-error">
                                         {copy.invalidGrantee(nameOf(userId))}
@@ -390,11 +402,18 @@ export const SessionShareDialog = ({
                                                         {person.email}
                                                     </span>
                                                 ) : null}
+                                                {grant.role === "participant" &&
+                                                person.can_run_sessions === false ? (
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {copy.grantViewOnlyByRole}
+                                                    </span>
+                                                ) : null}
                                             </div>
                                             <span className={ROLE_COLUMN_CLASS}>
                                                 {isOwner ? (
                                                     <SessionGrantRoleMenu
                                                         role={grant.role}
+                                                        canSend={person.can_run_sessions !== false}
                                                         personName={nameOf(grant.user_id)}
                                                         saving={saving === grant.user_id}
                                                         onChangeRole={(role) => {
@@ -420,7 +439,13 @@ export const SessionShareDialog = ({
                                                     />
                                                 ) : (
                                                     <span className="px-1.5 text-sm">
-                                                        {sessionRoleCopy[grant.role].label}
+                                                        {
+                                                            sessionRoleCopy[
+                                                                person.can_run_sessions === false
+                                                                    ? "viewer"
+                                                                    : grant.role
+                                                            ].label
+                                                        }
                                                     </span>
                                                 )}
                                             </span>

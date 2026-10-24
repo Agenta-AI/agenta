@@ -91,7 +91,7 @@ const buttonNamed = (name: string) =>
 const pickBob = () => {
     const input = document.querySelector<HTMLInputElement>('input[role="combobox"]')
     expect(input).toBeTruthy()
-    act(() => input!.focus())
+    act(() => input!.click())
     const option = Array.from(document.querySelectorAll('[role="option"]')).find((o) =>
         o.textContent?.includes("Bob Lee"),
     )
@@ -254,5 +254,48 @@ describe("SessionShareDialog", () => {
         render()
         expect(buttonNamed(sessionSharingCopy.stopSharing)).toBeUndefined()
         expect(text()).toContain(sessionSharingCopy.emptyGrants)
+    })
+})
+
+describe("a member whose project role cannot send (QA D3)", () => {
+    const viewerRole = {...carol, role: "viewer", can_run_sessions: false} as ProjectMemberProfile
+
+    it("a Can send grant shows as view only, with the reason", () => {
+        render({
+            sharing: sharing({grants: [{stream_id: "s", user_id: carol.user_id, role: "participant"}]}),
+            people: [alice, bob, viewerRole],
+        })
+        const row = document.querySelector('[data-testid="session-grant-row"]')!
+        expect(row.textContent).toContain(sessionSharingCopy.grantViewOnlyByRole)
+        const trigger = row.querySelector("button")!
+        expect(trigger.textContent).toContain("Can view")
+        expect(trigger.textContent).not.toContain("Can send")
+    })
+
+    it("inviting such a member as Can view says nothing more", () => {
+        render({
+            people: [alice, bob, viewerRole],
+            members: [bob, viewerRole],
+        })
+        const input = document.querySelector<HTMLInputElement>('input[role="combobox"]')!
+        act(() => input.click())
+        const option = Array.from(document.querySelectorAll('[role="option"]')).find((o) =>
+            o.textContent?.includes("Carol Ng"),
+        ) as HTMLElement
+        act(() => option.click())
+        // The invite role is "Can view" by default: nothing to warn about.
+        expect(text()).not.toContain(sessionSharingCopy.inviteViewOnly("Carol Ng"))
+    })
+})
+
+describe("the people picker (QA D9)", () => {
+    it("does not open when the dialog focuses its input, and opens on a click", () => {
+        render()
+        const input = document.querySelector<HTMLInputElement>('input[role="combobox"]')!
+        act(() => input.focus())
+        expect(document.querySelectorAll('[role="option"]').length).toBe(0)
+
+        act(() => input.click())
+        expect(document.querySelectorAll('[role="option"]').length).toBeGreaterThan(0)
     })
 })

@@ -32,6 +32,11 @@ export const sessionSharingCopy = {
     sharedBy: (owner: string) => `Shared by ${owner}`,
     chipViewOnly: "View only",
     chipCanSend: "Can send",
+    // A "Can send" grant works only for a role that may send (added in the M3 gate, QA D3).
+    roleCannotSend: "Their role in this project cannot send.",
+    grantViewOnlyByRole: "Can only view: their role in this project cannot send.",
+    inviteViewOnly: (names: string) =>
+        `${names} can only view: their role in this project cannot send.`,
 
     panelTitle: "Who can see this chat",
     panelOwner: "Owner",

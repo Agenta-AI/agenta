@@ -131,9 +131,20 @@ const SessionRowActions = ({
         return () => window.clearTimeout(timer)
     }, [rename.renaming])
 
-    // The row IS a link — offering "Open" in its own menu restates the click.
-    const entries = useMemo(() => menuItems(target), [menuItems, target])
-    const runAction = useMemo(() => onMenuClick(target), [onMenuClick, target])
+    // The approved session row menu starts with "Open" on every surface (M3 UI design; QA D7):
+    // it opens the row's own link.
+    const rowHref = isValidElement(children)
+        ? (children as ReactElement<{href?: string}>).props.href
+        : undefined
+    const openOptions = useMemo(
+        () => (rowHref ? {onOpen: () => void router.push(rowHref)} : undefined),
+        [rowHref, router],
+    )
+    const entries = useMemo(() => menuItems(target, openOptions), [menuItems, target, openOptions])
+    const runAction = useMemo(
+        () => onMenuClick(target, openOptions),
+        [onMenuClick, target, openOptions],
+    )
 
     const onSelect = useCallback(
         (key: string) => {

@@ -21,6 +21,7 @@ import {
     type SidebarEntityRef,
 } from "@agenta/navigation"
 import {buildReleaseNavItems, SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
+import {sessionRoutePath} from "@agenta/sessions/link"
 import {
     SessionRowActions,
     useSessionActions,
@@ -49,6 +50,7 @@ import {
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
+import {useRouter} from "next/router"
 
 import {agentEntryHref} from "@/features/agents/agentEntry"
 import {shareDialogRequestAtom} from "@/features/chat/shareDialogState"
@@ -174,11 +176,20 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
         },
         [openShare, projectURL],
     )
+    // "Copy share link" in the rail too (approved session row menu, QA D7): the session's own
+    // page, with the app's `/m` prefix.
+    const router = useRouter()
+    const sharePathFor = useCallback(
+        ({sessionId}: SessionActionTarget) =>
+            `${router.basePath}${sessionRoutePath(projectURL, sessionId)}`,
+        [projectURL, router.basePath],
+    )
     const chrome = useSessionRowChrome(
         useSessionActions({
             onRemoved: useLeaveSession(projectURL),
             currentUserId: me?.id ?? null,
             onShare,
+            sharePathFor,
         }),
     )
     // Platform read in an effect: the server has none, and a guess mismatches on hydration.

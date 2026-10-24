@@ -2,7 +2,10 @@ import type {ProjectMemberProfile} from "@agenta/entities/sharing"
 import {Avatar, AvatarFallback} from "@agenta/ui/ui"
 
 /** The fields a person row shows; a member profile fits. */
-export type SharingPerson = Pick<ProjectMemberProfile, "user_id" | "email" | "name">
+export type SharingPerson = Pick<ProjectMemberProfile, "user_id" | "email" | "name"> & {
+    /** False when the person's project role cannot send in a session (from the picker). */
+    can_run_sessions?: boolean | null
+}
 
 export const personName = (person: SharingPerson | null | undefined): string =>
     person?.name?.trim() || person?.email || ""

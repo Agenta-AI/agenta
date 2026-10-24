@@ -35,6 +35,8 @@ export const sharingCopy = {
     accessRemovedTitle: "You no longer have access to this chat",
     accessRemovedBody: "The owner changed who can see it.",
     backToSessions: "Back to sessions",
+    // The agent overview's not-found screen (added in the M3 gate, QA D6).
+    backToAgents: "Back to agents",
 
     // Hidden and unknown read the same.
     chatNotFound: "This chat does not exist, or you do not have access to it.",
