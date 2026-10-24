@@ -435,36 +435,45 @@ async def test_get_project_by_workspace_accepts_the_organization_id():
 
 
 async def test_get_project_by_workspace_keeps_the_legacy_answer():
-    workspaces = await fetch_all(
-        "SELECT w.id FROM workspaces w WHERE EXISTS "
-        "(SELECT 1 FROM projects p WHERE p.workspace_id = w.id)"
-    )
-    assert workspaces
-    checked = 0
-    for row in workspaces:
-        today = await fetch_all(_TODAY_PROJECT_BY_WORKSPACE_SQL, {"w": row["id"]})
-        if not today:
-            continue  # deleted by a test that runs in parallel
-        try:
-            project = await db_manager.get_project_by_workspace(
-                workspace_id=str(row["id"])
-            )
-        except db_manager.NoResultFound:
-            if await fetch_all(_TODAY_PROJECT_BY_WORKSPACE_SQL, {"w": row["id"]}):
-                raise
-            continue
-        checked += 1
-        # Today's order leaves ties of (is_default, created_at) open: the answer is one
-        # of the tied rows.
-        first = today[0]["id"]
-        tied = await fetch_all(
-            "SELECT id FROM projects WHERE workspace_id = :w "
-            "AND is_default IS NOT DISTINCT FROM (SELECT is_default FROM projects WHERE id = :p) "
-            "AND created_at IS NOT DISTINCT FROM (SELECT created_at FROM projects WHERE id = :p)",
-            {"w": row["id"], "p": first},
+    # Its own shapes (a fresh database has none), plus every workspace already there.
+    own = await seed_organization(members={"m": "editor"}, workspaces=3)
+    try:
+        await execute(
+            "UPDATE projects SET is_default = false WHERE workspace_id = :w",
+            {"w": own.workspace_ids[2]},
         )
-        assert project.id in {t["id"] for t in tied}, row["id"]
-    assert checked
+        workspaces = await fetch_all(
+            "SELECT w.id FROM workspaces w WHERE EXISTS "
+            "(SELECT 1 FROM projects p WHERE p.workspace_id = w.id)"
+        )
+        assert workspaces
+        checked = 0
+        for row in workspaces:
+            today = await fetch_all(_TODAY_PROJECT_BY_WORKSPACE_SQL, {"w": row["id"]})
+            if not today:
+                continue  # deleted by a test that runs in parallel
+            try:
+                project = await db_manager.get_project_by_workspace(
+                    workspace_id=str(row["id"])
+                )
+            except db_manager.NoResultFound:
+                if await fetch_all(_TODAY_PROJECT_BY_WORKSPACE_SQL, {"w": row["id"]}):
+                    raise
+                continue
+            checked += 1
+            # Today's order leaves ties of (is_default, created_at) open: the answer is one
+            # of the tied rows.
+            first = today[0]["id"]
+            tied = await fetch_all(
+                "SELECT id FROM projects WHERE workspace_id = :w "
+                "AND is_default IS NOT DISTINCT FROM (SELECT is_default FROM projects WHERE id = :p) "
+                "AND created_at IS NOT DISTINCT FROM (SELECT created_at FROM projects WHERE id = :p)",
+                {"w": row["id"], "p": first},
+            )
+            assert project.id in {t["id"] for t in tied}, row["id"]
+        assert checked
+    finally:
+        await delete_seeded_organization(own)
 
 
 async def test_get_project_by_workspace_keeps_a_workspace_without_default():
@@ -748,12 +757,15 @@ async def test_user_workspace_items_of_legacy_users_equal_today():
                 {"u": user_id},
             )
             items = await db_manager.fetch_user_workspace_items(user_id=str(user_id))
-            assert [
+            # Today's order leaves ties of `created_at` open (one transaction can create
+            # several workspaces): same items, in `created_at` order.
+            assert sorted(
                 (i.id, i.organization_id, i.name, i.description, i.type) for i in items
-            ] == [
+            ) == sorted(
                 (r["id"], r["organization_id"], r["name"], r["description"], r["type"])
                 for r in today
-            ]
+            )
+            assert [i.created_at for i in items] == sorted(i.created_at for i in items)
     finally:
         await delete_seeded_organization(seeded)
 
@@ -871,23 +883,489 @@ async def test_admin_delete_user_with_cascade_deletes_cross_organization_project
 async def test_scope_snapshot_covers_projects_of_deleted_workspaces():
     cross = await _seed_cross_organization_project()
     try:
-        key_owner = cross.user_ids["m"]
+        key_id = uuid4()
         await execute(
             "INSERT INTO api_keys (id, prefix, hashed_key, created_by_id, project_id, "
             "rate_limit, hidden, created_at, updated_at) VALUES (:id, :prefix, :h, :u, :p, "
             "0, false, now(), now())",
             {
-                "id": uuid4(),
+                "id": key_id,
                 "prefix": uuid4().hex[:8],
                 "h": uuid4().hex,
-                "u": key_owner,
+                "u": cross.user_ids["m"],
                 "p": cross.project_ids[0],
             },
         )
+        other = cross.extra_organization_ids[0]
+        own_projects = {
+            row["id"]
+            for row in await fetch_all(
+                "SELECT id FROM projects WHERE organization_id = :o", {"o": other}
+            )
+        }
         snapshot = await PrincipalsDAO(
             engine=get_transactions_engine()
-        ).list_scope_principals(organization_ids=[cross.extra_organization_ids[0]])
-        assert cross.project_ids[0] in snapshot.project_ids
-        assert len(snapshot.api_key_ids) >= 1
+        ).list_scope_principals(organization_ids=[other])
+        assert set(snapshot.project_ids) == own_projects | {cross.project_ids[0]}
+        assert set(snapshot.api_key_ids) == {key_id}
+        assert snapshot.binding_ids == []
     finally:
         await delete_seeded_organization(cross)
+
+
+# --- whole-request counts (Task B4) ------------------------------------------ #
+#
+# One `verify_bearer_token` call with a fake SuperTokens session and the real readers,
+# resolver, caching and Redis (a throwaway Redis: REDIS_URI_VOLATILE); skipped when Redis
+# is unreachable. Before = today's statements per branch (Task B3 table): project+workspace
+# 3 cold / 2 partly warm, workspace only 3 / 3, no parameters 3 / 3, warm 0 everywhere.
+
+from types import SimpleNamespace as _NS  # noqa: E402
+
+from starlette.requests import Request as _Request  # noqa: E402
+
+import oss.src.core.memberships.service as _memberships_module  # noqa: E402
+from oss.src.core.memberships.dtos import MembershipPolicy as _Policy  # noqa: E402
+from oss.src.core.memberships.service import MembershipsService as _Service  # noqa: E402
+from oss.src.middlewares import auth as _auth  # noqa: E402
+from oss.src.utils import caching as _caching  # noqa: E402
+from oss.tests.pytest.utils.redis_calls import count_redis_calls  # noqa: E402
+
+_BEFORE_SQL = {
+    "project+workspace": {"cold": 3, "partly_warm": 2},
+    "project+organization": {"cold": 3, "partly_warm": 2},  # today: refused after 2-3
+    "workspace": {"cold": 3, "partly_warm": 3},
+    "none": {"cold": 3, "partly_warm": 3},
+}
+
+POLICIES = [_Policy.ORGANIZATION_WIDE, _Policy.PROJECT_ROWS]
+
+
+async def _redis_reachable() -> bool:
+    # The cache client binds to the event loop it was created in; each test has its own.
+    _caching.get_cache_engine()._r = None
+    try:
+        await _caching.get_cache_engine()._client().ping()
+        return True
+    except Exception:  # pylint: disable=broad-exception-caught
+        return False
+
+
+def _bearer_request() -> _Request:
+    return _Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/projects/",
+            "headers": [],
+            "query_string": b"",
+            "scheme": "http",
+            "server": ("testserver", 80),
+            "root_path": "",
+        }
+    )
+
+
+@pytest.fixture
+async def bearer_world(monkeypatch, request):
+    if not await _redis_reachable():
+        pytest.skip(
+            "Redis is unreachable (set REDIS_URI_VOLATILE to a throwaway Redis)"
+        )
+    policy = request.param
+    # No random early "leak" on a cache miss: every miss takes the same Redis path, so
+    # the Redis counts below are exact.
+    monkeypatch.setattr(_caching, "random", lambda: 0.99)
+    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
+    user = seeded.user_ids["m"]
+    service = _Service(memberships_dao=_dao(), policy=policy)
+    monkeypatch.setattr(_memberships_module, "_memberships_service", service)
+
+    email = (await fetch_all("SELECT email FROM users WHERE id = :u", {"u": user}))[0][
+        "email"
+    ]
+
+    async def _session(request):
+        return _NS(get_user_id=lambda: f"st-{user.hex}")
+
+    async def _supertokens_user(*, user_id):
+        return _NS(emails=[email])
+
+    monkeypatch.setattr(_auth, "get_session", _session)
+    monkeypatch.setattr(_auth, "get_supertokens_user_by_id", _supertokens_user)
+    yield seeded, user
+    await _flush(user, ("*",))
+    await delete_seeded_organization(seeded)
+
+
+async def _flush(user, namespaces):
+    client = _caching.get_cache_engine()._client()
+    for namespace in namespaces:
+        async for name in client.scan_iter(
+            match=f"cache:p:*:u:{str(user)[-12:]}:{namespace}:*"
+        ):
+            await client.delete(name)
+
+
+async def _flush_organization_names(project_ids):
+    # Only this test's projects: tests in other workers share the Redis.
+    client = _caching.get_cache_engine()._client()
+    for project_id in project_ids:
+        async for name in client.scan_iter(
+            match=f"cache:p:{str(project_id)[-12:]}:*get_organization_name*"
+        ):
+            await client.delete(name)
+
+
+async def _measure(user, *, project_id=None, workspace_id=None, project_ids=()):
+    out = {}
+    for state, namespaces in (
+        ("fully_cold", ("*",)),
+        ("cold", ("verify_bearer_token", "resolve_membership")),
+        ("partly_warm", ("verify_bearer_token",)),
+        ("warm", ()),
+    ):
+        # prime: the organization name and the resolver entry exist after this
+        await _auth.verify_bearer_token(
+            request=_bearer_request(),
+            bearer_token="t",
+            query_project_id=str(project_id) if project_id else None,
+            query_workspace_id=str(workspace_id) if workspace_id else None,
+        )
+        await _flush(user, namespaces)
+        if state == "fully_cold":
+            await _flush_organization_names(project_ids)
+        with (
+            count_statements(get_transactions_engine()) as sql,
+            count_redis_calls() as redis,
+        ):
+            await _auth.verify_bearer_token(
+                request=_bearer_request(),
+                bearer_token="t",
+                query_project_id=str(project_id) if project_id else None,
+                query_workspace_id=str(workspace_id) if workspace_id else None,
+            )
+        out[state] = {
+            "sql": len(sql),
+            "redis": [call.command for call in redis],
+            "redis_keys": [call.key for call in redis],
+        }
+    return out
+
+
+@pytest.mark.parametrize("bearer_world", POLICIES, indirect=True)
+async def test_bearer_project_and_organization_id_counts(bearer_world):
+    seeded, user = bearer_world
+    project_id = seeded.project_ids[0]
+    for name, workspace_id in (
+        ("project+workspace", seeded.workspace_ids[0]),
+        ("project+organization", seeded.organization_id),
+    ):
+        counts = await _measure(user, project_id=project_id, workspace_id=workspace_id)
+        assert counts["cold"]["sql"] == 2, (name, counts)
+        assert counts["partly_warm"]["sql"] == 1, (name, counts)
+        assert counts["warm"]["sql"] == 0, (name, counts)
+        assert counts["cold"]["sql"] <= _BEFORE_SQL[name]["cold"]
+        assert counts["partly_warm"]["sql"] <= _BEFORE_SQL[name]["partly_warm"]
+
+
+@pytest.mark.parametrize("bearer_world", POLICIES, indirect=True)
+async def test_bearer_workspace_only_counts(bearer_world):
+    seeded, user = bearer_world
+    for workspace_id in (seeded.workspace_ids[0], seeded.organization_id):
+        counts = await _measure(user, workspace_id=workspace_id)
+        assert counts["cold"]["sql"] == 2, counts
+        assert counts["partly_warm"]["sql"] == 2, counts
+        assert counts["warm"]["sql"] == 0, counts
+        # no resolve_membership key is read or written on this branch
+        for state in counts.values():
+            assert not [k for k in state["redis_keys"] if "resolve_membership" in k]
+
+
+@pytest.mark.parametrize("bearer_world", POLICIES, indirect=True)
+async def test_bearer_without_parameters_counts(bearer_world):
+    seeded, user = bearer_world
+    counts = await _measure(user)
+    # the selection plus the resolver read (every selection is checked), today's 3
+    assert counts["cold"]["sql"] == 3, counts
+    assert counts["warm"]["sql"] == 0, counts
+    assert counts["cold"]["sql"] <= _BEFORE_SQL["none"]["cold"]
+
+
+@pytest.mark.parametrize("bearer_world", POLICIES, indirect=True)
+async def test_bearer_without_workspace_rows_fallback_counts(bearer_world):
+    seeded, user = bearer_world
+    await execute("DELETE FROM workspace_members WHERE user_id = :u", {"u": user})
+    counts = await _measure(user)
+    assert counts["cold"]["sql"] == 4, counts  # this request is a 401 today
+    assert counts["warm"]["sql"] == 0, counts
+
+
+@pytest.mark.parametrize("bearer_world", POLICIES, indirect=True)
+async def test_bearer_warm_requests_send_the_same_redis_commands(bearer_world):
+    seeded, user = bearer_world
+    warm = [
+        (await _measure(user, project_id=seeded.project_ids[0]))["warm"]["redis"],
+        (
+            await _measure(
+                user,
+                project_id=seeded.project_ids[0],
+                workspace_id=seeded.workspace_ids[0],
+            )
+        )["warm"]["redis"],
+        (await _measure(user, workspace_id=seeded.workspace_ids[0]))["warm"]["redis"],
+        (await _measure(user))["warm"]["redis"],
+    ]
+    assert all(w == warm[0] for w in warm), warm
+
+
+async def test_project_list_stays_one_statement_with_a_project_without_workspace():
+    seeded = await _seed_organization_without_workspaces()
+    try:
+        await _add_project(
+            organization_id=seeded.organization_id, workspace_id=None, is_default=False
+        )
+        engine = get_transactions_engine()
+        with count_statements(engine) as statements:
+            rows = await _dao().list_membership_rows(user_id=seeded.owner_id)
+        assert len(statements) == 1
+        assert (
+            len(
+                [r for r in rows if r.summary.organization_id == seeded.organization_id]
+            )
+            == 2
+        )
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+# The whole Bearer request after step 1, per state: (SQL statements, Redis commands).
+# Fully cold also misses the SuperTokens-user and organization-name entries. Today's SQL
+# for the same requests (plan Task B3 table, fully cold adds the same 2 statements on both
+# sides): project+workspace 5 / 3 / 2, workspace only 5 / 3 / 3, no parameters 5 / 3 / 3.
+_AFTER = {
+    "project+workspace": {
+        "fully_cold": (4, 16),
+        "cold": (2, 10),
+        "partly_warm": (1, 7),
+        "warm": (0, 2),
+    },
+    "project": {
+        "fully_cold": (4, 16),
+        "cold": (2, 10),
+        "partly_warm": (1, 7),
+        "warm": (0, 2),
+    },
+    "workspace": {
+        "fully_cold": (4, 12),
+        "cold": (2, 6),
+        "partly_warm": (2, 6),
+        "warm": (0, 2),
+    },
+    "none": {
+        "fully_cold": (5, 12),
+        "cold": (3, 6),
+        "partly_warm": (3, 6),
+        "warm": (0, 2),
+    },
+}
+_TODAY_SQL = {
+    "project+workspace": {"fully_cold": 5, "cold": 3, "partly_warm": 2, "warm": 0},
+    "project": {"fully_cold": 4, "cold": 2, "partly_warm": 1, "warm": 0},
+    "workspace": {"fully_cold": 5, "cold": 3, "partly_warm": 3, "warm": 0},
+    "none": {"fully_cold": 5, "cold": 3, "partly_warm": 3, "warm": 0},
+}
+
+
+@pytest.mark.parametrize("bearer_world", POLICIES, indirect=True)
+async def test_bearer_counts_per_branch_and_state(bearer_world):
+    seeded, user = bearer_world
+    ids = seeded.project_ids
+    measured = {
+        "project+workspace": await _measure(
+            user,
+            project_id=seeded.project_ids[0],
+            workspace_id=seeded.workspace_ids[0],
+            project_ids=ids,
+        ),
+        "project": await _measure(
+            user, project_id=seeded.project_ids[0], project_ids=ids
+        ),
+        "workspace": await _measure(
+            user, workspace_id=seeded.workspace_ids[0], project_ids=ids
+        ),
+        "none": await _measure(user, project_ids=ids),
+    }
+    for branch, states in measured.items():
+        for state, value in states.items():
+            sql, redis = _AFTER[branch][state]
+            assert value["sql"] == sql, (branch, state, value)
+            assert value["sql"] <= _TODAY_SQL[branch][state], (branch, state)
+            # The cache keys and calls of every branch are today's (the workspace-only
+            # key gains a version field only), so today's Redis count is this one.
+            assert len(value["redis"]) == redis, (branch, state, value)
+            if branch in ("workspace", "none"):
+                assert not [k for k in value["redis_keys"] if "resolve_membership" in k]
+    # warm: one Redis GET for the SuperTokens user and one for the Bearer state, everywhere
+    assert {tuple(states["warm"]["redis"]) for states in measured.values()} == {
+        ("GET", "GET")
+    }
+
+
+_APIKEY_COLD_REDIS = 4  # GET miss, lock SET, state SET, lock DEL (as today)
+
+
+@pytest.mark.parametrize("bearer_world", POLICIES, indirect=True)
+async def test_apikey_counts_are_unchanged(bearer_world):
+    from oss.src.services import api_key_service
+
+    seeded, user = bearer_world
+    raw_key = await api_key_service.create_api_key(
+        user_id=str(user), project_id=str(seeded.project_ids[0])
+    )
+    client = _caching.get_cache_engine()._client()
+
+    async def _call():
+        request = _bearer_request()
+        await _auth.verify_apikey_token(request=request, apikey_token=raw_key)
+        return request.state
+
+    await _call()
+    counts = {}
+    for state in ("cold", "warm"):
+        if state == "cold":
+            async for name in client.scan_iter(
+                match=f"cache:p:*:verify_apikey_token:*{raw_key}*"
+            ):
+                await client.delete(name)
+        with (
+            count_statements(get_transactions_engine()) as sql,
+            count_redis_calls() as redis,
+        ):
+            request_state = await _call()
+        counts[state] = (len(sql), len(redis))
+    # Today: the key read (with its creator) and the project read, no extra statement for
+    # the legacy workspace id; warm: one Redis GET.
+    assert counts["cold"][0] == 2, counts
+    assert counts["cold"][1] == _APIKEY_COLD_REDIS, counts
+    assert counts["warm"] == (0, 1), counts
+    assert request_state.workspace_id == str(seeded.workspace_ids[0])
+
+
+async def test_delete_paths_keep_their_statement_counts():
+    engine = get_transactions_engine()
+    seeded = await seed_organization(members={"m": "editor"}, workspaces=3)
+    cross = await _seed_cross_organization_project()
+    try:
+        with count_statements(engine) as statements:
+            await db_manager.admin_delete_workspace(seeded.workspace_ids[2])
+        assert len(statements) == 1, statements
+        with count_statements(engine) as statements:
+            await db_manager.admin_delete_accounts_batch(
+                org_ids=[],
+                workspace_ids=[seeded.workspace_ids[1]],
+                project_ids=[],
+                user_ids=[],
+            )
+        assert len(statements) == 1, statements  # every statement, not only deletes
+        assert not await _project_exists(seeded.project_ids[1])
+        with count_statements(engine) as statements:
+            await db_manager.admin_delete_organization(cross.extra_organization_ids[0])
+        assert len(statements) == 1, statements
+        assert not await _project_exists(cross.project_ids[0])
+        with count_statements(engine) as statements:
+            await db_manager.delete_organization(str(seeded.organization_id))
+        assert len(statements) == 2, statements  # the read, then one delete
+        assert not await _project_exists(seeded.project_ids[0])
+    finally:
+        await delete_seeded_organization(seeded)
+        await delete_seeded_organization(cross)
+
+
+async def test_batch_organization_delete_takes_own_and_foreign_projects_in_one_statement():
+    engine = get_transactions_engine()
+    cross = await _seed_cross_organization_project()
+    other = cross.extra_organization_ids[0]
+    own = [
+        row["id"]
+        for row in await fetch_all(
+            "SELECT id FROM projects WHERE organization_id = :o", {"o": other}
+        )
+    ]
+    try:
+        assert own
+        with count_statements(engine) as statements:
+            await db_manager.admin_delete_accounts_batch(
+                org_ids=[other], workspace_ids=[], project_ids=[], user_ids=[]
+            )
+        assert len(statements) == 1, statements
+        assert not await _project_exists(
+            cross.project_ids[0]
+        )  # foreign, in its workspace
+        for project_id in own:
+            assert not await _project_exists(project_id)  # its own, by the cascade
+    finally:
+        await delete_seeded_organization(cross)
+
+
+async def test_legacy_workspace_with_a_null_name_keeps_an_empty_name():
+    seeded = await seed_organization(members={"m": "editor"})
+    try:
+        await execute(
+            "UPDATE workspaces SET name = NULL WHERE id = :w",
+            {"w": seeded.workspace_ids[0]},
+        )
+        row = await _dao().fetch_membership_row(
+            user_id=seeded.user_ids["m"], project_id=seeded.project_ids[0]
+        )
+        assert row.summary.workspace_id == seeded.workspace_ids[0]
+        assert row.summary.workspace_name == ""
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_org_details_of_an_organization_without_workspaces_or_projects():
+    seeded = await _seed_organization_without_workspaces()
+    try:
+        await execute(
+            "DELETE FROM projects WHERE organization_id = :o",
+            {"o": seeded.organization_id},
+        )
+        engine = get_transactions_engine()
+        for demo in (False, True):
+            await execute(
+                "UPDATE organizations SET flags = CAST(:f AS jsonb) WHERE id = :o",
+                {
+                    "f": '{"is_demo": %s}' % ("true" if demo else "false"),
+                    "o": seeded.organization_id,
+                },
+            )
+            organization = await db_manager.get_organization(
+                str(seeded.organization_id)
+            )
+            with count_statements(engine) as statements:
+                details = await db_manager.get_org_details(organization)
+            assert details["default_workspace"] is None, demo
+            assert details["workspaces"] == [], demo
+            # Today: two default-workspace reads and the workspace list read. Now the
+            # project read takes the place of the workspace list read.
+            assert len(statements) == 3, (demo, statements)
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_org_details_of_a_legacy_organization_keep_their_statement_count():
+    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
+    try:
+        organization = await db_manager.get_organization(str(seeded.organization_id))
+        engine = get_transactions_engine()
+        with count_statements(engine) as statements:
+            details = await db_manager.get_org_details(organization)
+        assert details["default_workspace"]["id"] == str(seeded.workspace_ids[0])
+        assert sorted(details["workspaces"]) == sorted(
+            str(w) for w in seeded.workspace_ids
+        )
+        # default workspace read, project read, members, invitations, workspace list
+        assert len(statements) == 5, statements
+    finally:
+        await delete_seeded_organization(seeded)
