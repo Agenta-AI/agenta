@@ -57,7 +57,7 @@ RBAC / access enforcement:
 
 Project membership and access:
 
-- Membership is decided only by `MembershipsService.resolve` (`oss/src/core/memberships/`).
+- Membership is decided only by `MembershipsService.resolve` (`oss/src/core/memberships/`) and its uncached form `read_membership` (same policy and DAO read; use it only where another cache keeps the outcome, today the Bearer workspace-only and no-parameter branches). No other membership reader or policy.
   OSS: every organization member is a member of every project, with the organization role.
   EE: a member needs an organization row and a `project_members` row; the project row's
   role applies. The edition policy is picked only in `entrypoints/access.py`.
