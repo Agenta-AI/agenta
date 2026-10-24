@@ -36,7 +36,7 @@ from fastapi import UploadFile as FastAPIUploadFile
 from starlette.datastructures import UploadFile
 from typing import Any, Optional, Union
 
-from oss.src.core.access.context import get_request_access
+from oss.src.core.access.context import fresh_request_memo, get_request_access
 from oss.src.core.access.dtos import RunApproval
 from oss.src.core.access.service import get_access_service
 from oss.src.core.sessions.streams.types import SessionCreationRequiresRunCredential
@@ -902,19 +902,23 @@ class SessionStreamsRouter:
 
         _validate_session_id_http(session_id)
         project_id = str(request.state.project_id)
-        # Captured at entry: the rechecks run while the stream is open, outside the
-        # request's ContextVar scope.
+        # Captured at entry: the rechecks run while the stream is open, after the
+        # request's handler has returned.
         access = get_request_access()
         if access is None:
             raise FORBIDDEN_EXCEPTION
         access_service = get_access_service()
 
         async def authorized() -> bool:
-            decision = await access_service.check_request(
-                access=access,
-                action=Permission.VIEW_SESSIONS,
-                project_id=UUID(project_id),
-            )
+            # The streaming generator shares the request's access memo. A fresh memo
+            # per check makes each recheck read the current principal and membership,
+            # so a removed member, a lost role or a deleted key is refused.
+            with fresh_request_memo():
+                decision = await access_service.check_request(
+                    access=access,
+                    action=Permission.VIEW_SESSIONS,
+                    project_id=UUID(project_id),
+                )
             return decision.allowed
 
         if not await authorized():
