@@ -26,6 +26,7 @@ from oss.src.core.memberships.dtos import (
     ProjectScope,
 )
 from oss.src.core.memberships.interfaces import MembershipsDAOInterface
+from oss.src.core.memberships.workspaces import legacy_workspace_id
 from oss.src.core.memberships.types import (
     MemberNotFound,
     OrganizationNotFound,
@@ -56,10 +57,10 @@ _OLDEST = "ORDER BY created_at ASC NULLS LAST, id ASC LIMIT 1"
 _SUMMARY_COLUMNS = """
     p.id AS project_id,
     p.organization_id,
-    p.workspace_id,
+    COALESCE(p.workspace_id, p.organization_id) AS workspace_id,
     p.is_default,
     p.project_name,
-    w.name AS workspace_name,
+    CASE WHEN p.workspace_id IS NULL THEN o.name ELSE w.name END AS workspace_name,
     o.name AS organization_name,
     o.owner_id AS organization_owner_id
 """
@@ -73,7 +74,7 @@ SELECT {_SUMMARY_COLUMNS},
        pm.id IS NOT NULL AS has_project_row,
        pm.role AS project_role
 FROM projects p
-JOIN workspaces w ON w.id = p.workspace_id
+LEFT JOIN workspaces w ON w.id = p.workspace_id
 JOIN organizations o ON o.id = p.organization_id
 LEFT JOIN LATERAL (
     SELECT id, role FROM organization_members
@@ -101,7 +102,7 @@ FROM (
     ORDER BY organization_id, created_at ASC NULLS LAST, id ASC
 ) om
 JOIN projects p ON p.organization_id = om.organization_id
-JOIN workspaces w ON w.id = p.workspace_id
+LEFT JOIN workspaces w ON w.id = p.workspace_id
 JOIN organizations o ON o.id = p.organization_id
 LEFT JOIN LATERAL (
     SELECT id, role FROM project_members
@@ -118,7 +119,8 @@ WHERE organization_id = :organization_id AND user_id = :user_id
 """
 
 _LIST_PROJECTS_SQL = """
-SELECT p.id AS project_id, p.organization_id, p.workspace_id, p.is_default,
+SELECT p.id AS project_id, p.organization_id,
+       COALESCE(p.workspace_id, p.organization_id) AS workspace_id, p.is_default,
        o.owner_id AS organization_owner_id
 FROM projects p
 JOIN organizations o ON o.id = p.organization_id
@@ -280,17 +282,34 @@ WHERE email = :email
   AND project_id IN (SELECT id FROM projects WHERE organization_id = :organization_id)
 """
 
-_WORKSPACE_IN_ORGANIZATION_SQL = """
-SELECT 1 FROM workspaces WHERE id = :workspace_id AND organization_id = :organization_id
+# The workspace a new project goes into: the given workspace of the organization, or, when
+# the organization id is given, its `default`-type workspace, else its oldest. No row for an
+# organization id means an organization without workspaces: the project gets none.
+_RESOLVE_PROJECT_WORKSPACE_SQL = """
+SELECT w.id FROM workspaces w
+WHERE w.organization_id = CAST(:organization_id AS uuid)
+  AND (w.id = CAST(:workspace_id AS uuid)
+       OR CAST(:workspace_id AS uuid) = CAST(:organization_id AS uuid))
+ORDER BY (w.id = CAST(:workspace_id AS uuid)) DESC, (w.type = 'default') DESC NULLS LAST,
+         w.created_at ASC NULLS LAST, w.id ASC
+LIMIT 1
 """
 
-_WORKSPACE_HAS_DEFAULT_SQL = """
-SELECT 1 FROM projects WHERE workspace_id = :workspace_id AND is_default IS TRUE LIMIT 1
+# The default of a project's scope: its workspace, or its whole organization when it has no
+# workspace (projects that workspace removal step 2 writes).
+_SCOPE_DEFAULT_FILTER = """
+is_default IS TRUE
+AND ((CAST(:workspace_id AS uuid) IS NOT NULL AND workspace_id = CAST(:workspace_id AS uuid))
+  OR (CAST(:workspace_id AS uuid) IS NULL AND organization_id = CAST(:organization_id AS uuid)))
 """
 
-_UNSET_DEFAULTS_SQL = """
+_WORKSPACE_HAS_DEFAULT_SQL = f"""
+SELECT 1 FROM projects WHERE {_SCOPE_DEFAULT_FILTER} LIMIT 1
+"""
+
+_UNSET_DEFAULTS_SQL = f"""
 UPDATE projects SET is_default = false, updated_at = now()
-WHERE workspace_id = :workspace_id AND is_default IS TRUE
+WHERE {_SCOPE_DEFAULT_FILTER}
 """
 
 _INSERT_PROJECT_SQL = """
@@ -659,31 +678,35 @@ class MembershipsDAO(MembershipsDAOInterface):
         async with self.engine.transaction() as connection:
             await self._lock(connection, organization_id)
 
-            scope = {"organization_id": organization_id, "workspace_id": workspace_id}
-
-            in_organization = (
-                await connection.execute(text(_WORKSPACE_IN_ORGANIZATION_SQL), scope)
+            resolved = (
+                await connection.execute(
+                    text(_RESOLVE_PROJECT_WORKSPACE_SQL),
+                    {"organization_id": organization_id, "workspace_id": workspace_id},
+                )
             ).first()
-            if in_organization is None:
+            if resolved is None and workspace_id != organization_id:
                 raise WorkspaceNotFound(
                     organization_id=organization_id, workspace_id=workspace_id
                 )
 
-            # As today: the new project becomes the default when asked, or when the
-            # workspace has none.
+            # NULL for an organization without workspaces.
+            project_workspace_id = resolved.id if resolved is not None else None
+            scope = {
+                "organization_id": organization_id,
+                "workspace_id": project_workspace_id,
+            }
+
+            # As today: the new project becomes the default when asked, or when its
+            # scope (the workspace, else the organization) has none.
             should_be_default = (
                 is_default
                 or (
-                    await connection.execute(
-                        text(_WORKSPACE_HAS_DEFAULT_SQL), {"workspace_id": workspace_id}
-                    )
+                    await connection.execute(text(_WORKSPACE_HAS_DEFAULT_SQL), scope)
                 ).first()
                 is None
             )
             if should_be_default:
-                await connection.execute(
-                    text(_UNSET_DEFAULTS_SQL), {"workspace_id": workspace_id}
-                )
+                await connection.execute(text(_UNSET_DEFAULTS_SQL), scope)
 
             await connection.execute(
                 text(_INSERT_PROJECT_SQL),
@@ -706,7 +729,10 @@ class MembershipsDAO(MembershipsDAOInterface):
             scope=ProjectScope(
                 project_id=project_id,
                 organization_id=organization_id,
-                workspace_id=workspace_id,
+                workspace_id=legacy_workspace_id(
+                    workspace_id=project_workspace_id,
+                    organization_id=organization_id,
+                ),
                 organization_owner_id=owner_id,
                 is_default=should_be_default,
             ),

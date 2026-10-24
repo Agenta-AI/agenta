@@ -11,6 +11,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.models.db_models import UserDB, WorkspaceDB
 from oss.src.services import db_manager
 from oss.src.core.memberships.service import get_memberships_service
+from oss.src.core.memberships.workspaces import legacy_workspace_id
 from oss.src.utils import emailing
 from oss.src.models.api.workspace_models import (
     InviteRequest,
@@ -287,7 +288,12 @@ async def invite_user_to_organization(
         payload.email,
         invitation.token,  # type: ignore
         project_id=str(project_db.id),
-        workspace_id=str(project_db.workspace_id),
+        workspace_id=str(
+            legacy_workspace_id(
+                workspace_id=project_db.workspace_id,
+                organization_id=project_db.organization_id,
+            )
+        ),
         organization_id=str(project_db.organization_id),
         user=user_performing_action,
     )
@@ -353,7 +359,12 @@ async def resend_user_organization_invite(
         payload.email,
         invitation.token,  # type: ignore
         project_id=str(project_db.id),
-        workspace_id=str(project_db.workspace_id),
+        workspace_id=str(
+            legacy_workspace_id(
+                workspace_id=project_db.workspace_id,
+                organization_id=project_db.organization_id,
+            )
+        ),
         organization_id=str(project_db.organization_id),
         user=user_performing_action,
     )
@@ -444,8 +455,12 @@ async def accept_organization_invitation(
     if project is None:
         raise HTTPException(status_code=400, detail="Invited project no longer exists")
 
-    workspace = await db_manager.get_workspace(
-        workspace_id=str(project.workspace_id),
+    # A project without a workspace (workspace removal step 2) has no workspace
+    # administrators to notify.
+    workspace = (
+        await db_manager.get_workspace(workspace_id=str(project.workspace_id))
+        if project.workspace_id is not None
+        else None
     )
 
     log.info(
@@ -474,7 +489,14 @@ async def accept_organization_invitation(
         },
     )
 
-    await notify_org_admin_invitation(workspace, user_exists)
+    if workspace is not None:
+        await notify_org_admin_invitation(workspace, user_exists)
+    else:
+        log.info(
+            "[invitations] admin notice skipped: no workspace",
+            organization_id=str(project.organization_id),
+            project_id=str(project.id),
+        )
 
     return True
 

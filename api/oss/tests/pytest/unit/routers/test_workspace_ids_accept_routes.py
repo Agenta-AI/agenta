@@ -1,0 +1,250 @@
+"""Routes that take or list workspace ids, on data that workspace removal step 2 writes.
+
+An organization without workspace rows answers its own id where a workspace id goes; a
+member without a workspace row sees one organization-id item; every other answer stays.
+"""
+
+from datetime import datetime, timezone
+from types import SimpleNamespace
+from uuid import uuid4
+
+import oss.src.routers.organization_router as organization_router
+import oss.src.routers.workspace_router as workspace_router
+import oss.src.services.db_manager as db_manager
+from oss.src.models.api.organization_models import OrganizationDetails
+
+
+def _request(user_id=None):
+    return SimpleNamespace(state=SimpleNamespace(user_id=str(user_id or uuid4())))
+
+
+def _organization():
+    now = datetime(2026, 10, 24, tzinfo=timezone.utc)
+    return SimpleNamespace(
+        id=uuid4(),
+        slug=None,
+        name="org",
+        description="d",
+        flags={},
+        tags=None,
+        meta=None,
+        owner_id=uuid4(),
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def _item(*, id, organization_id, name="w", type="default"):
+    return db_manager.UserWorkspaceItem(
+        id=id,
+        organization_id=organization_id,
+        name=name,
+        description=None,
+        type=type,
+        created_at=None,
+        updated_at=None,
+    )
+
+
+async def test_organization_details_endpoint_without_workspaces(monkeypatch):
+    organization = _organization()
+
+    async def _none(*args, **kwargs):
+        return None
+
+    async def _empty(*args, **kwargs):
+        return []
+
+    async def _project(workspace_id):
+        assert workspace_id == str(organization.id)
+        return SimpleNamespace(id=uuid4())
+
+    monkeypatch.setattr(db_manager, "get_org_default_workspace", _none)
+    monkeypatch.setattr(db_manager, "get_organization_workspaces", _empty)
+    monkeypatch.setattr(db_manager, "get_project_by_workspace", _project)
+    monkeypatch.setattr(db_manager, "get_project_members", _empty)
+    monkeypatch.setattr(db_manager, "get_project_invitations_filtered", _empty)
+
+    details = await db_manager.get_org_details(organization)
+    validated = OrganizationDetails(**details)
+
+    assert validated.workspaces == [str(organization.id)]
+    assert details["default_workspace"]["id"] == str(organization.id)
+    assert details["default_workspace"]["name"] == organization.name
+    assert details["default_workspace"]["created_at"] == str(organization.created_at)
+    assert details["default_workspace"]["updated_at"] == str(organization.updated_at)
+
+
+async def test_list_organizations_ee_keeps_empty_workspaces(monkeypatch):
+    organization = _organization()
+
+    async def _ids(user_id):
+        return {"organization_ids": [str(organization.id)], "workspace_ids": []}
+
+    async def _orgs(ids):
+        return [organization]
+
+    async def _items(**kwargs):
+        raise AssertionError("EE does not read workspace items")
+
+    monkeypatch.setattr(organization_router, "is_ee", lambda: True)
+    monkeypatch.setattr(organization_router, "get_user_org_and_workspace_id", _ids)
+    monkeypatch.setattr(db_manager, "get_organizations_by_list_ids", _orgs)
+    monkeypatch.setattr(db_manager, "fetch_user_workspace_items", _items)
+
+    response = await organization_router.list_organizations(request=_request())
+
+    assert [o["workspaces"] for o in response] == [[]]
+
+
+async def test_list_organizations_oss_lists_the_organization_id_for_a_member_without_workspace_row(
+    monkeypatch,
+):
+    organization = _organization()
+
+    async def _orgs(user_id):
+        return [organization]
+
+    async def _items(**kwargs):
+        return [_item(id=organization.id, organization_id=organization.id)]
+
+    monkeypatch.setattr(organization_router, "is_ee", lambda: False)
+    monkeypatch.setattr(db_manager, "get_user_organizations", _orgs)
+    monkeypatch.setattr(db_manager, "fetch_user_workspace_items", _items)
+
+    response = await organization_router.list_organizations(request=_request())
+
+    assert [o["workspaces"] for o in response] == [[str(organization.id)]]
+
+
+async def test_get_workspaces_lists_the_organization_id_for_a_member_without_workspace_row(
+    monkeypatch,
+):
+    organization_id = uuid4()
+
+    async def _items(**kwargs):
+        return [_item(id=organization_id, organization_id=organization_id, name="org")]
+
+    monkeypatch.setattr(db_manager, "fetch_user_workspace_items", _items)
+
+    response = await workspace_router.get_workspace(request=_request())
+
+    assert [(w.id, w.name, w.type) for w in response] == [
+        (str(organization_id), "org", "default")
+    ]
+
+
+# --- invitation accept for a project without a workspace --------------------- #
+
+
+async def test_accept_invitation_for_a_project_without_workspace(monkeypatch):
+    from datetime import timedelta
+
+    import oss.src.core.memberships.service as memberships_module
+    import oss.src.services.organization_service as organization_service
+
+    user = SimpleNamespace(id=uuid4(), email="invitee@test.agenta.ai", username="i")
+    project = SimpleNamespace(id=uuid4(), organization_id=uuid4(), workspace_id=None)
+    invite = SimpleNamespace(
+        id=uuid4(),
+        email=user.email,
+        role="viewer",
+        used=False,
+        project_id=project.id,
+        expiration_date=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+    calls = []
+
+    async def _user(email):
+        return user
+
+    async def _invite(**kwargs):
+        return invite
+
+    async def _project(project_id):
+        return project
+
+    async def _workspace(workspace_id):
+        raise AssertionError("no workspace to read")
+
+    async def _notify(workspace, user):
+        raise AssertionError("no workspace administrators to notify")
+
+    async def _update(invitation_id, values_to_update):
+        calls.append(("update_invitation", values_to_update))
+
+    class _Memberships:
+        async def fetch_organization_member(self, **kwargs):
+            return None
+
+        async def set_member_role(self, **kwargs):
+            calls.append(("set_member_role", kwargs["role"]))
+
+    db = organization_service.db_manager
+    monkeypatch.setattr(db, "get_user_with_email", _user)
+    monkeypatch.setattr(
+        db, "get_project_invitation_by_organization_token_and_email", _invite
+    )
+    monkeypatch.setattr(db, "get_project_by_id", _project)
+    monkeypatch.setattr(db, "get_workspace", _workspace)
+    monkeypatch.setattr(db, "update_invitation", _update)
+    monkeypatch.setattr(organization_service, "notify_org_admin_invitation", _notify)
+    monkeypatch.setattr(memberships_module, "_memberships_service", _Memberships())
+
+    assert await organization_service.accept_organization_invitation(
+        token="t",
+        organization_id=str(project.organization_id),
+        email=user.email,
+        session_email=user.email,
+    )
+    assert calls == [
+        ("set_member_role", "viewer"),
+        ("update_invitation", {"user_id": str(user.id), "used": True}),
+    ]
+
+
+# --- read_membership: the resolver read without its cache --------------------- #
+
+
+async def test_read_membership_reads_once_and_never_touches_the_cache(monkeypatch):
+    from oss.src.core.memberships.dtos import MembershipPolicy
+    from oss.src.core.memberships.service import MembershipsService
+    import oss.src.core.memberships.service as memberships_module
+    from oss.tests.pytest.utils.memberships import (
+        InMemoryMembershipsDAO,
+        make_summary,
+    )
+
+    dao = InMemoryMembershipsDAO()
+    project = dao.add_project(make_summary())
+    user = uuid4()
+    dao.add_organization_member(
+        organization_id=project.organization_id, user_id=user, role="editor"
+    )
+    reads = []
+    original = dao.fetch_membership_row
+
+    async def _counted(**kwargs):
+        reads.append(kwargs)
+        return await original(**kwargs)
+
+    async def _no_cache(*args, **kwargs):
+        raise AssertionError("read_membership must not use the cache")
+
+    monkeypatch.setattr(dao, "fetch_membership_row", _counted)
+    monkeypatch.setattr(memberships_module, "get_cache", _no_cache)
+    monkeypatch.setattr(memberships_module, "set_cache", _no_cache)
+    service = MembershipsService(
+        memberships_dao=dao, policy=MembershipPolicy.ORGANIZATION_WIDE
+    )
+
+    membership = await service.read_membership(
+        user_id=user, project_id=project.project_id
+    )
+
+    assert membership.role == "editor"
+    assert len(reads) == 1
+    assert (
+        await service.read_membership(user_id=uuid4(), project_id=project.project_id)
+        is None
+    )

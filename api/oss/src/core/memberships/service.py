@@ -251,6 +251,21 @@ class MembershipsService:
         )
         return membership
 
+    async def read_membership(
+        self,
+        *,
+        user_id: UUID,
+        project_id: UUID,
+    ) -> Optional[ProjectMembership]:
+        """The membership `resolve` answers, read without the `resolve_membership` cache.
+
+        Same edition policy and the same one-statement read. Only for a caller whose
+        outcome another cache already keeps (the Bearer workspace-only and no-parameter
+        branches cache their state), so it adds no Redis call.
+        """
+
+        return await self._read_membership(user_id=user_id, project_id=project_id)
+
     async def is_member(
         self,
         *,
