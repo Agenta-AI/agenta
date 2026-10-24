@@ -14,30 +14,36 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.utils.common import is_ee
+
 
 EXCHANGE = "/access/permissions/check"
+
+# EE: the owner's organization gets a plan with the RBAC entitlement and no project
+# limit. Without RBAC every member passes by design, and the Hobby plan allows one
+# project; these tests check the role rule and create a second project.
+_OWNER_PLAN = "cloud_v0_business" if is_ee() else None
 
 
 def _first_id(values):
     return next(iter(values.values()))["id"]
 
 
-def _create_account(admin_api, *, email):
+def _create_account(admin_api, *, email, plan=None):
+    account = {
+        "user": {"email": email},
+        "options": {
+            "create_api_keys": True,
+            "return_api_keys": True,
+            "seed_defaults": False,
+        },
+    }
+    if plan is not None:
+        account["subscription"] = {"plan": plan}
     response = admin_api(
         "POST",
         "/admin/simple/accounts/",
-        json={
-            "accounts": {
-                "u": {
-                    "user": {"email": email},
-                    "options": {
-                        "create_api_keys": True,
-                        "return_api_keys": True,
-                        "seed_defaults": False,
-                    },
-                }
-            }
-        },
+        json={"accounts": {"u": account}},
     )
     assert response.status_code == 200, response.text
     return response.json()["accounts"]["u"]
@@ -171,7 +177,7 @@ def team(admin_api):
     member_email = f"m2-member-{uid}@test.agenta.ai"
     created = []
     try:
-        owner = _create_account(admin_api, email=owner_email)
+        owner = _create_account(admin_api, email=owner_email, plan=_OWNER_PLAN)
         created.append(owner_email)
         member = _create_account(admin_api, email=member_email)
         created.append(member_email)
