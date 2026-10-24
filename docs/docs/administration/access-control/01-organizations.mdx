@@ -37,11 +37,13 @@ Projects live inside an organization and contain:
 - Evaluation artifacts (test sets, runs, results)
 - Observability data (traces/spans)
 
-Project creation and visibility depend on your organization role.
+Who sees a project depends on the edition. In the open source edition, every organization member is a member of every project, with their organization role. On Agenta Cloud and Enterprise, a member sees the projects where they have a project membership. A new project adds every organization member with their organization role.
+
+Creating and renaming a project needs the Owner or Admin role. Deleting a project needs the Owner role. On a plan without RBAC, every member can create, rename and delete projects.
 
 ### Switching Projects
 
-If your organization has multiple projects, use the project switcher in the UI to move between them. Your api keys as well as custom providers and models will differ per project.
+If your organization has multiple projects, use the project switcher in the UI to move between them. Each project has its own API keys, custom providers and models. An API key acts only in its own project.
 
 ## Managing Members
 
@@ -70,11 +72,13 @@ See [RBAC](/administration/access-control/rbac) for details.
 
 ### Changing Roles
 
-Owners and Admins can change roles from **Settings** → **Members**.
+Owners and Admins can change roles through the API. Roles change only through the API for now; the app has no control for it yet.
 
 ### Removing Members
 
 Removing a member immediately revokes access to the organization and its projects.
+
+Schedules, subscriptions and evaluations that run as the removed member stop at their next run.
 
 ## Billing
 
@@ -112,7 +116,7 @@ Yes. You can switch between organizations from the organization switcher.
 
 ### Can I transfer ownership?
 
-Yes. Owners can transfer ownership to another member from organization settings.
+Yes. The owner can transfer ownership to another member from organization settings. The two of you swap roles in the organization, its workspace, and every project. The new owner also becomes owner of every project where they had no role. Only a transfer moves the Owner role: changing a role or removing a member never makes someone owner, changes the owner's role, or removes the owner.
 
 ### How many organizations can I create?
 

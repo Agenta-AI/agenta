@@ -295,6 +295,7 @@ underlying text on purpose, so do not replace it with a trace's error text.
 | Code | What happened | Retry |
 |------|---------------|-------|
 | `runner_error` | The run failed for a reason no other code names. `errorText` says what is known. | Depends on `errorText` |
+| `access_denied` | The user, API key or installation this run acts as may not do this in the project, for example after it was removed from the project or the key was deleted. | No: ask an owner or admin for access |
 | `rate_limited` | The model provider or a proxy in front of it throttled the request. | Yes, after a moment |
 | `provider_error` | The model provider refused this request with an error of its own (a content filter, a refusal, an invalid request). `errorText` quotes the provider's reason with credentials removed. | Not as is: change the request or the model |
 | `wallet_balance_exhausted` | The organization has used all its credits. If the task was refused before it started, nothing was charged. If a call to one of Agenta's included models was refused during a task, the work before that call was charged. | No: wait for daily credits, buy credits, or upgrade. See [Plans and credits](/administration/billing/plans-and-credits) |

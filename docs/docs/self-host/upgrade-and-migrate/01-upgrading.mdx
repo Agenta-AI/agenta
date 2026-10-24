@@ -16,13 +16,13 @@ Agenta follows semantic versioning with new releases every week. Stay updated by
 The multi-organization release flips OSS from invite-only to open signup. If your instance is reachable beyond a trusted network, set `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` (and optionally `AGENTA_ACCESS_ALLOWED_DOMAINS`) before upgrading. See [Migrate to Multi-Organization OSS](/self-host/upgrades/multi-org-migration).
 :::
 
-## Upgrading to 0.122.11
+## Upgrading to 0.124.0
 
-This release changes who can open a project and adds two database migrations. Read the subsection for your edition.
+This release changes who can open a project, makes every run act as a named user, API key or installation, and adds five database migrations. Read the subsections for your edition.
 
 ### Open source: organization members see every project
 
-Every organization member is now a member of every project in the organization, with their organization role. Before, a member saw only the projects where they had a project membership. Role changes made in the workspace settings now set the organization role.
+Every organization member is now a member of every project in the organization, with their organization role. Before, a member saw only the projects where they had a project membership. A role change now sets the organization role. Roles change only through the API for now; the app has no control for it yet.
 
 ### Project create, rename and delete need a permission
 
@@ -55,6 +55,28 @@ AGENTA_LICENSE=oss uv run --no-sync python -m entrypoints.memberships_check --ap
 ```
 
 It keeps the oldest row of each duplicate pair and prints each deleted row with its role. Use `--report` first to see what it would change.
+
+### API keys act only in their own project
+
+An API key now acts only in the project it belongs to. A request with the key to another project, such as `PATCH /projects/{id}` or `DELETE /projects/{id}`, returns `403`. Before, the key used its creator's role in the other project. Browser sessions do not change.
+
+Workspace and organization management with an API key (invite, resend invite, role change, member removal, workspace update) needs a key of the workspace's default project. A key of another project in that workspace returns `403`.
+
+### Automations and evaluations run as the user or key that started them
+
+A schedule or subscription runs as the user or API key that created it. When that user leaves the project, loses the role, or is deleted, or the key is deleted, the next run is refused and the automation is paused with the reason. To run it again, create it again under an active user or API key. The upgrade pauses schedules and subscriptions that have no creator.
+
+Archiving an agent pauses its schedules and subscriptions. Unarchiving does not resume them.
+
+An evaluation runs as the person or key that started it, and a rerun runs as the person who started the rerun.
+
+### Deploy the API, workers and services together
+
+Upgrade the API, the workers and the services to the same release at the same time. The services check the new run credentials. With old services, a refused run fails with a `500` instead of `403 access_denied`.
+
+### Work in progress during the upgrade
+
+Messages queued and approvals waiting when the upgrade runs are cancelled once. Send the message or answer the approval again. A run that was in progress fails once. While the `oss000000046` migration runs, agent sends can wait up to about 30 seconds.
 
 ## Upgrading to 0.121.0
 
