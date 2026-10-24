@@ -420,6 +420,38 @@ class AuthService:
 
         return True
 
+    async def is_sso_email_allowed(self, third_party_id: str, email: str) -> bool:
+        """
+        Accept an organization SSO login only for an email in that organization's
+        verified domains.
+
+        third_party_id format: "sso:{organization_slug}:{provider_slug}"
+        """
+        if not is_ee() or not self.domains_dao:
+            return False
+
+        parts = third_party_id.split(":", 2)
+        if len(parts) != 3 or parts[0] != "sso":
+            return False
+
+        domain = (
+            email.rsplit("@", 1)[-1].strip().lower()
+            if email and email.count("@") == 1
+            else None
+        )
+        if not domain:
+            return False
+
+        organization = await db_manager.get_organization_by_slug(parts[1])
+        if not organization:
+            return False
+
+        domain_dto = await self.domains_dao.get_verified_by_slug(slug=domain)
+        if not domain_dto:
+            return False
+
+        return str(domain_dto.organization_id) == str(organization.id)
+
     async def enforce_domain_policies(self, email: str, user_id: UUID) -> None:
         """
         Enforce domain-based policies after successful authentication:
@@ -627,6 +659,15 @@ class AuthService:
                 "required_methods": [],
                 "current_identities": session_identities,
             }
+
+        # A session identity counts only if the user really signed in with that method.
+        known_methods = {
+            identity.method
+            for identity in await self.identities_dao.list_by_user(user_id)
+        }
+        session_identities = [
+            identity for identity in session_identities if identity in known_methods
+        ]
 
         # Check if identities satisfy allowed_methods
         matches = self._matches_policy(session_identities, allowed_methods)
