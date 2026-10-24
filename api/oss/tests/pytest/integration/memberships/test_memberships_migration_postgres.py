@@ -753,3 +753,55 @@ async def test_materialize_refuses_without_the_unique_index(check_module, monkey
     with pytest.raises(SystemExit) as exit_:
         await check_module.run_materialize(organization_ids=[])
     assert exit_.value.code == 1
+
+
+async def test_report_and_apply_skip_an_undecided_organization(
+    check_module, monkeypatch, tmp_path
+):
+    """An organization whose plan cannot answer the RBAC entitlement (no subscription,
+    or a plan the entitlements do not define) is not a P2b organization: the report
+    lists it as undecided and `--apply` adds none of its rows."""
+
+    monkeypatch.setattr(check_module, "is_ee", lambda: True)
+    decided = await seed_organization(members={"m": "editor"})
+    undecided = await seed_organization(members={"m": "editor"})
+    members = [decided.user_ids["m"], undecided.user_ids["m"]]
+
+    async def _rbac(organization_id):
+        return None if organization_id == undecided.organization_id else False
+
+    monkeypatch.setattr(check_module, "_rbac_enforced", _rbac)
+    organizations = [decided.organization_id, undecided.organization_id]
+    try:
+        await execute(
+            "DELETE FROM project_members WHERE user_id = ANY(CAST(:m AS uuid[]))",
+            {"m": members},
+        )
+
+        report = await check_module.run_report(
+            out_dir=tmp_path, organization_ids=organizations
+        )
+        assert _organizations_of(report, "P2b") == {str(decided.organization_id)}
+        assert report["P2b_undecided"] == {
+            "count": 1,
+            "organizations": {str(undecided.organization_id): []},
+        }
+
+        async with get_transactions_engine().transaction() as connection:
+            await _shadow_alembic_version(connection, "oss000000043")
+            result = await check_module.run_apply(
+                organization_ids=organizations, connection=connection
+            )
+
+        assert result["added_p2b"] == 1
+        assert result["p2b_undecided"] == [str(undecided.organization_id)]
+        assert (
+            await _project_rows(None, undecided.project_ids, undecided.user_ids["m"])
+            == {}
+        )
+        assert await _project_rows(
+            None, decided.project_ids, decided.user_ids["m"]
+        ) == {decided.project_ids[0]: ["editor"]}
+    finally:
+        await delete_seeded_organization(decided)
+        await delete_seeded_organization(undecided)
