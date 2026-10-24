@@ -416,3 +416,32 @@ async def test_a_first_send_creates_its_row_before_the_locks_and_lists_it(
     assert dao.row.owner_user_id == _BOB
     assert await fake.get(alive_key(str(_PROJECT), "s10")) == response.turn_id.encode()
     service._publish_changed.assert_awaited()
+
+
+async def test_an_attach_racing_a_new_private_session_ends_before_any_lock(
+    redis, request_memo
+):
+    """Codex round 3, finding 1: Bob's attach finds no row; Alice's private session and
+    her watcher appear right after. Bob's attach ends with not found and never steals
+    her watcher or writes her row."""
+    from oss.src.core.sessions.streams.types import SessionStreamNotFound
+    from oss.src.dbs.redis.sessions.contract import attached_key
+
+    engine, fake = redis
+    dao = _RacingDAO(appear_after_gets=1)
+    await fake.set(attached_key(str(_PROJECT), "s11"), b"alice-watcher")
+    service = _service(dao, engine)
+    _note_missing_session(project_id=_PROJECT, session_id="s11")
+    recheck = _refusing_recheck()
+
+    with pytest.raises(SessionStreamNotFound):
+        await service.command(
+            project_id=_PROJECT,
+            user_id=_BOB,
+            request=SessionStreamCommandRequest(session_id="s11", force=True),
+            access=_PRIVATE_BOB,
+            arrived_at_ms=1,
+            recheck=recheck,
+        )
+    assert await fake.get(attached_key(str(_PROJECT), "s11")) == b"alice-watcher"
+    assert dao.updates == []

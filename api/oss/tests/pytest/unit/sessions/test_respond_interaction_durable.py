@@ -451,3 +451,111 @@ async def test_a_missing_or_hidden_anchor_answers_the_same_404(monkeypatch, case
     assert response.status_code == 404
     assert response.json() == {"detail": "Interaction not found"}
     commands.respond_interaction.assert_not_awaited()
+
+
+async def _command_over_http(router, *, project_id, user_id, body, missing):
+    from fastapi import FastAPI, Request
+    from httpx import ASGITransport, AsyncClient
+
+    from oss.src.core.access.context import _request_memo
+    from oss.src.core.sharing.service import _note_missing_session
+
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def add_state(request: Request, call_next):
+        request.state.project_id = str(project_id)
+        request.state.user_id = str(user_id)
+        request.state.principal = PrincipalRef(kind="human", id=user_id)
+        token = _request_memo.set({})
+        try:
+            if missing:
+                # What the route's resource check records when it finds no row.
+                _note_missing_session(
+                    project_id=project_id, session_id=body["session_id"]
+                )
+            return await call_next(request)
+        finally:
+            _request_memo.reset(token)
+
+    app.include_router(router.router, prefix="/api")
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        return await client.post("/api/sessions/streams/", json=body)
+
+
+@pytest.mark.parametrize("missing", [True, False])
+async def test_a_no_op_cancel_of_an_unchecked_session_closes_no_pending_interaction(
+    monkeypatch, missing
+):
+    """Codex round 3, finding 2: Bob's cancel found no row at the route and at the
+    service (a no-op). Alice's private session and its pending approval appear right
+    after: the route must not close them. An authorized cancel of an existing session
+    still closes the session's pending interactions."""
+    from oss.src.core.sessions.streams.dtos import (
+        CommandMode,
+        SessionStreamCommandResponse,
+    )
+
+    project_id, user_id = uuid4(), uuid4()
+    service = AsyncMock()
+    service.clock_ms.return_value = 1
+    service.command.return_value = SessionStreamCommandResponse(
+        mode=CommandMode.cancel, session_id="s-race", detached=True
+    )
+    interactions = AsyncMock()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(router_module, "allow_resource", AsyncMock(return_value=True))
+    router = SessionStreamsRouter(
+        service=service,
+        interactions_service=interactions,
+        run_admission=NoopRunAdmission(),
+    )
+
+    response = await _command_over_http(
+        router,
+        project_id=project_id,
+        user_id=user_id,
+        body={"session_id": "s-race"},
+        missing=missing,
+    )
+
+    assert response.status_code == 200, response.text
+    if missing:
+        interactions.cancel_session_pending.assert_not_awaited()
+    else:
+        interactions.cancel_session_pending.assert_awaited_once()
+
+
+async def test_an_attach_to_an_unknown_session_answers_the_canonical_404(monkeypatch):
+    from oss.src.core.sessions.streams.types import SessionStreamNotFound
+
+    project_id, user_id = uuid4(), uuid4()
+    service = AsyncMock()
+    service.clock_ms.return_value = 1
+    service.command.side_effect = SessionStreamNotFound("s-attach")
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(router_module, "allow_resource", AsyncMock(return_value=True))
+    router = SessionStreamsRouter(
+        service=service,
+        interactions_service=AsyncMock(),
+        run_admission=NoopRunAdmission(),
+    )
+
+    response = await _command_over_http(
+        router,
+        project_id=project_id,
+        user_id=user_id,
+        body={"session_id": "s-attach", "force": True},
+        missing=True,
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": {"code": "not_found", "message": "Not found.", "retryable": False}
+    }

@@ -60,6 +60,7 @@ from oss.src.apis.fastapi.sharing.utils import (
     session_resource,
 )
 from oss.src.core.sharing.admission import RunAdmission
+from oss.src.core.sharing.service import session_was_missing
 from oss.src.core.sharing.dtos import SharedItemKind, Visibility
 from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.types import AgentReferenceUnresolved
@@ -699,20 +700,35 @@ class SessionStreamsRouter:
         if mode != CommandMode.cancel:
             await self._service.check_runner_concurrency_limit(project_id=project_id)
 
-        response = await self._service.command(
-            arrived_at_ms=arrived_at_ms,
-            project_id=project_id,
-            user_id=user_id,
-            request=payload,
-            access=policy_for_request(request, kind=SharedItemKind.SESSION),
-            recheck=session_recheck(
-                request,
-                action=Permission.RUN_SESSIONS,
-                session_id=payload.session_id,
-            ),
+        recheck = session_recheck(
+            request,
+            action=Permission.RUN_SESSIONS,
+            session_id=payload.session_id,
         )
+        try:
+            response = await self._service.command(
+                arrived_at_ms=arrived_at_ms,
+                project_id=project_id,
+                user_id=user_id,
+                request=payload,
+                access=policy_for_request(request, kind=SharedItemKind.SESSION),
+                recheck=recheck,
+            )
+        except SessionStreamNotFound as error:
+            # An attach to an unknown session: the canonical not-found body, as for a
+            # hidden one.
+            raise not_found_exception() from error
 
-        if mode == CommandMode.cancel:
+        # A cancel whose route check found no row, and whose service read found none
+        # either, cancelled nothing: a session created since is someone else's, and its
+        # pending interactions are not this request's to close.
+        unchecked_noop = (
+            session_was_missing(
+                project_id=UUID(str(project_id)), session_id=payload.session_id
+            )
+            and not recheck.checked
+        )
+        if mode == CommandMode.cancel and not unchecked_noop:
             # Close only the displaced turns' gates; the service publishes their watch events.
             try:
                 for turn_id in response.cancelled_turn_ids:

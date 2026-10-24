@@ -74,6 +74,7 @@ from oss.src.core.sessions.streams.types import (
     ConcurrencyLimitExceeded,
     SessionIdInvalid,
     SessionStreamAlreadyExists,
+    SessionStreamNotFound,
     SessionTurnInUse,
     SessionTurnMismatch,
 )
@@ -96,7 +97,7 @@ log = get_module_logger(__name__)
 # A route's check of the session, run again on a row the route did not check: one that a
 # concurrent request created after the route found no row. It raises when the caller may
 # not do the route's action on that row.
-SessionRecheck = Callable[[], Awaitable[None]]
+SessionRecheck = Callable[[], Awaitable[None]]  # the routes pass a `SessionRecheck` object
 
 # Longest server-filled session title. Matches the browser's `AUTO_TITLE_MAX_CHARS`
 # (web/oss/src/components/AgentChatSlice/state/sessions.ts) so the two writers cannot
@@ -401,6 +402,10 @@ class SessionStreamsService:
                         session_id=session_id,
                         detached=True,
                     )
+                else:
+                    # An attach to a session that does not exist ends here, before any
+                    # lock or write: a row that appears now is someone else's.
+                    raise SessionStreamNotFound(session_id)
 
         if mode == CommandMode.send:
             liveness = await get_session_liveness(

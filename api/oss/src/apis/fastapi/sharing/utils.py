@@ -1,6 +1,6 @@
 from enum import Enum
 from functools import wraps
-from typing import Any, Awaitable, Callable, Optional, Union
+from typing import Any, Optional, Union
 from uuid import UUID
 
 from fastapi import HTTPException, Request
@@ -179,23 +179,35 @@ async def allow_resource(
     raise FORBIDDEN_EXCEPTION
 
 
+class SessionRecheck:
+    """The route's `allow_resource` check of a session, for the service to run again
+    on a row the route did not check (a concurrent request created it after the route
+    found no row). A hidden row raises the one canonical not-found body. `checked` is
+    True once a recheck passed."""
+
+    def __init__(self, request: Request, *, action: Permission, session_id: str):
+        self._request = request
+        self._action = action
+        self._session_id = session_id
+        self.checked = False
+
+    async def __call__(self) -> None:
+        if not await allow_resource(
+            self._request,
+            action=self._action,
+            resource=session_resource(self._session_id),
+        ):
+            raise not_found_exception()
+        self.checked = True
+
+
 def session_recheck(
     request: Request,
     *,
     action: Permission,
     session_id: str,
-) -> Callable[[], Awaitable[None]]:
-    """The route's `allow_resource` check of a session, for the service to run again
-    on a row the route did not check (a concurrent request created it after the route
-    found no row). A hidden row raises the one canonical not-found body."""
-
-    async def _recheck() -> None:
-        if not await allow_resource(
-            request, action=action, resource=session_resource(session_id)
-        ):
-            raise not_found_exception()
-
-    return _recheck
+) -> SessionRecheck:
+    return SessionRecheck(request, action=action, session_id=session_id)
 
 
 async def allow_session_write(
