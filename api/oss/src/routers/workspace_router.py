@@ -9,7 +9,10 @@ from oss.src.services import db_manager, organization_service
 from oss.src.utils.common import APIRouter, is_ee
 from oss.src.models.api.workspace_models import Workspace, UserRole
 
-from oss.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.permissions.service import (
+    check_action_access,
+    check_organization_write,
+)
 from oss.src.core.access.permissions.types import (
     DefaultRole,
     Permission,
@@ -41,6 +44,17 @@ _PERMISSION_DENIED = (
 def _owner_protected() -> HTTPException:
     # Today's owner-protection body shape, which the classic /w app reads.
     return HTTPException(status_code=403, detail={"message": _PERMISSION_DENIED})
+
+
+async def _organization_write(request: Request, project) -> bool:
+    # Role changes and removals change the member across the whole organization, so
+    # an API key or a run credential must also be of the organization's default
+    # project, not only of this workspace's.
+    return await check_organization_write(
+        user_uid=request.state.user_id,
+        organization_id=str(project.organization_id),
+        permission=Permission.MODIFY_USER_ROLES,
+    )
 
 
 def _actor(request: Request) -> Optional[UUID]:
@@ -180,7 +194,7 @@ async def assign_role_to_user(
             user_uid=request.state.user_id,
             project_id=str(project.id),
             permission=Permission.MODIFY_USER_ROLES,
-        )
+        ) and await _organization_write(request, project)
         if not has_permission:
             return JSONResponse(
                 status_code=403,
@@ -244,7 +258,7 @@ async def unassign_role_from_user(
             user_uid=request.state.user_id,
             project_id=str(project.id),
             permission=Permission.MODIFY_USER_ROLES,
-        )
+        ) and await _organization_write(request, project)
         if not has_permission:
             return JSONResponse(
                 status_code=403,
@@ -308,7 +322,7 @@ async def remove_user_from_workspace(
         user_uid=request.state.user_id,
         project_id=str(project.id),
         role=RequiredRole.ADMIN,
-    )
+    ) and await _organization_write(request, project)
     if not has_permission:
         return JSONResponse(
             status_code=403,
