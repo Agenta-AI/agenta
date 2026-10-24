@@ -287,7 +287,8 @@ async def _get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderIn
         provider = await providers_dao.get_by_slug(
             slug=provider_slug, organization_id=str(organization.id)
         )
-        if not provider or not (provider.flags and provider.flags.get("is_active")):
+        flags = (provider.flags or {}) if provider else {}
+        if not flags.get("is_active") or not flags.get("is_valid"):
             return None
 
         # Extract OIDC config
@@ -707,6 +708,17 @@ def override_thirdparty_functions(
         assert auth_info is not None
 
         if await is_auth_info_blocked(auth_info):
+            return SignInUpNotAllowed("Access Denied.")
+
+        # An org SSO provider may sign in only emails in that org's verified domains.
+        if third_party_id.startswith("sso:") and not (
+            await auth_service.is_sso_email_allowed(third_party_id, auth_info.email)
+        ):
+            log.info(
+                "[AUTH] SSO sign-in refused for unverified domain",
+                third_party_id=third_party_id,
+                email_domain=_get_email_domain(auth_info.email),
+            )
             return SignInUpNotAllowed("Access Denied.")
 
         internal_user = None
