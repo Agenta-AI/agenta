@@ -13,7 +13,8 @@
         "test:unit": "vitest run",
         "test:watch": "vitest",
         "kit:sync": "node scripts/sync-kit-css.mjs",
-        "build:office-viewers": "node scripts/build-office-viewers.mjs"
+        "build:office-viewers": "node scripts/build-office-viewers.mjs",
+        "check:office-viewers": "node scripts/build-office-viewers.mjs --check"
     },
     "exports": {
         ".": "./src/index.ts",
