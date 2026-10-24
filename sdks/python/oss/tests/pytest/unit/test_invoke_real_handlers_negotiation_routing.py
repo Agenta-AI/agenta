@@ -420,5 +420,33 @@ def test_force_406_body_shape_consistent_across_real_handlers(_llm_client):
     assert agent_status["code"] == llm_status["code"] == 406
 
 
+@pytest.mark.parametrize("tool", ["files.read", "files.list", "files.search"])
+@pytest.mark.parametrize("loop", [None, {"max_iterations": 1}])
+def test_llm_v0_file_tools_return_configuration_error(
+    _llm_client, monkeypatch, tool, loop
+):
+    async def unexpected_model_call(**kwargs):
+        pytest.fail("File tools must be rejected before calling the model")
+
+    monkeypatch.setattr(
+        running_handlers, "_call_llm_with_fallback", unexpected_model_call
+    )
+    with _offline_tracing():
+        response = _llm_client.post(
+            "/invoke",
+            json={
+                "data": {
+                    "parameters": {
+                        "llms": [{"model": "gpt-4o-mini"}],
+                        "tools": {"internal": [tool]},
+                        "loop": loop,
+                    }
+                }
+            },
+        )
+    assert response.status_code == 400
+    assert "tools.internal" in response.json()["status"]["message"]
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-q"])

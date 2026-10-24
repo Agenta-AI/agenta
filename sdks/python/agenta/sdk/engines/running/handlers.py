@@ -3282,49 +3282,6 @@ def _build_llm_tools(tools_config: Optional[Dict[str, Any]]) -> Optional[List[Di
     tool_defs = list(external_defs)
     # Register built-in internal tool schemas
     _INTERNAL_TOOL_SCHEMAS: Dict[str, Dict] = {
-        "files.list": {
-            "type": "function",
-            "function": {
-                "name": "files.list",
-                "description": "List files in a directory.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string", "default": "."},
-                        "pattern": {"type": "string"},
-                    },
-                },
-            },
-        },
-        "files.read": {
-            "type": "function",
-            "function": {
-                "name": "files.read",
-                "description": "Read the contents of a file.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "path": {"type": "string"},
-                    },
-                    "required": ["path"],
-                },
-            },
-        },
-        "files.search": {
-            "type": "function",
-            "function": {
-                "name": "files.search",
-                "description": "Search for text in files.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "query": {"type": "string"},
-                        "path": {"type": "string", "default": "."},
-                    },
-                    "required": ["query"],
-                },
-            },
-        },
         "control.terminate": {
             "type": "function",
             "function": {
@@ -3366,90 +3323,9 @@ def _build_llm_tools(tools_config: Optional[Dict[str, Any]]) -> Optional[List[Di
 async def _execute_internal_tool(
     name: str,
     arguments: Dict[str, Any],
-    files_config: Optional[Dict[str, Any]],
     context: Dict[str, Any],
 ) -> Any:
     """Execute an internal tool and return its result."""
-    import glob as _glob
-    import os as _os
-
-    fc = files_config or {}
-    roots: List[str] = list(fc.get("roots") or ["."])
-    allow_globs: List[str] = list(fc.get("allow_globs") or ["**/*"])
-    deny_globs: List[str] = list(fc.get("deny_globs") or [])
-    max_file_bytes: int = int(fc.get("max_file_bytes") or 65536)
-    max_total_bytes: int = int(fc.get("max_total_bytes_per_turn") or 262144)
-    include_hidden: bool = bool(fc.get("include_hidden", False))
-
-    def _is_allowed(path: str) -> bool:
-        import fnmatch
-
-        if not include_hidden:
-            parts = path.replace("\\", "/").split("/")
-            if any(p.startswith(".") for p in parts):
-                return False
-        allowed = any(fnmatch.fnmatch(path, pat) for pat in allow_globs)
-        denied = any(fnmatch.fnmatch(path, pat) for pat in deny_globs)
-        return allowed and not denied
-
-    if name == "files.list":
-        path = str(arguments.get("path") or ".")
-        pattern = str(arguments.get("pattern") or "**/*")
-        results = []
-        for root in roots:
-            search_root = _os.path.join(root, path)
-            for match in _glob.glob(
-                _os.path.join(search_root, pattern), recursive=True
-            ):
-                rel = _os.path.relpath(match, root)
-                if _is_allowed(rel) and _os.path.isfile(match):
-                    results.append(rel)
-        return {"files": results}
-
-    if name == "files.read":
-        path = str(arguments.get("path") or "")
-        for root in roots:
-            full = _os.path.join(root, path)
-            if not _os.path.isfile(full):
-                continue
-            rel = _os.path.relpath(full, root)
-            if not _is_allowed(rel):
-                return {"error": f"Access denied: {path}"}
-            size = _os.path.getsize(full)
-            if size > max_file_bytes:
-                return {
-                    "error": f"File too large: {size} bytes (limit {max_file_bytes})"
-                }
-            with open(full, "r", encoding="utf-8", errors="replace") as fh:
-                return {"path": path, "content": fh.read()}
-        return {"error": f"File not found: {path}"}
-
-    if name == "files.search":
-        query = str(arguments.get("query") or "")
-        path = str(arguments.get("path") or ".")
-        matches = []
-        total_bytes = 0
-        for root in roots:
-            search_root = _os.path.join(root, path)
-            for fpath in _glob.glob(_os.path.join(search_root, "**/*"), recursive=True):
-                if not _os.path.isfile(fpath):
-                    continue
-                rel = _os.path.relpath(fpath, root)
-                if not _is_allowed(rel):
-                    continue
-                try:
-                    with open(fpath, "r", encoding="utf-8", errors="replace") as fh:
-                        for lineno, line in enumerate(fh, 1):
-                            if query in line:
-                                entry = f"{rel}:{lineno}: {line.rstrip()}"
-                                total_bytes += len(entry)
-                                if total_bytes > max_total_bytes:
-                                    return {"matches": matches, "truncated": True}
-                                matches.append(entry)
-                except OSError:
-                    continue
-        return {"matches": matches}
-
     return {"error": f"Unknown internal tool: {name}"}
 
 
@@ -3684,6 +3560,13 @@ async def _llm_v0_run(
     template_format = str(parameters.get("template_format") or "curly")
     loop_config: Optional[Dict] = parameters.get("loop")
     tools_config: Optional[Dict] = parameters.get("tools")
+    for name in (tools_config or {}).get("internal") or []:
+        if isinstance(name, str) and name.startswith("files."):
+            raise InvalidConfigurationParameterV0Error(
+                path="tools.internal",
+                expected="internal tools without filesystem access",
+                got=name,
+            )
     param_consent: Optional[Dict] = parameters.get("consent")
     param_context: Dict = dict(parameters.get("context") or {})
 
@@ -3845,7 +3728,6 @@ async def _llm_v0_run(
             result = await _execute_internal_tool(
                 name=fn_name,
                 arguments=fn_args,
-                files_config=parameters.get("files"),
                 context=state["context"],
             )
             state["internal_tool_calls"] += 1
