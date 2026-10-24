@@ -10,8 +10,8 @@ ATTACHMENTS_MOUNT_NAME = "attachments"
 ATTACHMENTS_MOUNT_PURPOSE = "session_attachment_originals"
 
 # Object-key root of every mount. A stored prefix is `mounts/<scope_id>/<mount_id>`, relative to
-# the store namespace. The DAO writes it from `project_storage_prefix`; the migration's SQL writes
-# the same layout as a literal. Tests pin both to `mounts/<project_id>/<mount_id>`.
+# the store namespace. Mounts created by 0.125.0 or later store the organization layout (the
+# Postgres DAO builds it in the insert statement); older mounts keep the project layout.
 MOUNTS_KEY_ROOT = "mounts"
 
 
@@ -20,8 +20,23 @@ def project_storage_prefix(
     project_id: UUID,
     mount_id: UUID,
 ) -> str:
-    """`mounts/<project_id>/<mount_id>`: namespace-relative, no trailing slash."""
+    """`mounts/<project_id>/<mount_id>`: namespace-relative, no trailing slash.
+
+    The layout of every mount created by earlier versions.
+    """
     return f"{MOUNTS_KEY_ROOT}/{project_id}/{mount_id}"
+
+
+def organization_storage_prefix(
+    *,
+    organization_id: UUID,
+    mount_id: UUID,
+) -> str:
+    """`mounts/<organization_id>/<mount_id>`: namespace-relative, no trailing slash.
+
+    The layout of every mount created by 0.125.0 or later.
+    """
+    return f"{MOUNTS_KEY_ROOT}/{organization_id}/{mount_id}"
 
 
 # Backslash, so the escaped pattern below survives a `LIKE ... ESCAPE` round trip.

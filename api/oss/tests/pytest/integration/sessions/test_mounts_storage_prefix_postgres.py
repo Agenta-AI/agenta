@@ -1,9 +1,10 @@
 """The stored mount prefix against a migrated Postgres.
 
-Revision `oss000000050` adds `mounts.storage_prefix`, fills it for every row, and keeps a
-`BEFORE INSERT` trigger so that pods of the previous release, which do not know the column,
-still insert and re-bind mounts during a rolling deploy. These cases pin that SQL, the trigger
-and the DAO writes, and they pin the sign upsert at one statement on both of its paths.
+Revision `oss000000050` adds `mounts.storage_prefix` and fills it for every row. Revision
+`oss000000051` drops the `BEFORE INSERT` fill trigger of 050: every pod of the release before
+writes the prefix itself, so an insert without it is refused. These cases pin that SQL, the
+inserts and re-binds of those pods on the new schema, the DAO writes, and the sign upsert at
+one statement on both of its paths.
 """
 
 import importlib.util
@@ -12,9 +13,10 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import event, text
+from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.mounts.dtos import MountCreate
-from oss.src.core.mounts.types import project_storage_prefix
+from oss.src.core.mounts.types import organization_storage_prefix
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 
 import oss.src.dbs.postgres.shared.engine as engine_module
@@ -134,8 +136,8 @@ async def mount_scope():
         await session.commit()
 
 
-# The columns the previous release's mappings write, and no `storage_prefix`.
-_OLD_POD_INSERT = (
+# The columns that pods older than the stored prefix write: no `storage_prefix`.
+_PRE_PREFIX_INSERT = (
     "INSERT INTO mounts "
     "(project_id, id, slug, name, session_id, agent_id, purpose, "
     "flags, data, tags, meta, created_by_id) "
@@ -143,8 +145,17 @@ _OLD_POD_INSERT = (
     "'{}', '{}', NULL, NULL, :created_by_id)"
 )
 
+# The columns that pods of the release before write: the project layout, explicitly.
+_PROJECT_LAYOUT_INSERT = (
+    "INSERT INTO mounts "
+    "(project_id, id, slug, name, session_id, agent_id, purpose, "
+    "flags, data, tags, meta, created_by_id, storage_prefix) "
+    "VALUES (:project_id, :id, :slug, NULL, NULL, NULL, NULL, "
+    "'{}', '{}', NULL, NULL, :created_by_id, :storage_prefix)"
+)
 
-async def _insert_old_pod_row(
+
+async def _insert_project_layout_row(
     engine,
     *,
     project_id: uuid.UUID,
@@ -154,12 +165,13 @@ async def _insert_old_pod_row(
 ) -> None:
     async with engine.session() as session:
         await session.execute(
-            text(_OLD_POD_INSERT),
+            text(_PROJECT_LAYOUT_INSERT),
             {
                 "project_id": project_id,
                 "id": mount_id,
                 "slug": slug,
                 "created_by_id": user_id,
+                "storage_prefix": f"mounts/{project_id}/{mount_id}",
             },
         )
         await session.commit()
@@ -205,16 +217,60 @@ async def test_backfill_sql_writes_the_project_layout():
     assert again.rowcount == 0
 
 
-async def test_old_pod_insert_gets_the_project_layout(mount_scope):
+async def test_fill_trigger_and_function_are_gone():
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        triggers = await session.execute(
+            text(
+                "SELECT tgname FROM pg_trigger "
+                "WHERE tgrelid = 'mounts'::regclass "
+                "AND tgname = 'trg_mounts_fill_legacy_storage_prefix'"
+            )
+        )
+        functions = await session.execute(
+            text(
+                "SELECT proname FROM pg_proc "
+                "WHERE proname = 'mounts_fill_legacy_storage_prefix'"
+            )
+        )
+        assert triggers.all() == []
+        assert functions.all() == []
+
+
+async def test_insert_without_a_prefix_is_refused(mount_scope):
+    engine = mount_scope["engine"]
+    mount_id = uuid.uuid4()
+
+    async with engine.session() as session:
+        with pytest.raises(IntegrityError):
+            await session.execute(
+                text(_PRE_PREFIX_INSERT),
+                {
+                    "project_id": mount_scope["project_id"],
+                    "id": mount_id,
+                    "slug": f"pre-prefix-{mount_id.hex}",
+                    "created_by_id": mount_scope["user_id"],
+                },
+            )
+        await session.rollback()
+
+    async with engine.session() as session:
+        result = await session.execute(
+            text("SELECT count(*) FROM mounts WHERE id = :id"), {"id": mount_id}
+        )
+        assert result.scalar_one() == 0
+
+
+async def test_m4a_pod_insert_keeps_its_project_layout(mount_scope):
     engine = mount_scope["engine"]
     project_id = mount_scope["project_id"]
     mount_id = uuid.uuid4()
 
-    await _insert_old_pod_row(
+    await _insert_project_layout_row(
         engine,
         project_id=project_id,
         user_id=mount_scope["user_id"],
-        slug=f"old-pod-{mount_id.hex}",
+        slug=f"m4a-pod-{mount_id.hex}",
         mount_id=mount_id,
     )
 
@@ -223,14 +279,14 @@ async def test_old_pod_insert_gets_the_project_layout(mount_scope):
     )
 
 
-async def test_old_pod_rebind_keeps_the_stored_prefix(mount_scope):
+async def test_m4a_pod_rebind_keeps_the_stored_prefix(mount_scope):
     engine = mount_scope["engine"]
     project_id = mount_scope["project_id"]
     user_id = mount_scope["user_id"]
     mount_id = uuid.uuid4()
-    slug = f"old-rebind-{mount_id.hex}"
+    slug = f"m4a-rebind-{mount_id.hex}"
 
-    await _insert_old_pod_row(
+    await _insert_project_layout_row(
         engine,
         project_id=project_id,
         user_id=user_id,
@@ -238,18 +294,20 @@ async def test_old_pod_rebind_keeps_the_stored_prefix(mount_scope):
         mount_id=mount_id,
     )
 
+    other_id = uuid.uuid4()
     async with engine.session() as session:
         result = await session.execute(
             text(
-                _OLD_POD_INSERT
+                _PROJECT_LAYOUT_INSERT
                 + " ON CONFLICT ON CONSTRAINT uq_mounts_project_id_slug "
                 "DO UPDATE SET updated_at = now() RETURNING id, storage_prefix"
             ),
             {
                 "project_id": project_id,
-                "id": uuid.uuid4(),
+                "id": other_id,
                 "slug": slug,
                 "created_by_id": user_id,
+                "storage_prefix": f"mounts/{project_id}/{other_id}",
             },
         )
         row = result.one()
@@ -294,7 +352,7 @@ async def test_dao_reads_an_old_pod_row(mount_scope):
     project_id = mount_scope["project_id"]
     mount_id = uuid.uuid4()
 
-    await _insert_old_pod_row(
+    await _insert_project_layout_row(
         engine,
         project_id=project_id,
         user_id=mount_scope["user_id"],
@@ -310,7 +368,7 @@ async def test_dao_reads_an_old_pod_row(mount_scope):
     assert mount.storage_prefix == f"mounts/{project_id}/{mount_id}"
 
 
-async def test_create_mount_writes_the_project_layout(mount_scope):
+async def test_create_mount_writes_the_organization_layout(mount_scope):
     engine = mount_scope["engine"]
     project_id = mount_scope["project_id"]
 
@@ -324,22 +382,25 @@ async def test_create_mount_writes_the_project_layout(mount_scope):
     finally:
         stop()
 
-    assert mount.storage_prefix == project_storage_prefix(
-        project_id=project_id,
+    assert mount.storage_prefix == organization_storage_prefix(
+        organization_id=mount_scope["organization_id"],
         mount_id=mount.id,
     )
     assert await _stored_prefix(engine, mount_id=mount.id) == mount.storage_prefix
-    # The DAO sent the prefix itself; the legacy trigger did not fill it.
+    # The insert reads the organization id itself; the prefix is not sent as a literal.
     inserts = [
-        parameters
+        (statement, parameters)
         for statement, parameters in statements
         if statement.lstrip().upper().startswith("INSERT")
     ]
     assert len(inserts) == 1
-    assert mount.storage_prefix in tuple(inserts[0])
+    statement, parameters = inserts[0]
+    assert "||" in statement
+    assert "FROM projects" in statement
+    assert mount.storage_prefix not in tuple(parameters)
 
 
-async def test_upsert_writes_the_prefix_once(mount_scope):
+async def test_upsert_writes_the_organization_layout_once(mount_scope):
     engine = mount_scope["engine"]
     project_id = mount_scope["project_id"]
     dao = MountsDAO(engine=engine)
@@ -356,10 +417,139 @@ async def test_upsert_writes_the_prefix_once(mount_scope):
         mount_create=MountCreate(slug=slug),
     )
 
-    expected = project_storage_prefix(project_id=project_id, mount_id=first.id)
+    expected = organization_storage_prefix(
+        organization_id=mount_scope["organization_id"],
+        mount_id=first.id,
+    )
     assert second.id == first.id
     assert first.storage_prefix == expected
     assert second.storage_prefix == expected
+    assert await _stored_prefix(engine, mount_id=first.id) == expected
+
+
+async def test_upsert_keeps_an_existing_project_layout(mount_scope):
+    engine = mount_scope["engine"]
+    project_id = mount_scope["project_id"]
+    mount_id = uuid.uuid4()
+    slug = f"keep-{mount_id.hex}"
+
+    await _insert_project_layout_row(
+        engine,
+        project_id=project_id,
+        user_id=mount_scope["user_id"],
+        slug=slug,
+        mount_id=mount_id,
+    )
+
+    mount = await MountsDAO(engine=engine).upsert_mount(
+        project_id=project_id,
+        user_id=mount_scope["user_id"],
+        mount_create=MountCreate(slug=slug),
+    )
+
+    assert mount.id == mount_id
+    assert mount.storage_prefix == f"mounts/{project_id}/{mount_id}"
+    assert await _stored_prefix(engine, mount_id=mount_id) == mount.storage_prefix
+
+
+async def test_m4a_pod_rebind_keeps_an_organization_layout(mount_scope):
+    # A row created by this release; an M4a pod re-binds it with its own explicit project layout.
+    engine = mount_scope["engine"]
+    project_id = mount_scope["project_id"]
+    user_id = mount_scope["user_id"]
+    slug = f"m4a-rebind-org-{uuid.uuid4().hex}"
+
+    mount = await MountsDAO(engine=engine).upsert_mount(
+        project_id=project_id,
+        user_id=user_id,
+        mount_create=MountCreate(slug=slug),
+    )
+
+    other_id = uuid.uuid4()
+    async with engine.session() as session:
+        result = await session.execute(
+            text(
+                _PROJECT_LAYOUT_INSERT
+                + " ON CONFLICT ON CONSTRAINT uq_mounts_project_id_slug "
+                "DO UPDATE SET updated_at = now() RETURNING id, storage_prefix"
+            ),
+            {
+                "project_id": project_id,
+                "id": other_id,
+                "slug": slug,
+                "created_by_id": user_id,
+                "storage_prefix": f"mounts/{project_id}/{other_id}",
+            },
+        )
+        row = result.one()
+        await session.commit()
+
+    assert row.id == mount.id
+    assert row.storage_prefix == organization_storage_prefix(
+        organization_id=mount_scope["organization_id"],
+        mount_id=mount.id,
+    )
+
+
+async def test_insert_for_an_unknown_project_writes_nothing():
+    engine = get_transactions_engine()
+    dao = MountsDAO(engine=engine)
+    project_id = uuid.uuid4()
+
+    # NOT NULL on `storage_prefix` refuses the row (SQLSTATE 23502), before the project
+    # foreign key is checked: the prefix is NULL, never `mounts//<mount_id>`.
+    with pytest.raises(IntegrityError) as created:
+        await dao.create_mount(
+            project_id=project_id,
+            user_id=uuid.uuid4(),
+            mount_create=MountCreate(slug=f"orphan-{uuid.uuid4().hex}"),
+        )
+    with pytest.raises(IntegrityError) as upserted:
+        await dao.upsert_mount(
+            project_id=project_id,
+            user_id=uuid.uuid4(),
+            mount_create=MountCreate(slug=f"orphan-{uuid.uuid4().hex}"),
+        )
+    for error in (created.value, upserted.value):
+        assert getattr(error.orig, "pgcode", None) == "23502", error.orig
+        assert "storage_prefix" in str(error.orig)
+
+    async with engine.session() as session:
+        rows = await session.execute(
+            text("SELECT count(*) FROM mounts WHERE project_id = :project_id"),
+            {"project_id": project_id},
+        )
+        assert rows.scalar_one() == 0
+
+
+async def test_create_mount_statement_count_is_unchanged(mount_scope):
+    engine = mount_scope["engine"]
+    project_id = mount_scope["project_id"]
+    user_id = mount_scope["user_id"]
+    dao = MountsDAO(engine=engine)
+
+    # Warm up the pool and the dialect so only the create itself is counted.
+    await dao.create_mount(
+        project_id=project_id,
+        user_id=user_id,
+        mount_create=MountCreate(slug=f"warm-{uuid.uuid4().hex}"),
+    )
+
+    statements, stop = _count_statements(engine)
+    try:
+        await dao.create_mount(
+            project_id=project_id,
+            user_id=user_id,
+            mount_create=MountCreate(slug=f"count-{uuid.uuid4().hex}"),
+        )
+    finally:
+        stop()
+
+    # The INSERT and the refresh SELECT, as before the organization layout.
+    assert [statement.split()[0].upper() for statement, _ in statements] == [
+        "INSERT",
+        "SELECT",
+    ], statements
 
 
 async def test_upsert_runs_one_statement_on_both_paths(mount_scope):
