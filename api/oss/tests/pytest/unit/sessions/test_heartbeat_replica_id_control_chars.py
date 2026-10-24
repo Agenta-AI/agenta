@@ -23,6 +23,7 @@ from oss.src.dbs.redis.sessions.contract import turn_bound_key
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.utils.env import env
 
+from oss.tests.pytest.utils.principals import make_envelope
 from unit.sessions.test_heartbeat_turn_binding import _FakeDAO
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 
@@ -66,6 +67,8 @@ def client(redis, monkeypatch):
     async def set_request_scope(request: Request, call_next):
         request.state.project_id = _PROJECT
         request.state.user_id = _USER
+        # The runner's run credential: only a run creates a session by heartbeat.
+        request.state.run_envelope = make_envelope()
         return await call_next(request)
 
     app.include_router(

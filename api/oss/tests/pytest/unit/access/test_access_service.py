@@ -1,4 +1,4 @@
-"""`AccessService.check_capability` over an in-memory membership store.
+"""`AccessService.check_human` over an in-memory membership store.
 
 Ports the non-demo cases of the former `test_project_member_lookup.py`.
 """
@@ -19,6 +19,7 @@ from oss.tests.pytest.utils.memberships import (
     RecordingRbac,
     make_summary,
 )
+from oss.tests.pytest.utils.principals import HumanPrincipalsDAO
 
 
 class _World:
@@ -33,6 +34,7 @@ class _World:
         self.service = AccessService(
             memberships=MembershipsService(memberships_dao=self.dao, policy=policy),
             rbac=self.rbac,
+            principals=HumanPrincipalsDAO(),
         )
 
     def member(self, user, *, organization_role="viewer", project_role="__same__"):
@@ -55,7 +57,7 @@ class _World:
         )
 
     async def check(self, action, *, user=None, project_id=None):
-        return await self.service.check_capability(
+        return await self.service.check_human(
             user_id=user or self.user,
             project_id=project_id or self.project.project_id,
             action=action,
@@ -160,6 +162,9 @@ async def test_undefined_organization_role_gives_no_permissions_and_logs(monkeyp
             events.append((event, fields))
 
         def debug(self, *args, **kwargs):
+            pass
+
+        def info(self, *args, **kwargs):  # the "[access] denied" line
             pass
 
     monkeypatch.setattr(access_module, "log", _Log())

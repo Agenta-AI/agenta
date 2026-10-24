@@ -14,6 +14,9 @@ from typing import (
     Union,
     TYPE_CHECKING,
 )
+from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import MissingPrincipal
 from oss.src.core.git.dtos import RevisionGrouping
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
@@ -23,6 +26,7 @@ import httpx
 if TYPE_CHECKING:
     from oss.src.core.environments.service import EnvironmentsService
     from oss.src.core.embeds.service import EmbedsService
+    from oss.src.core.triggers.interfaces import TriggersDAOInterface
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
@@ -82,6 +86,7 @@ from oss.src.core.git.dtos import (
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.workflows.dtos import (
     JsonSchemas,
+    ResolvedTarget,
     WorkflowArtifactFlags,
     WorkflowArtifactQueryFlags,
     WorkflowVariantFlags,
@@ -190,7 +195,6 @@ from agenta.sdk.decorators.running import (
     WorkflowServiceBatchResponse,  # noqa: F811
     WorkflowServiceStreamResponse,  # noqa: F811
     WorkflowRequestData,
-    WorkflowInspectRequest,
     WorkflowServiceStatus,
 )
 
@@ -362,6 +366,13 @@ class WorkflowsService:
         self._session_context_resolver: Optional[
             Callable[..., Awaitable[tuple[Optional[str], bool]]]
         ] = None
+        # Archiving an agent pauses the triggers that target it. Set by the composition
+        # root that serves the archive routes (the triggers DAO is built after this
+        # service there).
+        self._triggers_dao: Optional["TriggersDAOInterface"] = None
+
+    def set_triggers_dao(self, triggers_dao: "TriggersDAOInterface") -> None:
+        self._triggers_dao = triggers_dao
 
     def set_session_continuation_resumer(
         self, callback: Callable[..., Awaitable[Optional[str]]]
@@ -1108,19 +1119,39 @@ class WorkflowsService:
 
         return WorkflowServiceBatchResponse.model_validate(payload)
 
-    @staticmethod
-    def _build_inspect_request(
+    async def resolve_request_target(
+        self,
         *,
+        project_id: UUID,
         request: WorkflowServiceRequest,
-    ) -> WorkflowInspectRequest:
-        return WorkflowInspectRequest(
-            version=request.version,
-            revision=request.data.revision if request.data else None,
-            references=request.references,
-            selector=request.selector,
-            flags=request.flags,
-            tags=request.tags,
-            meta=request.meta,
+    ) -> Optional[ResolvedTarget]:
+        """Resolve the request's references to one revision, once, and leave the
+        revision on the request, so the invoke runs the target that was checked.
+        `None` when nothing resolves. `archived` is true when the target's artifact is
+        archived (the artifact read is cached)."""
+
+        revision = await self._ensure_request_revision(
+            project_id=project_id, request=request
+        )
+        if revision is None or revision.artifact_id is None or revision.id is None:
+            return None
+        # A static revision has a synthetic artifact with no row: it is never archived.
+        slug = getattr(revision, "slug", None)
+        flags = getattr(revision, "flags", None)
+        if (slug and is_static_workflow_slug(slug)) or getattr(
+            flags, "is_static", False
+        ):
+            return ResolvedTarget(
+                artifact_id=revision.artifact_id, revision_id=revision.id
+            )
+        workflow = await self.fetch_workflow(
+            project_id=project_id,
+            workflow_ref=Reference(id=revision.artifact_id),
+        )
+        return ResolvedTarget(
+            artifact_id=revision.artifact_id,
+            revision_id=revision.id,
+            archived=workflow is None or workflow.deleted_at is not None,
         )
 
     async def _ensure_request_revision(
@@ -1128,12 +1159,15 @@ class WorkflowsService:
         *,
         project_id: UUID,
         request: WorkflowServiceRequest,
-    ) -> None:
+    ) -> Optional[WorkflowRevision]:
+        """Embed the resolved revision in the request. A request that already carries
+        one is not resolved again. Returns the revision it resolved, else `None`."""
+
         if request.data and request.data.revision:
-            return
+            return None
 
         if not request.references:
-            return
+            return None
 
         refs = request.references
         (
@@ -1190,6 +1224,8 @@ class WorkflowsService:
             family=family or "workflow",
             retrieval_info=retrieval_info,
         )
+
+        return workflow_revision
 
     @staticmethod
     def _write_back_resolved_references(
@@ -1509,6 +1545,36 @@ class WorkflowsService:
             project_id=project_id,
             workflow=_workflow,
         )
+
+        # Its schedules and subscriptions stop. Unarchiving does not resume them.
+        if self._triggers_dao is not None:
+            # Best effort: the archive is committed. A tick refuses an archived target
+            # anyway (`agent_deleted`), so a failed pause here is caught up there.
+            try:
+                paused = await self._triggers_dao.pause_triggers_for_artifact(
+                    project_id=project_id,
+                    artifact_id=workflow_id,
+                    reason="agent_deleted",
+                )
+            except Exception:  # pylint: disable=broad-except
+                log.warning(
+                    "[triggers] pause after archive failed",
+                    project_id=str(project_id),
+                    artifact_id=str(workflow_id),
+                    exc_info=True,
+                )
+                paused = 0
+            if paused:
+                log.info(
+                    "[triggers] paused",
+                    trigger_kind="artifact",
+                    trigger_id=str(workflow_id),
+                    project_id=str(project_id),
+                    principal_kind=None,
+                    principal_id=None,
+                    reason="agent_deleted",
+                    count=paused,
+                )
 
         return _workflow
 
@@ -3188,6 +3254,7 @@ class WorkflowsService:
         user_id: UUID,
         #
         request: WorkflowServiceRequest,
+        envelope: RunEnvelope,
     ) -> tuple[str, Optional[str]]:
         """Shared invoke prelude for batch + detached: auth + ref-resolution + service URL.
 
@@ -3217,13 +3284,35 @@ class WorkflowsService:
         # but a service running with auth middleware disabled uses this token directly.
         # Only the operator's own services URL may receive it: a revision's `url` is tenant
         # data, and a token sent there is a token the tenant holds.
+        # The run credential carries the caller's envelope. A detached run names its
+        # runner turn (`meta.run_id`) in the run context.
+        run_id = (request.meta or {}).get("run_id")
+        if run_id is not None and envelope.context.run_id != str(run_id):
+            envelope = envelope.model_copy(
+                update={
+                    "context": envelope.context.model_copy(
+                        update={"run_id": str(run_id)}
+                    )
+                }
+            )
+
+        # The token's user is the run's acting user, derived from its authority, so it
+        # never pairs one principal with another user's identity (an approver, the
+        # creator of a stored row). `user_id` stays the audit user of this call.
+        acting_user_id = await get_access_service().acting_user_id(
+            authority=envelope.authority
+        )
+        if acting_user_id is None:
+            raise MissingPrincipal("The run's principal is not active")
+
         secret_token = await sign_secret_token(
-            user_id=str(user_id),
+            user_id=str(acting_user_id),
             project_id=str(project_id),
             workspace_id=str(project.workspace_id),
             organization_id=str(project.organization_id),
             gateway_run_id=gateway_run_id,
             grants=self._service_grants(service_url),
+            envelope=envelope,
         )
 
         credentials = f"Secret {secret_token}"
@@ -3355,6 +3444,7 @@ class WorkflowsService:
         user_id: UUID,
         #
         request: WorkflowServiceRequest,
+        envelope: RunEnvelope,
         #
         **kwargs,
     ) -> Union[
@@ -3378,6 +3468,7 @@ class WorkflowsService:
             project_id=project_id,
             user_id=user_id,
             request=request,
+            envelope=envelope,
         )
 
         if not service_url:
@@ -3419,6 +3510,7 @@ class WorkflowsService:
         user_id: UUID,
         #
         request: WorkflowServiceRequest,
+        envelope: RunEnvelope,
         #
         run_id: Optional[str] = None,
         control_command_id: Optional[UUID] = None,
@@ -3448,6 +3540,7 @@ class WorkflowsService:
             project_id=project_id,
             user_id=user_id,
             request=request,
+            envelope=envelope,
         )
 
         if not service_url:
@@ -3463,63 +3556,6 @@ class WorkflowsService:
             run_id=run_id,
             strict_first_record=strict_start or bool(meta.get("control_command_id")),
         )
-
-    async def inspect_workflow(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        request: WorkflowServiceRequest,
-    ) -> WorkflowServiceRequest:
-        project = await get_project_by_id(
-            project_id=str(project_id),
-        )
-
-        await self._ensure_request_revision(
-            project_id=project_id,
-            request=request,
-        )
-
-        revision_data = self._get_revision_data(request=request)
-        service_url = self._get_service_url(revision_data=revision_data)
-
-        secret_token = await sign_secret_token(
-            user_id=str(user_id),
-            project_id=str(project_id),
-            workspace_id=str(project.workspace_id),
-            organization_id=str(project.organization_id),
-            grants=self._service_grants(service_url),
-        )
-
-        credentials = f"Secret {secret_token}"
-
-        if not service_url:
-            raise ValueError("Workflow revision has no inspectable service URL.")
-
-        inspect_request = self._build_inspect_request(request=request)
-
-        response, body = await self._post_service_json(
-            url=f"{service_url}/inspect",
-            credentials=credentials,
-            payload=inspect_request.model_dump(
-                mode="json",
-                exclude_none=True,
-            ),
-        )
-
-        if response.status_code < 200 or response.status_code >= 300:
-            detail = (
-                body.get("details")
-                if isinstance(body, dict)
-                else response.text or "Workflow service inspection failed."
-            )
-            raise ValueError(detail)
-
-        if not isinstance(body, dict):
-            raise ValueError("Workflow service inspection returned an invalid payload.")
-
-        return WorkflowServiceRequest.model_validate(body)
 
     async def resolve_workflow_revision(
         self,

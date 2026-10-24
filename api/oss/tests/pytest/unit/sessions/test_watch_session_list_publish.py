@@ -30,6 +30,7 @@ from oss.src.core.sessions.streams.dtos import (
 from oss.src.core.sessions.streams.service import SessionStreamsService
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.tests.pytest.utils.principals import make_envelope
 
 
 _PROJECT = uuid4()
@@ -166,6 +167,7 @@ async def test_runner_first_heartbeat_publishes_session_changed(lock_engine):
             turn_id="turn-1",
             is_running=True,
         ),
+        envelope=make_envelope(),
     )
 
     assert publisher.changed_calls == [(str(_PROJECT), "session", session_id)]
@@ -186,6 +188,7 @@ async def test_subsequent_heartbeats_do_not_republish(lock_engine):
                 turn_id="turn-1",
                 is_running=True,
             ),
+            envelope=make_envelope(),
         )
 
     assert publisher.changed_calls == [(str(_PROJECT), "session", session_id)]

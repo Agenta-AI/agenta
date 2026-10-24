@@ -3,6 +3,7 @@ from uuid import UUID
 
 from agenta.sdk.agents import ContentBlock, Message
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.compiler import TemplateCompiler
 from oss.src.core.agent_templates.dtos import (
@@ -420,6 +421,7 @@ class AgentTemplateLoader:
         project_id: UUID,
         user_id: UUID,
         command: TemplateLoadCommand,
+        envelope: RunEnvelope,
     ) -> TemplateLoadResult:
         """Create every declared resource before handing off the first turn."""
         if self._mounts_service is None or self._session_starts_service is None:
@@ -522,6 +524,7 @@ class AgentTemplateLoader:
             ),
             parameters=prepared.runtime_parameters,
             request_key=start_key,
+            envelope=envelope,
         )
         return TemplateLoadResult(
             workflow_id=prepared.workflow_id,

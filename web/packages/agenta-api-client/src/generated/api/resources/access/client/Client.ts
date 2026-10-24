@@ -437,6 +437,7 @@ export class AccessClient {
             scope_id: scopeId,
             resource_type: resourceType,
             resource_id: resourceId,
+            without_grants: withoutGrants,
         } = request;
         const _queryParams: Record<string, unknown> = {
             action,
@@ -444,6 +445,7 @@ export class AccessClient {
             scope_id: scopeId,
             resource_type: resourceType,
             resource_id: resourceId,
+            without_grants: withoutGrants,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(

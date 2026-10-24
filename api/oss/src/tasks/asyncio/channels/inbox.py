@@ -17,6 +17,19 @@ import mimetypes
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4, uuid5
 
+from oss.src.core.access.dtos import (
+    PrincipalKind,
+    PrincipalRef,
+    RunApproval,
+    RunAuthority,
+    RunContext,
+    RunEnvelope,
+    RunOrigin,
+    RunSender,
+)
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import AccessDenied
 from oss.src.core.channels.commands import (
     COMMAND_NEW,
     COMMAND_SESSIONS,
@@ -200,11 +213,20 @@ class InboxDispatcher:
                 interaction_id,
             )
             return
-        user_id = await self._invoking_user_id(
+        user_id, external_user_key = await self._invoking_identity(
             project_id=project_id,
             connection_id=connection_id,
             event=event,
             resolution=resolution,
+        )
+        # The installation answered; the approver names the binding, the linked user
+        # and the external sender key.
+        approved_by = RunApproval(
+            principal=PrincipalRef(
+                kind=PrincipalKind.INSTALLATION, id=resolution.agent.id
+            ),
+            user_id=user_id,
+            external_key=external_user_key,
         )
         # The answer belongs to the parked interaction, never to a later turn
         # as conversation. Marked before the response is admitted: a failure
@@ -224,6 +246,7 @@ class InboxDispatcher:
             user_id=user_id or resolution.agent.created_by_id,
             interaction_id=UUID(interaction_id),
             answer={"approved": approved},
+            approved_by=approved_by,
         )
         # Clear only the answered card; a continuation may already have parked
         # on a newer interaction while the response admission was returning.
@@ -263,12 +286,31 @@ class InboxDispatcher:
         unconfigured — the caller falls back to the agent's creator, which
         is attribution's stand-in, not its mechanism."""
 
+        user_id, _ = await self._invoking_identity(
+            project_id=project_id,
+            connection_id=connection_id,
+            event=event,
+            resolution=resolution,
+        )
+        return user_id
+
+    async def _invoking_identity(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        event: ChannelInboxEvent,
+        resolution,
+    ) -> Tuple[Optional[UUID], Optional[str]]:
+        """`(linked user id, external sender key)`. Both None when identity is not
+        configured or the event names no sender."""
+
         if self.identity_service is None:
-            return None
+            return None, None
 
         platform_user_id = (event.data.processed.sender or {}).get("id")
         if not platform_user_id:
-            return None
+            return None, None
 
         connection = await self.channels_service.fetch_connection(
             project_id=project_id,
@@ -301,7 +343,52 @@ class InboxDispatcher:
             external_user_key=external_user_key,
         )
 
-        return link.user_id if link is not None else None
+        return (link.user_id if link is not None else None), external_user_key
+
+    async def _installation_envelope(
+        self,
+        *,
+        resolution: ChannelResolution,
+        organization_id: UUID,
+        project_id: UUID,
+        linked_user_id: Optional[UUID],
+        external_user_key: Optional[str],
+        run_id: Optional[str],
+    ) -> RunEnvelope:
+        """The channel turn runs as the installation (the binding), with the linked
+        user's role when the sender is linked, else the binding creator's (today's
+        authority). The sender is attribution only."""
+
+        principal = PrincipalRef(
+            kind=PrincipalKind.INSTALLATION, id=resolution.agent.id
+        )
+        sender = (
+            RunSender(user_id=linked_user_id, external_key=external_user_key)
+            if linked_user_id is not None or external_user_key
+            else None
+        )
+        return RunEnvelope(
+            authority=RunAuthority(
+                principal=principal,
+                organization_id=organization_id,
+                project_id=project_id,
+                linked_user_id=linked_user_id,
+            ),
+            context=RunContext(
+                run_id=run_id,
+                origin=RunOrigin.INSTALLATION,
+                origin_id=str(resolution.agent.id),
+            ),
+            sender=sender,
+        )
+
+    async def _organization_id(self, *, project_id: UUID) -> UUID:
+        organization_id = await get_access_service().project_organization_id(
+            project_id=project_id
+        )
+        if organization_id is None:
+            raise ChannelConnectionNotFound(connection_id=project_id)
+        return organization_id
 
     async def _dispatch_command(
         self,
@@ -633,12 +720,13 @@ class InboxDispatcher:
         # Everything that can still fail runs before the trigger is claimed: a
         # claimed trigger makes the task retry return early, so a failure
         # between the claim and the invoke would drop the mention for good.
-        user_id = await self._invoking_user_id(
+        user_id, external_user_key = await self._invoking_identity(
             project_id=project_id,
             connection_id=connection_id,
             event=event,
             resolution=resolution,
         )
+        organization_id = await self._organization_id(project_id=project_id)
         turn_input.content, notes = await self._attach_media(
             project_id=project_id,
             connection=connection,
@@ -654,6 +742,14 @@ class InboxDispatcher:
             )
 
         turn_id = str(uuid4())
+        envelope = await self._installation_envelope(
+            resolution=resolution,
+            organization_id=organization_id,
+            project_id=project_id,
+            linked_user_id=user_id,
+            external_user_key=external_user_key,
+            run_id=turn_id,
+        )
 
         trigger = await self.channels_service.open_turn(
             project_id=project_id,
@@ -688,6 +784,7 @@ class InboxDispatcher:
             connection=connection,
             capabilities=capabilities,
             request_locator=event.data.external_locator,
+            envelope=envelope,
         )
 
     async def _handle_consent(
@@ -847,6 +944,7 @@ class InboxDispatcher:
         turn_input: ChannelTurnInput,
         trigger_id: UUID,
         user_id: Optional[UUID],
+        envelope: RunEnvelope,
     ) -> ChannelQueueDecision:
         """Admit the message to the thread session's queue, the way the
         playground admits a message sent while a turn runs. A free session
@@ -865,6 +963,7 @@ class InboxDispatcher:
                     resolution=resolution, turn_input=turn_input
                 ).model_dump(mode="json", exclude_none=True),
                 idempotency_key=f"channels:{trigger_id}",
+                envelope=envelope,
             )
         except Exception:
             # An admission that cannot answer must not lose the message: the
@@ -888,6 +987,7 @@ class InboxDispatcher:
         connection: Optional[ChannelConnection] = None,
         capabilities: Optional[ChannelCapabilities] = None,
         request_locator: Optional[Dict] = None,
+        envelope: Optional[RunEnvelope] = None,
     ) -> None:
         """Queue behind a running turn, else invoke once, retrying only on a
         refused overlapping turn — never the `force` path, never coalescing.
@@ -903,6 +1003,7 @@ class InboxDispatcher:
                 turn_input=turn_input,
                 trigger_id=trigger_id,
                 user_id=user_id,
+                envelope=envelope,
             )
             if decision is ChannelQueueDecision.QUEUED:
                 # The offset stands: the message is the session's next turn,
@@ -920,6 +1021,20 @@ class InboxDispatcher:
                 )
                 return
             try:
+                # Inside the try: a transient failure of the recheck (not a denial)
+                # settles the trigger FAILED below, as an invoke failure does, instead
+                # of escaping after the trigger was claimed.
+                if envelope is not None and not await self._may_run(
+                    project_id=project_id,
+                    resolution=resolution,
+                    turn_id=turn_id,
+                    trigger_id=trigger_id,
+                    envelope=envelope,
+                    connection=connection,
+                    capabilities=capabilities,
+                    request_locator=request_locator,
+                ):
+                    return
                 # user_id is passed only when identity resolved a linked
                 # account; an injected invoke_fn keeps its four-argument shape.
                 extra = {"user_id": user_id} if user_id is not None else {}
@@ -928,6 +1043,7 @@ class InboxDispatcher:
                     resolution=resolution,
                     turn_input=turn_input,
                     turn_id=turn_id,
+                    envelope=envelope,
                     **extra,
                 )
             except TurnRefused:
@@ -1018,6 +1134,57 @@ class InboxDispatcher:
                 )
                 return
 
+    async def _may_run(
+        self,
+        *,
+        project_id: UUID,
+        resolution: ChannelResolution,
+        turn_id: str,
+        trigger_id: UUID,
+        envelope: RunEnvelope,
+        connection: Optional[ChannelConnection],
+        capabilities: Optional[ChannelCapabilities],
+        request_locator: Optional[Dict],
+    ) -> bool:
+        """The turn runs as the installation: recheck it before the invoke. A refusal
+        (an archived binding is `principal_inactive`, a linked user without the
+        capability is `missing_capability`) settles the trigger failed and posts the
+        failed-start reply; nothing is invoked."""
+
+        try:
+            await get_access_service().require(
+                envelope=envelope, action=Permission.RUN_SESSIONS
+            )
+            return True
+        except AccessDenied as denied:
+            reason = denied.decision.reason.value
+            log.info(
+                "[INBOX DISPATCHER] turn refused",
+                turn_id=turn_id,
+                binding_id=str(resolution.agent.id),
+                reason=reason,
+            )
+            await self.channels_service.settle_turn(
+                project_id=project_id,
+                trigger_id=trigger_id,
+                state=ChannelTriggerState.FAILED,
+                status=Status(code="access_denied", message=reason),
+            )
+            if connection and connection.channel == "slack" and request_locator:
+                adapter = self.channels_service.adapter_registry.get(connection.channel)
+                await adapter.set_message_status(
+                    connection=connection, locator=request_locator, status="failed"
+                )
+            await self._notify_not_started(
+                project_id=project_id,
+                resolution=resolution,
+                turn_id=turn_id,
+                connection=connection,
+                capabilities=capabilities,
+                render=render_failed_start,
+            )
+            return False
+
     async def _notify_not_started(
         self,
         *,
@@ -1106,6 +1273,7 @@ class InboxDispatcher:
         resolution: ChannelResolution,
         turn_input: ChannelTurnInput,
         turn_id: str,
+        envelope: RunEnvelope,
         user_id: Optional[UUID] = None,
     ) -> str:
         """Invoke via `WorkflowsService.invoke_workflow_detached` over the
@@ -1132,6 +1300,7 @@ class InboxDispatcher:
                 project_id=project_id,
                 user_id=user_id or resolution.agent.created_by_id,
                 request=request,
+                envelope=envelope,
                 run_id=turn_id,
                 # A first frame that reports an error is a failed start, not
                 # an accepted run: otherwise the trigger settles and the chat

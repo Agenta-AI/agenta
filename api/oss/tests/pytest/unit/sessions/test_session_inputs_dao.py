@@ -49,6 +49,7 @@ from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 import oss.src.models.db_models  # noqa: F401
+from oss.tests.pytest.utils.principals import make_envelope
 
 
 pytestmark = pytest.mark.integration
@@ -374,6 +375,7 @@ async def test_admission_rechecks_settlement_under_the_execution_lock(
             content={"message": "arrived during settlement"},
             policy="queue",
             idempotency_key="settlement-race",
+            envelope=make_envelope(),
         )
     )
     await streams.observed_busy.wait()
@@ -427,6 +429,7 @@ async def test_admission_queues_behind_running_input_promoted_by_settlement(
             content={"message": "arrived during settlement"},
             policy="queue",
             idempotency_key="settlement-race",
+            envelope=make_envelope(),
         )
     )
     await streams.observed_busy.wait()
@@ -518,6 +521,7 @@ async def test_concurrent_idempotent_admission_returns_one_postgres_row(
         "content": {"message": "same"},
         "policy": "queue",
         "idempotency_key": "same-key",
+        "envelope": make_envelope(),
     }
 
     first, retry = await asyncio.wait_for(
@@ -905,6 +909,7 @@ async def test_admission_follows_approval_continuation_before_stream_header_catc
         content={"message": "after approved work"},
         policy=policy,
         idempotency_key="approval-start-gap",
+        envelope=make_envelope(),
     )
     if state == "terminal":
         assert admission.action == "execute"
@@ -1391,6 +1396,7 @@ async def test_edit_pending_preserves_payload_identity_and_retry_attachments(
         content=values.content,
         policy=values.policy,
         idempotency_key=values.idempotency_key,
+        envelope=make_envelope(),
     )
     assert original_retry.input.id == row.id
     assert original_retry.input.content == edited.content
@@ -1692,6 +1698,7 @@ async def _promoted_input(scope, inputs, *, key: str, execution_id: str):
         execution_id=execution_id,
         content=content,
         idempotency_key=key,
+        envelope=make_envelope(),
     )
 
 

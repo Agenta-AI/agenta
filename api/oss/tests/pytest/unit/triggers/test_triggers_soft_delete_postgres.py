@@ -1,6 +1,8 @@
 import uuid
 
 import pytest
+
+from oss.tests.pytest.utils.principals import any_principal
 import pytest_asyncio
 from sqlalchemy import text
 
@@ -150,6 +152,8 @@ async def test_soft_delete_retains_schedule_and_delivery_until_explicit_purge(
     user_id = trigger_scope["user_id"]
     schedule = await dao.create_schedule(
         project_id=project_id,
+        principal=any_principal(),
+        artifact_id=None,
         user_id=user_id,
         schedule=TriggerScheduleCreate(
             name="Historical schedule",
@@ -218,6 +222,8 @@ async def test_soft_delete_retains_subscription_and_delivery_until_explicit_purg
     user_id = trigger_scope["user_id"]
     subscription = await dao.create_subscription(
         project_id=project_id,
+        principal=any_principal(),
+        artifact_id=None,
         user_id=user_id,
         subscription=TriggerSubscriptionCreate(
             connection_id=trigger_scope["connection_id"],
@@ -360,6 +366,8 @@ async def test_atomic_claim_rejects_disabled_or_deleted_schedule(
     user_id = trigger_scope["user_id"]
     schedule = await triggers_dao.create_schedule(
         project_id=project_id,
+        principal=any_principal(),
+        artifact_id=None,
         user_id=user_id,
         schedule=TriggerScheduleCreate(
             data=TriggerScheduleData(event_key="cron.tick", schedule="* * * * *"),

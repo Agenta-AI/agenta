@@ -38,6 +38,7 @@ from oss.src.dbs.redis.sessions.locks import (
 from oss.src.utils.env import env
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.tests.pytest.utils.principals import make_envelope
 
 
 _PROJECT = UUID("00000000-0000-0000-0000-0000000000cc")
@@ -146,6 +147,7 @@ class _Harness:
                     is_running=running,
                 ),
                 runner_verified=True,
+                envelope=make_envelope(),
             )
 
     async def read(self):

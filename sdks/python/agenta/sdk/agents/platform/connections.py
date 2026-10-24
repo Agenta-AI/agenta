@@ -37,7 +37,9 @@ from ..connections import (
     ConnectionResolutionError,
     EndpointResolutionError,
     Endpoint,
+    ConnectionAccessDeniedError,
     GatewayConnectionRefusedError,
+    is_access_refusal,
     InvalidConnectionConfigurationError,
     MissingCredentialError,
     MissingProviderError,
@@ -1073,6 +1075,14 @@ class VaultConnectionResolver:
 
         if response.status_code >= 400:
             log.warning("agent: vault secrets fetch HTTP %s", response.status_code)
+            try:
+                body = response.json()
+            except Exception:  # pylint: disable=broad-except
+                body = None
+            if is_access_refusal(status_code=response.status_code, body=body):
+                raise ConnectionAccessDeniedError.from_response(
+                    status_code=response.status_code, body=body
+                )
             raise ConnectionResolutionError(
                 f"connection resolution failed (HTTP {response.status_code})"
             )
@@ -1162,6 +1172,13 @@ class VaultConnectionResolver:
                 body = response.json()
             except Exception:  # pylint: disable=broad-except
                 body = None
+            if isinstance(body, dict) and isinstance(body.get("detail"), dict):
+                if body["detail"].get("code") == "access_denied":
+                    # The run's credential was refused (gateway credential mint):
+                    # one 403 with the reason, not a connection refusal.
+                    raise ConnectionAccessDeniedError.from_response(
+                        status_code=response.status_code, body=body
+                    )
             refusal = GatewayConnectionRefusedError.from_response(
                 status_code=response.status_code,
                 body=body,

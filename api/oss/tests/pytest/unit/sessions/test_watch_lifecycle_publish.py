@@ -25,6 +25,7 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.tests.pytest.utils.principals import make_envelope
 
 
 _PROJECT = uuid4()
@@ -197,6 +198,7 @@ async def test_turn_end_heartbeat_publishes_ended_once(lock_engine):
             turn_id=result.turn_id,
             is_running=False,
         ),
+        envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "ended")]
 
@@ -210,6 +212,7 @@ async def test_turn_end_heartbeat_publishes_ended_once(lock_engine):
             turn_id=result.turn_id,
             is_running=False,
         ),
+        envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == []
 
@@ -230,6 +233,7 @@ async def test_first_beat_of_a_runner_minted_turn_publishes_running(lock_engine)
             turn_id="runner-turn-1",
             is_running=True,
         ),
+        envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "running")]
 
@@ -243,6 +247,7 @@ async def test_first_beat_of_a_runner_minted_turn_publishes_running(lock_engine)
             turn_id="runner-turn-1",
             is_running=True,
         ),
+        envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == []
 
@@ -255,6 +260,7 @@ async def test_first_beat_of_a_runner_minted_turn_publishes_running(lock_engine)
             turn_id="runner-turn-2",
             is_running=True,
         ),
+        envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "running")]
 
@@ -304,6 +310,7 @@ async def test_beat_on_a_killed_tombstone_publishes_nothing(lock_engine):
             turn_id="killed-turn",
             is_running=True,
         ),
+        envelope=make_envelope(),
     )
 
     assert (dao.creates, dao.updates) == (1, 1), "both row paths must have been tried"
@@ -339,5 +346,6 @@ async def test_send_does_not_double_publish_running_on_its_first_beat(lock_engin
             turn_id=result.turn_id,
             is_running=True,
         ),
+        envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == []

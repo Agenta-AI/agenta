@@ -627,3 +627,12 @@ class CommitOutcome(BaseModel):
     revision: Optional[WorkflowRevision] = None
     status: Literal["committed", "no_change"] = "committed"
     warnings: List[CommitWarning] = Field(default_factory=list)
+
+
+class ResolvedTarget(BaseModel):
+    """The revision a request resolved to, and its artifact (M2 triggers check the
+    principal against this target before they claim a delivery)."""
+
+    artifact_id: UUID
+    revision_id: UUID
+    archived: bool = False

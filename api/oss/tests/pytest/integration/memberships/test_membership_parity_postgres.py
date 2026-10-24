@@ -29,6 +29,7 @@ from oss.tests.pytest.utils.membership_seed import (
     seed_organization,
 )
 from oss.tests.pytest.utils.memberships import RecordingRbac
+from oss.tests.pytest.utils.principals import HumanPrincipalsDAO
 
 
 pytestmark = [
@@ -69,7 +70,9 @@ async def test_bearer_list_and_capability_agree(policy):
         dao = MembershipsDAO(engine=get_transactions_engine())
         memberships = MembershipsService(memberships_dao=dao, policy=policy)
         access = AccessService(
-            memberships=memberships, rbac=RecordingRbac(enforced=True)
+            memberships=memberships,
+            rbac=RecordingRbac(enforced=True),
+            principals=HumanPrincipalsDAO(),
         )
 
         users = {
@@ -84,7 +87,7 @@ async def test_bearer_list_and_capability_agree(policy):
             }
             for project in projects:
                 member = await memberships.is_member(user_id=user, project_id=project)
-                decision = await access.check_capability(
+                decision = await access.check_human(
                     user_id=user,
                     project_id=project,
                     action=Permission.VIEW_APPLICATIONS,
@@ -168,12 +171,13 @@ async def test_legacy_shapes_decide_as_expected(edition, monkeypatch):
                     policy=policy,
                 ),
                 rbac=_NoRbacFor([p2b_org]),
+                principals=HumanPrincipalsDAO(),
             )
 
             async def allowed(shape, label, project_index=0):
                 seeded = shapes[shape]
                 user = seeded.owner_id if label == "owner" else seeded.user_ids[label]
-                decision = await access.check_capability(
+                decision = await access.check_human(
                     user_id=user,
                     project_id=seeded.project_ids[project_index],
                     action=Permission.VIEW_APPLICATIONS,

@@ -134,7 +134,7 @@ class SessionInputsDAO(SessionInputsDAOInterface):
             row = new_input_row(
                 user_id=user_id,
                 position=position,
-                values=pending_input.model_dump(mode="python"),
+                pending_input=pending_input,
             )
             session.add(row)
             await session.flush()
