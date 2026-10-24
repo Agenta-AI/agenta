@@ -1,3 +1,4 @@
+import json
 from typing import Optional, Dict, Any, List
 
 from agenta.sdk.utils.logging import get_module_logger
@@ -11,6 +12,7 @@ from agenta.sdk.utils.assets import (
 )
 from agenta.sdk.engines.running.errors import (
     ConnectionModelMismatchV0Error,
+    InvalidConfigurationParameterV0Error,
     UnknownConnectionV0Error,
 )
 
@@ -19,6 +21,39 @@ from agenta.sdk.middlewares.running.vault import get_secrets
 import agenta as ag
 
 log = get_module_logger(__name__)
+
+
+_VERTEX_CREDENTIAL_KEYS = ("vertex_credentials", "vertex_ai_credentials")
+
+
+def _check_vertex_credentials(extras: Dict[str, Any]) -> None:
+    """Accept a Vertex credential only as an inline service-account document.
+
+    LiteLLM opens a string that names an existing file, and google-auth follows the other
+    credential types (external accounts, credential sources) to URLs, files or programs.
+    Dropping the value is not an option either: LiteLLM would then use the server's own
+    Google identity.
+    """
+    for key in _VERTEX_CREDENTIAL_KEYS:
+        if key not in extras or extras[key] in (None, ""):
+            continue
+        value = extras[key]
+        document = value
+        if isinstance(value, str):
+            try:
+                document = json.loads(value)
+            except ValueError:
+                document = None
+        if not (
+            isinstance(document, dict)
+            and document.get("type") == "service_account"
+            and "credential_source" not in document
+        ):
+            raise InvalidConfigurationParameterV0Error(
+                path=key,
+                expected="a service-account JSON document",
+                got="another credential format",
+            )
 
 
 def _safe_api_base(url: Optional[str]) -> Optional[str]:
@@ -470,6 +505,7 @@ class SecretsManager:
                 and request_provider_model in secret_provider_models
             ):
                 if secret_provider_extras:
+                    _check_vertex_credentials(secret_provider_extras)
                     provider_settings.update(secret_provider_extras)
 
         if len(provider_settings.keys()) <= 1:

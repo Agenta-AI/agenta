@@ -1,5 +1,7 @@
 from typing import Dict, Any, List, Optional, Union
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
+
+import httpx
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.lazy import _load_posthog
@@ -55,6 +57,7 @@ from oss.src.core.auth.helper import (
     parse_auth_info,
 )
 from oss.src.core.auth.service import AuthService
+from oss.src.core.webhooks.utils import resolve_validated_webhook_ip
 from oss.src.dbs.postgres.users.dao import IdentitiesDAO
 from oss.src.core.users.types import UserIdentityCreate
 from oss.src.core.auth.rate_limit import enforce_auth_code_rate_limit
@@ -257,6 +260,51 @@ async def _get_identities_for_user(
     return [fallback_method]
 
 
+_OIDC_ENDPOINT_FIELDS = (
+    "authorization_endpoint",
+    "token_endpoint",
+    "userinfo_endpoint",
+    "jwks_uri",
+)
+
+
+async def _fetch_checked_oidc_endpoints(issuer_url: str) -> Optional[Dict[str, str]]:
+    """Read the issuer's discovery document and check every endpoint it names.
+
+    SuperTokens would otherwise fetch the document itself and then call the endpoints in
+    it with no egress check. The issuer is pinned to the checked address, as in
+    `test_oidc_connection`, and each endpoint must pass the same check.
+    """
+    resolved_ip = resolve_validated_webhook_ip(issuer_url)
+    parsed = urlparse(issuer_url)
+    host_literal = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
+    pinned_netloc = f"{host_literal}:{parsed.port}" if parsed.port else host_literal
+    pinned_issuer_url = urlunparse(parsed._replace(netloc=pinned_netloc))
+
+    async with httpx.AsyncClient(timeout=10.0, follow_redirects=False) as client:
+        response = await client.get(
+            f"{pinned_issuer_url.rstrip('/')}/.well-known/openid-configuration",
+            headers={"Host": parsed.hostname or ""},
+            extensions={"sni_hostname": parsed.hostname or ""},
+        )
+    if response.status_code != 200:
+        return None
+    document = response.json()
+    if not isinstance(document, dict):
+        return None
+
+    endpoints: Dict[str, str] = {}
+    for field in _OIDC_ENDPOINT_FIELDS:
+        url = document.get(field)
+        if not isinstance(url, str) or not url:
+            if field == "jwks_uri":
+                continue
+            return None
+        resolve_validated_webhook_ip(url)
+        endpoints[field] = url
+    return endpoints
+
+
 async def _get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderInput]:
     """
     Fetch dynamic OIDC provider configuration from database (EE only).
@@ -320,6 +368,11 @@ async def _get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderIn
         if not issuer_url or not client_id or not client_secret:
             return None
 
+        endpoints = await _fetch_checked_oidc_endpoints(issuer_url)
+        if endpoints is None:
+            log.warning(f"OIDC discovery failed for provider id={provider.id}")
+            return None
+
         # Build ProviderInput for SuperTokens
         return ProviderInput(
             config=ProviderConfig(
@@ -331,7 +384,10 @@ async def _get_dynamic_oidc_provider(third_party_id: str) -> Optional[ProviderIn
                         scope=scopes,
                     )
                 ],
-                oidc_discovery_endpoint=f"{issuer_url}/.well-known/openid-configuration",
+                authorization_endpoint=endpoints["authorization_endpoint"],
+                token_endpoint=endpoints["token_endpoint"],
+                user_info_endpoint=endpoints["userinfo_endpoint"],
+                jwks_uri=endpoints.get("jwks_uri"),
             )
         )
     except Exception:
