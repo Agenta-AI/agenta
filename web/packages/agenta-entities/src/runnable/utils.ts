@@ -302,13 +302,410 @@ export function resolveTemplateFormat(raw: string | null | undefined): TemplateF
     return null
 }
 
+/** Jinja2 keywords and constants. They are syntax, never template inputs. */
+const JINJA_KEYWORDS = new Set([
+    "and",
+    "or",
+    "not",
+    "in",
+    "is",
+    "if",
+    "elif",
+    "else",
+    "for",
+    "endfor",
+    "set",
+    "endset",
+    "with",
+    "endwith",
+    "true",
+    "false",
+    "none",
+    "True",
+    "False",
+    "None",
+    "recursive",
+    "scoped",
+    "required",
+    "do",
+    "autoescape",
+    "endautoescape",
+    "block",
+    "endblock",
+    "extends",
+    "include",
+    "import",
+    "from",
+    "as",
+    "macro",
+    "endmacro",
+    "call",
+    "endcall",
+    "filter",
+    "endfilter",
+    "raw",
+    "endraw",
+    "break",
+    "continue",
+])
+
+/** Jinja2 globals that the runtime provides. A call to them is not a template input. */
+const JINJA_GLOBALS = new Set(["range", "lipsum", "dict", "cycler", "joiner", "namespace"])
+
+function isJinjaIdentifierStart(char: string | undefined): boolean {
+    return char !== undefined && /[A-Za-z_]/.test(char)
+}
+
+function isJinjaIdentifierPart(char: string | undefined): boolean {
+    return char !== undefined && /[A-Za-z0-9_]/.test(char)
+}
+
+/** Skip a quoted Jinja2 string, including escaped quotes. Returns the index after the closing quote. */
+function skipJinjaString(source: string, start: number): number {
+    const quote = source[start]
+    let i = start + 1
+    while (i < source.length) {
+        if (source[i] === "\\") {
+            i += 2
+            continue
+        }
+        if (source[i] === quote) return i + 1
+        i++
+    }
+    return i
+}
+
+/**
+ * Collect the root or dotted variable paths an expression reads.
+ *
+ * Skips strings, numbers, operators, filter names (`name|length`), test names
+ * (`value is defined`), and keyword arguments (`attr="x"`). Attribute segments
+ * stay attached to their root (`user.name` -> `user.name`). A method call on a
+ * dotted path contributes its root only (`mapping.items()` -> `mapping`).
+ */
+function collectJinjaExpressionPaths(expression: string): string[] {
+    const paths: string[] = []
+    let i = 0
+    let afterIs = false
+
+    const previousSignificantChar = (index: number): string => {
+        let cursor = index - 1
+        while (cursor >= 0 && /\s/.test(expression[cursor])) cursor--
+        return cursor >= 0 ? expression[cursor] : ""
+    }
+    const nextSignificantIndex = (index: number): number => {
+        let cursor = index
+        while (cursor < expression.length && /\s/.test(expression[cursor])) cursor++
+        return cursor
+    }
+
+    while (i < expression.length) {
+        const char = expression[i]
+
+        if (char === '"' || char === "'") {
+            i = skipJinjaString(expression, i)
+            afterIs = false
+            continue
+        }
+
+        if (!isJinjaIdentifierStart(char)) {
+            if ("()[],=:".includes(char)) afterIs = false
+            i++
+            continue
+        }
+
+        const start = i
+        i++
+        while (i < expression.length && isJinjaIdentifierPart(expression[i])) i++
+        let path = expression.slice(start, i)
+
+        while (expression[i] === ".") {
+            const segmentStart = i + 1
+            if (!isJinjaIdentifierStart(expression[segmentStart])) break
+            let segmentEnd = segmentStart + 1
+            while (
+                segmentEnd < expression.length &&
+                isJinjaIdentifierPart(expression[segmentEnd])
+            ) {
+                segmentEnd++
+            }
+            path += expression.slice(i, segmentEnd)
+            i = segmentEnd
+        }
+
+        // Filter names are syntax: `name|length`, `name | upper`.
+        if (previousSignificantChar(start) === "|") {
+            afterIs = false
+            continue
+        }
+
+        // An identifier after `.` is an attribute of what comes before it,
+        // including after a subscript: `items[0].name` reads only `items`.
+        if (previousSignificantChar(start) === ".") {
+            afterIs = false
+            continue
+        }
+
+        // Keyword arguments are syntax: `attr="x"`, but `==` is a comparison.
+        const nextIndex = nextSignificantIndex(i)
+        if (expression[nextIndex] === "=" && expression[nextIndex + 1] !== "=") {
+            afterIs = false
+            continue
+        }
+
+        if (JINJA_KEYWORDS.has(path)) {
+            if (path === "is") afterIs = true
+            else if (!(afterIs && path === "not")) afterIs = false
+            continue
+        }
+
+        // The word after `is` / `is not` is a test name, not a variable.
+        if (afterIs) {
+            afterIs = false
+            continue
+        }
+
+        // A call to a Jinja2 global is not a template input.
+        if (expression[nextIndex] === "(" && JINJA_GLOBALS.has(path)) continue
+
+        paths.push(expression[nextIndex] === "(" && path.includes(".") ? path.split(".")[0] : path)
+    }
+
+    return paths
+}
+
+/** Split on a character at bracket depth zero, so `a, f(b, c)` gives `["a", "f(b, c)"]`. */
+function splitJinjaTopLevel(source: string, separator: string): string[] {
+    const parts: string[] = []
+    let depth = 0
+    let start = 0
+    let i = 0
+    while (i < source.length) {
+        const char = source[i]
+        if (char === '"' || char === "'") {
+            i = skipJinjaString(source, i)
+            continue
+        }
+        if ("([{".includes(char)) depth++
+        else if (")]}".includes(char)) depth--
+        else if (char === separator && depth === 0) {
+            parts.push(source.slice(start, i))
+            start = i + 1
+        }
+        i++
+    }
+    parts.push(source.slice(start))
+    return parts
+}
+
+/** Find a character at bracket depth zero, ignoring quoted strings. */
+function findJinjaTopLevelChar(source: string, target: string): number {
+    let depth = 0
+    let i = 0
+    while (i < source.length) {
+        const char = source[i]
+        if (char === '"' || char === "'") {
+            i = skipJinjaString(source, i)
+            continue
+        }
+        if ("([{".includes(char)) depth++
+        else if (")]}".includes(char)) depth--
+        else if (char === target && depth === 0) {
+            // Do not treat an operator containing '=' as the assignment sign.
+            if (target === "=" && (source[i + 1] === "=" || "=!<>".includes(source[i - 1] ?? ""))) {
+                i++
+                continue
+            }
+            return i
+        }
+        i++
+    }
+    return -1
+}
+
+/** Find a word at bracket depth zero, ignoring quoted strings and longer identifiers. */
+function findJinjaTopLevelWord(source: string, word: string): number {
+    let depth = 0
+    let i = 0
+    while (i < source.length) {
+        const char = source[i]
+        if (char === '"' || char === "'") {
+            i = skipJinjaString(source, i)
+            continue
+        }
+        if ("([{".includes(char)) depth++
+        else if (")]}".includes(char)) depth--
+        else if (
+            char === word[0] &&
+            depth === 0 &&
+            source.startsWith(word, i) &&
+            !isJinjaIdentifierPart(source[i - 1]) &&
+            !isJinjaIdentifierPart(source[i + word.length])
+        ) {
+            return i
+        }
+        i++
+    }
+    return -1
+}
+
+/** Parse Jinja2 assignment / loop targets. Handles tuples and nested parentheses. */
+function parseJinjaTargets(source: string): string[] {
+    let trimmed = source.trim()
+    while (trimmed.startsWith("(") && trimmed.endsWith(")")) {
+        trimmed = trimmed.slice(1, -1).trim()
+    }
+
+    const targets: string[] = []
+    for (const part of splitJinjaTopLevel(trimmed, ",")) {
+        const value = part.trim()
+        if (!value) continue
+        if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(value)) {
+            targets.push(value)
+        } else if (value.startsWith("(") && value.endsWith(")")) {
+            // Only nested tuples bind names. Attribute targets (`ns.found`)
+            // and malformed / half-typed text bind nothing.
+            targets.push(...parseJinjaTargets(value))
+        }
+    }
+    return targets
+}
+
+/** Strip Jinja2 whitespace-control markers (`{%-` / `-%}`) from tag or expression content. */
+function trimJinjaContent(raw: string): string {
+    return raw
+        .replace(/^[-+]\s*/, "")
+        .replace(/\s*[-+]$/, "")
+        .trim()
+}
+
+/**
+ * Extract the names a Jinja2 template reads, including names used only inside
+ * control blocks.
+ *
+ * Control-block expressions (`if` / `elif`), loop iterables, `set` right-hand
+ * sides, and `with` assignments are scanned in source order. Names the
+ * template binds itself (loop targets, `set` targets, `with` targets, and the
+ * `loop` object) are excluded, so `{% for ticket in tickets %}{{ ticket.id }}`
+ * yields `tickets`, not `ticket` or `ticket.id`.
+ */
+function extractJinja2Variables(input: string): string[] {
+    const variables: string[] = []
+    const seen = new Set<string>()
+    const scopes: Set<string>[] = [new Set<string>()]
+
+    const isBound = (path: string): boolean => {
+        const root = path.split(".")[0]
+        return scopes.some((scope) => scope.has(root))
+    }
+    const add = (path: string): void => {
+        if (!path || isBound(path) || seen.has(path)) return
+        seen.add(path)
+        variables.push(path)
+    }
+    const addExpression = (expression: string): void => {
+        for (const path of collectJinjaExpressionPaths(expression)) add(path)
+    }
+    const bind = (targets: string[]): void => {
+        const scope = scopes[scopes.length - 1]
+        for (const target of targets) scope.add(target)
+    }
+
+    // Comments are inert, and raw blocks render their contents verbatim.
+    const template = input
+        .replace(/\{#[\s\S]*?#\}/g, "")
+        .replace(/\{%[-+]?\s*raw\s*[-+]?%\}[\s\S]*?\{%[-+]?\s*endraw\s*[-+]?%\}/g, "")
+
+    const tokens = /\{\{([\s\S]*?)\}\}|\{%([\s\S]*?)%\}/g
+    for (const match of template.matchAll(tokens)) {
+        if (match[1] !== undefined) {
+            const expression = trimJinjaContent(match[1])
+            // A mustache-style marker here is an authoring error, not a variable.
+            if (!expression || /^[#^&/!>.$<=]/.test(expression)) continue
+            // Use the same syntax-aware scan as control blocks so filters,
+            // operators, subscripts, and constants do not become inputs.
+            addExpression(expression)
+            continue
+        }
+
+        const tag = trimJinjaContent(match[2])
+        const keywordMatch = /^([A-Za-z_][A-Za-z0-9_]*)\b([\s\S]*)$/.exec(tag)
+        if (!keywordMatch) continue
+        const keyword = keywordMatch[1]
+        const rest = keywordMatch[2].trim()
+
+        if (keyword === "if" || keyword === "elif") {
+            addExpression(rest)
+            continue
+        }
+
+        if (keyword === "for") {
+            const inIndex = findJinjaTopLevelWord(rest, "in")
+            if (inIndex === -1) continue
+            const targets = parseJinjaTargets(rest.slice(0, inIndex))
+            let iterable = rest.slice(inIndex + 2).trim()
+            const conditionIndex = findJinjaTopLevelWord(iterable, "if")
+            const condition = conditionIndex === -1 ? "" : iterable.slice(conditionIndex + 2)
+            if (conditionIndex !== -1) iterable = iterable.slice(0, conditionIndex)
+            addExpression(iterable)
+            scopes.push(new Set([...targets, "loop"]))
+            addExpression(condition)
+            continue
+        }
+
+        if (keyword === "endfor") {
+            if (scopes.length > 1) scopes.pop()
+            continue
+        }
+
+        if (keyword === "set") {
+            const equalsIndex = findJinjaTopLevelChar(rest, "=")
+            if (equalsIndex === -1) {
+                // A block assignment can carry a filter: `{% set label | upper %}`.
+                // The target is the part before the filter. Scan from the pipe
+                // so filter arguments still count as inputs.
+                const filterIndex = findJinjaTopLevelChar(rest, "|")
+                if (filterIndex !== -1) addExpression(rest.slice(filterIndex))
+                bind(parseJinjaTargets(filterIndex === -1 ? rest : rest.slice(0, filterIndex)))
+                continue
+            }
+            const targets = parseJinjaTargets(rest.slice(0, equalsIndex))
+            addExpression(rest.slice(equalsIndex + 1))
+            bind(targets)
+            continue
+        }
+
+        if (keyword === "with") {
+            // Jinja2 evaluates every right-hand side in the outer context
+            // before it binds the new targets.
+            const assignments = splitJinjaTopLevel(rest, ",")
+            const targets: string[] = []
+            for (const assignment of assignments) {
+                const equalsIndex = findJinjaTopLevelChar(assignment, "=")
+                if (equalsIndex === -1) continue
+                addExpression(assignment.slice(equalsIndex + 1))
+                targets.push(...parseJinjaTargets(assignment.slice(0, equalsIndex)))
+            }
+            scopes.push(new Set(targets))
+            continue
+        }
+
+        if (keyword === "endwith") {
+            if (scopes.length > 1) scopes.pop()
+        }
+    }
+
+    return variables
+}
+
 /**
  * Extract variables from a template string.
  *
  * Supports multiple template formats:
  * - "curly" (default): {{variableName}}
  * - "mustache": {{variableName}} (shares the {{...}} extraction path with curly)
- * - "jinja2": {{variableName}} (blocks {% %} and comments {# #} are ignored — they are not variables)
+ * - "jinja2": {{variableName}} plus names read by {% if %} / {% elif %} /
+ *   {% for %} / {% set %} / {% with %} blocks
  * - "fstring": {variableName} (single braces; literal braces escaped as {{ / }})
  *
  * @param input - Template string to extract variables from
@@ -350,7 +747,14 @@ export function extractTemplateVariables(
         return variables
     }
 
-    // curly, jinja2, and mustache all use {{variableName}} for variable substitution
+    if (templateFormat === "jinja2") {
+        // Jinja2 reads variables from both {{ ... }} interpolation and the
+        // {% ... %} control blocks. A dedicated scan keeps track of names the
+        // template binds itself, so loop and `set` targets are not inputs.
+        return extractJinja2Variables(input)
+    }
+
+    // curly and mustache all use {{variableName}} for variable substitution
     // Linear scan: find '{{', then find '}}', extract the content between them.
     //
     // For MUSTACHE, normalise / skip block-level syntax AND track section depth:
