@@ -10,7 +10,11 @@ environment (`POSTGRES_URI_CORE`) and `AGENTA_LICENSE` set to the edition:
     uv run --no-sync python -m entrypoints.memberships_check --materialize   # EE only
 
 --report    Read only. Writes `report.json` with counts and id lists for the checks
-            P1 to P12 per organization (ids only, never emails).
+            P1 to P12 per organization (ids only, never emails). EE: it also lists
+            as `P2b_undecided` the organizations whose plan cannot answer the RBAC
+            entitlement (no subscription, or a plan the entitlements do not
+            define). P2b and `--apply` skip them, as the hot path never treats
+            them as organizations without RBAC.
 --apply     Before the upgrade. (1) Deletes the newer rows of each duplicate
             (project_id, user_id) group, counted over non-demo rows, and keeps the
             oldest by (created_at, id) (P5). Demo rows are left to `oss000000044`,
@@ -304,10 +308,19 @@ def _applies(edition: str) -> bool:
     return edition == "both" or edition == _edition()
 
 
-async def _rbac_enforced(organization_id: UUID) -> bool:
-    """The EE RBAC entitlement of one organization (P2b needs organizations without it)."""
+async def _rbac_enforced(organization_id: UUID) -> Optional[bool]:
+    """The EE RBAC entitlement of one organization (P2b needs organizations without
+    it), or None when the plan cannot answer: no subscription, or a plan the
+    entitlements do not define.
+
+    The hot path (`EntitlementsRbacEnforcement.is_enforced`) raises
+    `EntitlementsException` in those cases, so it never treats such an organization
+    as one without RBAC. The job does the same: the organization is not a P2b
+    organization, and the report lists it as `P2b_undecided` instead of stopping.
+    """
 
     from ee.src.core.access.entitlements.service import (  # noqa: PLC0415
+        EntitlementsException,
         Flag,
         _check_entitlements,
         scope_from,
@@ -316,13 +329,21 @@ async def _rbac_enforced(organization_id: UUID) -> bool:
     # Not `check_entitlements`: it fails open, (True, None, None) on a Redis or
     # database error, which would read as "RBAC enforced" and silently skip the P2b
     # rows of that organization. An operator job must stop on the error instead.
-    check, _, _ = await _check_entitlements(
-        key=Flag.RBAC,
-        delta=None,
-        cache=False,
-        scope=scope_from(organization_id=organization_id),
-        period=None,
-    )
+    try:
+        check, _, _ = await _check_entitlements(
+            key=Flag.RBAC,
+            delta=None,
+            cache=False,
+            scope=scope_from(organization_id=organization_id),
+            period=None,
+        )
+    except EntitlementsException as error:
+        log.warning(
+            "[memberships] RBAC entitlement undecided",
+            organization_id=str(organization_id),
+            reason=str(error),
+        )
+        return None
     return bool(check)
 
 
@@ -349,10 +370,21 @@ async def _organization_batches(
         cursor = batch[-1]
 
 
-async def _no_rbac_organizations(organization_ids: Sequence[UUID]) -> List[UUID]:
+async def _no_rbac_organizations(
+    organization_ids: Sequence[UUID],
+    undecided: Optional[List[UUID]] = None,
+) -> List[UUID]:
+    """The organizations without the RBAC entitlement. An organization whose plan
+    cannot answer is left out and appended to `undecided`."""
+
     result = []
     for organization_id in organization_ids:
-        if not await _rbac_enforced(organization_id):
+        enforced = await _rbac_enforced(organization_id)
+        if enforced is None:
+            if undecided is not None:
+                undecided.append(organization_id)
+            continue
+        if not enforced:
             result.append(organization_id)
     return result
 
@@ -379,6 +411,8 @@ async def run_report(
         if _applies(edition)
     }
 
+    undecided: List[UUID] = []
+
     async with get_transactions_engine().transaction() as connection:
         async for batch in _organization_batches(connection, organization_ids):
             for check, sql, edition in CHECKS:
@@ -387,7 +421,7 @@ async def run_report(
                 params: Dict[str, Any] = {"orgs": batch}
                 if check == "P2b":
                     params = {
-                        "orgs": await _no_rbac_organizations(batch),
+                        "orgs": await _no_rbac_organizations(batch, undecided),
                         "users": None,
                     }
                     if not params["orgs"]:
@@ -409,6 +443,20 @@ async def run_report(
                 for row in rows
             }
         )
+
+    if "P2b" in report:
+        # Organizations whose plan cannot answer the RBAC entitlement. P2b skips them.
+        report["P2b_undecided"] = {
+            "count": len(undecided),
+            "organizations": {
+                str(organization_id): [] for organization_id in undecided
+            },
+        }
+        if undecided:
+            log.warning(
+                "[memberships] P2b skipped organizations with an undecided RBAC entitlement",
+                count=len(undecided),
+            )
 
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True))
@@ -522,10 +570,11 @@ async def run_apply(
         deleted.extend(batch_deleted)
 
     added_p2b = 0
+    undecided: List[UUID] = []
 
     if is_ee() and not p2b_skipped:
         for batch in batches:
-            for organization_id in await _no_rbac_organizations(batch):
+            for organization_id in await _no_rbac_organizations(batch, undecided):
                 cursor: Optional[UUID] = _ZERO_UUID
                 while cursor is not None:
                     async with _transaction() as writer:
@@ -534,10 +583,17 @@ async def run_apply(
                         )
                     added_p2b += added
 
+    if undecided:
+        log.warning(
+            "[memberships] P2b skipped organizations with an undecided RBAC entitlement",
+            count=len(undecided),
+        )
+
     return {
         "deleted_duplicates": deleted,
         "added_p2b": added_p2b,
         "p2b_skipped": p2b_skipped,
+        "p2b_undecided": [str(organization_id) for organization_id in undecided],
     }
 
 
@@ -658,6 +714,10 @@ async def _main(args) -> int:
                 )
             elif is_ee():
                 print(f"P2b rows added: {result['added_p2b']}")
+                print(
+                    "P2b organizations with an undecided RBAC entitlement (skipped): "
+                    f"{len(result['p2b_undecided'])}"
+                )
             return 0
 
         if not is_ee():
