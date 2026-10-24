@@ -272,9 +272,9 @@ async def _maybe_retry_get(
 
     if retry:
         lock_name = f"lock::{cache_name}"
-        lock_ex = int(lock_ttl * 1000)  # convert seconds to milliseconds
+        lock_px = int(lock_ttl * 1000)  # seconds to milliseconds, for `px`
 
-        got_lock = await _cache_engine.set(lock_name, "1", nx=True, ex=lock_ex)
+        got_lock = await _cache_engine.set(lock_name, "1", nx=True, px=lock_px)
 
         if got_lock:
             if CACHE_DEBUG:
