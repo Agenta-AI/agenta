@@ -44,6 +44,10 @@ That destination might be a channel, an email, a document, a task, or a row in a
 
 If later runs need the result, have the agent also save a copy in its files. Next Monday's report can then compare itself with this one.
 
+## An automation runs as the person who set it up
+
+Each run has the access of the user or API key that created the automation. If that user leaves the project or loses the role, or the key is deleted, the next run is refused and the automation is paused. Its run history says why. To run it again, create the automation again under an active user or API key. Archiving the agent also pauses its automations, and unarchiving it does not start them again.
+
 ## Every run is kept
 
 Each run is recorded with the full conversation the agent had, so you can read what it did and why. A run that failed shows the error. You find them in the automation's run history.

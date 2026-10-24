@@ -58,10 +58,14 @@ Under the hood, Agenta authorizes requests using granular permissions. These per
 | View project resources | Viewer |
 | Run evaluations and annotate traces | Annotator |
 | Edit prompts, testsets, evaluators, workflows | Editor |
+| Create and rename projects | Admin |
+| Delete projects | Owner |
 | Deploy to environments | Developer |
 | View and manage API keys | Developer |
 | Invite members and assign roles | Admin |
 | Manage billing | Owner |
+
+An API key acts with the role of the member who created it, and only in the project it belongs to. On a plan without RBAC, every member can create, rename and delete projects.
 
 ## Managing Roles
 
@@ -71,7 +75,7 @@ When inviting a member, choose a role from **Settings** → **Members**.
 
 ### Change a Role
 
-Owners and Admins can change roles from **Settings** → **Members**.
+Owners and Admins can change roles through the API. Roles change only through the API for now; the app has no control for it yet.
 
 ## Best Practices
 
