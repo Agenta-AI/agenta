@@ -21,6 +21,7 @@ from oss.src.dbs.redis.sessions.contract import (
     ALIVE_TTL_SECONDS,
     ACQUIRE_ALIVE_WITH_START_LUA,
     ATTACHED_TTL_SECONDS,
+    BEAT_BIND_TURN_LUA,
     BIND_TURN_LUA,
     CURRENT_TURN_ADMISSION_LUA,
     DISPLACE_TURNS_LUA,
@@ -619,6 +620,43 @@ async def bind_turn(
         f"{replica_id}{TURN_BINDING_SEPARATOR}".encode(),
         TURN_BOUND_TTL_SECONDS,
     )
+    return parse_turn_binding_value(stored.decode()), int(written) == 1
+
+
+async def bind_turn_for_beat(
+    engine: LockEngine,
+    *,
+    project_id: str,
+    session_id: str,
+    turn_id: str,
+    replica_id: str,
+    replica_address: str,
+    admitted: Optional[PrincipalRef] = None,
+) -> Optional[Tuple[TurnBinding, bool]]:
+    """A beat's supersession check, `bind_turn` and admission record in one script.
+
+    None when the turn was displaced (its tombstone is renewed, nothing is bound). Else
+    the stored binding and whether this call wrote it, as `bind_turn`; `admitted`, when
+    given, is recorded (as `record_turn_admission` would) when this replica holds the
+    binding.
+    """
+    written, stored = await engine.eval(
+        BEAT_BIND_TURN_LUA,
+        3,
+        superseded_key(project_id, session_id, turn_id).encode(),
+        turn_bound_key(project_id, session_id, turn_id).encode(),
+        turn_admitted_key(project_id, session_id, turn_id).encode(),
+        make_turn_binding_value(
+            replica_id=replica_id, replica_address=replica_address
+        ).encode(),
+        f"{replica_id}{TURN_BINDING_SEPARATOR}".encode(),
+        TURN_BOUND_TTL_SECONDS,
+        SUPERSEDED_TTL_SECONDS,
+        _admission_value(admitted) if admitted is not None else b"",
+        TURN_BOUND_TTL_SECONDS,
+    )
+    if int(written) == -1:
+        return None
     return parse_turn_binding_value(stored.decode()), int(written) == 1
 
 

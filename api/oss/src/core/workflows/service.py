@@ -169,6 +169,7 @@ from oss.src.core.sharing.dtos import (
     OWNERLESS_PROJECT_POLICY,
     AccessPolicy,
     AgentReadScope,
+    Visibility,
 )
 from oss.src.core.sharing.service import invalidate_sharing_caches
 from oss.src.core.workflows.static_catalog import normalize_static_version
@@ -1538,7 +1539,17 @@ class WorkflowsService:
 
         is_agent = bool(workflow_create.flags and workflow_create.flags.is_agent)
         owned = access is not None and access.owner_user_id is not None
-        if is_agent and owned:
+        # A person who asks for a private agent when creating the artifact gets it, also
+        # before its first agent revision marks it as one (QA D4): the row is written now,
+        # and that first commit keeps it. Evaluators and snippets are never agents.
+        flags = workflow_create.flags
+        asked_private = (
+            workflow_create.visibility == Visibility.PRIVATE
+            and access is not None
+            and access.visibility == Visibility.PRIVATE
+            and not (flags and (flags.is_evaluator or flags.is_snippet))
+        )
+        if (is_agent or asked_private) and owned:
             artifact = await self.workflows_dao.create_agent_artifact(
                 project_id=project_id,
                 user_id=user_id,

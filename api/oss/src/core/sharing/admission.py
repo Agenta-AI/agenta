@@ -13,6 +13,8 @@ second check.
 from typing import TYPE_CHECKING, List, Optional
 from uuid import UUID
 
+from oss.src.core.access.prefetch import register as prefetch_register
+from oss.src.core.access.prefetch import request_memo_scope
 from oss.src.core.access.dtos import (
     Action,
     Decision,
@@ -67,10 +69,37 @@ class RunAdmission:
     ) -> None:
         """Raise `AdmissionDenied` unless the envelope's principal may run the session
         (when given) and the agent (when given). Reads no session row itself: the
-        decisions read the cached policies."""
+        decisions read the cached policies. Both resources' entries ride in the first
+        decision's one cache read; outside a request the admission has its own memo."""
+
+        with request_memo_scope():
+            await self._admit(
+                envelope=envelope,
+                session_id=session_id,
+                agent_artifact_id=agent_artifact_id,
+                boundary=boundary,
+            )
+
+    async def _admit(
+        self,
+        *,
+        envelope: RunEnvelope,
+        session_id: Optional[str],
+        agent_artifact_id: Optional[UUID],
+        boundary: str,
+    ) -> None:
+        from oss.src.core.sharing.service import (  # noqa: PLC0415
+            agent_access_entry,
+            session_access_entry,
+        )
 
         authority = envelope.authority
         principal = authority.principal
+        project_id = authority.project_id
+        if session_id is not None:
+            prefetch_register(session_access_entry(project_id, str(session_id)))
+        if agent_artifact_id is not None:
+            prefetch_register(agent_access_entry(project_id, agent_artifact_id))
 
         if session_id is not None:
             session = ResourceRef(kind=ResourceKind.SESSION, id=str(session_id))

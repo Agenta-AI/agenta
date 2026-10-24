@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
 from oss.src.core.shared.dtos import Header, Identifier, Lifecycle
-from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+from oss.src.core.sharing.dtos import AccessPolicy, Visibility, SessionSharingState
 from oss.src.core.sessions.types import (
     SessionDelivery,
     SessionOrigin,
@@ -91,6 +91,9 @@ class SessionStream(Identifier, Header, Lifecycle):
     # as project-visible.
     visibility: Visibility = Visibility.PROJECT
     owner_user_id: Optional[UUID] = None
+    # The caller's sharing state, on the one-session stream query only (the chat screen
+    # reads it there instead of `GET /sessions/{id}/sharing`). None elsewhere.
+    sharing: Optional[SessionSharingState] = None
 
 
 class SessionStreamReadOptions(BaseModel):

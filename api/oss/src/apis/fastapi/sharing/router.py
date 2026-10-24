@@ -391,6 +391,24 @@ class SharingRouter:
             windowing=page,
         )
 
+        # A "Can send" grant works only for a role that may send (rule S2 AND the
+        # capability step): the dialog shows it per member. One RBAC read per request.
+        organization_id = getattr(request.state, "organization_id", None)
+        if organization_id:
+            access_service = get_access_service()
+            allows: dict = {}
+            for member in members:
+                if member.role not in allows:
+                    allows[member.role] = await access_service.role_allows(
+                        organization_id=UUID(str(organization_id)),
+                        role=member.role,
+                        action=Permission.RUN_SESSIONS,
+                    )
+            members = [
+                member.model_copy(update={"can_run_sessions": allows[member.role]})
+                for member in members
+            ]
+
         windowing = None
         # A full page may have a next one: its cursor is the last member's id.
         if members and len(members) >= page.limit:

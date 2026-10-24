@@ -253,8 +253,7 @@ def spies(monkeypatch):
 
     counts: Dict[str, int] = {}
     names = [
-        "is_turn_superseded",
-        "bind_turn",
+        "bind_turn_for_beat",
         "refresh_alive",
         "acquire_alive_with_start",
         "acquire_running",
@@ -262,7 +261,6 @@ def spies(monkeypatch):
         "release_running",
         "record_turn_start",
         "get_turn_admission",
-        "record_turn_admission",
     ]
     for name in names:
         original = getattr(service_module, name)
@@ -270,6 +268,11 @@ def spies(monkeypatch):
         def _wrap(original=original, name=name):
             async def _spy(*args, **kwargs):
                 counts[name] = counts.get(name, 0) + 1
+                # The admission record rides in the beat's bind script.
+                if name == "bind_turn_for_beat" and kwargs.get("admitted") is not None:
+                    counts["record_turn_admission"] = (
+                        counts.get("record_turn_admission", 0) + 1
+                    )
                 return await original(*args, **kwargs)
 
             return _spy
@@ -279,8 +282,7 @@ def spies(monkeypatch):
 
 
 _LOCKS = (
-    "is_turn_superseded",
-    "bind_turn",
+    "bind_turn_for_beat",
     "refresh_alive",
     "acquire_alive_with_start",
     "acquire_running",

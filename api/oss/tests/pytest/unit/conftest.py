@@ -89,8 +89,24 @@ def _allow_resource_checks(request, monkeypatch):
     async def _allowed(*_args, **_kwargs):
         return ResourceCheck.ALLOWED
 
+    async def _route_check(request=None, *_args, action=None, **_kwargs):
+        # A session route makes ONE decision (capability and resource together, M3
+        # latency fix): a test that stubs the capability check (`check_action_access`
+        # in the sessions router) gets the route's answer for a missing capability.
+        import oss.src.apis.fastapi.sessions.router as sessions_router  # noqa: PLC0415
+
+        capability = getattr(sessions_router, "check_action_access", None)
+        if hasattr(capability, "assert_awaited") and request is not None:
+            if not await capability(
+                user_uid=str(request.state.user_id),
+                project_id=str(request.state.project_id),
+                permission=action,
+            ):
+                return ResourceCheck.NO_CAPABILITY
+        return ResourceCheck.ALLOWED
+
     monkeypatch.setattr(
-        "oss.src.apis.fastapi.sharing.utils.check_resource", _allowed, raising=False
+        "oss.src.apis.fastapi.sharing.utils.check_resource", _route_check, raising=False
     )
     monkeypatch.setattr(
         "oss.src.apis.fastapi.sessions.router.check_resource_for",

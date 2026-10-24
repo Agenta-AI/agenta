@@ -38,6 +38,13 @@ class ResourcePolicyInterface(ABC):
         resource: ResourceRef,
     ) -> Optional[DecisionReason]: ...
 
+    def prefetch(self, *, project_id: UUID, resource: ResourceRef) -> None:
+        """Register the cache entries `evaluate` will read for this resource
+        (`core.access.prefetch.register`), so the decision's one cache read reads them
+        too. No I/O. The default registers none."""
+
+        return None
+
 
 class PrincipalsDAOInterface(ABC):
     """Reads the record behind a principal: whether it is active, its project (for a key

@@ -408,7 +408,13 @@ async def set_cache(
     key: Optional[Union[str, dict]] = None,
     value: Optional[Any] = None,
     ttl: Optional[int] = AGENTA_CACHE_TTL,
+    *,
+    nx: bool = False,
+    release_lock: bool = True,
 ) -> Optional[bool]:
+    """`nx`: write only when no value is stored (False when one was). `release_lock`:
+    delete the stampede lock a `get_cache(retry=True)` reader may hold; a caller that
+    never reads with the lock passes False and saves that round trip."""
     # Noop if caching is disabled
     if not env.agenta.api.caching.enabled:
         return None
@@ -427,7 +433,9 @@ async def set_cache(
         #
         # Original L1 write path:
         # local_cache[cache_name] = cache_value
-        await _cache_engine.set(cache_name, cache_value, px=cache_px)
+        written = await _cache_engine.set(cache_name, cache_value, px=cache_px, nx=nx)
+        if nx and not written:
+            return False
 
         if CACHE_DEBUG:
             log.debug(
@@ -437,6 +445,9 @@ async def set_cache(
                 if CACHE_DEBUG_VALUE
                 else "***",
             )
+
+        if not release_lock:
+            return True
 
         lock_name = f"lock::{cache_name}"
 

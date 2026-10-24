@@ -390,7 +390,7 @@ async def test_full_check_ingest_reads_no_statement_when_warm(
     seeded, fake_cache, lock, access_service
 ):
     """No admission record (a lost record, a Redis restart): the full check runs, with
-    every read warm in the cache."""
+    every read warm in the cache: one round trip beyond the capability check."""
 
     alice = seeded.user_ids["alice"]
     session_id = await _private_session(seeded.project_ids[0], alice)
@@ -405,13 +405,15 @@ async def test_full_check_ingest_reads_no_statement_when_warm(
     assert statements == []
     # The session policy and the owner's membership: two cache reads beyond the
     # capability check, plus the admission read that missed.
-    assert cache_round_trips - capability == 2
+    assert cache_round_trips - capability == 1
     assert lock_round_trips == 1
 
 
 async def test_plain_check_resource_cost_when_warm(seeded, fake_cache, access_service):
     """The option without the continuity path: `check_resource(RUN_SESSIONS)` on every
-    write. No statement when warm, two cache round trips per write."""
+    write. No statement when warm, one cache round trip per write beyond the capability
+    check (the session entry and the owner's membership, read in one MGET; the owner is the
+    caller, so the membership is the one the capability check read)."""
 
     alice = seeded.user_ids["alice"]
     session_id = await _private_session(seeded.project_ids[0], alice)
@@ -445,7 +447,7 @@ async def test_plain_check_resource_cost_when_warm(seeded, fake_cache, access_se
         await _check()
 
     assert statements == []
-    assert fake_cache.read_round_trips - before - capability == 2
+    assert fake_cache.read_round_trips - before - capability == 1
 
 
 async def test_bob_is_refused_with_the_not_found_body(

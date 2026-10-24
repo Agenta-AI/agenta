@@ -152,6 +152,23 @@ class _FakeRedis:
             self._ttl.pop(keys[1], None)
             returned_alive = "" if running_only else alive
             return [1, returned_alive.encode(), running.encode(), expected.encode()]
+        if "AGENTA_BEAT_BIND_TURN" in script:
+            if keys[0] in self._values:
+                self._ttl[keys[0]] = int(argv[3])
+                return [-1, None]
+            current = self._values.get(keys[1])
+            written, mine = 0, False
+            if current is None:
+                self._values[keys[1]] = argv[0].encode()
+                self._ttl[keys[1]] = int(argv[2])
+                current, written, mine = argv[0].encode(), 1, True
+            elif current.decode().startswith(argv[1]):
+                self._ttl[keys[1]] = int(argv[2])
+                mine = True
+            if mine and argv[4]:
+                self._values[keys[2]] = argv[4].encode()
+                self._ttl[keys[2]] = int(argv[5])
+            return [written, current]
         if "AGENTA_BIND_TURN" in script:
             current = self._values.get(keys[0])
             if current is None:

@@ -48,6 +48,9 @@ class ProjectMemberProfile(BaseModel):
     email: str
     name: Optional[str] = None
     role: Optional[str] = None  # None: an EE project row with a null role
+    # Whether the member's role may send in a session ("Can send" works for them). Set by
+    # the share picker route; None elsewhere.
+    can_run_sessions: Optional[bool] = None
 
 
 class ProjectMembership(BaseModel):

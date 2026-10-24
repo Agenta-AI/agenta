@@ -12,6 +12,7 @@ from oss.tests.pytest.acceptance.sharing.support import (
     agent_access_row,
     create_header,
     fetch_sharing,
+    listed_agents,
     listed_sessions,
     new_agent,
     new_session_id,
@@ -102,3 +103,49 @@ def test_header_create_with_project_visibility(sharing_cast):
     response = create_header(alice, session_id, visibility="private", name="renamed")
     assert response.status_code == 200, response.text
     assert _policy(alice, session_id)["visibility"] == "project"
+
+
+def _create_artifact(caller, *, visibility):
+    """`POST /workflows/`: the artifact only, flagged as no agent yet (QA D4's request)."""
+    from uuid import uuid4
+
+    response = caller(
+        "POST",
+        "/workflows/",
+        json={
+            "workflow": {
+                "slug": f"m3-d4-{uuid4().hex[:8]}",
+                "name": "m3 d4 agent",
+                "visibility": visibility,
+                "flags": {"is_custom": True},
+            }
+        },
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["workflow"]
+
+
+def test_a_person_asking_for_a_private_artifact_gets_it(sharing_cast):
+    """QA D4: a human's `visibility: "private"` on `POST /workflows/` is honored before the
+    first agent revision: the row is written with the create, and Bob does not list it."""
+    alice, bob = sharing_cast["alice"], sharing_cast["bob"]
+
+    workflow = _create_artifact(alice, visibility="private")
+
+    assert workflow["access"] == {
+        "visibility": "private",
+        "owner_user_id": alice.user_id,
+    }
+    assert agent_access_row(sharing_cast.project_id, workflow["id"]) == {
+        "visibility": "private",
+        "owner_user_id": alice.user_id,
+    }
+    assert workflow["id"] not in listed_agents(bob)
+
+
+def test_an_api_key_asking_for_a_private_artifact_gets_a_project_one(sharing_cast):
+    workflow = _create_artifact(sharing_cast.alice_key, visibility="private")
+
+    assert workflow["access"]["visibility"] == "project"
+    assert workflow["access"].get("owner_user_id") is None
+    assert agent_access_row(sharing_cast.project_id, workflow["id"]) is None

@@ -397,6 +397,40 @@ end
 return {0, current}
 """.strip()
 
+# One beat's supersession check, turn binding and admission record, in one round trip.
+#   KEYS[1] = the turn's `superseded` tombstone
+#   KEYS[2] = the turn's `bound` key
+#   KEYS[3] = the turn's `admitted` key
+#   ARGV[1] = the binding value, ARGV[2] = the replica prefix (id + separator),
+#   ARGV[3] = the binding TTL, ARGV[4] = the tombstone TTL,
+#   ARGV[5] = the admission value ('' = write none), ARGV[6] = the admission TTL
+# A superseded turn returns {-1, false} after renewing its tombstone and binds nothing.
+# Else BIND_TURN_LUA, and the admission record is written when this replica holds the
+# binding. Returns {1, value} when this call bound the turn, {0, stored value} otherwise.
+BEAT_BIND_TURN_LUA = """
+-- AGENTA_BEAT_BIND_TURN
+if redis.call('EXISTS', KEYS[1]) == 1 then
+    redis.call('EXPIRE', KEYS[1], ARGV[4])
+    return {-1, false}
+end
+local current = redis.call('GET', KEYS[2])
+local written = 0
+local mine = false
+if not current then
+    redis.call('SET', KEYS[2], ARGV[1], 'EX', ARGV[3])
+    current = ARGV[1]
+    written = 1
+    mine = true
+elseif string.sub(current, 1, string.len(ARGV[2])) == ARGV[2] then
+    redis.call('EXPIRE', KEYS[2], ARGV[3])
+    mine = true
+end
+if mine and ARGV[5] ~= '' then
+    redis.call('SET', KEYS[3], ARGV[5], 'EX', ARGV[6])
+end
+return {written, current}
+""".strip()
+
 # ---------------------------------------------------------------------------
 # Concurrency cap
 # ---------------------------------------------------------------------------

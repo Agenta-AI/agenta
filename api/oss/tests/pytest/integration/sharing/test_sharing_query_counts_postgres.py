@@ -527,8 +527,17 @@ async def test_steady_beats_read_no_sharing_cache_key(world, redis_commands):
     assert redis_commands.commands, "the beats must have reached Redis"
     assert redis_commands.touching(b"sharing_") == []
     admission_key = turn_admitted_key(str(world.project_id), session_id, turn)
-    reads = [c for c in redis_commands.named("EVAL") if admission_key in str(c[1:])]
+    reads = [
+        c
+        for c in redis_commands.named("EVAL")
+        if admission_key in str(c[1:]) and "AGENTA_CURRENT_TURN_ADMISSION" in str(c[1])
+    ]
     assert len(reads) == 20
+    # The bind script carries the key (it writes the record on a checked beat only).
+    binds = [
+        c for c in redis_commands.named("EVAL") if "AGENTA_BEAT_BIND_TURN" in str(c[1])
+    ]
+    assert len(binds) == 20
 
 
 async def _first_beat_statements(

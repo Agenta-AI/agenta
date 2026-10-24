@@ -15,6 +15,7 @@ from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInte
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.starts.dtos import SessionStartResult
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
+from oss.src.core.sharing.service import cache_created_session_access
 from oss.src.core.sessions.streams.dtos import SessionStreamCreate
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
@@ -191,13 +192,19 @@ class SessionStartsService:
         heartbeat, a rename, another start with the same key) already created it: that
         row keeps its policy. True when this call created the row."""
         try:
-            await self._streams.create(
+            created = await self._streams.create(
                 project_id=project_id,
                 user_id=user_id,
                 stream=SessionStreamCreate(session_id=session_id, access=access),
             )
         except SessionStreamAlreadyExists:
             return False
+        await cache_created_session_access(
+            project_id=project_id,
+            session_id=session_id,
+            stream_id=getattr(created, "id", None),
+            policy=access,
+        )
         return True
 
     async def _release_dispatch(

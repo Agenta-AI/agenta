@@ -142,7 +142,7 @@ async def test_a_refused_create_binds_no_turn(lock_engine):
     dao = _DAO()
     service = SessionStreamsService(streams_dao=dao, lock_engine=lock_engine)
     bind = AsyncMock()
-    with patch.object(service_module, "bind_turn", bind):
+    with patch.object(service_module, "bind_turn_for_beat", bind):
         with pytest.raises(SessionCreationRequiresRunCredential):
             await service.heartbeat(
                 project_id=_PROJECT,

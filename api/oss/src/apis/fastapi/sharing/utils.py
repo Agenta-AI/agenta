@@ -28,7 +28,14 @@ from oss.src.core.sharing.dtos import (
     SharedItemKind,
     Visibility,
 )
-from oss.src.core.sharing.service import get_sharing_service
+from oss.src.core.access.prefetch import register as register_prefetch
+from oss.src.core.workflows.dtos import AGENT_REFERENCE_KEYS
+from oss.src.core.sharing.service import (
+    agent_access_entry,
+    get_sharing_service,
+    prefetch_session_read_scope,
+    session_access_entry,
+)
 from oss.src.core.sharing.types import (
     AgentCreationFailed,
     InvalidGrantee,
@@ -177,6 +184,73 @@ async def allow_resource(
     if check == ResourceCheck.FORBIDDEN:
         raise resource_denied_exception(request)
     raise FORBIDDEN_EXCEPTION
+
+
+def prefetch_session(request: Request, session_id: Optional[str]) -> None:
+    """Register the session's sharing entry before the route's first decision, so that
+    decision's one cache read reads it too and the resource check makes no round trip.
+    No I/O."""
+
+    if session_id:
+        register_prefetch(
+            session_access_entry(UUID(str(request.state.project_id)), str(session_id))
+        )
+
+
+def prefetch_beat(request: Request, *, session_id: str, references) -> None:
+    """A heartbeat's entries for its admission: the session, and the agent its
+    `workflow` reference names (the beat's check reads both). No I/O."""
+
+    prefetch_session(request, session_id)
+    for reference in references or ():
+        if getattr(reference, "key", None) == "workflow" and getattr(
+            reference, "id", None
+        ):
+            register_prefetch(
+                agent_access_entry(
+                    UUID(str(request.state.project_id)), UUID(str(reference.id))
+                )
+            )
+
+
+async def stream_sharing_for_request(request: Request, *, stream) -> Any:
+    """The request principal's sharing state of one session row (`SessionStream`), or
+    None. `can_send` is rule S2 AND the full `RUN_SESSIONS` decision, as on
+    `GET /sessions/{id}/sharing`."""
+
+    principal = getattr(request.state, "principal", None)
+    if principal is None:
+        return None
+    references_agent = any(
+        getattr(reference, "key", None) in AGENT_REFERENCE_KEYS
+        for reference in (stream.references or ())
+    )
+    sharing = await get_sharing_service().cached_session_sharing(
+        project_id=UUID(str(request.state.project_id)),
+        principal=principal,
+        session_id=stream.session_id,
+        references_agent=references_agent,
+    )
+    if sharing is not None and sharing.can_send:
+        run = await check_resource(
+            request,
+            action=Permission.RUN_SESSIONS,
+            resource=session_resource(stream.session_id),
+        )
+        if run != ResourceCheck.ALLOWED:
+            sharing = sharing.model_copy(update={"can_send": False})
+    return sharing
+
+
+def prefetch_session_list(request: Request) -> None:
+    """Register what a session list's read scope reads (the human's grants) before the
+    route's decision. No I/O."""
+
+    principal = getattr(request.state, "principal", None)
+    if principal is not None:
+        prefetch_session_read_scope(
+            project_id=UUID(str(request.state.project_id)), principal=principal
+        )
 
 
 class SessionRecheck:

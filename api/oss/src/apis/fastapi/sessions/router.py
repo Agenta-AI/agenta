@@ -55,7 +55,11 @@ from oss.src.apis.fastapi.sharing.utils import (
     check_resource_for,
     not_found_exception,
     policy_for_request,
+    prefetch_beat,
+    prefetch_session,
+    prefetch_session_list,
     session_read_scope_for_request,
+    stream_sharing_for_request,
     session_recheck,
     session_resource,
 )
@@ -676,13 +680,6 @@ class SessionStreamsRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
-        has_permission = await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
-        )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
         # A send to an unknown id creates the session, so a hidden one answers the one
         # canonical not-found body.
         if not await allow_resource(
@@ -758,12 +755,6 @@ class SessionStreamsRouter:
         self, request: Request, *, body: CurrentSessionRequest
     ) -> CurrentSessionResponse:
         project_id = UUID(str(request.state.project_id))
-        if not await check_action_access(
-            user_uid=str(request.state.user_id),
-            project_id=str(project_id),
-            permission=Permission.VIEW_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
         if not await allow_resource(
             request,
             action=Permission.VIEW_SESSIONS,
@@ -793,6 +784,7 @@ class SessionStreamsRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
+        prefetch_session(request, session_id)
         has_permission = await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -837,6 +829,7 @@ class SessionStreamsRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
+        prefetch_session(request, session_id)
         has_permission = await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -875,6 +868,7 @@ class SessionStreamsRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
+        prefetch_session(request, payload.session_id)
         has_permission = await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -908,6 +902,9 @@ class SessionStreamsRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
+        prefetch_beat(
+            request, session_id=payload.session_id, references=payload.references
+        )
         has_permission = await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -959,6 +956,8 @@ class SessionStreamsRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
+        prefetch_session_list(request)
+        prefetch_session(request, payload.session_id)
         has_permission = await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -978,6 +977,19 @@ class SessionStreamsRouter:
                 ),
             ),
         )
+        if payload.session_id and len(streams) == 1:
+            # The chat screen's one-session read carries the caller's sharing state, so
+            # opening a chat needs no `GET /sessions/{id}/sharing` (no round trip: the
+            # policy and grants are the entries this request's decision read).
+            streams = [
+                streams[0].model_copy(
+                    update={
+                        "sharing": await stream_sharing_for_request(
+                            request, stream=streams[0]
+                        )
+                    }
+                )
+            ]
         return SessionStreamsResponse(
             count=len(streams),
             streams=[sanitize_session_stream(stream) for stream in streams],
@@ -1020,12 +1032,6 @@ class SessionStreamsRouter:
         _validate_session_id_http(session_id)
         resolved_source = _resolve_name_source(name_source=name_source, author=author)
 
-        if not await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
         # A header call on an unknown id creates the session, so a hidden one answers
         # the one canonical not-found body.
         if not await allow_resource(
@@ -1086,15 +1092,7 @@ class SessionStreamsRouter:
         """
         _validate_session_id_http(session_id)
         project_id = request.state.project_id
-        user_id = request.state.user_id
 
-        has_permission = await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.VIEW_SESSIONS,
-        )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
         if not await allow_resource(
             request,
             action=Permission.VIEW_SESSIONS,
@@ -1309,12 +1307,6 @@ class RecordsRouter:
         *,
         query_request: SessionRecordQueryRequest,
     ) -> Union[SessionRecordsQueryResponse, JSONResponse]:
-        if not await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.VIEW_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
         if not await allow_resource(
             request,
             action=Permission.VIEW_SESSIONS,
@@ -1371,6 +1363,7 @@ class RecordsRouter:
         body: SessionRecordsIncompleteRequest,
     ) -> dict:
         # Same permission as record ingest: the runner reports on the log it writes.
+        prefetch_session(request, body.session_id)
         if not await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -1614,12 +1607,6 @@ class InteractionsRouter:
         project_id: UUID = request.state.project_id
         user_id: UUID = request.state.user_id
 
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
         # An unknown id creates the interaction, so a hidden session answers the
         # canonical not-found body.
         if not await allow_session_write(
@@ -1652,14 +1639,7 @@ class InteractionsRouter:
         body: SessionInteractionTransitionRequest,
     ) -> SessionInteractionResponse:
         project_id: UUID = request.state.project_id
-        user_id: UUID = request.state.user_id
 
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
         # The body names no turn: always the full check. Hidden answers like an unknown
         # interaction.
         if not await allow_session_write(
@@ -1735,14 +1715,7 @@ class InteractionsRouter:
         body: SessionInteractionCancelStaleRequest,
     ) -> dict:
         project_id: UUID = request.state.project_id
-        user_id: UUID = request.state.user_id
 
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
         # Hidden answers like a session with no pending interaction.
         if not await allow_session_write(
             request, session_id=body.session_id, turn_id=body.turn_id
@@ -2557,12 +2530,6 @@ class SessionTurnsRouter:
         project_id: UUID = request.state.project_id
         user_id: UUID = request.state.user_id
 
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
         # An unknown id stores the turn, so a hidden session answers the canonical
         # not-found body.
         if not await allow_session_write(
@@ -2606,6 +2573,7 @@ class SessionTurnsRouter:
         project_id: UUID = request.state.project_id
         user_id: UUID = request.state.user_id
 
+        prefetch_session(request, body.session_id)
         if not await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -2650,6 +2618,7 @@ class SessionTurnsRouter:
         project_id: UUID = request.state.project_id
         user_id: UUID = request.state.user_id
 
+        prefetch_session(request, body.query.session_id if body.query else None)
         if not await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -2810,12 +2779,6 @@ class SessionsRootRouter:
         session_id: str,
     ) -> SessionSnapshotResponse:
         _validate_session_id_http(session_id)
-        if not await check_action_access(
-            user_uid=str(request.state.user_id),
-            project_id=str(request.state.project_id),
-            permission=Permission.VIEW_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
         if not await allow_resource(
             request,
             action=Permission.VIEW_SESSIONS,
@@ -2896,6 +2859,7 @@ class SessionsRootRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
+        prefetch_session_list(request)
         if not await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -2955,12 +2919,6 @@ class SessionsRootRouter:
         _validate_session_id_http(session_id)
         project_id = UUID(str(request.state.project_id))
         user_id = request.state.user_id
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
         if not await allow_resource(
             request,
             action=Permission.RUN_SESSIONS,
@@ -3014,12 +2972,6 @@ class SessionsRootRouter:
         _validate_session_id_http(session_id)
         project_id = UUID(str(request.state.project_id))
         user_id = request.state.user_id
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
         if not await allow_resource(
             request,
             action=Permission.RUN_SESSIONS,
@@ -3065,12 +3017,6 @@ class SessionsRootRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.EDIT_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
         # A delete of an unknown id deletes nothing and succeeds.
         if not await allow_resource(
             request,
@@ -3096,12 +3042,6 @@ class SessionsRootRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.EDIT_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
         if not await allow_resource(
             request,
             action=Permission.EDIT_SESSIONS,
@@ -3129,12 +3069,6 @@ class SessionsRootRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.EDIT_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
         if not await allow_resource(
             request,
             action=Permission.EDIT_SESSIONS,
@@ -3360,12 +3294,6 @@ class SessionControlRouter:
         _validate_session_id_http(session_id)
         project_id = UUID(str(request.state.project_id))
         user_id = request.state.user_id
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
         if not await allow_resource(
             request,
             action=Permission.RUN_SESSIONS,
@@ -3408,12 +3336,6 @@ class SessionControlRouter:
     ) -> JSONResponse:
         project_id = UUID(str(request.state.project_id))
         user_id = request.state.user_id
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
-        ):
-            raise FORBIDDEN_EXCEPTION
         # An input to an unknown id starts the session, so a hidden one answers the one
         # canonical not-found body.
         if not await allow_resource(
@@ -3481,6 +3403,7 @@ class SessionControlRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
+        prefetch_session(request, session_id)
         has_permission = await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -3542,15 +3465,7 @@ class SessionControlRouter:
         session_id: str,
     ) -> SessionContinuationResumeResponse:
         project_id = request.state.project_id
-        user_id = request.state.user_id
 
-        has_permission = await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
-        )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
         if not await allow_resource(
             request,
             action=Permission.RUN_SESSIONS,

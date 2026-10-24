@@ -133,14 +133,18 @@ async def test_agent_without_row_is_cached(fake_cache):
     assert len(fake_cache.names("sharing_agent_access")) == 1
 
 
-async def test_missing_session_is_not_cached(fake_cache):
+async def test_missing_session_is_cached_as_no_row(fake_cache):
+    """A session with no row is read from Postgres once; "no row" is cached (latency
+    finding 1: a new session id is read by the services' parallel reads)."""
     world = _world()
 
     for _ in range(2):
         assert await _session(world, _human(BOB), "s-missing") is None
 
-    assert world.dao.reads == ["fetch_session_policy"] * 2
-    assert fake_cache.names("sharing_session_access") == []
+    assert world.dao.reads == ["fetch_session_policy"]
+    [name] = fake_cache.names("sharing_session_access")
+    entry = caching._deserialize(fake_cache.store[name], model=CachedSessionAccess)
+    assert entry.missing is True
 
 
 async def test_legacy_session_is_cached_with_its_assigned_policy(fake_cache):

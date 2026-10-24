@@ -94,6 +94,9 @@ class FakeCache:
         key: Optional[Union[str, dict]] = None,
         value: Optional[Any] = None,
         ttl: Optional[int] = caching.AGENTA_CACHE_TTL,
+        *,
+        nx: bool = False,
+        release_lock: bool = True,
     ) -> Optional[bool]:
         name = caching._pack(
             namespace=namespace, key=key, project_id=project_id, user_id=user_id
@@ -101,6 +104,8 @@ class FakeCache:
         self.sets.append(name)
         if self.fail:
             return None
+        if nx and name in self.store:
+            return False
         self.store[name] = caching._serialize(value)
         return True
 

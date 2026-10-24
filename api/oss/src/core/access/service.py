@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 from typing import Optional, Sequence
 from uuid import UUID
 
+from oss.src.core.access import prefetch
 from oss.src.core.access.context import get_request_access, get_request_memo
 from oss.src.core.access.controls import get_role, get_role_permissions
 from oss.src.core.access.dtos import (
@@ -144,6 +145,9 @@ class AccessService:
         if project is None:
             raise DecisionInputMissing()
 
+        if resource is not None:
+            # The resource's sharing entry rides in the decision's one cache read.
+            self._resource_policy.prefetch(project_id=project, resource=resource)
         membership, denial, role_user_id = await self._eligibility(
             authority=authority,
             principal=principal,
@@ -535,11 +539,16 @@ class AccessService:
                 entries.append(
                     self._memberships.cache_entry(user_id=hint, project_id=project_id)
                 )
-            values = await get_cache_many(entries)
+            # The entries this request registered for later reads (the resource's
+            # sharing entry, a list's grants) ride in the same round trip.
+            extra = prefetch.pending()
+            values = await get_cache_many(entries + extra)
             if values[0] is not None:
                 record = self._principals.record_from_cache(values[0])
             if hint is not None and values[1:] and values[1] is not None:
                 memo[("membership", hint, project_id)] = values[1].membership
+            if extra:
+                prefetch.store(extra, values[len(entries) :])
         if record is _MISSING:
             record = await self._principals.fetch_principal(principal=principal)
         memo[("principal", principal)] = record
@@ -574,6 +583,27 @@ class AccessService:
         if authority.restrictions.agent is not None:
             return DecisionReason.RESTRICTED_BY_AUTHORITY
         return None
+
+    async def role_allows(
+        self,
+        *,
+        organization_id: UUID,
+        role: Optional[str],
+        action: Permission,
+    ) -> bool:
+        """Whether a member with this project role may do `action` (step 3 of `decide`
+        for that role, without a principal): RBAC not enforced, the owner role, or a
+        role whose permissions include it. For the share dialog, which shows what a
+        grant can do for each member."""
+
+        if not await self._rbac.is_enforced(organization_id=organization_id):
+            return True
+        if role == _OWNER_ROLE:
+            return True
+        if role is None or get_role(_SCOPE, role) is None:
+            return False
+        permissions = get_role_permissions(_SCOPE, role)
+        return "*" in permissions or action.value in permissions
 
     async def _capability(
         self,

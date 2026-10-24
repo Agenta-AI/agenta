@@ -57,6 +57,7 @@ from oss.src.core.sharing.dtos import (
     UserSessionGrant,
     Visibility,
 )
+from oss.src.core.access import prefetch
 from oss.src.core.access.context import get_request_memo
 from oss.src.core.sharing.interfaces import SharingDAOInterface
 from oss.src.core.sharing.types import (
@@ -261,7 +262,62 @@ class SharingService(ResourcePolicyInterface):
 
         if user_id is None:
             return False
+        # The decision of this request read the caller's membership already: an owner
+        # who is the caller costs no read.
+        memo = get_request_memo()
+        if memo is not None and ("membership", user_id, project_id) in memo:
+            return memo[("membership", user_id, project_id)] is not None
         return await self._memberships.is_member(user_id=user_id, project_id=project_id)
+
+    async def _active_owners(self, *, owners: Sequence[UUID], project_id: UUID) -> set:
+        """The owners that are active members. The ones this request has not read are read
+        in one `MGET` (a miss is resolved one by one, as `_is_active` does)."""
+
+        from oss.src.utils.caching import get_cache_many  # noqa: PLC0415
+
+        memo = get_request_memo()
+        active, unread = set(), []
+        for owner in owners:
+            if memo is not None and ("membership", owner, project_id) in memo:
+                if memo[("membership", owner, project_id)] is not None:
+                    active.add(owner)
+            else:
+                unread.append(owner)
+        if not unread:
+            return active
+        values = [None] * len(unread)
+        if len(unread) > 1:
+            values = await get_cache_many(
+                [
+                    self._memberships.cache_entry(user_id=owner, project_id=project_id)
+                    for owner in unread
+                ]
+            )
+        for owner, value in zip(unread, values):
+            if value is not None:
+                is_active = value.membership is not None
+            else:
+                is_active = await self._memberships.is_member(
+                    user_id=owner, project_id=project_id
+                )
+            if memo is not None and value is not None:
+                memo[("membership", owner, project_id)] = value.membership
+            if is_active:
+                active.add(owner)
+        return active
+
+    def prefetch(self, *, project_id: UUID, resource: ResourceRef) -> None:
+        """Register the entry `evaluate` reads for this resource, for the decision's one
+        cache read. No I/O."""
+
+        if resource.kind == ResourceKind.SESSION:
+            prefetch.register(session_access_entry(project_id, resource.id))
+        elif resource.kind == ResourceKind.AGENT:
+            try:
+                artifact_id = UUID(resource.id)
+            except ValueError:
+                return
+            prefetch.register(agent_access_entry(project_id, artifact_id))
 
     # -- read scopes ------------------------------------------------------------------------
 
@@ -286,10 +342,13 @@ class SharingService(ResourcePolicyInterface):
             )
 
         grants = await self._user_grants(project_id=project_id, user_id=user_id)
-        active_owners = set()
-        for owner in {g.owner_user_id for g in grants if g.owner_user_id is not None}:
-            if await self._is_active(user_id=owner, project_id=project_id):
-                active_owners.add(owner)
+        active_owners = await self._active_owners(
+            owners=sorted(
+                {g.owner_user_id for g in grants if g.owner_user_id is not None},
+                key=str,
+            ),
+            project_id=project_id,
+        )
 
         return SessionReadScope(
             owner_user_id=user_id,
@@ -353,7 +412,7 @@ class SharingService(ResourcePolicyInterface):
         session_id: str,
     ) -> Optional[CachedSessionAccess]:
         """The session's policy and grants through `sharing_session_access`. None when
-        no row exists; that answer is never cached. A legacy row is assigned by
+        no row exists; that answer is cached too (`missing`). A legacy row is assigned by
         `fetch_session_policy` before it is cached."""
 
         key = {"s": session_id}
@@ -364,17 +423,27 @@ class SharingService(ResourcePolicyInterface):
             model=CachedSessionAccess,
         )
         if cached is not None:
-            return cached
+            return None if cached.missing else cached
 
         state = await self._dao.fetch_session_policy(
             project_id=project_id, session_id=session_id
         )
         if state is None:
+            # "No row", cached with SET NX: the insert that creates the row writes the
+            # row's entry with a plain SET after its commit, so this never outlives it.
+            await _set(
+                namespace=SESSION_ACCESS_NAMESPACE,
+                project_id=project_id,
+                key=key,
+                value=CachedSessionAccess(missing=True),
+                nx=True,
+            )
             return None
 
         entry = CachedSessionAccess(
             stream_id=state.stream_id,
             policy=state.policy,
+            is_channel=state.is_channel,
             grants=await self._dao.list_session_grants(
                 project_id=project_id, stream_id=state.stream_id
             ),
@@ -563,6 +632,52 @@ class SharingService(ResourcePolicyInterface):
         return await self._visible_session_state(
             project_id=project_id, principal=principal, state=state, grants=grants
         )
+
+    async def cached_session_sharing(
+        self,
+        *,
+        project_id: UUID,
+        principal: PrincipalRef,
+        session_id: str,
+        references_agent: bool,
+    ) -> Optional[SessionSharingState]:
+        """The caller's sharing state of a session, for the stream fetch the chat
+        screen already makes: from the cached policy and grants (the route's decision
+        read them, so no round trip), with `references_agent` from the row the route
+        returns (it changes on the first beat, so it is never cached). `grants` is
+        empty (the Share dialog reads them). None when the session has no row or the
+        caller may not read it."""
+
+        access = await self._session_access(
+            project_id=project_id, session_id=session_id
+        )
+        if access is None:
+            return None
+        is_channel = access.is_channel
+        if is_channel is None:  # an entry written before `is_channel` was cached
+            state = await self._dao.fetch_session_policy(
+                project_id=project_id, session_id=session_id
+            )
+            if state is None:
+                return None
+            is_channel = state.is_channel
+        state = SessionPolicyState(
+            stream_id=access.stream_id,
+            session_id=session_id,
+            policy=access.policy,
+            is_channel=is_channel,
+            references_agent=references_agent,
+        )
+        try:
+            sharing = await self._visible_session_state(
+                project_id=project_id,
+                principal=principal,
+                state=state,
+                grants=access.grants,
+            )
+        except SharedItemNotFound:
+            return None
+        return sharing.model_copy(update={"grants": []})
 
     async def set_session_sharing(
         self,
@@ -958,6 +1073,98 @@ def _is_human(principal: PrincipalRef, user_id: Optional[UUID]) -> bool:
     )
 
 
+def _entry(
+    *,
+    namespace: str,
+    project_id: UUID,
+    key: Union[str, dict],
+    model: Type[BaseModel],
+    user_id: Optional[UUID] = None,
+) -> dict:
+    return {
+        "namespace": namespace,
+        "project_id": str(project_id),
+        "user_id": str(user_id) if user_id is not None else None,
+        "key": key,
+        "model": model,
+    }
+
+
+def session_access_entry(project_id: UUID, session_id: str) -> dict:
+    return _entry(
+        namespace=SESSION_ACCESS_NAMESPACE,
+        project_id=project_id,
+        key={"s": session_id},
+        model=CachedSessionAccess,
+    )
+
+
+def agent_access_entry(project_id: UUID, artifact_id: UUID) -> dict:
+    return _entry(
+        namespace=AGENT_ACCESS_NAMESPACE,
+        project_id=project_id,
+        key={"a": str(artifact_id)},
+        model=CachedAgentAccess,
+    )
+
+
+def user_grants_entry(project_id: UUID, user_id: UUID) -> dict:
+    return _entry(
+        namespace=USER_GRANTS_NAMESPACE,
+        project_id=project_id,
+        key=_USER_GRANTS_KEY,
+        model=CachedUserGrants,
+        user_id=user_id,
+    )
+
+
+def prefetch_session_read_scope(*, project_id: UUID, principal: PrincipalRef) -> None:
+    """Register the grants entry a human's session list reads, before the route's
+    decision, so the decision's one cache read reads it too. No I/O."""
+
+    user_id = _human_id(principal)
+    if user_id is not None:
+        prefetch.register(user_grants_entry(project_id, user_id))
+
+
+async def cache_created_session_access(
+    *,
+    project_id: UUID,
+    session_id: str,
+    stream_id: Optional[UUID],
+    policy: AccessPolicy,
+) -> None:
+    """After the commit of the insert that created a session row: write its entry with a
+    plain SET, over a cached "no row" (a new row has no grants). A failure is logged and
+    never fails the insert; the entry then expires on its TTL."""
+
+    try:
+        if stream_id is None:
+            raise ValueError("no stream id")
+        value = CachedSessionAccess(stream_id=stream_id, policy=policy, grants=[])
+    except Exception:  # pylint: disable=broad-exception-caught
+        log.warning("[sharing] created session entry not built", session_id=session_id)
+        await _invalidate(
+            namespace=SESSION_ACCESS_NAMESPACE,
+            project_id=project_id,
+            key={"s": session_id},
+        )
+        return
+    written = await _set(
+        namespace=SESSION_ACCESS_NAMESPACE,
+        project_id=project_id,
+        key={"s": session_id},
+        value=value,
+    )
+    if written is False:
+        # A cached "no row" must not survive the row: delete it instead.
+        await _invalidate(
+            namespace=SESSION_ACCESS_NAMESPACE,
+            project_id=project_id,
+            key={"s": session_id},
+        )
+
+
 def _human_id(principal: PrincipalRef) -> Optional[UUID]:
     return principal.id if principal.kind == PrincipalKind.HUMAN else None
 
@@ -992,16 +1199,33 @@ async def _get(
     model: Type[BaseModel],
     user_id: Optional[UUID] = None,
 ) -> Optional[Any]:
+    """One entry. From the request memo when this request read it already (or
+    registered it for the decision's read); else one GET, never the cache lock: a miss
+    is read from Postgres at once, it never waits for another reader."""
+
+    entry = _entry(
+        namespace=namespace,
+        project_id=project_id,
+        key=key,
+        model=model,
+        user_id=user_id,
+    )
+    found, value = await prefetch.read(entry)
+    if found:
+        return value
     try:
-        return await get_cache(
+        value = await get_cache(
             namespace=namespace,
             project_id=str(project_id),
             user_id=str(user_id) if user_id is not None else None,
             key=key,
             model=model,
+            retry=False,
         )
     except Exception:  # pylint: disable=broad-exception-caught
-        return None
+        value = None
+    prefetch.remember(entry, value)
+    return value
 
 
 async def _set(
@@ -1011,18 +1235,40 @@ async def _set(
     key: Union[str, dict],
     value: BaseModel,
     user_id: Optional[UUID] = None,
-) -> None:
+    nx: bool = False,
+) -> bool:
+    """True when the entry was written or caching is off; False on a Redis error (and
+    on an `nx` write that found a value)."""
+    written: Optional[bool] = False
     try:
-        await set_cache(
+        written = await set_cache(
             namespace=namespace,
             project_id=str(project_id),
             user_id=str(user_id) if user_id is not None else None,
             key=key,
             value=value,
             ttl=AGENTA_CACHE_TTL,
+            nx=nx,
+            release_lock=False,
         )
     except Exception:  # pylint: disable=broad-exception-caught
-        pass
+        written = False
+    prefetch.remember(
+        _entry(
+            namespace=namespace,
+            project_id=project_id,
+            key=key,
+            model=type(value),
+            user_id=user_id,
+        ),
+        value,
+    )
+    # set_cache answers None when caching is off, and None on its own Redis error.
+    return written is not False and (written is not None or not _caching_enabled())
+
+
+def _caching_enabled() -> bool:
+    return bool(env.agenta.api.caching.enabled)
 
 
 async def _invalidate(

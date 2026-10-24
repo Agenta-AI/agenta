@@ -16,7 +16,7 @@ import uuid_utils.compat as uuid
 from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, Tuple
 from uuid import UUID
 
-from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.dtos import PrincipalRef, RunEnvelope
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.redis.shared.engine import LockEngine
@@ -32,18 +32,16 @@ from oss.src.dbs.redis.sessions.locks import (
     SessionHeartbeatGuardLost,
     acquire_alive_with_start,
     acquire_running,
-    bind_turn,
+    bind_turn_for_beat,
     displace_turns,
     forget_turn_admissions,
     get_turn_admission,
-    record_turn_admission,
     release_running,
     session_heartbeat_guard,
     get_alive_owner,
     get_running_owner,
     get_session_liveness,
     get_routable_turn_binding,
-    is_turn_superseded,
     mark_turn_superseded,
     record_turn_start,
     redis_time_ms,
@@ -87,6 +85,7 @@ from oss.src.core.sharing.dtos import AccessPolicy, SessionReadScope
 from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.types import AgentReferenceUnresolved
 from oss.src.core.sharing.service import (
+    cache_created_session_access,
     get_sharing_service,
     invalidate_sharing_caches,
     session_was_missing,
@@ -97,7 +96,9 @@ log = get_module_logger(__name__)
 # A route's check of the session, run again on a row the route did not check: one that a
 # concurrent request created after the route found no row. It raises when the caller may
 # not do the route's action on that row.
-SessionRecheck = Callable[[], Awaitable[None]]  # the routes pass a `SessionRecheck` object
+SessionRecheck = Callable[
+    [], Awaitable[None]
+]  # the routes pass a `SessionRecheck` object
 
 # Longest server-filled session title. Matches the browser's `AUTO_TITLE_MAX_CHARS`
 # (web/oss/src/components/AgentChatSlice/state/sessions.ts) so the two writers cannot
@@ -376,7 +377,7 @@ class SessionStreamsService:
         if unchecked:
             if mode in (CommandMode.send, CommandMode.steer):
                 try:
-                    await self._dao.create(
+                    await self._create_row(
                         project_id=project_id,
                         user_id=user_id,
                         stream=SessionStreamCreate(
@@ -650,7 +651,7 @@ class SessionStreamsService:
         # Authorize the beat before the supersession check, any lock, any write or any
         # response. `created_stream` is the row this beat inserted; `prior_stream` stays
         # the row as it was before this beat (the lock logic below reads its `turn_id`).
-        prior_stream, created_stream = await self._admit_heartbeat(
+        prior_stream, created_stream, admitted = await self._admit_heartbeat(
             project_id=project_id,
             request=request,
             prior_stream=prior_stream,
@@ -669,25 +670,27 @@ class SessionStreamsService:
         # turn that already lost the nest, so the tombstone written at the moment it lost it
         # is the discriminator the locks alone cannot provide. Refusing early also stops the
         # zombie's own turn-end beat from clearing the LIVE turn's `running`.
-        if request.turn_id and await is_turn_superseded(
-            self._lock,
-            project_id=str(project_id),
-            session_id=request.session_id,
-            turn_id=request.turn_id,
-        ):
-            return SessionHeartbeatResult(
-                stream=created_stream or prior_stream,
-                replica_id=request.replica_id,
-                is_current_turn=False,
-            )
-
+        # A turn that was already displaced (handover, cancel, steer, kill, sweep) is dead
+        # forever: refuse the beat before it touches ANY lock or the row. This is what keeps
+        # the ambiguous "`alive` held by another turn + no `running`" state safe to resolve as
+        # a handover below — the dangerous reading of that state was a zombie beat from an
+        # older turn taking the nest of a session parked awaiting approval, which then made
+        # the user's approval resume look superseded and abort. A zombie is by definition a
+        # turn that already lost the nest, so the tombstone written at the moment it lost it
+        # is the discriminator the locks alone cannot provide. Refusing early also stops the
+        # zombie's own turn-end beat from clearing the LIVE turn's `running`.
+        #
         # A turn runs on exactly one runner pod. The first pod to beat it binds it, and a beat
         # from any other pod for the same turn id changes no lock and no row. That covers its
         # final `is_running: false` beat too, which would otherwise release the bound pod's
         # `running`. Binding on every beat, not in the acquire below, because the first beat of
         # an ordinary turn takes the handover or refresh branch and never reaches the acquire.
+        #
+        # The tombstone check, the binding and the admission record of a checked running
+        # beat are one script: one round trip, the record written only when this replica
+        # holds the binding and the turn is not displaced.
         if request.turn_id:
-            binding, bound_now = await bind_turn(
+            bound = await bind_turn_for_beat(
                 self._lock,
                 project_id=str(project_id),
                 session_id=request.session_id,
@@ -696,7 +699,15 @@ class SessionStreamsService:
                 replica_address=(
                     (request.replica_address or "") if runner_verified else ""
                 ),
+                admitted=admitted,
             )
+            if bound is None:
+                return SessionHeartbeatResult(
+                    stream=created_stream or prior_stream,
+                    replica_id=request.replica_id,
+                    is_current_turn=False,
+                )
+            binding, bound_now = bound
             if bound_now and request.replica_address and not runner_verified:
                 log.warning(
                     "sessions: bound a turn without a valid runner token, so its address "
@@ -1003,11 +1014,15 @@ class SessionStreamsService:
         access: AccessPolicy,
         run_admission: RunAdmission,
         admission_envelope: RunEnvelope,
-    ) -> Tuple[Optional[SessionStream], Optional[SessionStream]]:
+    ) -> Tuple[
+        Optional[SessionStream], Optional[SessionStream], Optional[PrincipalRef]
+    ]:
         """Authorize one beat and resolve create-or-conflict, before any lock moves.
 
-        Returns `(prior_stream, created_stream)`: the row as it was before this beat (the
-        winning row when this beat lost a create race) and the row this beat inserted.
+        Returns `(prior_stream, created_stream, admitted)`: the row as it was before this
+        beat (the winning row when this beat lost a create race), the row this beat
+        inserted, and the principal to record as this turn's admission (a checked running
+        beat with a `turn_id`; None otherwise).
 
         1. No row: check the beat's agent, then insert the row (create-or-conflict is
            settled here, so no lock or response can follow an unauthorized insert). A
@@ -1034,7 +1049,7 @@ class SessionStreamsService:
                 references=request.references,
             )
             try:
-                created_stream = await self._dao.create(
+                created_stream = await self._create_row(
                     project_id=project_id,
                     user_id=None,
                     stream=SessionStreamCreate(
@@ -1076,7 +1091,7 @@ class SessionStreamsService:
                 )
                 == principal
             ):
-                return prior_stream, None
+                return prior_stream, None, None
             try:
                 await self._check_existing_row(
                     project_id=project_id,
@@ -1124,15 +1139,9 @@ class SessionStreamsService:
                         ) from error
                 raise
 
-        if running_turn_id:
-            await record_turn_admission(
-                self._lock,
-                project_id=str(project_id),
-                session_id=request.session_id,
-                turn_id=running_turn_id,
-                principal=principal,
-            )
-        return prior_stream, created_stream
+        # The record is written by the beat's bind script (`bind_turn_for_beat`), in the
+        # same round trip as the binding.
+        return prior_stream, created_stream, (principal if running_turn_id else None)
 
     @staticmethod
     async def _check_existing_row(
@@ -1263,7 +1272,7 @@ class SessionStreamsService:
             )
         if updated is None:
             try:
-                updated = await self._dao.create(
+                updated = await self._create_row(
                     project_id=project_id,
                     user_id=user_id,
                     stream=SessionStreamCreate(
@@ -1511,7 +1520,7 @@ class SessionStreamsService:
         listed = created_row
         if stream is None:
             try:
-                await self._dao.create(
+                await self._create_row(
                     project_id=project_id,
                     user_id=user_id,
                     stream=SessionStreamCreate(
@@ -1582,6 +1591,26 @@ class SessionStreamsService:
         if listed:
             await self._publish_changed(project_id=project_id, session_id=session_id)
         return turn_id
+
+    async def _create_row(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        stream: SessionStreamCreate,
+    ) -> SessionStream:
+        """Insert the session row, then write its sharing cache entry over a cached "no
+        row" (once per session; the next decision on it reads the entry it just wrote)."""
+        created = await self._dao.create(
+            project_id=project_id, user_id=user_id, stream=stream
+        )
+        await cache_created_session_access(
+            project_id=project_id,
+            session_id=stream.session_id,
+            stream_id=getattr(created, "id", None),
+            policy=stream.access,
+        )
+        return created
 
     async def _recheck_row(
         self,
