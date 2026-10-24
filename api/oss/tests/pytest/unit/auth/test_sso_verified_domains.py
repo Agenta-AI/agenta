@@ -275,4 +275,7 @@ async def test_sso_policy_counts_only_the_orgs_own_providers(
         uuid4(), ORG_ID, [session_identity]
     )
 
+    service.providers_dao.list_by_organization.assert_awaited_once_with(
+        organization_id=str(ORG_ID)
+    )
     assert (result is None) is allowed
