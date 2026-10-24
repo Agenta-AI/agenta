@@ -3,6 +3,7 @@ import {useMemo, useState} from "react"
 import {
     agentSharingQueryAtomFamily,
     setAgentVisibilityAtom,
+    sharingMemberRosterQueryAtom,
     sharingMembersQueryAtomFamily,
     takeAgentOwnershipAtom,
     transferAgentAtom,
@@ -83,7 +84,8 @@ const useAgentPrivacyProps = ({
     const [search, setSearch] = useState("")
     const [typed, setTyped] = useDebounceInput<string>(search, setSearch, 250, "")
     const membersQuery = useAtomValue(sharingMembersQueryAtomFamily(search))
-    const everyoneQuery = useAtomValue(sharingMembersQueryAtomFamily(""))
+    // Every page of the project's members: the owner may be past the picker's first 50.
+    const rosterQuery = useAtomValue(sharingMemberRosterQueryAtom)
 
     const setVisibility = useSetAtom(setAgentVisibilityAtom)
     const transfer = useSetAtom(transferAgentAtom)
@@ -93,8 +95,8 @@ const useAgentPrivacyProps = ({
     const owner = useMemo<SharingPerson | null>(() => {
         if (!ownerId) return null
         if (me?.id === ownerId) return {user_id: me.id, email: me.email, name: me.username || null}
-        return everyoneQuery.data?.members.find((member) => member.user_id === ownerId) ?? null
-    }, [everyoneQuery.data, me, ownerId])
+        return rosterQuery.data?.find((member) => member.user_id === ownerId) ?? null
+    }, [rosterQuery.data, me, ownerId])
 
     const channelConnections = useMemo(() => channelConnectionsOf(connections), [connections])
     const channelsOff = useMemo(() => channelsOffOf(connections), [connections])

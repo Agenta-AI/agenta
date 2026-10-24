@@ -5,6 +5,7 @@ import {
     revokeSessionGrantAtom,
     sessionSharingQueryAtomFamily,
     setSessionVisibilityAtom,
+    sharingMemberRosterQueryAtom,
     sharingMembersQueryAtomFamily,
     upsertSessionGrantAtom,
     type SessionRole,
@@ -73,8 +74,9 @@ const SessionShareDialogBound = ({
     // The picker queries as the person types, a beat behind them.
     const [typed, setTyped] = useDebounceInput<string>(search, setSearch, 250, "")
     const membersQuery = useAtomValue(sharingMembersQueryAtomFamily(search))
-    // The first page names the owner and the grantees; the search page may not hold them.
-    const everyoneQuery = useAtomValue(sharingMembersQueryAtomFamily(""))
+    // Every page of the project's members names the owner and the grantees; neither the
+    // picker's first page (50 people) nor the search page may hold them.
+    const rosterQuery = useAtomValue(sharingMemberRosterQueryAtom)
 
     const upsert = useSetAtom(upsertSessionGrantAtom)
     const revoke = useSetAtom(revokeSessionGrantAtom)
@@ -83,13 +85,13 @@ const SessionShareDialogBound = ({
 
     const people = useMemo<SharingPerson[]>(() => {
         const byId = new Map<string, SharingPerson>()
-        for (const member of everyoneQuery.data?.members ?? []) byId.set(member.user_id, member)
+        for (const member of rosterQuery.data ?? []) byId.set(member.user_id, member)
         for (const member of membersQuery.data?.members ?? []) byId.set(member.user_id, member)
         if (me?.id && !byId.has(me.id)) {
             byId.set(me.id, {user_id: me.id, email: me.email, name: me.username || null})
         }
         return [...byId.values()]
-    }, [everyoneQuery.data, membersQuery.data, me])
+    }, [rosterQuery.data, membersQuery.data, me])
 
     const copyLink = useCallback(async () => {
         const link = shareUrl(

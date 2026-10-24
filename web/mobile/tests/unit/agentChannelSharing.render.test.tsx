@@ -65,6 +65,7 @@ vi.mock("@agenta/entities/sharing", async () => {
     return {
         agentSharingQueryAtomFamily: () => query,
         sharingMembersQueryAtomFamily: () => members,
+        sharingMemberRosterQueryAtom: mockAtom({data: [], isPending: false, isError: false}),
         setAgentVisibilityAtom: mockAtom(null, () => undefined),
         transferAgentAtom: mockAtom(null, () => undefined),
         takeAgentOwnershipAtom: mockAtom(null, () => undefined),
