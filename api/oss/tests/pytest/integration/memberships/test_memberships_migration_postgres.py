@@ -206,6 +206,43 @@ async def test_role_copy_skips_the_owner_and_multi_workspace_organizations():
         await delete_seeded_organization(org_b)
 
 
+async def test_role_copy_skips_duplicate_and_null_workspace_roles():
+    """P6 copies a role only from exactly one workspace row with a role: a member with
+    two rows in the one workspace, or with a NULL workspace role, keeps the
+    organization role; a member with one row gets it copied."""
+
+    seeded = await seed_organization(
+        members={"dup": "editor", "null": "editor", "one": "editor"}
+    )
+    org, workspace = seeded.organization_id, seeded.workspace_ids[0]
+    try:
+        await execute(
+            "UPDATE organization_members SET role = 'viewer' "
+            "WHERE organization_id = :org AND user_id <> :owner",
+            {"org": org, "owner": seeded.owner_id},
+        )
+        await execute(
+            "INSERT INTO workspace_members "
+            "(id, user_id, workspace_id, role, created_at, updated_at) "
+            "VALUES (gen_random_uuid(), :u, :ws, 'admin', now(), now())",
+            {"u": seeded.user_ids["dup"], "ws": workspace},
+        )
+        await execute(
+            "UPDATE workspace_members SET role = NULL WHERE user_id = :u",
+            {"u": seeded.user_ids["null"]},
+        )
+
+        async with rolled_back_connection(organizations=[seeded]) as conn:
+            await _run_repair(conn)
+            roles = await _organization_roles(conn, org)
+
+        assert roles[seeded.user_ids["dup"]] == ["viewer"]
+        assert roles[seeded.user_ids["null"]] == ["viewer"]
+        assert roles[seeded.user_ids["one"]] == ["editor"]
+    finally:
+        await delete_seeded_organization(seeded)
+
+
 async def test_repair_revision_is_idempotent():
     seeded = await seed_organization(members={"owner": "owner", "m": "editor"})
     try:

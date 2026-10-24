@@ -156,17 +156,26 @@ WHERE p.organization_id = ANY(CAST(:orgs AS uuid[]))
 ORDER BY pm.project_id, pm.user_id, pm.created_at ASC NULLS LAST, pm.id ASC
 """
 
+# The workspace count is aggregated once for the batch, not per row: `workspaces` has no
+# index on `organization_id`, so a correlated count scans the table once per row.
 _P6_SQL = """
+WITH single_workspace_organizations AS (
+    SELECT organization_id
+    FROM workspaces
+    WHERE organization_id = ANY(CAST(:orgs AS uuid[]))
+    GROUP BY organization_id
+    HAVING count(*) = 1
+)
 SELECT w.organization_id, om.user_id::text AS item
 FROM organization_members om
 JOIN workspace_members wm ON wm.user_id = om.user_id
 JOIN workspaces w ON w.id = wm.workspace_id AND w.organization_id = om.organization_id
+JOIN single_workspace_organizations sw ON sw.organization_id = w.organization_id
 JOIN organizations o ON o.id = w.organization_id
 WHERE w.organization_id = ANY(CAST(:orgs AS uuid[]))
   AND om.user_id <> o.owner_id
   AND wm.role IS NOT NULL
   AND om.role IS DISTINCT FROM wm.role
-  AND (SELECT count(*) FROM workspaces w2 WHERE w2.organization_id = w.organization_id) = 1
 """
 
 _OLDEST_ORGANIZATION_ROWS = """

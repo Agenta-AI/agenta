@@ -98,20 +98,37 @@ WHERE NOT EXISTS (SELECT 1 FROM project_members pm
 """
 
 # P6
+# The counts are aggregated once per table and joined, not computed per row in a
+# correlated subquery: `workspaces` has no index on `organization_id`, so a per-row
+# count scans the table once per member row (quadratic in organizations).
 _COPY_WORKSPACE_ROLE_SQL = """
+WITH single_workspace_organizations AS (
+    SELECT organization_id
+    FROM workspaces
+    WHERE organization_id IS NOT NULL
+    GROUP BY organization_id
+    HAVING count(*) = 1
+),
+single_workspace_rows AS (
+    SELECT workspace_id, user_id
+    FROM workspace_members
+    WHERE workspace_id IS NOT NULL AND user_id IS NOT NULL
+    GROUP BY workspace_id, user_id
+    HAVING count(*) = 1
+)
 UPDATE organization_members om
 SET role = wm.role, updated_at = now()
 FROM workspace_members wm
+JOIN single_workspace_rows s
+  ON s.workspace_id = wm.workspace_id AND s.user_id = wm.user_id
 JOIN workspaces w ON w.id = wm.workspace_id
+JOIN single_workspace_organizations sw ON sw.organization_id = w.organization_id
 JOIN organizations o ON o.id = w.organization_id
 WHERE om.organization_id = w.organization_id
   AND om.user_id = wm.user_id
   AND om.user_id <> o.owner_id
   AND wm.role IS NOT NULL
   AND om.role IS DISTINCT FROM wm.role
-  AND (SELECT count(*) FROM workspaces w2 WHERE w2.organization_id = w.organization_id) = 1
-  AND (SELECT count(*) FROM workspace_members wm2
-       WHERE wm2.workspace_id = w.id AND wm2.user_id = wm.user_id) = 1
 """
 
 REPAIR_STATEMENTS = (
@@ -124,6 +141,11 @@ REPAIR_STATEMENTS = (
 
 
 def upgrade() -> None:
+    # Old pods write these tables during the upgrade. Bound the wait for their row
+    # locks, as `oss000000046` does: a long-held lock fails the hook after 5 s instead
+    # of queueing their writes behind this transaction, and the deploy is re-run (every
+    # statement is idempotent). LOCAL ends with this revision's transaction.
+    op.execute("SET LOCAL lock_timeout = '5s'")
     for statement in REPAIR_STATEMENTS:
         op.execute(text(statement))
 
