@@ -315,6 +315,7 @@ async def accept_organization_invitation(
         await organization_service.accept_organization_invitation(
             token=payload.token,
             organization_id=organization_id,
+            workspace_id=workspace_id,
             email=payload.email,
             session_email=request.state.user_email,
         )

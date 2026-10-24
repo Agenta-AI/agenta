@@ -59,12 +59,6 @@ def world(monkeypatch):
             organization_id=project.organization_id,
         )
 
-    workspace_checks = []
-
-    async def _workspace_member_exists(**kwargs):
-        workspace_checks.append(kwargs)
-        return False
-
     async def _get_workspace(workspace_id):
         return SimpleNamespace(
             id=project.workspace_id, organization_id=project.organization_id
@@ -79,9 +73,6 @@ def world(monkeypatch):
     monkeypatch.setattr(auth.db_manager, "get_project_by_id", _get_project_by_id)
     monkeypatch.setattr(auth.db_manager, "get_workspace", _get_workspace)
     monkeypatch.setattr(
-        auth.db_manager, "workspace_member_exists", _workspace_member_exists
-    )
-    monkeypatch.setattr(
         auth.db_manager,
         "get_default_project_id_from_workspace",
         _get_default_project_id_from_workspace,
@@ -93,7 +84,6 @@ def world(monkeypatch):
         service=service,
         project=project,
         sets=sets,
-        workspace_checks=workspace_checks,
     )
 
 
@@ -111,14 +101,28 @@ async def test_bearer_non_member_is_refused(world):
     assert not [s for s in world.sets if s.get("value") == {"deny": True}]
 
 
-async def test_bearer_workspace_branch_keeps_the_workspace_check(world, monkeypatch):
-    resolve_calls = []
+async def test_bearer_workspace_branch_checks_project_membership(world, monkeypatch):
+    read_calls = []
 
-    async def _resolve(**kwargs):
-        resolve_calls.append(kwargs)
+    async def _read_membership(**kwargs):
+        read_calls.append(kwargs)
         return None
 
-    monkeypatch.setattr(world.service, "resolve", _resolve)
+    async def _fetch_default_project(*, workspace_or_organization_id):
+        from oss.src.services.db_manager import DefaultProjectRef
+
+        return DefaultProjectRef(
+            project_id=world.project.project_id,
+            project_organization_id=world.project.organization_id,
+            project_workspace_id=world.project.workspace_id,
+            ref_workspace_id=world.project.workspace_id,
+            ref_organization_id=world.project.organization_id,
+        )
+
+    monkeypatch.setattr(world.service, "read_membership", _read_membership)
+    monkeypatch.setattr(
+        auth.db_manager, "fetch_default_project", _fetch_default_project
+    )
 
     with pytest.raises(HTTPException) as error:
         await auth.verify_bearer_token(
@@ -128,7 +132,6 @@ async def test_bearer_workspace_branch_keeps_the_workspace_check(world, monkeypa
         )
 
     assert error.value.status_code == 401
-    assert world.workspace_checks == [
-        {"workspace_id": str(world.project.workspace_id), "user_id": str(world.user)}
+    assert read_calls == [
+        {"user_id": world.user, "project_id": world.project.project_id}
     ]
-    assert resolve_calls == []

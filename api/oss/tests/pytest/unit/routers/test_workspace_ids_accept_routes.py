@@ -8,6 +8,9 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
+from fastapi import HTTPException
+
 import oss.src.routers.organization_router as organization_router
 import oss.src.routers.workspace_router as workspace_router
 import oss.src.services.db_manager as db_manager
@@ -186,6 +189,13 @@ async def test_accept_invitation_for_a_project_without_workspace(monkeypatch):
         db, "get_project_invitation_by_organization_token_and_email", _invite
     )
     monkeypatch.setattr(db, "get_project_by_id", _project)
+
+    async def _scoped(*, project_id):
+        return db.ProjectWithWorkspaceOrganization(
+            project=project, workspace_organization_id=None
+        )
+
+    monkeypatch.setattr(db, "fetch_project_with_workspace_organization", _scoped)
     monkeypatch.setattr(db, "get_workspace", _workspace)
     monkeypatch.setattr(db, "update_invitation", _update)
     monkeypatch.setattr(organization_service, "notify_org_admin_invitation", _notify)
@@ -248,3 +258,240 @@ async def test_read_membership_reads_once_and_never_touches_the_cache(monkeypatc
         await service.read_membership(user_id=uuid4(), project_id=project.project_id)
         is None
     )
+
+
+# --- B3: delete context, /access scope, invitation accept scope --------------- #
+
+
+async def test_delete_project_accepts_the_organization_context(monkeypatch):
+    import oss.src.routers.projects_router as projects_router
+
+    organization_id, project_id = uuid4(), uuid4()
+    listings = []
+
+    async def _project(project_id):
+        return SimpleNamespace(
+            id=project_id, workspace_id=None, organization_id=organization_id
+        )
+
+    async def _listing(request, project_id):
+        listings.append(project_id)
+        return None
+
+    monkeypatch.setattr(db_manager, "fetch_project_by_id", _project)
+    monkeypatch.setattr(projects_router, "_fetch_listing", _listing)
+    request = SimpleNamespace(state=SimpleNamespace(workspace_id=str(organization_id)))
+
+    with pytest.raises(HTTPException) as error:
+        await projects_router.delete_project(project_id=project_id, request=request)
+
+    assert error.value.status_code == 404
+    assert listings == [project_id]  # passed the context check
+
+
+async def test_delete_project_refuses_another_organization(monkeypatch):
+    import oss.src.routers.projects_router as projects_router
+
+    listings = []
+
+    async def _project(project_id):
+        return SimpleNamespace(
+            id=project_id, workspace_id=uuid4(), organization_id=uuid4()
+        )
+
+    async def _listing(request, project_id):
+        listings.append(project_id)
+        return None
+
+    monkeypatch.setattr(db_manager, "fetch_project_by_id", _project)
+    monkeypatch.setattr(projects_router, "_fetch_listing", _listing)
+    request = SimpleNamespace(state=SimpleNamespace(workspace_id=str(uuid4())))
+
+    with pytest.raises(HTTPException) as error:
+        await projects_router.delete_project(project_id=uuid4(), request=request)
+
+    assert error.value.status_code == 404
+    assert listings == []
+
+
+async def test_access_scope_workspace_accepts_the_organization_id(monkeypatch):
+    import oss.src.apis.fastapi.access.router as access_router
+
+    scope = SimpleNamespace(
+        workspace_id=uuid4(), organization_id=uuid4(), project_id=uuid4()
+    )
+    monkeypatch.setattr(access_router, "get_auth_scope", lambda: scope)
+
+    assert await access_router._check_scope_access(
+        scope_type="workspace", scope_id=scope.organization_id
+    )
+    assert await access_router._check_scope_access(
+        scope_type="workspace", scope_id=scope.workspace_id
+    )
+
+
+async def test_access_scope_workspace_refuses_another_id(monkeypatch):
+    import oss.src.apis.fastapi.access.router as access_router
+
+    scope = SimpleNamespace(
+        workspace_id=uuid4(), organization_id=uuid4(), project_id=uuid4()
+    )
+    monkeypatch.setattr(access_router, "get_auth_scope", lambda: scope)
+
+    assert not await access_router._check_scope_access(
+        scope_type="workspace", scope_id=uuid4()
+    )
+
+
+@pytest.fixture
+def invitation(monkeypatch):
+    from datetime import timedelta
+
+    import oss.src.core.memberships.service as memberships_module
+    import oss.src.services.organization_service as organization_service
+
+    organization_id, workspace_id = uuid4(), uuid4()
+    user = SimpleNamespace(id=uuid4(), email="invitee@test.agenta.ai", username="i")
+    project = SimpleNamespace(
+        id=uuid4(), organization_id=organization_id, workspace_id=workspace_id
+    )
+    invite = SimpleNamespace(
+        id=uuid4(),
+        email=user.email,
+        role="viewer",
+        used=False,
+        project_id=project.id,
+        expiration_date=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+    world = SimpleNamespace(
+        user=user,
+        project=project,
+        workspace_organization_id=organization_id,
+        workspaces={},
+        reads=[],
+        writes=[],
+        service=organization_service,
+    )
+
+    async def _user(email):
+        return user
+
+    async def _invite(**kwargs):
+        return invite
+
+    async def _scoped(*, project_id):
+        world.reads.append("fetch_project_with_workspace_organization")
+        return db_manager.ProjectWithWorkspaceOrganization(
+            project=project, workspace_organization_id=world.workspace_organization_id
+        )
+
+    async def _project(project_id):
+        world.reads.append("get_project_by_id")
+        return project
+
+    async def _workspace(workspace_id):
+        world.reads.append("get_workspace")
+        return world.workspaces.get(str(workspace_id))
+
+    async def _update(invitation_id, values_to_update):
+        world.writes.append("update_invitation")
+
+    async def _notify(workspace, user):
+        return True
+
+    class _Memberships:
+        async def fetch_organization_member(self, **kwargs):
+            return None
+
+        async def set_member_role(self, **kwargs):
+            world.writes.append("set_member_role")
+
+    db = organization_service.db_manager
+    monkeypatch.setattr(db, "get_user_with_email", _user)
+    monkeypatch.setattr(
+        db, "get_project_invitation_by_organization_token_and_email", _invite
+    )
+    monkeypatch.setattr(db, "fetch_project_with_workspace_organization", _scoped)
+    monkeypatch.setattr(db, "get_project_by_id", _project)
+    monkeypatch.setattr(db, "get_workspace", _workspace)
+    monkeypatch.setattr(db, "update_invitation", _update)
+    monkeypatch.setattr(organization_service, "notify_org_admin_invitation", _notify)
+    monkeypatch.setattr(memberships_module, "_memberships_service", _Memberships())
+    return world
+
+
+async def _accept(world, workspace_id):
+    return await world.service.accept_organization_invitation(
+        token="t",
+        organization_id=str(world.project.organization_id),
+        workspace_id=str(workspace_id),
+        email=world.user.email,
+        session_email=world.user.email,
+    )
+
+
+async def test_accept_invitation_with_the_organization_id(invitation):
+    assert await _accept(invitation, invitation.project.organization_id)
+    assert invitation.writes == ["set_member_role", "update_invitation"]
+
+
+async def test_accept_invitation_with_the_project_workspace(invitation):
+    assert await _accept(invitation, invitation.project.workspace_id)
+    assert invitation.reads.count("get_workspace") == 1  # the admin notice only
+
+
+async def test_accept_invitation_with_another_workspace_of_the_organization(invitation):
+    other = uuid4()
+    invitation.workspaces[str(other)] = SimpleNamespace(
+        id=other, organization_id=invitation.project.organization_id
+    )
+    assert await _accept(invitation, other)
+    assert invitation.reads.count("get_workspace") == 2  # the scope check + the notice
+
+
+async def test_accept_invitation_refuses_another_organization_id(invitation):
+    with pytest.raises(invitation.service.InviteNotFoundError):
+        await _accept(invitation, uuid4())
+    assert invitation.writes == []
+
+
+async def test_accept_invitation_refuses_a_workspace_of_another_organization(
+    invitation,
+):
+    other = uuid4()
+    invitation.workspaces[str(other)] = SimpleNamespace(
+        id=other, organization_id=uuid4()
+    )
+    with pytest.raises(invitation.service.InviteNotFoundError):
+        await _accept(invitation, other)
+    assert invitation.writes == []
+
+
+async def test_accept_invitation_refuses_the_cross_organization_workspace(invitation):
+    # P of O1 sits in workspace W of O2: /organizations/O1/workspaces/W/invite/accept.
+    foreign = uuid4()
+    invitation.workspace_organization_id = foreign
+    invitation.workspaces[str(invitation.project.workspace_id)] = SimpleNamespace(
+        id=invitation.project.workspace_id, organization_id=foreign
+    )
+    with pytest.raises(invitation.service.InviteNotFoundError):
+        await _accept(invitation, invitation.project.workspace_id)
+    assert invitation.writes == []
+
+
+async def test_accept_invitation_adds_no_project_read(invitation):
+    # Today the accept reads the project twice; the scope check rides on the first read.
+    await _accept(invitation, invitation.project.organization_id)
+    assert invitation.reads.count("fetch_project_with_workspace_organization") == 1
+    assert invitation.reads.count("get_project_by_id") == 1
+    assert invitation.reads.count("get_workspace") == 1  # the admin notice, as today
+
+
+async def test_accept_invitation_without_workspace_through_the_organization_id(
+    invitation,
+):
+    invitation.project.workspace_id = None
+    invitation.workspace_organization_id = None
+    assert await _accept(invitation, invitation.project.organization_id)
+    assert invitation.writes == ["set_member_role", "update_invitation"]
+    assert "get_workspace" not in invitation.reads  # no scope read, no admin notice

@@ -254,27 +254,6 @@ async def fetch_oldest_organization_id(*, user_id: str) -> Optional[str]:
     return str(organization_id) if organization_id is not None else None
 
 
-async def workspace_member_exists(
-    *,
-    workspace_id: str,
-    user_id: str,
-) -> bool:
-    """Check whether a user is a member of a workspace (EXISTS sub-query)."""
-
-    engine = get_transactions_engine()
-    async with engine.session() as session:
-        stmt = select(
-            select(WorkspaceMemberDB.id)
-            .filter(
-                WorkspaceMemberDB.workspace_id == uuid.UUID(workspace_id),
-                WorkspaceMemberDB.user_id == uuid.UUID(user_id),
-            )
-            .exists()
-        )
-        result = await session.execute(stmt)
-        return result.scalar() or False
-
-
 async def fetch_workspace_by_id(
     workspace_id: str,
 ) -> Optional[WorkspaceDB]:
@@ -1088,6 +1067,35 @@ async def get_project_by_id(project_id: str) -> ProjectDB:
         project = project_query.scalar()
 
         return project
+
+
+class ProjectWithWorkspaceOrganization(NamedTuple):
+    project: ProjectDB
+    # The organization of the project's workspace (None without a workspace). It differs
+    # from the project's organization only for the legacy cross-organization shape.
+    workspace_organization_id: Optional[uuid.UUID]
+
+
+async def fetch_project_with_workspace_organization(
+    *,
+    project_id: str,
+) -> Optional[ProjectWithWorkspaceOrganization]:
+    """A project and its workspace's organization, in one statement."""
+
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        row = (
+            await session.execute(
+                select(ProjectDB, WorkspaceDB.organization_id)
+                .outerjoin(WorkspaceDB, WorkspaceDB.id == ProjectDB.workspace_id)
+                .where(ProjectDB.id == uuid.UUID(str(project_id)))
+            )
+        ).first()
+    if row is None:
+        return None
+    return ProjectWithWorkspaceOrganization(
+        project=row[0], workspace_organization_id=row[1]
+    )
 
 
 async def get_default_project_id_from_workspace(

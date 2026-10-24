@@ -102,6 +102,19 @@ def bearer_world(monkeypatch, cache):
     monkeypatch.setattr(
         auth.db_manager, "get_default_project_id_from_workspace", _default_project
     )
+
+    async def _fetch_default_project(*, workspace_or_organization_id):
+        return auth.db_manager.DefaultProjectRef(
+            project_id=project.project_id,
+            project_organization_id=project.organization_id,
+            project_workspace_id=project.workspace_id,
+            ref_workspace_id=project.workspace_id,
+            ref_organization_id=project.organization_id,
+        )
+
+    monkeypatch.setattr(
+        auth.db_manager, "fetch_default_project", _fetch_default_project
+    )
     # The SuperTokens user lookup is cached; prefill it.
     cache.store[_supertokens_name()] = auth_serialize(
         {"user_id": str(user), "user_email": "m@test.agenta.ai"}
