@@ -22,6 +22,12 @@ from oss.src.core.tools.platform_handlers import (
     PlatformToolHandlerRefused,
     handle_test_run,
 )
+from oss.src.core.workflows.change_set import (
+    PARAMETERS_ONLY,
+    ChangeSetError,
+    Reason,
+    apply_change_set,
+)
 from oss.src.core.workflows.dtos import WorkflowRevisionData, WorkflowServiceRequestData
 from oss.src.core.workflows import service as service_module
 from oss.src.core.workflows.service import WorkflowsService
@@ -90,7 +96,15 @@ class FakeWorkflowsService:
                 "project_id": project_id,
                 "commit": workflow_revision_commit,
                 "preview": preview,
+                "scope_policy": scope_policy,
             }
+        )
+        # The real resolver runs the delta through the change-set engine with the
+        # caller's scope policy; a refusal raises before any result.
+        apply_change_set(
+            dict(self.revision_data or {}),
+            workflow_revision_commit.delta.model_dump(mode="json", exclude_unset=True),
+            scope_policy,
         )
         # `_resolve_revision_delta` returns a DeltaResolution: the resolved commit, the
         # head it was built on, and the warnings the commit response carries.
@@ -886,3 +900,58 @@ async def test_test_run_previews_a_delta_in_the_agents_context(monkeypatch):
     )
 
     assert workflows.agent_context_calls == [True]
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        {"operation": "set", "target": ["url"], "value": "https://example.com"},
+        {"operation": "set", "target": ["uri"], "value": "agenta:builtin:agent:v0"},
+        {"operation": "merge", "target": ["headers"], "value": {"X-Test": "1"}},
+    ],
+)
+async def test_test_run_ordered_delta_outside_parameters_is_refused(
+    monkeypatch, operation
+):
+    # The ordered `operations` arm gets the same parameters-only boundary as the legacy
+    # arm: the resolver is called with PARAMETERS_ONLY and the child is never invoked.
+    http = HttpxController(monkeypatch)
+    workflows = FakeWorkflowsService()
+
+    with pytest.raises(ChangeSetError) as exc_info:
+        await handle_test_run(
+            arguments=_args(delta={"operations": [operation]}),
+            headers={},
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflows_service=workflows,
+            tracing_service=FakeTracingService(),
+            envelope=make_envelope(),
+        )
+
+    assert exc_info.value.reason == Reason.OUT_OF_SCOPE
+    assert [call["scope_policy"] for call in workflows.delta_calls] == [PARAMETERS_ONLY]
+    assert not workflows.prepare_calls
+    assert http.calls == []
+
+
+async def test_test_run_ordered_delta_inside_parameters_still_runs(monkeypatch):
+    outputs = {"messages": [{"role": "assistant", "content": "pong"}]}
+    _, workflows, _ = await _run(
+        monkeypatch,
+        outputs=outputs,
+        args=_args(
+            delta={
+                "operations": [
+                    {
+                        "operation": "set",
+                        "target": ["parameters", "agent", "instructions"],
+                        "value": "hi",
+                    }
+                ]
+            }
+        ),
+    )
+
+    assert [call["scope_policy"] for call in workflows.delta_calls] == [PARAMETERS_ONLY]
+    assert len(workflows.prepare_calls) == 1

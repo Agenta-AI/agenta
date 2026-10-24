@@ -239,6 +239,8 @@ async def _build_test_workflow_request(
         )
 
     if request.delta is not None:
+        from oss.src.core.workflows.change_set import PARAMETERS_ONLY  # noqa: PLC0415
+
         # `test_run` previews an AGENT's delta, so it gets the agent's transformations.
         resolution = await workflows_service._resolve_revision_delta(
             project_id=project_id,
@@ -251,6 +253,10 @@ async def _build_test_workflow_request(
             # the commit path requires that id, and it exists to protect a write.
             preview=True,
             agent_context=True,
+            # Both delta forms, the ordered `operations` arm included, may change only
+            # the revision's `parameters` tree. `_validate_delta_scope` checks only the
+            # legacy arm, early and with a readable message; the engine enforces this.
+            scope_policy=PARAMETERS_ONLY,
         )
         resolved = resolution.commit
         if resolved.data is None:
