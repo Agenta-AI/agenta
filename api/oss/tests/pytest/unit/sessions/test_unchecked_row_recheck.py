@@ -42,8 +42,9 @@ class _RacingDAO:
     """A DAO whose row appears from a concurrent request: `appear_after_gets` reads
     see no row, then Alice's private row exists (a create conflicts with it)."""
 
-    def __init__(self, *, appear_after_gets: int):
+    def __init__(self, *, appear_after_gets: int, create_conflicts: bool = True):
         self.appear_after_gets = appear_after_gets
+        self.create_conflicts = create_conflicts
         self.gets = 0
         self.row = None
         self.created = []
@@ -66,6 +67,16 @@ class _RacingDAO:
         return self.row
 
     async def create(self, *, project_id, user_id, stream):
+        if not self.create_conflicts and self.row is None:
+            self.created.append(stream)
+            self.row = SessionStream(
+                id=uuid4(),
+                project_id=project_id,
+                session_id=stream.session_id,
+                visibility=stream.access.visibility,
+                owner_user_id=stream.access.owner_user_id,
+            )
+            return self.row
         if self.row is None:
             # The concurrent request commits first: this insert conflicts.
             self.row = self._alice_row(stream.session_id)
@@ -281,3 +292,127 @@ async def test_send_to_a_checked_existing_row_adds_no_read(redis, request_memo):
     )
     recheck.assert_not_awaited()
     assert dao.gets == 1  # only _start_turn's own read, as before
+
+
+async def _alice_turn_holds(fake, session_id, turn_id="alice-turn"):
+    await fake.set(alive_key(str(_PROJECT), session_id), turn_id.encode())
+    await fake.set(running_key(str(_PROJECT), session_id), turn_id.encode())
+
+
+@pytest.mark.parametrize("data", [{"inputs": {"messages": []}}])
+@pytest.mark.parametrize("force", [False, True])  # send, steer
+async def test_a_live_private_session_created_after_the_check_is_not_disclosed_or_displaced(
+    redis, request_memo, data, force
+):
+    """Codex re-check: Alice creates a private session and starts a turn right after
+    Bob's check found no row. Bob's send must not answer with her liveness, and his steer
+    must not displace her turn: creation is settled (and the winner checked) first."""
+    engine, fake = redis
+    # A read made right after the check still finds no row; Alice's row and live turn
+    # exist by the time Bob's command goes on.
+    dao = _RacingDAO(appear_after_gets=1)
+    await _alice_turn_holds(fake, "s7")
+    service = _service(dao, engine)
+    _note_missing_session(project_id=_PROJECT, session_id="s7")
+    recheck = _refusing_recheck()
+
+    with pytest.raises(_Hidden):
+        await service.command(
+            project_id=_PROJECT,
+            user_id=_BOB,
+            request=SessionStreamCommandRequest(
+                session_id="s7", data=data, force=force
+            ),
+            access=_PRIVATE_BOB,
+            arrived_at_ms=1,
+            recheck=recheck,
+        )
+    recheck.assert_awaited_once()
+    # No SessionTurnInUse with Alice's liveness, and her turn is not displaced.
+    assert await fake.get(alive_key(str(_PROJECT), "s7")) == b"alice-turn"
+    assert await fake.get(running_key(str(_PROJECT), "s7")) == b"alice-turn"
+    assert dao.updates == []
+
+
+async def test_a_cancel_of_a_session_that_does_not_exist_cancels_nothing(
+    redis, request_memo
+):
+    engine, fake = redis
+    dao = _RacingDAO(appear_after_gets=10)
+    service = _service(dao, engine)
+    _note_missing_session(project_id=_PROJECT, session_id="s8")
+    recheck = _refusing_recheck()
+
+    response = await service.command(
+        project_id=_PROJECT,
+        user_id=_BOB,
+        request=SessionStreamCommandRequest(session_id="s8"),
+        access=_PRIVATE_BOB,
+        arrived_at_ms=1,
+        recheck=recheck,
+    )
+    assert response.cancelled_turn_ids == []
+    recheck.assert_not_awaited()
+
+
+async def test_a_cancel_racing_a_new_private_session_never_displaces_it(
+    redis, request_memo
+):
+    """Alice's row and turn appear right after Bob's check found no row: Bob's cancel
+    (whose read still sees no row) cancels nothing; a later cancel that sees the row is
+    checked first."""
+    engine, fake = redis
+    dao = _RacingDAO(appear_after_gets=1)
+    await _alice_turn_holds(fake, "s9")
+    service = _service(dao, engine)
+    _note_missing_session(project_id=_PROJECT, session_id="s9")
+    recheck = _refusing_recheck()
+
+    response = await service.command(
+        project_id=_PROJECT,
+        user_id=_BOB,
+        request=SessionStreamCommandRequest(session_id="s9"),
+        access=_PRIVATE_BOB,
+        arrived_at_ms=1,
+        recheck=recheck,
+    )
+    assert response.cancelled_turn_ids == []
+    assert await fake.get(alive_key(str(_PROJECT), "s9")) == b"alice-turn"
+    assert await fake.get(running_key(str(_PROJECT), "s9")) == b"alice-turn"
+
+    with pytest.raises(_Hidden):
+        await service.command(
+            project_id=_PROJECT,
+            user_id=_BOB,
+            request=SessionStreamCommandRequest(session_id="s9"),
+            access=_PRIVATE_BOB,
+            arrived_at_ms=1,
+            recheck=recheck,
+        )
+    assert await fake.get(alive_key(str(_PROJECT), "s9")) == b"alice-turn"
+
+
+async def test_a_first_send_creates_its_row_before_the_locks_and_lists_it(
+    redis, request_memo
+):
+    engine, fake = redis
+    dao = _RacingDAO(appear_after_gets=10, create_conflicts=False)
+    service = _service(dao, engine)
+    _note_missing_session(project_id=_PROJECT, session_id="s10")
+    recheck = _refusing_recheck()
+
+    response = await service.command(
+        project_id=_PROJECT,
+        user_id=_BOB,
+        request=SessionStreamCommandRequest(
+            session_id="s10", data={"inputs": {"messages": []}}
+        ),
+        access=_PRIVATE_BOB,
+        arrived_at_ms=1,
+        recheck=recheck,
+    )
+    recheck.assert_not_awaited()
+    assert [stream.access for stream in dao.created] == [_PRIVATE_BOB]
+    assert dao.row.owner_user_id == _BOB
+    assert await fake.get(alive_key(str(_PROJECT), "s10")) == response.turn_id.encode()
+    service._publish_changed.assert_awaited()

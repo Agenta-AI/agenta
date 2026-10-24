@@ -345,21 +345,17 @@ class SessionStreamsService:
         """`access` is the policy a send or steer writes when it creates the row; an
         existing row keeps its policy.
 
-        `recheck` is the route's session check. When that check found no row and a row
-        exists now (a concurrent request created it), the row is checked before any
-        liveness read, displacement or lock: one row read, only on that path. A create
-        that loses its race in `_start_turn` checks the winning row too."""
+        `recheck` is the route's session check. When that check found no row, a row that
+        exists now was created by a concurrent request and was never checked. That path
+        (and only that path) settles creation first, before any liveness read,
+        displacement or lock: a send or steer inserts the row with `access` (a lost
+        insert race checks the winning row); a cancel or attach reads the row and checks
+        it when it exists, and a cancel of a session that still does not exist cancels
+        nothing. An existing session's command adds no read."""
         _validate_session_id(request.session_id)
-        if recheck is not None and session_was_missing(
+        unchecked = recheck is not None and session_was_missing(
             project_id=project_id, session_id=request.session_id
-        ):
-            if (
-                await self._dao.get_by_session_id(
-                    project_id=project_id, session_id=request.session_id
-                )
-                is not None
-            ):
-                await recheck()
+        )
 
         # When the request reached the process, for the stale-cancel guard. The router stamps it
         # before its permission and concurrency checks, which are database round trips; stamping
@@ -375,6 +371,37 @@ class SessionStreamsService:
             request.data.inputs if request.data else None
         )
 
+        created_row = False
+        if unchecked:
+            if mode in (CommandMode.send, CommandMode.steer):
+                try:
+                    await self._dao.create(
+                        project_id=project_id,
+                        user_id=user_id,
+                        stream=SessionStreamCreate(
+                            session_id=session_id,
+                            name=proposed_name,
+                            access=access,
+                        ),
+                    )
+                    created_row = True
+                except SessionStreamAlreadyExists:
+                    await recheck()
+            else:
+                if (
+                    await self._dao.get_by_session_id(
+                        project_id=project_id, session_id=session_id
+                    )
+                    is not None
+                ):
+                    await recheck()
+                elif mode == CommandMode.cancel:
+                    return SessionStreamCommandResponse(
+                        mode=mode,
+                        session_id=session_id,
+                        detached=True,
+                    )
+
         if mode == CommandMode.send:
             liveness = await get_session_liveness(
                 self._lock, project_id=str(project_id), session_id=session_id
@@ -388,6 +415,7 @@ class SessionStreamsService:
                 name=proposed_name,
                 access=access,
                 recheck=recheck,
+                created_row=created_row,
             )
             return SessionStreamCommandResponse(
                 mode=mode,
@@ -405,6 +433,7 @@ class SessionStreamsService:
                 name=proposed_name,
                 access=access,
                 recheck=recheck,
+                created_row=created_row,
             )
             return SessionStreamCommandResponse(
                 mode=mode,
@@ -1420,7 +1449,10 @@ class SessionStreamsService:
         access: AccessPolicy,
         name: Optional[str] = None,
         recheck: Optional[SessionRecheck] = None,
+        created_row: bool = False,
     ) -> str:
+        """`created_row`: the command already inserted this session's row (the path
+        whose route check found no row), so the row is this turn's and goes to the list."""
         turn_id = str(uuid.uuid7())
         acquired = await acquire_alive_with_start(
             self._lock,
@@ -1429,8 +1461,10 @@ class SessionStreamsService:
             turn_id=turn_id,
         )
         if not acquired:
-            if recheck is not None and session_was_missing(
-                project_id=project_id, session_id=session_id
+            if (
+                not created_row
+                and recheck is not None
+                and session_was_missing(project_id=project_id, session_id=session_id)
             ):
                 # A concurrent request's turn holds the session the route found no row
                 # for: its liveness is told only to a caller that passes the check.
@@ -1454,6 +1488,7 @@ class SessionStreamsService:
         )
         if (
             stream is not None
+            and not created_row
             and recheck is not None
             and session_was_missing(project_id=project_id, session_id=session_id)
         ):
@@ -1468,7 +1503,7 @@ class SessionStreamsService:
         # Set by every branch that puts the row back in front of a list: a fresh create, a killed
         # tombstone re-nested, an archived row un-hidden. Each is once-per-session, unlike the
         # per-turn `lifecycle` below.
-        listed = False
+        listed = created_row
         if stream is None:
             try:
                 await self._dao.create(
