@@ -16,10 +16,12 @@
  */
 import {
   chmodSync,
+  closeSync,
   existsSync,
+  fstatSync,
   mkdirSync,
-  readFileSync,
-  statSync,
+  openSync,
+  readSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -334,14 +336,29 @@ async function readSandboxFile(
   return sandboxFileText(bytes);
 }
 
-/** A local file's text under the size limit, or undefined when it is absent. */
+/**
+ * A local file's text under the size limit, or undefined when it is absent.
+ *
+ * One handle for the stat and the read, and the read stops one byte past the limit, so a file that
+ * grows or is replaced after the stat is still refused without loading it whole.
+ */
 function readLocalSubscriptionFile(path: string): string | undefined {
   if (!existsSync(path)) return undefined;
-  assertSubscriptionFileSize(statSync(path).size);
-  const bytes = readFileSync(path);
-  // The file can grow between the stat and the read.
-  assertSubscriptionFileSize(bytes.byteLength);
-  return bytes.toString("utf-8");
+  const fd = openSync(path, "r");
+  try {
+    assertSubscriptionFileSize(fstatSync(fd).size);
+    const buffer = Buffer.alloc(SUBSCRIPTION_FILE_MAX_BYTES + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const read = readSync(fd, buffer, length, buffer.length - length, null);
+      if (read === 0) break;
+      length += read;
+    }
+    assertSubscriptionFileSize(length);
+    return buffer.subarray(0, length).toString("utf-8");
+  } finally {
+    closeSync(fd);
+  }
 }
 
 /** What a mutation asks the file layer to persist, alongside whatever the caller wants back. */
