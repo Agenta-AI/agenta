@@ -410,6 +410,28 @@ describe("buildSessionMcpServers layering (do-not-merge regression guard)", () =
     );
   });
 
+  it("a user-declared MCP server named '__proto__' is rejected (reserved name)", async () => {
+    await assert.rejects(
+      () =>
+        buildSessionMcpServers({
+          isPi: false,
+          isDaytona: false,
+          capabilities: mcpCapable,
+          harness: "claude",
+          toolSpecs: [],
+          userMcpServers: [
+            {
+              name: "__proto__",
+              connection: { type: "http", url: "https://mcp.example.com/mcp" },
+              policy: { tools: { mode: "all" } },
+            },
+          ],
+          relayDir,
+        }),
+      /MCP server name '__proto__' is reserved/,
+    );
+  });
+
   it("(Daytona) a user http MCP is STILL delivered (remote url, not a runner loopback)", async () => {
     // The Daytona guard is scoped to the INTERNAL loopback channel only. A user http MCP is a
     // remote url the harness dials directly, so it stays reachable from the sandbox and must be
