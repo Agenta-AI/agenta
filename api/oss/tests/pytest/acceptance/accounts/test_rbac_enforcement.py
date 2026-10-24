@@ -8,27 +8,35 @@ behavior flip on a management endpoint:
 
 The EE suite mirrors this with an entitled business account; see
 ee/tests/pytest/acceptance/accounts/test_rbac_enforcement_ee.py.
+
+On EE these tests run too. An EE organization without the RBAC entitlement lets every
+member pass by design, so on EE the owner's account is pinned to a plan with the
+entitlement (`_OWNER_PLAN`): the tests then check the role rule, not the plan.
 """
 
 from uuid import uuid4
 
+from oss.src.utils.common import is_ee
 
-def _create_account(admin_api, *, email):
+# EE: a plan with the RBAC entitlement, pinned like test_rbac_enforcement_ee.py does.
+_OWNER_PLAN = "cloud_v0_business" if is_ee() else None
+
+
+def _create_account(admin_api, *, email, plan=None):
+    account = {
+        "user": {"email": email},
+        "options": {
+            "create_api_keys": True,
+            "return_api_keys": True,
+            "seed_defaults": True,
+        },
+    }
+    if plan is not None:
+        account["subscription"] = {"plan": plan}
     resp = admin_api(
         "POST",
         "/admin/simple/accounts/",
-        json={
-            "accounts": {
-                "u": {
-                    "user": {"email": email},
-                    "options": {
-                        "create_api_keys": True,
-                        "return_api_keys": True,
-                        "seed_defaults": True,
-                    },
-                }
-            }
-        },
+        json={"accounts": {"u": account}},
     )
     assert resp.status_code == 200, resp.text
     return resp.json()["accounts"]["u"]
@@ -111,7 +119,7 @@ class TestRbacEnforcementOss:
         viewer_email = f"rbac-viewer-{uid}@test.agenta.ai"
         target_email = f"rbac-target-{uid}@agenta.ai"
 
-        owner = _create_account(admin_api, email=owner_email)
+        owner = _create_account(admin_api, email=owner_email, plan=_OWNER_PLAN)
         viewer = _create_account(admin_api, email=viewer_email)
 
         organization_id = _first_id(owner["organizations"])
@@ -178,7 +186,7 @@ class TestRbacEnforcementOss:
         viewer_email = f"rbac2-viewer-{uid}@test.agenta.ai"
         target_email = f"rbac2-target-{uid}@agenta.ai"
 
-        owner = _create_account(admin_api, email=owner_email)
+        owner = _create_account(admin_api, email=owner_email, plan=_OWNER_PLAN)
         viewer = _create_account(admin_api, email=viewer_email)
 
         organization_id = _first_id(owner["organizations"])
