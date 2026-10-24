@@ -639,6 +639,28 @@ describe("a local login file over the size limit", () => {
   });
 });
 
+describe("a local meta.json over the size limit", () => {
+  it("is refused and publishes nothing", async () => {
+    const home = tempHome();
+    writeLogin(home, REFRESHED);
+    writeFileSync(join(home, "meta.json"), " ".repeat(SUBSCRIPTION_FILE_MAX_BYTES + 1), {
+      mode: 0o600,
+    });
+    const lines: string[] = [];
+    const api = fakeApi();
+    const publisher = start({
+      home,
+      api,
+      intervalMs: 60_000,
+      log: (line) => lines.push(line),
+    });
+
+    await publisher.reconcile("interval");
+    assert.deepEqual(api.pushed, []);
+    assert.match(lines.join("\n"), /error=SubscriptionFileTooLargeError/);
+  });
+});
+
 describe("a run that is not wired for publication", () => {
   it("starts no publisher and says which part is missing", () => {
     const lines: string[] = [];

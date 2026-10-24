@@ -338,7 +338,10 @@ async function readSandboxFile(
 function readLocalSubscriptionFile(path: string): string | undefined {
   if (!existsSync(path)) return undefined;
   assertSubscriptionFileSize(statSync(path).size);
-  return readFileSync(path, "utf-8");
+  const bytes = readFileSync(path);
+  // The file can grow between the stat and the read.
+  assertSubscriptionFileSize(bytes.byteLength);
+  return bytes.toString("utf-8");
 }
 
 /** What a mutation asks the file layer to persist, alongside whatever the caller wants back. */
@@ -432,7 +435,9 @@ async function mutateLocal<T>(
     let currentMetaRaw: string | undefined;
     try {
       currentMetaRaw = readLocalSubscriptionFile(metaPath);
-    } catch {
+    } catch (err) {
+      // An oversized sidecar is refused, as on the sandbox path.
+      if (err instanceof SubscriptionFileTooLargeError) throw err;
       // An unreadable sidecar is the same as none: fall back to the expiry-only rule.
     }
     const outcome = await mutate(
