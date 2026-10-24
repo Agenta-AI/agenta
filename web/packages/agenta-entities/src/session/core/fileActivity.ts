@@ -160,8 +160,8 @@ function sandboxRootEnd(segments: readonly string[]): number {
  * The roots stripped here are the ones the runner builds (`services/runner`, `environment-setup.ts`
  * and `run-plan.ts`):
  *
- *     durable   local     /var/lib/agenta/mounts/<project_id>/<mount_id>
- *     durable   daytona   /home/sandbox/agenta/mounts/<project_id>/<mount_id>
+ *     durable   local     /var/lib/agenta/mounts/<scope_id>/<mount_id>
+ *     durable   daytona   /home/sandbox/agenta/mounts/<scope_id>/<mount_id>
  *     ephemeral local     /tmp/agenta-sandbox-agent-<rand>
  *     ephemeral daytona   /home/sandbox/agenta-<hex>
  *
