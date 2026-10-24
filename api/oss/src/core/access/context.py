@@ -5,8 +5,9 @@ request ends. `check_action_access` reads it; nothing else may build a principal
 a bare user id. Outside an authenticated tenant request it is `None`.
 """
 
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Iterator, Optional, Tuple
 
 from oss.src.core.access.dtos import RequestAccess
 
@@ -39,6 +40,20 @@ def reset_request_access(token: Tuple[Token, Token]) -> None:
 
 def get_request_memo() -> Optional[Dict[Any, Any]]:
     return _request_memo.get()
+
+
+@contextmanager
+def fresh_request_memo() -> Iterator[None]:
+    """Decisions inside read the current principal and membership, not the request
+    memo. For a recheck that runs while a response streams: the streaming generator
+    runs in a copy of the request context, so it shares the memo that the check at
+    connect filled, and that memo never sees a later revocation."""
+
+    token = _request_memo.set({})
+    try:
+        yield
+    finally:
+        _request_memo.reset(token)
 
 
 def clear_request_memo() -> None:
