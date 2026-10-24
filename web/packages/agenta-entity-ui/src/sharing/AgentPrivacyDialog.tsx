@@ -1,4 +1,4 @@
-import {useState, type ReactNode} from "react"
+import {useEffect, useState, type ReactNode} from "react"
 
 import type {
     AgentSharingState,
@@ -172,9 +172,16 @@ export const AgentPrivacyDialog = ({
     const visibility = sharing?.policy.visibility ?? "project"
     const ownerName = personName(owner) || ownerId || ""
     const ready = Boolean(sharing) && !loading && !loadError
-    // An open confirmation acts only on a state that is known and still the owner's: a re-read
-    // that fails, loads an account name, or takes the ownership away closes it.
-    const writable = ready && isOwner
+    // An open confirmation acts only inside the open dialog, on a state that is known and still
+    // the owner's: a re-read that fails, loads an account name, or takes the ownership away
+    // closes it.
+    const writable = open && ready && isOwner
+    // A confirmation left pending when the dialog closes does not come back on its own later.
+    useEffect(() => {
+        if (open) return
+        setConfirm(null)
+        setTransferOpen(false)
+    }, [open])
 
     const confirmVisibility = async () => {
         if (!confirm || !writable) return

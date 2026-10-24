@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import type {
     DisclosedConnection,
@@ -108,9 +108,16 @@ export const SessionShareDialog = ({
 
     const isOwner = sharing?.my_role === "owner"
     const ready = Boolean(sharing) && !loading && !loadError
-    // An open confirmation acts only on a state that is known and still the owner's: a re-read
-    // that fails, loads an account name, or takes the ownership away closes it.
-    const writable = ready && isOwner
+    // An open confirmation acts only inside the open dialog, on a state that is known and still
+    // the owner's: a re-read that fails, loads an account name, or takes the ownership away
+    // closes it.
+    const writable = open && ready && isOwner
+    // A confirmation left pending when the dialog closes does not come back on its own later.
+    useEffect(() => {
+        if (open) return
+        setWidening(null)
+        setStopOpen(false)
+    }, [open])
     const ownerId = sharing?.policy.owner_user_id ?? null
     const grants = sharing?.grants ?? []
     const visibility = sharing?.policy.visibility ?? "private"

@@ -90,7 +90,11 @@ describe("AgentPrivacyControl", () => {
 })
 
 describe("AgentPrivacyDialog", () => {
-    const renderDialog = (over: Partial<AgentPrivacyProps>, onSetVisibility = vi.fn()) => {
+    const renderDialog = (
+        over: Partial<AgentPrivacyProps>,
+        onSetVisibility = vi.fn(),
+        open = true,
+    ) => {
         const props: AgentPrivacyProps = {
             agentName: "Support triage",
             projectName: "Acme support",
@@ -109,7 +113,7 @@ describe("AgentPrivacyDialog", () => {
             ...over,
         }
         act(() =>
-            root.render(createElement(AgentPrivacyDialog, {...props, open: true, onOpenChange: () => {}})),
+            root.render(createElement(AgentPrivacyDialog, {...props, open, onOpenChange: () => {}})),
         )
         return onSetVisibility
     }
@@ -135,6 +139,24 @@ describe("AgentPrivacyDialog", () => {
         expect(shareButton()).toBeUndefined()
 
         await act(async () => undefined)
+        expect(onSetVisibility).not.toHaveBeenCalled()
+    })
+
+    it("a confirmation pending when the dialog closes does not come back once the state loads", () => {
+        const onSetVisibility = renderDialog({})
+        const card = Array.from(document.querySelectorAll<HTMLElement>('[role="radio"]')).find(
+            (radio) => radio.getAttribute("value") === "project",
+        )
+        act(() => card!.click())
+        expect(shareButton()).toBeTruthy()
+
+        renderDialog({loading: true}, onSetVisibility)
+        renderDialog({loading: true}, onSetVisibility, false)
+        renderDialog({}, onSetVisibility, false)
+        expect(shareButton()).toBeUndefined()
+        // Opening the dialog again starts with no confirmation.
+        renderDialog({}, onSetVisibility, true)
+        expect(shareButton()).toBeUndefined()
         expect(onSetVisibility).not.toHaveBeenCalled()
     })
 })

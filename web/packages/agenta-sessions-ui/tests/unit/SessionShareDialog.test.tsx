@@ -147,6 +147,21 @@ describe("SessionShareDialog", () => {
         expect(base.onUpsertGrant).not.toHaveBeenCalled()
     })
 
+    it("a disclosure pending when the dialog closes does not come back", () => {
+        const base = render()
+        pickBob()
+        act(() => buttonNamed(sessionSharingCopy.inviteButton)!.click())
+        expect(text()).toContain(shareDisclosureCopy.titlePeople(["Bob Lee"]))
+
+        render({...base, loading: true})
+        render({...base, loading: true, open: false})
+        render({...base, open: false})
+        expect(buttonNamed(shareDisclosureCopy.share)).toBeUndefined()
+        render({...base, open: true})
+        expect(buttonNamed(shareDisclosureCopy.share)).toBeUndefined()
+        expect(base.onUpsertGrant).not.toHaveBeenCalled()
+    })
+
     it("shows grants with role change and revoke only to the owner", () => {
         const grants = [{stream_id: "s1", user_id: bob.user_id, role: "participant" as const}]
         render({sharing: sharing({grants})})
