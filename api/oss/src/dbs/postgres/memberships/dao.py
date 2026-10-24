@@ -309,11 +309,24 @@ WHERE p.id = pm.project_id
   AND pm.role IS DISTINCT FROM 'owner'
 """
 
+# The new owner's missing workspace rows, as the signup writes them (and as
+# oss000000044 repairs them): the auth middleware checks a request that names a
+# workspace against workspace_members.
+_SEED_NEW_OWNER_WORKSPACE_ROWS_SQL = """
+INSERT INTO workspace_members (id, user_id, workspace_id, role, created_at, updated_at)
+SELECT gen_random_uuid(), :user_id, w.id, 'owner', now(), now()
+FROM workspaces w
+WHERE w.organization_id = :organization_id
+  AND NOT EXISTS (SELECT 1 FROM workspace_members wm
+                  WHERE wm.workspace_id = w.id AND wm.user_id = :user_id)
+"""
+
 # Run after the role swaps of an ownership transfer, by the app transfer and by the
 # admin transfer tool, with :organization_id and :user_id (the new owner).
 PROMOTE_NEW_OWNER_SQL = (
     _PROMOTE_NEW_OWNER_ORGANIZATION_ROWS_SQL,
     _PROMOTE_NEW_OWNER_WORKSPACE_ROWS_SQL,
+    _SEED_NEW_OWNER_WORKSPACE_ROWS_SQL,
     _PROMOTE_NEW_OWNER_PROJECT_ROWS_SQL,
 )
 

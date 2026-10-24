@@ -531,9 +531,14 @@ async def test_transfer_never_leaves_the_new_owner_below_owner():
     as `owner` on the organization, workspace and project rows, and the former owner
     takes the new owner's previous roles."""
 
-    seeded = await seed_organization(members={"a": "editor"})
+    seeded = await seed_organization(members={"a": "editor"}, workspaces=2)
     new_owner = seeded.user_ids["a"]
     try:
+        # The new owner has no row in the second workspace.
+        await execute(
+            "DELETE FROM workspace_members WHERE user_id = :u AND workspace_id = :w",
+            {"u": new_owner, "w": seeded.workspace_ids[1]},
+        )
         for table, scope, ids in (
             ("organization_members", "organization_id", [seeded.organization_id]),
             ("workspace_members", "workspace_id", seeded.workspace_ids),
