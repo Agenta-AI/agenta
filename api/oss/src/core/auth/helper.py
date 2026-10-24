@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any, Optional, Set
 
+from oss.src.core.auth.emails import normalize_email
 from oss.src.utils.exceptions import UnauthorizedException
 from oss.src.utils.caching import get_cache, set_cache
 from oss.src.utils.env import env
@@ -137,7 +138,10 @@ def matches_exact_or_subdomain(
 
 
 async def is_auth_info_blocked(auth_info: AuthInfo) -> bool:
-    if auth_info.email in await get_blocked_emails():
+    # Normalized on both sides: one blocked Gmail inbox also blocks its dot and
+    # `+tag` variants, which Gmail delivers to the same mailbox.
+    blocked_emails = {normalize_email(email) for email in await get_blocked_emails()}
+    if normalize_email(auth_info.email) in blocked_emails:
         return True
 
     domain = auth_info.domain or ""
