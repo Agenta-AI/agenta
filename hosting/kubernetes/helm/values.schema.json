@@ -182,16 +182,6 @@
             }
           }
         },
-        "extras": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "demos": {
-              "type": "string",
-              "description": "AGENTA_DEMOS / AGENTA_EXTRAS_DEMOS \u2014 seeds demo workspaces (EE)."
-            }
-          }
-        },
         "logging": {
           "type": "object",
           "additionalProperties": false,

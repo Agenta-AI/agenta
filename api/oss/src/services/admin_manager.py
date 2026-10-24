@@ -101,7 +101,6 @@ class ProjectRequest(BaseModel):
 # boundary via `ee.src.core.access.controls.get_role`.
 class OrganizationMembershipRequest(BaseModel):
     role: str
-    is_demo: bool
     #
     user_ref: Reference
     organization_ref: Reference
@@ -109,7 +108,6 @@ class OrganizationMembershipRequest(BaseModel):
 
 class WorkspaceMembershipRequest(BaseModel):
     role: str
-    is_demo: bool
     #
     user_ref: Reference
     workspace_ref: Reference
@@ -117,7 +115,6 @@ class WorkspaceMembershipRequest(BaseModel):
 
 class ProjectMembershipRequest(BaseModel):
     role: str
-    is_demo: bool
     #
     user_ref: Reference
     project_ref: Reference

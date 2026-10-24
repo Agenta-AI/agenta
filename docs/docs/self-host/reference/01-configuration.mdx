@@ -162,12 +162,6 @@ The two tracing variables bound one page of a span or trace list query: `POST /a
 `trace_id` returns whole traces and has no limit. A higher maximum lets one request use more API
 memory: agent run spans can be hundreds of KB each.
 
-## Agenta extras
-
-| Env var | env.py path | values.yaml path |
-|---|---|---|
-| `AGENTA_EXTRAS_DEMOS` | `agenta.extras.demos` | `agenta.extras.demos` |
-
 ## Agenta logging
 
 | Env var | env.py path | values.yaml path |
@@ -1505,7 +1499,6 @@ future major release.
 | `STRIPE_PRICING` | `AGENTA_BILLING_PRICING` |
 | `AGENTA_CACHE_ENABLED` | `AGENTA_API_CACHING_ENABLED` |
 | `AGENTA_CACHING_ENABLED` | `AGENTA_API_CACHING_ENABLED` |
-| `AGENTA_DEMOS` | `AGENTA_EXTRAS_DEMOS` |
 | `AGENTA_LOG_CONSOLE_ENABLED` | `AGENTA_LOGGING_CONSOLE_ENABLED` |
 | `AGENTA_LOG_CONSOLE_LEVEL` | `AGENTA_LOGGING_CONSOLE_LEVEL` |
 | `AGENTA_LOG_FILE_ENABLED` | `AGENTA_LOGGING_FILE_ENABLED` |

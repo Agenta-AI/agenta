@@ -1,89 +1,18 @@
-from typing import Dict, List, Union, Optional, Any
+from typing import List, Optional, Union
+from uuid import UUID
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
-from oss.src.utils.common import is_ee
 
-from oss.src.models.db_models import (
-    OrganizationDB,
-    WorkspaceDB,
-    ProjectDB,
-)
+from oss.src.core.access.dtos import RoleRequirement
 from oss.src.core.access.permissions.types import Permission, RequiredRole
-from oss.src.core.access.controls import (
-    get_role,
-    get_role_permissions,
-    get_controls_hash,
-)
+from oss.src.core.access.controls import get_controls_hash
+from oss.src.core.access.service import get_access_service
 
 from oss.src.services import db_manager
-from oss.src.services.db_manager import get_user_org_and_workspace_id
 
 
 log = get_module_logger(__name__)
-
-
-# These five take the one `project_members` row for the user being checked, which
-# is what `db_manager.get_project_member` returns. They took the project's whole
-# member list and scanned it in Python; the Demo Workspace projects hold 17,008
-# rows and every check read one of them.
-
-
-def _get_project_member_role(
-    member: Optional[Any],
-) -> Optional[str]:
-    """Return the member's role, or None when the user is not a member."""
-    return getattr(member, "role", None) if member else None
-
-
-def _is_demo_member(
-    member: Optional[Any],
-) -> bool:
-    """Return True if the user is a demo member (is_demo=True) in the project."""
-    return getattr(member, "is_demo", False) if member else False
-
-
-def _project_is_owner(
-    member: Optional[Any],
-) -> bool:
-    """True if the user is OWNER in the project."""
-    role = _get_project_member_role(member)
-    return role == RequiredRole.OWNER
-
-
-def _project_has_role(
-    role_to_check: RequiredRole,
-    member: Optional[Any],
-) -> bool:
-    """True if the user's role exactly matches role_to_check."""
-    role = _get_project_member_role(member)
-    return role == role_to_check if role is not None else False
-
-
-def _project_has_permission(
-    permission: Permission,
-    member: Optional[Any],
-) -> bool:
-    """True if the user's role implies the given permission.
-
-    Role permissions are resolved via access-controls (env-overridable via
-    AGENTA_ACCESS_ROLES); not the closed `Permission.default_permissions` table.
-    """
-    role = _get_project_member_role(member)
-    if role is None:
-        return False
-    role_slug = role.value if hasattr(role, "value") else role
-    role_permissions = get_role_permissions("project", role_slug)
-    # "*" is the wildcard owner permission — implies everything.
-    return "*" in role_permissions or permission.value in role_permissions
-
-
-async def _get_workspace_member_ids(workspace: WorkspaceDB) -> List[str]:
-    """
-    Return all user IDs that are members of the given workspace.
-    """
-    members = await db_manager.get_workspace_members(workspace_id=str(workspace.id))
-    return [str(m.user_id) for m in members]
 
 
 async def check_user_org_access(
@@ -102,85 +31,36 @@ async def check_user_org_access(
         return user_exists_in_organizations
 
 
-async def check_user_access_to_workspace(
-    user_org_workspace_data: Dict[str, Union[str, list]],
-    workspace: WorkspaceDB,
-    organization: OrganizationDB,
-) -> bool:
-    """
-    Check if a user has access to a specific workspace and the workspace organization.
-
-    Args:
-        user_org_workspace_data (Dict[str, Union[str, list]]): User-specific information.
-        workspace (WorkspaceDB): The workspace to check.
-        organization (OrganizationDB): The organization to check.
-
-    Returns:
-        bool: True if the user has access, False otherwise.
-
-    Raises:
-        ValueError: If the workspace does not belong to the organization.
-    """
-
-    workspace_organization_id = str(workspace.organization_id)
-    if (
-        workspace is None
-        or organization is None
-        or workspace_organization_id != str(organization.id)
-    ):
-        raise ValueError("Workspace does not belong to the provided organization")
-
-    # Check that the user belongs to the organization
-    has_organization_access = await check_user_org_access(
-        user_org_workspace_data, workspace_organization_id
-    )
-    if not has_organization_access:
-        # log.debug("User does not belong and have access to the organization")
-        return False
-
-    # Check that the user belongs to the workspace
-    user_id = user_org_workspace_data.get("id")
-    if user_id is None:
-        log.error("User ID is missing in user_org_workspace_data")
-        return False
-
-    workspace_members = await _get_workspace_member_ids(workspace)
-    if user_id not in workspace_members:
-        # log.debug("User does not belong to the workspace")
-        return False
-
-    # Check that the workspace is in the user's workspaces
-    has_access_to_workspace = any(
-        str(workspace.id) == workspace_id
-        for workspace_id in user_org_workspace_data["workspace_ids"]
-    )
-    return has_access_to_workspace
-
-
 async def check_action_access(
     user_uid: str,
     project_id: Optional[str] = None,
     permission: Optional[Permission] = None,
     role: Optional[Union[RequiredRole, str]] = None,
 ) -> bool:
-    """
-    Check if a user belongs to a workspace and has a certain permission.
+    """Check that a user is a member of a project and has a role or a permission there.
+
+    Membership comes from `MembershipsService.resolve` (one statement); the decision
+    from `AccessService.check_capability`. The boolean is cached per (user, project)
+    as before; every membership writer clears it.
 
     Args:
-        user_id (str): The user's ID.
-        object_id (str): The ID of the object to check.
-        type (str): The type of the object to check.
+        user_uid (str): The user's ID.
+        project_id (str): The ID of the project.
         permission (Permission): The permission to check.
         role (str): The role to check.
 
     Returns:
-        bool: True if the user belongs to the workspace and has the specified permission, False otherwise.
+        bool: True if the user is a member with the permission or role, else False.
     """
 
     if permission is None and role is None:
         raise Exception("Either permission or role must be provided")
     elif permission is not None and role is not None:
         raise Exception("Only one of permission or role must be provided")
+
+    # Read the registry before the cache, so a process that never registered the
+    # service fails on its first check, also on a cache hit.
+    access_service = get_access_service()
 
     cache_key = {
         "permission": permission.value if permission else None,
@@ -198,12 +78,27 @@ async def check_action_access(
     if has_permission is not None:
         return has_permission
 
-    user_org_workspace_data: dict = await get_user_org_and_workspace_id(user_uid)
-    has_permission = await check_rbac_permission(
-        user_org_workspace_data=user_org_workspace_data,
-        project_id=project_id,
-        role=role,
-        permission=permission,
+    if project_id is None:
+        # A caller that passes no project is a programming error, as before.
+        raise Exception("Project_ID is required to check object-level permissions")
+
+    try:
+        user_id = UUID(str(user_uid))
+        target_project_id = UUID(str(project_id))
+    except ValueError:
+        # A malformed id names no member and no project: deny, and do not cache.
+        return False
+
+    action = (
+        RoleRequirement(role=role.value if hasattr(role, "value") else str(role))
+        if role is not None
+        else permission
+    )
+
+    decision = await access_service.check_capability(
+        user_id=user_id,
+        project_id=target_project_id,
+        action=action,
     )
 
     await set_cache(
@@ -211,138 +106,7 @@ async def check_action_access(
         user_id=user_uid,
         namespace="check_action_access",
         key=cache_key,
-        value=has_permission,
+        value=decision.allowed,
     )
 
-    return has_permission
-
-
-async def check_rbac_permission(
-    user_org_workspace_data: Dict[str, Union[str, list]],
-    project_id: Optional[str] = None,
-    permission: Optional[Permission] = None,
-    role: Optional[Union[RequiredRole, str]] = None,
-) -> bool:
-    """
-    Check if a user belongs to a workspace and has a certain permission.
-
-    Args:
-        user_org_workspace_data (Dict[str, Union[str, list]]): User-specific information containing the id, uid, list of user organization and list of user workspace.
-        project_id (str): The ID of the project.
-        permission (Permission): The permission to check for.
-        role (str): The role to check for.
-
-    Returns:
-        bool: True if the user belongs to the workspace and has the specified permission, False otherwise.
-    """
-
-    assert project_id is not None, (
-        "Project_ID is required to check object-level permissions"
-    )
-
-    # Assert that either permission or role is provided, but not both
-    assert (permission is not None) or (role is not None), (
-        "Either 'permission' or 'role' must be provided, but neither is provided"
-    )
-    assert not ((permission is not None) and (role is not None)), (
-        "'permission' and 'role' cannot both be provided at the same time"
-    )
-
-    if project_id is not None:
-        project = await db_manager.get_project_by_id(project_id)
-        if project is None:
-            log.error(f"Project {project_id} not found during permission check")
-            return False
-
-        workspace = await db_manager.get_workspace(str(project.workspace_id))
-        organization = await db_manager.get_organization(str(project.organization_id))
-
-    workspace_has_access = await check_user_access_to_workspace(
-        user_org_workspace_data=user_org_workspace_data,
-        workspace=workspace,
-        organization=organization,
-    )
-    if not workspace_has_access:
-        # log.debug("User does not have access to the workspace")
-        return False
-
-    user_id = user_org_workspace_data["id"]
-    assert isinstance(user_id, str), "User ID must be a string"
-    has_access = await check_project_has_role_or_permission(
-        project, user_id, role, permission
-    )
-    return has_access
-
-
-async def check_project_has_role_or_permission(
-    project: ProjectDB,
-    user_id: str,
-    role: Optional[Union[RequiredRole, str]] = None,
-    permission: Optional[Permission] = None,
-):
-    """Check if a user has the provided role or permission in a project.
-
-    Args:
-        project (ProjectDB): The project to check if the user has permissions to
-        user_id (str): The ID of the user
-        role (Optional[str], optional): The role to check for. Defaults to None.
-        permission (Optional[str], optional): The permission to check for. Defaults to None.
-    """
-
-    assert role is not None or permission is not None, (
-        "Either role or permission must be provided"
-    )
-
-    # One row, by (project_id, user_id). Every check below reads this user's
-    # membership only, and the previous read of the project's whole member list
-    # was a sequential scan of up to 17,008 rows per request.
-    project_member = await db_manager.get_project_member(
-        project_id=str(project.id),
-        user_id=user_id,
-    )
-
-    # Check if user is a demo member - demo members always have restricted access
-    # regardless of the organization's RBAC setting
-    is_demo = _is_demo_member(project_member)
-
-    if not is_demo and is_ee():
-        # EE only: gate enforcement on the org's RBAC entitlement. If RBAC is not
-        # entitled (free/legacy plans), grant full access — the historic bypass.
-        # The flag is per-org; project it onto the target project's org so
-        # cross-org checks read the correct plan's RBAC setting. OSS has no
-        # subscriptions and always enforces, so it skips this gate entirely.
-        from ee.src.core.access.entitlements.service import (  # noqa: PLC0415
-            check_entitlements,
-            scope_from,
-            Flag,
-        )
-
-        check, _, _ = await check_entitlements(
-            key=Flag.RBAC,
-            scope=scope_from(organization_id=project.organization_id),
-        )
-
-        if not check:
-            return True
-
-    # Check if user is organization owner - organization owners always have full permissions
-    organization = await db_manager.get_organization(str(project.organization_id))
-    if organization and str(organization.owner_id) == str(user_id):
-        return True
-
-    # OWNER role in workspace members also passes (but demo members can't be owners by design)
-    if _project_is_owner(project_member):
-        return True
-
-    if role is not None:
-        role_slug = role.value if hasattr(role, "value") else role
-        if get_role("project", role_slug) is None:
-            raise Exception("Invalid role specified")
-        return _project_has_role(role, project_member)
-
-    if permission is not None:
-        if permission not in list(Permission):
-            raise Exception("Invalid permission specified")
-        return _project_has_permission(permission, project_member)
-
-    return False
+    return decision.allowed

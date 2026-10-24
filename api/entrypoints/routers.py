@@ -24,6 +24,7 @@ from oss.src.utils.helpers import (
 )
 
 # Engines
+from entrypoints.access import bootstrap_access
 from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
     get_analytics_engine,
@@ -783,6 +784,9 @@ llm_endpoints_dao = LLMEndpointsDAO(engine=_transactions_engine)
 _t_daos_done = time.perf_counter() - _t_daos
 _startup(f"[STARTUP] DAO initialization completed (+{_t_daos_done:.3f}s)")
 _t_services = time.perf_counter()
+
+# Membership and access first: every permission check goes through them.
+bootstrap_access()
 
 vault_service = VaultService(
     secrets_dao=secrets_dao,

@@ -1,4 +1,4 @@
-from typing import Any, Type, Optional, Union
+from typing import Any, Iterable, List, Optional, Sequence, Type, Union
 from random import random
 from asyncio import sleep
 
@@ -73,6 +73,86 @@ def _pack(
         raise TypeError("Cache key must be str or dict")
 
     return f"cache:p:{project_id}:u:{user_id}:{namespace}:{key}"
+
+
+def user_keys_to_clear(
+    keys: Iterable[Union[str, bytes]],
+    *,
+    project_ids: Sequence[str],
+    namespaces: Sequence[str],
+    projectless_namespaces: Sequence[str] = (),
+) -> List[Union[str, bytes]]:
+    """From one user's keys (`cache:p:<project>:u:<user>:<namespace>:<key>`), the ones
+    that `invalidate_cache(namespace=n, project_id=p, user_id=u)` would clear for every
+    (n, p) of `namespaces` x `project_ids`, plus the project-less keys of
+    `projectless_namespaces` (the padded `------------` project part)."""
+
+    projects = {_pack(project_id=p).split(":")[2] for p in project_ids}
+    names = set(namespaces)
+    projectless = set(projectless_namespaces)
+    empty_project = "-" * 12
+    selected = []
+    for key in keys:
+        text = key.decode() if isinstance(key, bytes) else key
+        parts = text.split(":", 6)
+        if len(parts) < 6 or parts[0] != "cache" or parts[1] != "p":
+            continue
+        project, namespace = parts[2], parts[5]
+        if (project in projects and namespace in names) or (
+            project == empty_project and namespace in projectless
+        ):
+            selected.append(key)
+    return selected
+
+
+async def invalidate_user_cache(
+    *,
+    user_id: str,
+    project_ids: Sequence[str],
+    namespaces: Sequence[str],
+    projectless_namespaces: Sequence[str] = (),
+) -> Optional[bool]:
+    """Clear one user's entries in many projects with ONE scan of the user's keys,
+    instead of one pattern scan per (project, namespace). Clears the same keys as
+    the per-pair `invalidate_cache` calls (see `user_keys_to_clear`). Returns None
+    on a Redis failure, like `invalidate_cache`."""
+
+    if not env.agenta.api.caching.enabled:
+        return None
+
+    try:
+        # Every project of this user: `_pack` pads a missing project, so the
+        # project part is a glob here.
+        user_part = _pack(user_id=user_id).split(":")[4]
+        pattern = f"cache:p:*:u:{user_part}:*"
+        cursor = 0
+        keys: list = []
+        while True:
+            cursor, batch = await _cache_engine.scan(
+                cursor=cursor, match=pattern, count=AGENTA_CACHE_SCAN_BATCH_SIZE
+            )
+            keys.extend(batch)
+            if cursor == 0:
+                break
+
+        selected = user_keys_to_clear(
+            keys,
+            project_ids=project_ids,
+            namespaces=namespaces,
+            projectless_namespaces=projectless_namespaces,
+        )
+        for i in range(0, len(selected), AGENTA_CACHE_DELETE_BATCH_SIZE):
+            await _cache_engine.delete(
+                *selected[i : i + AGENTA_CACHE_DELETE_BATCH_SIZE]
+            )
+
+        return True
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        log.warn("[cache] FLUSH USER", user_id=user_id, project_count=len(project_ids))
+        log.warn(e)
+
+        return None
 
 
 def pack(
