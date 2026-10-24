@@ -24,7 +24,9 @@ import { runWithStallRetry } from "./lifecycle/stall-retry.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
 import {
   isRunnerShutdownAbort,
+  isTurnDisplacedAbort,
   isUserStopAbort,
+  TURN_DISPLACED_ABORT_REASON,
   USER_STOP_ABORT_REASON,
 } from "./sessions/stop-signal.ts";
 import { randomUUID, timingSafeEqual } from "node:crypto";
@@ -822,8 +824,13 @@ async function runAndStreamWithApiBaseResolved(
   // the coordination plane refuses must never replace the admitted turn's handle, or a Stop for
   // the live turn reaches the refused one and the live turn keeps running.
   //
-  // A run with no project scope is not registered. `poolKeyFor` forms no key for it either, so
-  // it can never park, and Stop falls back to the heartbeat path exactly as it did before.
+  // Registration itself is UNCONDITIONAL, and a run with no project scope is registered too. It
+  // stores an unknown project, and an unknown project matches any caller (`findExecution`,
+  // `sessions/execution-registry.ts`), so a `POST /cancel` from the API's project still reaches
+  // it. What such a run cannot do is PARK — `poolKeyFor` forms no key for it — and that is a
+  // keep-alive limit, not a control-channel one. Before the durable command plane existed, this
+  // run's Stop could only arrive on the heartbeat; #7760 is about that path no longer pretending
+  // to be one.
 
   if (sessionOwned) {
     try {
@@ -836,10 +843,14 @@ async function runAndStreamWithApiBaseResolved(
         platformCredentialForRequest(request),
         () => {
           markInterrupted?.(
-            "the platform reported this turn is no longer current (stopped, taken over, or " +
-              "declared lost)",
+            "the platform reported this turn is no longer current (another turn took the " +
+              "session over, or the platform declared it lost)",
           );
-          controller.abort(USER_STOP_ABORT_REASON);
+          // NOT a user Stop. Every real Stop arrives as a durable command on `POST /cancel` and
+          // aborts through the execution registry with `USER_STOP_ABORT_REASON`; what is left on
+          // this path is displacement, and saying otherwise writes a Stop nobody performed into
+          // the transcript. See `sessions/stop-signal.ts`.
+          controller.abort(TURN_DISPLACED_ABORT_REASON);
         },
         {
           name: proposeSessionName(request),
@@ -954,11 +965,13 @@ async function runAndStreamWithApiBaseResolved(
       // refreshing it for the turn's lifetime — never the admin key. Project scope is
       // resolved server-side from the credential, so no project_id rides the request.
       //
-      // onInterrupted (W7.4): a cancel/steer/kill against this session (via
+      // onInterrupted (W7.4): a steer/kill against this session (via
       // `POST /sessions/streams/` or the runner's own `/kill`) drops this turn's alive lock.
       // The next heartbeat surfaces that as `is_current_turn: false`; wiring it to
       // `controller.abort()` is what makes the control-plane signal actually reach this
       // in-flight run — before this, a session-owned run's controller was never aborted.
+      // The abort is labelled a DISPLACEMENT, not a Stop: a real Stop is delivered as a durable
+      // command straight to the run, so anything still arriving here was not one.
       // Awaited (WP3) so the first heartbeat's stream_id is ready before the turn starts.
       //
       // The beat also proposes the two things a headless session otherwise never gets: a name
@@ -1177,6 +1190,15 @@ async function runAndStreamWithApiBaseResolved(
         isRunnerShutdownAbort(controller.signal) &&
         (result.stopReason === "cancelled" || !terminalRecordEmitted);
       if (endedByShutdown) result = { ok: false, error: RUNNER_RESTARTING_MESSAGE };
+      // The platform reported this turn no longer current: another turn took the session over,
+      // or the API's watchdog declared it lost. Nobody at the keyboard stopped it, so nothing
+      // below may write it down as a Stop, and the backstop must not claim the user cancelled it.
+      // Its own error (an acquire that saw the abort) is kept as the ending; only the `cancelled`
+      // marker and the record code differ from what a user Stop gets.
+      const endedByDisplaced =
+        isTurnDisplacedAbort(controller.signal) &&
+        !endedByShutdown &&
+        !terminalRecordEmittedByRun;
       // `runTurn` normally emits `done` itself. Acquisition can fail before `runTurn` starts,
       // though, and a cooperative Stop during a cold sandbox create reaches exactly that path.
       // Close any failed run that emitted no terminal record; preserve the Stop marker when the
@@ -1192,7 +1214,7 @@ async function runAndStreamWithApiBaseResolved(
         if (!userStopped && !result.ok && persistError) {
           persistError(
             result.error ?? "Agent run failed.",
-            endedByShutdown ? "execution_lost" : undefined,
+            endedByShutdown || endedByDisplaced ? "execution_lost" : undefined,
           );
         }
         persistTerminal(userStopped ? "cancelled" : undefined);
@@ -1261,6 +1283,10 @@ async function runAndStreamWithApiBaseResolved(
     const userStopped = isUserStopAbort(controller.signal);
     // Same read-before-write as the settled branch: `persistTerminal` below sets the flag.
     const terminalRecordEmittedByRun = terminalRecordEmitted;
+    // The platform took the turn away (see the settled branch): the ending is an error record
+    // with the lost code, never the user-Stop rewriting above.
+    const endedByDisplaced =
+      isTurnDisplacedAbort(controller.signal) && !terminalRecordEmitted;
     const reported = endedByShutdown ? RUNNER_RESTARTING_MESSAGE : message;
     // A cooperative Stop that aborted acquire BEFORE `acquireEnvironmentOnce`'s try block
     // (environment.ts ~460/~467) throws out of the whole run and lands here, not in the settled
@@ -1286,7 +1312,10 @@ async function runAndStreamWithApiBaseResolved(
       !endedByShutdown &&
       !terminalRecordEmittedByRun;
     if (persistError && !stoppedBeforeTerminal) {
-      persistError(reported, endedByShutdown ? "execution_lost" : undefined);
+      persistError(
+        reported,
+        endedByShutdown || endedByDisplaced ? "execution_lost" : undefined,
+      );
     }
     if (!terminalRecordEmitted && persistTerminal) {
       // Keyed on the same verdict, never on the bare Stop label: the transcript's ending has to

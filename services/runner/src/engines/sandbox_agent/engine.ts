@@ -41,16 +41,19 @@ export function isTurnIndexTaken(result: AgentRunResult): boolean {
  * policy), so the disconnect check needs the separate `clientGone` flag. A wedged sandbox that
  * failed its turn must be destroyed, not reconnected on the next one.
  *
- * A USER STOP IS THE ONE ABORT THAT MAY PARK. Stop and Delete are different operations: Stop
- * keeps the session, the sandbox, and the harness session resumable. Three things must all be
- * true, and each answers a different question:
+ * A COOPERATIVE CANCEL IS THE ONE ABORT THAT MAY PARK. Stop and Delete are different operations:
+ * Stop keeps the session, the sandbox, and the harness session resumable. Three things must all
+ * be true, and each answers a different question:
  *
- *  - `isCooperativeCancelAbort(signal)` — WAS this abort a cooperative Stop? The signal is
- *    labelled at the one call site that means it (`server.ts`, the heartbeat interrupt). Reading
- *    `signal.aborted` alone cannot answer this, and inferring it from the stop reason would let
- *    any future `controller.abort()` park a sandbox nobody checked. See `sessions/stop-signal.ts`.
- *    A shutdown cancel carries its own label and parks the same way; the shutdown's teardown
- *    step then deletes the parked sandbox.
+ *  - `isCooperativeCancelAbort(signal)` — WAS this abort a cooperative cancel? The signal is
+ *    labelled by the call site that means it: a user Stop arrives as a durable command and is
+ *    labelled by the control channel's applier (`server.ts`'s execution registry), a platform
+ *    displacement is labelled by the heartbeat interrupt (`server.ts`), and a shutdown carries
+ *    its own label. Reading `signal.aborted` alone cannot answer this, and inferring it from the
+ *    stop reason would let any future `controller.abort()` park a sandbox nobody checked. See
+ *    `sessions/stop-signal.ts`.
+ *    Each of the three parks the same way: a displaced turn's session is picked up by the turn
+ *    that took it over, and the shutdown's teardown step then deletes the parked sandbox.
  *  - `result.stopReason === "cancelled"` — did the TURN actually end as a cancel?
  *  - `result.cancelSettled` — did the HARNESS confirm it stopped? See `cancel-turn.ts`.
  *
