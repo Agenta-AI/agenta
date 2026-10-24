@@ -414,6 +414,20 @@ describe("a rewind confirmation open when access goes", () => {
         expect(confirm).not.toHaveBeenCalled()
     })
 
+    it("its OK re-runs nothing once the chat was taken away (the screen unmounted)", async () => {
+        const confirm = vi.fn()
+        calls.rewind.mockReturnValue({confirm, sideEffects: ["send_email"], restoreText: undefined})
+        await render({readOnly: null, canSend: true})
+        await click("rewind")
+        const {onOk} = dialog.confirm.mock.calls[0][0] as {onOk: () => void}
+
+        // The sharing re-read answers 404: the chat screen replaces the conversation.
+        await act(async () => root.render(<Provider store={createStore()}>{null}</Provider>))
+        await act(async () => onOk())
+
+        expect(confirm).not.toHaveBeenCalled()
+    })
+
     it("with access kept, its OK re-runs the turn", async () => {
         const confirm = vi.fn()
         calls.rewind.mockReturnValue({confirm, sideEffects: ["send_email"], restoreText: undefined})

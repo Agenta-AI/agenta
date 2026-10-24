@@ -301,6 +301,13 @@ export const LiveConversation = ({
     // it asks the gate as it is then, not as it was when the dialog opened.
     const lockedRef = useRef(locked)
     lockedRef.current = locked
+    // A screen that is gone (the chat was taken away) answers every late callback as locked.
+    useEffect(() => {
+        lockedRef.current = locked
+        return () => {
+            lockedRef.current = true
+        }
+    }, [locked])
     const disabled = conversation.isHydrating || modelBlocked || walletPending || locked
     useEffect(() => {
         if (disabled) return

@@ -107,6 +107,10 @@ export const SessionShareDialog = ({
     const nameOf = (userId: string) => personName(byId.get(userId)) || userId
 
     const isOwner = sharing?.my_role === "owner"
+    const ready = Boolean(sharing) && !loading && !loadError
+    // An open confirmation acts only on a state that is known and still the owner's: a re-read
+    // that fails, loads an account name, or takes the ownership away closes it.
+    const writable = ready && isOwner
     const ownerId = sharing?.policy.owner_user_id ?? null
     const grants = sharing?.grants ?? []
     const visibility = sharing?.policy.visibility ?? "private"
@@ -167,7 +171,7 @@ export const SessionShareDialog = ({
     }
 
     const confirmWidening = async () => {
-        if (!widening) return
+        if (!widening || !writable) return
         if (widening.kind === "invite") await invite()
         else if (widening.kind === "raise") {
             const {userId} = widening
@@ -194,6 +198,7 @@ export const SessionShareDialog = ({
     }
 
     const stopSharing = async () => {
+        if (!writable) return
         await run("stop", onOnlyMe)
         setStopOpen(false)
     }
@@ -204,7 +209,6 @@ export const SessionShareDialog = ({
     }
 
     const owner = ownerId ? byId.get(ownerId) : undefined
-    const ready = Boolean(sharing) && !loading && !loadError
 
     const footer = ready ? (
         <>
@@ -480,7 +484,7 @@ export const SessionShareDialog = ({
             </SharingSurface>
 
             <ShareDisclosureNotice
-                open={widening !== null}
+                open={writable && widening !== null}
                 onOpenChange={(next) => {
                     if (!next && !saving) setWidening(null)
                 }}
@@ -491,7 +495,10 @@ export const SessionShareDialog = ({
                 confirming={saving !== null}
             />
 
-            <AlertDialog open={stopOpen} onOpenChange={(next) => !saving && setStopOpen(next)}>
+            <AlertDialog
+                open={writable && stopOpen}
+                onOpenChange={(next) => !saving && setStopOpen(next)}
+            >
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>{copy.stopTitle}</AlertDialogTitle>

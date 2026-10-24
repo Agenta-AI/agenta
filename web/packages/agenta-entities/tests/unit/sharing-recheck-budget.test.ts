@@ -150,6 +150,35 @@ describe("one sharing read per open session per 60 s", () => {
         second()
     })
 
+    it("a focus after a failed first read waits for the budget too", async () => {
+        sharing.fetchSessionSharing.mockRejectedValue(notFound)
+        const close = open(nextSession())
+        await advance(0)
+        expect(requests()).toBe(1)
+
+        for (let i = 0; i < 3; i += 1) {
+            focusManager.setFocused(false)
+            focusManager.setFocused(true)
+            await advance(10_000)
+        }
+        expect(requests()).toBe(1)
+
+        await advance(SESSION_SHARING_RECHECK_MS)
+        expect(requests()).toBe(2)
+        close()
+    })
+
+    it("a network reconnect inside the budget reads nothing", async () => {
+        const {onlineManager} = await import("@tanstack/react-query")
+        const close = open(nextSession())
+        await advance(0)
+        onlineManager.setOnline(false)
+        onlineManager.setOnline(true)
+        await advance(0)
+        expect(requests()).toBe(1)
+        close()
+    })
+
     it("a 404 is not retried", async () => {
         sharing.fetchSessionSharing.mockRejectedValue(notFound)
         const close = open(nextSession())

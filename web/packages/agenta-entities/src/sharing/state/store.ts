@@ -65,6 +65,11 @@ const lastSessionSharingRead = (query: Pick<SessionSharingQuery, "state">): numb
 const sessionSharingStaleTime = (query: SessionSharingQuery): number =>
     lastSessionSharingRead(query) + SESSION_SHARING_RECHECK_MS - query.state.dataUpdatedAt
 
+/** Focus and reconnect re-read only once the budget ran out, also when no read ever answered
+ * (TanStack counts missing data as stale whatever the stale time). */
+const sessionSharingBudgetSpent = (query: SessionSharingQuery): boolean =>
+    Date.now() - lastSessionSharingRead(query) >= SESSION_SHARING_RECHECK_MS
+
 const isClientError = (error: unknown): boolean => {
     const status = (error as {statusCode?: unknown} | null | undefined)?.statusCode
     return typeof status === "number" && status >= 400 && status < 500
@@ -98,7 +103,8 @@ export const sessionSharingQueryAtomFamily = atomFamily((sessionId: string) =>
             // Only the open session subscribes, so only it polls. The poll restarts at every
             // read, so a focus or forced read does not add a second one inside the budget.
             refetchInterval: SESSION_SHARING_RECHECK_MS,
-            refetchOnWindowFocus: true,
+            refetchOnWindowFocus: sessionSharingBudgetSpent,
+            refetchOnReconnect: sessionSharingBudgetSpent,
             retry: (failureCount: number, error: Error) =>
                 !isClientError(error) && failureCount < 1,
         }

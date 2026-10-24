@@ -112,8 +112,9 @@ const SessionShareDialogBound = ({
             disclosure={sharingQuery.data?.disclosure}
             providerLabel={labels.label}
             // The accounts are named by display name: the dialog waits for them like for the state.
+            // A failed re-read is a load error too, with the last state in hand: no write acts on it.
             loading={sharingQuery.isPending || labels.pending}
-            loadError={(sharingQuery.isError && !sharingQuery.data) || labels.failed}
+            loadError={sharingQuery.isError || labels.failed}
             onRetry={() => {
                 if (sharingQuery.isError) void sharingQuery.refetch()
                 labels.retry()

@@ -172,9 +172,12 @@ export const AgentPrivacyDialog = ({
     const visibility = sharing?.policy.visibility ?? "project"
     const ownerName = personName(owner) || ownerId || ""
     const ready = Boolean(sharing) && !loading && !loadError
+    // An open confirmation acts only on a state that is known and still the owner's: a re-read
+    // that fails, loads an account name, or takes the ownership away closes it.
+    const writable = ready && isOwner
 
     const confirmVisibility = async () => {
-        if (!confirm) return
+        if (!confirm || !writable) return
         await writes.setVisibility(confirm)
         setConfirm(null)
     }
@@ -328,7 +331,7 @@ export const AgentPrivacyDialog = ({
             </SharingSurface>
 
             <AlertDialog
-                open={confirm === "private"}
+                open={writable && confirm === "private"}
                 onOpenChange={(next) => !next && !writes.saving && setConfirm(null)}
             >
                 <AlertDialogContent>
@@ -369,7 +372,7 @@ export const AgentPrivacyDialog = ({
             </AlertDialog>
 
             <ShareDisclosureNotice
-                open={confirm === "project"}
+                open={writable && confirm === "project"}
                 onOpenChange={(next) => !next && !writes.saving && setConfirm(null)}
                 target={{kind: "agent", agentName, projectName}}
                 disclosure={disclosure}
@@ -379,7 +382,7 @@ export const AgentPrivacyDialog = ({
             />
 
             <AgentTransferDialog
-                open={transferOpen}
+                open={writable && transferOpen}
                 onOpenChange={setTransferOpen}
                 agentName={agentName}
                 projectName={projectName}

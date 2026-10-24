@@ -125,6 +125,28 @@ describe("SessionShareDialog", () => {
         expect(onUpsertGrant).toHaveBeenCalledWith("u-bob", "viewer")
     })
 
+    it("an open disclosure closes and writes nothing once the state is not known or not the owner's", async () => {
+        const base = render()
+        pickBob()
+        act(() => buttonNamed(sessionSharingCopy.inviteButton)!.click())
+        expect(text()).toContain(shareDisclosureCopy.titlePeople(["Bob Lee"]))
+
+        // A re-read fails while the disclosure is open: the last state is in hand, not known.
+        render({...base, loadError: true})
+        expect(text()).not.toContain(shareDisclosureCopy.titlePeople(["Bob Lee"]))
+        expect(buttonNamed(shareDisclosureCopy.share)).toBeUndefined()
+
+        // A new account name is loading.
+        render({...base, loading: true})
+        expect(buttonNamed(shareDisclosureCopy.share)).toBeUndefined()
+
+        // The ownership went to someone else.
+        render({...base, sharing: sharing({my_role: "participant"})})
+        expect(buttonNamed(shareDisclosureCopy.share)).toBeUndefined()
+        await flush()
+        expect(base.onUpsertGrant).not.toHaveBeenCalled()
+    })
+
     it("shows grants with role change and revoke only to the owner", () => {
         const grants = [{stream_id: "s1", user_id: bob.user_id, role: "participant" as const}]
         render({sharing: sharing({grants})})

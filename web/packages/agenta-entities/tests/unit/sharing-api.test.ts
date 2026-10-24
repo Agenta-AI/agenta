@@ -387,6 +387,7 @@ describe("the open session's sharing state", () => {
 
         expect(SESSION_SHARING_RECHECK_MS).toBe(60_000)
         expect(observer?.options.refetchInterval).toBe(SESSION_SHARING_RECHECK_MS)
-        expect(observer?.options.refetchOnWindowFocus).toBe(true)
+        // A function: focus re-reads only once the 60 s budget ran out (sharing-recheck-budget).
+        expect(typeof observer?.options.refetchOnWindowFocus).toBe("function")
     })
 })

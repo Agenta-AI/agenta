@@ -4,8 +4,10 @@ import type {AgentSharingState} from "@agenta/entities/sharing"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 
+import {shareDisclosureCopy} from "@agenta/sessions-ui/sharing"
+
 import {AgentPrivacyControl} from "../../src/sharing/AgentPrivacyControl"
-import type {AgentPrivacyProps} from "../../src/sharing/AgentPrivacyDialog"
+import {AgentPrivacyDialog, type AgentPrivacyProps} from "../../src/sharing/AgentPrivacyDialog"
 import {agentSharingCopy} from "../../src/sharing/copy"
 
 const alice = {user_id: "u-alice", email: "alice@acme.com", name: "Alice Martin"}
@@ -84,5 +86,55 @@ describe("AgentPrivacyControl", () => {
             expect(trigger.textContent).toContain(agentSharingCopy.triggerShared)
             expect(trigger.textContent).not.toContain(agentSharingCopy.triggerPrivate)
         }
+    })
+})
+
+describe("AgentPrivacyDialog", () => {
+    const renderDialog = (over: Partial<AgentPrivacyProps>, onSetVisibility = vi.fn()) => {
+        const props: AgentPrivacyProps = {
+            agentName: "Support triage",
+            projectName: "Acme support",
+            sharing: state(),
+            disclosure: null,
+            owner: alice,
+            members: [],
+            membersSearch: "",
+            onMembersSearch: () => {},
+            onSetVisibility: async (visibility) => {
+                onSetVisibility(visibility)
+                return "ok"
+            },
+            onTransfer: async () => "ok",
+            onTakeOwnership: async () => "ok",
+            ...over,
+        }
+        act(() =>
+            root.render(createElement(AgentPrivacyDialog, {...props, open: true, onOpenChange: () => {}})),
+        )
+        return onSetVisibility
+    }
+    const shareButton = () =>
+        Array.from(document.querySelectorAll("button")).find(
+            (b) => b.textContent?.trim() === shareDisclosureCopy.shareWithProject,
+        )
+
+    it("an open share confirmation closes and writes nothing once the state is not known or not the owner's", async () => {
+        const onSetVisibility = renderDialog({})
+        const card = Array.from(document.querySelectorAll<HTMLElement>('[role="radio"]')).find(
+            (radio) => radio.getAttribute("value") === "project",
+        )
+        expect(card).toBeTruthy()
+        act(() => card!.click())
+        expect(shareButton()).toBeTruthy()
+
+        renderDialog({loadError: true}, onSetVisibility)
+        expect(shareButton()).toBeUndefined()
+        renderDialog({loading: true}, onSetVisibility)
+        expect(shareButton()).toBeUndefined()
+        renderDialog({sharing: state({my_role: "viewer"})}, onSetVisibility)
+        expect(shareButton()).toBeUndefined()
+
+        await act(async () => undefined)
+        expect(onSetVisibility).not.toHaveBeenCalled()
     })
 })
