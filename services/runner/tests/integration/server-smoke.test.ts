@@ -157,6 +157,70 @@ describe("server integration — in-process server with fake engine", () => {
 });
 
 // ---------------------------------------------------------------------------
+// The direct Stop route (#7760)
+// ---------------------------------------------------------------------------
+
+describe("control route — direct Stop", () => {
+  it("POST /cancel stops a run that resolved no project scope", async () => {
+    // #7760: a run with no project scope is registered with an UNKNOWN project, which matches any
+    // caller, so `POST /cancel` reaches it here. Before the durable command plane this run's only
+    // Stop came from the heartbeat; the point of the label split is that this route is now the
+    // way a user Stop arrives for it too.
+    const [registry, stopSignal] = await Promise.all([
+      import("../../src/sessions/execution-registry.ts"),
+      import("../../src/sessions/stop-signal.ts"),
+    ]);
+    const previousApi = process.env.AGENTA_API_INTERNAL_URL;
+    // The outcome report is fire-and-forget; point it at a closed port so the test never waits on
+    // a name that does not resolve.
+    process.env.AGENTA_API_INTERNAL_URL = "http://127.0.0.1:1";
+
+    const controller = new AbortController();
+    const sessionId = "sess-unscoped";
+    const turnId = "turn-unscoped";
+    registry.registerExecution({
+      projectId: undefined,
+      sessionId,
+      turnId,
+      startedAt: Date.now(),
+      abort: (reason = stopSignal.USER_STOP_ABORT_REASON) =>
+        controller.abort(reason),
+    });
+
+    const s = await listen(okRun);
+    try {
+      const res = await fetch(`${s.url}/cancel`, {
+        method: "POST",
+        headers: { ...AUTH, "content-type": "application/json" },
+        body: JSON.stringify({
+          commandId: "cmd-unscoped",
+          projectId: "11111111-1111-4111-8111-111111111111",
+          sessionId,
+          targetTurnId: turnId,
+          createdAt: new Date(Date.now() + 1_000).toISOString(),
+        }),
+      });
+
+      assert.equal(
+        res.status,
+        202,
+        "a run with no project scope must be reachable by the direct Stop route",
+      );
+      assert.equal(
+        stopSignal.isUserStopAbort(controller.signal),
+        true,
+        "and it must be stopped as a user Stop, which is what keeps a warm session warm",
+      );
+    } finally {
+      registry.unregisterExecution(sessionId, turnId);
+      await s.close();
+      if (previousApi === undefined) delete process.env.AGENTA_API_INTERNAL_URL;
+      else process.env.AGENTA_API_INTERNAL_URL = previousApi;
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Session persistence round-trip (skipped when Redis is absent)
 // ---------------------------------------------------------------------------
 
