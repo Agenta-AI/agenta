@@ -525,6 +525,49 @@ async def test_transfer_ownership_seeds_the_new_owner_in_every_project():
         await delete_seeded_organization(seeded)
 
 
+async def test_transfer_never_leaves_the_new_owner_below_owner():
+    """The former owner's rows held `viewer` (the admin accounts path wrote the column
+    default). The swap moves those roles to the new owner; the new owner must still end
+    as `owner` on the organization, workspace and project rows, and the former owner
+    takes the new owner's previous roles."""
+
+    seeded = await seed_organization(members={"a": "editor"})
+    new_owner = seeded.user_ids["a"]
+    try:
+        for table, scope, ids in (
+            ("organization_members", "organization_id", [seeded.organization_id]),
+            ("workspace_members", "workspace_id", seeded.workspace_ids),
+            ("project_members", "project_id", seeded.project_ids),
+        ):
+            await execute(
+                f"UPDATE {table} SET role = 'viewer' "
+                f"WHERE user_id = :u AND {scope} = ANY(CAST(:ids AS uuid[]))",
+                {"u": seeded.owner_id, "ids": ids},
+            )
+
+        await _dao().transfer_ownership(
+            organization_id=seeded.organization_id,
+            new_owner_id=new_owner,
+            current_owner_id=seeded.owner_id,
+        )
+
+        assert await _organization_roles(seeded.organization_id, new_owner) == ["owner"]
+        assert await _workspace_roles(seeded.workspace_ids, new_owner) == {
+            w: "owner" for w in seeded.workspace_ids
+        }
+        assert await _project_roles(seeded.project_ids, new_owner) == {
+            p: ["owner"] for p in seeded.project_ids
+        }
+        assert await _organization_roles(seeded.organization_id, seeded.owner_id) == [
+            "editor"
+        ]
+        assert await _project_roles(seeded.project_ids, seeded.owner_id) == {
+            p: ["editor"] for p in seeded.project_ids
+        }
+    finally:
+        await delete_seeded_organization(seeded)
+
+
 async def test_app_and_admin_transfers_leave_the_same_rows():
     import oss.src.services.db_manager as db_manager
 

@@ -38,6 +38,7 @@ _REPAIR_CONSTANTS = (
     "_DELETE_DEMO_ONLY_MEMBERSHIPS_SQL",
     "_DELETE_DEMO_ROWS_SQL",
     "_ADD_OWNER_ORGANIZATION_ROWS_SQL",
+    "_SET_OWNER_ORGANIZATION_ROLE_SQL",
     "_ADD_OWNER_PROJECT_ROWS_SQL",
     "_ADD_OWNER_WORKSPACE_ROWS_SQL",
     "_COPY_WORKSPACE_ROLE_SQL",
@@ -148,8 +149,8 @@ async def test_repair_revision_adds_the_owner_workspace_row():
         # The member's rows are untouched.
         member_rows = [r for r in rows if r["user_id"] == seeded.user_ids["m"]]
         assert member_rows and all(r["role"] == "editor" for r in member_rows)
-        assert first[4] == 1
-        assert second[4] == 0
+        assert first[5] == 1
+        assert second[5] == 0
     finally:
         await delete_seeded_organization(seeded)
 
@@ -287,6 +288,31 @@ async def test_role_copy_skips_duplicate_and_null_workspace_roles():
         await delete_seeded_organization(seeded)
 
 
+async def test_repair_revision_sets_the_owner_organization_role():
+    """An owner row written with another role (the admin accounts path wrote the
+    column default `viewer`) becomes `owner`; other members keep their role."""
+
+    seeded = await seed_organization(members={"m": "editor"})
+    try:
+        await execute(
+            "UPDATE organization_members SET role = 'viewer' "
+            "WHERE organization_id = :org AND user_id = :owner",
+            {"org": seeded.organization_id, "owner": seeded.owner_id},
+        )
+
+        async with rolled_back_connection(organizations=[seeded]) as conn:
+            first = await _run_repair(conn)
+            roles = await _organization_roles(conn, seeded.organization_id)
+            second = await _run_repair(conn)
+
+        assert roles[seeded.owner_id] == ["owner"]
+        assert roles[seeded.user_ids["m"]] == ["editor"]
+        assert first[3] == 1
+        assert second[3] == 0
+    finally:
+        await delete_seeded_organization(seeded)
+
+
 async def test_repair_revision_is_idempotent():
     seeded = await seed_organization(members={"owner": "owner", "m": "editor"})
     try:
@@ -306,8 +332,8 @@ async def test_repair_revision_is_idempotent():
             first = await _run_repair(conn)
             second = await _run_repair(conn)
 
-        assert first[2] >= 1 and first[5] >= 1
-        assert second == [0, 0, 0, 0, 0, 0]
+        assert first[2] >= 1 and first[6] >= 1
+        assert second == [0, 0, 0, 0, 0, 0, 0]
     finally:
         await delete_seeded_organization(seeded)
 
@@ -326,9 +352,10 @@ async def test_repair_revision_handles_production_shapes():
                 p: ["owner"] for p in s.project_ids
             }
 
+            # The owner's row holds `owner` after 044, whatever role it had.
             s = shapes["owner_row_not_owner"]
             assert (await _organization_roles(conn, s.organization_id))[s.owner_id] == [
-                "admin"
+                "owner"
             ]
 
             s = shapes["two_owner_rows"]

@@ -2450,6 +2450,7 @@ async def admin_transfer_ownership(
     """
     from oss.src.dbs.postgres.memberships.dao import (  # noqa: PLC0415
         ORGANIZATION_LOCK_SQL,
+        PROMOTE_NEW_OWNER_SQL,
     )
 
     if not org_ids:
@@ -2534,6 +2535,14 @@ async def admin_transfer_ownership(
             )
         # The resolver checks membership before the owner shortcut.
         await admin_seed_owner_project_rows(eligible, target_id, session=session)
+        # As the app transfer: the new owner is `owner` on every row, whatever role
+        # the swaps moved over.
+        for org_id in eligible:
+            for statement in PROMOTE_NEW_OWNER_SQL:
+                await session.execute(
+                    text(statement),
+                    {"organization_id": org_id, "user_id": target_id},
+                )
 
     return eligible
 

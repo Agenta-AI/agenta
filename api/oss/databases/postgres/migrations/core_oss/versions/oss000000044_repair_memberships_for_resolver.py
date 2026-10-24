@@ -6,7 +6,7 @@ Create Date: 2026-10-22 00:00:00.000000
 
 The membership resolver decides "is this user a member of this project, and with which
 role" from `organization_members` (OSS) and `project_members` (EE). This revision makes
-the rows agree with what today's permission checks allow, in six steps:
+the rows agree with what today's permission checks allow, in seven steps:
 
 1. Delete the organization and workspace rows of demo-only users: a user, not the
    owner, whose every project row in an organization is a demo row. Demo enrollment
@@ -19,15 +19,18 @@ the rows agree with what today's permission checks allow, in six steps:
    row in one project is no longer a duplicate when the next revision adds the unique
    index.
 3. P1: add an `owner` organization row for each organization owner who has none.
-4. P2a: add an `owner` project row for the organization owner in every project of the
+4. Set the role of the owner's organization rows to `owner` where it differs. The admin
+   accounts path wrote the owner's row with the column default `viewer`, and OSS now
+   reads the organization role, so the owner would act as a viewer.
+5. P2a: add an `owner` project row for the organization owner in every project of the
    organization where the owner has no row. The owner shortcut now runs only for a
    member, so an owner without a row would lose access.
-5. Add an `owner` workspace row for the organization owner in every workspace of the
+6. Add an `owner` workspace row for the organization owner in every workspace of the
    organization where the owner has none. The auth middleware checks a request that
    names a workspace against `workspace_members`, the default workspace and the
    workspace lists come from it, and the signup writes this row. Without it, an owner
-   that step 3 and 4 just repaired would still be refused their own workspace.
-6. P6: copy the workspace role into the organization role, for every member except the
+   that steps 3 to 5 just repaired would still be refused their own workspace.
+7. P6: copy the workspace role into the organization role, for every member except the
    owner, in organizations with exactly one workspace. Role changes went to the
    workspace and project rows only; the organization role is what OSS now reads.
 
@@ -93,6 +96,16 @@ WHERE NOT EXISTS (SELECT 1 FROM organization_members om
                   WHERE om.organization_id = o.id AND om.user_id = o.owner_id)
 """
 
+# The owner's organization role. A hash join with organizations, no per-row subquery.
+_SET_OWNER_ORGANIZATION_ROLE_SQL = """
+UPDATE organization_members om
+SET role = 'owner', updated_at = now()
+FROM organizations o
+WHERE om.organization_id = o.id
+  AND om.user_id = o.owner_id
+  AND om.role IS DISTINCT FROM 'owner'
+"""
+
 # P2a
 _ADD_OWNER_PROJECT_ROWS_SQL = """
 INSERT INTO project_members (id, user_id, project_id, role, created_at, updated_at)
@@ -149,6 +162,7 @@ REPAIR_STATEMENTS = (
     _DELETE_DEMO_ONLY_MEMBERSHIPS_SQL,
     _DELETE_DEMO_ROWS_SQL,
     _ADD_OWNER_ORGANIZATION_ROWS_SQL,
+    _SET_OWNER_ORGANIZATION_ROLE_SQL,
     _ADD_OWNER_PROJECT_ROWS_SQL,
     _ADD_OWNER_WORKSPACE_ROWS_SQL,
     _COPY_WORKSPACE_ROLE_SQL,

@@ -278,6 +278,45 @@ WHERE p.organization_id = :organization_id
 ON CONFLICT (project_id, user_id) DO NOTHING
 """
 
+# The new owner holds `owner` on every row of the organization, whatever role the
+# swap moved over: a former owner's row can hold another role (rows written by the
+# admin accounts path held the column default `viewer`).
+_PROMOTE_NEW_OWNER_ORGANIZATION_ROWS_SQL = """
+UPDATE organization_members
+SET role = 'owner', updated_at = now()
+WHERE organization_id = :organization_id
+  AND user_id = :user_id
+  AND role IS DISTINCT FROM 'owner'
+"""
+
+_PROMOTE_NEW_OWNER_WORKSPACE_ROWS_SQL = """
+UPDATE workspace_members wm
+SET role = 'owner', updated_at = now()
+FROM workspaces w
+WHERE w.id = wm.workspace_id
+  AND w.organization_id = :organization_id
+  AND wm.user_id = :user_id
+  AND wm.role IS DISTINCT FROM 'owner'
+"""
+
+_PROMOTE_NEW_OWNER_PROJECT_ROWS_SQL = """
+UPDATE project_members pm
+SET role = 'owner', updated_at = now()
+FROM projects p
+WHERE p.id = pm.project_id
+  AND p.organization_id = :organization_id
+  AND pm.user_id = :user_id
+  AND pm.role IS DISTINCT FROM 'owner'
+"""
+
+# Run after the role swaps of an ownership transfer, by the app transfer and by the
+# admin transfer tool, with :organization_id and :user_id (the new owner).
+PROMOTE_NEW_OWNER_SQL = (
+    _PROMOTE_NEW_OWNER_ORGANIZATION_ROWS_SQL,
+    _PROMOTE_NEW_OWNER_WORKSPACE_ROWS_SQL,
+    _PROMOTE_NEW_OWNER_PROJECT_ROWS_SQL,
+)
+
 _SET_OWNER_SQL = """
 UPDATE organizations
 SET owner_id = :new_owner_id, updated_at = now(), updated_by_id = :current_owner_id
@@ -591,16 +630,17 @@ class MembershipsDAO(MembershipsDAOInterface):
                 )
             ).first()
 
-            # Swap the two organization roles (today's behavior).
+            # The former owner takes the new owner's organization role (today's swap);
+            # the new owner becomes `owner`, never the former owner's stored role.
             if current_row is not None:
                 await connection.execute(
                     text(_UPDATE_ORGANIZATION_ROW_SQL),
                     {"id": current_row.id, "role": new_row.role},
                 )
-                await connection.execute(
-                    text(_UPDATE_ORGANIZATION_ROW_SQL),
-                    {"id": new_row.id, "role": current_row.role},
-                )
+            await connection.execute(
+                text(_UPDATE_ORGANIZATION_ROW_SQL),
+                {"id": new_row.id, "role": "owner"},
+            )
 
             # Swap the workspace roles in every workspace where both have a row.
             workspace_rows = (
@@ -645,6 +685,14 @@ class MembershipsDAO(MembershipsDAOInterface):
                 text(_SEED_OWNER_PROJECT_ROWS_SQL),
                 {"organization_id": organization_id, "user_id": new_owner_id},
             )
+
+            # Whatever the swaps moved over, the new owner is `owner` on every
+            # organization, workspace and project row of the organization.
+            for statement in PROMOTE_NEW_OWNER_SQL:
+                await connection.execute(
+                    text(statement),
+                    {"organization_id": organization_id, "user_id": new_owner_id},
+                )
 
             await connection.execute(
                 text(_SET_OWNER_SQL),
