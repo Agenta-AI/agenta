@@ -188,7 +188,11 @@ async def _guarded_credential_document(
 
     # Other credential types (external accounts, credential sources) make google-auth read
     # files, call URLs or run programs on the server's behalf.
-    if not isinstance(document, dict) or document.get("type") != "service_account":
+    if (
+        not isinstance(document, dict)
+        or document.get("type") != "service_account"
+        or "credential_source" in document
+    ):
         raise LLMUpstreamError(
             provider_key=route.provider_key,
             status_code=None,

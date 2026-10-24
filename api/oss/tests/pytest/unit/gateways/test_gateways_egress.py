@@ -641,6 +641,7 @@ async def test_vertex_credential_urls_other_than_token_uri_are_checked_too(resol
         },
         {"type": "authorized_user", "refresh_token": "x"},
         {"private_key": "x"},
+        {"type": "service_account", "credential_source": {"file": "/x"}},
     ],
 )
 async def test_vertex_credential_other_than_a_service_account_is_refused(document):
