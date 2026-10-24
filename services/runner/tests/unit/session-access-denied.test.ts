@@ -23,6 +23,7 @@ const {
 const { buildPersistingEmitter, recordsIncomplete, takePersistFailures } =
   await import("../../src/sessions/persist.ts");
 const { startAliveWatchdog } = await import("../../src/sessions/alive.ts");
+const { LiveFramePublisher } = await import("../../src/sessions/live-frames.ts");
 const { reconstructHistoryIfNeeded } = await import(
   "../../src/engines/sandbox_agent/reconstruct-history.ts"
 );
@@ -110,6 +111,38 @@ describe("a record write answered 403", () => {
     }
   });
 
+  it("stops an ingest retry when another call of the turn learns of the denial", async () => {
+    vi.stubEnv("AGENTA_RECORDS_INGEST_RETRY_BUDGET_MS", "600000");
+    const onDenied = vi.fn();
+    const stop = watchAccessDenied("sess-retry", "turn-retry", onDenied);
+    let attempts = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      attempts += 1;
+      return new Response("", { status: 503 });
+    });
+    try {
+      const { emit, flush } = buildPersistingEmitter(
+        "sess-retry",
+        () => "t",
+        undefined,
+        undefined,
+        "turn-retry",
+      );
+      emit({ type: "message", text: "a" });
+      // Let the record fail once and start waiting to retry, then a heartbeat answers 403.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      assert.ok(attempts >= 1);
+      noteAccessDenied("sess-retry", "turn-retry", "heartbeat");
+      const started = Date.now();
+      await flush();
+      assert.ok(Date.now() - started < 2_000, "the drain does not wait out the retry budget");
+      assert.equal(takePersistFailures("sess-retry"), 0);
+      assert.equal(recordsIncomplete("sess-retry"), false);
+    } finally {
+      stop();
+    }
+  });
+
   it("keeps a non-403 refusal as a lost record", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(
       async () => new Response("", { status: 422 }),
@@ -126,6 +159,35 @@ describe("a record write answered 403", () => {
     await flush();
     assert.equal(takePersistFailures("sess-p422"), 1);
     assert.equal(recordsIncomplete("sess-p422"), true);
+  });
+});
+
+describe("a live-frame write answered 403", () => {
+  it("ends the turn as access denied and sends no more frames", async () => {
+    const onDenied = vi.fn();
+    const stop = watchAccessDenied("sess-lf", "turn-lf", onDenied);
+    let posts = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      posts += 1;
+      return new Response("", { status: 403 });
+    });
+    try {
+      const publisher = new LiveFramePublisher({
+        sessionId: "sess-lf",
+        executionId: "turn-lf",
+        auth: () => "t",
+        enabled: true,
+      });
+      publisher.emit({ type: "message_start", id: "m" });
+      await publisher.whenIdle();
+      assert.equal(onDenied.mock.calls.length, 1);
+      publisher.emit({ type: "message_delta", id: "m", delta: "x" });
+      publisher.emit({ type: "message_end", id: "m" });
+      await publisher.whenIdle();
+      assert.equal(posts, 1, "no frame is sent after the denial");
+    } finally {
+      stop();
+    }
   });
 });
 
@@ -222,7 +284,7 @@ describe("the runner ends the turn with access_denied", () => {
   /** A run that works until it is aborted, then ends as a cancel (what an aborted turn returns). */
   const runUntilAborted: RunAgent = (_request, emit, signal) =>
     new Promise((resolve) => {
-      emit({ type: "message_start", id: "m1" });
+      emit?.({ type: "message_start", id: "m1" });
       const end = () =>
         resolve({ ok: true, stopReason: "cancelled", events: [] });
       if (signal?.aborted) return end();
@@ -331,5 +393,38 @@ describe("the runner ends the turn with access_denied", () => {
       return undefined;
     });
     assertAccessDenied(lines, calls);
+  });
+});
+
+describe("the LLM gateway refused the model call on its permission check", () => {
+  it("classifies policy_denied as access_denied, not as a provider refusal", async () => {
+    const { classifyRunError } = await import(
+      "../../src/engines/sandbox_agent/errors.ts"
+    );
+    const raw =
+      '403 {"error":{"message":"Denied use_llm_endpoints on standard/openai ⟦agenta_code:policy_denied⟧","type":"permission_error","code":"policy_denied"}}';
+    for (const text of [raw, "Denied use_llm_endpoints on standard/openai ⟦agenta_code:policy_denied⟧"]) {
+      const classified = classifyRunError(new Error(text), "claude", "openai");
+      assert.equal(classified.code, ACCESS_DENIED_CODE);
+      assert.equal(classified.message, ACCESS_DENIED_MESSAGE);
+      assert.deepEqual(classified.detail, {
+        code: ACCESS_DENIED_CODE,
+        message: ACCESS_DENIED_MESSAGE,
+        retryable: false,
+      });
+      assert.doesNotMatch(classified.message, /keep going/);
+    }
+  });
+
+  it("keeps a provider's own 403 a provider refusal", async () => {
+    const { classifyRunError } = await import(
+      "../../src/engines/sandbox_agent/errors.ts"
+    );
+    const classified = classifyRunError(
+      new Error('403 {"error":{"message":"Your organization is not allowed","type":"permission_error"}}'),
+      "claude",
+      "anthropic",
+    );
+    assert.notEqual(classified.code, ACCESS_DENIED_CODE);
   });
 });

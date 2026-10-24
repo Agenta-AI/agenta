@@ -45,7 +45,7 @@ describe("a person-facing gateway refusal keeps its own sentence and class", () 
 
   it("leaves other gateway refusals to the rules that read them", () => {
     const classified = classifyRunError(
-      new Error(piBody("Denied use_llm_endpoints on builtin/agenta", "policy_denied")),
+      new Error(piBody("Model gpt-x is not allowed on builtin/agenta", "model_not_allowed")),
       "pi_core",
     );
     assert.equal(classified.code, "provider_error");

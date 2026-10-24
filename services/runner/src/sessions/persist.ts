@@ -35,6 +35,7 @@ import { LiveFramePublisher } from "./live-frames.ts";
 import { fetchControlPlane } from "./control-plane-fetch.ts";
 import {
   accessDenied,
+  accessDeniedSignal,
   isAccessDeniedStatus,
   noteAccessDenied,
 } from "./access-denied.ts";
@@ -150,7 +151,18 @@ async function sendRecord(
   const timeoutMs = ingestRequestTimeoutMs();
   const deadline = Date.now() + budgetMs;
   const body = JSON.stringify(record);
+  // Another call of the turn (a heartbeat) may learn first that the caller lost access. Stop
+  // waiting then: the api refuses this record the same way, and the turn must end now.
+  const denied = accessDeniedSignal(record.session_id, record.turn_id);
+  const deniedOutcome = (attempt: number): IngestOutcome => ({
+    ok: false,
+    transient: false,
+    attempts: attempt,
+    error: "session records persist failed: access denied",
+    accessDenied: true,
+  });
   for (let attempt = 1; ; attempt++) {
+    if (denied?.aborted) return deniedOutcome(attempt - 1);
     let error: string;
     let transient: boolean;
     try {
@@ -158,7 +170,9 @@ async function sendRecord(
         method: "POST",
         // Fail a stalled request instead of hanging the persist chain. The budget decides only
         // whether another attempt starts, so one record waits at most budget + one timeout.
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: denied
+          ? AbortSignal.any([AbortSignal.timeout(timeoutMs), denied])
+          : AbortSignal.timeout(timeoutMs),
         headers: {
           "content-type": "application/json",
           authorization: auth(),
@@ -180,6 +194,7 @@ async function sendRecord(
         return { ok: false, transient: false, attempts: attempt, error, accessDenied: true };
       transient = transientStatus(res.status);
     } catch (err) {
+      if (denied?.aborted) return deniedOutcome(attempt);
       // No answer at all: a network error or a timeout.
       error = `session records persist failed: ${err instanceof Error ? err.message : String(err)}`;
       transient = true;
@@ -191,7 +206,15 @@ async function sendRecord(
     );
     if (Date.now() + wait >= deadline)
       return { ok: false, transient, attempts: attempt, error };
-    await new Promise((r) => setTimeout(r, wait));
+    await new Promise<void>((r) => {
+      const timer = setTimeout(done, wait);
+      function done() {
+        clearTimeout(timer);
+        denied?.removeEventListener("abort", done);
+        r();
+      }
+      denied?.addEventListener("abort", done, { once: true });
+    });
   }
 }
 
@@ -222,6 +245,7 @@ async function persistRecord(
   const outcome = await sendRecord(record, auth, budgetMs);
   if (outcome.ok) return;
   if (outcome.accessDenied) {
+    // Idempotent: a no-op when another call of the turn reported the denial first.
     log(
       `ingest REFUSED (access denied) session=${sessionId} idx=${record.record_index} type=${record.record_type}`,
     );

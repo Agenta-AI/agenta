@@ -107,6 +107,33 @@ export const SESSION_RECORDS_INCOMPLETE_CODE: RunErrorCode = "session_records_in
 export const SESSION_RECORDS_INCOMPLETE_MESSAGE =
   "Part of this session's history could not be saved, so the agent cannot continue it. Start a new session.";
 
+export const ACCESS_DENIED_CODE: RunErrorCode = "access_denied";
+
+/**
+ * The line the person reads when they lost access to the project while the turn ran. One line:
+ * the SDK keeps only the first line of a runner error. See `sessions/access-denied.ts`.
+ */
+export const ACCESS_DENIED_MESSAGE =
+  "You no longer have access to this project, so the agent run was stopped.";
+
+/**
+ * The LLM gateway refused a model call on its permission check (`policy_denied`, "Denied
+ * use_llm_endpoints ..."). Every role that may run a session may use the LLM endpoints, so during
+ * a turn this means the caller lost access to the project.
+ */
+export function isGatewayAccessDenial(detail: AgentErrorDetail | undefined): boolean {
+  return detail?.code === "policy_denied";
+}
+
+/** The classified form of a lost access, with its structured detail. */
+export function accessDeniedClassified(): ClassifiedRunError {
+  return {
+    message: ACCESS_DENIED_MESSAGE,
+    code: ACCESS_DENIED_CODE,
+    detail: { code: ACCESS_DENIED_CODE, message: ACCESS_DENIED_MESSAGE, retryable: false },
+  };
+}
+
 export type RunErrorCode =
   | "runner_error"
   // The sandbox provider (or this runner's own sandbox admission) is at capacity; retryable later.
@@ -507,6 +534,10 @@ export function classifyRunError(
   if (isPublicError(err))
     return { message: sanitizeErrorText(err.message), code: err.publicCode };
   const raw = err instanceof Error ? err.message : String(err);
+  // The LLM gateway refused the model call on its permission check (`policy_denied`): the caller
+  // lost access to the project while the turn ran (every role that may run a session may use the
+  // LLM endpoints). That is not a provider refusal, and "you can keep going" would be wrong.
+  if (isGatewayAccessDenial(parseGatewayErrorDetail(raw))) return accessDeniedClassified();
   // The gateway refused a model call with a sentence written for the person (out of credit,
   // built-in models not enabled): that sentence and its class, never the raw text and marker.
   const refusal = personFacingGatewayRefusal(raw);

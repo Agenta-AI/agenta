@@ -21,18 +21,14 @@
  */
 
 import {
+  ACCESS_DENIED_CODE,
+  ACCESS_DENIED_MESSAGE,
   isPublicError,
   withPublicCode,
-  type RunErrorCode,
 } from "../engines/sandbox_agent/errors.ts";
 import type { AgentErrorDetail } from "../protocol.ts";
 
-/** Stable class for the turn. Never a display string. */
-export const ACCESS_DENIED_CODE: RunErrorCode = "access_denied";
-
-/** The line the person reads. One line: the SDK keeps only the first line of a runner error. */
-export const ACCESS_DENIED_MESSAGE =
-  "You no longer have access to this project, so the agent run was stopped.";
+export { ACCESS_DENIED_CODE, ACCESS_DENIED_MESSAGE };
 
 /**
  * The `signal.reason` the turn is aborted with. Not a cooperative cancel (`stop-signal.ts`), so
@@ -53,6 +49,8 @@ export type AccessDeniedSource = "records-ingest" | "heartbeat" | "records-query
 interface WatchedTurn {
   denied: boolean;
   onDenied: () => void;
+  /** Aborted on the denial, so a session call still in flight for the turn stops waiting. */
+  controller: AbortController;
 }
 
 const watched = new Map<string, WatchedTurn>();
@@ -76,7 +74,11 @@ export function watchAccessDenied(
   onDenied: () => void,
 ): () => void {
   const key = turnKey(sessionId, turnId);
-  const entry: WatchedTurn = { denied: false, onDenied };
+  const entry: WatchedTurn = {
+    denied: false,
+    onDenied,
+    controller: new AbortController(),
+  };
   watched.set(key, entry);
   return () => {
     if (watched.get(key) === entry) watched.delete(key);
@@ -96,6 +98,7 @@ export function noteAccessDenied(
   }
   if (entry.denied) return;
   entry.denied = true;
+  entry.controller.abort();
   log(`ACCESS_DENIED from ${source} session=${sessionId} turn=${turnId ?? "-"}; ending the turn`);
   try {
     entry.onDenied();
@@ -107,6 +110,17 @@ export function noteAccessDenied(
 /** Whether a session call of this (watched) turn got 403. */
 export function accessDenied(sessionId: string, turnId: string | undefined): boolean {
   return watched.get(turnKey(sessionId, turnId))?.denied === true;
+}
+
+/**
+ * A signal that aborts when the turn is denied, for a session call of the turn that may still be
+ * waiting (an ingest retry). Undefined when the turn is not watched.
+ */
+export function accessDeniedSignal(
+  sessionId: string,
+  turnId: string | undefined,
+): AbortSignal | undefined {
+  return watched.get(turnKey(sessionId, turnId))?.controller.signal;
 }
 
 /** The error a step of the turn throws when the platform refused it with 403. */
