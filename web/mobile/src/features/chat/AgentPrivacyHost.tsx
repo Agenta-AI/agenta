@@ -1,5 +1,6 @@
 import {useMemo, useState} from "react"
 
+import type {AccessPolicy, AgentSharingState} from "@agenta/entities/sharing"
 import {
     agentSharingQueryAtomFamily,
     setAgentVisibilityAtom,
@@ -23,7 +24,7 @@ import {useDebounceInput} from "@agenta/shared/hooks"
 import {userAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {useQueryClient} from "@tanstack/react-query"
-import {useAtomValue, useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {channelPlatformLabel} from "@/lib/sharingCopy"
 
@@ -62,6 +63,35 @@ export interface AgentPrivacyHostOptions {
     onOpenChannels?: () => void
     /** Runs after a successful write; make-private turns channel connections off. */
     onChanged?: () => void
+    /**
+     * The agent's access policy as the agent list row already carries it. With it the control
+     * shows Private/Shared with no request; the sharing state and the members load when the
+     * panel or the dialog opens.
+     */
+    access?: AccessPolicy | null
+}
+
+// What an unopened control reads instead of the sharing and members queries: no request.
+const IDLE_QUERY = atom({
+    data: undefined,
+    isPending: false,
+    isError: false,
+    refetch: async () => undefined,
+})
+
+/** The trigger's state from the list row's policy, before the full state is read. */
+const previewSharing = (
+    access: AccessPolicy | null | undefined,
+    myId: string | null | undefined,
+): AgentSharingState | undefined => {
+    if (!access) return undefined
+    const isOwner = Boolean(myId) && access.owner_user_id === myId
+    return {
+        policy: access,
+        owner_is_active: true,
+        my_role: isOwner ? "owner" : "viewer",
+        can_take_ownership: false,
+    }
 }
 
 /** The sharing state of the agent and the project's members, as the privacy UI reads them. */
@@ -73,19 +103,24 @@ const useAgentPrivacyProps = ({
     connections = EMPTY_CONNECTIONS,
     onOpenChannels,
     onChanged,
-}: AgentPrivacyHostOptions): AgentPrivacyProps => {
+    access,
+    engaged = true,
+}: AgentPrivacyHostOptions & {engaged?: boolean}): AgentPrivacyProps => {
     const project = useCurrentProject(workspaceId, projectId)
     const me = useAtomValue(userAtom)
     const queryClient = useQueryClient()
-    const sharingQuery = useAtomValue(agentSharingQueryAtomFamily(agentId))
-    const sharing = sharingQuery.data?.sharing
+    // Until the panel or dialog opens, nothing is read: the trigger uses the list row's policy.
+    const sharingQuery = useAtomValue(
+        engaged || access === undefined ? agentSharingQueryAtomFamily(agentId) : IDLE_QUERY,
+    )
+    const sharing = sharingQuery.data?.sharing ?? previewSharing(access, me?.id)
     const labels = useDisclosureProviderLabel(sharingQuery.data?.disclosure)
 
     const [search, setSearch] = useState("")
     const [typed, setTyped] = useDebounceInput<string>(search, setSearch, 250, "")
-    const membersQuery = useAtomValue(sharingMembersQueryAtomFamily(search))
+    const membersQuery = useAtomValue(engaged ? sharingMembersQueryAtomFamily(search) : IDLE_QUERY)
     // Every page of the project's members: the owner may be past the picker's first 50.
-    const rosterQuery = useAtomValue(sharingMemberRosterQueryAtom)
+    const rosterQuery = useAtomValue(engaged ? sharingMemberRosterQueryAtom : IDLE_QUERY)
 
     const setVisibility = useSetAtom(setAgentVisibilityAtom)
     const transfer = useSetAtom(transferAgentAtom)
@@ -152,9 +187,17 @@ const useAgentPrivacyProps = ({
  * The agent's "Private" / "Shared" control in the playground top bar, wired to the sharing
  * state of the agent and the project's members.
  */
-export const AgentPrivacyHost = (options: AgentPrivacyHostOptions) => (
-    <AgentPrivacyControl {...useAgentPrivacyProps(options)} />
-)
+export const AgentPrivacyHost = (options: AgentPrivacyHostOptions) => {
+    // The sharing state and the members are read when the panel opens (or at once when the
+    // list row's policy is not known yet).
+    const [engaged, setEngaged] = useState(false)
+    return (
+        <AgentPrivacyControl
+            {...useAgentPrivacyProps({...options, engaged})}
+            onOpen={() => setEngaged(true)}
+        />
+    )
+}
 
 /**
  * "Privacy and owner" on its own, for the channel screens' Share links. Mount it only while it

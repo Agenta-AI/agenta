@@ -123,6 +123,34 @@ describe("AgentPrivacyControl", () => {
         expect(text).not.toContain(agentSharingCopy.change)
     })
 
+    it("an admin's panel for an agent whose owner left explains it before Take ownership (QA D10)", () => {
+        const trigger = render(
+            state({
+                policy: {visibility: "project", owner_user_id: alice.user_id},
+                owner_is_active: false,
+                my_role: "viewer",
+                can_take_ownership: true,
+            }),
+        )
+        act(() => trigger.click())
+        const text = document.body.textContent ?? ""
+        expect(text).toContain(agentSharingCopy.ownerLeft("Alice Martin"))
+        expect(text).toContain(agentSharingCopy.takeOwnershipHelp)
+        expect(text).toContain(agentSharingCopy.takeOwnership)
+    })
+
+    it("an ownerless agent's panel says why it has no owner", () => {
+        const trigger = render(
+            state({
+                policy: {visibility: "project", owner_user_id: null},
+                my_role: "viewer",
+                can_take_ownership: true,
+            }),
+        )
+        act(() => trigger.click())
+        expect(document.body.textContent ?? "").toContain(agentSharingCopy.noOwner)
+    })
+
     it("while the state is not known, the panel never says the project can see the agent", () => {
         const trigger = render(null, false)
         act(() => trigger.click())

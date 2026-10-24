@@ -21,7 +21,7 @@ export const SessionSharingControl = ({
     workspaceId: string
     projectId: string
 }) => {
-    const {sharing, owner} = useSessionSharing(sessionId)
+    const {sharing, owner} = useSessionSharing(sessionId, projectId)
     const openShare = useSetAtom(shareDialogRequestAtom)
     if (!sharing) return null
 

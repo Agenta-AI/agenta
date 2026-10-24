@@ -155,6 +155,9 @@ describe("sharing hosts in a project with more than 50 members", () => {
                 projectId: "project-1",
             }),
         )
+        // The names load when the panel opens (opening the agent screen reads none).
+        expect(controlProps.at(-1)!.owner).toBeNull()
+        act(() => (controlProps.at(-1)!.onOpen as () => void)())
         expect(controlProps.at(-1)!.owner).toEqual(member(77))
     })
 

@@ -38,5 +38,6 @@ export interface SessionListItem {
     delivery?: (AgentaApi.SessionDelivery | null) | undefined;
     visibility?: AgentaApi.Visibility | undefined;
     owner_user_id?: (string | null) | undefined;
+    sharing?: (AgentaApi.SessionSharingState | null) | undefined;
     last_message?: (AgentaApi.SessionMessagePreview | null) | undefined;
 }

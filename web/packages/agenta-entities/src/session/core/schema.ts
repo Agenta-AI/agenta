@@ -9,7 +9,7 @@
  */
 import {z} from "zod"
 
-import {visibilitySchema} from "../../sharing/core/schema"
+import {sessionSharingStateSchema, visibilitySchema} from "../../sharing/core/schema"
 
 /**
  * One durable, append-only record event row. Validates the wire shape (backend renamed the
@@ -195,6 +195,9 @@ export const sessionStreamSchema = z.object({
     // (channel, API key, trigger). An unknown visibility degrades to undefined, as above.
     visibility: visibilitySchema.nullish().catch(undefined),
     owner_user_id: z.string().nullish(),
+    // The reader's sharing state, on the one-session stream read only (the chat screen reads
+    // it there, with no sharing request of its own). A bad value degrades to undefined.
+    sharing: sessionSharingStateSchema.nullish().catch(undefined),
     // `/sessions/query` only (WP0-R3): the session's latest turn's workflow/agent references —
     // absent for a session with no turns yet, and for a plain stream fetch (not query'd).
     references: z.array(sessionReferenceSchema).nullish(),

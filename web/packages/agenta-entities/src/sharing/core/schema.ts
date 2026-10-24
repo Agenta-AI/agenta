@@ -93,6 +93,8 @@ export const projectMemberProfileSchema = z.object({
     name: z.string().nullable().optional(),
     /** Absent for an EE project member row without a role. */
     role: z.string().nullable().optional(),
+    /** Whether the member's role may send in a session ("Can send" works for them). */
+    can_run_sessions: z.boolean().nullable().optional(),
 })
 
 /** Backend `Windowing` (`sdks/python/agenta/sdk/models/shared.py`); cursor = user_id. */

@@ -1,4 +1,5 @@
 import {refusedSendReason} from "@agenta/chat/model"
+import {markSessionFresh} from "@agenta/chat/state"
 import type {FileUIPart} from "ai"
 import {atom} from "jotai"
 
@@ -33,6 +34,10 @@ export const pendingTasksAtom = atom<Record<string, PendingTask>>({})
 export const stashPendingTaskAtom = atom(
     null,
     (get, set, {sessionId, task}: {sessionId: string; task: PendingTask}) => {
+        // A session whose first message waits here is one this browser is creating: it has no
+        // row yet, so it must not wait for a sharing state that cannot exist (QA D1, latency
+        // finding 2: a chat started from an agent's page never sent).
+        markSessionFresh(sessionId)
         set(pendingTasksAtom, {...get(pendingTasksAtom), [sessionId]: task})
     },
 )

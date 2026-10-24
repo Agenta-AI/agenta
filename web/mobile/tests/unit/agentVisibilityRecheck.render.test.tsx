@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 /**
  * An agent made private while its chat stays open goes hidden at the next sharing recheck. The
- * chain is the real one: the session sharing query polls (60 s), each read re-reads the agent's
- * latest revision, and the server answering that read like an unknown agent is `agentHidden`.
- * Only the Fern calls underneath are stubs.
+ * chain is the real one: the session row read polls (60 s, it carries the reader's sharing
+ * state), each read re-reads the agent's latest revision, and the server answering that read
+ * like an unknown agent is `agentHidden`. Only the calls underneath are stubs.
  */
 import {act} from "react"
 
@@ -27,19 +27,13 @@ vi.mock("@agenta/sdk/resources", () => ({
     getMountsClient: vi.fn(),
     getLowPriorityMountsClient: vi.fn(),
 }))
-vi.mock("@agenta/entities/session", () => ({isSessionFresh: () => false}))
+const rows = vi.hoisted(() => ({querySessionStreams: vi.fn()}))
+vi.mock("@agenta/entities/session", () => ({
+    isSessionFresh: () => false,
+    querySessionStreams: (...args: unknown[]) => rows.querySessionStreams(...args),
+}))
 vi.mock("@agenta/entities/workflow", () => ({
     retrieveWorkflowRevision: (...args: unknown[]) => retrieveWorkflowRevision(...args),
-}))
-vi.mock("@/features/chat/useSessionHeader", () => ({
-    useSessionHeader: () => ({
-        isSuccess: true,
-        isPending: false,
-        isError: false,
-        isFetching: false,
-        refetch: vi.fn(),
-        data: {session_id: "s", references: [{key: "workflow", id: AGENT}]},
-    }),
 }))
 
 import {useAgentEntity} from "@/features/chat/useAgentEntity"
@@ -51,18 +45,22 @@ import {useChatAccess} from "@/features/chat/useChatAccess"
 const PROJECT = "proj-1"
 const AGENT = "0190a3c4-0000-7000-8000-0000000a6e17"
 
-const state = {
-    count: 1,
-    sharing: {
-        policy: {visibility: "project", owner_user_id: "alice"},
-        owner_is_active: true,
-        grants: [],
-        my_role: "participant",
-        can_send: true,
-        shareable: true,
+// The session row: its agent reference and the reader's sharing state.
+const row = [
+    {
+        project_id: "proj-1",
+        session_id: "s",
+        references: [{key: "workflow", id: AGENT}],
+        sharing: {
+            policy: {visibility: "project", owner_user_id: "alice"},
+            owner_is_active: true,
+            grants: [],
+            my_role: "participant",
+            can_send: true,
+            shareable: true,
+        },
     },
-    disclosure: null,
-}
+]
 
 let host: HTMLDivElement
 let root: Root
@@ -102,7 +100,8 @@ const advance = (ms: number) => act(async () => void (await vi.advanceTimersByTi
 beforeEach(() => {
     vi.useFakeTimers({shouldAdvanceTime: false})
     sharing.fetchSessionSharing.mockReset()
-    sharing.fetchSessionSharing.mockResolvedValue(state)
+    rows.querySessionStreams.mockReset()
+    rows.querySessionStreams.mockResolvedValue(row)
     sharing.querySharingMembers.mockReset()
     sharing.querySharingMembers.mockResolvedValue({count: 0, members: []})
     retrieveWorkflowRevision.mockReset()
@@ -150,7 +149,8 @@ describe("an agent made private while its chat is open", () => {
         expect(retrieveWorkflowRevision).toHaveBeenCalledTimes(1)
         await advance(31_000)
         expect(retrieveWorkflowRevision).toHaveBeenCalledTimes(2)
-        expect(sharing.fetchSessionSharing).toHaveBeenCalledTimes(2)
+        expect(rows.querySessionStreams).toHaveBeenCalledTimes(2)
+        expect(sharing.fetchSessionSharing).not.toHaveBeenCalled()
         expect(seen.agentHidden).toBe(false)
     })
 })

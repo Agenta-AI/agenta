@@ -1,7 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 
 import {shouldRefreshLegacyObserverLiveness} from "@agenta/chat/model"
-import {recheckSessionSharing} from "@agenta/entities/sharing"
 import {actionableInteractionsQueryKey} from "@agenta/sessions/state"
 import {useQueryClient} from "@tanstack/react-query"
 
@@ -9,6 +8,7 @@ import {tryRefreshSession} from "@/lib/auth"
 
 import {livenessQueryKey} from "../sessions/useLivenessPoll"
 
+import {recheckSessionHeader} from "./useSessionHeader"
 import {sessionWatchUrl, watchRetryDelayMs} from "./watchRelay"
 
 /** Minimum spacing between two reconnect revalidations, so a reconnect loop can't fan out
@@ -160,10 +160,10 @@ export const useSessionWatch = ({
                 setConnected(false)
                 // CONNECTING = built-in auto-reconnect; only a fatal CLOSED needs us.
                 if (es.readyState === EventSource.CLOSED) {
-                    // The stream refuses a reader who lost the chat: re-read the sharing state
-                    // now, inside the same 60 s budget as its poll (a reconnect loop must not
-                    // turn into one sharing read per attempt).
-                    void recheckSessionSharing({queryClient, sessionId, projectId})
+                    // The stream refuses a reader who lost the chat: re-read the session row (it
+                    // carries the reader's sharing state) now, inside the same 60 s budget as its
+                    // poll (a reconnect loop must not turn into one read per attempt).
+                    void recheckSessionHeader({queryClient, sessionId, projectId})
                     close()
                     scheduleRetry()
                 }

@@ -138,6 +138,7 @@ export const ShareMenu = ({
             <AgentPrivacyHost
                 agentId={agentId}
                 agentName={agentName}
+                access={agentsQuery.data ? (agent?.access ?? null) : undefined}
                 workspaceId={workspaceId}
                 projectId={projectId}
                 connections={publish.connections}

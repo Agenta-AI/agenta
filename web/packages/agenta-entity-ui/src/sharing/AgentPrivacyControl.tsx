@@ -15,14 +15,17 @@ import {AgentPrivacyDialog, type AgentPrivacyProps} from "./AgentPrivacyDialog"
 import {agentSharingCopy as copy} from "./copy"
 import {useAgentSharingWrites} from "./useAgentSharingWrites"
 
-export type AgentPrivacyControlProps = AgentPrivacyProps
+export type AgentPrivacyControlProps = AgentPrivacyProps & {
+    /** The panel opened: the host loads the full state and the members now, not before. */
+    onOpen?: () => void
+}
 
 /**
  * The agent's "Private" / "Shared" dropdown for the playground top bar. Fixed at 92 px for both
  * values so nothing beside it moves. Someone who is not the owner always sees "Shared".
  */
 export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
-    const {projectName, sharing, loading = false, loadError = false, onRetry, owner} = props
+    const {projectName, sharing, loading = false, loadError = false, onRetry, owner, onOpen} = props
     const [panelOpen, setPanelOpen] = useState(false)
     const [dialogOpen, setDialogOpen] = useState(false)
     const writes = useAgentSharingWrites(props)
@@ -36,7 +39,13 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
 
     return (
         <>
-            <Popover open={panelOpen} onOpenChange={setPanelOpen}>
+            <Popover
+                open={panelOpen}
+                onOpenChange={(open) => {
+                    setPanelOpen(open)
+                    if (open) onOpen?.()
+                }}
+            >
                 <PopoverTrigger asChild>
                     <button
                         type="button"
@@ -91,6 +100,20 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                             {shownPrivate ? copy.linePrivate : copy.lineProject(projectName)}
                         </p>
                     )}
+                    {known && ownerless && !isOwner ? (
+                        // Why the agent has no owner, as the dialog says it (QA D10).
+                        <p className="m-0 text-xs text-muted-foreground">
+                            {!sharing?.policy.owner_user_id
+                                ? copy.noOwner
+                                : sharing?.can_take_ownership
+                                  ? copy.ownerLeft(
+                                        personName(owner) || sharing.policy.owner_user_id,
+                                    )
+                                  : `${copy.ownerLeft(
+                                        personName(owner) || sharing.policy.owner_user_id,
+                                    )} ${copy.ownerLeftNonAdmin}`}
+                        </p>
+                    ) : null}
                     {known && owner && !ownerless ? (
                         <span className="text-xs">
                             {isOwner ? copy.panelOwnerYou(personName(owner)) : personName(owner)}
@@ -112,21 +135,26 @@ export const AgentPrivacyControl = (props: AgentPrivacyControlProps) => {
                             {copy.change}
                         </Button>
                     ) : known && ownerless && sharing?.can_take_ownership ? (
-                        <LoadingButton
-                            size="sm"
-                            className="self-start"
-                            loading={writes.saving === "take"}
-                            onClick={() => {
-                                void writes.takeOwnership().then((ok) => {
-                                    if (!ok) {
-                                        setPanelOpen(false)
-                                        setDialogOpen(true)
-                                    }
-                                })
-                            }}
-                        >
-                            {copy.takeOwnership}
-                        </LoadingButton>
+                        <>
+                            <LoadingButton
+                                size="sm"
+                                className="self-start"
+                                loading={writes.saving === "take"}
+                                onClick={() => {
+                                    void writes.takeOwnership().then((ok) => {
+                                        if (!ok) {
+                                            setPanelOpen(false)
+                                            setDialogOpen(true)
+                                        }
+                                    })
+                                }}
+                            >
+                                {copy.takeOwnership}
+                            </LoadingButton>
+                            <span className="text-xs text-muted-foreground">
+                                {copy.takeOwnershipHelp}
+                            </span>
+                        </>
                     ) : null}
                 </PopoverContent>
             </Popover>

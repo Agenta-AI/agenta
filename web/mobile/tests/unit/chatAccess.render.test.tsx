@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 /**
- * What the chat may do while its sharing state loads, fails, and changes under it. Mounted over
- * the real sharing query atom (a stubbed Fern client underneath), so the 60 s recheck is the
- * query's own and a revocation reaches the screen through it.
+ * What the chat may do while its sharing state loads, fails, and changes under it. The state
+ * rides on the session row the screen already reads (`useSessionHeader`, a stubbed
+ * `querySessionStreams` underneath), so the 60 s recheck is that query's own and a revocation
+ * reaches the screen through it. No sharing request is made.
  */
 import {act} from "react"
 
@@ -26,12 +27,11 @@ vi.mock("@agenta/sdk/resources", () => ({
     getMountsClient: vi.fn(),
     getLowPriorityMountsClient: vi.fn(),
 }))
-// The fresh-session marker only; the rest of the session entity is not read here.
+const rows = vi.hoisted(() => ({querySessionStreams: vi.fn()}))
+// The fresh-session marker and the session row read; the rest of the entity is not read here.
 vi.mock("@agenta/entities/session", () => ({
     isSessionFresh: (sessionId: string) => fresh.has(sessionId),
-}))
-vi.mock("@/features/chat/useSessionHeader", () => ({
-    useSessionHeader: () => ({isSuccess: true, data: {session_id: "s"}}),
+    querySessionStreams: (...args: unknown[]) => rows.querySessionStreams(...args),
 }))
 
 import {useChatAccess} from "@/features/chat/useChatAccess"
@@ -40,20 +40,25 @@ import {useChatAccess} from "@/features/chat/useChatAccess"
 
 const PROJECT = "proj-1"
 
-const state = (role: "owner" | "participant" | "viewer") => ({
-    count: 1,
-    sharing: {
-        policy: {visibility: "private", owner_user_id: "alice"},
-        owner_is_active: true,
-        grants: [],
-        my_role: role,
-        can_send: role !== "viewer",
-        shareable: true,
+// The session row with the reader's sharing state.
+const state = (role: "owner" | "participant" | "viewer") => [
+    {
+        project_id: "proj-1",
+        session_id: "s",
+        sharing: {
+            policy: {visibility: "private", owner_user_id: "alice"},
+            owner_is_active: true,
+            grants: [],
+            my_role: role,
+            can_send: role !== "viewer",
+            shareable: true,
+        },
     },
-    disclosure: null,
-})
-const notFound = Object.assign(new Error("Not found"), {statusCode: 404})
-const serverError = Object.assign(new Error("Boom"), {statusCode: 500})
+]
+// The row is not readable (hidden, unknown, or access removed): no row.
+const notFound: unknown[] = []
+// A failed read (`querySessionStreams` answers null).
+const serverError = null
 
 let host: HTMLDivElement
 let root: Root
@@ -84,7 +89,7 @@ const advance = (ms: number) => act(async () => void (await vi.advanceTimersByTi
 
 beforeEach(() => {
     vi.useFakeTimers({shouldAdvanceTime: false})
-    sharing.fetchSessionSharing.mockReset()
+    rows.querySessionStreams.mockReset()
     sharing.querySharingMembers.mockReset()
     sharing.querySharingMembers.mockResolvedValue({count: 0, members: []})
     host = document.createElement("div")
@@ -100,7 +105,7 @@ afterEach(async () => {
 
 describe("until the sharing state of an existing chat is known", () => {
     it("loading: nothing may write, and no notice flashes", async () => {
-        sharing.fetchSessionSharing.mockReturnValue(new Promise(() => undefined))
+        rows.querySessionStreams.mockReturnValue(new Promise(() => undefined))
         await mount("existing-loading")
 
         expect(seen.canSend).toBe(false)
@@ -109,9 +114,9 @@ describe("until the sharing state of an existing chat is known", () => {
     })
 
     it("failed: nothing may write, and the composer's place says the read failed", async () => {
-        sharing.fetchSessionSharing.mockRejectedValue(serverError)
+        rows.querySessionStreams.mockResolvedValue(serverError)
         await mount("existing-failed")
-        // A server error is retried once before the read counts as failed.
+        // A failed read is retried once before it counts as failed.
         await advance(0)
         expect(seen.canSend).toBe(false)
         expect(seen.readOnly).toBeNull()
@@ -125,7 +130,7 @@ describe("until the sharing state of an existing chat is known", () => {
 
     it("a chat minted in this browser keeps sending before it has a sharing row", async () => {
         fresh.add("fresh-draft")
-        sharing.fetchSessionSharing.mockRejectedValue(notFound)
+        rows.querySessionStreams.mockResolvedValue(notFound)
         await mount("fresh-draft")
         await advance(0)
 
@@ -135,7 +140,7 @@ describe("until the sharing state of an existing chat is known", () => {
     })
 
     it("a known state that allows sending enables it", async () => {
-        sharing.fetchSessionSharing.mockResolvedValue(state("participant"))
+        rows.querySessionStreams.mockResolvedValue(state("participant"))
         await mount("existing-known")
         await advance(0)
 
@@ -146,12 +151,12 @@ describe("until the sharing state of an existing chat is known", () => {
 
 describe("a sharing change while the chat stays open", () => {
     it("a revoked grant replaces the chat within the 60 s recheck", async () => {
-        sharing.fetchSessionSharing.mockResolvedValueOnce(state("participant"))
+        rows.querySessionStreams.mockResolvedValueOnce(state("participant"))
         await mount("revoked")
         await advance(0)
         expect(seen.canSend).toBe(true)
 
-        sharing.fetchSessionSharing.mockRejectedValue(notFound)
+        rows.querySessionStreams.mockResolvedValue(notFound)
         await advance(59_000)
         expect(seen.blocked).toBeNull()
         await advance(1_500)
@@ -163,17 +168,16 @@ describe("a sharing change while the chat stays open", () => {
     it("a background re-read keeps the last answer until it answers", async () => {
         // Conductor decision (Codex r8 #2, partly rejected): the composer does not flicker off
         // once a minute. A re-read that answers without send access, or fails, takes it away.
-        sharing.fetchSessionSharing.mockResolvedValueOnce(state("participant"))
+        rows.querySessionStreams.mockResolvedValueOnce(state("participant"))
         await mount("refetching")
         await advance(0)
         expect(seen.canSend).toBe(true)
 
         let answer: (value: unknown) => void = () => undefined
-        sharing.fetchSessionSharing.mockReturnValueOnce(
-            new Promise((resolve) => (answer = resolve)),
-        )
+        rows.querySessionStreams.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)))
         await advance(60_500)
-        expect(sharing.fetchSessionSharing).toHaveBeenCalledTimes(2)
+        expect(rows.querySessionStreams).toHaveBeenCalledTimes(2)
+        expect(sharing.fetchSessionSharing).not.toHaveBeenCalled()
         expect(seen.canSend).toBe(true)
 
         await act(async () => answer(state("viewer")))
@@ -183,12 +187,12 @@ describe("a sharing change while the chat stays open", () => {
     })
 
     it("a background re-read that fails takes the controls away", async () => {
-        sharing.fetchSessionSharing.mockResolvedValueOnce(state("participant"))
+        rows.querySessionStreams.mockResolvedValueOnce(state("participant"))
         await mount("refetch-fails")
         await advance(0)
         expect(seen.canSend).toBe(true)
 
-        sharing.fetchSessionSharing.mockRejectedValue(serverError)
+        rows.querySessionStreams.mockResolvedValue(serverError)
         await advance(60_500)
         await advance(1_500)
         expect(seen.canSend).toBe(false)
@@ -196,12 +200,12 @@ describe("a sharing change while the chat stays open", () => {
     })
 
     it("a lowered role takes the controls away", async () => {
-        sharing.fetchSessionSharing.mockResolvedValueOnce(state("participant"))
+        rows.querySessionStreams.mockResolvedValueOnce(state("participant"))
         await mount("lowered")
         await advance(0)
         expect(seen.canSend).toBe(true)
 
-        sharing.fetchSessionSharing.mockResolvedValue(state("viewer"))
+        rows.querySessionStreams.mockResolvedValue(state("viewer"))
         await advance(60_500)
 
         expect(seen.readOnly?.reason).toBe("viewer")

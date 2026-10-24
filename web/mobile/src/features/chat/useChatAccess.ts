@@ -5,13 +5,11 @@ import {isSessionFresh} from "@agenta/entities/session"
 import {sharingCopy} from "@/lib/sharingCopy"
 
 import {
-    isNotFoundError,
     sessionAccessKnown,
     sessionReadOnlyReason,
     sessionReadOnlyText,
     type SessionReadOnly,
 } from "./sessionReadOnly"
-import {useSessionHeader} from "./useSessionHeader"
 import {useSessionSharing} from "./useSessionSharing"
 
 /**
@@ -50,27 +48,27 @@ export const useChatAccess = ({
     routeAgentId?: string | null
     agentHidden: boolean
 }) => {
-    const {query, sharing, ownerName} = useSessionSharing(sessionId)
-    const header = useSessionHeader(projectId, sessionId)
+    // The session row the screen already reads carries the reader's sharing state: one read,
+    // re-read every 60 s and on focus (see `useSessionHeader`).
+    const {query, sharing, ownerName} = useSessionSharing(sessionId, projectId)
     const hadAccess = useRef(false)
-    const notFound = isNotFoundError(query.error)
+    // The row is not readable: a private chat, an unknown id, or one whose access was removed.
+    const notFound = query.isSuccess && !query.data
     if (sharing && !notFound) hadAccess.current = true
 
     let blocked: "not_found" | "removed" | null = null
     if (notFound) {
         if (hadAccess.current) blocked = "removed"
-        else if (!isSessionFresh(sessionId) && !routeAgentId && header.isSuccess && !header.data)
-            blocked = "not_found"
+        else if (!isSessionFresh(sessionId) && !routeAgentId) blocked = "not_found"
     }
 
     const fresh = isSessionFresh(sessionId)
     const failed = query.isError
     const known = sessionAccessKnown({fresh, loaded: Boolean(sharing), failed})
     const sharingReason = sessionReadOnlyReason({sharing: failed ? null : sharing, agentHidden})
-    // A failed read says so in the composer's place; a 404 is the blocked page's, or a session
-    // whose row is not readable yet, which waits like a load.
-    const reason =
-        sharingReason ?? (!fresh && failed && !notFound && !blocked ? "access_unknown" : null)
+    // A failed read says so in the composer's place; a session whose row is not readable yet
+    // waits like a load.
+    const reason = sharingReason ?? (!fresh && failed && !blocked ? "access_unknown" : null)
     const owner = ownerName || sharingCopy.ownerFallback
     const readOnly = useMemo<SessionReadOnly | null>(
         () =>
