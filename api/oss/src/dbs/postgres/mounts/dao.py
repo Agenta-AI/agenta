@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import delete as sa_delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.dialects.postgresql import insert
+import uuid_utils.compat as uuid_utils
 
 from oss.src.core.mounts.dtos import Mount, MountCreate, MountEdit, MountQuery
 from oss.src.core.mounts.interfaces import MountsDAOInterface
@@ -12,6 +13,7 @@ from oss.src.core.mounts.types import (
     ATTACHMENTS_MOUNT_PURPOSE,
     PROTECTED_MOUNT_SLUG_LIKE_ESCAPE,
     MountSlugConflict,
+    project_storage_prefix,
     protected_mount_slug_like_pattern,
 )
 from oss.src.core.shared.dtos import Windowing
@@ -44,9 +46,16 @@ class MountsDAO(MountsDAOInterface):
         #
         mount_create: MountCreate,
     ) -> Mount:
+        # The id is minted here so the same insert can write the prefix built from it.
+        mount_id = uuid_utils.uuid7()
         mount_dbe = map_mount_dto_to_dbe_create(
             project_id=project_id,
             user_id=user_id,
+            mount_id=mount_id,
+            storage_prefix=project_storage_prefix(
+                project_id=project_id,
+                mount_id=mount_id,
+            ),
             mount_create=mount_create,
         )
 
@@ -71,10 +80,18 @@ class MountsDAO(MountsDAOInterface):
         mount_create: MountCreate,
     ) -> Mount:
         now = datetime.now(timezone.utc)
+        # The id is minted here so the same statement can write the prefix built from it. On
+        # conflict the existing row keeps its id and its prefix: neither is in `set_`.
+        mount_id = uuid_utils.uuid7()
         values = map_mount_dto_to_dbe_upsert(
             project_id=project_id,
             user_id=user_id,
             now=now,
+            mount_id=mount_id,
+            storage_prefix=project_storage_prefix(
+                project_id=project_id,
+                mount_id=mount_id,
+            ),
             mount_create=mount_create,
         )
 

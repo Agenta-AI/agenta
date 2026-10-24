@@ -418,7 +418,8 @@ function computeBuiltinGatingActive(
 }
 
 /**
- * Root of the LOCAL provider's durable mounts: `<root>/mounts/<project_id>/<mount_id>`.
+ * Root of the LOCAL provider's durable mounts: `<root>/<stored prefix>`, where the stored prefix
+ * is `mounts/<scope_id>/<mount_id>`.
  *
  * Deliberately NOT under `/tmp`. Every harness treats `/tmp` as scratch it is free to clear, and
  * on this provider a single mount namespace holds every concurrent session's geesefs mount, so one
