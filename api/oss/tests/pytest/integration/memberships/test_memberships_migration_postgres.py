@@ -39,6 +39,7 @@ _REPAIR_CONSTANTS = (
     "_DELETE_DEMO_ROWS_SQL",
     "_ADD_OWNER_ORGANIZATION_ROWS_SQL",
     "_ADD_OWNER_PROJECT_ROWS_SQL",
+    "_ADD_OWNER_WORKSPACE_ROWS_SQL",
     "_COPY_WORKSPACE_ROLE_SQL",
 )
 
@@ -106,6 +107,49 @@ async def test_repair_revision_adds_owner_rows():
             assert roles == {seeded.owner_id: ["owner"]}
             rows = await _project_rows(conn, seeded.project_ids, seeded.owner_id)
             assert rows == {p: ["owner"] for p in seeded.project_ids}
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_repair_revision_adds_the_owner_workspace_row():
+    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
+    try:
+        await execute(
+            "DELETE FROM workspace_members WHERE user_id = :owner",
+            {"owner": seeded.owner_id},
+        )
+        # An existing owner row keeps its role; only the missing one is added.
+        await execute(
+            "INSERT INTO workspace_members "
+            "(id, user_id, workspace_id, role, created_at, updated_at) "
+            "VALUES (gen_random_uuid(), :owner, :ws, 'admin', now(), now())",
+            {"owner": seeded.owner_id, "ws": seeded.workspace_ids[0]},
+        )
+
+        async with rolled_back_connection(organizations=[seeded]) as conn:
+            first = await _run_repair(conn)
+            rows = await _rows(
+                conn,
+                "SELECT workspace_id, user_id, role FROM workspace_members "
+                "WHERE workspace_id = ANY(CAST(:w AS uuid[]))",
+                {"w": seeded.workspace_ids},
+            )
+            second = await _run_repair(conn)
+
+        owner_rows = {
+            row["workspace_id"]: row["role"]
+            for row in rows
+            if row["user_id"] == seeded.owner_id
+        }
+        assert owner_rows == {
+            seeded.workspace_ids[0]: "admin",
+            seeded.workspace_ids[1]: "owner",
+        }
+        # The member's rows are untouched.
+        member_rows = [r for r in rows if r["user_id"] == seeded.user_ids["m"]]
+        assert member_rows and all(r["role"] == "editor" for r in member_rows)
+        assert first[4] == 1
+        assert second[4] == 0
     finally:
         await delete_seeded_organization(seeded)
 
@@ -262,8 +306,8 @@ async def test_repair_revision_is_idempotent():
             first = await _run_repair(conn)
             second = await _run_repair(conn)
 
-        assert first[2] >= 1 and first[4] >= 1
-        assert second == [0, 0, 0, 0, 0]
+        assert first[2] >= 1 and first[5] >= 1
+        assert second == [0, 0, 0, 0, 0, 0]
     finally:
         await delete_seeded_organization(seeded)
 

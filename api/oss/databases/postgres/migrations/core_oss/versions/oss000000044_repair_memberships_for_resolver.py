@@ -6,7 +6,7 @@ Create Date: 2026-10-22 00:00:00.000000
 
 The membership resolver decides "is this user a member of this project, and with which
 role" from `organization_members` (OSS) and `project_members` (EE). This revision makes
-the rows agree with what today's permission checks allow, in five steps:
+the rows agree with what today's permission checks allow, in six steps:
 
 1. Delete the organization and workspace rows of demo-only users: a user, not the
    owner, whose every project row in an organization is a demo row. Demo enrollment
@@ -22,7 +22,12 @@ the rows agree with what today's permission checks allow, in five steps:
 4. P2a: add an `owner` project row for the organization owner in every project of the
    organization where the owner has no row. The owner shortcut now runs only for a
    member, so an owner without a row would lose access.
-5. P6: copy the workspace role into the organization role, for every member except the
+5. Add an `owner` workspace row for the organization owner in every workspace of the
+   organization where the owner has none. The auth middleware checks a request that
+   names a workspace against `workspace_members`, the default workspace and the
+   workspace lists come from it, and the signup writes this row. Without it, an owner
+   that step 3 and 4 just repaired would still be refused their own workspace.
+6. P6: copy the workspace role into the organization role, for every member except the
    owner, in organizations with exactly one workspace. Role changes went to the
    workspace and project rows only; the organization role is what OSS now reads.
 
@@ -97,6 +102,15 @@ WHERE NOT EXISTS (SELECT 1 FROM project_members pm
                   WHERE pm.project_id = p.id AND pm.user_id = o.owner_id)
 """
 
+# The owner's workspace rows, in the P1/P2a style.
+_ADD_OWNER_WORKSPACE_ROWS_SQL = """
+INSERT INTO workspace_members (id, user_id, workspace_id, role, created_at, updated_at)
+SELECT gen_random_uuid(), o.owner_id, w.id, 'owner', now(), now()
+FROM workspaces w JOIN organizations o ON o.id = w.organization_id
+WHERE NOT EXISTS (SELECT 1 FROM workspace_members wm
+                  WHERE wm.workspace_id = w.id AND wm.user_id = o.owner_id)
+"""
+
 # P6
 # The counts are aggregated once per table and joined, not computed per row in a
 # correlated subquery: `workspaces` has no index on `organization_id`, so a per-row
@@ -136,6 +150,7 @@ REPAIR_STATEMENTS = (
     _DELETE_DEMO_ROWS_SQL,
     _ADD_OWNER_ORGANIZATION_ROWS_SQL,
     _ADD_OWNER_PROJECT_ROWS_SQL,
+    _ADD_OWNER_WORKSPACE_ROWS_SQL,
     _COPY_WORKSPACE_ROLE_SQL,
 )
 
