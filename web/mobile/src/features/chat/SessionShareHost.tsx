@@ -27,6 +27,7 @@ import {useRouter} from "next/router"
 import {useCurrentProject} from "../context/useCurrentProject"
 
 import {shareDialogRequestAtom, type ShareDialogRequest} from "./shareDialogState"
+import {useDisclosureProviderLabel} from "./useDisclosureProviderLabel"
 
 /**
  * The one Share dialog of the app, for whichever session `shareDialogRequestAtom` names. Mounted
@@ -67,6 +68,7 @@ const SessionShareDialogBound = ({
     const me = useAtomValue(userAtom)
 
     const sharingQuery = useAtomValue(sessionSharingQueryAtomFamily(sessionId))
+    const providerLabel = useDisclosureProviderLabel(sharingQuery.data?.disclosure)
     const [search, setSearch] = useState("")
     // The picker queries as the person types, a beat behind them.
     const [typed, setTyped] = useDebounceInput<string>(search, setSearch, 250, "")
@@ -108,6 +110,7 @@ const SessionShareDialogBound = ({
             projectName={project?.project_name ?? ""}
             sharing={sharingQuery.data?.sharing}
             disclosure={sharingQuery.data?.disclosure}
+            providerLabel={providerLabel}
             loading={sharingQuery.isPending}
             loadError={sharingQuery.isError && !sharingQuery.data}
             onRetry={() => void sharingQuery.refetch()}

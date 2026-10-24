@@ -9,4 +9,5 @@ export const sharingKeys = {
         ["sharing", "session", sessionId, projectId] as const,
     members: (projectId: string, search: string) =>
         ["sharing", "members", projectId, search] as const,
+    roster: (projectId: string) => ["sharing", "roster", projectId] as const,
 }

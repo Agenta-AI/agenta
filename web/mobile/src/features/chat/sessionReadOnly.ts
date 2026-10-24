@@ -10,13 +10,13 @@ export type SessionReadOnlyReason =
     | "no_owner"
     | "owner_left"
     | "viewer"
+    | "access_unknown"
 
 /**
  * The one rule for a read-only chat. A hidden agent wins (nothing can run it); then the session
  * state the server computed: no `can_send` on an ownerless chat, on a chat whose owner left, and
- * for a Viewer. Unknown sharing (still loading, or the read failed) is not read-only: the server
- * still refuses a send it does not allow, and a notice flashing in front of the owner's own
- * composer is worse.
+ * for a Viewer. Unknown sharing (still loading, or the read failed) gives no reason here: see
+ * `sessionAccessKnown`, which keeps the controls off until the state is known.
  *
  * Slack chats are ownerless too: the state's `not_shareable_reason` tells a channel chat
  * (`channel`) from one an API key or an automation started.
@@ -38,6 +38,25 @@ export const sessionReadOnlyReason = ({
     return "viewer"
 }
 
+/**
+ * Whether the chat knows what this reader may do. A session that exists on the server needs a
+ * sharing state that loaded and did not fail since: until then nothing on screen may send,
+ * approve or answer (the server would refuse a Viewer, but the controls must not pretend). A
+ * session minted in this browser (`fresh`) has no sharing row yet and belongs to its creator,
+ * so it keeps sending as before.
+ */
+export const sessionAccessKnown = ({
+    fresh,
+    loaded,
+    failed,
+}: {
+    fresh: boolean
+    /** The sharing state is in hand. */
+    loaded: boolean
+    /** The last read of it failed (a 404 included). */
+    failed: boolean
+}): boolean => fresh || (loaded && !failed)
+
 /** The notice text for a reason. `owner` is the owner's display name. */
 export const sessionReadOnlyText = (reason: SessionReadOnlyReason, owner: string): string => {
     switch (reason) {
@@ -51,6 +70,8 @@ export const sessionReadOnlyText = (reason: SessionReadOnlyReason, owner: string
             return sharingCopy.composerOwnerLeft(owner)
         case "viewer":
             return sharingCopy.composerViewer(owner)
+        case "access_unknown":
+            return sharingCopy.composerAccessUnknown
     }
 }
 
@@ -58,7 +79,8 @@ export const sessionReadOnlyText = (reason: SessionReadOnlyReason, owner: string
 export interface SessionReadOnly {
     reason: SessionReadOnlyReason
     notice: string
-    approvalNote: string
+    /** Under a read-only approval card; null when no one is known to be able to answer. */
+    approvalNote: string | null
 }
 
 /** True for a Fern error whose HTTP status is 404 (hidden and unknown read the same). */

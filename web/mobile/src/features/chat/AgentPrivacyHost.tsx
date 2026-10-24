@@ -28,6 +28,8 @@ import {channelPlatformLabel} from "@/lib/sharingCopy"
 
 import {useCurrentProject} from "../context/useCurrentProject"
 
+import {useDisclosureProviderLabel} from "./useDisclosureProviderLabel"
+
 const PLATFORMS = ["slack", "telegram", "whatsapp"] as const
 
 /** One entry per channel app bound to the agent (a Slack app in one workspace), never a channel.
@@ -76,6 +78,7 @@ const useAgentPrivacyProps = ({
     const queryClient = useQueryClient()
     const sharingQuery = useAtomValue(agentSharingQueryAtomFamily(agentId))
     const sharing = sharingQuery.data?.sharing
+    const providerLabel = useDisclosureProviderLabel(sharingQuery.data?.disclosure)
 
     const [search, setSearch] = useState("")
     const [typed, setTyped] = useDebounceInput<string>(search, setSearch, 250, "")
@@ -116,6 +119,7 @@ const useAgentPrivacyProps = ({
         projectName: project?.project_name ?? "",
         sharing,
         disclosure: sharingQuery.data?.disclosure,
+        providerLabel,
         loading: sharingQuery.isPending,
         loadError: sharingQuery.isError && !sharingQuery.data,
         onRetry: () => void sharingQuery.refetch(),

@@ -16,6 +16,7 @@ import {
     sessionSharingResponseSchema,
     sharingMembersResponseSchema,
     type AgentSharingResponse,
+    type ProjectMemberProfile,
     type SessionRole,
     type SessionSharingResponse,
     type SharingMembersResponse,
@@ -191,4 +192,31 @@ export async function querySharingMembers(
 
     const data = await getSharingClient().querySharingMembers({body}, scopedRequest(params))
     return parseOrThrow(sharingMembersResponseSchema, data, "[querySharingMembers]")
+}
+
+/** Members per page when a caller reads the whole roster (the server sets no maximum). */
+export const MEMBER_ROSTER_PAGE_SIZE = 500
+/** Bounds a roster read: 20 pages of 500 is far past any real project. */
+export const MEMBER_ROSTER_MAX_PAGES = 20
+
+/**
+ * Every member of the project, following `windowing.next` page by page. Fails rather than
+ * resolve short: a truncated roster would call a current member a former one.
+ */
+export async function fetchSharingMemberRoster(
+    params: ProjectScopedParams,
+): Promise<ProjectMemberProfile[]> {
+    const members: ProjectMemberProfile[] = []
+    let next: string | undefined
+    for (let page = 0; page < MEMBER_ROSTER_MAX_PAGES; page++) {
+        const response = await querySharingMembers({
+            ...params,
+            limit: MEMBER_ROSTER_PAGE_SIZE,
+            next,
+        })
+        members.push(...response.members)
+        next = response.windowing?.next ?? undefined
+        if (!next) return members
+    }
+    throw new Error(`[fetchSharingMemberRoster] more than ${MEMBER_ROSTER_MAX_PAGES} pages`)
 }

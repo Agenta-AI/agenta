@@ -81,9 +81,9 @@ export const AgentListScreen = ({
 
     const showArchived = view.type === "archived"
     const archived = useArchivedAgents({projectId, enabled: showArchived})
-    // One cached request, shared with the settings screen: the Owner column and the facet both
-    // name owners, and neither can from an id alone.
-    const {owners, ownerNames} = useAgentOwners({workspaceId, projectId})
+    // The project's member roster: the Owner column and the facet both name owners, and neither
+    // can from an id alone. An id outside it is a former member.
+    const {owners, ownerNames} = useAgentOwners()
     const me = useAtomValue(userAtom)
 
     // This list is already resolved client-side, so the term filters it in place — no refetch.

@@ -28,9 +28,13 @@ export const sharingWriteResultFromError = (error: unknown): SharingWriteResult 
     return (typeof code === "string" && CODE_RESULTS[code]) || "failed"
 }
 
-/** Title-cases a provider slug; hosts pass a catalog label instead when they have one. */
+/**
+ * Title-cases the connection's integration slug (`gmail` → "Gmail"): the integration is what the
+ * reader knows, the provider is the gateway behind it (`composio`). Hosts pass the catalog's
+ * display name instead; this is the fallback for an integration the catalog does not list.
+ */
 export const defaultProviderLabel = (connection: DisclosedConnection): string =>
-    connection.provider
+    (connection.integration || connection.provider)
         .split(/[-_\s]+/)
         .filter(Boolean)
         .map((word, index) => (index === 0 ? word[0].toUpperCase() + word.slice(1) : word))

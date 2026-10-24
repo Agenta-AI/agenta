@@ -6,6 +6,7 @@ import {sharingCopy} from "@/lib/sharingCopy"
 
 import {
     isNotFoundError,
+    sessionAccessKnown,
     sessionReadOnlyReason,
     sessionReadOnlyText,
     type SessionReadOnly,
@@ -23,7 +24,13 @@ import {useSessionSharing} from "./useSessionSharing"
  *
  * `readOnly`: the reader may read but not send (a Viewer, a Slack chat, an ownerless chat, an
  * owner who left, a private agent), with the texts for the composer's place and the approval
- * card.
+ * card. A sharing read that failed is read-only too, with the Share dialog's load-error text.
+ *
+ * `canSend`: every control that writes (send, approvals and their shortcut, queued messages, tool
+ * answers, rewind, templates) may act. False while read-only, and while the sharing state of a
+ * session that exists on the server is still loading: no notice then, the controls just wait.
+ * The query re-reads every 60 s and on focus, so a revoked grant blocks the chat, and a lowered
+ * role takes the controls away, within that bound.
  */
 export const useChatAccess = ({
     sessionId,
@@ -49,7 +56,14 @@ export const useChatAccess = ({
             blocked = "not_found"
     }
 
-    const reason = sessionReadOnlyReason({sharing: notFound ? null : sharing, agentHidden})
+    const fresh = isSessionFresh(sessionId)
+    const failed = query.isError
+    const known = sessionAccessKnown({fresh, loaded: Boolean(sharing), failed})
+    const sharingReason = sessionReadOnlyReason({sharing: failed ? null : sharing, agentHidden})
+    // A failed read says so in the composer's place; a 404 is the blocked page's, or a session
+    // whose row is not readable yet, which waits like a load.
+    const reason =
+        sharingReason ?? (!fresh && failed && !notFound && !blocked ? "access_unknown" : null)
     const owner = ownerName || sharingCopy.ownerFallback
     const readOnly = useMemo<SessionReadOnly | null>(
         () =>
@@ -57,10 +71,12 @@ export const useChatAccess = ({
                 ? {
                       reason,
                       notice: sessionReadOnlyText(reason, owner),
-                      approvalNote: sharingCopy.approvalWaiting(owner),
+                      approvalNote:
+                          reason === "access_unknown" ? null : sharingCopy.approvalWaiting(owner),
                   }
                 : null,
         [owner, reason],
     )
-    return {blocked, readOnly}
+    const canSend = !blocked && !readOnly && known
+    return {blocked, readOnly, canSend}
 }

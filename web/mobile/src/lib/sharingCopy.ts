@@ -4,6 +4,8 @@
  * carry their own strings; this module holds only what the app screens say around them.
  * Placeholders are functions.
  */
+import {sessionSharingCopy} from "@agenta/sessions-ui/sharing"
+
 export const sharingCopy = {
     // The notice that takes the composer's place.
     composerViewer: (owner: string) =>
@@ -15,6 +17,8 @@ export const sharingCopy = {
         "An API key or an automation started this chat. You can read it, but you cannot send to it here.",
     composerOwnerLeft: (owner: string) =>
         `${owner} left this project, so no one can send to this chat.`,
+    // The sharing state failed to load: the Share dialog's own load-error sentence.
+    composerAccessUnknown: sessionSharingCopy.loadError,
 
     // Stands in for the owner's name while the member list has not named them.
     ownerFallback: "the owner",

@@ -17,6 +17,7 @@ import {invalidateProjectSessionListQueries} from "../../session/state/invalidat
 import {
     fetchAgentSharing,
     fetchSessionSharing,
+    fetchSharingMemberRoster,
     querySharingMembers,
     restrictSessionToOwner,
     revokeSessionGrant,
@@ -35,6 +36,13 @@ import type {
 } from "../core/schema"
 
 const SHARING_STALE_TIME = 30_000
+
+/**
+ * How often an open session re-reads its sharing state, and so the longest a revoked grant or
+ * a lowered role stays on screen. The CONTRACT's live recheck bound: a live stream rechecks
+ * access on the same cadence. No session event carries sharing changes to the client.
+ */
+export const SESSION_SHARING_RECHECK_MS = 60_000
 
 // -- queries ---------------------------------------------------------------------------------
 
@@ -61,7 +69,9 @@ export const sessionSharingQueryAtomFamily = atomFamily((sessionId: string) =>
                 fetchSessionSharing({projectId, sessionId, abortSignal: signal}),
             enabled: Boolean(projectId && sessionId),
             staleTime: SHARING_STALE_TIME,
-            refetchOnWindowFocus: false,
+            // Only the open session subscribes, so only it polls.
+            refetchInterval: SESSION_SHARING_RECHECK_MS,
+            refetchOnWindowFocus: true,
         }
     }),
 )
@@ -85,6 +95,23 @@ export const sharingMembersQueryAtomFamily = atomFamily((search: string) =>
         }
     }),
 )
+
+/**
+ * Every member of the project, for surfaces that name people by id (the agent list's Owner
+ * column): an id missing from it is a former member. Not the picker's first page, which holds
+ * only 50 people.
+ */
+export const sharingMemberRosterQueryAtom = atomWithQuery((get) => {
+    const projectId = get(projectIdAtom) ?? ""
+    return {
+        queryKey: sharingKeys.roster(projectId),
+        queryFn: ({signal}: {signal?: AbortSignal}) =>
+            fetchSharingMemberRoster({projectId, abortSignal: signal}),
+        enabled: Boolean(projectId),
+        staleTime: 60_000,
+        refetchOnWindowFocus: false,
+    }
+})
 
 // -- mutations -------------------------------------------------------------------------------
 

@@ -22,7 +22,7 @@ import {ApprovalDock} from "./ApprovalDock"
 import {conversationKey} from "./conversationKey"
 import {LiveConversation} from "./LiveConversation"
 import {ReadOnlyComposerNotice} from "./ReadOnlyComposerNotice"
-import {selectedRevisionAtomFamily} from "./selectedRevision"
+import {heldCommitAtomFamily, selectedRevisionAtomFamily} from "./selectedRevision"
 import type {SessionReadOnly} from "./sessionReadOnly"
 import {SessionWorkspace} from "./SessionWorkspace"
 import {ChatNoAccess} from "./states/ChatNoAccess"
@@ -87,7 +87,15 @@ export const ChatScreen = ({
     // A revision picked in the top bar pins the workspace to it — config AND the conversation's
     // invocation target, as on the desktop.
     const [pinnedRevisionId, pinRevision] = useAtom(selectedRevisionAtomFamily(sessionId))
-    const entityId = pinnedRevisionId ?? latestEntityId
+    const setHeldCommit = useSetAtom(heldCommitAtomFamily(sessionId))
+    // A hidden agent shows no configuration at all: no revision of it is held, pinned or mounted,
+    // and one this screen pinned while the agent was visible goes when access to it does.
+    const entityId = agentHidden ? null : (pinnedRevisionId ?? latestEntityId)
+    useEffect(() => {
+        if (!agentHidden) return
+        pinRevision(null)
+        setHeldCommit(null)
+    }, [agentHidden, pinRevision, setHeldCommit])
     // A session starts pinned to the server's latest at the moment it opens. After that it moves
     // only to a version the agent commits in this session (`LiveConversation` follows it); a
     // version made elsewhere is offered by the top bar instead.
@@ -109,8 +117,9 @@ export const ChatScreen = ({
     // frame stays put; the transcript itself is keyed by sessionId and swaps immediately.
     const lastEntityIdRef = useRef<string | null>(null)
     if (entityId) lastEntityIdRef.current = entityId
-    // Held only across a pending switch: a session that failed to load must not borrow the last one.
-    if (unreachable) lastEntityIdRef.current = null
+    // Held only across a pending switch: a session that failed to load must not borrow the last
+    // one, and neither may a session whose agent the reader cannot see.
+    if (unreachable || agentHidden) lastEntityIdRef.current = null
     const heldEntityId = entityId ?? lastEntityIdRef.current
     // Held for the same gap: a blink to null re-scopes the files pane and the tab rail (#6542, #6544).
     const lastAgentIdRef = useRef<string | null>(null)
@@ -156,6 +165,7 @@ export const ChatScreen = ({
             sharedReader={sharedReader}
             agentId={heldAgentId}
             readOnly={access.readOnly}
+            canSend={access.canSend}
         />
     ) : (
         <ReplayScreen
@@ -166,6 +176,7 @@ export const ChatScreen = ({
             running={running}
             agentId={heldAgentId}
             readOnly={access.readOnly}
+            canSend={access.canSend}
         />
     )
 
@@ -179,7 +190,7 @@ export const ChatScreen = ({
             linkEntityId={entityId}
             linkAgentId={resolvedAgentId}
             agentHidden={agentHidden}
-            canSend={!access.readOnly}
+            canSend={access.canSend}
             sessionId={sessionId}
             workspaceId={workspaceId}
             projectId={projectId}
@@ -197,6 +208,7 @@ const ReplayScreen = ({
     running,
     agentId,
     readOnly = null,
+    canSend = true,
     embedded = false,
 }: {
     sessionId: string
@@ -207,6 +219,8 @@ const ReplayScreen = ({
     agentId?: string | null
     /** Why the reader cannot send, when the reason is sharing (a private agent, a Viewer). */
     readOnly?: SessionReadOnly | null
+    /** False until the reader is known to be allowed to answer: the approval card answers nothing. */
+    canSend?: boolean
     /** Rendered inside a workspace pane — the shell belongs to the parent. */
     embedded?: boolean
 }) => {
@@ -318,12 +332,17 @@ const ReplayScreen = ({
                             approvals={pendingApprovals}
                             actions={approvals}
                             bottomMost={false}
+                            readOnly
                             readOnlyNote={readOnly.approvalNote}
                         />
                         <ReadOnlyComposerNotice text={readOnly.notice} />
                     </>
                 ) : pendingApprovals.length > 0 ? (
-                    <ApprovalDock approvals={pendingApprovals} actions={approvals} />
+                    <ApprovalDock
+                        approvals={pendingApprovals}
+                        actions={approvals}
+                        readOnly={!canSend}
+                    />
                 ) : undefined
             }
         >

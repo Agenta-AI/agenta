@@ -36,7 +36,11 @@ import {
     accessPolicySchema,
     agentSharingResponseSchema,
     fetchAgentSharing,
+    fetchSharingMemberRoster,
+    MEMBER_ROSTER_PAGE_SIZE,
     querySharingMembers,
+    SESSION_SHARING_RECHECK_MS,
+    sessionSharingQueryAtomFamily,
     revokeSessionGrant,
     sessionSharingResponseSchema,
     sessionSharingStateSchema,
@@ -331,5 +335,58 @@ describe("sharing api requests", () => {
         expect(isInvalid(mobileSessionList)).toBe(true)
         expect(isInvalid(workflowList)).toBe(true)
         expect(isInvalid(otherProjectList)).toBe(false)
+    })
+
+    it("reads the whole member roster page by page", async () => {
+        sharing.querySharingMembers
+            .mockResolvedValueOnce({
+                count: 1,
+                members: [{user_id: ALICE, email: "alice@example.com"}],
+                windowing: {next: ALICE, limit: MEMBER_ROSTER_PAGE_SIZE},
+            })
+            .mockResolvedValueOnce({
+                count: 1,
+                members: [{user_id: BOB, email: "bob@example.com"}],
+            })
+
+        const roster = await fetchSharingMemberRoster({projectId: PROJECT})
+
+        expect(roster.map((member) => member.user_id)).toEqual([ALICE, BOB])
+        expect(sharing.querySharingMembers).toHaveBeenNthCalledWith(
+            2,
+            {body: {windowing: {limit: MEMBER_ROSTER_PAGE_SIZE, next: ALICE}}},
+            scoped,
+        )
+    })
+
+    it("fails rather than return a truncated roster", async () => {
+        sharing.querySharingMembers.mockResolvedValue({
+            count: 1,
+            members: [{user_id: ALICE, email: "alice@example.com"}],
+            windowing: {next: ALICE, limit: MEMBER_ROSTER_PAGE_SIZE},
+        })
+
+        await expect(fetchSharingMemberRoster({projectId: PROJECT})).rejects.toThrow(/pages/)
+    })
+})
+
+describe("the open session's sharing state", () => {
+    it("re-reads every 60 s and on focus, so a revoked grant reaches the screen", async () => {
+        const {queryClientAtom} = await import("jotai-tanstack-query")
+        const client = new QueryClient()
+        const store = createStore()
+        store.set(queryClientAtom, client)
+        store.set(projectIdAtom, PROJECT)
+        sharing.fetchSessionSharing.mockResolvedValue(sessionResponse)
+
+        const unsubscribe = store.sub(sessionSharingQueryAtomFamily(SESSION), () => undefined)
+        const [observer] =
+            client.getQueryCache().find({queryKey: sharingKeys.session(SESSION, PROJECT)})
+                ?.observers ?? []
+        unsubscribe()
+
+        expect(SESSION_SHARING_RECHECK_MS).toBe(60_000)
+        expect(observer?.options.refetchInterval).toBe(SESSION_SHARING_RECHECK_MS)
+        expect(observer?.options.refetchOnWindowFocus).toBe(true)
     })
 })

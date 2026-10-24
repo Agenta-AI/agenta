@@ -17,7 +17,7 @@ const bob: ProjectMemberProfile = {user_id: "u-bob", email: "bob@acme.com", name
 const carol: ProjectMemberProfile = {user_id: "u-carol", email: "carol@acme.com", name: "Carol Ng"}
 
 const disclosure: ShareDisclosure = {
-    connections: [{provider: "gmail", integration: "composio", connection: "c1"}],
+    connections: [{provider: "composio", integration: "gmail", connection: "c1"}],
     turns_use_run_credentials: true,
     files_and_tool_results_shared: true,
     trace_readers_can_read: true,

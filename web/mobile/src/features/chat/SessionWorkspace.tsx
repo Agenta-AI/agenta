@@ -225,13 +225,16 @@ export const SessionWorkspace = ({
         filesOpen,
     )
     const filesExpanded = filesLayout.expanded
+    // Never a config pane for a hidden agent: its configuration is exactly what the reader may not
+    // see, and a pane mounted while it was visible is dropped below, not kept hidden.
+    const configEntityId = agentHidden ? null : entityId
     // Which half is on screen. The rule is in `sessionPanes.ts`, with its tests: on a phone the
     // pane replaces the conversation, so getting it wrong puts the composer out of reach.
     const {showConfig, showPane, showFiles} = resolveSessionPanes({
         chatMaximized,
         configCollapsed,
         twoPane,
-        hasEntity: Boolean(entityId),
+        hasEntity: Boolean(configEntityId),
         filesOpen,
         filesExpanded,
     })
@@ -354,9 +357,10 @@ export const SessionWorkspace = ({
     // the shared panels render flat — identical components, missing surface ladder.
     // Kept mounted and `display:none` after first use: unmounting this schema form put ~100ms
     // of main thread behind every toggle.
-    const wantsConfig = showConfig && Boolean(entityId)
+    const wantsConfig = showConfig && Boolean(configEntityId)
     const configMountedRef = useRef(false)
     if (wantsConfig) configMountedRef.current = true
+    if (agentHidden) configMountedRef.current = false
     // The pane stays on screen for its closing slide, so it keeps the half it was already showing
     // rather than swapping content mid-motion.
     const lastPaneKindRef = useRef<"config" | "sessions">("sessions")
@@ -364,7 +368,7 @@ export const SessionWorkspace = ({
     const paneKind = showPane ? (wantsConfig ? "config" : "sessions") : lastPaneKindRef.current
     const pane = (
         <>
-            {configMountedRef.current && entityId ? (
+            {configMountedRef.current && configEntityId ? (
                 <div
                     className={
                         configSlide.keepMounted && paneKind === "config"
@@ -373,7 +377,7 @@ export const SessionWorkspace = ({
                     }
                 >
                     <ConfigPane
-                        entityId={entityId}
+                        entityId={configEntityId}
                         sessionId={sessionId}
                         filesScope={filesScope}
                         projectId={projectId}
