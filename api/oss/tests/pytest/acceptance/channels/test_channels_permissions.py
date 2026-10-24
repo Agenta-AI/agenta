@@ -25,6 +25,7 @@ from uuid import uuid4
 import pytest
 import requests
 
+from oss.tests.pytest.acceptance.channels.support import create_project_agent
 from utils.constants import BASE_TIMEOUT
 
 pytestmark = pytest.mark.acceptance
@@ -148,6 +149,7 @@ def _poll(fetch, *, attempts=40, delay=0.5):
 
 def _seed(owner):
     slug = f"perm-{uuid4().hex[:8]}"
+    agent_revision_id = create_project_agent(owner)["revision_id"]
 
     connection = _ok(
         owner(
@@ -171,7 +173,9 @@ def _seed(owner):
                 "agent": {
                     "connection_id": connection["id"],
                     "slug": f"agent-{slug}",
-                    "data": {"references": {"workflow_revision": {"id": str(uuid4())}}},
+                    "data": {
+                        "references": {"workflow_revision": {"id": agent_revision_id}}
+                    },
                 }
             },
         )
@@ -241,6 +245,7 @@ def _seed(owner):
     return {
         "project_id": project_id,
         "slug": slug,
+        "agent_revision_id": agent_revision_id,
         "connection": connection,
         "agent": agent,
         "space": space,
@@ -438,7 +443,7 @@ def _writes(w):
     space_id = w["space"]["id"]
     grant_id = w["grant"]["id"]
     thread_id = w["thread"]["id"]
-    references = {"workflow_revision": {"id": str(uuid4())}}
+    references = {"workflow_revision": {"id": w["agent_revision_id"]}}
     return [
         (
             "fetch_channel_setup",
