@@ -70,6 +70,7 @@ class FakeWorkflowsService:
         )
         self.ensure_calls = []
         self.delta_calls = []
+        self.engine_results = []
         self.agent_context_calls = []
         self.prepare_calls = []
 
@@ -101,10 +102,14 @@ class FakeWorkflowsService:
         )
         # The real resolver runs the delta through the change-set engine with the
         # caller's scope policy; a refusal raises before any result.
-        apply_change_set(
-            dict(self.revision_data or {}),
-            workflow_revision_commit.delta.model_dump(mode="json", exclude_unset=True),
-            scope_policy,
+        self.engine_results.append(
+            apply_change_set(
+                dict(self.revision_data or {}),
+                workflow_revision_commit.delta.model_dump(
+                    mode="json", exclude_unset=True
+                ),
+                scope_policy,
+            )
         )
         # `_resolve_revision_delta` returns a DeltaResolution: the resolved commit, the
         # head it was built on, and the warnings the commit response carries.
@@ -1035,3 +1040,28 @@ async def test_test_run_ordered_delta_inside_parameters_still_runs(monkeypatch):
 
     assert [call["scope_policy"] for call in workflows.delta_calls] == [PARAMETERS_ONLY]
     assert len(workflows.prepare_calls) == 1
+    # The engine applied the change and kept every field outside it.
+    (result,) = workflows.engine_results
+    assert result.changed is True
+    assert result.data == {
+        "url": "https://agent.internal",
+        "parameters": {"agent": {"model": "base", "instructions": "hi"}},
+    }
+
+
+async def test_test_run_legacy_delta_inside_parameters_keeps_other_fields(
+    monkeypatch,
+):
+    outputs = {"messages": [{"role": "assistant", "content": "pong"}]}
+    _, workflows, _ = await _run(
+        monkeypatch,
+        outputs=outputs,
+        args=_args(delta={"set": {"parameters": {"agent": {"instructions": "hi"}}}}),
+    )
+
+    assert [call["scope_policy"] for call in workflows.delta_calls] == [PARAMETERS_ONLY]
+    (result,) = workflows.engine_results
+    assert result.data == {
+        "url": "https://agent.internal",
+        "parameters": {"agent": {"model": "base", "instructions": "hi"}},
+    }
