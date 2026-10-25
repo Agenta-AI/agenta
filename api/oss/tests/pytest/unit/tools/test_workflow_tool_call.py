@@ -316,19 +316,24 @@ async def test_child_run_into_private_agent_is_access_denied():
     from oss.src.core.sharing.types import AdmissionDenied
     from oss.tests.pytest.utils.sharing import RecordingRunAdmission
 
-    workflows = FakeWorkflowsService(outputs={"ok": True})
-    admission = RecordingRunAdmission(
-        refuse=lambda method, kwargs: AdmissionDenied(
+    def _refuse_the_private_agent(method, kwargs):
+        # Only an admission of the private agent's request is refused.
+        if "private-agent" not in repr(kwargs.get("request")):
+            return None
+        return AdmissionDenied(
             decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
             readable=False,
             boundary=kwargs["boundary"],
         )
-    )
+
+    workflows = FakeWorkflowsService(outputs={"ok": True})
+    admission = RecordingRunAdmission(refuse=_refuse_the_private_agent)
     response = await _router(workflows, admission)._call_workflow_tool(
         request=_request(),
         body=_call("workflow.variant.private-agent", {}),
     )
 
+    assert admission.methods() == ["admit_request"]
     assert workflows.calls == []
     result = response.call
     assert result.status.code == "STATUS_CODE_ERROR"
