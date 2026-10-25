@@ -220,7 +220,9 @@ async def test_non_member_gets_404_on_update_and_delete(routes):
     workspace_id = uuid4()
     state = routes(
         listing=None,
-        project=SimpleNamespace(id=uuid4(), workspace_id=workspace_id),
+        project=SimpleNamespace(
+            id=uuid4(), workspace_id=workspace_id, organization_id=uuid4()
+        ),
     )
 
     with pytest.raises(HTTPException) as error:
@@ -242,7 +244,9 @@ async def test_non_member_gets_404_on_update_and_delete(routes):
 async def test_delete_outside_the_request_workspace_is_404(routes):
     state = routes(
         listing=_listing("owner"),
-        project=SimpleNamespace(id=uuid4(), workspace_id=uuid4()),
+        project=SimpleNamespace(
+            id=uuid4(), workspace_id=uuid4(), organization_id=uuid4()
+        ),
     )
 
     with pytest.raises(HTTPException) as error:
@@ -259,7 +263,9 @@ async def test_admin_cannot_delete_a_project(routes):
     state = routes(
         allowed=False,
         listing=_listing("admin"),
-        project=SimpleNamespace(id=uuid4(), workspace_id=workspace_id),
+        project=SimpleNamespace(
+            id=uuid4(), workspace_id=workspace_id, organization_id=uuid4()
+        ),
     )
 
     with pytest.raises(HTTPException) as error:

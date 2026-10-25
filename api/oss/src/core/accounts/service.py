@@ -16,6 +16,7 @@ from uuid import UUID
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.memberships.service import invalidate_access_caches
+from oss.src.core.memberships.workspaces import legacy_workspace_id
 from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
 from oss.src.core.access.service import (
     invalidate_principals_after_write,
@@ -278,7 +279,11 @@ def _proj_db_to_read_dto(proj: ProjectDB) -> AdminProjectRead:
         id=str(proj.id),
         name=proj.project_name or "",
         organization_id=str(proj.organization_id),
-        workspace_id=str(proj.workspace_id),
+        workspace_id=str(
+            legacy_workspace_id(
+                workspace_id=proj.workspace_id, organization_id=proj.organization_id
+            )
+        ),
         is_default=proj.is_default,
         created_at=proj.created_at.isoformat() if proj.created_at else None,
         updated_at=proj.updated_at.isoformat() if proj.updated_at else None,

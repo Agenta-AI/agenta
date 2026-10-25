@@ -16,6 +16,26 @@ Agenta follows semantic versioning with new releases every week. Stay updated by
 The multi-organization release flips OSS from invite-only to open signup. If your instance is reachable beyond a trusted network, set `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` (and optionally `AGENTA_ACCESS_ALLOWED_DOMAINS`) before upgrading. See [Migrate to Multi-Organization OSS](/self-host/upgrades/multi-org-migration).
 :::
 
+## Upgrading to 0.125.0
+
+This release changes where new mounts store their files and prepares the removal of workspaces. It adds two database migrations.
+
+### Upgrade from 0.124.0
+
+Finish the upgrade to 0.124.0 on every pod before you start 0.125.0. Pods older than 0.124.0 compute mount paths from the project and cannot read mounts that 0.125.0 creates, and their mount creations fail until they are replaced. A Helm rolling upgrade straight from 0.123.x or older can therefore fail some mount creations and miss some files until all old pods are gone. Docker Compose is not affected.
+
+### New mounts store their files under the organization
+
+New mounts store their files under `mounts/<organization_id>/<mount_id>`. Mounts created before 0.125.0 keep `mounts/<project_id>/<mount_id>`. Nothing is copied or moved.
+
+### Deleting a workspace row in the database keeps its projects
+
+Deleting a workspace row directly in the database no longer deletes its projects. The admin API still deletes a workspace's projects with the workspace. During the rolling upgrade, a workspace that a 0.124.0 pod deletes through the admin API keeps its projects.
+
+### The API accepts the organization id where it accepts a workspace id
+
+Routes and query parameters that take a workspace id also accept the organization id, and a workspace id of the same organization. Creating and renaming a workspace still need a workspace id. Responses for existing data do not change, with two exceptions. A member who has no workspace membership row now sees one item with the organization id in the workspace list. A browser request without `project_id` (with or without `workspace_id`) now needs membership in the default project it opens; a workspace membership row alone no longer gives access.
+
 ## Upgrading to 0.124.0
 
 This release changes who can open a project, makes every run act as a named user, API key or installation, and adds five database migrations. Read the subsections for your edition.
