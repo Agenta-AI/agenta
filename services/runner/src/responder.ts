@@ -610,7 +610,11 @@ export function decisionToReply(
   availableReplies: string[],
 ): string {
   if (decision === "deny") {
-    return availableReplies.find((r) => r === "reject") ?? "reject";
+    return (
+      availableReplies.find((r) => r === "decline") ??
+      availableReplies.find((r) => r === "reject") ??
+      "reject"
+    );
   }
   return availableReplies.find((r) => r === "once") ?? "once";
 }
