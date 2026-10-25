@@ -37,7 +37,6 @@ def build_gateway_call_attributes(
     """Build non-sensitive audit attributes for one gateway call."""
     attributes: Dict[str, Any] = {
         "organization_id": str(scope.organization_id),
-        "workspace_id": str(scope.workspace_id),
         "project_id": str(scope.project_id),
         "user_id": str(scope.user_id),
         "plane": target.plane.value,

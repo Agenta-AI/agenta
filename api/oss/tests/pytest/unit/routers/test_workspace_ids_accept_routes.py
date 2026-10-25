@@ -280,7 +280,9 @@ async def test_delete_project_accepts_the_organization_context(monkeypatch):
 
     monkeypatch.setattr(db_manager, "fetch_project_by_id", _project)
     monkeypatch.setattr(projects_router, "_fetch_listing", _listing)
-    request = SimpleNamespace(state=SimpleNamespace(workspace_id=str(organization_id)))
+    request = SimpleNamespace(
+        state=SimpleNamespace(organization_id=str(organization_id))
+    )
 
     with pytest.raises(HTTPException) as error:
         await projects_router.delete_project(project_id=project_id, request=request)
@@ -305,7 +307,7 @@ async def test_delete_project_refuses_another_organization(monkeypatch):
 
     monkeypatch.setattr(db_manager, "fetch_project_by_id", _project)
     monkeypatch.setattr(projects_router, "_fetch_listing", _listing)
-    request = SimpleNamespace(state=SimpleNamespace(workspace_id=str(uuid4())))
+    request = SimpleNamespace(state=SimpleNamespace(organization_id=str(uuid4())))
 
     with pytest.raises(HTTPException) as error:
         await projects_router.delete_project(project_id=uuid4(), request=request)
@@ -325,7 +327,8 @@ async def test_access_scope_workspace_accepts_the_organization_id(monkeypatch):
     assert await access_router._check_scope_access(
         scope_type="workspace", scope_id=scope.organization_id
     )
-    assert await access_router._check_scope_access(
+    # Step 2: a legacy workspace id is refused (no client sends it; it grants nothing).
+    assert not await access_router._check_scope_access(
         scope_type="workspace", scope_id=scope.workspace_id
     )
 

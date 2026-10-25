@@ -173,17 +173,16 @@ async def create_project(
     request: Request,
     payload: CreateProjectRequest,
 ) -> ProjectsResponse:
-    workspace_id = getattr(request.state, "workspace_id", None)
     organization_id = getattr(request.state, "organization_id", None)
 
-    if not workspace_id or not organization_id:
+    if not organization_id:
         raise HTTPException(status_code=400, detail=_CONTEXT_REQUIRED)
 
     # Creating a project is an organization-level act: it authorizes on the
-    # default project of the request's workspace, like the workspace endpoints.
+    # organization's default project, like the workspace endpoints.
     try:
         default_project_id = await db_manager.get_default_project_id_from_workspace(
-            workspace_id=str(workspace_id)
+            workspace_id=str(organization_id)
         )
     except NoResultFound as exc:
         raise HTTPException(status_code=400, detail=_CONTEXT_REQUIRED) from exc
@@ -202,7 +201,7 @@ async def create_project(
     try:
         scope = await get_memberships_service().create_project(
             organization_id=UUID(str(organization_id)),
-            workspace_id=UUID(str(workspace_id)),
+            workspace_id=UUID(str(organization_id)),
             name=project_name,
             is_default=payload.make_default,
             actor_user_id=UUID(str(request.state.user_id)),
@@ -238,18 +237,15 @@ async def delete_project(
     project_id: UUID,
     request: Request,
 ):
-    workspace_id = getattr(request.state, "workspace_id", None)
+    organization_id = getattr(request.state, "organization_id", None)
 
-    if not workspace_id:
+    if not organization_id:
         raise HTTPException(status_code=400, detail="Workspace context is required")
 
     project = await db_manager.fetch_project_by_id(project_id=str(project_id))
 
-    # The context is the project's workspace, or its organization id when it has none.
-    if not project or str(workspace_id) not in {
-        str(project.workspace_id),
-        str(project.organization_id),
-    }:
+    # The context is the project's organization.
+    if not project or str(organization_id) != str(project.organization_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
     if await _fetch_listing(request, project_id) is None:

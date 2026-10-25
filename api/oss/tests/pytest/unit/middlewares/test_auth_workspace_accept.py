@@ -148,6 +148,19 @@ def world(monkeypatch):
         reads.append("get_project_by_id")
         return projects.get(str(project_id))
 
+    async def _fetch_project_with_workspace_organization(*, project_id):
+        # Step 2: the project + workspace branch reads the project with its workspace's
+        # organization in one statement.
+        reads.append("get_project_by_id")
+        project = projects.get(str(project_id))
+        if project is None:
+            return None
+        workspace = workspaces.get(str(project.workspace_id))
+        return db_manager_module.ProjectWithWorkspaceOrganization(
+            project=project,
+            workspace_organization_id=workspace.organization_id if workspace else None,
+        )
+
     async def _get_workspace(workspace_id):
         reads.append("get_workspace")
         return workspaces.get(str(workspace_id))
@@ -178,6 +191,11 @@ def world(monkeypatch):
     monkeypatch.setattr(auth, "sign_secret_token", _sign_secret_token)
     monkeypatch.setattr(auth.db_manager, "get_project_by_id", _get_project_by_id)
     monkeypatch.setattr(auth.db_manager, "get_workspace", _get_workspace)
+    monkeypatch.setattr(
+        auth.db_manager,
+        "fetch_project_with_workspace_organization",
+        _fetch_project_with_workspace_organization,
+    )
     monkeypatch.setattr(
         auth.db_manager, "fetch_default_project", _fetch_default_project
     )
@@ -236,7 +254,7 @@ async def test_bearer_accepts_the_organization_id_with_a_project(world):
     state = await _bearer(
         world, project_id=world.project.project_id, workspace_id=world.organization_id
     )
-    assert state.workspace_id == str(world.workspace_a)
+    assert state.workspace_id == str(world.organization_id)  # step 2
     assert state.organization_id == str(world.organization_id)
     assert "get_workspace" not in world.reads
 
@@ -255,7 +273,7 @@ async def test_bearer_accepts_another_workspace_of_the_same_organization(world):
         world, project_id=world.project.project_id, workspace_id=world.workspace_b
     )
     assert world.reads.count("get_workspace") == 1
-    assert state.workspace_id == str(world.workspace_a)
+    assert state.workspace_id == str(world.organization_id)  # step 2
 
 
 async def test_bearer_refuses_another_organization_id(world):
@@ -280,40 +298,6 @@ async def test_bearer_refuses_a_workspace_of_another_organization(world):
     assert _denied(world)
 
 
-async def test_bearer_keeps_the_cross_organization_legacy_project(world, monkeypatch):
-    # Project P of O1 sits in workspace W of O2.
-    world.member()
-    project = world.project
-    world.defaults[str(world.foreign_workspace)] = db_manager_module.DefaultProjectRef(
-        project_id=project.project_id,
-        project_organization_id=world.organization_id,
-        project_workspace_id=world.foreign_workspace,
-        ref_workspace_id=world.foreign_workspace,
-        ref_organization_id=world.other_organization_id,
-    )
-
-    async def _cross_project(project_id):
-        world.reads.append("get_project_by_id")
-        return SimpleNamespace(
-            id=project.project_id,
-            workspace_id=world.foreign_workspace,
-            organization_id=world.organization_id,
-            organization=SimpleNamespace(name="Organization"),
-        )
-
-    monkeypatch.setattr(auth.db_manager, "get_project_by_id", _cross_project)
-    state = await _bearer(
-        world, project_id=project.project_id, workspace_id=world.foreign_workspace
-    )
-    assert "get_workspace" not in world.reads
-    assert state.organization_id == str(world.organization_id)
-
-    state = await _bearer(world, workspace_id=world.foreign_workspace)
-    assert state.project_id == str(project.project_id)
-    assert state.organization_id == str(world.other_organization_id)
-    assert world.signed[-1]["organization_id"] == str(world.other_organization_id)
-
-
 # --- workspace_id only ------------------------------------------------------- #
 
 
@@ -321,7 +305,7 @@ async def test_bearer_workspace_only_accepts_the_organization_id(world):
     world.member()
     state = await _bearer(world, workspace_id=world.organization_id)
     assert state.project_id == str(world.project.project_id)
-    assert state.workspace_id == str(world.workspace_a)
+    assert state.workspace_id == str(world.organization_id)  # step 2
     assert world.reads.count("fetch_default_project") == 1
     assert "get_workspace" not in world.reads
     assert world.dao.reads == ["fetch_membership_row"]
@@ -408,7 +392,8 @@ async def test_bearer_project_without_workspace_answers_the_organization_id(worl
     world.member()
     state = await _bearer(world, project_id=world.no_workspace.project_id)
     assert state.workspace_id == str(world.organization_id)
-    assert world.signed[-1]["workspace_id"] == str(world.organization_id)
+    # Step 2: the signer writes the workspace claim itself (the organization id).
+    assert "workspace_id" not in world.signed[-1]
 
 
 # --- no parameters ----------------------------------------------------------- #
@@ -418,7 +403,7 @@ async def test_bearer_without_parameters_keeps_the_oldest_workspace(world):
     world.member()
     state = await _bearer(world)
     assert state.project_id == str(world.project.project_id)
-    assert state.workspace_id == str(world.workspace_a)
+    assert state.workspace_id == str(world.organization_id)  # step 2
     # (`get_project_by_id` after these is the organization-name lookup, as today.)
     assert world.reads[:2] == ["get_default_workspace_id", "fetch_default_project"]
     assert "get_workspace" not in world.reads
@@ -512,7 +497,7 @@ async def test_bearer_without_parameters_accepts_a_changed_default_for_a_member(
     world.member()
     state = await _bearer(world)
     assert state.project_id == str(world.project.project_id)
-    assert state.workspace_id == str(world.workspace_a)
+    assert state.workspace_id == str(world.organization_id)  # step 2
 
 
 # --- API key ----------------------------------------------------------------- #

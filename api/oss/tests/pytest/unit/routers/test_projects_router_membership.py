@@ -217,11 +217,11 @@ async def test_editor_cannot_rename_a_project(routes):
 
 
 async def test_non_member_gets_404_on_update_and_delete(routes):
-    workspace_id = uuid4()
+    organization_id = uuid4()
     state = routes(
         listing=None,
         project=SimpleNamespace(
-            id=uuid4(), workspace_id=workspace_id, organization_id=uuid4()
+            id=uuid4(), workspace_id=uuid4(), organization_id=organization_id
         ),
     )
 
@@ -235,7 +235,7 @@ async def test_non_member_gets_404_on_update_and_delete(routes):
 
     with pytest.raises(HTTPException) as error:
         await projects_router.delete_project(
-            project_id=uuid4(), request=_request(workspace_id=str(workspace_id))
+            project_id=uuid4(), request=_request(organization_id=str(organization_id))
         )
     assert (error.value.status_code, error.value.detail) == (404, "Project not found")
     state.access.assert_not_awaited()
@@ -251,7 +251,7 @@ async def test_delete_outside_the_request_workspace_is_404(routes):
 
     with pytest.raises(HTTPException) as error:
         await projects_router.delete_project(
-            project_id=uuid4(), request=_request(workspace_id=str(uuid4()))
+            project_id=uuid4(), request=_request(organization_id=str(uuid4()))
         )
 
     assert error.value.status_code == 404
@@ -259,18 +259,18 @@ async def test_delete_outside_the_request_workspace_is_404(routes):
 
 
 async def test_admin_cannot_delete_a_project(routes):
-    workspace_id = uuid4()
+    organization_id = uuid4()
     state = routes(
         allowed=False,
         listing=_listing("admin"),
         project=SimpleNamespace(
-            id=uuid4(), workspace_id=workspace_id, organization_id=uuid4()
+            id=uuid4(), workspace_id=uuid4(), organization_id=organization_id
         ),
     )
 
     with pytest.raises(HTTPException) as error:
         await projects_router.delete_project(
-            project_id=uuid4(), request=_request(workspace_id=str(workspace_id))
+            project_id=uuid4(), request=_request(organization_id=str(organization_id))
         )
 
     assert error.value.status_code == 403

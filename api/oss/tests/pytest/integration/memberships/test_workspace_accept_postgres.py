@@ -1210,7 +1210,8 @@ async def test_apikey_counts_are_unchanged(bearer_world):
     assert counts["cold"][0] == 2, counts
     assert counts["cold"][1] == _APIKEY_COLD_REDIS, counts
     assert counts["warm"] == (0, 1), counts
-    assert request_state.workspace_id == str(seeded.workspace_ids[0])
+    # Step 2: the organization id where the workspace id was.
+    assert request_state.workspace_id == str(seeded.organization_id)
 
 
 async def test_delete_paths_keep_their_statement_counts():
