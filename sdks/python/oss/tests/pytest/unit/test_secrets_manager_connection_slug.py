@@ -20,6 +20,7 @@ import pytest
 
 from agenta.sdk.engines.running.errors import (
     ConnectionModelMismatchV0Error,
+    InvalidSecretsV0Error,
     UnknownConnectionV0Error,
 )
 from agenta.sdk.managers.secrets import SecretsManager
@@ -116,13 +117,22 @@ def test_custom_connection_is_addressable_by_its_name_before_slugs_existed(resol
     assert settings["model"] == "openai/gpt-4o-mini"
 
 
-def test_a_custom_connection_rejects_a_model_from_another_namespace(resolve):
-    # What a renamed custom connection leaves behind: the stored model key still names the old
-    # provider_slug, so the litellm rewrite would mangle it. Resolve to nothing (the caller
-    # raises InvalidSecrets) instead of calling out with a bad model name.
+def test_custom_connection_uses_stable_slug_over_display_name(resolve):
     secrets = [_custom_provider(slug="my-gw", provider_slug="renamed-gw")]
 
-    assert resolve(secrets, "my-gw/custom/gpt-4o-mini", "my-gw") is None
+    assert resolve(secrets, "my-gw/custom/gpt-4o-mini", "my-gw")["model"] == (
+        "openai/gpt-4o-mini"
+    )
+
+
+def test_unmatched_custom_model_key_fails_before_provider_call(resolve):
+    secrets = [_custom_provider(slug="my-gw")]
+
+    with pytest.raises(InvalidSecretsV0Error) as excinfo:
+        resolve(secrets, "my-gw/custom/not-configured", "my-gw")
+
+    assert "my-gw/custom/not-configured" in excinfo.value.message
+    assert "my-gw/custom/gpt-4o-mini" in excinfo.value.message
 
 
 def test_unknown_slug_raises_rather_than_falling_back(resolve):
