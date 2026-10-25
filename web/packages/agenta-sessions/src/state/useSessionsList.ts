@@ -15,6 +15,7 @@ import {
     sessionShowArchivedAtom,
     sessionArchivedOnlyAtom,
     sessionShowTriggeredAtom,
+    sessionShowAgentCreatedAtom,
     sessionStatusFilterAtom,
 } from "./filters"
 import {isSessionPinnedAtom, pinnedSessionIdsAtom, toggleSessionPinAtom} from "./pins"
@@ -268,6 +269,8 @@ export const useSessionFilters = () => {
     const includeArchived = useAtomValue(sessionShowArchivedAtom)
     const archivedOnly = useAtomValue(sessionArchivedOnlyAtom)
     const mode = useAtomValue(sessionShowTriggeredAtom)
+    const showAgentCreated = useAtomValue(sessionShowAgentCreatedAtom)
+    const setShowAgentCreated = useSetAtom(sessionShowAgentCreatedAtom)
     const setSearch = useSetAtom(sessionSearchAtom)
     const setAgentId = useSetAtom(sessionAgentFilterAtom)
     const setStatus = useSetAtom(sessionStatusFilterAtom)
@@ -283,6 +286,8 @@ export const useSessionFilters = () => {
         archivedOnly,
         /** True = the automations mode: the list shows trigger-started sessions INSTEAD. */
         mode,
+        showAgentCreated,
+        setShowAgentCreated,
         setSearch,
         setAgentId,
         setStatus,

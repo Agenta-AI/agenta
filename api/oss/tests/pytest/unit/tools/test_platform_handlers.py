@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 from uuid import uuid4
+from functools import partial
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -25,6 +27,22 @@ from oss.src.core.tools.platform_handlers import (
 from oss.src.core.workflows.dtos import WorkflowRevisionData, WorkflowServiceRequestData
 from oss.src.core.workflows import service as service_module
 from oss.src.core.workflows.service import WorkflowsService
+
+
+@pytest.fixture(autouse=True)
+def _session_persistence(monkeypatch):
+    """Existing transport tests run with the newly required session dependency wired."""
+    import sys
+
+    module = sys.modules[__name__]
+    dao = SimpleNamespace(create=AsyncMock())
+    monkeypatch.setattr(
+        module, "handle_test_run", partial(handle_test_run, session_streams_dao=dao)
+    )
+    monkeypatch.setattr(
+        module, "ToolsRouter", partial(ToolsRouter, session_streams_dao=dao)
+    )
+    return dao
 
 
 @pytest.fixture(autouse=True)

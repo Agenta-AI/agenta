@@ -108,9 +108,7 @@ def decode_session_attribution(
 
     origin_value = tags.get(SESSION_ORIGIN_TAG_KEY)
     if origin_value is None:
-        # No stamp at all means a human session — every writer of `ag.origin` sets
-        # "trigger"; nothing ever stamped "manual" (P1-1). Default it here so a
-        # human session reports an origin instead of null.
+        # Untagged legacy sessions remain manual; do not infer origin from their names.
         origin = SessionOrigin.manual
     else:
         try:
@@ -211,7 +209,11 @@ def map_stream_dto_to_dbe_create(
         description=stream.description,
         flags=stream.flags.model_dump(mode="json") if stream.flags else None,
         tags=encode_name_state(
-            tags=stream.tags,
+            tags=(
+                {**(stream.tags or {}), SESSION_ORIGIN_TAG_KEY: stream.origin.value}
+                if stream.origin is not None
+                else stream.tags
+            ),
             name_source=stream.name_source,
             name=stream.name,
         ),

@@ -12,9 +12,15 @@ export interface SessionListRequestPolicy {
 
 export const sessionListRequestFilters = (
     policy: SessionListRequestPolicy,
+    showAgentCreated = false,
 ): Pick<SessionListFilters, "origins" | "excludeOrigins" | "expand"> => ({
     origins: policy.origin === "trigger-only" ? ["trigger"] : undefined,
-    excludeOrigins: policy.origin === "exclude-trigger" ? ["trigger"] : undefined,
+    excludeOrigins:
+        policy.origin === "exclude-trigger"
+            ? showAgentCreated
+                ? ["trigger"]
+                : ["trigger", "agent"]
+            : undefined,
     expand: [...policy.expansions],
 })
 
@@ -38,10 +44,10 @@ export const selectedSessionListPolicy = (
 export const isStartedSession = (row: SessionStream): boolean =>
     Boolean(
         (row.references?.length ?? 0) > 0 ||
-        row.name?.trim() ||
-        row.last_message ||
-        row.origin === "trigger" ||
-        row.trigger,
+            row.name?.trim() ||
+            row.last_message ||
+            row.origin === "trigger" ||
+            row.trigger,
     )
 
 export const startedSessions = <T extends SessionStream>(rows: readonly T[]): T[] =>

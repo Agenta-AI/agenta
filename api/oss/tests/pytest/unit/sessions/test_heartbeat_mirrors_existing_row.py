@@ -57,6 +57,7 @@ class _FakeStreamsDAO:
             project_id=project_id,
             session_id=stream.session_id,
             name=stream.name,
+            origin=stream.origin,
             flags=stream.flags,
             turn_id=stream.turn_id,
         )
@@ -70,6 +71,7 @@ class _FakeStreamsDAO:
             project_id=project_id,
             session_id=session_id,
             name=prior.name if prior else None,
+            origin=prior.origin if prior else None,
             flags=stream.flags if stream.flags is not None else prior.flags,
             turn_id=stream.turn_id if stream.turn_id is not None else prior.turn_id,
         )
@@ -138,6 +140,29 @@ async def test_turn_end_heartbeat_clears_running_on_the_row(lock_engine):
     # `running` collapses — the phantom-running badge is what this guards.
     assert result.stream.flags.is_running is False
     assert result.stream.flags.is_alive is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("origin", ["manual", "trigger", "agent"])
+async def test_beat_preserves_existing_session_origin(lock_engine, origin):
+    dao = _FakeStreamsDAO(_named_row().model_copy(update={"origin": origin}))
+    svc = SessionStreamsService(streams_dao=dao, lock_engine=lock_engine)
+    beat = _beat("turn-1")
+    result = await svc.heartbeat(project_id=_PROJECT, request=beat)
+    assert result.stream.origin == origin
+    assert result.stream.turn_id == "turn-1"
+    assert result.stream.flags.is_running is True
+    assert dao.creates == 0
+    # Admission retry and release must update the same precreated row, not create one.
+    row_id = result.stream.id
+    again = await svc.heartbeat(project_id=_PROJECT, request=beat)
+    ended = await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1", is_running=False)
+    )
+    assert again.stream.id == ended.stream.id == row_id
+    assert ended.stream.origin == origin
+    assert ended.stream.flags.is_running is False
+    assert dao.creates == 0
 
 
 @pytest.mark.asyncio

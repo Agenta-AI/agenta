@@ -23,7 +23,7 @@ import asyncio
 import json
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, List, Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 from pydantic import ValidationError
@@ -42,6 +42,9 @@ from oss.src.core.apps.handlers import (
     handle_create_app,
     handle_list_starters,
 )
+from oss.src.core.sessions.streams.dtos import SessionStreamCreate
+from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
+from oss.src.core.sessions.types import SessionOrigin
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.tools.dtos import (
     TestRunExpectations,
@@ -117,6 +120,7 @@ async def handle_test_run(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService],
     timeout_ms: int = TEST_RUN_DEFAULT_TIMEOUT_MS,
+    session_streams_dao: Optional[SessionStreamsDAOInterface] = None,
 ) -> PlatformHandlerResult:
     if _header_value(headers, TEST_RUN_RECURSION_HEADER) == TEST_RUN_RECURSION_VALUE:
         raise PlatformToolHandlerRefused(
@@ -125,6 +129,11 @@ async def handle_test_run(
     if workflows_service is None:
         raise PlatformToolHandlerUnavailable(
             "test_run is not enabled on this deployment: workflows service is missing."
+        )
+
+    if session_streams_dao is None:
+        raise PlatformToolHandlerUnavailable(
+            "test_run is not enabled on this deployment: session persistence is missing."
         )
 
     request = _parse_test_run_arguments(arguments)
@@ -141,6 +150,9 @@ async def handle_test_run(
     meta["run_kind"] = TEST_RUN_RECURSION_VALUE
     workflow_request.meta = meta
 
+    # Establish child identity before preparation so context resolution and the runner
+    # see the same session. A fresh tool invocation is a distinct test, not a retry.
+    workflow_request.session_id = uuid4().hex
     credentials, service_url = await workflows_service._prepare_invoke(
         project_id=project_id,
         user_id=user_id,
@@ -148,6 +160,19 @@ async def handle_test_run(
     )
     if not service_url:
         return _failed_response("Workflow revision has no runnable service URL.")
+
+    # Persist attribution before dispatch, without reserving a turn or liveness lock.
+    # Admission still belongs to the runner. Keep this row on timeout/transport failure:
+    # the child may already be running, so deleting it could lose its attribution.
+    # With no turn/messages, the row is a hidden placeholder until the runner admits it.
+    await session_streams_dao.create(
+        project_id=project_id,
+        user_id=user_id,
+        stream=SessionStreamCreate(
+            session_id=workflow_request.session_id,
+            origin=SessionOrigin.agent,
+        ),
+    )
 
     effective_timeout_ms = min(timeout_ms, TEST_RUN_SERVER_TIMEOUT_CEILING_MS)
     response = await _invoke_child_workflow(
@@ -1065,6 +1090,7 @@ async def dispatch_platform_tool_handler(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService],
     mounts_service: Any = None,
+    session_streams_dao: Optional[SessionStreamsDAOInterface] = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:
@@ -1075,6 +1101,8 @@ async def dispatch_platform_tool_handler(
     extra: Dict[str, Any] = (
         {"mounts_service": mounts_service} if registration.needs_mounts else {}
     )
+    if registration.handler is handle_test_run:
+        extra["session_streams_dao"] = session_streams_dao
     return await registration.handler(
         arguments=arguments,
         headers=headers,

@@ -88,7 +88,7 @@ def test_unknown_trigger_kind_is_rejected():
 
 
 def test_session_origin_is_typed():
-    assert {origin.value for origin in SessionOrigin} == {"manual", "trigger"}
+    assert {origin.value for origin in SessionOrigin} == {"manual", "trigger", "agent"}
 
 
 async def test_claim_compiles_as_one_postgres_statement():
