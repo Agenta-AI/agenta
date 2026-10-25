@@ -732,7 +732,8 @@ export function classifyRunError(
     ) ||
     // Pi's Google client, when the native Gemini stream breaks off before its finish reason
     // (`@google/genai` does not raise an error event inside a stream).
-    /Google stream ended without a finish reason/.test(raw)
+    // `@google/genai` raises "Incomplete JSON segment at the end" when it is cut inside one.
+    /Google stream ended without a finish reason|Incomplete JSON segment at the end/.test(raw)
   ) {
     return {
       message:
