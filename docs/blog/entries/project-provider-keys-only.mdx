@@ -3,14 +3,14 @@ title: "Projects use only their own provider keys"
 slug: project-provider-keys-only
 date: 2026-10-25
 tags: [v0.124.1]
-description: "On Agenta Cloud and self-hosted Enterprise, prompts and evaluators run on the provider keys saved in the project. Custom providers need their own key."
+description: "Prompts and evaluators run on the provider keys saved in the project. Self-hosted deployments can opt in to shared keys, and custom providers need their own key."
 ---
 
 <Summary>
 
-Prompts and evaluators now run only on the provider keys saved in the project. A project without a key for a provider gets the error "No API key found for model". Add the key in **Settings > Providers & Models**.
+Prompts and evaluators now run on the provider keys saved in the project. A project without a key for a provider gets the error "No API key found for model". Add the key in **Settings > Providers & Models**.
 
-A custom provider needs its own API key, except Bedrock, SageMaker and Vertex. Self-hosted open source deployments keep their current default.
+Custom providers need their own API key, except Bedrock, SageMaker and Vertex. Self-hosted Enterprise deployments can opt in to keys set on the services container.
 
 </Summary>
 
@@ -18,25 +18,18 @@ A custom provider needs its own API key, except Bedrock, SageMaker and Vertex. S
 
 ## What changes
 
-Before this release, a project with no saved key for a provider could run on a key set on the Agenta services container. A custom provider saved without a key could use that same key.
-
-Now a prompt or an evaluator runs on the provider keys saved in its project.
+A prompt or an evaluator runs on the provider keys saved in its project.
 
 - If a project has no key for a provider, the run fails with "No API key found for model". Add the key in **Settings > Providers & Models**.
-- A custom provider that signs in with a key must have its own non-empty API key. Bedrock, SageMaker and Vertex use their own credentials. Without a key, the run stops with a `400` configuration error before it calls the provider.
-- When a provider rejects a key, the error message no longer includes part of the key.
+- A custom provider that signs in with a key needs its own non-empty API key. Bedrock, SageMaker and Vertex use their own credentials. Without a key, the run stops with a `400` configuration error before it calls the provider.
 
 ## Self-hosting
 
-The edition sets the default for keys on the services container:
+Provider keys set on the services container (for example `OPENAI_API_KEY`) serve projects that have no key of their own only when `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` is `true`.
 
-| Edition | Services container keys for projects without their own |
+| Edition | Default |
 | --- | --- |
-| Open source | On (unchanged) |
-| Enterprise | Off |
+| Open source | `true` (unchanged) |
+| Enterprise | `false` |
 
-Set `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` to `true` to turn it on in an Enterprise deployment, or to `false` to turn it off in an open source deployment. A custom provider always uses its own key. See the [configuration reference](/self-host/configuration) for details.
-
-## Sign-up
-
-On Agenta Cloud, Gmail addresses that differ only by dots or a `+tag` count as one address at sign-up. They receive one sign-up grant.
+To keep shared keys in an Enterprise deployment, set `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=true`. A custom provider always uses its own key. See the [configuration reference](/self-host/configuration) for details.

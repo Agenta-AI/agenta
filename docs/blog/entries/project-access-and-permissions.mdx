@@ -10,7 +10,7 @@ description: "Project membership is resolved in one place, project actions follo
 
 Agenta now decides project access in one place. Creating, renaming and deleting a project follows organization roles. An API key acts only in its own project for management actions. When you remove a member or delete a key, the change takes effect at the next request.
 
-Automations, evaluations and approvals run as the user or key that created them. If that identity loses access, the run stops and tells you why. This release also tightens several access checks.
+Automations, evaluations and approvals run as the user or key that created them. If that identity loses access, the run stops and tells you why. 
 
 </Summary>
 
@@ -53,17 +53,6 @@ When you remove a member, change a role or delete a key, the API refuses the nex
 
 - Messages that were queued and approvals that were waiting during the upgrade are cancelled once. Send the message or answer the approval again.
 - Runs that started before the upgrade fail once.
-
-## Security hardening
-
-This release tightens access checks in several areas:
-
-- Organization admin checks and SSO domain checks.
-- Password reset is limited to members of the project.
-- Vertex AI credentials accept only service account documents.
-- Reserved names for MCP servers.
-- Subscription login files are limited to 1 MiB.
-- Sandbox file reads and redirect checks have limits.
 
 ## Fixes
 
