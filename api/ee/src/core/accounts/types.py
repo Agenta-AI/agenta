@@ -75,6 +75,7 @@ class AccountTombstonesDAOInterface(ABC):
 
     @abstractmethod
     async def exists_live_email_variant(self, *, email: str) -> bool:
-        """True when a live user other than `email` itself has the same
-        `normalize_email` form, for example `us.er@gmail.com` for `user@gmail.com`."""
+        """True when `email` is a Gmail address and a live user other than `email`
+        itself has the same `normalize_email` form, for example `us.er@gmail.com` for
+        `user@gmail.com`. Always False outside Gmail."""
         raise NotImplementedError

@@ -89,6 +89,8 @@ class FakeTombstonesDAO(AccountTombstonesDAOInterface):
     async def exists_live_email_variant(self, *, email):
         if self.variant_error is not None:
             raise self.variant_error
+        if not normalize_email(email).endswith("@gmail.com"):
+            return False
         own = email.strip().lower()
         return any(
             live.strip().lower() != own
@@ -849,13 +851,26 @@ async def test_dots_outside_gmail_are_a_different_address(variant_signup):
     assert calls == [("provision", None), ("award", NEW_ORG)]
 
 
-async def test_a_plus_tag_outside_gmail_is_still_a_variant(variant_signup):
+async def test_a_plus_tag_outside_gmail_is_left_to_the_mint_policy(variant_signup):
+    # The variant check is Gmail only; the mint policy's `plus_local_part` rule
+    # decides a non-Gmail `+tag` (stubbed to allow here).
     tombstones, fraud, run = variant_signup
     tombstones.live_emails.append("first.last@acme.test")
 
     calls = await run("first.last+promo@acme.test")
 
-    assert calls == [("provision", REFUSED_EMAIL_FLOOR_MUSD)]
+    assert calls == [("provision", None), ("award", NEW_ORG)]
+
+
+async def test_a_plain_address_after_its_own_plus_tag_outside_gmail_gets_the_grant(
+    variant_signup,
+):
+    tombstones, fraud, run = variant_signup
+    tombstones.live_emails.append("first.last+test@acme.test")
+
+    calls = await run("first.last@acme.test")
+
+    assert calls == [("provision", None), ("award", NEW_ORG)]
 
 
 async def test_a_variant_lookup_failure_fails_open(variant_signup):

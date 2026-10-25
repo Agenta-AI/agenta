@@ -1039,7 +1039,7 @@ async def _free_credits_check(organization_email: str) -> tuple[bool, bool]:
     FLOOR_RAISING_REFUSALS skips the grant and raises the floor. Any other refusal,
     a missing policy or any error skips the grant and keeps the normal floor.
 
-    An email whose normalized form already belongs to another live user (a Gmail dot
+    A Gmail address whose normalized form already belongs to another live user (a dot
     or `+tag` variant of one inbox) is refused and raises the floor too. The per-domain
     cap skips freemail domains, so it does not catch these. That lookup fails open."""
     if await email_variant_blocks_grant(email=organization_email):

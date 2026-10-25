@@ -97,19 +97,21 @@ class AccountTombstonesDAO(AccountTombstonesDAOInterface):
         if normalized.count("@") != 1:
             return False
         local, domain = normalized.split("@", 1)
+        # Gmail only. Outside Gmail the mint policy already refuses a `+tag` sign-up
+        # (`plus_local_part`), and a plain address that signs up after its own `+tag`
+        # test account is a real user, not a second inbox.
+        if domain != GMAIL_DOMAIN:
+            return False
 
         # `normalize_email` in SQL, so the lookup stays one query and no address
         # leaves the database.
         stored = func.lower(func.trim(UserDB.email))
         stored_local = func.split_part(func.split_part(stored, "@", 1), "+", 1)
         stored_domain = func.split_part(stored, "@", 2)
-        if domain == GMAIL_DOMAIN:
-            matches = [
-                stored_domain.in_(sorted(GMAIL_ALIASES)),
-                func.replace(stored_local, ".", "") == local,
-            ]
-        else:
-            matches = [stored_domain == domain, stored_local == local]
+        matches = [
+            stored_domain.in_(sorted(GMAIL_ALIASES)),
+            func.replace(stored_local, ".", "") == local,
+        ]
 
         async with self.engine.session() as session:
             return bool(
