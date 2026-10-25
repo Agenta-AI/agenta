@@ -3,7 +3,7 @@ thought signatures in tool call ids."""
 
 import json
 import mimetypes
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -86,6 +86,73 @@ def _split_thought_signatures(messages: List[Any], *, restore: bool) -> bool:
                     call["extra_content"] = {"google": {"thought_signature": signature}}
                 split = True
     return split
+
+
+# Gemini's thinking levels for an OpenAI `reasoning_effort`. gemini-3.7-flash refuses
+# "minimal" (HTTP 400, "Thinking level is unsupported"), so the lightest efforts map to "low".
+_GEMINI_THINKING_LEVELS = {
+    "none": "low",
+    "minimal": "low",
+    "low": "low",
+    "medium": "medium",
+    "high": "high",
+    "xhigh": "high",
+}
+
+
+def stream_gemini_thoughts(body: bytes) -> Tuple[bytes, Optional[bool]]:
+    """Ask a streaming Gemini chat completion to stream its thought summaries.
+
+    Vertex sends no byte, not even the response headers, until the model's first output. With
+    thought summaries on, a model that is thinking sends them every few seconds, so silence
+    means a stalled call, which the gateway cuts and retries (`first_byte_timeout_seconds`).
+    Vertex refuses `reasoning_effort` next to a `thinking_config`, so the effort moves into
+    the config as Gemini's `thinking_level`.
+
+    Returns the body and whether the caller asked to see the thoughts: True relays them as
+    `reasoning_content`, False removes their text, and None means the body is unchanged. A
+    body that already carries `extra_body` (the built-in route refuses one before this) or an
+    effort Gemini has no level for is left for Vertex to judge.
+    """
+    try:
+        payload = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return body, None
+    if not isinstance(payload, dict) or "extra_body" in payload:
+        return body, None
+    effort = payload.pop("reasoning_effort", None)
+    if effort is not None and effort not in _GEMINI_THINKING_LEVELS:
+        return body, None
+    config: Dict[str, Any] = {"include_thoughts": True}
+    if effort is not None:
+        config["thinking_level"] = _GEMINI_THINKING_LEVELS[effort]
+    payload["extra_body"] = {"google": {"thinking_config": config}}
+    return json.dumps(payload).encode(), effort not in (None, "none")
+
+
+def move_gemini_thoughts(payload: Any, *, relay: bool) -> bool:
+    """Take Gemini's thought summaries out of a parsed chunk's `content`, where Vertex puts
+    them marked `extra_content.google.thought`, so no client shows them as the answer. With
+    `relay` they become `reasoning_content`, which OpenAI-compatible clients read as thinking;
+    without, their text is dropped and the chunk still reaches the caller."""
+    moved = False
+    choices = payload.get("choices") if isinstance(payload, dict) else None
+    for choice in choices if isinstance(choices, list) else []:
+        delta = choice.get("delta") if isinstance(choice, dict) else None
+        extra = delta.get("extra_content") if isinstance(delta, dict) else None
+        google = extra.get("google") if isinstance(extra, dict) else None
+        if not isinstance(google, dict) or google.get("thought") is not True:
+            continue
+        del google["thought"]
+        if not google:
+            del extra["google"]
+        if not extra:
+            del delta["extra_content"]
+        text = delta.pop("content", None)
+        if relay and text:
+            delta["reasoning_content"] = text
+        moved = True
+    return moved
 
 
 # Vertex's chat completions refuse an OpenAI `file` content part ("Unrecognized 'type'

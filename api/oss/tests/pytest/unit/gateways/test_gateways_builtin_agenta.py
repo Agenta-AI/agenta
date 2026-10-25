@@ -887,6 +887,169 @@ def test_agenta_waits_five_minutes_for_a_slow_gemini(vertex):
     assert endpoint.data.settings.timeout_seconds == 300
 
 
+def test_agenta_cuts_a_gemini_stream_that_sends_nothing_for_a_minute(vertex):
+    endpoint = builtin_llm_endpoint(provider_key="agenta")
+
+    assert endpoint.data.settings.first_byte_timeout_seconds == 60
+
+
+# --- streamed thoughts ------------------------------------------------------- #
+
+_THOUGHT_FRAME = {
+    "choices": [
+        {
+            "delta": {
+                "role": "assistant",
+                "content": "**Planning**\n\nI will greet the user.\n\n",
+                "extra_content": {"google": {"thought": True}},
+            },
+            "index": 0,
+        }
+    ]
+}
+
+
+async def _relay_thoughts(body: dict):
+    requests: List[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        frames = [
+            _THOUGHT_FRAME,
+            {"choices": [{"delta": {"content": "Hi"}, "index": 0}]},
+            {
+                "choices": [{"delta": {}, "finish_reason": "stop", "index": 0}],
+                "usage": _GEMINI_CACHED_USAGE,
+            },
+        ]
+        content = (
+            "".join(f"data: {json.dumps(frame)}\n\n" for frame in frames)
+            + "data: [DONE]\n\n"
+        ).encode()
+        return httpx.Response(
+            200, content=content, headers={"content-type": "text/event-stream"}
+        )
+
+    service = LLMGatewayService(
+        llm_endpoints_dao=_NoRows(),
+        policy=_Policy(),
+        resolver=_NoVault(),
+        upstream_registry=LLMUpstreamRegistry(
+            adapters={
+                "relay": RelayLLMAdapter(
+                    client=httpx.AsyncClient(transport=httpx.MockTransport(handler))
+                )
+            }
+        ),
+    )
+    result = await service.relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.BUILTIN,
+        name="agenta",
+        body=json.dumps(body).encode(),
+        headers={},
+    )
+    received = b"".join([chunk async for chunk in result.body]).decode()
+    deltas = [
+        json.loads(line[len("data: ") :])["choices"][0]["delta"]
+        for line in received.splitlines()
+        if line.startswith("data: {")
+    ]
+    return json.loads(requests[0].content), deltas
+
+
+@pytest.mark.asyncio
+async def test_a_stream_without_reasoning_asks_for_thoughts_and_hides_them(vertex):
+    sent, deltas = await _relay_thoughts(
+        {"model": "google/gemini-3.7-flash", "stream": True, "messages": []}
+    )
+
+    assert sent["extra_body"] == {
+        "google": {"thinking_config": {"include_thoughts": True}}
+    }
+    # The thought frame still reaches the caller, so it sees bytes, but carries no text.
+    assert deltas[0] == {"role": "assistant"}
+    assert deltas[1] == {"content": "Hi"}
+    assert all("reasoning_content" not in delta for delta in deltas)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "effort, level",
+    [("low", "low"), ("minimal", "low"), ("medium", "medium"), ("high", "high")],
+)
+async def test_a_stream_with_reasoning_relays_thoughts_as_reasoning_content(
+    vertex, effort, level
+):
+    sent, deltas = await _relay_thoughts(
+        {
+            "model": "google/gemini-3.7-flash",
+            "stream": True,
+            "reasoning_effort": effort,
+            "messages": [],
+        }
+    )
+
+    # Vertex refuses `reasoning_effort` next to a `thinking_config`.
+    assert "reasoning_effort" not in sent
+    assert sent["extra_body"]["google"]["thinking_config"] == {
+        "include_thoughts": True,
+        "thinking_level": level,
+    }
+    assert deltas[0] == {
+        "role": "assistant",
+        "reasoning_content": "**Planning**\n\nI will greet the user.\n\n",
+    }
+    assert deltas[1] == {"content": "Hi"}
+
+
+@pytest.mark.asyncio
+async def test_reasoning_none_still_streams_thoughts_but_hides_them(vertex):
+    sent, deltas = await _relay_thoughts(
+        {
+            "model": "google/gemini-3.7-flash",
+            "stream": True,
+            "reasoning_effort": "none",
+            "messages": [],
+        }
+    )
+
+    assert sent["extra_body"]["google"]["thinking_config"]["thinking_level"] == "low"
+    assert deltas[0] == {"role": "assistant"}
+
+
+@pytest.mark.asyncio
+async def test_an_effort_gemini_has_no_level_for_is_left_for_vertex_to_judge(vertex):
+    sent, deltas = await _relay_thoughts(
+        {
+            "model": "google/gemini-3.7-flash",
+            "stream": True,
+            "reasoning_effort": "extreme",
+            "messages": [],
+        }
+    )
+
+    assert sent["reasoning_effort"] == "extreme"
+    assert "extra_body" not in sent
+    assert deltas[0] == _THOUGHT_FRAME["choices"][0]["delta"]
+
+
+@pytest.mark.asyncio
+async def test_a_non_streaming_call_is_not_asked_for_thoughts(vertex):
+    requests, _records, _received = await _relay(
+        stream=False,
+        body={
+            "model": "google/gemini-3.7-flash",
+            "reasoning_effort": "low",
+            "messages": [],
+        },
+    )
+
+    sent = json.loads(requests[0].content)
+    assert sent["reasoning_effort"] == "low"
+    assert "extra_body" not in sent
+
+
 @pytest.mark.asyncio
 async def test_a_retried_builtin_call_is_admitted_once_and_charged_once(
     vertex, monkeypatch

@@ -229,8 +229,9 @@ class _ResolvedLlmTarget:
 STREAM_DRAIN_AFTER_DISCONNECT_SECONDS = 120.0
 
 # LiteLLM's router retry: 408, 409, 429 and any 5xx, at most twice, 0.5 s doubled up to 8 s
-# plus jitter, or the provider's `Retry-After` when it asks for 60 s or less. A timeout is not
-# retried (LiteLLM's `TimeoutErrorRetries=0`).
+# plus jitter, or the provider's `Retry-After` when it asks for 60 s or less. The route's own
+# timeout is not retried (LiteLLM's `TimeoutErrorRetries=0`); a streaming attempt cut by the
+# route's `first_byte_timeout_seconds` is, at once, from the same retry budget.
 UPSTREAM_MAX_RETRIES = 2
 _RETRYABLE_STATUSES = frozenset({408, 409, 429})
 _RETRY_BASE_DELAY_SECONDS = 0.5
@@ -832,12 +833,19 @@ class LLMGatewayService:
         # included, so the caller's own deadline can be set above it.
         timeout = target.settings.timeout_seconds
         deadline = loop.time() + timeout if timeout is not None else None
+        first_byte = (
+            target.settings.first_byte_timeout_seconds if context.stream else None
+        )
         retry = 0
         while True:
             # Enforced here, not per adapter: `timeout_seconds` is a property of the
             # endpoint, and an adapter that forgets it would otherwise have no ceiling at
             # all. Streaming bounds time-to-first-byte — the proxy drains the body after
             # this returns, and a long legitimate stream is not a timeout.
+            remaining = None if deadline is None else deadline - loop.time()
+            stall_cut = first_byte is not None and (
+                remaining is None or first_byte < remaining
+            )
             try:
                 result = await asyncio.wait_for(
                     adapter.relay_chat_completion(
@@ -848,10 +856,25 @@ class LLMGatewayService:
                         body=body,
                         headers=headers,
                     ),
-                    timeout=None if deadline is None else deadline - loop.time(),
+                    timeout=first_byte if stall_cut else remaining,
                 )
             except asyncio.TimeoutError as e:
-                raise LLMUpstreamTimeoutError(provider_key=target.provider_key) from e
+                # An attempt that sent nothing for `first_byte_timeout_seconds` is stalled,
+                # not slow: the same body sent again usually answers in seconds. Cancelling
+                # it closes its connection, and nothing of it reached the caller.
+                if not stall_cut or not _may_retry(retry, 0.0, deadline, loop.time()):
+                    raise LLMUpstreamTimeoutError(
+                        provider_key=target.provider_key
+                    ) from e
+                retry += 1
+                log.warning(
+                    "[gateways] retrying a stalled LLM call",
+                    target=target.target_path(),
+                    model=context.model,
+                    retry=retry,
+                    first_byte_timeout_seconds=first_byte,
+                )
+                continue
             status_code = result.status_code
             retry_after = result.headers.get("retry-after")
             delay = _retry_delay(retry, retry_after)

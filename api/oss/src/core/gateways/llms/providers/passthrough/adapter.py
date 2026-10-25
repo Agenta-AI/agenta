@@ -23,9 +23,10 @@ from oss.src.core.gateways.egress import (
     harden_pooled_client,
     open_egress,
 )
-from oss.src.core.gateways.llms.catalog import BUILTIN_LLM_PROVIDERS
+from oss.src.core.gateways.llms.catalog import AGENTA_PROVIDER, BUILTIN_LLM_PROVIDERS
 from oss.src.core.gateways.llms.dtos import (
     LLMCallContext,
+    LLMDeploymentKind,
     LLMProtocol,
     LLMResolvedRoute,
 )
@@ -39,6 +40,8 @@ from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
     apply_static_fields,
     encode_thought_signatures,
     is_gemini_chat,
+    move_gemini_thoughts,
+    stream_gemini_thoughts,
 )
 from oss.src.core.gateways.llms.types import LLMUpstreamError, LLMUpstreamTimeoutError
 from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
@@ -247,10 +250,12 @@ class _StreamReader:
         protocol: LLMProtocol,
         *,
         sign: bool = False,
+        thoughts: Optional[bool] = None,
         provider_key: Optional[str] = None,
     ) -> None:
         self._protocol = protocol
         self._sign = sign
+        self._thoughts = thoughts
         self._provider_key = provider_key
         self._buffer = b""
         self.usage: Optional[GatewayUsage] = None
@@ -283,7 +288,13 @@ class _StreamReader:
         usage = _usage_from_payload(payload, self._protocol)
         if usage is not None:
             self.usage = _merge_usage(self.usage, usage)
-        if self._sign and encode_thought_signatures(payload):
+        if not self._sign:
+            return line
+        signed = encode_thought_signatures(payload)
+        moved = self._thoughts is not None and move_gemini_thoughts(
+            payload, relay=self._thoughts
+        )
+        if signed or moved:
             return b"data: " + json.dumps(payload).encode() + b"\n"
         return line
 
@@ -367,6 +378,16 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         sign = is_gemini_chat(
             route.deployment_kind, context.protocol, route.provider_key
         )
+        # The platform's own Gemini streams its thoughts, so its first-byte limit
+        # (`first_byte_timeout_seconds`) catches stalls and never a model that is thinking.
+        thoughts = None
+        if (
+            sign
+            and context.stream
+            and route.provider_key == AGENTA_PROVIDER
+            and route.deployment_kind == LLMDeploymentKind.VERTEX
+        ):
+            body, thoughts = stream_gemini_thoughts(body)
         try:
             target, injected_secrets = await _outbound_target(
                 url=url, headers=headers, route=route, secret=secret
@@ -441,6 +462,7 @@ class RelayLLMAdapter(LLMUpstreamInterface):
                 scanner=scanner,
                 provider_key=route.provider_key,
                 sign=sign,
+                thoughts=thoughts,
             )
             if context.stream
             else self._single_chunk_body(
@@ -509,6 +531,7 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         scanner: CredentialEchoScanner,
         provider_key: Optional[str],
         sign: bool,
+        thoughts: Optional[bool] = None,
     ) -> AsyncIterator[bytes]:
         # Off a Gemini route, preserve upstream SSE chunk boundaries while reading usage
         # out of the frames as they pass. Bytes reach the caller only once they cannot
@@ -517,7 +540,9 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         # the first half has left the generator leaves the caller holding all but the last
         # byte of the key.
         relay = CredentialEchoRelay(scanner.secrets)
-        reader = _StreamReader(protocol, sign=sign, provider_key=provider_key)
+        reader = _StreamReader(
+            protocol, sign=sign, thoughts=thoughts, provider_key=provider_key
+        )
         # An error body that stalls is the gateway's own timeout. A 2xx stream that stalls after
         # it started stays an `httpx` error, so `relay_upstream_errors` ends it with the
         # connection-lost event.

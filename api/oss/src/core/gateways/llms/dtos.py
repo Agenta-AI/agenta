@@ -49,6 +49,10 @@ LLMModelFilter = GatewayEndpointFilter
 
 class LLMEndpointSettings(GatewayEndpointSettings):
     max_output_tokens: Optional[int] = None
+    # How long one streaming attempt may wait for the upstream's first byte before the gateway
+    # cancels it and sends the same body again. Streaming only: a non-streaming answer's first
+    # byte is its last, so a short limit there would cut long answers that were never stalled.
+    first_byte_timeout_seconds: Optional[float] = None
 
 
 class LLMEndpointData(BaseModel):
