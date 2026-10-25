@@ -142,9 +142,12 @@ keeps today's OpenAI route.
   `/models/{model}:...` and is told the base already carries the version), the same
   placeholder key and the same `X-AG-Credentials` header. The model id is
   the bare Gemini id (`gemini-3.8-flash`); Pi's catalog id stays `<slug>/<id>`.
-- The model entry declares `reasoning: true`, so the person's thinking setting reaches Gemini
-  (today Pi never sends one for the built-in models). The gateway makes the levels safe (see
-  "Thinking" above), so the runner needs no `thinkingLevelMap`.
+- The model entry is NOT marked `reasoning: true`. Pi's default thinking level is "medium"
+  (`pi-coding-agent` `DEFAULT_THINKING_LEVEL`), and the runner never sets one, so marking it
+  would make every built-in turn think at MEDIUM and stream its thoughts, against the product
+  rule (thinking off means LOW, gemini-3.8-flash at LOW by default). Unmarked, Pi sends no
+  thinking setting, exactly as on the OpenAI route today, and the gateway applies LOW. Letting
+  an agent choose its thinking level is a separate change.
 - The runtime identity (`session-identity.ts`, `lifecycle/desired-state.ts`) includes the
   protocol, so a warm runtime is rebuilt when a connection switches between the two routes.
 - Error classifier (`errors.ts`, `gateway-error.ts`): map the strings Pi's Google client
@@ -175,18 +178,13 @@ most the affected turns once. The alternative, shipping the route one release be
 advertisement, doubles the rollout. Rollback is safe: an old API stops advertising, and a warm
 runtime is rebuilt because the protocol is part of its identity.
 
-## Thinking, by model
+## Thinking
 
-Pi 0.99.1 sends, with `reasoning: true` on the model entry:
-
-| Person's setting | gemini-3.7 / 3.8-flash | gemini-4-argon | After the gateway |
-|---|---|---|---|
-| off | `thinkingBudget: 0` | `thinkingBudget: 0` | LOW |
-| minimal | `MINIMAL` | `thinkingBudget: -1` | LOW / Vertex default (MEDIUM) |
-| low, medium, high | the level | `thinkingBudget: -1` | the level / Vertex default (MEDIUM) |
-
-Argon's level is lost because Pi's level-model check is a regex on `gemini-3`. Honoring it would
-need a patch to Pi; not worth it now. Retries: Pi retries the initial request once
+Pi sends no thinking setting for the built-in models (they are not marked as reasoning), so the
+gateway's normalization gives every call `thinkingLevel: LOW`, the same as v0.124.2 on the OpenAI
+route. The normalization also covers clients that do send a setting: `thinkingBudget: 0` and
+`MINIMAL` become LOW (3.7, 3.8 and 4 refuse `MINIMAL`), any other budget is dropped (Gemini 4
+refuses budgets), and `LOW`, `MEDIUM`, `HIGH` pass. Retries: Pi retries the initial request once
 (`GATEWAY_PI_RETRY`) and the gateway twice, so a call can reach Vertex up to six times.
 
 ## Security

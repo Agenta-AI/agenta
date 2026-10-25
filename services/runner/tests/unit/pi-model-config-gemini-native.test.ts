@@ -39,17 +39,17 @@ describe("the built-in Gemini route in Google's native protocol", () => {
       baseUrl: "https://api.example.test/api/gateways/llms/builtin/agenta/v1beta",
       apiKey: GATEWAY_PLACEHOLDER_API_KEY,
       apiKeyEnv: "OPENAI_API_KEY",
-      models: [{ id: "gemini-3.8-flash", reasoning: true }],
+      models: [{ id: "gemini-3.8-flash" }],
       headers: { "X-AG-Credentials": "$AGENTA_GATEWAY_CREDENTIALS_VALUE" },
     });
   });
 
-  it("writes the model as one that thinks, and never the gateway credential", () => {
+  it("writes the bare model without a thinking flag, and never the gateway credential", () => {
     const plan = buildPiModelConfigPlan(builtinGemini("gemini"), {});
     const document = JSON.parse(serializePiModelsJson(plan!));
     expect(document.providers.agenta).toMatchObject({
       api: "google-generative-ai",
-      models: [{ id: "gemini-3.8-flash", reasoning: true }],
+      models: [{ id: "gemini-3.8-flash" }],
     });
     expect(serializePiModelsJson(plan!)).not.toContain("run-token");
   });
@@ -134,7 +134,7 @@ describe("Pi's Google client against the native route", () => {
         api: plan.api,
         provider: plan.providerId,
         baseUrl: plan.baseUrl,
-        reasoning: true,
+        reasoning: false,
         input: ["text"],
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
         contextWindow: 128000,
@@ -163,5 +163,7 @@ describe("Pi's Google client against the native route", () => {
       systemInstruction: { parts: [{ text: "Be terse." }] },
       contents: [{ role: "user", parts: [{ text: "hi" }] }],
     });
+    // No thinking setting: the gateway gives the request its LOW default.
+    expect(JSON.stringify(calls[0].body)).not.toContain("thinking");
   });
 });

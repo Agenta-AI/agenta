@@ -67,7 +67,7 @@ export interface PiModelConfigPlan {
    */
   apiKeyEnv: typeof OPENAI_API_KEY_ENV;
   /** The exact selected model(s). v1 registers exactly one. */
-  models: Array<{ id: string; reasoning?: boolean }>;
+  models: Array<{ id: string }>;
   /**
    * Gateway credentials use `$ENV_VAR` indirection so raw values never reach this file.
    * Absent when the connection is not gateway-routed.
@@ -391,10 +391,12 @@ export function buildPiModelConfigPlan(
   const modelId = stripped || (model as string);
 
   // The gateway also serves this route in Google's native protocol. Pi's Google client
-  // appends `/models/<id>:streamGenerateContent` to a base that already carries its version,
-  // calls the model by its bare Gemini id, and is told the model thinks so the person's
-  // thinking level reaches Gemini (`docs/design/gemini-native-door`). The connection's base
-  // stays the OpenAI-compatible `/v1` route for runners that do not know `protocol`.
+  // appends `/models/<id>:streamGenerateContent` to a base that already carries its version
+  // and calls the model by its bare Gemini id (`docs/design/gemini-native-door`). The model is
+  // NOT marked as reasoning: Pi's default thinking level is "medium", and the product rule is
+  // that built-in Gemini thinks at LOW unless asked, which the gateway applies to a request
+  // that names no level. The connection's base stays the OpenAI-compatible `/v1` route for
+  // runners that do not know `protocol`.
   const native =
     gatewayCredentials &&
     request.modelConnection?.protocol === "gemini" &&
@@ -407,7 +409,7 @@ export function buildPiModelConfigPlan(
       baseUrl: (baseUrl as string).replace(/\/v1\/?$/, "/v1beta"),
       apiKey: GATEWAY_PLACEHOLDER_API_KEY,
       apiKeyEnv: OPENAI_API_KEY_ENV,
-      models: [{ id: modelId.replace(/^google\//, ""), reasoning: true }],
+      models: [{ id: modelId.replace(/^google\//, "") }],
       headers: { [gatewayCredentials.header]: `$${GATEWAY_CREDENTIALS_VALUE_ENV}` },
     };
   }
@@ -452,10 +454,7 @@ export function serializePiModelsJson(plan: PiModelsJsonPlan): string {
         api: plan.api,
         apiKey: plan.apiKey,
         ...(plan.headers ? { headers: plan.headers } : {}),
-        models: plan.models.map((model) => ({
-          id: model.id,
-          ...(model.reasoning ? { reasoning: true } : {}),
-        })),
+        models: plan.models.map((model) => ({ id: model.id })),
       };
   const document = { providers: { [piModelsJsonProviderId(plan)]: block } };
   return `${JSON.stringify(document, null, 2)}\n`;
