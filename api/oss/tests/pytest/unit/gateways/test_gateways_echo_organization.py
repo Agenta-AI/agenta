@@ -269,3 +269,62 @@ async def test_a_json_escaped_echo_of_an_organization_value_is_refused(
     )
     with pytest.raises(LLMUpstreamCredentialEchoError):
         [chunk async for chunk in result.body]
+
+
+@pytest.mark.parametrize(
+    "value", ["org-key-<abc>&defgh", "org-key-abc defgé"], ids=["html", "separator"]
+)
+@pytest.mark.parametrize("stream", [False, True])
+async def test_a_go_style_escaped_echo_is_refused(value, stream):
+    """Codex r2b: Go's encoder escapes <, >, & and U+2028/U+2029 and keeps other
+    non-ASCII characters. (The write rule refuses such characters in header values; a
+    structured document such as a Vertex service account can still hold them.)"""
+    secret = SecretResponseDTO.model_validate(
+        {
+            "id": str(uuid4()),
+            "slug": "company",
+            "kind": "custom_provider",
+            "data": {
+                "kind": "custom",
+                "provider": {"url": "https://upstream.example/v1", "key": value},
+                "models": [{"slug": "gpt-4o"}],
+            },
+            "header": {"name": "Company"},
+            "owner": {"kind": "organization", "id": str(uuid4())},
+        }
+    )
+    resolved = ResolvedSecret(
+        secret=secret, owner=secret.owner, origin=SecretOrigin.VAULT
+    )
+    go = (
+        json.dumps({"note": value}, ensure_ascii=False)
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+        .replace(" ", "\\u2028")
+        .encode()
+    )
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if not stream:
+            return httpx.Response(200, content=go)
+        frame = b"data: " + go + b"\n\n"
+        half = len(frame) // 2
+
+        async def body():
+            yield frame[:half]
+            yield frame[half:]
+
+        return httpx.Response(
+            200, headers={"content-type": "text/event-stream"}, content=body()
+        )
+
+    result = await _adapter(handler).relay_chat_completion(
+        route=_route(),
+        secret=resolved,
+        context=LLMCallContext(model="gpt-4o", stream=stream),
+        body=_body(),
+        headers={},
+    )
+    with pytest.raises(LLMUpstreamCredentialEchoError):
+        [chunk async for chunk in result.body]

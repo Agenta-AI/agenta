@@ -180,6 +180,18 @@ class OrganizationSecretValueTooShort(SecretsError):
         )
 
 
+class OrganizationSecretValueNotScannable(SecretsError):
+    """A credential value holds a character a JSON encoder escapes (a quote, a backslash,
+    `<`, `>`, `&`, a space, a control or non-ASCII character), so an upstream could echo it
+    in a spelling the gateway's scan does not search for."""
+
+    def __init__(self):
+        super().__init__(
+            "This credential holds characters that cannot be shared. Use letters, digits "
+            "and common symbols only."
+        )
+
+
 class SecretShadowConflict(SecretsError):
     """After this write one project would hold a project row and an available organization
     row with the same slug and another kind or provider family."""

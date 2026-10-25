@@ -43,6 +43,7 @@ from oss.src.core.secrets.redaction import (
 from oss.src.core.secrets.types import (
     OrganizationSecretKindNotInheritable,
     OrganizationSecretNotServed,
+    OrganizationSecretValueNotScannable,
     OrganizationSecretValueTooShort,
     ProjectLimitNotAllowed,
     ServerOwnedFieldNotWritable,
@@ -81,6 +82,15 @@ log = get_module_logger(__name__)
 # characters of the project slot), in the project slot so project-wide invalidation clears
 # it, from old pods too.
 _EFFECTIVE_NAMESPACE = "effective_secrets"
+
+# Printable ASCII without the characters JSON encoders escape (quote, backslash, and the
+# HTML-safe <, >, &) and without the space: what an organization credential that goes into
+# a header may hold. `/` stays allowed; its escaped spelling is scanned too.
+_SHAREABLE_CREDENTIAL_CHARACTERS = frozenset(
+    chr(code) for code in range(0x21, 0x7F) if chr(code) not in '"\\<>&'
+)
+# Credential extras that are documents, not header values.
+_STRUCTURED_CREDENTIAL_KEYS = frozenset({"vertex_ai_credentials"})
 _EFFECTIVE_MEMO = "secrets_effective"
 
 
@@ -1160,10 +1170,12 @@ class VaultService:
         if provider is None:
             return
         values = []
+        scanned_text = []
         key = getattr(provider, "key", None)
         if isinstance(key, str):
             provider.key = key.strip()
             values.append(provider.key)
+            scanned_text.append(("key", provider.key))
         extras = getattr(provider, "extras", None)
         if isinstance(extras, dict):
             for extras_key in CREDENTIAL_EXTRAS_KEYS:
@@ -1178,11 +1190,21 @@ class VaultService:
                     )
                 extras[extras_key] = value.strip()
                 values.append(extras[extras_key])
+                scanned_text.append((extras_key, extras[extras_key]))
         for value in values:
             if len(value) < MIN_SCANNED_CREDENTIAL_LENGTH:
                 raise OrganizationSecretValueTooShort(
                     min_length=MIN_SCANNED_CREDENTIAL_LENGTH
                 )
+        # A value the gateway injects into a header is limited to characters no JSON
+        # encoder escapes, so the echo scan's spellings cover every way an upstream can
+        # write it back. A structured document (a Vertex service-account JSON) is not sent
+        # as a header and keeps its own characters.
+        for name, value in scanned_text:
+            if name not in _STRUCTURED_CREDENTIAL_KEYS and any(
+                character not in _SHAREABLE_CREDENTIAL_CHARACTERS for character in value
+            ):
+                raise OrganizationSecretValueNotScannable()
 
     async def _check_project_limit(
         self, *, organization_id: UUID, availability: SecretAvailability

@@ -201,10 +201,27 @@ def _echo_forms(token: str) -> Tuple[str, ...]:
     each spelling is searched for, also across stream chunks."""
     forms: Dict[str, None] = {token: None}
     for ensure_ascii in (True, False):
-        forms[json.dumps(token, ensure_ascii=ensure_ascii)[1:-1]] = None
+        escaped = json.dumps(token, ensure_ascii=ensure_ascii)[1:-1]
+        forms[escaped] = None
+        # Go's encoder also escapes <, > and & (HTML-safe) and U+2028 / U+2029, while it
+        # keeps other non-ASCII characters as they are.
+        forms[_go_html_escaped(escaped)] = None
     for form in list(forms):
         forms[form.replace("/", "\\/")] = None
     return tuple(forms)
+
+
+_GO_ESCAPES = {
+    "<": "\\u003c",
+    ">": "\\u003e",
+    "&": "\\u0026",
+    "\u2028": "\\u2028",
+    "\u2029": "\\u2029",
+}
+
+
+def _go_html_escaped(text: str) -> str:
+    return "".join(_GO_ESCAPES.get(character, character) for character in text)
 
 
 class CredentialEchoScanner:

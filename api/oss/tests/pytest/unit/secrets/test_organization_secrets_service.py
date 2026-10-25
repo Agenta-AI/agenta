@@ -465,3 +465,66 @@ async def test_refuses_a_non_text_credential_extras_value(world, value):
             ),
             user_id=uuid4(),
         )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        'org-key-"abcdefgh"',
+        "org-key\\abcdefgh",
+        "org-key-<abcdefgh>",
+        "org-key-a&bcdefgh",
+        "org key abcdefgh",
+        "org-key-abcdéfgh",
+    ],
+    ids=["quote", "backslash", "angle", "ampersand", "space", "non-ascii"],
+)
+@pytest.mark.parametrize("where", ["key", "extras"])
+async def test_refuses_characters_json_encoders_escape(world, value, where):
+    from oss.src.core.secrets.types import OrganizationSecretValueNotScannable
+
+    body = (
+        org_secret_payload(kind="custom_provider", family="custom", key=value)
+        if where == "key"
+        else org_secret_payload(
+            kind="custom_provider",
+            family="custom",
+            key=SENTINEL_KEY,
+            extras={"api_key": value},
+        )
+    )
+    with pytest.raises(OrganizationSecretValueNotScannable):
+        await world["vault"]().create_organization_secret(
+            organization_id=world["organization_id"],
+            create_secret_dto=CreateSecretDTO.model_validate(body),
+            user_id=uuid4(),
+        )
+    assert world["dao"].records == {}
+
+
+async def test_a_structured_vertex_document_keeps_its_characters(world):
+    import json
+
+    document = json.dumps(
+        {
+            "type": "service_account",
+            "private_key": "-----BEGIN KEY-----\nabc+/=\n-----END KEY-----\n",
+        }
+    )
+    body = org_secret_payload(
+        kind="custom_provider",
+        family="vertex_ai",
+        key=None,
+        extras={
+            "vertex_ai_credentials": document,
+            "vertex_ai_project": "p",
+            "vertex_ai_location": "us-central1",
+        },
+    )
+    body["secret"]["data"]["provider"].pop("key", None)
+    created = await world["vault"]().create_organization_secret(
+        organization_id=world["organization_id"],
+        create_secret_dto=CreateSecretDTO.model_validate(body),
+        user_id=uuid4(),
+    )
+    assert created.data.provider.extras["vertex_ai_credentials"] == document

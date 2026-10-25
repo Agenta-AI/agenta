@@ -35,6 +35,7 @@ from oss.src.core.secrets.types import (
     OrganizationSecretKindNotInheritable,
     OrganizationSecretNotFound,
     OrganizationSecretNotServed,
+    OrganizationSecretValueNotScannable,
     OrganizationSecretValueTooShort,
     ProjectLimitNotAllowed,
     ProjectNotInOrganization,
@@ -53,6 +54,7 @@ DENIED_MESSAGE = (
 _UNPROCESSABLE = (
     OrganizationSecretKindNotInheritable,
     OrganizationSecretNotServed,
+    OrganizationSecretValueNotScannable,
     OrganizationSecretValueTooShort,
     ProjectNotInOrganization,
     ServerOwnedFieldNotWritable,
