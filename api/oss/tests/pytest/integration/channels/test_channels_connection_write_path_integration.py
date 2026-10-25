@@ -28,6 +28,7 @@ from oss.src.core.channels.types import (
 from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+from oss.tests.pytest.utils.sharing import ProjectAgentResolver
 
 pytestmark = pytest.mark.integration
 
@@ -88,6 +89,7 @@ async def _service(channels_scope, *, adapter) -> ChannelsService:
         channels_dao=ChannelsDAO(engine=engine),
         adapter_registry=ChannelAdapterRegistry(adapters={"slack": adapter}),
         vault_service=VaultService(secrets_dao=SecretsDAO(engine=engine)),
+        workflows_service=ProjectAgentResolver(),
     )
 
 

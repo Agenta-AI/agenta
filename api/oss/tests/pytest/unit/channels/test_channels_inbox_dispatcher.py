@@ -49,6 +49,7 @@ from oss.src.core.channels.dtos import (
 from oss.src.core.channels.render.render import FAILED_START_TEXT
 import oss.src.tasks.asyncio.channels.inbox as inbox_module
 from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher, TurnRefused
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 def _make_event(*, event_id=None, connection_id=None):
@@ -186,7 +187,9 @@ class TestRouting:
         invoke_fn = AsyncMock()
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=invoke_fn
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=invoke_fn,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -206,7 +209,9 @@ class TestRouting:
         invoke_fn = AsyncMock()
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=invoke_fn
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=invoke_fn,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -224,7 +229,9 @@ class TestRouting:
         invoke_fn = AsyncMock()
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=invoke_fn
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=invoke_fn,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -255,7 +262,9 @@ class TestBacklogAndInvoke:
             return turn_id
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=fake_invoke
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=fake_invoke,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -290,7 +299,9 @@ class TestBacklogAndInvoke:
             return turn_id
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=fake_invoke
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=fake_invoke,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -325,7 +336,9 @@ class TestBacklogAndInvoke:
             raise RuntimeError("boom")
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=failing_invoke
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=failing_invoke,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -350,7 +363,9 @@ class TestBacklogAndInvoke:
         invoke_fn = AsyncMock(return_value="run-1")
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=invoke_fn
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=invoke_fn,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -374,7 +389,9 @@ class TestBacklogAndInvoke:
         channels_service.fetch_connection = AsyncMock(return_value=connection)
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=AsyncMock(return_value="r-1")
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(return_value="r-1"),
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -409,7 +426,9 @@ class TestRetryOnRefusal:
             return "run-1"
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=flaky_invoke
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=flaky_invoke,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -439,7 +458,9 @@ class TestRetryOnRefusal:
         always_refused = AsyncMock(side_effect=TurnRefused())
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=always_refused
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=always_refused,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -463,7 +484,9 @@ class TestConcurrency:
         invoke_fn = AsyncMock()
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=invoke_fn
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=invoke_fn,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -514,7 +537,9 @@ class TestIndependence:
         invoke_fn = AsyncMock(return_value="run-x")
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=invoke_fn
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=invoke_fn,
         )
 
         await dispatcher.dispatch_event(
@@ -566,7 +591,9 @@ class TestCommandWiring:
         invoke_fn = AsyncMock()
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=invoke_fn
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=invoke_fn,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -592,7 +619,9 @@ class TestCommandWiring:
         channels_service.close_thread = AsyncMock(return_value=resolution.thread)
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=AsyncMock()
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(),
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -626,7 +655,9 @@ class TestCommandWiring:
         invoke_fn = AsyncMock()
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=invoke_fn
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=invoke_fn,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -648,7 +679,9 @@ class TestCommandWiring:
         invoke_fn = AsyncMock(return_value="run-1")
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=invoke_fn
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=invoke_fn,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -673,7 +706,9 @@ class TestCommandWiring:
         invoke_fn = AsyncMock()
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=invoke_fn
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=invoke_fn,
         )
         with caplog.at_level("INFO"):
             await dispatcher.dispatch_event(
@@ -719,7 +754,9 @@ class TestCommandAcknowledgment:
         )
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=AsyncMock()
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(),
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -774,7 +811,9 @@ class TestCommandAcknowledgment:
         )
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=AsyncMock()
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(),
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -805,7 +844,9 @@ class TestCommandAcknowledgment:
             self._target(resolution, session_id="sess-b"),
         ]
         dispatcher = InboxDispatcher(
-            channels_service=MagicMock(), invoke_fn=AsyncMock()
+            run_admission=NoopRunAdmission(),
+            channels_service=MagicMock(),
+            invoke_fn=AsyncMock(),
         )
 
         text = await dispatcher._command_ack(
@@ -826,7 +867,9 @@ class TestCommandAcknowledgment:
         )
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=AsyncMock()
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(),
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -855,7 +898,9 @@ class TestCommandAcknowledgment:
         )
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=AsyncMock()
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(),
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -876,7 +921,9 @@ class TestCommandAcknowledgment:
         )
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=AsyncMock()
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(),
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -899,7 +946,9 @@ class TestCommandAcknowledgment:
         )
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=AsyncMock()
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(),
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -916,7 +965,9 @@ class TestCommandAcknowledgment:
         )
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=AsyncMock()
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(),
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -934,7 +985,9 @@ class TestCommandAcknowledgment:
         channels_service.query_threads = AsyncMock(return_value=[resolution.thread])
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=AsyncMock()
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(),
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -955,7 +1008,9 @@ class TestCommandAcknowledgment:
         )
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=AsyncMock()
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(),
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -981,7 +1036,9 @@ class TestBackfillWiring:
         channels_service.fetch_connection = AsyncMock()
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=AsyncMock(return_value="r-1")
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(return_value="r-1"),
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -1028,7 +1085,9 @@ class TestBackfillWiring:
         channels_service.channels_dao.mark_space_backfilled = AsyncMock()
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=AsyncMock(return_value="r-1")
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(return_value="r-1"),
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -1069,7 +1128,9 @@ class TestBackfillWiring:
 
         invoke_fn = AsyncMock(return_value="r-1")
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=invoke_fn
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=invoke_fn,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -1093,7 +1154,9 @@ class TestBackfillWiring:
         channels_service.fetch_connection = AsyncMock()
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=AsyncMock(return_value="r-1")
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(return_value="r-1"),
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -1160,6 +1223,7 @@ class TestIdentityAttribution:
         event = _make_event()
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             identity_service=identity_service,
             invoke_fn=invoke_fn,
@@ -1188,6 +1252,7 @@ class TestIdentityAttribution:
         event = _make_event()
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             identity_service=identity_service,
             invoke_fn=AsyncMock(),
@@ -1213,6 +1278,7 @@ class TestIdentityAttribution:
         event = _make_event()
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             identity_service=identity_service,
             invoke_fn=AsyncMock(),
@@ -1236,6 +1302,7 @@ class TestIdentityAttribution:
         event = _make_event()
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             identity_service=identity_service,
             invoke_fn=invoke_fn,
@@ -1258,7 +1325,9 @@ class TestIdentityAttribution:
         event = _make_event()
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=invoke_fn
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=invoke_fn,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event
@@ -1301,6 +1370,7 @@ class TestApprovalAnswer:
         invoke_fn = AsyncMock()
         respond_fn = AsyncMock()
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             invoke_fn=invoke_fn,
             respond_interaction_fn=respond_fn,
@@ -1333,7 +1403,9 @@ class TestApprovalAnswer:
         )
         invoke_fn = AsyncMock()
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=invoke_fn
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=invoke_fn,
         )
 
         await dispatcher.dispatch_event(
@@ -1376,6 +1448,7 @@ class TestFailedStartNotification:
         )
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             invoke_fn=AsyncMock(side_effect=RuntimeError("boom")),
         )
@@ -1410,6 +1483,7 @@ class TestFailedStartNotification:
         )
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             invoke_fn=AsyncMock(side_effect=RuntimeError("boom")),
         )
@@ -1434,6 +1508,7 @@ class TestFailedStartNotification:
         self.adapter.post_message = AsyncMock(side_effect=RuntimeError("slack down"))
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             invoke_fn=AsyncMock(side_effect=RuntimeError("boom")),
         )
@@ -1455,6 +1530,7 @@ class TestFailedStartNotification:
         )
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             invoke_fn=AsyncMock(return_value="run-1"),
         )
@@ -1478,7 +1554,9 @@ class TestFailedStartNotification:
         invoke_fn = AsyncMock(side_effect=RuntimeError("boom"))
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, invoke_fn=invoke_fn
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            invoke_fn=invoke_fn,
         )
         for _ in range(2):
             await dispatcher.dispatch_event(
@@ -1506,6 +1584,7 @@ class TestFailedStartNotification:
         )
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             invoke_fn=AsyncMock(side_effect=RuntimeError("boom")),
         )
@@ -1532,6 +1611,7 @@ class TestFailedStartNotification:
         )
 
         dispatcher = InboxDispatcher(
+            run_admission=NoopRunAdmission(),
             channels_service=channels_service,
             invoke_fn=AsyncMock(side_effect=RuntimeError("secret detail")),
         )
@@ -1563,7 +1643,9 @@ class TestFailedStartNotification:
         )
 
         dispatcher = InboxDispatcher(
-            channels_service=channels_service, workflows_service=workflows_service
+            run_admission=NoopRunAdmission(),
+            channels_service=channels_service,
+            workflows_service=workflows_service,
         )
         await dispatcher.dispatch_event(
             project_id=uuid4(), connection_id=event.connection_id, event=event

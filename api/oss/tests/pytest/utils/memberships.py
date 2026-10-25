@@ -6,14 +6,17 @@ from uuid import UUID, uuid4
 from oss.src.core.access.interfaces import RbacEnforcementInterface
 from oss.src.core.memberships.dtos import (
     CreatedProject,
+    MembershipPolicy,
     MembershipRow,
     MembershipWriteResult,
     OrganizationMember,
     ProjectMember,
+    ProjectMemberProfile,
     ProjectScope,
     ProjectSummary,
 )
 from oss.src.core.memberships.interfaces import MembershipsDAOInterface
+from oss.src.core.shared.dtos import Windowing
 
 
 def make_summary(
@@ -48,6 +51,9 @@ class InMemoryMembershipsDAO(MembershipsDAOInterface):
         self.writes: List[Tuple[str, dict]] = []
         self.reads: List[str] = []
         self.write_results: Dict[str, MembershipWriteResult] = {}
+        # user_id -> (email, name), for `query_project_member_profiles`. A member
+        # without an entry gets a generated email and no name.
+        self.users: Dict[UUID, Tuple[str, Optional[str]]] = {}
 
     # -- setup helpers -----------------------------------------------------------------
 
@@ -70,6 +76,12 @@ class InMemoryMembershipsDAO(MembershipsDAOInterface):
         self.project_members.append(
             ProjectMember(project_id=project_id, user_id=user_id, role=role)
         )
+
+    def add_user(
+        self, *, user_id: UUID, email: str, name: Optional[str] = None
+    ) -> UUID:
+        self.users[user_id] = (email, name)
+        return user_id
 
     # -- readers -----------------------------------------------------------------------
 
@@ -140,6 +152,54 @@ class InMemoryMembershipsDAO(MembershipsDAOInterface):
             for summary in self.projects.values()
             if summary.organization_id in organization_ids
         ]
+
+    async def query_project_member_profiles(
+        self,
+        *,
+        project_id: UUID,
+        policy: MembershipPolicy,
+        search: Optional[str] = None,
+        windowing: Optional[Windowing] = None,
+    ) -> List[ProjectMemberProfile]:
+        self.reads.append("query_project_member_profiles")
+        summary = self.projects.get(project_id)
+        if summary is None:
+            return []
+        organization_rows: Dict[UUID, OrganizationMember] = {}
+        for m in self.organization_members:
+            if m.organization_id == summary.organization_id:
+                organization_rows.setdefault(m.user_id, m)
+        if policy == MembershipPolicy.ORGANIZATION_WIDE:
+            roles = {u: m.role for u, m in organization_rows.items()}
+        else:
+            roles = {}
+            for m in self.project_members:
+                if m.project_id == project_id and m.user_id in organization_rows:
+                    roles.setdefault(m.user_id, m.role)
+
+        profiles = []
+        for user_id, role in roles.items():
+            email, name = self.users.get(user_id, (f"{user_id}@test.agenta.ai", None))
+            profiles.append(
+                ProjectMemberProfile(user_id=user_id, email=email, name=name, role=role)
+            )
+        if search:
+            prefix = search.strip().lower()
+            profiles = [
+                p
+                for p in profiles
+                if p.email.lower().startswith(prefix)
+                or (p.name or "").lower().startswith(prefix)
+            ]
+        profiles.sort(key=lambda p: (p.email, str(p.user_id)))
+        cursor = windowing.next if windowing else None
+        if cursor is not None:
+            after = next(
+                (i for i, p in enumerate(profiles) if p.user_id == cursor), None
+            )
+            profiles = profiles[after + 1 :] if after is not None else []
+        limit = (windowing.limit if windowing else None) or 50
+        return profiles[:limit]
 
     # -- writers -----------------------------------------------------------------------
 

@@ -24,6 +24,7 @@ from oss.src.utils.helpers import get_slug_from_name_and_id
 
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
+from oss.src.dbs.postgres.workflows.dao import WorkflowsDAO
 from oss.src.dbs.postgres.testcases.dbes import TestcaseBlobDBE
 from oss.src.dbs.postgres.testsets.dbes import (
     TestsetArtifactDBE,
@@ -312,7 +313,7 @@ async def add_default_simple_evaluators(
 
     BUILTIN_EVALUATORS = get_builtin_evaluators()
 
-    workflows_dao = GitDAO(
+    workflows_dao = WorkflowsDAO(
         ArtifactDBE=WorkflowArtifactDBE,
         VariantDBE=WorkflowVariantDBE,
         RevisionDBE=WorkflowRevisionDBE,

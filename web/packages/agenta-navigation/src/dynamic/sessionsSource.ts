@@ -63,6 +63,9 @@ export interface SessionSidebarRef extends SidebarEntityRef {
     waiting?: boolean
     /** Deliberately hidden. The row fades and its menu drops the verbs that make no sense. */
     archived: boolean
+    /** Sharing (M3): the owner (null = ownerless) and who may see it. */
+    ownerUserId?: string | null
+    visibility?: "private" | "project" | null
     /** Last activity, for the date buckets. */
     activityAt?: string | null
     /** Which heading this row sits under, resolved against the active `groupBy`. */
@@ -611,6 +614,8 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
         pinned: pinned.has(row.session_id),
         alive: Boolean(row.flags?.is_alive),
         archived: Boolean(row.archived_at),
+        ownerUserId: row.owner_user_id ?? null,
+        visibility: row.visibility ?? null,
         running: Boolean(row.flags?.is_running),
         isAutomation: isAutomationSession(row),
         activityAt: row.updated_at ?? row.created_at ?? null,

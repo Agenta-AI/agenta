@@ -9,6 +9,7 @@ import {useHydrateAtoms} from "jotai/react/utils"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {Analytics} from "@/features/analytics/Analytics"
+import {SessionShareHost} from "@/features/chat/SessionShareHost"
 import {isEmbedPath} from "@/features/embed/embedRoute"
 import {ensureAuthInit, tryRefreshSession} from "@/lib/auth"
 import {getApiUrl} from "@/lib/env"
@@ -49,6 +50,8 @@ export const AppProviders = ({children}: PropsWithChildren) => (
                     until something dispatches, so nothing renders differently today. */}
                 <EntityModalsProvider>{children}</EntityModalsProvider>
                 <PostAuthLoader />
+                {/* The chat Share dialog: the tab strip and every session row menu open it. */}
+                <SessionShareHost />
             </HydrateAtoms>
         </Provider>
     </QueryClientProvider>

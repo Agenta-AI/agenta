@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.channels.dtos import (
+    channel_agent_references,
     ChannelAgent,
     ChannelAgentCreate,
     ChannelAgentData,
@@ -79,13 +80,16 @@ from oss.src.core.secrets.dtos import (
     UpdateSecretPayloadDTO,
 )
 from oss.src.core.secrets.enums import ChannelSecretKind, SecretKind
-from oss.src.core.shared.dtos import Header, Status, Windowing
+from oss.src.core.shared.dtos import Header, Reference, Status, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
+from oss.src.core.sharing.types import SharedItemNotFound
+from oss.src.core.workflows.types import AgentReferenceUnresolved
 from oss.src.utils.logging import get_module_logger
 
 if TYPE_CHECKING:
     from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
     from oss.src.core.secrets.services import VaultService
+    from oss.src.core.workflows.service import WorkflowsService
 
 log = get_module_logger(__name__)
 
@@ -99,6 +103,7 @@ class ChannelsService:
         channels_dao: ChannelsDAOInterface,
         adapter_registry: "ChannelAdapterRegistry",
         vault_service: Optional["VaultService"] = None,
+        workflows_service: Optional["WorkflowsService"] = None,
     ) -> None:
         self.channels_dao = channels_dao
         self.adapter_registry = adapter_registry
@@ -106,6 +111,10 @@ class ChannelsService:
         # write path keeps constructing: only create/edit-with-credentials
         # and archive-cascade need it.
         self.vault_service = vault_service
+        # Same rule: only a write that leaves an agent binding active needs it, to
+        # resolve the agent the binding runs (the private-agent guard). Without it,
+        # such a write fails closed.
+        self.workflows_service = workflows_service
 
     # --- principal invalidation ------------------------------------------------ #
     #
@@ -1235,6 +1244,83 @@ class ChannelsService:
 
     # --- agents ------------------------------------------------------------- #
 
+    async def _activation_guard(
+        self,
+        *,
+        project_id: UUID,
+        references: Dict[str, Reference],
+        is_active: bool,
+    ) -> Optional[UUID]:
+        """The agent a binding write must guard, or None when the write leaves the
+        binding inactive. A private agent may not answer a channel: the DAO locks
+        this agent's artifact in the write transaction and refuses a private one
+        (`guard_artifact_id`). A reference that names no agent or resolves to
+        nothing is refused here with `SharedItemNotFound`, what an unknown agent
+        answers. Reads no cache."""
+
+        if not is_active:
+            return None
+        if self.workflows_service is None:
+            raise ChannelsError(
+                "ChannelsService needs a workflows_service to activate a channel agent"
+            )
+        try:
+            artifact_id = await self.workflows_service.resolve_agent_artifact_id(
+                project_id=project_id,
+                references=channel_agent_references(references),
+            )
+        except AgentReferenceUnresolved as e:
+            raise SharedItemNotFound() from e
+        if artifact_id is None:
+            raise SharedItemNotFound()
+        return artifact_id
+
+    async def _edit_agent_row(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        agent: ChannelAgentEdit,
+    ) -> Optional[ChannelAgent]:
+        """Every binding write. The write names its references and its whole flags,
+        taken from the stored row when the edit sends none, and it is guarded when
+        those flags leave the binding active. The references the guard checks are
+        the references the write stores, so a write that sends only flags (or
+        nothing) cannot reactivate a private agent's binding. The edit writes the
+        whole flags, so a stale active flag is guarded too: it would otherwise
+        reactivate a binding that a make-private just turned off."""
+
+        if agent.data is None or agent.data.references is None or agent.flags is None:
+            stored = await self.channels_dao.fetch_agent(
+                project_id=project_id,
+                agent_id=agent.id,
+            )
+            if stored is None:
+                return None
+            data = agent.data
+            if data is None:
+                data = ChannelAgentDataEdit.model_validate(stored.data)
+            elif data.references is None:
+                data = data.model_copy(update={"references": stored.data.references})
+            agent = agent.model_copy(
+                update={"data": data, "flags": agent.flags or stored.flags}
+            )
+
+        guard_artifact_id = await self._activation_guard(
+            project_id=project_id,
+            references=agent.data.references,
+            is_active=agent.flags.is_active,
+        )
+        return await self.channels_dao.edit_agent(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            agent=agent,
+            #
+            guard_artifact_id=guard_artifact_id,
+        )
+
     async def create_agent(
         self,
         *,
@@ -1250,11 +1336,18 @@ class ChannelsService:
         if connection is None:
             raise ChannelConnectionNotFound(connection_id=agent.connection_id)
 
+        guard_artifact_id = await self._activation_guard(
+            project_id=project_id,
+            references=agent.data.references,
+            is_active=agent.flags.is_active,
+        )
         return await self.channels_dao.create_agent(
             project_id=project_id,
             user_id=user_id,
             #
             agent=agent,
+            #
+            guard_artifact_id=guard_artifact_id,
         )
 
     async def fetch_agent(
@@ -1285,7 +1378,7 @@ class ChannelsService:
         if existing is None:
             return None
 
-        edited = await self.channels_dao.edit_agent(
+        edited = await self._edit_agent_row(
             project_id=project_id,
             user_id=user_id,
             #
@@ -1350,23 +1443,30 @@ class ChannelsService:
         )
         if current_default is not None and current_default.id != agent_id:
             current_default.flags.is_default = False
-            await self.channels_dao.edit_agent(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                agent=ChannelAgentEdit(
-                    id=current_default.id,
-                    name=current_default.name,
-                    description=current_default.description,
-                    tags=current_default.tags,
-                    meta=current_default.meta,
-                    data=current_default.data,
-                    flags=current_default.flags,
-                ),
+            clear = ChannelAgentEdit(
+                id=current_default.id,
+                name=current_default.name,
+                description=current_default.description,
+                tags=current_default.tags,
+                meta=current_default.meta,
+                data=current_default.data,
+                flags=current_default.flags,
             )
+            try:
+                await self._edit_agent_row(
+                    project_id=project_id, user_id=user_id, agent=clear
+                )
+            except SharedItemNotFound:
+                # The old default's agent no longer resolves, or is private now: its
+                # binding is turned off instead of blocking the new default. This write
+                # never activates a binding.
+                clear.flags = clear.flags.model_copy(update={"is_active": False})
+                await self._edit_agent_row(
+                    project_id=project_id, user_id=user_id, agent=clear
+                )
 
         agent.flags.is_default = True
-        updated = await self.channels_dao.edit_agent(
+        updated = await self._edit_agent_row(
             project_id=project_id,
             user_id=user_id,
             #

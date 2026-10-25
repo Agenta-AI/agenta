@@ -23,6 +23,8 @@ from oss.src.dbs.redis.sessions.locks import acquire_running, get_running_owner
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -119,6 +121,9 @@ async def test_stale_turn_end_does_not_clear_the_live_turns_running_lock(lock_en
             replica_id="replica-1",
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     owner = await get_running_owner(
@@ -149,6 +154,9 @@ async def test_a_turn_still_clears_its_own_running_lock(lock_engine):
             replica_id="replica-1",
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     owner = await get_running_owner(
@@ -184,6 +192,9 @@ async def test_an_end_beat_without_a_turn_id_releases_nothing(lock_engine):
             replica_id="replica-1",
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     owner = await get_running_owner(

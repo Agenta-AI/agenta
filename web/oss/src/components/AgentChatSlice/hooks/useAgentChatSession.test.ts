@@ -210,6 +210,8 @@ vi.mock("../components/Inspector/invalidate", () => ({
 vi.mock("../state/scope", () => ({useChatScopeKey: () => "scope"}))
 vi.mock("../state/sessions", () => ({
     openSessionIdsAtomFamily: () => "open-sessions",
+    // The /w pre-create is covered in state/sessions.visibility.test.ts; here it passes through.
+    precreateThenInvoke: (_params: unknown, invoke: () => Promise<unknown>) => invoke(),
 }))
 vi.mock("../state/turnCaptures", () => ({
     captureTurnRequestAtom: "capture-request",

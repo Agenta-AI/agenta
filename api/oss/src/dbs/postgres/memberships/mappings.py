@@ -1,6 +1,7 @@
 from oss.src.core.memberships.dtos import (
     MembershipRow,
     OrganizationMember,
+    ProjectMemberProfile,
     ProjectScope,
     ProjectSummary,
 )
@@ -47,4 +48,13 @@ def map_organization_member_dbe_to_dto(dbe) -> OrganizationMember:
         organization_id=dbe.organization_id,
         user_id=dbe.user_id,
         role=dbe.role,
+    )
+
+
+def map_project_member_profile_to_dto(row) -> ProjectMemberProfile:
+    return ProjectMemberProfile(
+        user_id=row.user_id,
+        email=row.email,
+        name=row.name,
+        role=row.role,
     )

@@ -29,6 +29,15 @@ class WorkflowError(Exception):
         super().__init__(message)
 
 
+class AgentReferenceUnresolved(WorkflowError):
+    """A reference names an agent (a key of `AGENT_REFERENCE_KEYS`) and nothing
+    resolves: the agent is unknown, deleted, archived, or in another project. Callers
+    answer it as an unknown id (404 `not_found`)."""
+
+    def __init__(self, message: str = "Not found."):
+        super().__init__(message)
+
+
 class StaticWorkflowSlug(WorkflowError):
     """Raised when a user tries to create, edit, or commit a workflow whose slug is in the
     reserved static namespace (``__ag__*``).

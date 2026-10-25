@@ -36,6 +36,15 @@ def _allowing_access_service(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _registered_sharing_service(monkeypatch):
+    """The dispatcher takes the registered SharingService for the claim's initial
+    policy (normally built by bootstrap_access)."""
+    from oss.tests.pytest.utils.sharing import register_sharing_service_for_tests
+
+    return register_sharing_service_for_tests(monkeypatch)
+
+
+@pytest.fixture(autouse=True)
 def _mock_workflows_resolve_a_target(monkeypatch):
     """The dispatcher resolves the request target before the claim (M2). Tests that
     pass a bare `MagicMock` workflows service get a target that resolves to a live

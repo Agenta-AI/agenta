@@ -31,6 +31,9 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
+from oss.tests.pytest.utils.sharing import register_sharing_service_for_tests
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -122,6 +125,7 @@ async def _send(svc, session_id: str, *, force: bool = False):
             data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
             force=force,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
 
@@ -168,6 +172,9 @@ async def test_runner_first_heartbeat_publishes_session_changed(lock_engine):
             is_running=True,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert publisher.changed_calls == [(str(_PROJECT), "session", session_id)]
@@ -189,6 +196,9 @@ async def test_subsequent_heartbeats_do_not_republish(lock_engine):
                 is_running=True,
             ),
             envelope=make_envelope(),
+            access=OWNERLESS_PROJECT_POLICY,
+            run_admission=NoopRunAdmission(),
+            admission_envelope=make_envelope(),
         )
 
     assert publisher.changed_calls == [(str(_PROJECT), "session", session_id)]
@@ -228,7 +238,8 @@ async def test_unarchive_publishes_session_changed(lock_engine):
 
 
 @pytest.mark.asyncio
-async def test_hard_delete_publishes_session_changed(lock_engine):
+async def test_hard_delete_publishes_session_changed(lock_engine, monkeypatch):
+    register_sharing_service_for_tests(monkeypatch)
     dao = AsyncMock()
     dao.hard_delete_by_session_id.return_value = True
     svc, publisher = _service(lock_engine, dao=dao)
@@ -239,7 +250,10 @@ async def test_hard_delete_publishes_session_changed(lock_engine):
 
 
 @pytest.mark.asyncio
-async def test_hard_delete_that_matched_nothing_does_not_publish(lock_engine):
+async def test_hard_delete_that_matched_nothing_does_not_publish(
+    lock_engine, monkeypatch
+):
+    register_sharing_service_for_tests(monkeypatch)
     dao = AsyncMock()
     dao.hard_delete_by_session_id.return_value = False
     svc, publisher = _service(lock_engine, dao=dao)

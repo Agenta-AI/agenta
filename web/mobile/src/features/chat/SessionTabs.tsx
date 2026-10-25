@@ -1,6 +1,12 @@
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
 import {FilesPaneToggle, useSessionFilesPane} from "@agenta/entity-ui/drive"
-import {SessionTabRail, SessionTabStrip, withSessionShortcutKeys} from "@agenta/sessions-ui"
+import {
+    SessionTabRail,
+    SessionTabStrip,
+    sessionMenuAccess,
+    withSessionShortcutKeys,
+} from "@agenta/sessions-ui"
+import {userAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -11,6 +17,7 @@ import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 import {ConfigRevealButton} from "./ConfigRevealButton"
 import {InspectSessionButton} from "./InspectSessionButton"
 import {SessionHistoryMenu} from "./SessionHistoryMenu"
+import {SessionSharingControl} from "./SessionSharingControl"
 import {useSessionHeader} from "./useSessionHeader"
 import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
@@ -59,10 +66,18 @@ export const SessionTabs = ({
         sessionId,
     )
     const query = useSessionHeader(projectId, sessionId)
+    const me = useAtomValue(userAtom)
 
     const leadingExtra = !chatMaximized && configCollapsed ? <ConfigRevealButton /> : undefined
     const extra = (
         <>
+            {/* Before the session buttons, at the strip's right end: the chat's own sharing. */}
+            <SessionSharingControl
+                sessionId={sessionId}
+                sessionName={query.data?.name ?? ""}
+                workspaceId={workspaceId}
+                projectId={projectId}
+            />
             {chatMaximized ? null : (
                 <>
                     <InspectSessionButton sessionId={sessionId} />
@@ -112,6 +127,11 @@ export const SessionTabs = ({
                 onMenuSelect={menu.onMenuSelect}
                 // "Rename" and the tab's pencil open the rail's own editor; this only persists it.
                 onRenameTab={menu.onRenameRow}
+                // Someone else's chat keeps its name: renaming it is the owner's verb.
+                canRenameTab={(vm) =>
+                    sessionMenuAccess({ownerUserId: vm.stream.owner_user_id ?? null}, me?.id) !==
+                    "member"
+                }
                 // Closing drops the tab from this device's open set — never from the server.
                 onClose={(vm, ordered) => closeTabs([vm.id], ordered)}
                 onCloseMany={closeTabs}

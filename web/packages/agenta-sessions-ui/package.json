@@ -15,7 +15,8 @@
         "check": "pnpm run types:check && pnpm run lint"
     },
     "exports": {
-        ".": "./src/index.ts"
+        ".": "./src/index.ts",
+        "./sharing": "./src/sharing/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",

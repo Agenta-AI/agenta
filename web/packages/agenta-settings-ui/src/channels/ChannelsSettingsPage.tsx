@@ -50,6 +50,10 @@ export interface ChannelsSettingsPageProps {
     hostedHandle?: string
     /** Confirms a disconnect; without it the row menu offers no Disconnect. */
     confirm?: ConfirmDestructive
+    /** The project's name, for the agent step's audience note. */
+    projectName?: string
+    /** Opens "Privacy and owner" for one of the reader's private agents. */
+    onShareAgent?: (agentId: string) => void
 }
 
 const PLATFORM_DESCRIPTIONS: Record<ChannelPlatform, string> = {
@@ -87,9 +91,12 @@ export const ChannelsSettingsPage = ({
     renderPanel,
     hostedHandle = "@agenta",
     confirm,
+    projectName,
+    onShareAgent,
 }: ChannelsSettingsPageProps) => {
     const [retrying, setRetrying] = useState(false)
-    const agentName = agents.find((agent) => agent.id === agentId)?.name
+    const current = agents.find((agent) => agent.id === agentId)
+    const agentName = current?.name
 
     // The panel's agent changes before the host reloads for it, so derive its view here.
     const forAgent = useMemo(
@@ -116,6 +123,9 @@ export const ChannelsSettingsPage = ({
         hostedHandle,
         agents,
         onAgentChange,
+        projectName,
+        agentPrivate: !!current?.isPrivate,
+        onShareAgent,
     })
     const {openRoute, openConnection: openPanelConnection} = panel
 

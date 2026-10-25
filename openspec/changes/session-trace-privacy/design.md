@@ -17,7 +17,7 @@ A session id names a session of P when P has a live session row or a privacy tom
 
 ### 2. Privacy tombstone
 
-`session_trace_tombstones` (core_oss): `project_id`, `session_id`, `owner_user_id`, `deleted_at`; PK `(project_id, session_id)`. `SessionsService.delete_session` writes it, for a private session, in the transaction that deletes the stream row. Session deletion leaves spans to tracing retention, so the tombstone must outlive the row. The EE retention flush deletes a tombstone once `deleted_at` is older than the plan's retention plus one day. With unlimited retention (OSS, some plans) it stays.
+`session_trace_tombstones` (core_oss): `project_id`, `session_id`, `owner_user_id`, `deleted_at`; PK `(project_id, session_id)`. M3 ships the table (revision `oss000000048`) and the write: the session delete writes it, for a private session, in the statement that deletes the stream row. M3 also uses it for the session decision (the former owner reads, nobody writes, everyone else gets the hidden answer). Session deletion leaves spans to tracing retention, so the tombstone must outlive the row. The EE retention flush deletes a tombstone once `deleted_at` is older than the plan's retention plus one day. With unlimited retention (OSS, some plans) it stays.
 
 ### 3. Linkage
 
@@ -58,10 +58,10 @@ Analytics responses add `access: {restricted: bool}`. Scope errors are excluded 
 
 ## Migration and mixed-version behavior
 
-- Core (`core_oss`): nullable usage columns, the concurrent index, and the tombstone table. No backfill required.
+- Core (`core_oss`): nullable usage columns and the concurrent index. The tombstone table ships with M3 (`oss000000048`). No backfill required.
 - Tracing (`tracing_oss`): only if the measured strategy needs it.
 - New runner, old API: the completion DTO ignores unknown fields, so the trace write-back fills usage later. Old runner, new API: same. Old runners stamp only the root, so their child spans are unlinked until the root arrives; the runner exports a trace at run end, usually in one batch.
-- Tombstone writes ship in the first release, before the filter exists. A private session deleted by a pod without the tombstone write leaves no tombstone.
+- Tombstone writes ship with M3, the release that adds private sessions, before the filter exists. Every private session is deleted by a pod that writes the tombstone, except during the M3 rolling deploy: a pre-M3 pod has no private sessions to delete.
 - The filter is behind a flag, turned on after every pod applies scopes. In the same release, the sharing screen stops showing the M3 trace-reader disclosure. Turning the flag off reopens the exception, and the disclosure returns with it.
 
 ## Risks
@@ -71,6 +71,6 @@ Analytics responses add `access: {restricted: bool}`. Scope errors are excluded 
 
 ## Open questions
 
-1. Private sessions deleted before the tombstone release keep traces visible to trace readers (as under M3). Recommendation: accept; ship the tombstone write first.
+1. Resolved: the tombstone write ships with M3, so no private session is deleted without a tombstone. M9 adds the EE retention flush of tombstones (older than the plan's retention plus one day).
 2. `access.restricted` tells a reader that other users have private sessions in the project. Recommendation: accept.
 3. Project admins see filtered totals too. Recommendation: later, content-free totals from turn usage with an analytics permission.

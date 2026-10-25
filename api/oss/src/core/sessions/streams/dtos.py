@@ -3,11 +3,19 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    field_validator,
+    model_validator,
+)
 
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
 from oss.src.core.shared.dtos import Header, Identifier, Lifecycle
+from oss.src.core.sharing.dtos import AccessPolicy, Visibility, SessionSharingState
 from oss.src.core.sessions.types import (
     SessionDelivery,
     SessionOrigin,
@@ -86,6 +94,20 @@ class SessionStream(Identifier, Header, Lifecycle):
     origin: Optional[SessionOrigin] = None
     trigger: Optional[SessionTrigger] = None
     delivery: Optional[SessionDelivery] = None
+    # The sharing policy, read only. A row written by pre-sharing code (stored NULL) reads
+    # as project-visible.
+    visibility: Visibility = Visibility.PROJECT
+    owner_user_id: Optional[UUID] = None
+    # The caller's sharing state, on the one-session stream query only (the chat screen
+    # reads it there instead of `GET /sessions/{id}/sharing`). None elsewhere.
+    sharing: Optional[SessionSharingState] = None
+    # Set by the row insert only: whether a channel thread names this session id (read
+    # in the insert statement). Never serialized. None: not known.
+    _has_channel_thread: Optional[bool] = PrivateAttr(default=None)
+
+    @property
+    def has_channel_thread(self) -> Optional[bool]:
+        return self._has_channel_thread
 
 
 class SessionStreamReadOptions(BaseModel):
@@ -99,6 +121,8 @@ class SessionStreamQueryResult(BaseModel):
 
 class SessionStreamCreate(Header):
     session_id: str
+    # The initial sharing policy. Required: every insert path decides it on the server.
+    access: AccessPolicy
     # Who chose `name`. Typed here and encoded by the mapper, so the core never handles the
     # storage representation.
     name_source: Optional[SessionNameSource] = None

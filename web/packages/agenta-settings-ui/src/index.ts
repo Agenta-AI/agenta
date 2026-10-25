@@ -138,6 +138,10 @@ export {
     isLiveForAgent,
     ChannelConnectFlow,
     ChannelManagePanel,
+    ChannelAgentPicker,
+    ChannelAgentPrivateError,
+    channelSharingCopy,
+    isPrivateAgentRefusal,
     EMPTY_CONNECTIONS,
     NOOP_ACTIONS,
     buildAgentChannelsActions,
@@ -161,6 +165,7 @@ export {
     type ChannelsSettingsPageProps,
     type ChannelConnectFlowProps,
     type ChannelManagePanelProps,
+    type ChannelAgentPickerProps,
     type ChannelRowSummary,
 } from "./channels"
 export type {

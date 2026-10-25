@@ -19,6 +19,7 @@ from oss.src.core.access.dtos import (
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.channels.adapters.agenta.adapter import AgentaAdapter
 from oss.src.core.channels.adapters.embed.adapter import EmbedAdapter
+from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy
 
 
 def test_registry_includes_agenta_beside_slack_and_mock():
@@ -150,6 +151,7 @@ async def test_agenta_channel_refuses_key_with_missing_creator():
         ),
         rbac=RecordingRbac(),
         principals=principals,
+        resource_policy=AllowAllResourcePolicy(),
     )
     with (
         patch(

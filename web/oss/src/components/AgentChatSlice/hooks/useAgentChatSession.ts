@@ -75,7 +75,7 @@ import {doesAgentChatStopKillSession} from "../assets/constants"
 import {isStoppingPhase, reduceStopPhase} from "../assets/stopState"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
 import {useChatScopeKey} from "../state/scope"
-import {openSessionIdsAtomFamily} from "../state/sessions"
+import {openSessionIdsAtomFamily, precreateThenInvoke} from "../state/sessions"
 import {captureTurnRequestAtom} from "../state/turnCaptures"
 
 import {type ScrollIntent} from "./useScrollIntent"
@@ -106,6 +106,7 @@ export const useAgentChatSession = ({
     intent: ScrollIntent
 }) => {
     const store = useStore()
+    const projectId = useAtomValue(projectIdAtom)
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
     const stampMessagesCreatedAt = useSetAtom(stampMessagesCreatedAtAtom)
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
@@ -223,18 +224,28 @@ export const useAgentChatSession = ({
                     const deliverySource: TurnDeliverySource = sharedResponse ? "shared" : "legacy"
                     turnDeliverySourceBySession.set(sessionId, deliverySource)
                     setTurnDeliverySource(deliverySource)
-                    // Bounded: retries while the invocation URL is still loading and rejects if
-                    // the build hangs, so a failed send surfaces as an error bubble instead of an
-                    // eternal spinner (#6042).
-                    const req = await buildRequestWithinDeadline(() =>
-                        buildAgentRequest(entityIdRef.current, messages, {
-                            sessionId: id ?? sessionId,
-                            sharedResponse,
-                            secretSetup: true,
-                        }),
+                    // A new chat exists as a project-visible session before its first run.
+                    return precreateThenInvoke(
+                        {sessionId: id ?? sessionId, projectId, messages},
+                        async () => {
+                            // Bounded: retries while the invocation URL is still loading and
+                            // rejects if the build hangs, so a failed send surfaces as an error
+                            // bubble instead of an eternal spinner (#6042).
+                            const req = await buildRequestWithinDeadline(() =>
+                                buildAgentRequest(entityIdRef.current, messages, {
+                                    sessionId: id ?? sessionId,
+                                    sharedResponse,
+                                    secretSetup: true,
+                                }),
+                            )
+                            captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
+                            return {
+                                api: req.invocationUrl,
+                                headers: req.headers,
+                                body: req.requestBody,
+                            }
+                        },
                     )
-                    captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
-                    return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
                 },
             )
         },
@@ -629,7 +640,6 @@ export const useAgentChatSession = ({
         }
     }, [messages, onCommittedRevision])
 
-    const projectId = useAtomValue(projectIdAtom)
     const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
     const retryStopRef = useRef(false)
     const abortAfterAcceptedRef = useRef(false)

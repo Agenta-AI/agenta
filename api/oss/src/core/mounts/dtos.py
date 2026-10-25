@@ -53,6 +53,14 @@ class MountEdit(Identifier, Header):
     meta: Optional[Dict[str, Any]] = None
 
 
+class MountScope(BaseModel):
+    """What a mount belongs to: a session, an agent (artifact id), or neither (a
+    project mount). Set at creation and never changed."""
+
+    session_id: Optional[str] = None
+    agent_id: Optional[str] = None
+
+
 class MountQuery(BaseModel):
     session_id: Optional[str] = None
     agent_id: Optional[str] = None

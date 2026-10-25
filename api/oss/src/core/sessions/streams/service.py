@@ -13,10 +13,10 @@ Command matrix (inputs/data × force):
 """
 
 import uuid_utils.compat as uuid
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, Tuple
 from uuid import UUID
 
-from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.dtos import PrincipalRef, RunEnvelope, RunOrigin
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.redis.shared.engine import LockEngine
@@ -32,15 +32,17 @@ from oss.src.dbs.redis.sessions.locks import (
     SessionHeartbeatGuardLost,
     acquire_alive_with_start,
     acquire_running,
-    bind_turn,
+    bind_turn_for_beat,
     displace_turns,
+    TurnAdmission,
+    forget_turn_admissions,
+    get_turn_admission,
     release_running,
     session_heartbeat_guard,
     get_alive_owner,
     get_running_owner,
     get_session_liveness,
     get_routable_turn_binding,
-    is_turn_superseded,
     mark_turn_superseded,
     record_turn_start,
     redis_time_ms,
@@ -71,6 +73,7 @@ from oss.src.core.sessions.streams.types import (
     ConcurrencyLimitExceeded,
     SessionIdInvalid,
     SessionStreamAlreadyExists,
+    SessionStreamNotFound,
     SessionTurnInUse,
     SessionTurnMismatch,
 )
@@ -78,8 +81,26 @@ from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.runner_client import kill_runner_sandbox
 from oss.src.core.sessions.types import SessionReference
 from oss.src.core.shared.dtos import Windowing
+from oss.src.core.sharing.admission import HEARTBEAT_BOUNDARY, RunAdmission
+from oss.src.core.sharing.dtos import AccessPolicy, SessionReadScope
+from oss.src.core.sharing.types import AdmissionDenied
+from oss.src.core.workflows.types import AgentReferenceUnresolved
+from oss.src.core.sharing.service import (
+    cache_created_session_access,
+    created_session_access,
+    get_sharing_service,
+    invalidate_sharing_caches,
+    session_was_missing,
+)
 
 log = get_module_logger(__name__)
+
+# A route's check of the session, run again on a row the route did not check: one that a
+# concurrent request created after the route found no row. It raises when the caller may
+# not do the route's action on that row.
+SessionRecheck = Callable[
+    [], Awaitable[None]
+]  # the routes pass a `SessionRecheck` object
 
 # Longest server-filled session title. Matches the browser's `AUTO_TITLE_MAX_CHARS`
 # (web/oss/src/components/AgentChatSlice/state/sessions.ts) so the two writers cannot
@@ -246,6 +267,12 @@ class SessionStreamsService:
                 actual_turn_id=actual_turn_id,
                 expected_turn_id=expected_turn_id,
             )
+        await forget_turn_admissions(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_ids=displaced,
+        )
         return displaced
 
     async def clock_ms(self) -> int:
@@ -315,9 +342,24 @@ class SessionStreamsService:
         project_id: UUID,
         user_id: UUID,
         request: SessionStreamCommandRequest,
+        access: AccessPolicy,
         arrived_at_ms: Optional[int] = None,
+        recheck: Optional[SessionRecheck] = None,
     ) -> SessionStreamCommandResponse:
+        """`access` is the policy a send or steer writes when it creates the row; an
+        existing row keeps its policy.
+
+        `recheck` is the route's session check. When that check found no row, a row that
+        exists now was created by a concurrent request and was never checked. That path
+        (and only that path) settles creation first, before any liveness read,
+        displacement or lock: a send or steer inserts the row with `access` (a lost
+        insert race checks the winning row); a cancel or attach reads the row and checks
+        it when it exists, and a cancel of a session that still does not exist cancels
+        nothing. An existing session's command adds no read."""
         _validate_session_id(request.session_id)
+        unchecked = recheck is not None and session_was_missing(
+            project_id=project_id, session_id=request.session_id
+        )
 
         # When the request reached the process, for the stale-cancel guard. The router stamps it
         # before its permission and concurrency checks, which are database round trips; stamping
@@ -333,6 +375,53 @@ class SessionStreamsService:
             request.data.inputs if request.data else None
         )
 
+        created_row = False
+        if unchecked:
+            if mode in (CommandMode.send, CommandMode.steer):
+                try:
+                    created = await self._create_row(
+                        project_id=project_id,
+                        user_id=user_id,
+                        stream=SessionStreamCreate(
+                            session_id=session_id,
+                            name=proposed_name,
+                            access=access,
+                        ),
+                    )
+                    created_row = True
+                except SessionStreamAlreadyExists:
+                    await recheck()
+                else:
+                    if _channel_policy_written(created, origin=None):
+                        # A channel thread named the id, so the insert wrote the channel
+                        # policy, not this request's: check the row before any lock,
+                        # liveness read or displacement.
+                        try:
+                            await recheck()
+                        except BaseException:
+                            await self._keep_refused_row(
+                                project_id=project_id, created=created
+                            )
+                            raise
+            else:
+                if (
+                    await self._dao.get_by_session_id(
+                        project_id=project_id, session_id=session_id
+                    )
+                    is not None
+                ):
+                    await recheck()
+                elif mode == CommandMode.cancel:
+                    return SessionStreamCommandResponse(
+                        mode=mode,
+                        session_id=session_id,
+                        detached=True,
+                    )
+                else:
+                    # An attach to a session that does not exist ends here, before any
+                    # lock or write: a row that appears now is someone else's.
+                    raise SessionStreamNotFound(session_id)
+
         if mode == CommandMode.send:
             liveness = await get_session_liveness(
                 self._lock, project_id=str(project_id), session_id=session_id
@@ -344,6 +433,9 @@ class SessionStreamsService:
                 user_id=user_id,
                 session_id=session_id,
                 name=proposed_name,
+                access=access,
+                recheck=recheck,
+                created_row=created_row,
             )
             return SessionStreamCommandResponse(
                 mode=mode,
@@ -359,6 +451,9 @@ class SessionStreamsService:
                 user_id=user_id,
                 session_id=session_id,
                 name=proposed_name,
+                access=access,
+                recheck=recheck,
+                created_row=created_row,
             )
             return SessionStreamCommandResponse(
                 mode=mode,
@@ -499,13 +594,23 @@ class SessionStreamsService:
         request: SessionHeartbeatRequest,
         runner_verified: bool = False,
         envelope: Optional[RunEnvelope],
+        access: AccessPolicy,
+        run_admission: RunAdmission,
+        admission_envelope: RunEnvelope,
     ) -> SessionHeartbeatResult:
         """`runner_verified` says the caller proved it is runner infrastructure (the runner
         token). Only then is its `replica_address` stored, because Stop later sends the runner
         token to that address.
 
         `envelope` is the run credential's envelope. A beat that would create the session
-        without one raises `SessionCreationRequiresRunCredential`."""
+        without one raises `SessionCreationRequiresRunCredential`. `access` is the policy
+        a beat that creates the row writes; it is never written on an existing row.
+
+        `admission_envelope` is the envelope of the caller's credential (any kind), which
+        `run_admission` checks. Every beat is authorized before any lock, write or
+        response, except a running beat of a turn this principal was already admitted
+        to (verified continuity). A refusal raises `AdmissionDenied` or
+        `AgentReferenceUnresolved`."""
         _validate_session_id(request.session_id)
         async with session_heartbeat_guard(
             self._lock,
@@ -517,6 +622,9 @@ class SessionStreamsService:
                 request=request,
                 runner_verified=runner_verified,
                 envelope=envelope,
+                access=access,
+                run_admission=run_admission,
+                admission_envelope=admission_envelope,
             )
             try:
                 guard.ensure_held()
@@ -534,6 +642,9 @@ class SessionStreamsService:
         request: SessionHeartbeatRequest,
         runner_verified: bool,
         envelope: Optional[RunEnvelope] = None,
+        access: AccessPolicy,
+        run_admission: RunAdmission,
+        admission_envelope: RunEnvelope,
     ) -> SessionHeartbeatResult:
         """Refresh the nest, mirror it onto the row, and fill what the row still lacks.
 
@@ -545,47 +656,40 @@ class SessionStreamsService:
         """
         _validate_session_id(request.session_id)
 
-        # Only a run creates a session by heartbeat: refuse before any lock moves (the
-        # turn binding below is first-writer-wins).
+        # The one read of the row in a normal beat. Every early branch below reuses it.
         prior_stream = await self._dao.get_by_session_id(
             project_id=project_id,
             session_id=request.session_id,
         )
-        if prior_stream is None and envelope is None:
-            raise SessionCreationRequiresRunCredential(request.session_id)
 
-        # A turn that was already displaced (handover, cancel, steer, kill, sweep) is dead
-        # forever: refuse the beat before it touches ANY lock or the row. This is what keeps
-        # the ambiguous "`alive` held by another turn + no `running`" state safe to resolve as
-        # a handover below — the dangerous reading of that state was a zombie beat from an
-        # older turn taking the nest of a session parked awaiting approval, which then made
-        # the user's approval resume look superseded and abort. A zombie is by definition a
-        # turn that already lost the nest, so the tombstone written at the moment it lost it
-        # is the discriminator the locks alone cannot provide. Refusing early also stops the
-        # zombie's own turn-end beat from clearing the LIVE turn's `running`.
-        if request.turn_id and await is_turn_superseded(
-            self._lock,
-            project_id=str(project_id),
-            session_id=request.session_id,
-            turn_id=request.turn_id,
-        ):
-            stream = await self._dao.get_by_session_id(
-                project_id=project_id,
-                session_id=request.session_id,
-            )
-            return SessionHeartbeatResult(
-                stream=stream,
-                replica_id=request.replica_id,
-                is_current_turn=False,
-            )
+        # Authorize the beat before the supersession check, any lock, any write or any
+        # response. `created_stream` is the row this beat inserted; `prior_stream` stays
+        # the row as it was before this beat (the lock logic below reads its `turn_id`).
+        prior_stream, created_stream, admitted = await self._admit_heartbeat(
+            project_id=project_id,
+            request=request,
+            prior_stream=prior_stream,
+            envelope=envelope,
+            access=access,
+            run_admission=run_admission,
+            admission_envelope=admission_envelope,
+        )
 
+        # A displaced turn's beat is refused by the bind script before any lock: a zombie
+        # must never take the nest of a parked session or clear the live turn's `running`
+        # (a row its beat inserted for a deleted session is removed again, below).
+        #
         # A turn runs on exactly one runner pod. The first pod to beat it binds it, and a beat
         # from any other pod for the same turn id changes no lock and no row. That covers its
         # final `is_running: false` beat too, which would otherwise release the bound pod's
         # `running`. Binding on every beat, not in the acquire below, because the first beat of
         # an ordinary turn takes the handover or refresh branch and never reaches the acquire.
+        #
+        # The tombstone check, the binding and the admission record of a checked running
+        # beat are one script: one round trip, the record written only when this replica
+        # holds the binding and the turn is not displaced.
         if request.turn_id:
-            binding, bound_now = await bind_turn(
+            bound = await bind_turn_for_beat(
                 self._lock,
                 project_id=str(project_id),
                 session_id=request.session_id,
@@ -594,7 +698,31 @@ class SessionStreamsService:
                 replica_address=(
                     (request.replica_address or "") if runner_verified else ""
                 ),
+                admitted=admitted,
             )
+            if bound is None:
+                if created_stream is not None:
+                    # A displaced turn's late beat inserted the row of a session that
+                    # was deleted after it lost the nest (the supersession check rides in
+                    # the bind script, after the insert). The row is that zombie's unless
+                    # another turn adopted it since: remove it only while it is unchanged,
+                    # so the deleted session does not come back. Only the zombie pays.
+                    if await self._dao.delete_row_if_unchanged(
+                        project_id=project_id,
+                        session_id=request.session_id,
+                        stream_id=created_stream.id,
+                        turn_id=created_stream.turn_id,
+                    ):
+                        await invalidate_sharing_caches(
+                            project_id=project_id, session_ids=[request.session_id]
+                        )
+                    created_stream = None
+                return SessionHeartbeatResult(
+                    stream=created_stream or prior_stream,
+                    replica_id=request.replica_id,
+                    is_current_turn=False,
+                )
+            binding, bound_now = bound
             if bound_now and request.replica_address and not runner_verified:
                 log.warning(
                     "sessions: bound a turn without a valid runner token, so its address "
@@ -615,12 +743,8 @@ class SessionStreamsService:
                         "bound_replica_id": binding.replica_id,
                     },
                 )
-                stream = await self._dao.get_by_session_id(
-                    project_id=project_id,
-                    session_id=request.session_id,
-                )
                 return SessionHeartbeatResult(
-                    stream=stream,
+                    stream=created_stream or prior_stream,
                     replica_id=request.replica_id,
                     is_current_turn=False,
                 )
@@ -707,6 +831,12 @@ class SessionStreamsService:
                                     session_id=request.session_id,
                                     turn_id=displaced,
                                 )
+                                await forget_turn_admissions(
+                                    self._lock,
+                                    project_id=str(project_id),
+                                    session_id=request.session_id,
+                                    turn_ids=[displaced],
+                                )
                             acquired = await acquire_alive_with_start(
                                 self._lock,
                                 project_id=str(project_id),
@@ -760,6 +890,15 @@ class SessionStreamsService:
                 session_id=request.session_id,
                 turn_id=request.turn_id,
             )
+            if request.turn_id:
+                # The turn is over: its admission record must not open a later write
+                # or beat that replays its id.
+                await forget_turn_admissions(
+                    self._lock,
+                    project_id=str(project_id),
+                    session_id=request.session_id,
+                    turn_ids=[request.turn_id],
+                )
             # Publish only on the actual transition, not on every idle heartbeat.
             if released:
                 await self._publish_lifecycle(
@@ -782,8 +921,8 @@ class SessionStreamsService:
             is_attached=liveness["attached"],
         )
 
-        # The mirror write is unconditional: create when this beat is the row's first touch,
-        # otherwise UPDATE. Seeding `stream` from `prior_stream` here would skip both branches
+        # The mirror write is unconditional on an existing row (the create beat inserted its
+        # row above and updates it only when the locks disagreed with the insert). Seeding `stream` from `prior_stream` here would skip both branches
         # for every session whose row already exists (renamed, or created by an earlier beat),
         # leaving `flags` NULL on named sessions and frozen at is_running=true on the rest —
         # and `updated_at` NULL, which is the column the orphan sweep filters on.
@@ -801,29 +940,19 @@ class SessionStreamsService:
         proposed_name = normalize_session_name(request.name)
         proposed_references = request.references or None
 
-        created = False
-        if prior_stream is None:
-            try:
-                stream = await self._dao.create(
-                    project_id=project_id,
-                    user_id=None,
-                    stream=SessionStreamCreate(
-                        session_id=request.session_id,
-                        flags=flags,
-                        turn_id=durable_turn_id,
-                        name=proposed_name,
-                        references=proposed_references,
-                    ),
-                )
-                created = True
-            except SessionStreamAlreadyExists:
-                # `_start_turn` won the first-touch race; fall through and update its row.
-                stream = None
+        # This beat inserted the row before the locks moved, with the flags and `turn_id`
+        # it expected. The mirror write below runs only when the locks disagreed, so the
+        # normal create beat writes the row once.
+        created = created_stream is not None
+        if created and (
+            created_stream.flags == flags and created_stream.turn_id == durable_turn_id
+        ):
+            stream = created_stream
 
         # The runner re-proposes on EVERY beat, so skip the round-trip once the row already
         # holds a value. `fill_missing` is NULL-guarded in SQL regardless — this read only
         # avoids a no-op UPDATE per beat per session, it is not what makes the fill safe.
-        if stream is None and prior_stream is not None:
+        if stream is None and not created and prior_stream is not None:
             fill_name = proposed_name if prior_stream.name is None else None
             fill_references = (
                 proposed_references if not prior_stream.references else None
@@ -835,14 +964,6 @@ class SessionStreamsService:
                     name=fill_name,
                     references=fill_references,
                 )
-        elif stream is None and (proposed_name or proposed_references):
-            # Lost the create race: no row was read, so propose both and let SQL decide.
-            await self._dao.fill_missing(
-                project_id=project_id,
-                session_id=request.session_id,
-                name=proposed_name,
-                references=proposed_references,
-            )
 
         if stream is None:
             stream = await self._dao.update(
@@ -896,6 +1017,204 @@ class SessionStreamsService:
             stream=stream,
             replica_id=request.replica_id,
             is_current_turn=is_current_turn,
+        )
+
+    async def _admit_heartbeat(
+        self,
+        *,
+        project_id: UUID,
+        request: SessionHeartbeatRequest,
+        prior_stream: Optional[SessionStream],
+        envelope: Optional[RunEnvelope],
+        access: AccessPolicy,
+        run_admission: RunAdmission,
+        admission_envelope: RunEnvelope,
+    ) -> Tuple[
+        Optional[SessionStream], Optional[SessionStream], Optional[PrincipalRef]
+    ]:
+        """Authorize one beat and resolve create-or-conflict, before any lock moves.
+
+        Returns `(prior_stream, created_stream, admitted)`: the row as it was before this
+        beat (the winning row when this beat lost a create race), the row this beat
+        inserted, and the principal to record as this turn's admission (a checked running
+        beat with a `turn_id`; None otherwise).
+
+        1. No row: check the beat's agent, then insert the row (create-or-conflict is
+           settled here, so no lock or response can follow an unauthorized insert). A
+           lost race reads the winning row and checks it like an existing row.
+        2. Verified continuity: a running beat of the row's current turn whose admission
+           record names this principal skips the check (one Redis read, renewed).
+        3. Any other beat is checked: a running beat with a `turn_id` checks the session
+           and the beat's agent, any other beat checks the session.
+        4. A checked running beat with a `turn_id` records the admission, after the row it
+           used passed.
+        """
+        principal = admission_envelope.authority.principal
+        running_turn_id = request.turn_id if request.is_running else None
+
+        created_stream: Optional[SessionStream] = None
+        if prior_stream is None:
+            # Only a run creates a session by heartbeat.
+            if envelope is None:
+                raise SessionCreationRequiresRunCredential(request.session_id)
+            await run_admission.admit_turn(
+                envelope=admission_envelope,
+                session_id=None,
+                project_id=project_id,
+                references=request.references,
+            )
+            try:
+                created_stream = await self._create_row(
+                    project_id=project_id,
+                    user_id=None,
+                    stream=SessionStreamCreate(
+                        session_id=request.session_id,
+                        flags=SessionStreamFlags(
+                            is_alive=True,
+                            is_running=request.is_running,
+                            is_attached=False,
+                        ),
+                        turn_id=running_turn_id,
+                        name=normalize_session_name(request.name),
+                        references=request.references or None,
+                        access=access,
+                    ),
+                    # A channel session is the one its installation's run creates.
+                    is_channel=envelope.context.origin == RunOrigin.INSTALLATION,
+                )
+                if _channel_policy_written(
+                    created_stream, origin=envelope.context.origin
+                ):
+                    # A channel thread named the id: the insert wrote the channel policy
+                    # (project-visible, ownerless), not this run's, so the beat is checked
+                    # against the row it wrote (its fresh cache entry). A refused beat
+                    # leaves that row as it is: it is the channel session's own row, and
+                    # the channel's run adopts it. Only this rare beat pays the check, and
+                    # only for the session: the beat's agent target passed above.
+                    try:
+                        await run_admission.admit(
+                            envelope=admission_envelope,
+                            session_id=request.session_id,
+                            agent_artifact_id=None,
+                            boundary=HEARTBEAT_BOUNDARY,
+                        )
+                    except AdmissionDenied:
+                        await self._keep_refused_row(
+                            project_id=project_id, created=created_stream
+                        )
+                        raise
+            except SessionStreamAlreadyExists:
+                # Another first touch (`_start_turn`, a rename, another beat) won: check
+                # this beat against the winning row, as for any existing row.
+                prior_stream = await self._dao.get_by_session_id(
+                    project_id=project_id,
+                    session_id=request.session_id,
+                )
+                await self._check_existing_row(
+                    project_id=project_id,
+                    request=request,
+                    prior_stream=prior_stream,
+                    run_admission=run_admission,
+                    admission_envelope=admission_envelope,
+                )
+        else:
+            if running_turn_id and prior_stream.turn_id == running_turn_id:
+                record = await get_turn_admission(
+                    self._lock,
+                    project_id=str(project_id),
+                    session_id=request.session_id,
+                    turn_id=running_turn_id,
+                )
+                if record is not None and record.admits(
+                    principal=principal, origin=admission_envelope.context.origin
+                ):
+                    return prior_stream, None, None
+            try:
+                await self._check_existing_row(
+                    project_id=project_id,
+                    request=request,
+                    prior_stream=prior_stream,
+                    run_admission=run_admission,
+                    admission_envelope=admission_envelope,
+                )
+            except (AdmissionDenied, AgentReferenceUnresolved) as error:
+                # A refused end beat still ends this principal's continuity for the
+                # turn. Otherwise a revoke before the end beat leaves the admission
+                # record (and `running`), and a replayed running beat of the turn would
+                # skip the check. Only the record is dropped: the next beat of the turn
+                # is then fully checked. `running` lapses on its TTL.
+                record = (
+                    await get_turn_admission(
+                        self._lock,
+                        project_id=str(project_id),
+                        session_id=request.session_id,
+                        turn_id=request.turn_id,
+                    )
+                    if not request.is_running and request.turn_id
+                    else None
+                )
+                if record is not None and record.principal == principal:
+                    await forget_turn_admissions(
+                        self._lock,
+                        project_id=str(project_id),
+                        session_id=request.session_id,
+                        turn_ids=[request.turn_id],
+                    )
+                # Without a run credential an unknown session answers
+                # `SessionCreationRequiresRunCredential`. A session this caller cannot
+                # read must answer the same, whatever refused the beat. A caller who
+                # can read the session gets the refusal itself.
+                if envelope is None and not (
+                    isinstance(error, AdmissionDenied) and error.readable
+                ):
+                    if not await run_admission.session_readable(
+                        envelope=admission_envelope,
+                        session_id=request.session_id,
+                    ):
+                        raise SessionCreationRequiresRunCredential(
+                            request.session_id
+                        ) from error
+                raise
+
+        # The record is written by the beat's bind script (`bind_turn_for_beat`), in the
+        # same round trip as the binding.
+        return (
+            prior_stream,
+            created_stream,
+            (
+                TurnAdmission(
+                    principal=principal,
+                    origin=admission_envelope.context.origin.value,
+                )
+                if running_turn_id
+                else None
+            ),
+        )
+
+    @staticmethod
+    async def _check_existing_row(
+        *,
+        project_id: UUID,
+        request: SessionHeartbeatRequest,
+        prior_stream: Optional[SessionStream],
+        run_admission: RunAdmission,
+        admission_envelope: RunEnvelope,
+    ) -> None:
+        """Step 3 of `_admit_heartbeat`. The agent is this turn's target, from the beat's
+        references, never the row's stored ones."""
+        if request.is_running and request.turn_id:
+            await run_admission.admit_turn(
+                envelope=admission_envelope,
+                session_id=request.session_id,
+                project_id=project_id,
+                references=request.references,
+            )
+            return
+        await run_admission.admit(
+            envelope=admission_envelope,
+            session_id=request.session_id,
+            agent_artifact_id=None,
+            boundary=HEARTBEAT_BOUNDARY,
         )
 
     async def fetch(
@@ -962,7 +1281,9 @@ class SessionStreamsService:
         user_id: Optional[UUID],
         session_id: str,
         header: SessionStreamHeaderEdit,
+        access: AccessPolicy,
         name_source: SessionNameSource = SessionNameSource.manual,
+        recheck: Optional[SessionRecheck] = None,
     ) -> Optional[SessionStream]:
         """The rename edit: full-PUT {name, description} onto the merged stream row.
 
@@ -977,18 +1298,29 @@ class SessionStreamsService:
         locks; a check at this layer would be a read-then-write with a rename-shaped hole in
         the middle. The create arm needs no such check, because a row that does not exist
         holds no name to protect, and the concurrent-create arm re-enters the guarded update.
+
+        `access` is written only by the create arm; a rename never changes the policy.
+
+        `recheck` is the route's session check. When that check found no row, the call
+        creates first and never edits a row it did not check: a row that a concurrent
+        request created in the meantime is checked before the edit.
         """
         _validate_session_id(session_id)
-        updated = await self._dao.update_header(
-            project_id=project_id,
-            user_id=user_id,
-            session_id=session_id,
-            header=header,
-            name_source=name_source,
+        unchecked = recheck is not None and session_was_missing(
+            project_id=project_id, session_id=session_id
         )
+        updated = None
+        if not unchecked:
+            updated = await self._dao.update_header(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                header=header,
+                name_source=name_source,
+            )
         if updated is None:
             try:
-                updated = await self._dao.create(
+                updated = await self._create_row(
                     project_id=project_id,
                     user_id=user_id,
                     stream=SessionStreamCreate(
@@ -996,11 +1328,15 @@ class SessionStreamsService:
                         name=header.name,
                         description=header.description,
                         name_source=name_source,
+                        access=access,
                     ),
                 )
             except SessionStreamAlreadyExists:
                 # A concurrent first touch (heartbeat/rename) won the race; the row now
-                # exists — apply the header edit onto it, under the same guard.
+                # exists. Check it, then apply the header edit onto it, under the same
+                # guard.
+                if recheck is not None:
+                    await recheck()
                 updated = await self._dao.update_header(
                     project_id=project_id,
                     user_id=user_id,
@@ -1017,6 +1353,7 @@ class SessionStreamsService:
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         windowing: Optional[Windowing] = None,
         session_ids: Optional[List[str]] = None,
@@ -1027,6 +1364,7 @@ class SessionStreamsService:
             _validate_session_id(filter.session_id)
         results = await self._dao.query(
             project_id=project_id,
+            read_scope=read_scope,
             filter=filter,
             windowing=windowing,
             session_ids=session_ids,
@@ -1068,6 +1406,7 @@ class SessionStreamsService:
         self,
         *,
         project_id: UUID,
+        read_scope: SessionReadScope,
         filter: SessionStreamQuery,
         session_ids: Optional[List[str]] = None,
         exclude_session_ids: Optional[List[str]] = None,
@@ -1076,6 +1415,7 @@ class SessionStreamsService:
             _validate_session_id(filter.session_id)
         return await self._dao.count(
             project_id=project_id,
+            read_scope=read_scope,
             filter=filter,
             session_ids=session_ids,
             exclude_session_ids=exclude_session_ids,
@@ -1088,13 +1428,34 @@ class SessionStreamsService:
         session_id: str,
     ) -> bool:
         """Hard delete the merged stream row (S7 delete fan-out, WP5). Distinct
-        from `kill`, which only soft-deletes via `delete_by_session_id`."""
+        from `kill`, which only soft-deletes via `delete_by_session_id`.
+
+        The grants go with the row (foreign key cascade), so the grantees are read
+        first; after the delete the session's policy entry and the grantees' grant
+        entries are cleared, so the deleted session leaves every cached read."""
         _validate_session_id(session_id)
+        sharing = get_sharing_service()
+        stream = await self._dao.get_by_session_id_including_archived(
+            project_id=project_id,
+            session_id=session_id,
+        )
+        grants = (
+            await sharing.list_session_grants(
+                project_id=project_id, stream_id=stream.id
+            )
+            if stream is not None
+            else []
+        )
         deleted = await self._dao.hard_delete_by_session_id(
             project_id=project_id,
             session_id=session_id,
         )
         if deleted:
+            await invalidate_sharing_caches(
+                project_id=project_id,
+                session_ids=[session_id],
+                grant_user_ids=[grant.user_id for grant in grants],
+            )
             await self._publish_changed(project_id=project_id, session_id=session_id)
         return deleted
 
@@ -1147,8 +1508,13 @@ class SessionStreamsService:
         project_id: UUID,
         user_id: UUID,
         session_id: str,
+        access: AccessPolicy,
         name: Optional[str] = None,
+        recheck: Optional[SessionRecheck] = None,
+        created_row: bool = False,
     ) -> str:
+        """`created_row`: the command already inserted this session's row (the path
+        whose route check found no row), so the row is this turn's and goes to the list."""
         turn_id = str(uuid.uuid7())
         acquired = await acquire_alive_with_start(
             self._lock,
@@ -1157,6 +1523,14 @@ class SessionStreamsService:
             turn_id=turn_id,
         )
         if not acquired:
+            if (
+                not created_row
+                and recheck is not None
+                and session_was_missing(project_id=project_id, session_id=session_id)
+            ):
+                # A concurrent request's turn holds the session the route found no row
+                # for: its liveness is told only to a caller that passes the check.
+                await recheck()
             liveness = await get_session_liveness(
                 self._lock, project_id=str(project_id), session_id=session_id
             )
@@ -1174,14 +1548,27 @@ class SessionStreamsService:
             project_id=project_id,
             session_id=session_id,
         )
+        if (
+            stream is not None
+            and not created_row
+            and recheck is not None
+            and session_was_missing(project_id=project_id, session_id=session_id)
+        ):
+            # The route found no row, and a concurrent request created it since.
+            await self._recheck_row(
+                project_id=project_id,
+                session_id=session_id,
+                turn_id=turn_id,
+                recheck=recheck,
+            )
         created = False
         # Set by every branch that puts the row back in front of a list: a fresh create, a killed
         # tombstone re-nested, an archived row un-hidden. Each is once-per-session, unlike the
         # per-turn `lifecycle` below.
-        listed = False
+        listed = created_row
         if stream is None:
             try:
-                await self._dao.create(
+                written = await self._create_row(
                     project_id=project_id,
                     user_id=user_id,
                     stream=SessionStreamCreate(
@@ -1189,15 +1576,37 @@ class SessionStreamsService:
                         flags=flags,
                         turn_id=turn_id,
                         name=name,
+                        access=access,
                     ),
                 )
                 created = True
                 listed = True
+                if _channel_policy_written(written, origin=None):
+                    # The insert wrote the channel policy, not this request's: check
+                    # the row (a refusal hands back this turn's locks).
+                    try:
+                        await self._recheck_row(
+                            project_id=project_id,
+                            session_id=session_id,
+                            turn_id=turn_id,
+                            recheck=recheck,
+                        )
+                    except BaseException:
+                        await self._keep_refused_row(
+                            project_id=project_id, created=written
+                        )
+                        raise
             except SessionStreamAlreadyExists:
                 # The unique slot is held by either a concurrent first touch (live row) or a
                 # soft-deleted tombstone (STOP_KILLS_SESSION / archive). The update reconciles
                 # the live case; a None result means the tombstone case, handled below.
-                pass
+                # The winning row was never checked: check it before it is touched.
+                await self._recheck_row(
+                    project_id=project_id,
+                    session_id=session_id,
+                    turn_id=turn_id,
+                    recheck=recheck,
+                )
         if not created:
             updated = await self._dao.update(
                 project_id=project_id,
@@ -1245,6 +1654,80 @@ class SessionStreamsService:
         if listed:
             await self._publish_changed(project_id=project_id, session_id=session_id)
         return turn_id
+
+    async def _create_row(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        stream: SessionStreamCreate,
+        is_channel: bool = False,
+    ) -> SessionStream:
+        """Insert the session row, then write its sharing cache entry (once per session;
+        the next decision on it reads the entry it just wrote). `is_channel`: the row is
+        created by a channel installation's run (only a beat can be that)."""
+        created = await self._dao.create(
+            project_id=project_id, user_id=user_id, stream=stream
+        )
+        policy, in_channel = created_session_access(
+            created, requested=stream.access, by_installation=is_channel
+        )
+        await cache_created_session_access(
+            project_id=project_id,
+            session_id=stream.session_id,
+            stream_id=getattr(created, "id", None),
+            policy=policy,
+            is_channel=in_channel,
+        )
+        return created
+
+    async def _keep_refused_row(
+        self, *, project_id: UUID, created: SessionStream
+    ) -> None:
+        """A first touch inserted the row of a channel thread's session and its own check
+        then refused it. The row stays: it is the channel session's own row, with the
+        channel policy, and the channel's run adopts it. It is not the refused
+        request's live turn: clear the flags and the turn id the insert wrote (only
+        while the row still holds that turn id), and publish the row to the project's
+        lists (an adoption of an existing row publishes nothing)."""
+        await self._dao.release_refused_turn(
+            project_id=project_id,
+            session_id=created.session_id,
+            stream_id=created.id,
+            turn_id=created.turn_id,
+        )
+        await self._publish_changed(
+            project_id=project_id, session_id=created.session_id
+        )
+
+    async def _recheck_row(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        recheck: Optional[SessionRecheck],
+    ) -> None:
+        """Run the route's check on a row it did not check. A refusal hands back the
+        `alive` and `running` locks this turn took, then propagates."""
+        if recheck is None:
+            return
+        try:
+            await recheck()
+        except BaseException:
+            await release_running(
+                self._lock,
+                project_id=str(project_id),
+                session_id=session_id,
+                turn_id=turn_id,
+            )
+            await release_alive(
+                self._lock,
+                project_id=str(project_id),
+                session_id=session_id,
+                turn_id=turn_id,
+            )
+            raise
 
     async def mirror_liveness(
         self,
@@ -1314,3 +1797,15 @@ class SessionStreamsService:
                 ),
             ),
         )
+
+
+def _channel_policy_written(
+    created: SessionStream, *, origin: Optional[RunOrigin]
+) -> bool:
+    """True when the row insert wrote the channel policy instead of the requested one: a
+    channel thread names the session id, and the row was not created by the channel's
+    own run (origin installation)."""
+    return (
+        getattr(created, "has_channel_thread", None) is True
+        and origin != RunOrigin.INSTALLATION
+    )

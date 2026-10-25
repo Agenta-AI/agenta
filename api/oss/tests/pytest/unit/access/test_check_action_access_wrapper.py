@@ -34,6 +34,7 @@ from oss.tests.pytest.utils.principals import (
     make_envelope,
     make_request_access,
 )
+from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy
 
 
 class _RecordingAccess:
@@ -228,6 +229,7 @@ async def test_malformed_or_unknown_project_id_denies(monkeypatch):
             ),
             rbac=RecordingRbac(),
             principals=HumanPrincipalsDAO(),
+            resource_policy=AllowAllResourcePolicy(),
         )
     )
     with request_access() as access:

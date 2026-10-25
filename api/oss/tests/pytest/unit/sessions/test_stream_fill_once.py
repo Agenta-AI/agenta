@@ -35,6 +35,8 @@ from oss.src.core.sessions.types import ReferenceKey, SessionReference
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -223,6 +225,9 @@ async def test_the_beat_that_creates_the_row_titles_it(lock_engine):
         project_id=_PROJECT,
         request=_beat("turn-1", name="Nightly changelog"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert result.stream.name == "Nightly changelog"
@@ -235,7 +240,12 @@ async def test_a_later_beat_fills_a_row_that_is_still_untitled(lock_engine):
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
     await svc.heartbeat(
-        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+        project_id=_PROJECT,
+        request=_beat("turn-1"),
+        envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert dao.row.name is None
 
@@ -243,6 +253,9 @@ async def test_a_later_beat_fills_a_row_that_is_still_untitled(lock_engine):
         project_id=_PROJECT,
         request=_beat("turn-1", name="Filled later"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert result.stream.name == "Filled later"
@@ -257,12 +270,16 @@ async def test_a_beat_never_overwrites_an_existing_title(lock_engine):
         user_id=None,
         session_id=_SESSION,
         header=SessionStreamHeaderEdit(name="Named by a human"),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     result = await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-1", name="Proposed by the runner"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert result.stream.name == "Named by a human"
@@ -279,6 +296,9 @@ async def test_a_rename_after_a_fill_still_wins(lock_engine):
         project_id=_PROJECT,
         request=_beat("turn-1", name="Auto title"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     await svc.set_header(
@@ -286,11 +306,15 @@ async def test_a_rename_after_a_fill_still_wins(lock_engine):
         user_id=None,
         session_id=_SESSION,
         header=SessionStreamHeaderEdit(name="My title"),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-1", name="Auto title"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert dao.row.name == "My title"
@@ -311,6 +335,9 @@ async def test_the_proposal_repeats_on_every_beat_without_repeating_the_write(
         project_id=_PROJECT,
         request=_beat("turn-1", name="Same title"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     writes_after_first = len(dao.fills)
     for _ in range(3):
@@ -318,6 +345,9 @@ async def test_the_proposal_repeats_on_every_beat_without_repeating_the_write(
             project_id=_PROJECT,
             request=_beat("turn-1", name="Same title"),
             envelope=make_envelope(),
+            access=OWNERLESS_PROJECT_POLICY,
+            run_admission=NoopRunAdmission(),
+            admission_envelope=make_envelope(),
         )
     await svc.heartbeat(
         project_id=_PROJECT,
@@ -329,6 +359,9 @@ async def test_the_proposal_repeats_on_every_beat_without_repeating_the_write(
             name="Same title",
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert dao.row.name == "Same title"
@@ -340,11 +373,21 @@ async def test_a_beat_without_a_proposal_does_not_touch_the_row(lock_engine):
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
     await svc.heartbeat(
-        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+        project_id=_PROJECT,
+        request=_beat("turn-1"),
+        envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     await svc.heartbeat(
-        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+        project_id=_PROJECT,
+        request=_beat("turn-1"),
+        envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert dao.fills == [], "a beat with nothing to say must not issue a write"
@@ -365,6 +408,9 @@ async def test_the_beat_records_what_the_session_runs(lock_engine):
         project_id=_PROJECT,
         request=_beat("turn-1", references=references),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert result.stream.references == references
@@ -376,13 +422,21 @@ async def test_references_fill_a_row_that_has_none_and_are_then_frozen(lock_engi
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
     await svc.heartbeat(
-        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+        project_id=_PROJECT,
+        request=_beat("turn-1"),
+        envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     first = _references()
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-1", references=first),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     later = [SessionReference(id=uuid4(), key=ReferenceKey.workflow)]
@@ -390,6 +444,9 @@ async def test_references_fill_a_row_that_has_none_and_are_then_frozen(lock_engi
         project_id=_PROJECT,
         request=_beat("turn-2", references=later),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert dao.row.references == first
@@ -410,6 +467,9 @@ async def test_an_empty_reference_list_does_not_burn_the_fill(lock_engine):
         project_id=_PROJECT,
         request=_beat("turn-1", references=[]),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert dao.row.references is None
 
@@ -418,6 +478,9 @@ async def test_an_empty_reference_list_does_not_burn_the_fill(lock_engine):
         project_id=_PROJECT,
         request=_beat("turn-2", references=references),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert dao.row.references == references
@@ -432,6 +495,9 @@ async def test_an_empty_name_does_not_burn_the_fill(lock_engine):
         project_id=_PROJECT,
         request=_beat("turn-1", name="   "),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert dao.row.name is None
 
@@ -439,6 +505,9 @@ async def test_an_empty_name_does_not_burn_the_fill(lock_engine):
         project_id=_PROJECT,
         request=_beat("turn-2", name="A real title"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert dao.row.name == "A real title"
@@ -455,12 +524,18 @@ async def test_a_title_fill_leaves_existing_references_alone(lock_engine):
         project_id=_PROJECT,
         request=_beat("turn-1", references=references),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     await svc.heartbeat(
         project_id=_PROJECT,
         request=_beat("turn-1", name="A title"),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert dao.row.references == references
@@ -486,6 +561,7 @@ async def test_a_send_titles_the_session_from_its_inputs(lock_engine):
             session_id=_SESSION,
             data={"inputs": {"messages": [{"role": "user", "content": "Ship it"}]}},
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert dao.row.name == "Ship it"
@@ -500,6 +576,7 @@ async def test_a_send_on_a_named_session_keeps_the_name(lock_engine):
         user_id=None,
         session_id=_SESSION,
         header=SessionStreamHeaderEdit(name="Kept"),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     await svc.command(
@@ -509,6 +586,7 @@ async def test_a_send_on_a_named_session_keeps_the_name(lock_engine):
             session_id=_SESSION,
             data={"inputs": {"messages": [{"role": "user", "content": "Ship it"}]}},
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert dao.row.name == "Kept"

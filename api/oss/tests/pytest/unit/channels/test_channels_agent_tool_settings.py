@@ -19,6 +19,7 @@ from oss.src.core.channels.dtos import (
     ChannelPolicy,
 )
 from oss.src.core.channels.service import ChannelsService
+from oss.tests.pytest.utils.sharing import ProjectAgentResolver
 
 pytestmark = pytest.mark.asyncio
 
@@ -41,7 +42,9 @@ def _service(existing: ChannelAgent):
     dao.fetch_agent = AsyncMock(return_value=existing)
     dao.edit_agent = AsyncMock(side_effect=lambda **kw: kw["agent"])
     service = ChannelsService(
-        channels_dao=dao, adapter_registry=ChannelAdapterRegistry(adapters={})
+        channels_dao=dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={}),
+        workflows_service=ProjectAgentResolver(),
     )
     return service, dao
 

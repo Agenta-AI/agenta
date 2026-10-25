@@ -24,6 +24,7 @@ from oss.src.core.channels.dtos import (
     ChannelPolicy,
 )
 from oss.src.core.channels.service import ChannelsService
+from oss.tests.pytest.utils.sharing import ProjectAgentResolver
 
 pytestmark = pytest.mark.asyncio
 
@@ -54,7 +55,9 @@ def _service_for_connection(existing: ChannelConnection):
     dao.fetch_connection = AsyncMock(return_value=existing)
     dao.edit_connection = AsyncMock(side_effect=lambda **kw: kw["connection"])
     service = ChannelsService(
-        channels_dao=dao, adapter_registry=ChannelAdapterRegistry(adapters={})
+        channels_dao=dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={}),
+        workflows_service=ProjectAgentResolver(),
     )
     return service, dao
 
@@ -131,7 +134,9 @@ def _service_for_agent(existing: ChannelAgent):
     dao.fetch_agent = AsyncMock(return_value=existing)
     dao.edit_agent = AsyncMock(side_effect=lambda **kw: kw["agent"])
     service = ChannelsService(
-        channels_dao=dao, adapter_registry=ChannelAdapterRegistry(adapters={})
+        channels_dao=dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={}),
+        workflows_service=ProjectAgentResolver(),
     )
     return service, dao
 
@@ -244,6 +249,7 @@ def _telegram_service(existing: ChannelConnection):
     service = ChannelsService(
         channels_dao=dao,
         adapter_registry=ChannelAdapterRegistry(adapters={"telegram": adapter}),
+        workflows_service=ProjectAgentResolver(),
     )
 
     # Isolate the reactivation logic: the secret rotation and hydration are
@@ -350,7 +356,9 @@ def _ensure_service(connection, agent):
     dao.edit_agent = AsyncMock(side_effect=lambda **kw: kw["agent"])
     dao.create_agent = AsyncMock()
     service = ChannelsService(
-        channels_dao=dao, adapter_registry=ChannelAdapterRegistry(adapters={})
+        channels_dao=dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={}),
+        workflows_service=ProjectAgentResolver(),
     )
     return service, dao
 
@@ -412,7 +420,9 @@ async def test_reconnect_after_disconnect_reuses_the_restored_agent():
     dao.edit_agent = AsyncMock(side_effect=lambda **kw: kw["agent"])
     dao.create_agent = AsyncMock()
     service = ChannelsService(
-        channels_dao=dao, adapter_registry=ChannelAdapterRegistry(adapters={})
+        channels_dao=dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={}),
+        workflows_service=ProjectAgentResolver(),
     )
 
     result = await service.ensure_hosted_telegram_connection(

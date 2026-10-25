@@ -23,11 +23,13 @@ from oss.src.core.memberships.dtos import (
     MembershipSource,
     OrganizationMember,
     ProjectListing,
+    ProjectMemberProfile,
     ProjectMembership,
     ProjectScope,
 )
 from oss.src.core.memberships.interfaces import MembershipsDAOInterface
 from oss.src.core.memberships.types import MembershipsServiceNotRegistered
+from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.caching import (
     get_cache,
     invalidate_cache,
@@ -298,6 +300,24 @@ class MembershipsService:
         return await self._dao.fetch_organization_member(
             organization_id=organization_id,
             user_id=user_id,
+        )
+
+    async def query_project_members(
+        self,
+        *,
+        project_id: UUID,
+        search: Optional[str] = None,
+        windowing: Optional[Windowing] = None,
+    ) -> List[ProjectMemberProfile]:
+        """The project's members for the share picker, under this edition's policy:
+        the organization members (OSS) or the project rows (EE). Never workspace
+        members."""
+
+        return await self._dao.query_project_member_profiles(
+            project_id=project_id,
+            policy=self._policy,
+            search=search,
+            windowing=windowing,
         )
 
     # -- writers: DAO write, then invalidation, then the audit event -------------------

@@ -18,9 +18,11 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from oss.src.core.memberships.dtos import (
     CreatedProject,
+    MembershipPolicy,
     MembershipRow,
     MembershipWriteResult,
     OrganizationMember,
+    ProjectMemberProfile,
     ProjectScope,
 )
 from oss.src.core.memberships.interfaces import MembershipsDAOInterface
@@ -33,8 +35,10 @@ from oss.src.core.memberships.types import (
 from oss.src.dbs.postgres.memberships.mappings import (
     map_membership_row_to_dto,
     map_organization_member_dbe_to_dto,
+    map_project_member_profile_to_dto,
     map_project_scope_dbe_to_dto,
 )
+from oss.src.core.shared.dtos import Windowing
 from oss.src.models.db_models import (  # noqa: F401  (the tables this DAO owns)
     InvitationDB,
     OrganizationDB,
@@ -121,6 +125,73 @@ JOIN organizations o ON o.id = p.organization_id
 WHERE p.organization_id = ANY(CAST(:organization_ids AS uuid[]))
 ORDER BY p.organization_id, p.created_at ASC NULLS LAST, p.id ASC
 """
+
+# The members of one project, one row per user with the role of their oldest row. OSS
+# reads the organization rows of the project's organization; EE reads the project rows
+# and keeps only users that have an organization row too (as `resolve` does). Neither
+# reads workspace rows.
+_PROJECT_MEMBERS_BY_POLICY = {
+    MembershipPolicy.ORGANIZATION_WIDE: """
+    SELECT DISTINCT ON (om.user_id) om.user_id, om.role
+    FROM organization_members om
+    JOIN projects p ON p.organization_id = om.organization_id
+    WHERE p.id = :project_id AND om.user_id IS NOT NULL
+    ORDER BY om.user_id, om.created_at ASC NULLS LAST, om.id ASC
+""",
+    MembershipPolicy.PROJECT_ROWS: """
+    SELECT DISTINCT ON (pm.user_id) pm.user_id, pm.role
+    FROM project_members pm
+    JOIN projects p ON p.id = pm.project_id
+    WHERE p.id = :project_id
+      AND EXISTS (
+          SELECT 1 FROM organization_members om
+          WHERE om.organization_id = p.organization_id AND om.user_id = pm.user_id
+      )
+    ORDER BY pm.user_id, pm.created_at ASC NULLS LAST, pm.id ASC
+""",
+}
+
+_DEFAULT_MEMBERS_LIMIT = 50
+# The largest page a members query returns: a bigger `limit` is clamped, so one request
+# never sorts and returns a whole organization's members.
+_MAX_MEMBERS_LIMIT = 500  # the /m roster page (MEMBER_ROSTER_PAGE_SIZE)
+
+
+def _query_project_members_sql(
+    *, policy: MembershipPolicy, search: bool, cursor: bool
+) -> str:
+    """Ordered by (email, user_id). The cursor is the last user of the previous page:
+    the page starts after that user's (email, id)."""
+
+    filters = []
+    if search:
+        filters.append(
+            "(lower(COALESCE(u.email, '')) LIKE :pattern ESCAPE '\\' "
+            "OR lower(COALESCE(u.username, '')) LIKE :pattern ESCAPE '\\')"
+        )
+    if cursor:
+        filters.append(
+            "(COALESCE(u.email, ''), u.id) > ("
+            "SELECT COALESCE(c.email, ''), c.id FROM users c WHERE c.id = :cursor)"
+        )
+    where = f"WHERE {' AND '.join(filters)}" if filters else ""
+    return f"""
+WITH members AS ({_PROJECT_MEMBERS_BY_POLICY[policy]})
+SELECT u.id AS user_id, COALESCE(u.email, '') AS email, u.username AS name, m.role
+FROM members m
+JOIN users u ON u.id = m.user_id
+{where}
+ORDER BY COALESCE(u.email, '') ASC, u.id ASC
+LIMIT :limit
+"""
+
+
+def _prefix_pattern(search: str) -> str:
+    escaped = (
+        search.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    )
+    return f"{escaped}%"
+
 
 # -- writers --------------------------------------------------------------------------
 
@@ -402,6 +473,43 @@ class MembershipsDAO(MembershipsDAOInterface):
                 )
             ).all()
         return [map_project_scope_dbe_to_dto(row) for row in rows]
+
+    async def query_project_member_profiles(
+        self,
+        *,
+        project_id: UUID,
+        policy: MembershipPolicy,
+        #
+        search: Optional[str] = None,
+        windowing: Optional[Windowing] = None,
+    ) -> List[ProjectMemberProfile]:
+        search = (search or "").strip() or None
+        cursor = windowing.next if windowing else None
+        limit = min(
+            (windowing.limit if windowing else None) or _DEFAULT_MEMBERS_LIMIT,
+            _MAX_MEMBERS_LIMIT,
+        )
+
+        params = {"project_id": project_id, "limit": limit}
+        if search is not None:
+            params["pattern"] = _prefix_pattern(search)
+        if cursor is not None:
+            params["cursor"] = cursor
+
+        async with self.engine.session() as session:
+            rows = (
+                await session.execute(
+                    text(
+                        _query_project_members_sql(
+                            policy=policy,
+                            search=search is not None,
+                            cursor=cursor is not None,
+                        )
+                    ),
+                    params,
+                )
+            ).all()
+        return [map_project_member_profile_to_dto(row) for row in rows]
 
     # -- writers -----------------------------------------------------------------------
 

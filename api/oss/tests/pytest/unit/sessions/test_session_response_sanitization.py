@@ -1,5 +1,5 @@
 from unittest.mock import AsyncMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import FastAPI, Request
@@ -17,12 +17,16 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStream,
     SessionStreamCommandResponse,
 )
+from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
+from oss.src.core.sharing.dtos import SessionReadScope, Visibility
 from oss.src.core.sessions.types import (
     SessionDelivery,
     SessionOrigin,
     SessionTrigger,
     SessionTriggerKind,
 )
+from oss.tests.pytest.utils.principals import make_envelope
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 RESERVED_TAGS = {
@@ -167,6 +171,7 @@ def test_stream_header_rejects_noop_bodies_before_calling_service(payload):
         SessionStreamsRouter(
             service=service,
             interactions_service=AsyncMock(),
+            run_admission=NoopRunAdmission(),
         )
     )
 
@@ -199,14 +204,21 @@ def test_plain_stream_response_families_strip_only_reserved_tags():
         SessionStreamsRouter(
             service=service,
             interactions_service=AsyncMock(),
+            run_admission=NoopRunAdmission(),
         )
     )
     client = TestClient(app)
 
-    with patch(
-        "oss.src.apis.fastapi.sessions.router.check_action_access",
-        new_callable=AsyncMock,
-        return_value=True,
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.request_run_envelope",
+            lambda _request: make_envelope(),
+        ),
     ):
         fetch = client.get("/sessions/streams/?session_id=session-a")
         query = client.post("/sessions/streams/query", json={})
@@ -244,6 +256,7 @@ def test_session_openapi_keeps_typed_attribution_and_generic_tags():
         SessionStreamsRouter(
             service=AsyncMock(),
             interactions_service=AsyncMock(),
+            run_admission=NoopRunAdmission(),
         ),
     )
     schemas = app.openapi()["components"]["schemas"]
@@ -256,3 +269,62 @@ def test_session_openapi_keeps_typed_attribution_and_generic_tags():
             shape.get("type") == "object" and shape.get("additionalProperties") is True
             for shape in tag_shapes
         )
+
+
+def test_list_responses_keep_the_policy_fields(monkeypatch):
+    """Both session lists carry each row's `visibility` and `owner_user_id`, and pass
+    the read scope of the request's principal (`session_read_scope`, with the
+    request's project) to the service."""
+
+    import oss.src.apis.fastapi.sharing.utils as sharing_utils  # noqa: PLC0415
+
+    owner_id = uuid4()
+    principal = PrincipalRef(kind=PrincipalKind.HUMAN, id=owner_id)
+    scope = SessionReadScope(
+        owner_user_id=owner_id, include_project=True, granted_stream_ids=[uuid4()]
+    )
+    sharing = AsyncMock()
+    sharing.session_read_scope.return_value = scope
+    monkeypatch.setattr(sharing_utils, "get_sharing_service", lambda: sharing)
+
+    stream = _stream().model_copy(
+        update={"visibility": Visibility.PRIVATE, "owner_user_id": owner_id}
+    )
+    streams_service = AsyncMock()
+    streams_service.query_streams.return_value = [stream]
+    sessions_service = AsyncMock()
+    sessions_service.query_sessions_page.return_value = SessionQueryPage(
+        sessions=[SessionListItem(**stream.model_dump())]
+    )
+    app = _app(
+        SessionsRootRouter(sessions_service=sessions_service),
+        SessionStreamsRouter(
+            service=streams_service,
+            interactions_service=AsyncMock(),
+            run_admission=NoopRunAdmission(),
+        ),
+    )
+
+    @app.middleware("http")
+    async def set_principal(request: Request, call_next):
+        request.state.principal = principal
+        return await call_next(request)
+
+    client = TestClient(app)
+    with patch(
+        "oss.src.apis.fastapi.sessions.router.check_action_access",
+        new_callable=AsyncMock,
+        return_value=True,
+    ):
+        sessions = client.post("/sessions/query", json={})
+        streams = client.post("/sessions/streams/query", json={})
+
+    for row in (sessions.json()["sessions"][0], streams.json()["streams"][0]):
+        assert row["visibility"] == "private"
+        assert row["owner_user_id"] == str(owner_id)
+    assert sessions_service.query_sessions_page.await_args.kwargs["read_scope"] == scope
+    assert streams_service.query_streams.await_args.kwargs["read_scope"] == scope
+    for call in sharing.session_read_scope.await_args_list:
+        assert call.kwargs["principal"] == principal
+        assert isinstance(call.kwargs["project_id"], UUID)
+    assert sharing.session_read_scope.await_count == 2

@@ -33,6 +33,7 @@ import {SessionAgentName} from "./SessionAgentName"
 import {SessionAutomationKind} from "./SessionAutomationKind"
 import {SessionPinButton} from "./SessionPinButton"
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
+import {SessionPrivacyMarker} from "./sharing/SessionPrivacyMarker"
 import {useInlineRename} from "./useInlineRename"
 
 export interface SessionCardListProps extends UseSessionCardListArgs {
@@ -166,6 +167,10 @@ const Row = ({
                     <span className="min-w-0 truncate" title={vm.title}>
                         {vm.title}
                     </span>
+                    <SessionPrivacyMarker
+                        visibility={vm.stream.visibility}
+                        ownerUserId={vm.stream.owner_user_id}
+                    />
                     {vm.automation ? <SessionAutomationKind kind={vm.automation.kind} /> : null}
                 </button>
             )}
@@ -228,6 +233,11 @@ const Row = ({
                         <span className="min-w-0 flex-1 truncate text-sm text-colorText">
                             {vm.title}
                         </span>
+                        <SessionPrivacyMarker
+                            visibility={vm.stream.visibility}
+                            ownerUserId={vm.stream.owner_user_id}
+                            showSharedBy
+                        />
                         {/* An automation row IS its schedule/subscription — the kind is what tells it
                         apart from a conversation you started (#5927). Matches SessionRow. */}
                         {vm.automation ? <SessionAutomationKind kind={vm.automation.kind} /> : null}

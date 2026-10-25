@@ -84,6 +84,13 @@ export interface UseChannelPanelOptions {
     agents?: ChannelsPanelAgent[]
     /** Switch the panel to another agent; it reopens on that agent's hub. */
     onAgentChange?: (agentId: string) => void
+    /** The project's name, for the agent step's audience note. */
+    projectName?: string
+    /** True when the panel's agent is the reader's private agent: it cannot answer a channel. */
+    agentPrivate?: boolean
+    /** Opens "Privacy and owner" for an agent (the panel's own, or a private one in the
+     *  agent step). No share links without it. */
+    onShareAgent?: (agentId: string) => void
 }
 
 export interface EmbedViewProps {
@@ -152,7 +159,11 @@ export const useChannelPanel = ({
     embed,
     agents,
     onAgentChange,
+    projectName,
+    agentPrivate = false,
+    onShareAgent,
 }: UseChannelPanelOptions) => {
+    const shareThisAgent = onShareAgent && agentId ? () => onShareAgent(agentId) : undefined
     const [stack, setStack] = useState<ChannelsRoute[]>([])
     // Closing keeps the stack, so the last view stays mounted while the drawer animates out.
     const [isOpen, setIsOpen] = useState(false)
@@ -311,6 +322,8 @@ export const useChannelPanel = ({
                         onOpenApi={() => push({view: "api"})}
                         showEmbed={!!embed}
                         onOpenEmbed={() => push({view: "embed", connectionId: null})}
+                        agentPrivate={agentPrivate}
+                        onShareAgent={shareThisAgent}
                     />
                 )
             case "platform":
@@ -383,6 +396,21 @@ export const useChannelPanel = ({
                             }
                             await onDisconnect(route.platform, connection.connectionId)
                         }}
+                        agentPrivate={agentPrivate}
+                        onShareAgent={shareThisAgent}
+                        // Only a host that wires agent sharing (/m) shows the off row; /w
+                        // keeps today's panel.
+                        onTurnOn={
+                            onShareAgent
+                                ? async () => {
+                                      if (!connection.connectionId) {
+                                          throw new Error("This connection has no id yet.")
+                                      }
+                                      await actions.turnOn(route.platform, connection.connectionId)
+                                      await actions.reload()
+                                  }
+                                : undefined
+                        }
                     />
                 )
             }
@@ -401,6 +429,9 @@ export const useChannelPanel = ({
                     <ChannelAgentPicker
                         agents={agents ?? []}
                         connections={connections}
+                        platform={route.platform}
+                        projectName={projectName}
+                        onShareAgent={onShareAgent}
                         onSelect={(id) => {
                             onAgentChange?.(id)
                             push(

@@ -20,6 +20,7 @@ import {
     ArrowsLeftRight,
     ChatCircle,
     Hash,
+    LockSimple,
     Plus,
     UsersThree,
     Warning,
@@ -44,6 +45,7 @@ import {
 } from "./helpers"
 import {platformLogo} from "./icons"
 import {PanelFooter} from "./PanelFooter"
+import {channelSharingCopy} from "./sharingCopy"
 import type {
     ChannelBehaviorState,
     ChannelConnection,
@@ -84,6 +86,12 @@ export interface ChannelManagePanelProps {
     onUseOwnBot?: () => void
     /** Open the connect flow again for this connection, to replace a dead install. */
     onReconnect?: () => void
+    /** True while the agent is the reader's private agent: an off binding cannot be turned on. */
+    agentPrivate?: boolean
+    /** Opens "Privacy and owner" for this agent; the private note links to it. */
+    onShareAgent?: () => void
+    /** Turn the binding that answers here back on (it is off after a make-private). */
+    onTurnOn?: () => Promise<void>
 }
 
 /** The secret fields a token update asks for when the backend declares none. */
@@ -118,6 +126,9 @@ export const ChannelManagePanel = ({
     onAdd,
     onUseOwnBot,
     onReconnect,
+    agentPrivate = false,
+    onShareAgent,
+    onTurnOn,
 }: ChannelManagePanelProps) => {
     const isSlack = connection.platform === "slack"
     const isTelegram = connection.platform === "telegram"
@@ -128,10 +139,10 @@ export const ChannelManagePanel = ({
     const inviteHandle = slackInviteHandle(connection)
 
     const [confirming, setConfirming] = useState(false)
-    const [busy, setBusy] = useState<"disconnect" | "connect-here" | null>(null)
+    const [busy, setBusy] = useState<"disconnect" | "connect-here" | "turn-on" | null>(null)
     // Which action failed decides where its message shows: next to the button that ran it.
     const [error, setError] = useState<{
-        kind: "disconnect" | "connect-here"
+        kind: "disconnect" | "connect-here" | "turn-on"
         message: string
     } | null>(null)
 
@@ -358,7 +369,10 @@ export const ChannelManagePanel = ({
         if (isTelegram) void loadAllowed()
     }, [elsewhere, connectionId, isTelegram, loadSpaces, loadBehavior, loadAllowed])
 
-    const run = async (kind: "disconnect" | "connect-here", action: () => Promise<void>) => {
+    const run = async (
+        kind: "disconnect" | "connect-here" | "turn-on",
+        action: () => Promise<void>,
+    ) => {
         setBusy(kind)
         setError(null)
         try {
@@ -370,7 +384,9 @@ export const ChannelManagePanel = ({
                     e,
                     kind === "disconnect"
                         ? `Could not disconnect ${name}. Try again.`
-                        : `Could not connect ${name} to ${agentName}. Try again.`,
+                        : kind === "turn-on"
+                          ? `Could not turn ${name} on. Try again.`
+                          : `Could not connect ${name} to ${agentName}. Try again.`,
                 ),
             })
         } finally {
@@ -414,6 +430,75 @@ export const ChannelManagePanel = ({
         behavior !== null && (kind === "private" ? !behavior.dm : !behavior.group)
 
     const {title} = connectionRowText(connection, hostedHandle)
+    // The binding is off (the agent was made private): nothing answers until it is turned on.
+    const off = !!connection.agentOff
+    // One row per connection; the channels it sits in are listed inside it.
+    const offPlaces = (spaces ?? [])
+        .filter((space) => space.kind !== "private")
+        .map((space) =>
+            isSlack && space.kind === "topic" && !space.name.startsWith("#")
+                ? `#${space.name}`
+                : space.name,
+        )
+    // The off row needs a host that can turn the binding on (one that wires agent sharing).
+    const offBlock =
+        off && onTurnOn ? (
+            <div className="flex flex-col gap-3" data-testid="channels-off">
+                {agentPrivate ? (
+                    <Alert
+                        type="warning"
+                        showIcon
+                        role="note"
+                        icon={<LockSimple />}
+                        message={channelSharingCopy.manageOffPrivate(name)}
+                        action={
+                            onShareAgent ? (
+                                <Button
+                                    variant="link"
+                                    size="xs"
+                                    onClick={onShareAgent}
+                                    data-testid="channels-off-share"
+                                >
+                                    {channelSharingCopy.shareWithProject}
+                                </Button>
+                            ) : undefined
+                        }
+                        data-testid="channels-off-private"
+                    />
+                ) : null}
+                <div className="flex items-center gap-3 px-1">
+                    <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-muted">
+                        {platformLogo(connection.platform, 16)}
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col gap-px">
+                        <span className="truncate text-sm font-medium text-foreground">
+                            {channelSharingCopy.connectionRow(
+                                name,
+                                (isSlack ? connection.workspaceName : null) || handle,
+                            )}
+                        </span>
+                        <span className="text-[12.5px] text-muted-foreground">
+                            {offPlaces.length
+                                ? channelSharingCopy.offIn(offPlaces)
+                                : channelSharingCopy.off}
+                        </span>
+                    </span>
+                    <Button
+                        size="sm"
+                        variant={agentPrivate ? "outline" : "default"}
+                        disabled={agentPrivate || busy !== null}
+                        onClick={() => void run("turn-on", onTurnOn)}
+                        data-testid="channels-turn-on"
+                    >
+                        {busy === "turn-on" ? <Spinner size="small" /> : null}
+                        {channelSharingCopy.turnOn}
+                    </Button>
+                </div>
+                {error?.kind === "turn-on" ? (
+                    <Alert type="error" showIcon message={error.message} />
+                ) : null}
+            </div>
+        ) : null
     const telegramUrl =
         isTelegram && connection.handle
             ? `https://t.me/${connection.handle.replace(/^@/, "")}`
@@ -583,7 +668,11 @@ export const ChannelManagePanel = ({
                     {platformLogo(connection.platform, 24)}
                     <span
                         className={`absolute -right-0.5 -top-0.5 size-2 rounded-full border-[1.5px] border-solid border-background ${
-                            revoked ? "bg-colorError" : "bg-colorSuccess"
+                            revoked
+                                ? "bg-colorError"
+                                : off
+                                  ? "bg-colorTextQuaternary"
+                                  : "bg-colorSuccess"
                         }`}
                     />
                 </span>
@@ -592,8 +681,16 @@ export const ChannelManagePanel = ({
                         {title}
                     </span>
                     <span className="truncate text-[13px] text-muted-foreground">
-                        <span className={revoked ? "text-error" : "text-colorSuccess"}>
-                            {revoked ? "Not answering" : "Live"}
+                        <span
+                            className={
+                                revoked
+                                    ? "text-error"
+                                    : off
+                                      ? "text-muted-foreground"
+                                      : "text-colorSuccess"
+                            }
+                        >
+                            {revoked ? "Not answering" : off ? channelSharingCopy.off : "Live"}
                         </span>
                         {` · ${connectionKindLabel(connection)}`}
                         {isSlack && connection.handle ? ` · ${connection.handle}` : ""}
@@ -656,6 +753,8 @@ export const ChannelManagePanel = ({
             ) : null}
 
             {revoked && tokenOpen ? tokenForm : null}
+
+            {offBlock}
 
             {/* --- the two switches --- */}
             <div className="flex flex-col">

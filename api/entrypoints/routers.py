@@ -28,6 +28,10 @@ from oss.src.utils.helpers import (
 
 # Engines
 from entrypoints.access import bootstrap_access
+from oss.src.core.access.service import get_access_service
+from oss.src.core.sharing.admission import RunAdmission
+from oss.src.core.sharing.service import get_sharing_service
+from oss.src.core.memberships.service import get_memberships_service
 from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
     get_analytics_engine,
@@ -84,6 +88,7 @@ from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
+from oss.src.dbs.postgres.workflows.dao import WorkflowsDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
 from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
@@ -151,6 +156,7 @@ from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
 from oss.src.apis.fastapi.traces.router import SimpleTracesRouter
 from oss.src.apis.fastapi.sessions.router import SessionsRouter
+from oss.src.apis.fastapi.sharing.router import SharingRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.core.annotations.service import AnnotationsService
@@ -750,7 +756,7 @@ queries_dao = GitDAO(
     RevisionDBE=QueryRevisionDBE,
 )
 
-workflows_dao = GitDAO(
+workflows_dao = WorkflowsDAO(
     engine=_transactions_engine,
     ArtifactDBE=WorkflowArtifactDBE,
     VariantDBE=WorkflowVariantDBE,
@@ -872,6 +878,12 @@ workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
     static_catalog=StaticWorkflowCatalog(),
     watch_publisher=_sessions_watch_publisher,
+)
+
+# Every run start and resume (the heartbeat first) checks the session and the agent.
+run_admission = RunAdmission(
+    access_service=get_access_service(),
+    workflows_service=workflows_service,
 )
 
 environments_service = EnvironmentsService(
@@ -1073,6 +1085,7 @@ async def _dispatch_detached_run(
 _interactions_dispatcher = InteractionsDispatcher(
     workflows_service=workflows_service,
     interactions_service=interactions_service,
+    run_admission=run_admission,
     records_service=records_service,
     # Read-only: the resume's reference fallback, for a gate row whose own `data.references` is
     # empty. Without it the invoke has nothing to resolve a service URL from.
@@ -1095,6 +1108,7 @@ _triggers_dispatcher = TriggersDispatcher(
     triggers_dao=triggers_dao,
     session_claims_dao=session_streams_dao,
     workflows_service=workflows_service,
+    run_admission=run_admission,
     dispatch_fn=_dispatch_detached_run,
 )
 
@@ -1266,6 +1280,7 @@ simple_queues = SimpleQueuesRouter(
 
 tools = ToolsRouter(
     tools_service=tools_service,
+    run_admission=run_admission,
     workflows_service=workflows_service,
     tracing_service=tracing_service,
     mounts_service=mounts_service,
@@ -1284,6 +1299,9 @@ channels_service = ChannelsService(
     channels_dao=channels_dao,
     adapter_registry=channels_adapter_registry,
     vault_service=vault_service,
+    # Resolves the agent a binding runs, so an active binding never names a private
+    # agent.
+    workflows_service=workflows_service,
 )
 
 channels_identity_dao = ChannelIdentityDAO(engine=_transactions_engine)
@@ -1332,6 +1350,7 @@ async def _respond_channel_interaction(
 
 _channels_inbox_dispatcher = InboxDispatcher(
     channels_service=channels_service,
+    run_admission=run_admission,
     attachments_service=session_attachments_service,
     respond_interaction_fn=_respond_channel_interaction,
     workflows_service=workflows_service,
@@ -1589,6 +1608,7 @@ session_commands_service = SessionCommandsService(
         continue_input=lambda command: deliver_continue_input(
             command=command,
             workflows_service=workflows_service,
+            run_admission=run_admission,
         ),
     ),
     executions_dao=session_executions_dao,
@@ -1603,6 +1623,7 @@ session_inputs_service = SessionInputsService(
 )
 session_starts_service = SessionStartsService(
     inputs_service=session_inputs_service,
+    run_admission=run_admission,
     executions_dao=session_executions_dao,
     streams_dao=session_streams_dao,
     workflows_service=workflows_service,
@@ -1671,7 +1692,15 @@ sessions = SessionsRouter(
     turns_service=session_turns_service,
     sessions_service=sessions_service,
     commands_service=session_commands_service,
+    run_admission=run_admission,
     inputs_service=session_inputs_service,
+)
+
+sharing = SharingRouter(
+    sharing_service=get_sharing_service(),
+    memberships_service=get_memberships_service(),
+    workflows_service=workflows_service,
+    streams_service=session_streams_service,
 )
 
 # PLATFORM ADMIN ---------------------------------------------------------------
@@ -2240,6 +2269,12 @@ app.include_router(
 app.include_router(
     router=sessions.control.router,
     tags=["Sessions"],
+)
+
+# No prefix: the routes sit beside /workflows/{workflow_id} and /sessions/{session_id}.
+app.include_router(
+    router=sharing.router,
+    tags=["Sharing"],
 )
 
 
