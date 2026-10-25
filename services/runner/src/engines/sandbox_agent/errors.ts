@@ -475,6 +475,15 @@ export function withinCredentialPropagationWindow(
   );
 }
 
+/**
+ * The OpenAI client's own timeout (`APIConnectionTimeoutError`): Pi waited for a model call that
+ * sent nothing back, and its one retry did too. Matched in the client's spelling only, so a
+ * runner-side timeout worded another way stays with the rules below.
+ */
+export const MODEL_REQUEST_TIMED_OUT = /\bRequest timed out\.(?:\s|$)/;
+export const MODEL_REQUEST_TIMED_OUT_MESSAGE =
+  "The model provider did not answer in time. Try again in a moment.";
+
 export const MALFORMED_FUNCTION_CALL = /finish_reason: malformed_function_call/;
 export const MALFORMED_FUNCTION_CALL_MESSAGE =
   "The model sent a tool call that could not be read (malformed_function_call). Try again, or pick another model.";
@@ -594,6 +603,8 @@ export function classifyRunError(
   // Pi's own verdict on a completion the gateway relayed as a success, so no marker.
   if (MALFORMED_FUNCTION_CALL.test(raw))
     return { message: MALFORMED_FUNCTION_CALL_MESSAGE, code: "upstream_error" };
+  if (MODEL_REQUEST_TIMED_OUT.test(raw))
+    return { message: MODEL_REQUEST_TIMED_OUT_MESSAGE, code: "upstream_error" };
   // A budget refusal is checked first: it is the most specific reading of a 429, and its body also
   // trips the rate-limit and quota matchers below.
   if (BUDGET_REFUSAL.test(raw)) {
