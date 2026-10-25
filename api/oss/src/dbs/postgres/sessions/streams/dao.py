@@ -7,6 +7,7 @@ from sqlalchemy import (
     any_,
     case,
     cast,
+    delete as sa_delete,
     exists,
     false,
     func,
@@ -101,6 +102,12 @@ _UUID_PATTERN = (
 # reach Postgres with an unbounded or negative `LIMIT`.
 MAX_SESSION_QUERY_LIMIT = 200
 
+
+# Serializes the create and the delete of one session id (both take it first, in their
+# transaction): a create that waited for a delete reads the tombstone that delete wrote.
+_SESSION_ID_LOCK_SQL = (
+    "SELECT pg_advisory_xact_lock(hashtextextended(CAST(:lock_key AS text), 0))"
+)
 
 _HARD_DELETE_WITH_TOMBSTONE_SQL = """
 WITH gone AS (
@@ -199,6 +206,12 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         )
         try:
             async with self.engine.session() as session:
+                # After the lock, the insert's snapshot sees a tombstone that a concurrent
+                # delete of the same id committed.
+                await session.execute(
+                    text(_SESSION_ID_LOCK_SQL),
+                    {"lock_key": f"{project_id}:{stream.session_id}"},
+                )
                 row = (await session.execute(statement)).first()
                 await session.commit()
         except IntegrityError as e:
@@ -953,14 +966,39 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         # owner), so the deleted id stays hidden from everyone else while tracing
         # retention keeps its records. A tombstone left by an earlier delete of the same
         # id is replaced.
+        params = {"project_id": project_id, "session_id": session_id}
         async with self.engine.session() as session:
+            await session.execute(
+                text(_SESSION_ID_LOCK_SQL), {"lock_key": f"{project_id}:{session_id}"}
+            )
             result = await session.execute(
-                text(_HARD_DELETE_WITH_TOMBSTONE_SQL),
-                {"project_id": project_id, "session_id": session_id},
+                text(_HARD_DELETE_WITH_TOMBSTONE_SQL), params
             )
             deleted = int(result.scalar_one() or 0)
             await session.commit()
             return bool(deleted)
+
+    async def delete_row_if_unchanged(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        stream_id: UUID,
+        turn_id: Optional[str],
+    ) -> bool:
+        """Delete the row only while it is the row `stream_id` names and still holds
+        `turn_id`: a row another turn adopted since is kept."""
+        async with self.engine.session() as session:
+            result = await session.execute(
+                sa_delete(SessionStreamDBE).where(
+                    SessionStreamDBE.project_id == project_id,
+                    SessionStreamDBE.session_id == session_id,
+                    SessionStreamDBE.id == stream_id,
+                    SessionStreamDBE.turn_id.is_not_distinct_from(turn_id),
+                )
+            )
+            await session.commit()
+            return bool(result.rowcount)
 
     async def count_active(
         self,

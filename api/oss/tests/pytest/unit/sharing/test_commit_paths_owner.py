@@ -336,9 +336,10 @@ async def test_simple_family_routes_pass_the_owner(
 
 async def test_the_tool_commit_forwards_the_owner():
     service = SimpleNamespace(
+        fetch_workflow_variant=AsyncMock(return_value=None),
         commit_workflow_revision_checked=AsyncMock(
             return_value=SimpleNamespace(status="no_change", revision=None, warnings=[])
-        )
+        ),
     )
 
     await handle_commit_revision(

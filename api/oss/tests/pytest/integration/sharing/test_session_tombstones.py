@@ -81,7 +81,7 @@ async def test_the_delete_writes_the_tombstone_of_a_private_session(seeded, visi
         )
 
     assert deleted is True
-    assert len(statements) == 1
+    assert len(statements) == 2  # the per-id lock, then the delete with its tombstone
     row = await _tombstone(project_id, session_id)
     if visibility == "private":
         assert row is not None and row.owner_user_id == alice
@@ -150,7 +150,7 @@ async def test_no_session_is_created_over_a_tombstone(seeded):
                     session_id=session_id, access=OWNERLESS_PROJECT_POLICY
                 ),
             )
-    assert len(statements) == 1
+    assert len(statements) == 2  # the per-id lock, then the guarded insert
     assert (
         await dao.get_by_session_id(project_id=project_id, session_id=session_id)
         is None
@@ -164,3 +164,96 @@ async def test_no_session_is_created_over_a_tombstone(seeded):
         ),
     )
     assert fresh.id is not None and fresh.created_at is not None
+
+
+async def test_a_create_racing_a_delete_reads_its_tombstone(seeded):
+    """Alice's delete holds the per-id lock and has not committed yet when a heartbeat
+    creates the same id. The create waits for the lock, then reads the tombstone the
+    delete committed: no row comes back over it."""
+    import asyncio  # noqa: PLC0415
+
+    from sqlalchemy import text  # noqa: PLC0415
+
+    from oss.src.core.sessions.streams.dtos import SessionStreamCreate  # noqa: PLC0415
+    from oss.src.core.sessions.streams.types import SessionIdTombstoned  # noqa: PLC0415
+    from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY  # noqa: PLC0415
+    from oss.src.dbs.postgres.sessions.streams.dao import (  # noqa: PLC0415
+        _HARD_DELETE_WITH_TOMBSTONE_SQL,
+        _SESSION_ID_LOCK_SQL,
+    )
+
+    project_id = seeded.project_ids[0]
+    alice = seeded.user_ids["alice"]
+    session_id = await _session(project_id, alice, "private")
+    await execute(
+        "UPDATE session_streams SET deleted_at = now() "
+        "WHERE project_id = :p AND session_id = :s",
+        {"p": project_id, "s": session_id},
+    )
+    engine = get_transactions_engine()
+    dao = SessionStreamsDAO(engine=engine)
+
+    async with engine.session() as deleting:
+        await deleting.execute(
+            text(_SESSION_ID_LOCK_SQL), {"lock_key": f"{project_id}:{session_id}"}
+        )
+        await deleting.execute(
+            text(_HARD_DELETE_WITH_TOMBSTONE_SQL),
+            {"project_id": project_id, "session_id": session_id},
+        )
+        create = asyncio.create_task(
+            dao.create(
+                project_id=project_id,
+                user_id=None,
+                stream=SessionStreamCreate(
+                    session_id=session_id, access=OWNERLESS_PROJECT_POLICY
+                ),
+            )
+        )
+        await asyncio.sleep(0.5)
+        assert not create.done()  # waiting for the delete's lock
+        await deleting.commit()
+
+    with pytest.raises(SessionIdTombstoned):
+        await create
+    assert (
+        await dao.get_by_session_id(project_id=project_id, session_id=session_id)
+        is None
+    )
+
+
+async def test_the_zombie_cleanup_keeps_a_row_another_turn_adopted(seeded):
+    """A displaced turn's beat inserted a row; before its cleanup runs, a new turn adopts
+    the row. The cleanup deletes only the row it inserted, while it still holds the
+    zombie's turn: the adopted row stays."""
+    project_id = seeded.project_ids[0]
+    stream_id = uuid7()
+    session_id = f"tombstone-zombie-{stream_id.hex}"
+    await execute(
+        "INSERT INTO session_streams (project_id, id, session_id, visibility, turn_id) "
+        "VALUES (:p, :id, :s, 'project', 'turn-zombie')",
+        {"p": project_id, "id": stream_id, "s": session_id},
+    )
+    await execute(
+        "UPDATE session_streams SET turn_id = 'turn-live' "
+        "WHERE project_id = :p AND session_id = :s",
+        {"p": project_id, "s": session_id},
+    )
+    dao = SessionStreamsDAO(engine=get_transactions_engine())
+
+    kept = await dao.delete_row_if_unchanged(
+        project_id=project_id,
+        session_id=session_id,
+        stream_id=stream_id,
+        turn_id="turn-zombie",
+    )
+    assert kept is False
+    assert await dao.get_by_session_id(project_id=project_id, session_id=session_id)
+
+    removed = await dao.delete_row_if_unchanged(
+        project_id=project_id,
+        session_id=session_id,
+        stream_id=stream_id,
+        turn_id="turn-live",
+    )
+    assert removed is True

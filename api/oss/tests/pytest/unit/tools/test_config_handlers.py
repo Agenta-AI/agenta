@@ -52,6 +52,8 @@ def _service(**over):
     service = SimpleNamespace()
     service.read_workflow_revision_config = AsyncMock()
     service.commit_workflow_revision_checked = AsyncMock()
+    # The commit takes its agent from the bound variant.
+    service.fetch_workflow_variant = AsyncMock(return_value=None)
     for key, value in over.items():
         setattr(service, key, value)
     return service

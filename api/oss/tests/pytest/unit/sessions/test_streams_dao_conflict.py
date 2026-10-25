@@ -24,7 +24,9 @@ class _FakeSession:
     def __init__(self, *, raise_on_commit: bool):
         self._raise_on_commit = raise_on_commit
 
-    async def execute(self, statement):
+    async def execute(self, statement, params=None):
+        if "pg_advisory_xact_lock" in str(statement):
+            return SimpleNamespace()  # the per-id lock
         # The insert is one statement: the unique index refuses the loser there.
         if self._raise_on_commit:
             raise IntegrityError(

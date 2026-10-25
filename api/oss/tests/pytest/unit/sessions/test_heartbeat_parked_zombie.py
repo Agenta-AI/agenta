@@ -545,12 +545,14 @@ async def test_zombie_beat_after_a_delete_does_not_bring_the_session_back(lock_e
     dao.row = None  # the session was deleted
     deleted = []
 
-    async def _hard_delete(*, project_id, session_id):
+    async def _delete_row_if_unchanged(*, project_id, session_id, stream_id, turn_id):
+        if dao.row is None or dao.row.id != stream_id or dao.row.turn_id != turn_id:
+            return False
         deleted.append(session_id)
         dao.row = None
         return True
 
-    svc.hard_delete = _hard_delete
+    dao.delete_row_if_unchanged = _delete_row_if_unchanged
 
     zombie = await svc.heartbeat(
         project_id=_PROJECT,

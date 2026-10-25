@@ -689,13 +689,19 @@ class SessionStreamsService:
             if bound is None:
                 if created_stream is not None:
                     # A displaced turn's late beat inserted the row of a session that
-                    # was deleted after it lost the nest (the tombstone check rides in
-                    # the bind script, after the insert). The row is that zombie's:
-                    # remove it, so the deleted session does not come back. The cost
-                    # falls on the zombie beat only.
-                    await self.hard_delete(
-                        project_id=project_id, session_id=request.session_id
-                    )
+                    # was deleted after it lost the nest (the supersession check rides in
+                    # the bind script, after the insert). The row is that zombie's unless
+                    # another turn adopted it since: remove it only while it is unchanged,
+                    # so the deleted session does not come back. Only the zombie pays.
+                    if await self._dao.delete_row_if_unchanged(
+                        project_id=project_id,
+                        session_id=request.session_id,
+                        stream_id=created_stream.id,
+                        turn_id=created_stream.turn_id,
+                    ):
+                        await invalidate_sharing_caches(
+                            project_id=project_id, session_ids=[request.session_id]
+                        )
                     created_stream = None
                 return SessionHeartbeatResult(
                     stream=created_stream or prior_stream,

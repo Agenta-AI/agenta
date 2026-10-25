@@ -865,6 +865,21 @@ async def handle_commit_revision(
     # so a caller cannot have one variant checked and another written.
     payload["workflow_variant_id"] = str(variant_id)
     payload["variant_id"] = str(variant_id)
+    # The agent is the variant's own, never one the arguments name.
+    payload.pop("workflow_id", None)
+    payload.pop("artifact_id", None)
+    variant = await workflows_service.fetch_workflow_variant(
+        project_id=project_id,
+        workflow_variant_ref=Reference(id=variant_id),
+    )
+    variant_artifact_id = (
+        getattr(variant, "workflow_id", None) or getattr(variant, "artifact_id", None)
+        if variant is not None
+        else None
+    )
+    if variant_artifact_id is not None:
+        payload["workflow_id"] = str(variant_artifact_id)
+        payload["artifact_id"] = str(variant_artifact_id)
 
     # A whole configuration carries every field the scope exists to protect, so the shape
     # is refused rather than filtered. The agent's tool only ever sends a delta.

@@ -1473,8 +1473,9 @@ async def test_list_starters_of_a_private_agent_reads_the_bundle_only(world, who
 
 
 async def test_commit_revision_writes_only_the_checked_variant():
-    """A caller sends its own visible variant as `workflow_variant_id` and another one as
-    `variant_id`: the commit carries the checked variant under both names."""
+    """A caller sends its own visible variant as `workflow_variant_id`, another one as
+    `variant_id` and another agent as `workflow_id`: the commit carries the checked
+    variant under both names and that variant's own agent."""
     from oss.src.core.tools.platform_handlers import (  # noqa: PLC0415
         handle_commit_revision,
     )
@@ -1482,7 +1483,12 @@ async def test_commit_revision_writes_only_the_checked_variant():
     checked, other = uuid4(), uuid4()
     seen = {}
 
+    owner_artifact, foreign_artifact = uuid4(), uuid4()
+
     class _Workflows:
+        async def fetch_workflow_variant(self, **_kwargs):
+            return SimpleNamespace(workflow_id=owner_artifact)
+
         async def commit_workflow_revision_checked(self, **kwargs):
             seen["commit"] = kwargs["workflow_revision_commit"]
             raise RuntimeError("stop here")
@@ -1493,6 +1499,8 @@ async def test_commit_revision_writes_only_the_checked_variant():
                 "workflow_revision": {
                     "workflow_variant_id": str(checked),
                     "variant_id": str(other),
+                    "workflow_id": str(foreign_artifact),
+                    "artifact_id": str(foreign_artifact),
                     "delta": {"set": {"parameters": {"agent": {"instructions": "x"}}}},
                 }
             },
@@ -1503,3 +1511,6 @@ async def test_commit_revision_writes_only_the_checked_variant():
     commit = seen["commit"]
     assert commit.workflow_variant_id == checked
     assert commit.variant_id == checked
+    # The agent is the checked variant's own, never the one the arguments named.
+    assert commit.workflow_id == owner_artifact
+    assert commit.artifact_id == owner_artifact
