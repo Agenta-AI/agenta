@@ -375,17 +375,20 @@ async def _finalize_run_after_slice(
 
     # When the run reaches a terminal status, it is no longer active. A
     # non-terminal status (RUNNING/PENDING) leaves it active so further slices
-    # can continue. Base the flags on the freshly-fetched run so a concurrent
-    # slice's flag updates are not lost, and only flip the one field this owns.
-    final_flags = (current_run.flags if current_run else None) or run.flags
-    if final_flags is not None and run_status in (
+    # can continue. Finalize owns only 'status' and, on a terminal status,
+    # 'is_active=False', so that is all it sends: the DAO merges the EXPLICITLY
+    # set the flag fields over the CURRENT stored flags, so no snapshot read above is
+    # written back.
+    final_flags = None
+
+    if run_status in (
         EvaluationStatus.SUCCESS,
         EvaluationStatus.ERRORS,
         EvaluationStatus.FAILURE,
     ):
-        final_flags = final_flags.model_copy(update={"is_active": False})
-
-    # Full-PUT off the current run; only status and is_active are finalize's to set.
+        final_flags = EvaluationRunFlags(is_active=False)
+        # Partial edit: the DAO skips None fields, so name/description/tags/meta/data
+        # stay as stored instead of being rewritten from snapshot.
     _run = current_run or run
     try:
         await evaluations_service.edit_run(
@@ -395,16 +398,9 @@ async def _finalize_run_after_slice(
             run=EvaluationRunEdit(
                 id=_run.id,
                 #
-                name=_run.name,
-                description=_run.description,
-                #
                 flags=final_flags,
-                tags=_run.tags,
-                meta=_run.meta,
                 #
                 status=run_status,
-                #
-                data=_run.data,
             ),
         )
     except EvaluationClosedConflict:

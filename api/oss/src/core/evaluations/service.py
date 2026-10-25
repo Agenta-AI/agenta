@@ -4182,11 +4182,6 @@ class SimpleEvaluationsService:
             log.error("[EVAL] [deactivate] [failure] could not find evaluation run")
             return None
 
-        if not run.flags:
-            run.flags = EvaluationRunFlags()
-
-        run.flags.is_active = False
-
         run = await self.evaluations_service.edit_run(
             project_id=project_id,
             user_id=user_id,
@@ -4194,19 +4189,9 @@ class SimpleEvaluationsService:
             run=EvaluationRunEdit(
                 id=run.id,
                 #
-                name=run.name,
-                description=run.description,
-                #
-                flags=run.flags,
-                tags=run.tags,
-                meta=run.meta,
-                #
-                status=run.status,
-                #
-                data=run.data,
+                flags=EvaluationRunFlags(is_active=False),
             ),
         )
-
         return run
 
     async def _fail_evaluation_run(
