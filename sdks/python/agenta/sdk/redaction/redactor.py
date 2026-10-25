@@ -88,6 +88,22 @@ def _variants(value: str) -> List[str]:
     return out
 
 
+# A provider that rejects a key often quotes part of it back ("Incorrect API key provided:
+# sk-abc***...wxyz."). Known-value redaction cannot match a masked fragment, and the key may
+# belong to the deployment rather than to the caller, so the fragment never leaves.
+_ECHOED_KEY_RES = (
+    re.compile(r"(api key provided:\s*)[^\s'\",;]+", re.IGNORECASE),
+    re.compile(r"(?<![\w-])[A-Za-z0-9]{1,8}-[\w-]*\*{3,}[\w.*-]*"),
+)
+
+
+def strip_echoed_key_fragments(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return value
+    out = _ECHOED_KEY_RES[0].sub(r"\1" + _PLACEHOLDER_BARE, value)
+    return _ECHOED_KEY_RES[1].sub(_PLACEHOLDER_BARE, out)
+
+
 _DSN_USERINFO_RE = re.compile(r"^[a-zA-Z][\w+.-]*://([^:/@\s]+):([^@/\s]+)@")
 _BASIC_AUTH_RE = re.compile(r"^([^:\s]+):([^:\s]+)$")
 

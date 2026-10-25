@@ -454,10 +454,15 @@ class SecretsManager:
 
         # STEP 3a: standard credentials (openai/anthropic/gemini, ...). A connection that saved
         # the requested model wins over a bare family match; ties fall back to the first record.
+        # Only for a standard provider's model: a model of a custom connection takes its
+        # credentials and its endpoint from that connection alone (STEP 3b). A family record's
+        # key was saved for the provider's own endpoint, and pairing it with the custom
+        # connection's URL would send it somewhere it was never meant to go.
         family_records = [
             secret
             for secret in secrets
-            if secret.get("kind") == "provider_key"
+            if standard_family
+            and secret.get("kind") == "provider_key"
             and SecretsManager._normalize_provider_kind(
                 secret.get("data", {}).get("kind", "")
             )
@@ -486,9 +491,10 @@ class SecretsManager:
             if "key" in provider_info:
                 provider_settings["api_key"] = provider_info["key"]
 
-        # STEP 3b: custom provider credentials (aws bedrock/sagemaker, vertex_ai, ...)
+        # STEP 3b: custom provider credentials (aws bedrock/sagemaker, vertex_ai, ...). Never
+        # for a standard provider's model, for the same reason as above.
         for secret in secrets:
-            if secret.get("kind") != "custom_provider":
+            if standard_family or secret.get("kind") != "custom_provider":
                 continue
 
             secret_data = secret.get("data", {})
