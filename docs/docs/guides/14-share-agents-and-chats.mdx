@@ -111,6 +111,7 @@ Before you share an agent with the project, Agenta shows a similar notice: every
 - **Delay.** A sharing change applies to the next request. If Agenta cannot clear its cache, a change can take up to 300 seconds. An open chat stream checks access again every 60 seconds.
 - **Running turns.** A turn that is already running finishes. The change applies to the next turn.
 - **API keys and Slack.** Agents and chats created with an API key or from Slack are always shared with the project and have no owner.
+- **API keys and owned chats.** An API key cannot continue a chat that a person owns; an SDK client starts a new chat.
 
 :::warning[Self-hosted deployments]
 If you roll back Agenta to a release from before sharing, private agents and chats become visible to everyone in their project.
