@@ -1,10 +1,6 @@
-from os import getenv
-from json import loads
-from typing import List, Optional
-from traceback import format_exc
+from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.locking import acquire_lock, release_lock
@@ -12,11 +8,6 @@ from oss.src.utils.common import env, is_ee
 
 from oss.src.middlewares import analytics
 from oss.src.services import db_manager
-from oss.src.services.db_manager import (
-    add_user_to_organization,
-    add_user_to_workspace,
-    add_user_to_project,
-)
 from oss.src.services.user_service import create_new_user, delete_user
 from oss.src.models.db_models import (
     OrganizationDB,
@@ -34,58 +25,6 @@ from oss.src.core.organizations.exceptions import (
 )
 
 log = get_module_logger(__name__)
-
-DEMOS = "AGENTA_DEMOS"
-DEMO_ROLE = "viewer"
-
-
-class Demo(BaseModel):
-    organization_id: str
-    workspace_id: str
-    project_id: str
-
-
-async def list_all_demos() -> List[Demo]:
-    demos = []
-
-    try:
-        demo_project_ids = loads(getenv(DEMOS) or "[]")
-
-        for project_id in demo_project_ids:
-            project = await db_manager.get_project_by_id(project_id)
-
-            if project is None:
-                continue
-
-            try:
-                demos.append(
-                    Demo(
-                        organization_id=str(project.organization_id),
-                        workspace_id=str(project.workspace_id),
-                        project_id=str(project.id),
-                    )
-                )
-
-            except Exception:
-                log.error(format_exc())
-
-    except Exception:
-        log.error(format_exc())
-
-    return demos
-
-
-async def add_user_to_demos(user_id: str) -> None:
-    demos = await list_all_demos()
-
-    for organization_id in {demo.organization_id for demo in demos}:
-        await add_user_to_organization(organization_id, user_id)
-
-    for workspace_id in {demo.workspace_id for demo in demos}:
-        await add_user_to_workspace(workspace_id, user_id, DEMO_ROLE)
-
-    for project_id in {demo.project_id for demo in demos}:
-        await add_user_to_project(project_id, user_id, DEMO_ROLE, is_demo=True)
 
 
 def can_create_organization(email: str) -> bool:
@@ -324,9 +263,8 @@ async def create_accounts(
 ) -> UserDB:
     """Create a user account and, when allowed, a personal organization.
 
-    Demo seeding runs in both editions. Subscription-backed org creation and
-    the Loops marketing contact layer on (EE) via `is_ee()` seams inside the
-    org-creation flow / below.
+    Subscription-backed org creation and the Loops marketing contact layer on
+    (EE) via `is_ee()` seams inside the org-creation flow / below.
     """
 
     user_dict = {
@@ -363,8 +301,6 @@ async def create_accounts(
         if user_is_new and not user_has_organization:
             # If setup fails, delete the user to avoid orphaned records.
             try:
-                await add_user_to_demos(str(user.id))
-
                 if can_create_organization(email):
                     resolved_org_name = organization_name or user_dict["username"]
                     await create_organization_for_signup(

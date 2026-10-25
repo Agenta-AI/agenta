@@ -34,6 +34,7 @@ from oss.src.core.sessions.streams.service import (
 from oss.src.core.sessions.types import ReferenceKey, SessionReference
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.tests.pytest.utils.principals import make_envelope
 
 
 _PROJECT = uuid4()
@@ -219,7 +220,9 @@ async def test_the_beat_that_creates_the_row_titles_it(lock_engine):
     svc = _service(lock_engine, dao)
 
     result = await svc.heartbeat(
-        project_id=_PROJECT, request=_beat("turn-1", name="Nightly changelog")
+        project_id=_PROJECT,
+        request=_beat("turn-1", name="Nightly changelog"),
+        envelope=make_envelope(),
     )
 
     assert result.stream.name == "Nightly changelog"
@@ -231,11 +234,15 @@ async def test_a_later_beat_fills_a_row_that_is_still_untitled(lock_engine):
     # or a trigger claim created it. That row is exactly the untitled population.
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+    )
     assert dao.row.name is None
 
     result = await svc.heartbeat(
-        project_id=_PROJECT, request=_beat("turn-1", name="Filled later")
+        project_id=_PROJECT,
+        request=_beat("turn-1", name="Filled later"),
+        envelope=make_envelope(),
     )
 
     assert result.stream.name == "Filled later"
@@ -253,7 +260,9 @@ async def test_a_beat_never_overwrites_an_existing_title(lock_engine):
     )
 
     result = await svc.heartbeat(
-        project_id=_PROJECT, request=_beat("turn-1", name="Proposed by the runner")
+        project_id=_PROJECT,
+        request=_beat("turn-1", name="Proposed by the runner"),
+        envelope=make_envelope(),
     )
 
     assert result.stream.name == "Named by a human"
@@ -266,7 +275,11 @@ async def test_a_rename_after_a_fill_still_wins(lock_engine):
     # fighting the runner for the title.
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1", name="Auto title"))
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-1", name="Auto title"),
+        envelope=make_envelope(),
+    )
 
     await svc.set_header(
         project_id=_PROJECT,
@@ -274,7 +287,11 @@ async def test_a_rename_after_a_fill_still_wins(lock_engine):
         session_id=_SESSION,
         header=SessionStreamHeaderEdit(name="My title"),
     )
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1", name="Auto title"))
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-1", name="Auto title"),
+        envelope=make_envelope(),
+    )
 
     assert dao.row.name == "My title"
 
@@ -290,11 +307,17 @@ async def test_the_proposal_repeats_on_every_beat_without_repeating_the_write(
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
 
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1", name="Same title"))
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-1", name="Same title"),
+        envelope=make_envelope(),
+    )
     writes_after_first = len(dao.fills)
     for _ in range(3):
         await svc.heartbeat(
-            project_id=_PROJECT, request=_beat("turn-1", name="Same title")
+            project_id=_PROJECT,
+            request=_beat("turn-1", name="Same title"),
+            envelope=make_envelope(),
         )
     await svc.heartbeat(
         project_id=_PROJECT,
@@ -305,6 +328,7 @@ async def test_the_proposal_repeats_on_every_beat_without_repeating_the_write(
             is_running=False,
             name="Same title",
         ),
+        envelope=make_envelope(),
     )
 
     assert dao.row.name == "Same title"
@@ -315,9 +339,13 @@ async def test_the_proposal_repeats_on_every_beat_without_repeating_the_write(
 async def test_a_beat_without_a_proposal_does_not_touch_the_row(lock_engine):
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+    )
 
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+    )
 
     assert dao.fills == [], "a beat with nothing to say must not issue a write"
 
@@ -334,7 +362,9 @@ async def test_the_beat_records_what_the_session_runs(lock_engine):
     references = _references()
 
     result = await svc.heartbeat(
-        project_id=_PROJECT, request=_beat("turn-1", references=references)
+        project_id=_PROJECT,
+        request=_beat("turn-1", references=references),
+        envelope=make_envelope(),
     )
 
     assert result.stream.references == references
@@ -345,12 +375,22 @@ async def test_the_beat_records_what_the_session_runs(lock_engine):
 async def test_references_fill_a_row_that_has_none_and_are_then_frozen(lock_engine):
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1"))
+    await svc.heartbeat(
+        project_id=_PROJECT, request=_beat("turn-1"), envelope=make_envelope()
+    )
     first = _references()
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1", references=first))
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-1", references=first),
+        envelope=make_envelope(),
+    )
 
     later = [SessionReference(id=uuid4(), key=ReferenceKey.workflow)]
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-2", references=later))
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-2", references=later),
+        envelope=make_envelope(),
+    )
 
     assert dao.row.references == first
 
@@ -366,12 +406,18 @@ async def test_an_empty_reference_list_does_not_burn_the_fill(lock_engine):
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
 
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1", references=[]))
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-1", references=[]),
+        envelope=make_envelope(),
+    )
     assert dao.row.references is None
 
     references = _references()
     await svc.heartbeat(
-        project_id=_PROJECT, request=_beat("turn-2", references=references)
+        project_id=_PROJECT,
+        request=_beat("turn-2", references=references),
+        envelope=make_envelope(),
     )
 
     assert dao.row.references == references
@@ -382,11 +428,17 @@ async def test_an_empty_name_does_not_burn_the_fill(lock_engine):
     dao = _FakeStreamsDAO()
     svc = _service(lock_engine, dao)
 
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1", name="   "))
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-1", name="   "),
+        envelope=make_envelope(),
+    )
     assert dao.row.name is None
 
     await svc.heartbeat(
-        project_id=_PROJECT, request=_beat("turn-2", name="A real title")
+        project_id=_PROJECT,
+        request=_beat("turn-2", name="A real title"),
+        envelope=make_envelope(),
     )
 
     assert dao.row.name == "A real title"
@@ -400,10 +452,16 @@ async def test_a_title_fill_leaves_existing_references_alone(lock_engine):
     svc = _service(lock_engine, dao)
     references = _references()
     await svc.heartbeat(
-        project_id=_PROJECT, request=_beat("turn-1", references=references)
+        project_id=_PROJECT,
+        request=_beat("turn-1", references=references),
+        envelope=make_envelope(),
     )
 
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("turn-1", name="A title"))
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-1", name="A title"),
+        envelope=make_envelope(),
+    )
 
     assert dao.row.references == references
     assert dao.row.name == "A title"

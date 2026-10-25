@@ -18,6 +18,7 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionKind,
     SessionInteractionStatus,
 )
+from oss.src.core.access.dtos import PrincipalRef, RunApproval
 
 
 async def test_durable_response_returns_202_and_stable_refs(monkeypatch):
@@ -45,7 +46,11 @@ async def test_durable_response_returns_202_and_stable_refs(monkeypatch):
         router_module, "check_action_access", AsyncMock(return_value=True)
     )
     request = SimpleNamespace(
-        state=SimpleNamespace(project_id=project_id, user_id=user_id),
+        state=SimpleNamespace(
+            project_id=project_id,
+            user_id=user_id,
+            principal=PrincipalRef(kind="human", id=user_id),
+        ),
         headers={"Idempotency-Key": "answer-1"},
     )
     router = InteractionsRouter(
@@ -74,6 +79,9 @@ async def test_durable_response_returns_202_and_stable_refs(monkeypatch):
         answer={"approved": True},
         expected_execution_id="turn-1",
         idempotency_key="answer-1",
+        approved_by=RunApproval(
+            principal=PrincipalRef(kind="human", id=user_id), user_id=user_id
+        ),
     )
 
 
@@ -108,7 +116,11 @@ async def test_matching_partial_answer_retry_returns_terminal_source(monkeypatch
 
     response = await router.respond_interaction(
         request=SimpleNamespace(
-            state=SimpleNamespace(project_id=project_id, user_id=user_id),
+            state=SimpleNamespace(
+                project_id=project_id,
+                user_id=user_id,
+                principal=PrincipalRef(kind="human", id=user_id),
+            ),
             headers={"Idempotency-Key": "partial-answer-retry"},
         ),
         interaction_id=interaction_id,
@@ -157,7 +169,11 @@ async def test_durable_batch_returns_202_with_one_continuation(monkeypatch):
 
     response = await router.respond_interaction(
         request=SimpleNamespace(
-            state=SimpleNamespace(project_id=project_id, user_id=user_id),
+            state=SimpleNamespace(
+                project_id=project_id,
+                user_id=user_id,
+                principal=PrincipalRef(kind="human", id=user_id),
+            ),
             headers={"Idempotency-Key": "approve-all"},
         ),
         interaction_id=first_id,
@@ -180,6 +196,9 @@ async def test_durable_batch_returns_202_with_one_continuation(monkeypatch):
         ],
         expected_execution_id="turn-1",
         idempotency_key="approve-all",
+        approved_by=RunApproval(
+            principal=PrincipalRef(kind="human", id=user_id), user_id=user_id
+        ),
     )
 
 
@@ -194,7 +213,11 @@ async def test_durable_response_returns_the_conflict_envelope(monkeypatch):
         router_module, "check_action_access", AsyncMock(return_value=True)
     )
     request = SimpleNamespace(
-        state=SimpleNamespace(project_id=project_id, user_id=user_id),
+        state=SimpleNamespace(
+            project_id=project_id,
+            user_id=user_id,
+            principal=PrincipalRef(kind="human", id=user_id),
+        ),
         headers={"Idempotency-Key": "answer-1"},
     )
     router = InteractionsRouter(
@@ -237,7 +260,11 @@ async def test_durable_validation_error_returns_422(monkeypatch):
 
     response = await router.respond_interaction(
         request=SimpleNamespace(
-            state=SimpleNamespace(project_id=project_id, user_id=user_id),
+            state=SimpleNamespace(
+                project_id=project_id,
+                user_id=user_id,
+                principal=PrincipalRef(kind="human", id=user_id),
+            ),
             headers={"Idempotency-Key": "answer-1"},
         ),
         interaction_id=uuid4(),
@@ -262,7 +289,11 @@ async def test_durable_response_rejects_an_overlength_idempotency_key(monkeypatc
 
     response = await router.respond_interaction(
         request=SimpleNamespace(
-            state=SimpleNamespace(project_id=project_id, user_id=user_id),
+            state=SimpleNamespace(
+                project_id=project_id,
+                user_id=user_id,
+                principal=PrincipalRef(kind="human", id=user_id),
+            ),
             headers={"Idempotency-Key": "x" * 256},
         ),
         interaction_id=uuid4(),
@@ -291,7 +322,11 @@ async def test_continuation_resume_endpoint_resumes(monkeypatch):
     )
     router = SessionControlRouter(commands_service=commands)
     request = SimpleNamespace(
-        state=SimpleNamespace(project_id=project_id, user_id=user_id)
+        state=SimpleNamespace(
+            project_id=project_id,
+            user_id=user_id,
+            principal=PrincipalRef(kind="human", id=user_id),
+        )
     )
 
     enabled = await router.resume_session_continuation(

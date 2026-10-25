@@ -117,7 +117,8 @@ function sandboxRootEnd(segments: readonly string[]): number {
     for (let i = 0; i < segments.length; i++) {
         const segment = segments[i]
         if (segment === "agenta") {
-            // Durable: `agenta[/<namespace>]/mounts/<project_id>/<mount_id>`. The namespace is the
+            // Durable: `agenta[/<namespace>]/<stored prefix>`, where the mount's stored prefix is
+            // `mounts/<scope_id>/<mount_id>`. The namespace is the
             // optional per-deployment storage prefix (api `MountsService._storage_key`), so `mounts`
             // sits one or two segments in — bounded, so a user's own `mounts/` folder deeper in the
             // tree can never be mistaken for the root. Anything else under `agenta/` is runner IPC
@@ -134,7 +135,7 @@ function sandboxRootEnd(segments: readonly string[]): number {
  * Turn a TOOL path into a path a drive can resolve.
  *
  * Tool paths come off the record log exactly as the harness received them: cwd-relative
- * (`notes/a.md`) or sandbox-ABSOLUTE (`/var/lib/agenta/mounts/<project_id>/<mount_id>/notes/a.md`).
+ * (`notes/a.md`) or sandbox-ABSOLUTE (`/var/lib/agenta/mounts/<scope_id>/<mount_id>/notes/a.md`).
  * Only the relative form is a drive path. Presenting the absolute one verbatim shows the sandbox's
  * plumbing, exempts runner-internal files from the `agents/` filter, and — because a drive treats
  * it as mount-relative — browses to `<mount>/var/lib/agenta/mounts/…`: an empty directory that never

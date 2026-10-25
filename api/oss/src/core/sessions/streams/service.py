@@ -16,6 +16,7 @@ import uuid_utils.compat as uuid
 from typing import Any, Dict, Iterable, List, Optional
 from uuid import UUID
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.redis.shared.engine import LockEngine
@@ -66,6 +67,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamReadOptions,
 )
 from oss.src.core.sessions.streams.types import (
+    SessionCreationRequiresRunCredential,
     ConcurrencyLimitExceeded,
     SessionIdInvalid,
     SessionStreamAlreadyExists,
@@ -496,10 +498,14 @@ class SessionStreamsService:
         project_id: UUID,
         request: SessionHeartbeatRequest,
         runner_verified: bool = False,
+        envelope: Optional[RunEnvelope],
     ) -> SessionHeartbeatResult:
         """`runner_verified` says the caller proved it is runner infrastructure (the runner
         token). Only then is its `replica_address` stored, because Stop later sends the runner
-        token to that address."""
+        token to that address.
+
+        `envelope` is the run credential's envelope. A beat that would create the session
+        without one raises `SessionCreationRequiresRunCredential`."""
         _validate_session_id(request.session_id)
         async with session_heartbeat_guard(
             self._lock,
@@ -510,6 +516,7 @@ class SessionStreamsService:
                 project_id=project_id,
                 request=request,
                 runner_verified=runner_verified,
+                envelope=envelope,
             )
             try:
                 guard.ensure_held()
@@ -526,6 +533,7 @@ class SessionStreamsService:
         project_id: UUID,
         request: SessionHeartbeatRequest,
         runner_verified: bool,
+        envelope: Optional[RunEnvelope] = None,
     ) -> SessionHeartbeatResult:
         """Refresh the nest, mirror it onto the row, and fill what the row still lacks.
 
@@ -536,6 +544,15 @@ class SessionStreamsService:
         auto-title and `rename_session` all overwrite, so they always win.
         """
         _validate_session_id(request.session_id)
+
+        # Only a run creates a session by heartbeat: refuse before any lock moves (the
+        # turn binding below is first-writer-wins).
+        prior_stream = await self._dao.get_by_session_id(
+            project_id=project_id,
+            session_id=request.session_id,
+        )
+        if prior_stream is None and envelope is None:
+            raise SessionCreationRequiresRunCredential(request.session_id)
 
         # A turn that was already displaced (handover, cancel, steer, kill, sweep) is dead
         # forever: refuse the beat before it touches ANY lock or the row. This is what keeps
@@ -620,10 +637,6 @@ class SessionStreamsService:
         # being gone now is something else's doing. A row carrying a DIFFERENT turn_id is not
         # decisive on its own (it is also what a fresh turn on a previously-run session sees)
         # — the failed nx re-acquire below is what settles that case.
-        prior_stream = await self._dao.get_by_session_id(
-            project_id=project_id,
-            session_id=request.session_id,
-        )
         turn_was_established = bool(
             prior_stream and prior_stream.turn_id == request.turn_id
         )

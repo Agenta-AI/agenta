@@ -22,6 +22,7 @@ from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.dbs.redis.sessions.locks import acquire_running, get_running_owner
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.tests.pytest.utils.principals import make_envelope
 
 
 _PROJECT = uuid4()
@@ -117,6 +118,7 @@ async def test_stale_turn_end_does_not_clear_the_live_turns_running_lock(lock_en
             is_running=False,
             replica_id="replica-1",
         ),
+        envelope=make_envelope(),
     )
 
     owner = await get_running_owner(
@@ -146,6 +148,7 @@ async def test_a_turn_still_clears_its_own_running_lock(lock_engine):
             is_running=False,
             replica_id="replica-1",
         ),
+        envelope=make_envelope(),
     )
 
     owner = await get_running_owner(
@@ -180,6 +183,7 @@ async def test_an_end_beat_without_a_turn_id_releases_nothing(lock_engine):
             is_running=False,
             replica_id="replica-1",
         ),
+        envelope=make_envelope(),
     )
 
     owner = await get_running_owner(

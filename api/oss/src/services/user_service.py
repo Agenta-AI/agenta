@@ -9,6 +9,10 @@ from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.models.api.user_models import UserUpdate
 from oss.src.services import db_manager
 from oss.src.utils import emailing
+from oss.src.core.access.service import (
+    invalidate_user_after_delete,
+    read_user_principals_before_delete,
+)
 
 log = get_module_logger(__name__)
 
@@ -46,8 +50,14 @@ async def delete_user(user_id: str) -> None:
         if not user:
             raise NoResultFound(f"User with id {user_id} not found.")
 
+        # Read before the delete: the user's keys, bindings and projects, whose cached
+        # principals and memberships are cleared after the commit.
+        principals_snapshot = await read_user_principals_before_delete(user_id=user.id)
+
         await session.delete(user)
         await session.commit()
+
+    await invalidate_user_after_delete(snapshot=principals_snapshot)
 
 
 async def create_new_user(payload: dict) -> UserDB:

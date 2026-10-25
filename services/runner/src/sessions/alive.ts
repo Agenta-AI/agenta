@@ -58,6 +58,7 @@ export const REPLICA_ADDRESS =
   process.env.AGENTA_RUNNER_REPLICA_ADDRESS?.trim() ?? "";
 
 import { runnerTokenHeader, startPlatformCredentialLease } from "./auth.ts";
+import { isAccessDeniedStatus, noteAccessDenied } from "./access-denied.ts";
 import type { TypedReference } from "./interactions.ts";
 
 /**
@@ -287,15 +288,18 @@ export async function startAliveWatchdog(
     beatInFlight = true;
     void (async () => {
       try {
-        handleBeat(
-          await sendHeartbeat(
-            sessionId,
-            turnId,
-            credentialLease.credential(),
-            true,
-            proposal,
-          ),
+        const beat = await sendHeartbeat(
+          sessionId,
+          turnId,
+          credentialLease.credential(),
+          true,
+          proposal,
         );
+        handleBeat(beat);
+        // A 403 on a beat of an admitted turn: the caller lost access to the project while the
+        // turn ran. The admission beat's 403 stays an admission refusal (`admissionRejectedStatus`).
+        if (beat.rejectedStatus !== undefined && isAccessDeniedStatus(beat.rejectedStatus))
+          noteAccessDenied(sessionId, turnId, "heartbeat");
       } finally {
         beatInFlight = false;
       }

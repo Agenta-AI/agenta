@@ -4,7 +4,10 @@ from uuid import UUID
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse, Response
 
-from oss.src.core.access.permissions.service import check_user_org_access
+from sqlalchemy import select
+
+from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+from oss.src.models.db_models import OrganizationMemberDB
 from ee.src.core.access.entitlements.service import (
     check_entitlements,
     NOT_ENTITLED_RESPONSE,
@@ -13,7 +16,8 @@ from ee.src.core.access.entitlements.service import (
 )
 
 from oss.src.services import db_manager
-from oss.src.services.db_manager import get_user_org_and_workspace_id
+from oss.src.core.access.permissions.service import check_organization_write
+from oss.src.core.access.permissions.types import Permission
 from ee.src.core.organizations.service import (
     OrganizationDomainsService,
     OrganizationProvidersService,
@@ -39,13 +43,46 @@ domain_service = OrganizationDomainsService()
 provider_service = OrganizationProvidersService()
 
 
-async def verify_user_org_access(user_id: str, organization_id: str) -> None:
-    """Helper to verify user has access to organization."""
-    user_org_data = await get_user_org_and_workspace_id(user_id)
-    has_access = await check_user_org_access(user_org_data, organization_id)
-    if not has_access:
+# Org-level roles that may manage domains and SSO providers.
+_ORG_ADMIN_ROLES = {"owner", "admin"}
+
+
+async def verify_user_org_admin(user_id: str, organization_id: str) -> None:
+    """Allow only the organization owner or an organization admin."""
+    organization = await db_manager.get_organization_by_id(
+        organization_id=organization_id
+    )
+    if organization is not None and str(organization.owner_id) == str(user_id):
+        return
+
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        result = await session.execute(
+            select(OrganizationMemberDB.role).where(
+                OrganizationMemberDB.user_id == UUID(str(user_id)),
+                OrganizationMemberDB.organization_id == UUID(str(organization_id)),
+            )
+        )
+        role = result.scalar()
+
+    if role not in _ORG_ADMIN_ROLES:
         raise HTTPException(
-            status_code=403, detail="You do not have access to this organization"
+            status_code=403,
+            detail="You do not have permission to perform this action",
+        )
+
+
+async def verify_org_write(request: Request, organization_id: str) -> None:
+    """Domain and SSO writes are organization-level: an API key or a run credential
+    must be of the organization's default project, as the workspace routes require."""
+    if not await check_organization_write(
+        user_uid=str(request.state.user_id),
+        organization_id=str(organization_id),
+        permission=Permission.EDIT_WORKSPACE,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to perform this action",
         )
 
 
@@ -104,7 +141,8 @@ async def create_domain(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await verify_user_org_access(user_id, organization_id)
+    await verify_user_org_admin(user_id, organization_id)
+    await verify_org_write(request, organization_id)
 
     check, _, _ = await check_entitlements(
         key=Flag.DOMAINS,
@@ -148,7 +186,8 @@ async def verify_domain(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await verify_user_org_access(user_id, organization_id)
+    await verify_user_org_admin(user_id, organization_id)
+    await verify_org_write(request, organization_id)
 
     check, _, _ = await check_entitlements(
         key=Flag.DOMAINS,
@@ -176,7 +215,7 @@ async def list_domains(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await verify_user_org_access(user_id, organization_id)
+    await verify_user_org_admin(user_id, organization_id)
 
     check, _, _ = await check_entitlements(
         key=Flag.DOMAINS,
@@ -206,7 +245,8 @@ async def refresh_domain_token(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await verify_user_org_access(user_id, organization_id)
+    await verify_user_org_admin(user_id, organization_id)
+    await verify_org_write(request, organization_id)
 
     check, _, _ = await check_entitlements(
         key=Flag.DOMAINS,
@@ -238,7 +278,8 @@ async def reset_domain(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await verify_user_org_access(user_id, organization_id)
+    await verify_user_org_admin(user_id, organization_id)
+    await verify_org_write(request, organization_id)
 
     check, _, _ = await check_entitlements(
         key=Flag.DOMAINS,
@@ -265,7 +306,8 @@ async def delete_domain(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await verify_user_org_access(user_id, organization_id)
+    await verify_user_org_admin(user_id, organization_id)
+    await verify_org_write(request, organization_id)
 
     check, _, _ = await check_entitlements(
         key=Flag.DOMAINS,
@@ -302,7 +344,8 @@ async def create_provider(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await verify_user_org_access(user_id, organization_id)
+    await verify_user_org_admin(user_id, organization_id)
+    await verify_org_write(request, organization_id)
 
     check, _, _ = await check_entitlements(
         key=Flag.SSO,
@@ -341,7 +384,8 @@ async def update_provider(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await verify_user_org_access(user_id, organization_id)
+    await verify_user_org_admin(user_id, organization_id)
+    await verify_org_write(request, organization_id)
 
     check, _, _ = await check_entitlements(
         key=Flag.SSO,
@@ -378,7 +422,7 @@ async def list_providers(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await verify_user_org_access(user_id, organization_id)
+    await verify_user_org_admin(user_id, organization_id)
 
     check, _, _ = await check_entitlements(
         key=Flag.SSO,
@@ -410,7 +454,8 @@ async def test_provider(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await verify_user_org_access(user_id, organization_id)
+    await verify_user_org_admin(user_id, organization_id)
+    await verify_org_write(request, organization_id)
 
     check, _, _ = await check_entitlements(
         key=Flag.SSO,
@@ -437,7 +482,8 @@ async def delete_provider(
     organization_id = request.state.organization_id
     user_id = request.state.user_id
 
-    await verify_user_org_access(user_id, organization_id)
+    await verify_user_org_admin(user_id, organization_id)
+    await verify_org_write(request, organization_id)
 
     check, _, _ = await check_entitlements(
         key=Flag.SSO,

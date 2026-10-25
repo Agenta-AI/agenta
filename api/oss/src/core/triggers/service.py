@@ -8,6 +8,11 @@ from uuid import UUID
 
 from croniter import croniter
 
+from oss.src.core.access.dtos import PrincipalRef, RunOrigin
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.principals import stored_work_envelope
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import AccessDenied, MissingPrincipal
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 from oss.src.utils.caching import get_cache, set_cache
@@ -294,6 +299,45 @@ def _has_primary_evidence(
         integration=integration,
     )
     return exact_phrase or matched_terms >= _DISCOVERY_MIN_PRIMARY_TERMS
+
+
+async def recheck_trigger_principal(
+    *, project_id: UUID, trigger, origin: RunOrigin
+) -> None:
+    """A trigger that is started again must still have a principal that may run it.
+    Raises `MissingPrincipal` or `AccessDenied`, so a resume of a trigger whose key or
+    creator is gone is refused at once instead of at its next tick."""
+
+    if trigger.principal is None:
+        raise MissingPrincipal()
+    access = get_access_service()
+    organization_id = await access.project_organization_id(project_id=project_id)
+    if organization_id is None:
+        raise MissingPrincipal("The trigger's project has no organization")
+    try:
+        await access.require(
+            envelope=stored_work_envelope(
+                principal=trigger.principal,
+                organization_id=organization_id,
+                project_id=project_id,
+                origin=origin,
+                origin_id=str(trigger.id),
+                created_by_id=trigger.created_by_id,
+            ),
+            action=Permission.RUN_WORKFLOWS,
+        )
+    except AccessDenied as denied:
+        # The router names the principal kind in the refusal.
+        denied.principal_kind = trigger.principal.kind
+        raise
+
+
+def _resumed_meta(meta):
+    """The trigger's meta without the reason of its last automatic pause."""
+
+    if not meta or "paused_reason" not in meta:
+        return meta
+    return {key: value for key, value in dict(meta).items() if key != "paused_reason"}
 
 
 class TriggersService:
@@ -850,8 +894,11 @@ class TriggersService:
         *,
         project_id: UUID,
         references: Optional[dict],
-    ) -> None:
+    ) -> Optional[UUID]:
         """Assert the bound reference family resolves — without pinning it.
+
+        Returns the target agent (the artifact id) of a direct reference, and None for
+        an environment reference, whose target is resolved at each dispatch.
 
         The FE sends a partial family under the proper prefix (``application`` /
         ``evaluator``, or ``environment`` + ``application``). We delegate to
@@ -865,7 +912,7 @@ class TriggersService:
         ``_ensure_request_revision``), so latest-tracking is preserved.
         """
         if not references or not self.workflows_service:
-            return
+            return None
 
         def _ref(value):
             if value is None:
@@ -882,7 +929,7 @@ class TriggersService:
         )
         environment_ref = _ref(references.get("environment"))
         if prefix is None and environment_ref is None:
-            return
+            return None
 
         key = None
         if environment_ref is not None:
@@ -911,6 +958,11 @@ class TriggersService:
             raise TriggerReferenceInvalid(
                 "Bound workflow reference could not be resolved to a runnable revision."
             )
+        if environment_ref is not None or any(
+            key.startswith("environment") for key in references
+        ):
+            return None
+        return revision.workflow_id or revision.artifact_id
 
     async def create_subscription(
         self,
@@ -919,14 +971,18 @@ class TriggersService:
         user_id: UUID,
         #
         subscription: TriggerSubscriptionCreate,
+        principal: PrincipalRef,
     ) -> TriggerSubscription:
-        """Mint the provider-side ``ti_*`` on a shared connection, then persist."""
+        """Mint the provider-side ``ti_*`` on a shared connection, then persist.
+
+        `principal` is the creating request's principal: the subscription runs as it."""
         # A test subscription captures events without a bound workflow, so the
         # reference requirement is relaxed; it is also always "on".
+        artifact_id = None
         if subscription.flags.is_test:
             subscription.flags.is_active = True
         else:
-            await self._validate_references(
+            artifact_id = await self._validate_references(
                 project_id=project_id,
                 references=subscription.data.references,
             )
@@ -973,6 +1029,8 @@ class TriggersService:
             subscription=subscription,
             #
             trigger_id=trigger_id,
+            principal=principal,
+            artifact_id=artifact_id,
         )
 
     async def fetch_subscription(
@@ -1061,10 +1119,11 @@ class TriggersService:
         # Test subscriptions skip the bound-workflow requirement and stay "on".
         # Turning test OFF (test → prod) re-imposes it: references must resolve,
         # else the edit is rejected and the user must supply a valid binding.
+        artifact_id = None
         if subscription.flags.is_test:
             subscription.flags.is_active = True
         else:
-            await self._validate_references(
+            artifact_id = await self._validate_references(
                 project_id=project_id,
                 references=subscription.data.references,
             )
@@ -1077,10 +1136,12 @@ class TriggersService:
                 is_valid=existing.flags.is_valid,
             )
 
+        # The principal stays; the target agent follows the edited references.
         return await self.dao.edit_subscription(
             project_id=project_id,
             user_id=user_id,
             subscription=subscription,
+            artifact_id=artifact_id,
         )
 
     async def delete_subscription(
@@ -1253,13 +1314,18 @@ class TriggersService:
         if existing is None:
             raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
 
+        if is_active:
+            await recheck_trigger_principal(
+                project_id=project_id, trigger=existing, origin=RunOrigin.SUBSCRIPTION
+            )
+
         edit = TriggerSubscriptionEdit(
             id=existing.id,
             connection_id=existing.connection_id,
             name=existing.name,
             description=existing.description,
             tags=existing.tags,
-            meta=existing.meta,
+            meta=_resumed_meta(existing.meta) if is_active else existing.meta,
             data=existing.data,
             flags=existing.flags.model_copy(update={"is_active": is_active}),
         )
@@ -1311,6 +1377,7 @@ class TriggersService:
         user_id: UUID,
         #
         subscription: TriggerSubscriptionCreate,
+        principal: PrincipalRef,
     ) -> Optional[TriggerDelivery]:
         """One-shot test: capture the first delivery for this (connection, event),
         then tear down.
@@ -1328,6 +1395,7 @@ class TriggersService:
                 project_id=project_id,
                 user_id=user_id,
                 subscription=subscription,
+                principal=principal,
             )
         except EntityCreationConflict as err:
             # Capture against the exact colliding subscription (project-scoped, non-deleted),
@@ -1540,11 +1608,13 @@ class TriggersService:
         user_id: UUID,
         #
         schedule: TriggerScheduleCreate,
+        principal: PrincipalRef,
     ) -> TriggerSchedule:
+        """`principal` is the creating request's principal: the schedule runs as it."""
         self._validate_schedule(schedule.data.schedule)
         self._normalize_window(schedule.data)
 
-        await self._validate_references(
+        artifact_id = await self._validate_references(
             project_id=project_id,
             references=schedule.data.references,
         )
@@ -1554,6 +1624,8 @@ class TriggersService:
             user_id=user_id,
             #
             schedule=schedule,
+            principal=principal,
+            artifact_id=artifact_id,
         )
 
     async def fetch_schedule(
@@ -1614,15 +1686,17 @@ class TriggersService:
         self._validate_schedule(schedule.data.schedule)
         self._normalize_window(schedule.data)
 
-        await self._validate_references(
+        artifact_id = await self._validate_references(
             project_id=project_id,
             references=schedule.data.references,
         )
 
+        # The principal stays; the target agent follows the edited references.
         return await self.dao.edit_schedule(
             project_id=project_id,
             user_id=user_id,
             schedule=schedule,
+            artifact_id=artifact_id,
         )
 
     async def delete_schedule(
@@ -1664,12 +1738,17 @@ class TriggersService:
                 reason="window ended",
             )
 
+        if is_active:
+            await recheck_trigger_principal(
+                project_id=project_id, trigger=existing, origin=RunOrigin.SCHEDULE
+            )
+
         edit = TriggerScheduleEdit(
             id=existing.id,
             name=existing.name,
             description=existing.description,
             tags=existing.tags,
-            meta=existing.meta,
+            meta=_resumed_meta(existing.meta) if is_active else existing.meta,
             data=existing.data,
             flags=existing.flags.model_copy(update={"is_active": is_active}),
         )

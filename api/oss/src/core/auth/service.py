@@ -6,7 +6,7 @@ from sqlalchemy import select
 from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.caching import invalidate_cache
+from oss.src.core.memberships.service import get_memberships_service
 
 from oss.src.core.auth.dtos import DiscoverResponse
 
@@ -23,8 +23,6 @@ if is_ee():
     )
     from oss.src.models.db_models import (
         OrganizationMemberDB,
-        WorkspaceMemberDB,
-        ProjectMemberDB,
     )
 
 
@@ -420,6 +418,38 @@ class AuthService:
 
         return True
 
+    async def is_sso_email_allowed(self, third_party_id: str, email: str) -> bool:
+        """
+        Accept an organization SSO login only for an email in that organization's
+        verified domains.
+
+        third_party_id format: "sso:{organization_slug}:{provider_slug}"
+        """
+        if not is_ee() or not self.domains_dao:
+            return False
+
+        parts = third_party_id.split(":", 2)
+        if len(parts) != 3 or parts[0] != "sso":
+            return False
+
+        domain = (
+            email.rsplit("@", 1)[-1].strip().lower()
+            if email and email.count("@") == 1
+            else None
+        )
+        if not domain:
+            return False
+
+        organization = await db_manager.get_organization_by_slug(parts[1])
+        if not organization:
+            return False
+
+        domain_dto = await self.domains_dao.get_verified_by_slug(slug=domain)
+        if not domain_dto:
+            return False
+
+        return str(domain_dto.organization_id) == str(organization.id)
+
     async def enforce_domain_policies(self, email: str, user_id: UUID) -> None:
         """
         Enforce domain-based policies after successful authentication:
@@ -462,94 +492,27 @@ class AuthService:
                 user_orgs = await db_manager.get_user_organizations(str(user_id))
                 is_member = any(org.id == org_id for org in user_orgs)
 
+                # An existing member keeps their role: a login by an admin of an
+                # auto-join organization must not demote them to viewer. The check
+                # above skips the write for most logins; `must_be_absent` repeats
+                # it under the organization lock, so an invitation accepted in
+                # between keeps its role.
                 if not is_member:
-                    organization = await db_manager.get_organization_by_id(str(org_id))
-                    user = await db_manager.get_user_with_id(user_id=str(user_id))
-                    workspaces = await db_manager.get_organization_workspaces(
-                        str(org_id)
+                    joined = await get_memberships_service().set_member_role(
+                        organization_id=org_id,
+                        user_id=user_id,
+                        role="viewer",
+                        join_all_projects=True,
+                        must_be_absent=True,
+                        actor_user_id=user_id,
                     )
 
-                    if not organization or not user or not workspaces:
-                        raise ValueError(
-                            "Auto-join requires organization, user, and at least one workspace"
+                    if joined:
+                        log.info(
+                            "[AUTH] [AUTO-JOIN] user auto-joined organization",
+                            organization_id=str(org_id),
+                            user_id=str(user_id),
                         )
-
-                    engine = get_transactions_engine()
-
-                    async with engine.session() as session:
-                        existing_org_member = await session.execute(
-                            select(OrganizationMemberDB).filter_by(
-                                user_id=user.id, organization_id=organization.id
-                            )
-                        )
-                        if not existing_org_member.scalars().first():
-                            session.add(
-                                OrganizationMemberDB(
-                                    user_id=user.id,
-                                    organization_id=organization.id,
-                                    role="viewer",
-                                )
-                            )
-
-                        for workspace in workspaces:
-                            existing_workspace_member = await session.execute(
-                                select(WorkspaceMemberDB).filter_by(
-                                    user_id=user.id, workspace_id=workspace.id
-                                )
-                            )
-                            if not existing_workspace_member.scalars().first():
-                                session.add(
-                                    WorkspaceMemberDB(
-                                        user_id=user.id,
-                                        workspace_id=workspace.id,
-                                        role="viewer",
-                                    )
-                                )
-
-                            projects = await db_manager.fetch_projects_by_workspace(
-                                str(workspace.id)
-                            )
-                            if not projects:
-                                continue
-
-                            existing_project_members = await session.execute(
-                                select(ProjectMemberDB).filter(
-                                    ProjectMemberDB.project_id.in_(
-                                        [project.id for project in projects]
-                                    ),
-                                    ProjectMemberDB.user_id == user.id,
-                                )
-                            )
-                            existing_project_ids = {
-                                member.project_id
-                                for member in existing_project_members.scalars().all()
-                            }
-
-                            for project in projects:
-                                if project.id in existing_project_ids:
-                                    continue
-                                session.add(
-                                    ProjectMemberDB(
-                                        user_id=user.id,
-                                        project_id=project.id,
-                                        role="viewer",
-                                    )
-                                )
-
-                        await session.commit()
-
-                    # Invalidate any cached auth deny so the user can
-                    # access projects immediately after auto-join.
-                    await invalidate_cache(
-                        namespace="verify_bearer_token",
-                        user_id=str(user_id),
-                    )
-
-                    log.info(
-                        "[AUTH] [AUTO-JOIN] user auto-joined organization",
-                        organization_id=str(org_id),
-                        user_id=str(user_id),
-                    )
             except Exception:
                 log.error("[AUTH] [AUTO-JOIN]", exc_info=True)
 
@@ -627,6 +590,23 @@ class AuthService:
                 "required_methods": [],
                 "current_identities": session_identities,
             }
+
+        # A session identity counts only if the user really signed in with that method.
+        known_methods = {
+            identity.method
+            for identity in await self.identities_dao.list_by_user(user_id)
+        }
+        session_identities = [
+            identity for identity in session_identities if identity in known_methods
+        ]
+        # `sso:*` must mean this organization's own active, tested providers.
+        if any(identity.startswith("sso:") for identity in session_identities):
+            own_sso = await self._own_sso_identities(organization_id)
+            session_identities = [
+                identity
+                for identity in session_identities
+                if not identity.startswith("sso:") or identity in own_sso
+            ]
 
         # Check if identities satisfy allowed_methods
         matches = self._matches_policy(session_identities, allowed_methods)
@@ -796,6 +776,23 @@ class AuthService:
             result = await session.execute(stmt)
             flags = result.scalar()
             return flags or {}
+
+    async def _own_sso_identities(self, organization_id: UUID) -> set:
+        """`sso:{org_slug}:{provider_slug}` for each active and valid provider of the org."""
+        if not self.providers_dao:
+            return set()
+        org_slug = await self._get_organization_slug(organization_id)
+        if not org_slug:
+            return set()
+        providers = await self.providers_dao.list_by_organization(
+            organization_id=str(organization_id)
+        )
+        return {
+            f"sso:{org_slug}:{provider.slug}"
+            for provider in providers
+            if (provider.flags or {}).get("is_active")
+            and (provider.flags or {}).get("is_valid")
+        }
 
     async def _get_organization_slug(self, organization_id: UUID) -> Optional[str]:
         if not is_ee():

@@ -168,7 +168,7 @@ describe("allocating and placing the gateway credential", () => {
     });
     assert.deepEqual(gatewayCredentialPlaceholders(plan, allocation), {
       gateway: { value: CREDENTIAL, placeholder: "dtn_secret_1" },
-      mcpHeaders: {},
+      mcpHeaders: Object.create(null),
     });
   });
 
@@ -338,7 +338,7 @@ describe("creating the sandbox", () => {
     ]);
     assert.deepEqual(built[0].gatewayPlaceholders, {
       gateway: { value: CREDENTIAL, placeholder: "dtn_secret_1" },
-      mcpHeaders: {},
+      mcpHeaders: Object.create(null),
     });
   });
 

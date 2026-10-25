@@ -75,8 +75,21 @@ def _wire(monkeypatch, *, plan, projects):
         "count_organization_projects",
         AsyncMock(return_value=projects),
     )
+    # The permission check allows; the create goes through MembershipsService.
+    monkeypatch.setattr(
+        projects_router.db_manager,
+        "get_default_project_id_from_workspace",
+        AsyncMock(return_value=str(uuid4())),
+    )
+    monkeypatch.setattr(
+        projects_router, "check_action_access", AsyncMock(return_value=True)
+    )
     create = AsyncMock(side_effect=_Created)
-    monkeypatch.setattr(projects_router.db_manager, "create_workspace_project", create)
+    monkeypatch.setattr(
+        projects_router,
+        "get_memberships_service",
+        lambda: SimpleNamespace(create_project=create),
+    )
     return create
 
 

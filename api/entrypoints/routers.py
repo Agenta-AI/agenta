@@ -3,7 +3,6 @@ import asyncio
 import time
 from pathlib import Path
 from urllib.parse import urlsplit
-from uuid import UUID
 
 import agenta as ag
 from fastapi import FastAPI
@@ -14,6 +13,10 @@ from supertokens_python.framework.fastapi import (
     get_middleware as get_supertokens_middleware,
 )
 
+from oss.src.core.sessions.commands.delivery import (
+    deliver_continue_input,
+    deliver_continue_interaction,
+)
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.server_tracing import instrument_fastapi, setup_server_tracing
@@ -24,6 +27,7 @@ from oss.src.utils.helpers import (
 )
 
 # Engines
+from entrypoints.access import bootstrap_access
 from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
     get_analytics_engine,
@@ -102,7 +106,6 @@ from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.service import SimpleWorkflowsService
-from oss.src.core.workflows.dtos import WorkflowServiceRequest
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
@@ -784,6 +787,9 @@ _t_daos_done = time.perf_counter() - _t_daos
 _startup(f"[STARTUP] DAO initialization completed (+{_t_daos_done:.3f}s)")
 _t_services = time.perf_counter()
 
+# Membership and access first: every permission check goes through them.
+bootstrap_access()
+
 vault_service = VaultService(
     secrets_dao=secrets_dao,
     llm_endpoint_registrar=LLMEndpointRegistrar(
@@ -1029,6 +1035,8 @@ triggers_adapter_registry = TriggersGatewayRegistry(
 )
 
 triggers_dao = TriggersDAO(engine=_transactions_engine)
+# Archiving an agent pauses its triggers.
+workflows_service.set_triggers_dao(triggers_dao)
 
 interactions_dao = SessionInteractionsDAO(engine=_transactions_engine)
 
@@ -1049,11 +1057,14 @@ triggers_service = TriggersService(
 
 # Detached workflow start: hand the run to the runner and return on the started handshake
 # (no awaiting the run). Shared by both detached consumers (triggers + interaction continuations).
-async def _dispatch_detached_run(*, project_id, user_id, request, run_id=None) -> str:
+async def _dispatch_detached_run(
+    *, project_id, user_id, request, envelope, run_id=None
+) -> str:
     result = await workflows_service.invoke_workflow_detached(
         project_id=project_id,
         user_id=user_id,
         request=request,
+        envelope=envelope,
         run_id=run_id,
     )
     return result.run_id
@@ -1304,13 +1315,18 @@ _channels_inbox_broker = ProducerOnlyRedisStreamBroker(
 )
 
 
-async def _respond_channel_interaction(*, project_id, user_id, interaction_id, answer):
+async def _respond_channel_interaction(
+    *, project_id, user_id, interaction_id, answer, approved_by
+):
     """A channel's approval answer goes to the turn that parked, like a click
-    in the playground does; the continuation runs in the same session."""
-    await _interactions_dispatcher.respond_many(
+    in the playground does; the continuation runs in the same session, under the
+    asked run's envelope, with the installation as approver."""
+    await _interactions_dispatcher.respond(
         project_id=project_id,
         user_id=user_id,
-        interaction_answers=[(interaction_id, answer)],
+        interaction_id=interaction_id,
+        answer=answer,
+        approved_by=approved_by,
     )
 
 
@@ -1566,22 +1582,13 @@ session_commands_service = SessionCommandsService(
     interactions_service=interactions_service,
     lock_engine=_lock_engine,
     delivery=DirectControlDelivery(
-        continue_interaction=lambda command: _interactions_dispatcher.respond_many(
-            project_id=command.project_id,
-            user_id=command.created_by_id,
-            interaction_answers=[
-                (UUID(item["interaction_id"]), item["answer"])
-                for item in command.data["answers"]
-            ],
-            control_command_id=command.id,
-            continuation_execution_id=command.target_turn_id,
+        continue_interaction=lambda command: deliver_continue_interaction(
+            command=command,
+            interactions_dispatcher=_interactions_dispatcher,
         ),
-        continue_input=lambda command: workflows_service.invoke_workflow_detached(
-            project_id=command.project_id,
-            user_id=command.created_by_id,
-            request=WorkflowServiceRequest.model_validate(command.data["request"]),
-            run_id=command.target_turn_id,
-            control_command_id=command.id,
+        continue_input=lambda command: deliver_continue_input(
+            command=command,
+            workflows_service=workflows_service,
         ),
     ),
     executions_dao=session_executions_dao,

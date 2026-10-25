@@ -89,11 +89,34 @@ export const RESERVED_MCP_SERVER_NAME_MESSAGE =
 export function assertNoReservedUserMcpName(
   servers: Array<{ name?: string }> | undefined,
 ): void {
+  const error = reservedUserMcpNameError(servers);
+  if (error) throw new Error(error);
+}
+
+/**
+ * Names that match the SDK's server-name pattern but are object-key specials in JavaScript.
+ * Several runner maps are keyed by server name, so these are refused at the boundary.
+ */
+const OBJECT_KEY_MCP_SERVER_NAMES = new Set([
+  "__proto__",
+  "constructor",
+  "prototype",
+]);
+
+/** The refusal for the first user MCP server with a reserved name, or undefined. */
+export function reservedUserMcpNameError(
+  servers: Array<{ name?: string }> | undefined,
+): string | undefined {
   for (const server of servers ?? []) {
-    if (server?.name === INTERNAL_TOOL_MCP_SERVER_NAME) {
-      throw new Error(RESERVED_MCP_SERVER_NAME_MESSAGE);
+    const name = server?.name;
+    if (name === INTERNAL_TOOL_MCP_SERVER_NAME) {
+      return RESERVED_MCP_SERVER_NAME_MESSAGE;
+    }
+    if (typeof name === "string" && OBJECT_KEY_MCP_SERVER_NAMES.has(name)) {
+      return `MCP server name '${name}' is reserved; rename the MCP server.`;
     }
   }
+  return undefined;
 }
 
 /**

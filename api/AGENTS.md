@@ -44,14 +44,67 @@ RBAC / access enforcement:
 - RBAC enforcement is an OSS feature and is always-on in both editions. The
   permission vocabulary, default role catalog, and enforcement service live in
   `api/oss/src/core/access/`. Handlers call `check_action_access(...)`
-  unconditionally; there is no edition gate around the check itself.
+  unconditionally; it decides for the request's principal (the `RequestAccess` the auth
+  middleware sets), and there is no edition gate around the check itself.
 - The only edition difference is the EE plan gate: in EE, `check_entitlements(Flag.RBAC)`
-  can grant allow-all when a plan is not RBAC-entitled. This is layered into the OSS
-  enforcement service via a function-local `is_ee()`-guarded import — OSS never imports
+  can grant allow-all to members when a plan is not RBAC-entitled. It enters through
+  `RbacEnforcementInterface` (`oss/src/core/access/interfaces.py`); `entrypoints/access.py`
+  wires `EntitlementsRbacEnforcement` (EE) or `AlwaysEnforcedRbac` (OSS). OSS never imports
   `ee.*` at module top.
 - Custom roles are an EE feature: `AGENTA_ACCESS_ROLES` / `AGENTA_ACCESS_ROLES_OVERLAY`
   are parsed/applied in `api/ee/src/core/access/permissions/role_overrides.py` and
   ignored in OSS (which enforces the code-default catalog).
+
+Project membership and access:
+
+- Membership is decided only by `MembershipsService.resolve` (`oss/src/core/memberships/`).
+  OSS: every organization member is a member of every project, with the organization role.
+  EE: a member needs an organization row and a `project_members` row; the project row's
+  role applies. The edition policy is picked only in `entrypoints/access.py`.
+- Membership writes go only through the four `MembershipsService` writers:
+  `set_member_role`, `remove_member`, `create_project` (seeds every organization member in
+  the same transaction) and `transfer_ownership`. Each writer clears the access caches with
+  `invalidate_access_caches` after the commit. An admin tool that writes membership rows
+  directly must call `invalidate_access_caches` too.
+- `check_action_access` delegates to `AccessService.check_request`. Every process that
+  checks access calls `bootstrap_access()` at startup (the API and both workers do).
+- No new code reads `workspace_members` or `project_members` to decide access.
+- A hot-path membership read is one SQL statement (`fetch_membership_row`,
+  `list_membership_rows`). `integration/memberships/test_hot_path_query_counts_postgres.py`
+  pins the counts.
+- Revocation takes effect at the next decision. It can take up to `AGENTA_CACHE_TTL`
+  (300 s) in two known cases: the Redis invalidation fails, or a read that started before
+  the mutation committed refills the old entry after the invalidation.
+
+Access layer invariants (run principal):
+
+- Every run has an explicit `RunEnvelope` (principal, authority, run context, sender,
+  approver). Routers get it from `request_run_envelope(request)`; durable work builds it
+  with `stored_work_envelope`, `child_envelope` or `resumed_envelope`. No code builds a
+  human principal from a bare user id.
+- There is no implicit human fallback. `check_action_access` needs request access and
+  raises without it (`RequestAccessMissing`) or for another user
+  (`RequestAccessMismatch`). Code that checks another human, or runs without request
+  access (callbacks exempt from the auth middleware, workers), calls
+  `AccessService.check_human` or `decide` explicitly.
+- `AccessService.decide` runs on every call. Nothing caches a decision. Only the
+  principal record (`fetch_principal`), the membership (`resolve_membership`) and the
+  project's organization are cached, and their writers invalidate them.
+- Cached access DTOs give every `Optional` field a `None` default: the cache drops
+  `None` fields when it serializes.
+- Durable work (queued inputs, continuations, interactions, schedules, subscriptions,
+  evaluation runs, channel turns, child runs) stores its envelope or principal and
+  rechecks it with `require` (or `decide`) before it runs. A refusal is a terminal
+  settlement (failed delivery and paused trigger, failed evaluation run, obsolete
+  command, cancelled interaction), never a retry.
+- Mint a run credential (`sign_secret_token`) only after the decision allows. The minted
+  envelope copies the caller's; it never upgrades a principal.
+- New agent-visible failures use `AgentError` (`access_denied`, `missing_principal`,
+  `missing_envelope`).
+- Access logs carry ids and kinds only, never a token, a header, raw claims or an
+  envelope.
+- `integration/access/test_run_principal_query_counts_postgres.py` pins the hot paths at
+  zero access-decision statements on warm caches.
 
 Primary references:
 - `api/entrypoints/routers.py`

@@ -10,5 +10,6 @@
 export interface McpEndpointCheckRequest {
     endpoint_id: string;
     ok: boolean;
+    /** Why the check failed. Text past 300 characters is cut, not refused. */
     reason?: string | null;
 }

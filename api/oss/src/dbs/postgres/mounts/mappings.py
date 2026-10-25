@@ -2,8 +2,6 @@ from datetime import datetime
 from typing import Any, Dict
 from uuid import UUID
 
-import uuid_utils.compat as uuid_utils
-
 from oss.src.core.mounts.dtos import (
     Mount,
     MountCreate,
@@ -20,16 +18,16 @@ def map_mount_dto_to_dbe_upsert(
     user_id: UUID,
     now: datetime,
     #
+    mount_id: UUID,
+    storage_prefix: str,
+    #
     mount_create: MountCreate,
 ) -> Dict[str, Any]:
-    """Column values for an `insert(...).on_conflict_do_update` upsert.
-
-    `id` is minted here because explicit `insert().values()` bypasses the ORM's
-    `default=uuid7` (it only fires on `session.add`), so the pk would be null otherwise.
-    """
+    """Column values for an `insert(...).on_conflict_do_update` upsert."""
     return {
-        "id": uuid_utils.uuid7(),
+        "id": mount_id,
         "project_id": project_id,
+        "storage_prefix": storage_prefix,
         "created_by_id": user_id,
         "created_at": now,
         "updated_at": None,
@@ -54,10 +52,15 @@ def map_mount_dto_to_dbe_create(
     project_id: UUID,
     user_id: UUID,
     #
+    mount_id: UUID,
+    storage_prefix: str,
+    #
     mount_create: MountCreate,
 ) -> MountDBE:
     return MountDBE(
+        id=mount_id,
         project_id=project_id,
+        storage_prefix=storage_prefix,
         #
         created_by_id=user_id,
         #
@@ -92,6 +95,7 @@ def map_mount_dbe_to_dto(
         deleted_by_id=mount_dbe.deleted_by_id,
         #
         project_id=mount_dbe.project_id,
+        storage_prefix=mount_dbe.storage_prefix,
         slug=mount_dbe.slug,
         session_id=mount_dbe.session_id,
         agent_id=mount_dbe.agent_id,

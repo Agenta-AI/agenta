@@ -1771,6 +1771,7 @@ export class SessionsClient {
      * @param {AgentaApi.BodyUploadSessionCwdFile} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
+     * @throws {@link AgentaApi.BadRequestError}
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
@@ -1831,6 +1832,8 @@ export class SessionsClient {
 
         if (_response.error.reason === "status-code") {
             switch (_response.error.statusCode) {
+                case 400:
+                    throw new AgentaApi.BadRequestError(_response.error.body as unknown, _response.rawResponse);
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
                         _response.error.body as unknown,

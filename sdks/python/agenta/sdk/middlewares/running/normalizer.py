@@ -241,7 +241,9 @@ class NormalizerMiddleware:
 
             code = getattr(exc, "status_code") if hasattr(exc, "status_code") else 500
 
-            if code in [401, 403, 429]:  # Downstream API errors
+            # Downstream API errors, except a refused run credential: that is the
+            # caller's own access decision and stays one clear 403 `access_denied`.
+            if code in [401, 403, 429] and failure_code != "access_denied":
                 code = 424
 
             message = str(exc) or "Internal Server Error"

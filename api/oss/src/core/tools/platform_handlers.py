@@ -31,6 +31,7 @@ from pydantic import ValidationError
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.apps.handlers import (
     CREATE_APP_CALL_REF,
@@ -116,6 +117,7 @@ async def handle_test_run(
     user_id: UUID,
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService],
+    envelope: RunEnvelope,
     timeout_ms: int = TEST_RUN_DEFAULT_TIMEOUT_MS,
 ) -> PlatformHandlerResult:
     if _header_value(headers, TEST_RUN_RECURSION_HEADER) == TEST_RUN_RECURSION_VALUE:
@@ -145,6 +147,7 @@ async def handle_test_run(
         project_id=project_id,
         user_id=user_id,
         request=workflow_request,
+        envelope=envelope,
     )
     if not service_url:
         return _failed_response("Workflow revision has no runnable service URL.")
@@ -236,19 +239,37 @@ async def _build_test_workflow_request(
         )
 
     if request.delta is not None:
-        # `test_run` previews an AGENT's delta, so it gets the agent's transformations.
-        resolution = await workflows_service._resolve_revision_delta(
-            project_id=project_id,
-            workflow_revision_commit=WorkflowRevisionCommit(
-                workflow_variant_id=request.target.workflow_variant_id,
-                delta=request.delta,
-            ),
-            # A test run applies the delta in memory and stores nothing, so it carries no
-            # base revision id. Without this an ordered delta could never be previewed:
-            # the commit path requires that id, and it exists to protect a write.
-            preview=True,
-            agent_context=True,
+        from oss.src.core.workflows.change_set import (
+            PARAMETERS_ONLY,
+            ChangeSetError,
+            Reason,
         )
+
+        # `test_run` previews an AGENT's delta, so it gets the agent's transformations.
+        try:
+            resolution = await workflows_service._resolve_revision_delta(
+                project_id=project_id,
+                workflow_revision_commit=WorkflowRevisionCommit(
+                    workflow_variant_id=request.target.workflow_variant_id,
+                    delta=request.delta,
+                ),
+                # The engine enforces the parameters-only scope for every delta form;
+                # `_validate_delta_scope` only gives `set`/`remove` an earlier message.
+                scope_policy=PARAMETERS_ONLY,
+                # A test run applies the delta in memory and stores nothing, so it carries
+                # no base revision id. Without this an ordered delta could never be
+                # previewed: the commit path requires that id, and it exists to protect a
+                # write.
+                preview=True,
+                agent_context=True,
+            )
+        except ChangeSetError as e:
+            if e.reason != Reason.OUT_OF_SCOPE:
+                raise
+            raise PlatformToolHandlerRefused(
+                f"test_run delta may only change the revision's "
+                f"'{_DELTA_ALLOWED_ROOT}' tree: {e}"
+            ) from e
         resolved = resolution.commit
         if resolved.data is None:
             raise PlatformToolHandlerError(
@@ -978,6 +999,8 @@ class PlatformToolHandlerRegistration:
     requires_elevation: Optional[Callable[[Any], bool]] = None
     # Drive-backed handlers take the router's MountsService as `mounts_service`.
     needs_mounts: bool = False
+    # Handlers that start a child run take its run envelope as `envelope`.
+    needs_envelope: bool = False
 
 
 PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
@@ -985,6 +1008,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         call_ref=TEST_RUN_CALL_REF,
         timeout_ms=TEST_RUN_DEFAULT_TIMEOUT_MS,
         handler=handle_test_run,
+        needs_envelope=True,
         # An in-memory delta edits the (uncommitted) revision, so it needs the same
         # permission as committing one.
         elevated_permission=Permission.EDIT_WORKFLOWS,
@@ -1037,6 +1061,12 @@ PLATFORM_TOOL_DEFINITIONS: Dict[str, Dict[str, Any]] = {
 }
 
 
+def required_envelope(*, call_ref: str) -> bool:
+    """Whether this handler starts a run (and so is rechecked as a child run)."""
+    registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
+    return bool(registration and registration.needs_envelope)
+
+
 def required_elevated_permission(
     *,
     call_ref: str,
@@ -1065,6 +1095,7 @@ async def dispatch_platform_tool_handler(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService],
     mounts_service: Any = None,
+    envelope: Optional[RunEnvelope] = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:
@@ -1075,6 +1106,12 @@ async def dispatch_platform_tool_handler(
     extra: Dict[str, Any] = (
         {"mounts_service": mounts_service} if registration.needs_mounts else {}
     )
+    if registration.needs_envelope:
+        if envelope is None:
+            raise PlatformToolHandlerRefused(
+                "This tool starts a run and needs a run credential."
+            )
+        extra["envelope"] = envelope
     return await registration.handler(
         arguments=arguments,
         headers=headers,

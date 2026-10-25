@@ -11,6 +11,8 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
+
+from oss.tests.pytest.utils.principals import make_envelope
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.requests import Request
@@ -167,6 +169,9 @@ def test_the_credential_exchange_follows_the_master_switch_only(caller, monkeypa
     caller(OUTSIDE)
     monkeypatch.setattr(
         credentials_router, "sign_secret_token", AsyncMock(return_value="signed")
+    )
+    monkeypatch.setattr(
+        credentials_router, "request_run_envelope", lambda request: make_envelope()
     )
     app = FastAPI()
     app.include_router(GatewayCredentialsRouter().router)

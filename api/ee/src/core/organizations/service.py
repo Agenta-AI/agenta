@@ -654,11 +654,10 @@ class OrganizationProvidersService:
                 create_secret_dto=secret_payload,
             )
 
-            flags = payload.flags or {}
-            if "is_valid" not in flags:
-                flags["is_valid"] = False
-            if "is_active" not in flags:
-                flags["is_active"] = False
+            # Only test_provider may mark a provider valid and turn it on.
+            flags = dict(payload.flags or {})
+            flags["is_valid"] = False
+            flags["is_active"] = False
 
             provider = await dao.create(
                 created_by_id=user_id,
@@ -711,7 +710,12 @@ class OrganizationProvidersService:
             flags = provider.flags.copy() if provider.flags else {}
 
             if payload.flags is not None:
-                flags.update(payload.flags)
+                incoming_flags = dict(payload.flags)
+                # is_valid is owned by test_provider; is_active needs a valid provider.
+                incoming_flags.pop("is_valid", None)
+                if incoming_flags.get("is_active") and not flags.get("is_valid"):
+                    incoming_flags["is_active"] = False
+                flags.update(incoming_flags)
 
             if settings_changed:
                 flags["is_valid"] = False

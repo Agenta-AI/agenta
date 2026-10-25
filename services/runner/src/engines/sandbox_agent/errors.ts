@@ -107,6 +107,50 @@ export const SESSION_RECORDS_INCOMPLETE_CODE: RunErrorCode = "session_records_in
 export const SESSION_RECORDS_INCOMPLETE_MESSAGE =
   "Part of this session's history could not be saved, so the agent cannot continue it. Start a new session.";
 
+export const ACCESS_DENIED_CODE: RunErrorCode = "access_denied";
+
+/**
+ * The line the person reads when they lost access to the project while the turn ran. One line:
+ * the SDK keeps only the first line of a runner error. See `sessions/access-denied.ts`.
+ */
+export const ACCESS_DENIED_MESSAGE =
+  "You no longer have access to this project, so the agent run was stopped.";
+
+/** The line the person reads when the LLM gateway's spending check refused the model call. */
+export const GATEWAY_ENTITLEMENT_DENIED_MESSAGE =
+  "Agenta's spending check refused this model call, so the turn was stopped. Check your organization's credits and plan, then send the message again.";
+
+/**
+ * The LLM gateway answers two different refusals with code `policy_denied`
+ * (`api/oss/src/apis/fastapi/gateways/llms/proxy.py`), told apart by the sentence it writes:
+ *
+ * - "Denied use_llm_endpoints on <target>": the permission check refused. Every role that may run
+ *   a session may use the LLM endpoints, so during a turn this means the caller lost access to
+ *   the project: `access_denied`.
+ * - "Entitlement <key> exceeded for <target>": the spending check refused (or could not answer).
+ *   Not a provider refusal, so it does not get the provider's "you can keep going" advice.
+ *
+ * Any other `policy_denied` (the MCP plane's tool refusals included) keeps the rules below.
+ */
+export function classifyGatewayPolicyDenial(
+  detail: AgentErrorDetail | undefined,
+): ClassifiedRunError | undefined {
+  if (detail?.code !== "policy_denied") return undefined;
+  if (/\bDenied use_llm_endpoints\b/.test(detail.message)) return accessDeniedClassified();
+  if (/\bEntitlement \S+ exceeded\b/.test(detail.message))
+    return { message: GATEWAY_ENTITLEMENT_DENIED_MESSAGE, code: "runner_error", detail };
+  return undefined;
+}
+
+/** The classified form of a lost access, with its structured detail. */
+export function accessDeniedClassified(): ClassifiedRunError {
+  return {
+    message: ACCESS_DENIED_MESSAGE,
+    code: ACCESS_DENIED_CODE,
+    detail: { code: ACCESS_DENIED_CODE, message: ACCESS_DENIED_MESSAGE, retryable: false },
+  };
+}
+
 export type RunErrorCode =
   | "runner_error"
   // The sandbox provider (or this runner's own sandbox admission) is at capacity; retryable later.
@@ -186,6 +230,10 @@ export type RunErrorCode =
   // rebuilt from it. Not retryable: every later turn of the session fails the same way, and the
   // user has to start a new session. See `sessions/persist.ts`.
   | "session_records_incomplete"
+  // The caller lost access to the project while the turn ran (removed from it, a lower role, a
+  // deleted key): a session call of the turn answered 403. Not retryable. See
+  // `sessions/access-denied.ts`.
+  | "access_denied"
   // A failure no rule recognized, whose text the runner withholds (it may hold paths, ids or
   // credentials): the message is one sentence with a reference to the runner's log. A client must
   // not show any other text for it in its place (a trace's error text included). Only runs whose
@@ -503,6 +551,10 @@ export function classifyRunError(
   if (isPublicError(err))
     return { message: sanitizeErrorText(err.message), code: err.publicCode };
   const raw = err instanceof Error ? err.message : String(err);
+  // The LLM gateway's own `policy_denied` refusals: a lost access, or its spending check. Neither
+  // is a provider refusal, and "you can keep going" would be wrong for both.
+  const policyDenial = classifyGatewayPolicyDenial(parseGatewayErrorDetail(raw));
+  if (policyDenial) return policyDenial;
   // The gateway refused a model call with a sentence written for the person (out of credit,
   // built-in models not enabled): that sentence and its class, never the raw text and marker.
   const refusal = personFacingGatewayRefusal(raw);

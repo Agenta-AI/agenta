@@ -1,0 +1,240 @@
+"""Postgres implementation of `PrincipalsDAOInterface`.
+
+One statement per call for every principal kind, read through the `fetch_principal`
+cache. The cache stores the absence of a principal too, so a repeated unknown id costs
+one Redis read. Callers invalidate an entry with `invalidate_principal_cache` after a
+key, binding, connection or user change.
+"""
+
+from typing import Optional, Sequence
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import text
+
+from oss.src.core.access.dtos import (
+    PrincipalKind,
+    PrincipalRecord,
+    PrincipalRef,
+    ScopePrincipals,
+    UserPrincipals,
+)
+from oss.src.core.access.interfaces import PrincipalsDAOInterface
+from oss.src.dbs.postgres.access.mappings import (
+    map_api_key_dbe_to_principal_record,
+    map_channel_agent_dbe_to_principal_record,
+    map_user_dbe_to_principal_record,
+)
+from oss.src.models.db_models import APIKeyDB, UserDB  # noqa: F401  (tables read here)
+from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
+
+
+_NAMESPACE = "fetch_principal"
+
+
+class _CachedPrincipal(BaseModel):
+    """The cache entry. `record=None` is a cached absence, not a miss."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    record: Optional[PrincipalRecord] = None
+
+
+def _cache_key(principal: PrincipalRef) -> dict:
+    return {"k": principal.kind.value, "id": str(principal.id)}
+
+
+_FETCH_USER_SQL = """
+SELECT u.id FROM users u WHERE u.id = :id
+"""
+
+# The key is active only when its creator is a user: today a key whose creator has no
+# `users` row fails every request, and the Agenta channel refuses it.
+_FETCH_API_KEY_SQL = """
+SELECT k.id, k.project_id, k.created_by_id, k.expiration_date,
+       u.id IS NOT NULL AS creator_exists
+FROM api_keys k
+LEFT JOIN users u ON u.id = k.created_by_id
+WHERE k.id = :id
+"""
+
+_FETCH_INSTALLATION_SQL = """
+SELECT a.id, a.project_id, a.created_by_id,
+       a.deleted_at IS NULL AS agent_live,
+       COALESCE((a.flags->>'is_active')::boolean, true) AS agent_active,
+       c.id IS NOT NULL AS connection_exists,
+       c.deleted_at IS NULL AS connection_live,
+       COALESCE((c.flags->>'is_active')::boolean, true) AS connection_active
+FROM channel_agents a
+LEFT JOIN channel_connections c
+       ON c.id = a.connection_id AND c.project_id = a.project_id
+WHERE a.id = :id
+"""
+
+
+_LIST_USER_PRINCIPALS_SQL = """
+SELECT
+  ARRAY(SELECT k.id FROM api_keys k WHERE k.created_by_id = :u) AS api_key_ids,
+  ARRAY(SELECT a.id FROM channel_agents a WHERE a.created_by_id = :u) AS binding_ids,
+  ARRAY(
+    SELECT pm.project_id FROM project_members pm WHERE pm.user_id = :u
+    UNION
+    SELECT p.id FROM projects p
+    JOIN organization_members om ON om.organization_id = p.organization_id
+    WHERE om.user_id = :u
+    UNION
+    SELECT k.project_id FROM api_keys k WHERE k.created_by_id = :u
+  ) AS project_ids
+"""
+
+
+_LIST_SCOPE_PRINCIPALS_SQL = """
+WITH scoped AS (
+    SELECT p.id FROM projects p
+    WHERE p.id = ANY(CAST(:projects AS uuid[]))
+       OR p.organization_id = ANY(CAST(:organizations AS uuid[]))
+       OR p.workspace_id = ANY(CAST(:workspaces AS uuid[]))
+)
+SELECT
+  ARRAY(SELECT id FROM scoped) AS project_ids,
+  ARRAY(SELECT k.id FROM api_keys k WHERE k.project_id IN (SELECT id FROM scoped))
+    AS api_key_ids,
+  ARRAY(SELECT a.id FROM channel_agents a WHERE a.project_id IN (SELECT id FROM scoped))
+    AS binding_ids
+"""
+
+
+class PrincipalsDAO(PrincipalsDAOInterface):
+    def __init__(self, *, engine):
+        self.engine = engine
+
+    def cache_entry(self, *, principal: PrincipalRef) -> Optional[dict]:
+        return {
+            "namespace": _NAMESPACE,
+            "key": _cache_key(principal),
+            "model": _CachedPrincipal,
+        }
+
+    def record_from_cache(self, value) -> Optional[PrincipalRecord]:
+        return value.record
+
+    async def fetch_principal(
+        self,
+        *,
+        principal: PrincipalRef,
+    ) -> Optional[PrincipalRecord]:
+        cached = await get_cache(
+            namespace=_NAMESPACE,
+            key=_cache_key(principal),
+            model=_CachedPrincipal,
+        )
+        if cached is not None:
+            return cached.record
+
+        record = await self._read(principal=principal)
+
+        await set_cache(
+            namespace=_NAMESPACE,
+            key=_cache_key(principal),
+            value=_CachedPrincipal(record=record),
+        )
+        return record
+
+    async def list_user_principals(self, *, user_id: UUID) -> UserPrincipals:
+        async with self.engine.session() as session:
+            row = (
+                await session.execute(text(_LIST_USER_PRINCIPALS_SQL), {"u": user_id})
+            ).first()
+        return UserPrincipals(
+            user_id=user_id,
+            api_key_ids=list(row.api_key_ids or []),
+            binding_ids=list(row.binding_ids or []),
+            project_ids=list(row.project_ids or []),
+        )
+
+    async def list_scope_principals(
+        self,
+        *,
+        organization_ids: Sequence[UUID] = (),
+        workspace_ids: Sequence[UUID] = (),
+        project_ids: Sequence[UUID] = (),
+    ) -> ScopePrincipals:
+        async with self.engine.session() as session:
+            row = (
+                await session.execute(
+                    text(_LIST_SCOPE_PRINCIPALS_SQL),
+                    {
+                        "organizations": list(organization_ids),
+                        "workspaces": list(workspace_ids),
+                        "projects": list(project_ids),
+                    },
+                )
+            ).first()
+        return ScopePrincipals(
+            project_ids=list(row.project_ids or []),
+            api_key_ids=list(row.api_key_ids or []),
+            binding_ids=list(row.binding_ids or []),
+        )
+
+    async def invalidate_principal(self, *, principal: PrincipalRef) -> Optional[bool]:
+        return await invalidate_principal_cache(principal=principal)
+
+    async def fetch_project_organization_id(
+        self,
+        *,
+        project_id: UUID,
+    ) -> Optional[UUID]:
+        # A project never moves to another organization, so the entry needs no
+        # invalidation; a deleted project's entry only names an organization.
+        cached = await get_cache(
+            namespace="project_organization",
+            project_id=str(project_id),
+            key="organization",
+        )
+        if cached:
+            return UUID(str(cached))
+        async with self.engine.session() as session:
+            organization_id = (
+                await session.execute(
+                    text("SELECT organization_id FROM projects WHERE id = :p"),
+                    {"p": project_id},
+                )
+            ).scalar_one_or_none()
+        if organization_id is not None:
+            await set_cache(
+                namespace="project_organization",
+                project_id=str(project_id),
+                key="organization",
+                value=str(organization_id),
+            )
+        return organization_id
+
+    async def _read(self, *, principal: PrincipalRef) -> Optional[PrincipalRecord]:
+        if principal.kind == PrincipalKind.HUMAN:
+            sql, mapper = _FETCH_USER_SQL, map_user_dbe_to_principal_record
+        elif principal.kind == PrincipalKind.API_KEY:
+            sql, mapper = _FETCH_API_KEY_SQL, map_api_key_dbe_to_principal_record
+        elif principal.kind == PrincipalKind.INSTALLATION:
+            sql, mapper = (
+                _FETCH_INSTALLATION_SQL,
+                map_channel_agent_dbe_to_principal_record,
+            )
+        else:  # pragma: no cover - the enum is closed
+            return None
+
+        async with self.engine.session() as session:
+            row = (await session.execute(text(sql), {"id": principal.id})).first()
+
+        if row is None:
+            return None
+        return mapper(row)
+
+
+async def invalidate_principal_cache(*, principal: PrincipalRef) -> Optional[bool]:
+    """A direct delete by key. Returns `None` when the delete failed (or caching is
+    off)."""
+
+    from oss.src.core.access.context import clear_request_memo  # noqa: PLC0415
+
+    clear_request_memo()
+    return await invalidate_cache(namespace=_NAMESPACE, key=_cache_key(principal))
