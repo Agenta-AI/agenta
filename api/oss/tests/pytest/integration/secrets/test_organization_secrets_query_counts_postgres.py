@@ -29,6 +29,7 @@ from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.registrar import LLMEndpointRegistrar
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
+from oss.src.core.gateways.llms.types import LLMEndpointNotFoundError
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
     GatewayPlane,
@@ -258,6 +259,10 @@ BEFORE = {
         "warm": (3, 1),
     },
 }
+
+
+# Rows that answer "not found" (an unknown slug). Every other row succeeds.
+NOT_FOUND = {"E2", "I3"}
 
 
 def _expected(row: str, mode: str):
@@ -524,14 +529,15 @@ async def _measure(call, mode, project_ids, user, monkeypatch):
             with bearer_request_access(user):
                 with count_statements(get_transactions_engine()) as statements:
                     with count_redis_calls() as calls:
+                        outcome = "ok"
                         try:
                             await call()
-                        except Exception:  # noqa: BLE001
-                            pass
+                        except LLMEndpointNotFoundError:
+                            outcome = "not_found"
         finally:
             if mode == "redis_failing":
                 failing.__exit__(None, None, None)
-    return len(statements), len(calls), statements
+    return len(statements), len(calls), statements, outcome
 
 
 @pytest.mark.parametrize("mode", MODES)
@@ -540,9 +546,11 @@ async def test_existing_and_new_paths_cost_no_more_than_before(
     row, mode, world, monkeypatch
 ):
     call, project_ids = _rows(world)[row]
-    statements, redis, _ = await _measure(
+    statements, redis, _, outcome = await _measure(
         call, mode, project_ids, world["user"], monkeypatch
     )
+    # Every row answers as intended; any other error fails the test.
+    assert outcome == ("not_found" if row in NOT_FOUND else "ok"), (row, mode)
     assert (statements, redis) == _expected(row, mode), (row, mode)
     before = BEFORE[row][mode]
     assert statements <= before[0] and redis <= before[1], (row, mode, before)
@@ -585,12 +593,13 @@ async def test_project_writes_keep_their_statements(mode, world, monkeypatch):
         ("P2", p2_caller_slug, [p2]),
         ("P3", p3_user_update, [world["p1"]]),
     ):
-        statements, redis, sql = await _measure(
+        statements, redis, sql, outcome = await _measure(
             call, mode, projects, world["user"], monkeypatch
         )
+        assert outcome == "ok", (row, mode)
         before = BEFORE[row][mode]
-        assert statements <= before[0], (row, mode, statements, before)
-        assert redis <= before[1], (row, mode, redis, before)
+        # The same statements and commands as before M5, exactly.
+        assert (statements, redis) == before, (row, mode, statements, redis, before)
         if row == "P2":
             # The shadow check is folded into the one insert; SERIALIZABLE rides the BEGIN.
             assert len(sql) == 1 and sql[0].lstrip().upper().startswith(

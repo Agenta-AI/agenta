@@ -14,6 +14,7 @@ from uuid import UUID, uuid4
 
 from oss.src.core.secrets.dtos import (
     CachedEffectiveSecrets,
+    OrganizationSecretDeleted,
     CreateSecretDTO,
     SecretOwner,
     SecretResponseDTO,
@@ -391,10 +392,15 @@ class InMemorySecretsDAO:
             (r for r in self._org_rows(organization_id) if r.id == secret_id), None
         )
         if row is None:
-            return False
+            return None
         self.records.pop(secret_id)
-        self.selected.pop(secret_id, None)
-        return True
+        selected = self.selected.pop(secret_id, None) or []
+        return OrganizationSecretDeleted(
+            secret_id=row.id,
+            kind=row.kind,
+            availability=row.availability or SecretAvailability.ALL_PROJECTS,
+            selected_count=len(selected),
+        )
 
     async def set_organization_secret_availability(
         self, *, organization_id, secret_id, availability, project_ids, user_id

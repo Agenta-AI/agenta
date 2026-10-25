@@ -846,3 +846,14 @@ class PublicInheritedSecretResponseDTO(PublicSecretResponseDTO):
     nothing about other projects, and the project row that overrides it, if any."""
 
     overridden_by_secret_id: Optional[UUID] = None
+
+
+class OrganizationSecretDeleted(BaseModel):
+    """What an organization credential delete removed: ids and kinds only, for the audit
+    event (never a value)."""
+
+    secret_id: UUID
+    kind: SecretKind
+    availability: SecretAvailability
+    # The projects it reached when limited (read in the delete statement).
+    selected_count: int = 0

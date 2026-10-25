@@ -528,3 +528,64 @@ async def test_a_structured_vertex_document_keeps_its_characters(world):
         user_id=uuid4(),
     )
     assert created.data.provider.extras["vertex_ai_credentials"] == document
+
+
+async def test_every_action_carries_kind_availability_and_project_count(world):
+    vault = world["vault"](_AllowLimits())
+    created = await vault.create_organization_secret(
+        organization_id=world["organization_id"],
+        create_secret_dto=_dto(slug="audited"),
+        user_id=uuid4(),
+    )
+    await vault.set_organization_secret_availability(
+        organization_id=world["organization_id"],
+        secret_id=created.id,
+        availability=SecretAvailability.SELECTED_PROJECTS,
+        project_ids=[world["sales"]],
+        user_id=uuid4(),
+    )
+    await vault.delete_organization_secret(
+        organization_id=world["organization_id"], secret_id=created.id
+    )
+    for event in world["events"]:
+        attributes = event["event"].attributes
+        assert {"kind", "availability", "project_count", "action", "secret_id"} <= set(
+            attributes
+        )
+        assert attributes["kind"] == "provider_key"
+    counts = [e["event"].attributes["project_count"] for e in world["events"]]
+    assert counts == [2, 1, 1]  # all projects, the one selected, the one it reached
+
+
+async def test_the_event_is_published_when_the_cache_delete_fails(world, monkeypatch):
+    import oss.src.core.secrets.services as services
+
+    async def broken(entries):
+        raise ConnectionError("redis down")
+
+    monkeypatch.setattr(services, "invalidate_cache_entries", broken)
+    await world["vault"]().create_organization_secret(
+        organization_id=world["organization_id"],
+        create_secret_dto=_dto(slug="still-audited"),
+        user_id=uuid4(),
+    )
+    assert [e["event"].attributes["action"] for e in world["events"]] == ["created"]
+
+
+async def test_a_failed_project_list_logs_and_does_not_raise(
+    world, monkeypatch, caplog
+):
+    async def broken(**kwargs):
+        raise RuntimeError("database down")
+
+    monkeypatch.setattr(world["dao"], "list_organization_project_ids", broken)
+    with caplog.at_level("WARNING"):
+        created = await world["vault"]().create_organization_secret(
+            organization_id=world["organization_id"],
+            create_secret_dto=_dto(slug="no-list"),
+            user_id=uuid4(),
+        )
+    assert created.slug == "no-list"
+    messages = " ".join(r.getMessage() for r in caplog.records)
+    assert "cache invalidation failed" in messages
+    assert "event not published" in messages

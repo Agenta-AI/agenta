@@ -371,3 +371,93 @@ async def test_a_limited_organization_row_only_constrains_the_projects_it_reache
     )
     assert str(changed.data.kind.value) == "mistral"
     assert await _pairs(org) == []
+
+
+async def _race(first, second):
+    results = await asyncio.gather(first(), second(), return_exceptions=True)
+    failures = [r for r in results if isinstance(r, Exception)]
+    return results, failures
+
+
+async def test_concurrent_override_kind_change_and_organization_create(
+    org, monkeypatch
+):
+    """The project row changes its provider family while the organization creates a row
+    with its slug: SERIALIZABLE keeps the pair from ever holding."""
+    original = SecretsDAO._check_organization_conflicts
+
+    async def slow_check(self, connection, **kwargs):
+        await original(self, connection, **kwargs)
+        await asyncio.sleep(0.3)
+
+    monkeypatch.setattr(SecretsDAO, "_check_organization_conflicts", slow_check)
+    vault = VaultService(SecretsDAO())
+    for _ in range(3):
+        slug = _slug()
+        own = await vault.create_secret(
+            project_id=org.project_ids[0], create_secret_dto=_create(slug=slug)
+        )
+
+        async def change_family():
+            await asyncio.sleep(0.1)
+            return await vault.update_secret(
+                secret_id=own.id,
+                project_id=org.project_ids[0],
+                update_secret_dto=UpdateSecretDTO.model_validate(
+                    {
+                        "secret": {
+                            "kind": "provider_key",
+                            "data": {
+                                "kind": "anthropic",
+                                "provider": {"key": "sk-ant-123456789"},
+                            },
+                        }
+                    }
+                ),
+            )
+
+        _, failures = await _race(lambda: _org_row(org, slug), change_family)
+        assert len(failures) == 1, failures
+        assert isinstance(failures[0], (SecretShadowConflict, SecretWriteConflict))
+        assert await _pairs(org) == []
+
+
+async def test_concurrent_widening_and_project_create(org, monkeypatch):
+    original = SecretsDAO._check_organization_conflicts
+
+    async def slow_check(self, connection, **kwargs):
+        await original(self, connection, **kwargs)
+        await asyncio.sleep(0.3)
+
+    sales, marketing = org.project_ids
+    vault = VaultService(SecretsDAO())
+    for _ in range(3):
+        slug = _slug()
+        limited = await _org_row(
+            org,
+            slug,
+            availability=SecretAvailability.SELECTED_PROJECTS,
+            projects=[sales],
+        )
+        monkeypatch.setattr(SecretsDAO, "_check_organization_conflicts", slow_check)
+
+        async def widen():
+            return await SecretsDAO().set_organization_secret_availability(
+                organization_id=org.organization_id,
+                secret_id=limited.id,
+                availability=SecretAvailability.ALL_PROJECTS,
+                project_ids=[],
+                user_id=org.owner_id,
+            )
+
+        async def marketing_create():
+            await asyncio.sleep(0.1)
+            return await vault.create_secret(
+                project_id=marketing, create_secret_dto=_custom_secret(slug)
+            )
+
+        _, failures = await _race(widen, marketing_create)
+        monkeypatch.setattr(SecretsDAO, "_check_organization_conflicts", original)
+        assert len(failures) == 1, failures
+        assert isinstance(failures[0], (SecretShadowConflict, SecretWriteConflict))
+        assert await _pairs(org) == []

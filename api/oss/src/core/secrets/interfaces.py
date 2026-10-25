@@ -5,6 +5,7 @@ from typing import Callable, List, Optional, Sequence
 from oss.src.core.secrets.dtos import (
     CachedEffectiveSecrets,
     CreateSecretDTO,
+    OrganizationSecretDeleted,
     SecretOwner,
     UpdateSecretDTO,
     SecretResponseDTO,
@@ -163,7 +164,7 @@ class SecretsDAOInterface:
 
     async def delete_organization_secret(
         self, *, organization_id: UUID, secret_id: UUID
-    ) -> bool:
+    ) -> Optional[OrganizationSecretDeleted]:
         raise NotImplementedError
 
     async def set_organization_secret_availability(

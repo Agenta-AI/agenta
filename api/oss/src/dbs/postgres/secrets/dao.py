@@ -19,6 +19,8 @@ Three rules hold for every write here:
   read, changed or deleted through them.
 """
 
+import asyncio
+import random
 from types import SimpleNamespace
 from typing import Awaitable, Callable, List, Optional, Sequence, TypeVar
 from uuid import UUID
@@ -45,6 +47,7 @@ from sqlalchemy.orm import aliased
 from oss.src.core.secrets.context import get_data_encryption_key
 from oss.src.core.secrets.dtos import (
     CachedEffectiveSecrets,
+    OrganizationSecretDeleted,
     CreateSecretDTO,
     SecretOwner,
     SecretResponseDTO,
@@ -82,6 +85,7 @@ _Result = TypeVar("_Result")
 
 _SERIALIZABLE = "SERIALIZABLE"
 _SERIALIZATION_FAILURE = "40001"
+_SERIALIZABLE_ATTEMPTS = 4
 
 # Postgres enum labels are the member NAMES.
 _INHERITABLE_LABELS = ", ".join(f"'{kind.name}'" for kind in sorted(INHERITABLE_KINDS))
@@ -218,7 +222,8 @@ RETURNING {_COLUMNS}
 
 _DELETE_ORGANIZATION_SECRET_SQL = f"""
 DELETE FROM secrets AS s WHERE s.id = CAST(:secret_id AS UUID) AND {_ORGANIZATION_ROW_FILTER}
-RETURNING s.id
+RETURNING s.id, s.slug, s.kind::text AS kind, s.availability,
+    (SELECT count(*) FROM secret_projects sp WHERE sp.secret_id = s.id) AS selected_count
 """
 
 # The default project first: an organization event rides on it.
@@ -311,6 +316,10 @@ def _inherited_identity_matches(*, inherited: Optional[str], kind, data) -> bool
     return True
 
 
+def _secret_kind_of(label: str) -> SecretKind:
+    return SecretKind[label]
+
+
 def _row(mapping) -> SimpleNamespace:
     return SimpleNamespace(**dict(mapping))
 
@@ -359,9 +368,16 @@ class SecretsDAO(SecretsDAOInterface):
         *,
         create_secret_dto: Optional[CreateSecretDTO] = None,
     ) -> _Result:
-        """Run `work` in one SERIALIZABLE transaction, retried once on a serialization
-        failure. Domain errors raised by `work` roll it back and pass through."""
-        for attempt in (1, 2):
+        """Run `work` in one SERIALIZABLE transaction, retried on a serialization failure
+        (`_SERIALIZABLE_ATTEMPTS` in all, with a short random wait), then
+        `SecretWriteConflict`. Domain errors raised by `work` roll it back and pass
+        through.
+
+        Postgres tracks serializable reads by index page, so two organization writes in
+        different organizations whose index entries share a page can abort one another
+        without a real conflict. The retries absorb that; a real conflict still ends in
+        409 or in the domain refusal its retry finds."""
+        for attempt in range(1, _SERIALIZABLE_ATTEMPTS + 1):
             try:
                 async with self.engine.transaction(
                     isolation_level=_SERIALIZABLE
@@ -369,7 +385,8 @@ class SecretsDAO(SecretsDAOInterface):
                     return await work(connection)
             except DBAPIError as error:
                 if _sqlstate(error) == _SERIALIZATION_FAILURE:
-                    if attempt == 1:
+                    if attempt < _SERIALIZABLE_ATTEMPTS:
+                        await asyncio.sleep(random.uniform(0.005, 0.05) * attempt)
                         continue
                     raise SecretWriteConflict() from None
                 raise _conflict_from(
@@ -913,14 +930,22 @@ class SecretsDAO(SecretsDAOInterface):
 
     async def delete_organization_secret(
         self, *, organization_id: UUID, secret_id: UUID
-    ) -> bool:
+    ) -> Optional[OrganizationSecretDeleted]:
         try:
             async with self.engine.transaction() as connection:
                 result = await connection.execute(
                     text(_DELETE_ORGANIZATION_SECRET_SQL),
                     {"organization_id": organization_id, "secret_id": secret_id},
                 )
-                return result.first() is not None
+                row = result.mappings().first()
+                if row is None:
+                    return None
+                return OrganizationSecretDeleted(
+                    secret_id=row["id"],
+                    kind=_secret_kind_of(row["kind"]),
+                    availability=SecretAvailability(row["availability"]),
+                    selected_count=row["selected_count"],
+                )
         except DBAPIError as error:
             raise _conflict_from(error) from None
 

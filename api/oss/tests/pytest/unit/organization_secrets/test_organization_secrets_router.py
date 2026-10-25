@@ -450,3 +450,56 @@ def test_logs_carry_no_value(world, caplog, capsys, monkeypatch):
         assert SENTINEL_KEY[:7] not in record.getMessage()
     captured = capsys.readouterr()
     assert SENTINEL_KEY not in captured.out + captured.err
+
+
+def test_a_limit_on_an_unknown_sso_or_foreign_id_answers_404_before_403(world):
+    client, _ = world["client"](NoProjectLimits())
+    sso = world["dao"]._store(
+        world["dao"]._build(
+            owner=SecretOwner(
+                kind=SecretOwnerKind.ORGANIZATION, id=world["organization_id"]
+            ),
+            dto=CreateSecretDTO.model_validate(
+                {
+                    "header": {"name": "SSO"},
+                    "secret": {
+                        "kind": "sso_provider",
+                        "data": {
+                            "provider": {
+                                "client_id": "c",
+                                "client_secret": SENTINEL_KEY,
+                                "issuer_url": "https://idp.example.com",
+                                "scopes": ["openid"],
+                            }
+                        },
+                    },
+                }
+            ),
+        )
+    )
+    foreign = world["dao"]._store(
+        world["dao"]._build(
+            owner=SecretOwner(
+                kind=SecretOwnerKind.ORGANIZATION, id=world["other_organization"]
+            ),
+            dto=CreateSecretDTO.model_validate(org_secret_payload(slug="foreign")),
+        )
+    )
+    limited = {
+        "availability": "selected_projects",
+        "project_ids": [str(world["sales"])],
+    }
+    for secret_id in (uuid4(), sso.id, foreign.id):
+        response = client.put(
+            f"/organization-secrets/{secret_id}/projects", json=limited
+        )
+        assert response.status_code == 404, (secret_id, response.text)
+    own = client.post(
+        "/organization-secrets/", json=org_secret_payload(slug="own")
+    ).json()
+    assert (
+        client.put(
+            f"/organization-secrets/{own['id']}/projects", json=limited
+        ).status_code
+        == 403
+    )

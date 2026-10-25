@@ -185,9 +185,11 @@ async def test_post_with_an_inherited_slug_and_another_kind_answers_409(world):
     assert response.status_code == 409
 
 
-async def test_old_sdk_parses_the_new_list_response(world):
+async def test_the_sdk_vault_fallback_parses_the_new_list_response(world):
     """The SDK's vault fallback reads the list as plain dictionaries: the additive
-    `owner`/`availability` fields change nothing for its connection resolution."""
+    `owner`/`availability` fields change nothing for its connection resolution. The lane
+    changes no SDK file, so this SDK is also the pre-M5 SDK; the deployed pre-M5 SDK and
+    runner are checked against a running stack in the rollout QA, not here."""
     from agenta.sdk.agents.connections import ModelRef
     from agenta.sdk.agents.platform import connections as sdk_connections
 

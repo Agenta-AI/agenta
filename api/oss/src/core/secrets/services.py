@@ -42,6 +42,7 @@ from oss.src.core.secrets.redaction import (
 )
 from oss.src.core.secrets.types import (
     OrganizationSecretKindNotInheritable,
+    OrganizationSecretNotFound,
     OrganizationSecretNotServed,
     OrganizationSecretValueNotScannable,
     OrganizationSecretValueTooShort,
@@ -899,6 +900,14 @@ class VaultService:
             project_ids = await self.secrets_dao.list_organization_project_ids(
                 organization_id=organization_id
             )
+        except Exception:  # noqa: BLE001 - see the docstring
+            log.warning(
+                "[secrets] cache invalidation failed",
+                organization_id=str(organization_id),
+            )
+            clear_request_memo()
+            return project_ids
+        try:
             await invalidate_cache_entries(
                 [
                     {
@@ -1222,34 +1231,40 @@ class VaultService:
         self,
         *,
         organization_id: UUID,
-        secret: Optional[SecretResponseDTO],
         secret_id: UUID,
+        kind: SecretKind,
+        availability: SecretAvailability,
+        selected_count: Optional[int],
         action: str,
         user_id: Optional[UUID],
     ) -> None:
         """After the commit: invalidate every project entry of the organization, then
-        publish one audit event (ids and kinds only)."""
+        publish one audit event (ids and kinds only). The event is published even when
+        the cache invalidation fails; it needs only the organization's project list, which
+        is also the event's home (the event store is keyed by project)."""
         project_ids = await self._invalidate_organization(
             organization_id=organization_id
         )
         if not project_ids:
+            log.warning(
+                "[secrets] organization credential event not published",
+                organization_id=str(organization_id),
+                reason="no project to record it on",
+            )
             return
         attributes = {
             "organization_id": str(organization_id),
             "secret_id": str(secret_id),
+            "kind": kind.value,
             "action": action,
+            "availability": availability.value,
+            "project_count": (
+                selected_count or 0
+                if availability == SecretAvailability.SELECTED_PROJECTS
+                else len(project_ids)
+            ),
             "user_id": str(user_id) if user_id else None,
         }
-        if secret is not None:
-            attributes["kind"] = secret.kind.value
-            attributes["availability"] = (
-                secret.availability.value if secret.availability else None
-            )
-            attributes["project_count"] = (
-                len(secret.selected_project_ids or [])
-                if secret.availability == SecretAvailability.SELECTED_PROJECTS
-                else len(project_ids)
-            )
         try:
             await _safe_publish(
                 organization_id=organization_id,
@@ -1325,8 +1340,10 @@ class VaultService:
 
         await self._organization_written(
             organization_id=organization_id,
-            secret=secret_dto,
             secret_id=secret_dto.id,
+            kind=secret_dto.kind,
+            availability=secret_dto.availability or SecretAvailability.ALL_PROJECTS,
+            selected_count=len(secret_dto.selected_project_ids or []),
             action="created",
             user_id=user_id,
         )
@@ -1364,8 +1381,10 @@ class VaultService:
         if secret_dto is not None:
             await self._organization_written(
                 organization_id=organization_id,
-                secret=secret_dto,
                 secret_id=secret_id,
+                kind=secret_dto.kind,
+                availability=secret_dto.availability or SecretAvailability.ALL_PROJECTS,
+                selected_count=len(secret_dto.selected_project_ids or []),
                 action="updated",
                 user_id=user_id,
             )
@@ -1381,15 +1400,17 @@ class VaultService:
         deleted = await self.secrets_dao.delete_organization_secret(
             organization_id=organization_id, secret_id=secret_id
         )
-        if deleted:
+        if deleted is not None:
             await self._organization_written(
                 organization_id=organization_id,
-                secret=None,
                 secret_id=secret_id,
+                kind=deleted.kind,
+                availability=deleted.availability,
+                selected_count=deleted.selected_count,
                 action="deleted",
                 user_id=user_id,
             )
-        return deleted
+        return deleted is not None
 
     async def set_organization_secret_availability(
         self,
@@ -1400,9 +1421,22 @@ class VaultService:
         project_ids: Sequence[UUID],
         user_id: Optional[UUID],
     ) -> Optional[SecretResponseDTO]:
-        await self._check_project_limit(
-            organization_id=organization_id, availability=availability
-        )
+        try:
+            await self._check_project_limit(
+                organization_id=organization_id, availability=availability
+            )
+        except ProjectLimitNotAllowed:
+            # An id that names no credential of this organization (an SSO row, another
+            # organization's row, a missing one) answers not found, as on every other
+            # organization route. Read only on this refusal path.
+            if (
+                await self.fetch_organization_secret(
+                    organization_id=organization_id, secret_id=secret_id
+                )
+                is None
+            ):
+                raise OrganizationSecretNotFound() from None
+            raise
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
             secret_dto = await self.secrets_dao.set_organization_secret_availability(
                 organization_id=organization_id,
@@ -1414,8 +1448,10 @@ class VaultService:
         if secret_dto is not None:
             await self._organization_written(
                 organization_id=organization_id,
-                secret=secret_dto,
                 secret_id=secret_id,
+                kind=secret_dto.kind,
+                availability=secret_dto.availability or SecretAvailability.ALL_PROJECTS,
+                selected_count=len(secret_dto.selected_project_ids or []),
                 action="availability_changed",
                 user_id=user_id,
             )

@@ -317,7 +317,7 @@ class _InMemorySecretsDAO:
         **_kwargs,
     ):
         project_id, organization_id = owner_scope(owner)
-        existing = await self.get_by_id(secret_id, project_id=project_id)
+        existing = await self.get_by_id(owner=owner, secret_id=secret_id)
         if existing is None:
             return None
         if resolve_update is not None:
