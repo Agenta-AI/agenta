@@ -24,5 +24,26 @@
         "count": 4
       }
     ]
+  },
+  "deny": {
+    "_comment": "When a user denies a tool approval, stock codex-acp forces action: 'cancel' for tool approvals, causing Codex to treat it as a transient cancellation and retry the tool call. These replacements offer 'Deny' (Decline) before Cancel and map Decline to action: 'decline' instead of action: 'cancel', so Codex acknowledges user refusal and does not retry (#7764).",
+    "marker": "/* agenta:tool-deny */",
+    "replacements": [
+      {
+        "find": "  if (isToolApproval) {\n    options.push(permissionOption2(\n      McpApprovalOptionId.Cancel,\n      \"Cancel\",\n      \"reject_once\",\n      \"Cancel this tool call\"\n    ));\n  } else {",
+        "replace": "  if (isToolApproval) {\n    /* agenta:tool-deny */\n    options.push(\n      permissionOption2(\n        McpApprovalOptionId.Decline,\n        \"Deny\",\n        \"reject_once\",\n        \"Decline this tool call\"\n      ),\n      permissionOption2(\n        McpApprovalOptionId.Cancel,\n        \"Cancel\",\n        \"reject_once\",\n        \"Cancel this tool call\"\n      )\n    );\n  } else {",
+        "count": 1
+      },
+      {
+        "find": "    case McpApprovalOptionId.Decline:\n      return !isToolApproval ? { action: \"decline\", content: null, _meta: null } : cancelledResponse();",
+        "replace": "    case McpApprovalOptionId.Decline:\n      return { action: \"decline\", content: null, _meta: null };",
+        "count": 1
+      },
+      {
+        "find": "    if (CreateElicitationResponse.isDecline(response)) {\n      return context.isToolApproval ? { action: \"cancel\", content: null, _meta: elicitationResponseMeta(response, context) } : { action: \"decline\", content: null, _meta: elicitationResponseMeta(response, context) };\n    }",
+        "replace": "    if (CreateElicitationResponse.isDecline(response)) {\n      return { action: \"decline\", content: null, _meta: elicitationResponseMeta(response, context) };\n    }",
+        "count": 1
+      }
+    ]
   }
 }
