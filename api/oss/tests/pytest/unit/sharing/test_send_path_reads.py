@@ -173,3 +173,58 @@ async def test_the_turns_of_a_session_with_a_row_are_read(
     )
 
     turns.query_turns.assert_awaited_once()
+
+
+# -- the turns cursor answers the same for hidden and unknown turns ------------------------
+
+
+async def _turns_answer(router, request, body):
+    from fastapi import HTTPException  # noqa: PLC0415
+
+    try:
+        return 200, await router.query_turns(request, body)
+    except HTTPException as error:
+        return error.status_code, error.detail
+
+
+async def test_a_cursor_on_a_session_with_no_row_is_invalid(
+    monkeypatch, memo, pending_at_check
+):
+    monkeypatch.setattr(router_module, "allow_resource", AsyncMock(return_value=True))
+    _note_missing_session(project_id=_PROJECT, session_id="s-new")
+    router = SessionTurnsRouter(turns_service=AsyncMock())
+    body = SessionTurnQueryRequest.model_validate(
+        {"query": {"session_id": "s-new"}, "windowing": {"next": str(uuid4())}}
+    )
+
+    assert await _turns_answer(router, _request(), body) == (
+        400,
+        "The cursor is not a turn of this session.",
+    )
+
+
+@pytest.mark.parametrize("cursor_visible", [False, None])
+async def test_a_cross_session_cursor_of_a_hidden_or_unknown_turn_is_invalid(
+    monkeypatch, memo, pending_at_check, cursor_visible
+):
+    """Bob pages across sessions with Alice's hidden turn id (or an unknown id) as the
+    cursor: one answer for both."""
+    from types import SimpleNamespace  # noqa: PLC0415
+
+    monkeypatch.setattr(
+        router_module, "allow_resource", AsyncMock(return_value=bool(cursor_visible))
+    )
+    turns = AsyncMock()
+    turns.fetch_turn.return_value = (
+        None if cursor_visible is None else SimpleNamespace(session_id="s-alice")
+    )
+    router = SessionTurnsRouter(turns_service=turns)
+    body = SessionTurnQueryRequest.model_validate(
+        {"query": {}, "windowing": {"next": str(uuid4())}}
+    )
+
+    assert await _turns_answer(router, _request(), body) == (
+        400,
+        "The cursor is not a turn of this session.",
+    )
+    turns.query_turns.assert_not_awaited()

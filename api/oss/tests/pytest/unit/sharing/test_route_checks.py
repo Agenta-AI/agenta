@@ -1325,3 +1325,131 @@ async def test_a_turn_naming_its_session_s_stream_is_appended(world, lock):
 
     assert status_code == 200
     routers.turns_service.append_turn.assert_awaited_once()
+
+
+# -- reserved platform tools check the agent or session they name ----------------------------
+
+
+def _tools_router(world: _World, variant_artifact):
+    from oss.src.apis.fastapi.tools.router import ToolsRouter  # noqa: PLC0415
+    from oss.tests.pytest.utils.sharing import NoopRunAdmission  # noqa: PLC0415
+
+    workflows = AsyncMock()
+    workflows.fetch_workflow_variant.return_value = SimpleNamespace(
+        workflow_id=variant_artifact, artifact_id=variant_artifact
+    )
+    return ToolsRouter(
+        run_admission=NoopRunAdmission(),
+        tools_service=SimpleNamespace(),
+        workflows_service=workflows,
+        tracing_service=SimpleNamespace(),
+    )
+
+
+@pytest.mark.parametrize(
+    "call_ref, key",
+    [
+        ("tools.agenta.read_config", "target"),
+        ("tools.agenta.commit_revision", "workflow_revision"),
+    ],
+)
+@pytest.mark.parametrize("who", ["alice", "bob"])
+async def test_reserved_tool_on_a_private_agent(world, monkeypatch, call_ref, key, who):
+    """Bob names Alice's private agent's variant in a reserved tool call: the handler runs
+    with a variant that names nothing (the unknown-variant answer). Alice, the owner, runs
+    on her variant."""
+    import oss.src.apis.fastapi.tools.router as tools_module  # noqa: PLC0415
+
+    seen = {}
+
+    async def _dispatch(**kwargs):
+        seen.update(kwargs)
+        return SimpleNamespace()
+
+    monkeypatch.setattr(tools_module, "dispatch_platform_tool_handler", _dispatch)
+    router = _tools_router(world, world.private_agent)
+    variant_id = str(uuid4())
+    user = world.alice if who == "alice" else world.bob
+    access = world.request_access(user, "secret")
+    request = _write_request(world, access)
+    with _as(access):
+        arguments = await tools_module._checked_reserved_arguments(
+            request,
+            call_ref=call_ref,
+            arguments={key: {"workflow_variant_id": variant_id}},
+            workflows_service=router.workflows_service,
+        )
+    named = arguments[key]["workflow_variant_id"]
+    assert (named == variant_id) is (who == "alice")
+
+
+@pytest.mark.parametrize(
+    "call_ref", ["tools.agenta.create_app", "tools.agenta.list_starters"]
+)
+async def test_reserved_tool_on_a_private_session_is_not_found(world, call_ref):
+    import oss.src.apis.fastapi.tools.router as tools_module  # noqa: PLC0415
+
+    session_id = world.private_session.session_id
+    # Vic holds a viewer grant: he reads the drive (list_starters); writing it
+    # (create_app) is 403, since he can see the session.
+    for user, hidden in (
+        (world.bob, True),
+        (world.alice, False),
+        (world.vic, None),
+    ):
+        access = world.request_access(user, "secret")
+        with _as(access):
+            answer = await _answer(
+                lambda r: tools_module._checked_reserved_arguments(
+                    r,
+                    call_ref=call_ref,
+                    arguments={"session_id": session_id},
+                    workflows_service=None,
+                ),
+                _write_request(world, access),
+            )
+        if hidden is None and call_ref == "tools.agenta.create_app":
+            assert answer[0] == 403
+        elif hidden:
+            assert answer == (404, NOT_FOUND_ERROR.model_dump(exclude_none=True))
+        else:
+            assert answer == (200, {"session_id": session_id})
+
+
+# -- a deleted private session leaves a tombstone ------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "who, action, expected",
+    [
+        ("bob", Permission.VIEW_SESSIONS, ResourceCheck.HIDDEN),
+        ("bob", Permission.RUN_SESSIONS, ResourceCheck.HIDDEN),
+        ("alice", Permission.VIEW_SESSIONS, ResourceCheck.ALLOWED),
+        # Nobody writes to a deleted id again: no session is created over a tombstone.
+        ("alice", Permission.RUN_SESSIONS, ResourceCheck.FORBIDDEN),
+    ],
+)
+async def test_a_tombstoned_session_is_hidden_but_from_its_former_owner(
+    world, who, action, expected
+):
+    """Alice deleted her private session; its records stay with tracing retention. Bob,
+    who knows the id, is answered as for a hidden session (not as for an unknown id,
+    which is allowed so the route's own not-found path answers)."""
+    session_id = f"s-{uuid4().hex}"
+    world.world.dao.tombstones[(world.project_id, session_id)] = world.alice
+    user = world.alice if who == "alice" else world.bob
+
+    with _as(world.request_access(user, "bearer")):
+        check = await check_resource(
+            _request(world.project_id, user),
+            action=action,
+            resource=session_resource(session_id),
+        )
+        unknown = await check_resource(
+            _request(world.project_id, user),
+            action=action,
+            resource=session_resource(f"s-{uuid4().hex}"),
+        )
+
+    assert check == expected
+    assert unknown == ResourceCheck.ALLOWED

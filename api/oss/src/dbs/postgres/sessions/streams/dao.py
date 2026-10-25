@@ -7,12 +7,12 @@ from sqlalchemy import (
     any_,
     case,
     cast,
-    delete as sa_delete,
     false,
     func,
     literal,
     or_,
     select,
+    text,
     update as sa_update,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID, insert
@@ -95,6 +95,22 @@ _UUID_PATTERN = (
 # internal callers that build a `Windowing` directly — never let one of those
 # reach Postgres with an unbounded or negative `LIMIT`.
 MAX_SESSION_QUERY_LIMIT = 200
+
+
+_HARD_DELETE_WITH_TOMBSTONE_SQL = """
+WITH gone AS (
+    DELETE FROM session_streams
+    WHERE project_id = :project_id AND session_id = :session_id
+    RETURNING project_id, session_id, visibility, owner_user_id
+), tombstone AS (
+    INSERT INTO session_trace_tombstones (project_id, session_id, owner_user_id)
+    SELECT project_id, session_id, owner_user_id FROM gone
+    WHERE visibility = 'private'
+    ON CONFLICT (project_id, session_id) DO UPDATE
+        SET owner_user_id = EXCLUDED.owner_user_id, deleted_at = CURRENT_TIMESTAMP
+)
+SELECT count(*) FROM gone
+"""
 
 
 class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInterface):
@@ -898,14 +914,18 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         """Hard delete the merged stream row — `kill`/`delete_by_session_id` only
         soft-delete; this is new plumbing for the session-scoped hard-delete
         fan-out (S7/F1, WP5)."""
+        # One statement: the delete, and for a private session its tombstone (the former
+        # owner), so the deleted id stays hidden from everyone else while tracing
+        # retention keeps its records. A tombstone left by an earlier delete of the same
+        # id is replaced.
         async with self.engine.session() as session:
-            stmt = sa_delete(SessionStreamDBE).where(
-                SessionStreamDBE.project_id == project_id,
-                SessionStreamDBE.session_id == session_id,
+            result = await session.execute(
+                text(_HARD_DELETE_WITH_TOMBSTONE_SQL),
+                {"project_id": project_id, "session_id": session_id},
             )
-            result = await session.execute(stmt)
+            deleted = int(result.scalar_one() or 0)
             await session.commit()
-            return bool(result.rowcount)
+            return bool(deleted)
 
     async def count_active(
         self,

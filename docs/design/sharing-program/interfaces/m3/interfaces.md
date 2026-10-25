@@ -61,6 +61,19 @@ All in one `core_oss` chain. Nothing in `core_ee`. Owner columns have no foreign
 - PK `(project_id, stream_id, user_id)`. FK `(project_id, stream_id)` -> `session_streams (project_id, id)` ON DELETE CASCADE. FK `user_id` -> `users.id` ON DELETE CASCADE (removing a grant only removes access).
 - Index `ix_session_grants_project_id_user_id (project_id, user_id)`. The owner is never a grant (enforced in `SharingService`).
 
+#### `session_trace_tombstones` (NEW, defined by the session-trace-privacy design, written from M3)
+
+| Column | Type | Null | Default / check |
+| --- | --- | --- | --- |
+| `project_id` | uuid | NOT NULL | |
+| `session_id` | varchar | NOT NULL | |
+| `owner_user_id` | uuid | NULL | the former owner |
+| `deleted_at` | timestamptz | NULL | `current_timestamp` |
+
+- PK `(project_id, session_id)`. FK `project_id` -> `projects.id` ON DELETE CASCADE. No foreign key to `session_streams`: the tombstone outlives the row.
+- Written by the session delete for a `private` session, in the one statement that deletes the stream row (`DELETE ... RETURNING` then `INSERT ... ON CONFLICT DO UPDATE`). A project session leaves none. Session deletion leaves the session's records to tracing retention, so without the tombstone the deleted id would read as an unknown session, which the rules allow.
+- No retention flush in M3: the EE flush of tombstones older than the plan's retention plus one day comes with M9.
+
 ### 1.4 Alembic revisions (`oss/databases/postgres/migrations/core_oss/versions/`)
 
 Revision ids are allocated centrally: M1 is `044` and `045`, M2 is `046` and `047`, M3 is `048` and `049`, M4a is `050`. `core_oss/env.py` runs with `transaction_per_migration=True`, so R-A commits before R-B starts.
@@ -357,6 +370,8 @@ return AccessPolicy(visibility=requested or Visibility.PRIVATE, owner_user_id=ow
 | S4 | session | `EDIT_SESSIONS` (rename, archive, unarchive, delete) | owner set: principal is the active human owner; owner NULL: any principal (today's behavior) |
 
 `fetch_session_policy` assigns the policy of a legacy row (`visibility IS NULL`) before `evaluate` reads it, so the rules never see `NULL`.
+
+A session with no row and a tombstone is a deleted private session: its former owner may read it (S1 actions) and nobody may write to it (S2, S4: no session is created over a tombstone); everyone else gets the hidden answer. The session decision reads the row and the tombstone in one statement (`fetch_session_policy_or_tombstone`), so a session with no row costs the same one read as before. Neither "no row" nor a tombstone is cached.
 
 ### 3.2 `SharingDAOInterface` (NEW `oss/src/core/sharing/interfaces.py`)
 

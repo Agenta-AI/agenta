@@ -32,7 +32,12 @@ MODULES = [
 # Tables whose spec gives them only part of the lifecycle set, on purpose.
 # `session_grants` (M3): a grant is created or deleted, never edited in place except
 # its role, so it carries `created_at` and `created_by_id` only (interfaces 1.3).
-PARTIAL_LIFECYCLE = {"session_grants": {"created_at", "created_by_id"}}
+# `session_trace_tombstones` (M3, defined by the session-trace-privacy design): a
+# tombstone records when its session was deleted, and nothing else changes on it.
+PARTIAL_LIFECYCLE = {
+    "session_grants": {"created_at", "created_by_id"},
+    "session_trace_tombstones": {"deleted_at"},
+}
 
 LIFECYCLE = (
     "created_at",

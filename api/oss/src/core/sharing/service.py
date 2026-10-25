@@ -11,7 +11,7 @@ or when a read that started before the write committed refills the old entry aft
 invalidation.
 """
 
-from typing import Any, List, Optional, Sequence, Type, Union
+from typing import Any, List, Optional, Sequence, Tuple, Type, Union
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -56,6 +56,7 @@ from oss.src.core.sharing.dtos import (
     SharedItemKind,
     UserSessionGrant,
     Visibility,
+    SessionTombstone,
 )
 from oss.src.core.access import prefetch
 from oss.src.core.access.context import clear_request_memo, get_request_memo
@@ -208,9 +209,19 @@ class SharingService(ResourcePolicyInterface):
             return None
 
         # The read assigns a legacy row its owner first, whatever the action.
-        access = await self._session_access(
+        access, tombstone = await self._session_access_or_tombstone(
             project_id=project_id, session_id=session_id
         )
+        if access is None and tombstone is not None:
+            # A deleted private session: its records stay with tracing retention. Its
+            # former owner may still read them; nobody may write to the id again (no
+            # session is created over a tombstone), and everyone else is answered as
+            # for a hidden session.
+            if action in _SESSION_READ_ACTIONS and _is_human(
+                principal, tombstone.owner_user_id
+            ):
+                return None
+            return DecisionReason.RESOURCE_DENIED
         if access is None:
             _note_missing_session(project_id=project_id, session_id=session_id)
             return None  # no such session
@@ -422,6 +433,20 @@ class SharingService(ResourcePolicyInterface):
         no row exists; that answer is never cached. A legacy row is assigned by
         `fetch_session_policy` before it is cached."""
 
+        access, _ = await self._session_access_or_tombstone(
+            project_id=project_id, session_id=session_id
+        )
+        return access
+
+    async def _session_access_or_tombstone(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Tuple[Optional[CachedSessionAccess], Optional[SessionTombstone]]:
+        """`_session_access`, and the session's tombstone when it has no row: the miss
+        reads both in its one indexed read. Neither "no row" nor a tombstone is cached."""
+
         key = {"s": session_id}
         cached = await _get(
             namespace=SESSION_ACCESS_NAMESPACE,
@@ -430,16 +455,17 @@ class SharingService(ResourcePolicyInterface):
             model=CachedSessionAccess,
         )
         if cached is not None and not cached.missing:
-            return cached
+            return cached, None
 
         # "No row" is never cached: a cached absence would authorize a row an insert
         # created since (an insert path, an older pod or a lost write that does not
-        # replace it). A missing session costs one indexed read, never a lock wait.
-        state = await self._dao.fetch_session_policy(
+        # replace it). A missing session costs one indexed read, never a lock wait;
+        # that read also answers whether a deleted private session left a tombstone.
+        state, tombstone = await self._dao.fetch_session_policy_or_tombstone(
             project_id=project_id, session_id=session_id
         )
         if state is None:
-            return None
+            return None, tombstone
 
         entry = CachedSessionAccess(
             stream_id=state.stream_id,
@@ -455,7 +481,7 @@ class SharingService(ResourcePolicyInterface):
             key=key,
             value=entry,
         )
-        return entry
+        return entry, None
 
     async def _user_grants(
         self,

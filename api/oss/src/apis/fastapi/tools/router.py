@@ -86,6 +86,10 @@ from oss.src.core.mounts.service import MountsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tools.exceptions import PlatformToolHandlerError
 from oss.src.core.tools.platform_handlers import (
+    COMMIT_REVISION_CALL_REF,
+    CREATE_APP_CALL_REF,
+    LIST_STARTERS_CALL_REF,
+    READ_CONFIG_CALL_REF,
     required_agent_owner,
     required_envelope,
     dispatch_platform_tool_handler,
@@ -102,7 +106,15 @@ from oss.src.utils.env import env
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
-from oss.src.apis.fastapi.sharing.utils import agent_owner_for_request
+from oss.src.apis.fastapi.sharing.utils import (
+    agent_owner_for_request,
+    allow_agent,
+    allow_resource,
+    artifact_id_of,
+    not_found_exception,
+    session_resource,
+)
+from oss.src.core.access.permissions.types import Permission as _Permission
 
 # A workflow referenced as an agent tool (a ``type:"reference"`` tool) carries this call_ref
 # prefix. Distinct from the Composio 5-segment grammar (``tools.{provider}.{integration}.
@@ -281,6 +293,85 @@ def _admission_error_result(
             project_id=child.authority.project_id,
         ),
     )
+
+
+# The reserved tools that act on an agent the arguments name (by its variant), with the
+# argument key that carries it, and those that act on a session's drive. The ids are
+# "bound from the run" by the runner, but a direct caller of /tools/call sets them: each
+# is checked against the item's policy before the handler runs.
+_AGENT_TARGET_KEYS = {
+    READ_CONFIG_CALL_REF: "target",
+    COMMIT_REVISION_CALL_REF: "workflow_revision",
+}
+_SESSION_TARGET_ACTIONS = {
+    CREATE_APP_CALL_REF: _Permission.RUN_SESSIONS,
+    LIST_STARTERS_CALL_REF: _Permission.VIEW_SESSIONS,
+}
+
+
+def _arguments_dict(arguments: Any) -> Optional[dict]:
+    if isinstance(arguments, dict):
+        return dict(arguments)
+    if isinstance(arguments, str):
+        try:
+            parsed = json.loads(arguments)
+        except ValueError:
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
+
+async def _checked_reserved_arguments(
+    request: Request,
+    *,
+    call_ref: str,
+    arguments: Any,
+    workflows_service: Any,
+) -> Any:
+    """The arguments the handler runs with, after the policy of the agent or session they
+    name. A hidden agent's variant becomes an id that names nothing, so the handler
+    answers exactly what it answers for an unknown variant. A hidden session answers the
+    canonical not-found body: an unknown id creates its drive, a hidden one must not.
+    Arguments the handler would refuse anyway (not an object, no id) pass unchanged."""
+
+    if call_ref in _AGENT_TARGET_KEYS:
+        parsed = _arguments_dict(arguments)
+        key = _AGENT_TARGET_KEYS[call_ref]
+        target = parsed.get(key) if parsed is not None else None
+        raw = target.get("workflow_variant_id") if isinstance(target, dict) else None
+        try:
+            variant_id = UUID(str(raw)) if raw else None
+        except ValueError:
+            variant_id = None
+        if variant_id is None or workflows_service is None:
+            return arguments
+        variant = await workflows_service.fetch_workflow_variant(
+            project_id=UUID(str(request.state.project_id)),
+            workflow_variant_ref=Reference(id=variant_id),
+        )
+        if variant is None or await allow_agent(
+            request,
+            action=_Permission.VIEW_WORKFLOWS,
+            artifact_id=artifact_id_of(variant),
+        ):
+            return arguments
+        parsed[key] = {**target, "workflow_variant_id": str(uuid4())}
+        return parsed
+
+    if call_ref in _SESSION_TARGET_ACTIONS:
+        parsed = _arguments_dict(arguments)
+        session_id = parsed.get("session_id") if parsed is not None else None
+        if not isinstance(session_id, str) or not session_id.strip():
+            return arguments
+        if not await allow_resource(
+            request,
+            action=_SESSION_TARGET_ACTIONS[call_ref],
+            resource=session_resource(session_id.strip()),
+        ):
+            raise not_found_exception()
+        return arguments
+
+    return arguments
 
 
 def _child_run_envelope(request: Request) -> Optional[RunEnvelope]:
@@ -1459,10 +1550,16 @@ class ToolsRouter:
             denied = await _deny_child_run(body=body, child=envelope)
             if denied is not None:
                 return denied
+        arguments = await _checked_reserved_arguments(
+            request,
+            call_ref=call_ref,
+            arguments=body.data.function.arguments,
+            workflows_service=self.workflows_service,
+        )
         try:
             response = await dispatch_platform_tool_handler(
                 call_ref=call_ref,
-                arguments=body.data.function.arguments,
+                arguments=arguments,
                 headers=request.headers,
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(request.state.user_id),

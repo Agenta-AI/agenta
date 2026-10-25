@@ -89,3 +89,28 @@ class SessionGrantDBE(Base, ProjectScopeDBA):
             "user_id",
         ),
     )
+
+
+class SessionTraceTombstoneDBE(Base, ProjectScopeDBA):
+    """A deleted private session: the id stays hidden from everyone but its former
+    owner, because session deletion leaves the session's records to tracing retention.
+    Written in the statement that deletes the stream row; no foreign key to that row."""
+
+    __tablename__ = "session_trace_tombstones"
+
+    session_id = Column(String, nullable=False)
+    owner_user_id = Column(UUID(as_uuid=True), nullable=True)
+    deleted_at = Column(
+        TIMESTAMP(timezone=True),
+        server_default=func.current_timestamp(),
+        nullable=True,
+    )
+
+    __table_args__ = (
+        PrimaryKeyConstraint("project_id", "session_id"),
+        ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            ondelete="CASCADE",
+        ),
+    )

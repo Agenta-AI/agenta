@@ -172,6 +172,7 @@ from oss.src.core.sessions.mounts.dtos import SessionMountQuery
 from oss.src.core.sessions.turns.dtos import SessionTurnComplete, SessionTurnCreate
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.sessions.turns.types import (
+    SessionTurnCursorInvalid,
     SessionTurnNotFound,
     SessionTurnStreamMismatch,
 )
@@ -296,6 +297,15 @@ def _validate_session_id_http(session_id: str) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="session_id contains invalid characters or is empty.",
         )
+
+
+def _invalid_cursor() -> HTTPException:
+    """`windowing.next` that is not a turn of the queried session: one answer for an
+    unknown id and for a turn of another session, readable or hidden."""
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="The cursor is not a turn of this session.",
+    )
 
 
 def _unknown_session_id() -> str:
@@ -2732,13 +2742,31 @@ class SessionTurnsRouter:
             # is not its own session's row, so no turn belongs here. A turn an
             # earlier build wrote with another session's stream stays unread: it is
             # that session's data, shown as a session with no row shows nothing.
+            if body.windowing is not None and body.windowing.next is not None:
+                # No turn of this session can be the cursor: as for a hidden session.
+                raise _invalid_cursor()
             return SessionTurnsResponse(count=0, turns=[])
+        elif not session_id and body.windowing is not None and body.windowing.next:
+            # A query across sessions: the cursor must be a turn of a session the
+            # caller may read, else it answers as an unknown id.
+            cursor = await self.turns_service.fetch_turn(
+                project_id=project_id, turn_id=body.windowing.next
+            )
+            if cursor is None or not await allow_resource(
+                request,
+                action=Permission.VIEW_SESSIONS,
+                resource=session_resource(cursor.session_id),
+            ):
+                raise _invalid_cursor()
 
-        turns = await self.turns_service.query_turns(
-            project_id=project_id,
-            query=query,
-            windowing=body.windowing,
-        )
+        try:
+            turns = await self.turns_service.query_turns(
+                project_id=project_id,
+                query=query,
+                windowing=body.windowing,
+            )
+        except SessionTurnCursorInvalid as error:
+            raise _invalid_cursor() from error
         if not session_id:
             # A query across sessions: drop the turns of hidden sessions.
             turns = await _visible_items(

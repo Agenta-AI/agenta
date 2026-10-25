@@ -25,7 +25,10 @@ from oss.src.core.sessions.turns.dtos import (
 )
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.core.shared.dtos import Reference, Windowing
-from oss.src.core.sessions.turns.types import SessionTurnStreamMismatch
+from oss.src.core.sessions.turns.types import (
+    SessionTurnCursorInvalid,
+    SessionTurnStreamMismatch,
+)
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.turns.dbes import SessionTurnDBE
@@ -270,6 +273,8 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
                         stmt = stmt.where(time_attribute >= windowing.oldest)
 
                 if windowing.next is not None:
+                    # The cursor is a turn of the queried session (and stream): a turn of
+                    # another session, readable or not, answers as an unknown id.
                     cursor_stmt = select(
                         SessionTurnDBE.turn_index,
                         SessionTurnDBE.id,
@@ -277,8 +282,18 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
                         SessionTurnDBE.project_id == project_id,
                         SessionTurnDBE.id == windowing.next,
                     )
+                    if query is not None and query.session_id is not None:
+                        cursor_stmt = cursor_stmt.where(
+                            SessionTurnDBE.session_id == query.session_id
+                        )
+                    if query is not None and query.stream_id is not None:
+                        cursor_stmt = cursor_stmt.where(
+                            SessionTurnDBE.stream_id == query.stream_id
+                        )
                     cursor_result = await session.execute(cursor_stmt)
                     cursor = cursor_result.one_or_none()
+                    if cursor is None:
+                        raise SessionTurnCursorInvalid()
                     if cursor is not None:
                         cursor_index, cursor_id = cursor
                         if descending:

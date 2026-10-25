@@ -13,7 +13,7 @@ policy with the caller's `expected` and raises `SharingConflict(current)` on a m
 which rolls the transaction back.
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
 from sqlalchemy import text
@@ -28,6 +28,7 @@ from oss.src.core.sharing.dtos import (
     SessionPolicyState,
     SessionSharingChange,
     SessionSharingWriteResult,
+    SessionTombstone,
     UserSessionGrant,
     Visibility,
 )
@@ -166,6 +167,23 @@ _FETCH_SESSION_STATE_SQL = f"""
 SELECT {_SESSION_STATE_COLUMNS}
 FROM session_streams s
 WHERE s.project_id = :project_id AND s.session_id = :session_id
+"""
+
+# The row, or (when there is none) the session's tombstone, in ONE statement: a session
+# with no row costs the same one read as before the tombstone existed. The key row makes
+# the statement answer one row in every case; `stream_id` is NULL when there is no row.
+_FETCH_SESSION_STATE_OR_TOMBSTONE_SQL = f"""
+SELECT {_SESSION_STATE_COLUMNS},
+    t.owner_user_id AS tombstone_owner_user_id,
+    (t.session_id IS NOT NULL) AS tombstoned
+FROM (
+    SELECT CAST(:project_id AS uuid) AS project_id,
+           CAST(:session_id AS varchar) AS session_id
+) k
+LEFT JOIN session_streams s
+    ON s.project_id = k.project_id AND s.session_id = k.session_id
+LEFT JOIN session_trace_tombstones t
+    ON s.id IS NULL AND t.project_id = k.project_id AND t.session_id = k.session_id
 """
 
 _LOCK_SESSION_STATE_SQL = f"""
@@ -393,6 +411,39 @@ class SharingDAO(SharingDAOInterface):
         if row is None:
             return None
         return map_session_state_row_to_dto(row)
+
+    async def fetch_session_policy_or_tombstone(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Tuple[Optional[SessionPolicyState], Optional[SessionTombstone]]:
+        params = _session_params(project_id=project_id, session_id=session_id)
+        async with self.engine.session() as session:
+            row = (
+                await session.execute(
+                    text(_FETCH_SESSION_STATE_OR_TOMBSTONE_SQL), params
+                )
+            ).first()
+        if row is not None and row.stream_id is not None and row.visibility is None:
+            # A row an old pod wrote: assigned, then read again (as fetch_session_policy).
+            await self.assign_legacy_session_access(
+                project_id=project_id, session_id=session_id
+            )
+            row = await self._fetch_session_state(params)
+            return (
+                map_session_state_row_to_dto(row) if row is not None else None
+            ), None
+        if row is None or row.stream_id is None:
+            tombstone = (
+                SessionTombstone(
+                    session_id=session_id, owner_user_id=row.tombstone_owner_user_id
+                )
+                if row is not None and row.tombstoned
+                else None
+            )
+            return None, tombstone
+        return map_session_state_row_to_dto(row), None
 
     async def _fetch_session_state(self, params: dict):
         async with self.engine.session() as session:

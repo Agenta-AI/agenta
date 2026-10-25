@@ -13,6 +13,7 @@ sessions is `oss000000049`, a separate revision of the same release.
 | agent_access | NEW table: one row per agent that has an owner. No row = project-visible, ownerless. |
 | session_grants | NEW table: named Viewer and Participant grants on a session. |
 | session_streams | NEW nullable columns visibility, owner_user_id; check ck_session_streams_visibility_owner; index ix_session_streams_project_id_owner_user_id. |
+| session_trace_tombstones | NEW table: one row per deleted private session (its former owner). The session-trace-privacy design (M9) defines it; M3 writes it, so a deleted private session stays hidden from everyone but its former owner. |
 
 `session_streams.visibility IS NULL` marks a row written by pre-sharing code (old pods
 during the rolling deploy); it reads as project-visible. A null owner is never a marker.
@@ -162,6 +163,27 @@ def _create_tables() -> None:
         if_not_exists=True,
     )
 
+    # No foreign key to session_streams: the tombstone outlives the row it replaces.
+    op.create_table(
+        "session_trace_tombstones",
+        sa.Column("project_id", postgresql.UUID(as_uuid=True), nullable=False),
+        sa.Column("session_id", sa.String(), nullable=False),
+        sa.Column("owner_user_id", postgresql.UUID(as_uuid=True), nullable=True),
+        sa.Column(
+            "deleted_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=True,
+        ),
+        sa.PrimaryKeyConstraint("project_id", "session_id"),
+        sa.ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            ondelete="CASCADE",
+        ),
+        if_not_exists=True,
+    )
+
 
 def upgrade() -> None:
     # Bounded wait for the ALTER TABLE lock; LOCAL ends with this transaction.
@@ -213,6 +235,7 @@ def downgrade() -> None:
     op.execute(f"ALTER TABLE session_streams DROP CONSTRAINT IF EXISTS {_CONSTRAINT}")
     op.execute("ALTER TABLE session_streams DROP COLUMN IF EXISTS owner_user_id")
     op.execute("ALTER TABLE session_streams DROP COLUMN IF EXISTS visibility")
+    op.drop_table("session_trace_tombstones", if_exists=True)
     op.drop_index(
         "ix_session_grants_project_id_user_id",
         table_name="session_grants",

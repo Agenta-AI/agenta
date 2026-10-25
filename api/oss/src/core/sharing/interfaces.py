@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
 
 from oss.src.core.sharing.dtos import (
@@ -9,6 +9,7 @@ from oss.src.core.sharing.dtos import (
     SessionPolicyState,
     SessionSharingChange,
     SessionSharingWriteResult,
+    SessionTombstone,
     UserSessionGrant,
 )
 
@@ -62,6 +63,19 @@ class SharingDAOInterface(ABC):
         """Reads the row whatever `deleted_at` and `archived_at` hold. A legacy row
         (`visibility IS NULL`) first goes through `assign_legacy_session_access`. None
         only when no row exists."""
+
+    async def fetch_session_policy_or_tombstone(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> Tuple[Optional[SessionPolicyState], Optional[SessionTombstone]]:
+        """`fetch_session_policy`, and the session's tombstone when it has no row, in
+        the same read (the Postgres DAO reads both in one statement)."""
+        state = await self.fetch_session_policy(
+            project_id=project_id, session_id=session_id
+        )
+        return state, None
 
     @abstractmethod
     async def assign_legacy_session_access(

@@ -21,3 +21,12 @@ class SessionTurnStreamMismatch(SessionTurnError):
         self.session_id = session_id
         self.message = f"The turn's stream is not the row of session '{session_id}'."
         super().__init__(self.message)
+
+
+class SessionTurnCursorInvalid(SessionTurnError):
+    """`windowing.next` is not a turn of the queried session (an unknown id, or a turn of
+    another session, hidden or not: the same answer)."""
+
+    def __init__(self):
+        self.message = "The cursor is not a turn of this session."
+        super().__init__(self.message)

@@ -687,3 +687,54 @@ async def test_append_is_one_statement(dao, project_and_stream):
         )
     assert turn.created_at is not None and turn.id is not None
     assert len(statements) == 1
+
+
+async def test_a_cursor_of_another_session_is_invalid(dao, project_and_stream):
+    """Bob pages his session with Alice's turn id as the cursor: the same answer as an
+    unknown id (invalid cursor), never a page cut at Alice's turn index."""
+    from oss.src.core.sessions.turns.types import SessionTurnCursorInvalid
+
+    project_id = project_and_stream["project_id"]
+    alice_session = project_and_stream["session_id"]
+    bob_session = alice_session + "-bob"
+    bob_stream = await _stream_for(project_and_stream, bob_session)
+
+    alice_turn = await dao.append(
+        project_id=project_id,
+        user_id=None,
+        turn=SessionTurnCreate(
+            session_id=alice_session,
+            stream_id=project_and_stream["stream_id"],
+            turn_index=5,
+            harness_kind=HarnessKind.PI,
+        ),
+    )
+    bob_turns = []
+    for index in range(8):
+        bob_turns.append(
+            await dao.append(
+                project_id=project_id,
+                user_id=None,
+                turn=SessionTurnCreate(
+                    session_id=bob_session,
+                    stream_id=bob_stream,
+                    turn_index=index,
+                    harness_kind=HarnessKind.PI,
+                ),
+            )
+        )
+
+    for cursor in (alice_turn.id, uuid.uuid4()):
+        with pytest.raises(SessionTurnCursorInvalid):
+            await dao.query_turns(
+                project_id=project_id,
+                query=SessionTurnQuery(session_id=bob_session),
+                windowing=Windowing(order="descending", next=cursor),
+            )
+
+    page = await dao.query_turns(
+        project_id=project_id,
+        query=SessionTurnQuery(session_id=bob_session),
+        windowing=Windowing(order="descending", next=bob_turns[5].id),
+    )
+    assert [t.turn_index for t in page] == [4, 3, 2, 1, 0]

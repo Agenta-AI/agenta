@@ -80,6 +80,8 @@ class InMemorySharingDAO(SharingDAOInterface):
         self.sessions: Dict[Tuple[UUID, str], SessionPolicyState] = {}
         self.legacy_sessions: Dict[Tuple[UUID, str], SessionPolicyState] = {}
         self.grants: Dict[Tuple[UUID, UUID], List[SessionGrant]] = {}
+        # (project_id, session_id) -> the former owner of a deleted private session.
+        self.tombstones: Dict[Tuple[UUID, str], Optional[UUID]] = {}
         self.reads: List[str] = []
 
     # -- seeding ------------------------------------------------------------------------
@@ -167,6 +169,21 @@ class InMemorySharingDAO(SharingDAOInterface):
                 project_id=project_id, session_id=session_id
             )
         return self.sessions.get((project_id, session_id))
+
+    async def fetch_session_policy_or_tombstone(
+        self, *, project_id: UUID, session_id: str
+    ):
+        from oss.src.core.sharing.dtos import SessionTombstone  # noqa: PLC0415
+
+        state = await self.fetch_session_policy(
+            project_id=project_id, session_id=session_id
+        )
+        if state is None and (project_id, session_id) in self.tombstones:
+            return None, SessionTombstone(
+                session_id=session_id,
+                owner_user_id=self.tombstones[(project_id, session_id)],
+            )
+        return state, None
 
     async def assign_legacy_session_access(
         self, *, project_id: UUID, session_id: str

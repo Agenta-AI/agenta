@@ -70,7 +70,7 @@ A send, a header call, an input admission, a composer upload, a cwd upload, a se
 | `POST /sessions/mounts/{mount_id}/files/upload`, `GET .../download` | 2275, 2299 | `RUN_SESSIONS`, `VIEW_MOUNTS` | the mount's scope (`mount_scope` cache) | hidden: `Mount not found.` 404 |
 | `POST /sessions/turns/` | 2429 | `RUN_SESSIONS` (rule S2), runner write check | body `session_id`, `turn_id` | hidden: canonical 404 (an unknown id stores the turn) |
 | `POST /sessions/turns/complete` | 2475 | `RUN_SESSIONS` (rule S2), full check (no turn in the body) | body `session_id` | hidden: the route's `SessionTurnNotFound` 404, as for an unknown session |
-| `POST /sessions/turns/query` | 2436 | `VIEW_SESSIONS` | body `query.session_id`, or the whole project | with a session: hidden reads an unknown id; across sessions: turns of hidden sessions are dropped |
+| `POST /sessions/turns/query` | 2436 | `VIEW_SESSIONS` | body `query.session_id`, or the whole project | with a session: hidden reads an unknown id; across sessions: turns of hidden sessions are dropped. `windowing.next` must be a turn of the queried session (across sessions: of a session the caller may read), else 400, the same for hidden and unknown turns |
 | `GET /sessions/turns/{turn_id}` | 2473 | `VIEW_SESSIONS` | fetched turn's `session_id` | hidden: `count: 0` |
 | `GET /sessions/{session_id}` `get_session_snapshot` | 2598 | `VIEW_SESSIONS` | path | hidden: the snapshot of an unknown id (200, empty) |
 | `POST /sessions/query` | 2682 | `VIEW_SESSIONS` | list | Task 11: read scope in SQL |
@@ -152,7 +152,9 @@ An agent is a workflow, so these routes reach agents by id too. Each gets the sa
 
 | Handler | Check |
 | --- | --- |
-| `core/tools/platform_handlers.py` `read_config`, `commit_revision`, `test_run` | no route check: the target variant is bound from the run context (the run's own agent), and the run was admitted (Tasks 13, 14; `test_run` is a child run, `child_run` boundary) |
+| `core/tools/platform_handlers.py` `read_config`, `commit_revision` | `POST /tools/call` checks the agent of the variant the arguments name before the handler runs (a direct caller sets the "bound" id): a hidden agent's variant becomes an id that names nothing, so the handler answers as for an unknown variant |
+| `core/apps/handlers.py` `create_app` (`RUN_SESSIONS`), `list_starters` (`VIEW_SESSIONS`) | `POST /tools/call` checks the session the arguments name: hidden answers the canonical not-found body (an unknown id creates its drive) |
+| `core/tools/platform_handlers.py` `test_run` | the run was admitted (Task 14; a child run, `child_run` boundary) |
 | `apis/fastapi/tools/router.py` workflow tool calls (`_call_workflow_tool`) | Task 14 (`child_run`) |
 | Embedded references (`@ag.references`) resolved by the resolve and retrieve routes (also when the SDK resolves at invoke with the run credential) | `core/embeds/service.py::embedded_agent_visible` in the universal resolver; see "Embedded references" |
 | `apis/fastapi/environments/router.py` | no check: an environment holds references (ids, slugs, versions), not agent content; only an agent's owner can deploy a private agent (deploy checks `EDIT_*`) |

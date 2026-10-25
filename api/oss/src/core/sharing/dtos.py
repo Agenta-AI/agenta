@@ -84,6 +84,14 @@ class SessionPolicyState(BaseModel):
     references_agent: bool  # session_streams.references names an agent
 
 
+class SessionTombstone(BaseModel):
+    """A deleted private session (`session_trace_tombstones`): its records stay with
+    tracing retention, so the id stays hidden from everyone but its former owner."""
+
+    session_id: str
+    owner_user_id: Optional[UUID] = None
+
+
 class SessionGrantInput(BaseModel):
     user_id: UUID
     role: SessionRole
