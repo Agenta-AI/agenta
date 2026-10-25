@@ -10,7 +10,9 @@ from oss.src.core.secrets.managed import (
 )
 
 from oss.src.core.secrets.enums import (
+    SecretAvailability,
     SecretKind,
+    SecretOwnerKind,
     is_always_write_only,
     LLMEndpointProtocol,
     LLMStandardProviderKind,
@@ -99,6 +101,8 @@ class CustomModelSettingsDTO(BaseModel):
 
 
 class StandardProviderDTO(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     kind: LLMStandardProviderKind
     provider: StandardProviderSettingsDTO
     # A missing list means "use Agenta's default models"; an empty list is an explicit "none".
@@ -113,6 +117,10 @@ class MCPStandardProviderDTO(BaseModel):
 
 
 class CustomProviderSettingsDTO(BaseModel):
+    # The key and the extras hold credential values: a validation error must name the
+    # field, never quote the input (see StandardProviderSettingsDTO).
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     url: Optional[str] = None
     version: Optional[str] = None
     key: Optional[str] = None
@@ -120,6 +128,8 @@ class CustomProviderSettingsDTO(BaseModel):
 
 
 class CustomProviderDTO(BaseModel):
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     kind: LLMCustomProviderKind
     provider: CustomProviderSettingsDTO
     models: List[CustomModelSettingsDTO]
@@ -577,6 +587,8 @@ def _validate_secret_data_based_on_kind(
 class SecretDTO(BaseModel):
     """Create-time secret payload. Required credential fields must be present."""
 
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     kind: SecretKind
     data: SecretDataDTO
 
@@ -587,7 +599,7 @@ class SecretDTO(BaseModel):
 
 
 class CreateSecretDTO(Slug, BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
     header: Header
     secret: SecretDTO
@@ -657,6 +669,8 @@ class CreateSecretDTO(Slug, BaseModel):
 class UpdateSecretPayloadDTO(BaseModel):
     """Update-time payload. Omitted credential fields keep their stored values."""
 
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     kind: SecretKind
     data: SecretDataDTO
 
@@ -667,7 +681,7 @@ class UpdateSecretPayloadDTO(BaseModel):
 
 
 class UpdateSecretDTO(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
 
     header: Optional[Header] = None
     secret: Optional[UpdateSecretPayloadDTO] = None
@@ -707,13 +721,38 @@ class SecretValueStatus(BaseModel):
     preview: Optional[str] = None
 
 
+class SecretOwner(BaseModel):
+    """Who owns a stored secret (CONTRACT section 8).
+
+    A frozen pydantic model rather than a dataclass, because it rides inside cached and
+    serialized DTOs. Storage keeps the typed columns; the DAO maps `kind` to the column.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: SecretOwnerKind
+    id: UUID
+
+
 class _SecretResponseBaseDTO(Identifier, Slug, BaseModel):
+    # A cached entry or a stored row that fails validation is logged by the cache helpers;
+    # the error must name fields, never values.
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     kind: SecretKind
     data: SecretDataDTO
     header: Header
     lifecycle: Optional[LegacyLifecycleDTO] = None
 
     write_only: bool = False
+
+    # Set by every DAO mapping. Optional so an entry cached by an older pod still reads.
+    owner: Optional[SecretOwner] = None
+    # Organization rows only.
+    availability: Optional[SecretAvailability] = None
+    # Organization rows limited to selected projects, on management responses only. Never
+    # in a cache entry and never in what a project member sees.
+    selected_project_ids: Optional[List[UUID]] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -729,6 +768,14 @@ class _SecretResponseBaseDTO(Identifier, Slug, BaseModel):
         # not be, which is why the fix needs no data migration. Every construction path runs
         # through this model, the cache rehydration included.
         if is_always_write_only(self.kind):
+            self.write_only = True
+        return self
+
+    @model_validator(mode="after")
+    def force_write_only_on_organization_rows(self):
+        # Fail closed, the same way as the kind rule above, and on cache rehydration too:
+        # an organization credential is never readable back, whatever the stored mark says.
+        if self.owner is not None and self.owner.kind == SecretOwnerKind.ORGANIZATION:
             self.write_only = True
         return self
 
@@ -775,3 +822,20 @@ class PublicSecretResponseDTO(_SecretResponseBaseDTO):
 
     management: Optional[PublicSecretManagementDTO] = None
     value_status: SecretValueStatus
+
+
+class CachedEffectiveSecrets(BaseModel):
+    """The cache value of one project's effective credential set (`effective_secrets`).
+
+    `project_id` is the FULL project id: a read whose id differs is a miss. The inherited
+    rows are the inheritable organization rows AVAILABLE to this project (availability is
+    applied in SQL), so the entry never names another project.
+    """
+
+    model_config = ConfigDict(hide_input_in_errors=True)
+
+    project_id: UUID
+    # The project row's organization; None when the project was not found.
+    organization_id: Optional[UUID] = None
+    secrets: List[SecretResponseDTO] = []
+    inherited: List[SecretResponseDTO] = []

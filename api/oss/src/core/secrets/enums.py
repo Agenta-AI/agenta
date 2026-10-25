@@ -47,6 +47,26 @@ def is_always_write_only(kind) -> bool:
         return False
 
 
+# Who owns a stored secret (CONTRACT section 8). Storage keeps the typed columns
+# (`project_id`, `organization_id`); the DAO maps the kind to the column.
+class SecretOwnerKind(str, Enum):
+    ORGANIZATION = "organization"
+    PROJECT = "project"
+    USER = "user"  # M7; no rows in M5
+
+
+# Which projects an organization credential reaches. `selected_projects` with no listed
+# project reaches no project; it never means "every project".
+class SecretAvailability(str, Enum):
+    ALL_PROJECTS = "all_projects"
+    SELECTED_PROJECTS = "selected_projects"
+
+
+# The kinds an organization owns for its projects to inherit. Every other kind stays
+# project-owned (or, for SSO, organization-only and never inherited).
+INHERITABLE_KINDS = frozenset({SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER})
+
+
 class ChannelSecretKind(str, Enum):
     SLACK = "slack"
     TELEGRAM = "telegram"

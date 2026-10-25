@@ -97,7 +97,7 @@ def test_attributes_carry_principal_target_decision_outcome():
     target = _llm_target(endpoint_id=uuid4())
     outcome = GatewayOutcome(
         status_code=200,
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.VAULT,
     )
 

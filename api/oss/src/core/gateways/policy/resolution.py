@@ -118,7 +118,7 @@ class SecretsResolver(SecretsResolverInterface):
             )
         return ResolvedSecret(
             secret=secret,
-            owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+            owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=scope.project_id),
             origin=SecretOrigin.VAULT,
         )
 
@@ -168,6 +168,6 @@ class SecretsResolver(SecretsResolverInterface):
             )
         return ResolvedSecret(
             secret=match,
-            owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+            owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=scope.project_id),
             origin=SecretOrigin.VAULT,
         )
