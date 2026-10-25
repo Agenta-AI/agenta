@@ -17,6 +17,7 @@ import { join } from "node:path";
 
 import {
   applyCodexAcpApprovalPatch,
+  applyCodexAcpDenyPatch,
   applyCodexAcpUsagePatch,
   CODEX_ACP_BUNDLE_PATH,
 } from "../src/engines/sandbox_agent/codex-acp-patch.ts";
@@ -84,6 +85,23 @@ for (const bundle of bundles) {
   } else {
     source = usage.source;
     console.log(`patch-codex-acp-approvals: usage now per-turn in ${bundle}`);
+  }
+  const deny = applyCodexAcpDenyPatch(source);
+  if (deny.kind === "anchor-missing") {
+    console.error(
+      `patch-codex-acp-approvals: the tool-deny anchor is missing in ${bundle}: ` +
+        `${JSON.stringify(deny.find)}. codex-acp changed its approval handling: re-verify ` +
+        "and update the `deny` block of src/engines/sandbox_agent/codex-acp-patch.json.",
+    );
+    process.exit(1);
+  }
+  if (deny.kind === "already-patched") {
+    console.log(
+      `patch-codex-acp-approvals: tool deny already refusal in ${bundle}`,
+    );
+  } else {
+    source = deny.source;
+    console.log(`patch-codex-acp-approvals: tool deny now refusal in ${bundle}`);
   }
   writeFileSync(bundle, source);
 }
