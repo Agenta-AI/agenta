@@ -51,6 +51,8 @@ from oss.src.core.secrets.dtos import (
 from oss.src.core.secrets.enums import CustomSecretFormat, SecretKind
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.shared.dtos import Header
+from oss.src.core.secrets.dtos import SecretOwner
+from oss.src.core.secrets.enums import SecretOwnerKind
 from oss.tests.pytest.unit.gateways.test_gateways_mcp_oauth_service import (
     _FakeSecretsDAO,
 )
@@ -169,7 +171,7 @@ async def _begin(service, *, endpoint_id: UUID, project_id: UUID, oauth_config=N
 
 async def _project_secret(dao: _FakeSecretsDAO, project_id: UUID, value: str) -> UUID:
     record = await dao.create(
-        project_id=project_id,
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=project_id),
         create_secret_dto=CreateSecretDTO(
             header=Header(name="OAuth app secret"),
             secret=SecretDTO(

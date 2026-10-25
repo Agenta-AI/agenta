@@ -32,6 +32,9 @@ from oss.src.core.secrets.dtos import (
 from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.shared.dtos import Header
+from oss.tests.pytest.utils.organization_secrets import owner_scope
+from oss.src.core.secrets.dtos import SecretOwner
+from oss.src.core.secrets.enums import SecretOwnerKind
 
 
 class _FakeSecretsDAO:
@@ -43,7 +46,14 @@ class _FakeSecretsDAO:
     def _scoped(self, project_id) -> List[SecretResponseDTO]:
         return [r for p, r in self.records if p == project_id]
 
-    async def create(self, *, project_id=None, organization_id=None, create_secret_dto):
+    async def create(
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         self.create_calls += 1
         record = SecretResponseDTO(
             id=uuid4(),
@@ -55,26 +65,48 @@ class _FakeSecretsDAO:
         self.records.append((project_id, record))
         return record
 
-    async def get_by_id(self, secret_id, project_id=None, organization_id=None):
+    async def get_by_id(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return next((r for r in self._scoped(project_id) if r.id == secret_id), None)
 
-    async def get_by_slug(self, secret_slug, project_id=None, organization_id=None):
+    async def get_by_slug(
+        self,
+        *,
+        owner,
+        secret_slug,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return next(
             (r for r in self._scoped(project_id) if r.slug == secret_slug), None
         )
 
-    async def list(self, project_id=None, organization_id=None):
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return self._scoped(project_id)
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id=None,
-        organization_id=None,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         self.update_calls += 1
         scoped = self._scoped(project_id)
         stored = next((r for r in scoped if r.id == secret_id), None)
@@ -91,7 +123,14 @@ class _FakeSecretsDAO:
         self.records[idx] = (project_id, record)
         return record
 
-    async def delete(self, secret_id, project_id=None, organization_id=None):
+    async def delete(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         self.records = [
             (p, r)
             for p, r in self.records
@@ -762,7 +801,9 @@ def _addressed_storage(*, dao, project_id, issuer, redirect_uri, endpoint_id=Non
 
 
 async def _row(dao, *, slug, project_id) -> SecretResponseDTO:
-    found = await dao.get_by_slug(secret_slug=slug, project_id=project_id)
+    found = await dao.get_by_slug(
+        secret_slug=slug, owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=project_id)
+    )
     assert found is not None, f"nothing stored at {slug}"
     return found
 

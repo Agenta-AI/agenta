@@ -21,6 +21,7 @@ from oss.src.dbs.postgres.secrets.mappings import (
     map_secrets_dbe_to_dto,
     map_secrets_dto_to_dbe,
 )
+from oss.tests.pytest.utils.organization_secrets import owner_scope
 
 
 PROJECT_ID = uuid4()
@@ -46,8 +47,14 @@ class _DAO:
         self.record = None
 
     async def create(
-        self, project_id, organization_id, create_secret_dto, management=None
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        management=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         self.record = SecretResponseDTO(
             id=uuid4(),
             slug=create_secret_dto.slug,
@@ -59,18 +66,26 @@ class _DAO:
         )
         return self.record
 
-    async def list(self, project_id, organization_id):
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return [self.record] if self.record else []
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id,
-        organization_id,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         if resolve_update:
             update_secret_dto = resolve_update(self.record, update_secret_dto)
         # Apply it, the way the real DAO does. A fake that returns the row untouched lets a
@@ -83,8 +98,14 @@ class _DAO:
         return self.record
 
     async def delete(
-        self, secret_id, project_id, organization_id, authorize_delete=None
+        self,
+        *,
+        owner,
+        secret_id,
+        authorize_delete=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         if authorize_delete:
             authorize_delete(self.record)
         self.record = None

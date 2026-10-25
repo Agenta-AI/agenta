@@ -54,6 +54,7 @@ from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.secrets.services import VaultService
 from oss.tests.pytest.utils.mcp_endpoints import InMemoryMCPEndpoints
 from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
+from oss.tests.pytest.utils.organization_secrets import owner_scope
 
 _API_URL = "https://api.agenta.ai"
 _SERVER_URL = "https://mcp.acme.io/"
@@ -83,7 +84,14 @@ class _FakeSecretsDAO:
     def _scoped(self, project_id) -> List[SecretResponseDTO]:
         return [r for p, r in self.records if p == project_id]
 
-    async def create(self, *, project_id=None, organization_id=None, create_secret_dto):
+    async def create(
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         record = SecretResponseDTO(
             id=uuid4(),
             slug=create_secret_dto.slug,
@@ -94,26 +102,48 @@ class _FakeSecretsDAO:
         self.records.append((project_id, record))
         return record
 
-    async def get_by_id(self, secret_id, project_id=None, organization_id=None):
+    async def get_by_id(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return next((r for r in self._scoped(project_id) if r.id == secret_id), None)
 
-    async def get_by_slug(self, secret_slug, project_id=None, organization_id=None):
+    async def get_by_slug(
+        self,
+        *,
+        owner,
+        secret_slug,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return next(
             (r for r in self._scoped(project_id) if r.slug == secret_slug), None
         )
 
-    async def list(self, project_id=None, organization_id=None):
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return self._scoped(project_id)
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id=None,
-        organization_id=None,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         scoped = self._scoped(project_id)
         stored = next((r for r in scoped if r.id == secret_id), None)
         if stored is None:
@@ -130,8 +160,14 @@ class _FakeSecretsDAO:
         return record
 
     async def delete(
-        self, secret_id, project_id=None, organization_id=None, authorize_delete=None
+        self,
+        *,
+        owner,
+        secret_id,
+        authorize_delete=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         self.records = [
             (p, r)
             for p, r in self.records

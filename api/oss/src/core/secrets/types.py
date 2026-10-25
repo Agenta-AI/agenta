@@ -143,3 +143,97 @@ class SubscriptionTokenUnverified(SubscriptionTokenError):
 
     def __init__(self, message: str = "Agenta could not check this token with Claude."):
         super().__init__(message)
+
+
+# -- organization credentials (M5) -----------------------------------------------------
+
+
+class OrganizationSecretKindNotInheritable(SecretsError):
+    """Only `provider_key` (of an LLM provider family) and `custom_provider` can be shared."""
+
+    def __init__(self, *, kind: str):
+        self.kind = kind
+        super().__init__("This kind of credential cannot be shared with projects.")
+
+
+class OrganizationSecretNotServed(SecretsError):
+    """The LLM gateway does not serve this deployment, so its value could reach a run only
+    in plaintext."""
+
+    def __init__(self, *, deployment_kind: str):
+        self.deployment_kind = deployment_kind
+        super().__init__(
+            "The LLM gateway does not serve this deployment, so it cannot be shared "
+            "with projects."
+        )
+
+
+class OrganizationSecretValueTooShort(SecretsError):
+    """A credential value under the gateway's echo-scan minimum, after the surrounding
+    whitespace is removed: the scan could not catch it in an upstream answer."""
+
+    def __init__(self, *, min_length: int):
+        self.min_length = min_length
+        super().__init__(
+            "This credential is too short to be shared. Use a value of at least "
+            f"{min_length} characters."
+        )
+
+
+class SecretShadowConflict(SecretsError):
+    """After this write one project would hold a project row and an available organization
+    row with the same slug and another kind or provider family."""
+
+    def __init__(self, *, slug: str):
+        self.slug = slug
+        super().__init__(
+            "A credential with this slug already exists with another kind or provider."
+        )
+
+
+class SecretWriteConflict(SecretsError):
+    """A conflict-checked write failed to serialize twice in a row."""
+
+    retryable = True
+
+    def __init__(self):
+        super().__init__(
+            "Another change to these credentials happened at the same time. Try again."
+        )
+
+
+class ProjectLimitNotAllowed(SecretsError):
+    """`selected_projects` in OSS, or in EE without the RBAC entitlement."""
+
+    def __init__(self):
+        super().__init__(
+            "Limiting a credential to selected projects is not available for this "
+            "organization."
+        )
+
+
+class ProjectNotInOrganization(SecretsError):
+    """A limit names a project of another organization, or an unknown project."""
+
+    def __init__(self, *, project_ids=()):
+        self.project_ids = list(project_ids)
+        super().__init__("Every project must belong to this organization.")
+
+
+class OrganizationSecretNotFound(SecretsError):
+    """The id is not an inheritable organization row of this organization (an SSO id
+    answers this too)."""
+
+    def __init__(self):
+        super().__init__("Secret not found")
+
+
+class SecretStorageError(SecretsError):
+    """An unexpected database error in a secrets write.
+
+    Raised `from None` with a fixed message: the SQL parameters of a secrets write hold the
+    plaintext value (it is a bind parameter of `pgp_sym_encrypt`), so neither the message
+    nor the traceback may carry the driver error."""
+
+    def __init__(self):
+        super().__init__("The credential could not be stored.")

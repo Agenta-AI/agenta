@@ -27,6 +27,7 @@ from oss.tests.pytest.utils.deployment import (  # noqa: F401
     deployment_databases,
     the_deployment_under_test,
 )
+from oss.tests.pytest.utils.organization_secrets import owner_scope
 
 # example.com: routable and in no blocked range.
 _PUBLIC_ADDRESS = "93.184.216.34"
@@ -243,7 +244,14 @@ class _InMemorySecretsDAO:
     def _scoped(self, project_id: UUID) -> list[SecretResponseDTO]:
         return [record for owner, record in self.records if owner == project_id]
 
-    async def create(self, *, project_id=None, organization_id=None, create_secret_dto):
+    async def create(
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         record = SecretResponseDTO(
             id=uuid.uuid4(),
             slug=create_secret_dto.slug,
@@ -254,13 +262,27 @@ class _InMemorySecretsDAO:
         self.records.append((project_id, record))
         return record
 
-    async def get_by_id(self, secret_id, project_id=None, organization_id=None):
+    async def get_by_id(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return next(
             (record for record in self._scoped(project_id) if record.id == secret_id),
             None,
         )
 
-    async def get_by_slug(self, secret_slug, project_id=None, organization_id=None):
+    async def get_by_slug(
+        self,
+        *,
+        owner,
+        secret_slug,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return next(
             (
                 record
@@ -270,18 +292,26 @@ class _InMemorySecretsDAO:
             None,
         )
 
-    async def list(self, project_id=None, organization_id=None):
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return self._scoped(project_id)
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id=None,
-        organization_id=None,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         existing = await self.get_by_id(secret_id, project_id=project_id)
         if existing is None:
             return None
@@ -297,7 +327,14 @@ class _InMemorySecretsDAO:
         self.records[self.records.index((project_id, existing))] = (project_id, updated)
         return updated
 
-    async def delete(self, secret_id, project_id=None, organization_id=None):
+    async def delete(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         self.records = [
             (owner, record)
             for owner, record in self.records

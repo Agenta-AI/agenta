@@ -222,12 +222,21 @@ class TransactionsEngine:
             await self._session.remove()
 
     @asynccontextmanager
-    async def transaction(self) -> AsyncGenerator[AsyncConnection, None]:
+    async def transaction(
+        self, *, isolation_level: Optional[str] = None
+    ) -> AsyncGenerator[AsyncConnection, None]:
         """A transaction on its own pooled connection, outside the task-scoped session.
         `session()` hands every nested caller in one task the same session and commits
         it on the first exit, so anything that must outlive nested sessions (a
-        transaction-scoped lock, say) needs this instead."""
+        transaction-scoped lock, say) needs this instead.
+
+        `isolation_level` (for example "SERIALIZABLE") is sent with the `BEGIN`, so it
+        costs no extra statement; the pool resets it when the connection returns."""
         async with self._engine.connect() as connection:
+            if isolation_level is not None:
+                connection = await connection.execution_options(
+                    isolation_level=isolation_level
+                )
             async with connection.begin():
                 yield connection
 
