@@ -104,24 +104,27 @@ def stream_gemini_thoughts(body: bytes) -> Tuple[bytes, Optional[bool]]:
     """Ask a streaming Gemini chat completion to stream its thought summaries.
 
     Vertex sends no byte, not even the response headers, until the model's first output. With
-    thought summaries on, a model that is thinking sends them every few seconds, so silence
-    means a stalled call, which the gateway cuts and retries (`first_byte_timeout_seconds`).
+    thought summaries on, a model that is thinking usually sends one within seconds, so a long
+    silence is most likely a stalled call, which the gateway cuts and retries
+    (`response_headers_timeout_seconds`).
     Vertex refuses `reasoning_effort` next to a `thinking_config`, so the effort moves into
     the config as Gemini's `thinking_level`.
 
     Returns the body and whether the caller asked to see the thoughts: True relays them as
     `reasoning_content`, False removes their text, and None means the body is unchanged. A
-    body that already carries `extra_body` (the built-in route refuses one before this) or an
-    effort Gemini has no level for is left for Vertex to judge.
+    body that already carries an `extra_body` (the built-in route refuses a non-null one
+    before this) or an effort Gemini has no level for is left for Vertex to judge.
     """
     try:
         payload = json.loads(body)
     except (json.JSONDecodeError, TypeError):
         return body, None
-    if not isinstance(payload, dict) or "extra_body" in payload:
+    if not isinstance(payload, dict) or payload.get("extra_body") is not None:
         return body, None
     effort = payload.pop("reasoning_effort", None)
-    if effort is not None and effort not in _GEMINI_THINKING_LEVELS:
+    if effort is not None and not (
+        isinstance(effort, str) and effort in _GEMINI_THINKING_LEVELS
+    ):
         return body, None
     config: Dict[str, Any] = {"include_thoughts": True}
     if effort is not None:

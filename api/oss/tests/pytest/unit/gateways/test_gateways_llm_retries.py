@@ -51,7 +51,7 @@ def sleeps(monkeypatch) -> List[float]:
     return waited
 
 
-def _row(timeout_seconds=None, first_byte_timeout_seconds=None) -> LLMEndpoint:
+def _row(timeout_seconds=None, response_headers_timeout_seconds=None) -> LLMEndpoint:
     return LLMEndpoint(
         id=uuid4(),
         slug="acme",
@@ -64,17 +64,17 @@ def _row(timeout_seconds=None, first_byte_timeout_seconds=None) -> LLMEndpoint:
             models=LLMModelFilter(allowlist=["gpt-4o"]),
             settings=LLMEndpointSettings(
                 timeout_seconds=timeout_seconds,
-                first_byte_timeout_seconds=first_byte_timeout_seconds,
+                response_headers_timeout_seconds=response_headers_timeout_seconds,
             ),
         ),
     )
 
 
 def _service(
-    adapter, *, policy=None, timeout_seconds=None, first_byte_timeout_seconds=None
+    adapter, *, policy=None, timeout_seconds=None, response_headers_timeout_seconds=None
 ) -> LLMGatewayService:
     dao = _MockLlmEndpointsDAO()
-    dao.rows_by_slug["acme"] = _row(timeout_seconds, first_byte_timeout_seconds)
+    dao.rows_by_slug["acme"] = _row(timeout_seconds, response_headers_timeout_seconds)
     return LLMGatewayService(
         llm_endpoints_dao=dao,
         policy=policy or _MockPolicy(),
@@ -428,11 +428,11 @@ async def _frames() -> AsyncIterator[bytes]:
 
 
 @pytest.mark.asyncio
-async def test_a_stalled_stream_is_cut_at_the_first_byte_limit_and_sent_again():
+async def test_a_stalled_stream_is_cut_at_the_headers_limit_and_sent_again():
     adapter = _StallsFirst(stalls=1)
 
     result = await _relay(
-        _service(adapter, timeout_seconds=5, first_byte_timeout_seconds=0.05),
+        _service(adapter, timeout_seconds=5, response_headers_timeout_seconds=0.05),
         stream=True,
     )
 
@@ -450,7 +450,7 @@ async def test_a_stream_that_stalls_on_every_attempt_is_a_timeout_after_two_retr
 
     with pytest.raises(LLMUpstreamTimeoutError):
         await _relay(
-            _service(adapter, timeout_seconds=5, first_byte_timeout_seconds=0.02),
+            _service(adapter, timeout_seconds=5, response_headers_timeout_seconds=0.02),
             stream=True,
         )
 
@@ -463,7 +463,9 @@ async def test_a_stall_retry_never_runs_past_the_routes_deadline():
 
     with pytest.raises(LLMUpstreamTimeoutError):
         await _relay(
-            _service(adapter, timeout_seconds=0.15, first_byte_timeout_seconds=0.1),
+            _service(
+                adapter, timeout_seconds=0.15, response_headers_timeout_seconds=0.1
+            ),
             stream=True,
         )
 
@@ -472,11 +474,11 @@ async def test_a_stall_retry_never_runs_past_the_routes_deadline():
 
 
 @pytest.mark.asyncio
-async def test_a_non_streaming_call_is_not_cut_at_the_first_byte_limit():
+async def test_a_non_streaming_call_is_not_cut_at_the_headers_limit():
     adapter = _StallsFirst(stalls=0, delay=0.1)
 
     result = await _relay(
-        _service(adapter, timeout_seconds=5, first_byte_timeout_seconds=0.02)
+        _service(adapter, timeout_seconds=5, response_headers_timeout_seconds=0.02)
     )
 
     assert result.status_code == 200
@@ -495,7 +497,7 @@ async def test_a_stall_and_a_5xx_share_one_retry_budget(sleeps):
     adapter = _StallThen503(stalls=1)
 
     result = await _relay(
-        _service(adapter, timeout_seconds=5, first_byte_timeout_seconds=0.02),
+        _service(adapter, timeout_seconds=5, response_headers_timeout_seconds=0.02),
         stream=True,
     )
 

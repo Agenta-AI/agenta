@@ -378,8 +378,8 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         sign = is_gemini_chat(
             route.deployment_kind, context.protocol, route.provider_key
         )
-        # The platform's own Gemini streams its thoughts, so its first-byte limit
-        # (`first_byte_timeout_seconds`) catches stalls and never a model that is thinking.
+        # The platform's own Gemini streams its thoughts, so its headers limit
+        # (`response_headers_timeout_seconds`) catches stalls rather than a model that thinks.
         thoughts = None
         if (
             sign

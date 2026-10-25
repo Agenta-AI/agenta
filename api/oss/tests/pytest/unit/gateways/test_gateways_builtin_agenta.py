@@ -29,6 +29,10 @@ from oss.src.core.gateways.llms.providers.passthrough.adapter import (
     _usage_from_body,
 )
 from oss.src.core.gateways.llms.providers.passthrough.routing import build_url
+from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
+    move_gemini_thoughts,
+    stream_gemini_thoughts,
+)
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
 from oss.src.core.gateways.llms.types import LLMUpstreamError
@@ -890,7 +894,7 @@ def test_agenta_waits_five_minutes_for_a_slow_gemini(vertex):
 def test_agenta_cuts_a_gemini_stream_that_sends_nothing_for_a_minute(vertex):
     endpoint = builtin_llm_endpoint(provider_key="agenta")
 
-    assert endpoint.data.settings.first_byte_timeout_seconds == 60
+    assert endpoint.data.settings.response_headers_timeout_seconds == 60
 
 
 # --- streamed thoughts ------------------------------------------------------- #
@@ -1103,3 +1107,61 @@ async def test_a_retried_builtin_call_is_admitted_once_and_charged_once(
     ((_, outcome),) = policy.records
     assert outcome.status_code == 200
     assert outcome.usage == GatewayUsage(input_tokens=14, output_tokens=494)
+
+
+def test_a_null_extra_body_still_gets_thoughts():
+    body, relay = stream_gemini_thoughts(
+        json.dumps({"model": "m", "extra_body": None, "messages": []}).encode()
+    )
+
+    assert relay is False
+    assert json.loads(body)["extra_body"] == {
+        "google": {"thinking_config": {"include_thoughts": True}}
+    }
+
+
+@pytest.mark.parametrize("effort", [[], {}, 3])
+def test_an_effort_that_is_not_a_string_is_left_for_vertex_to_judge(effort):
+    raw = json.dumps({"model": "m", "reasoning_effort": effort}).encode()
+
+    assert stream_gemini_thoughts(raw) == (raw, None)
+
+
+def test_only_thought_deltas_move_and_the_rest_of_each_frame_stays():
+    signed_call = {
+        "id": "call-1",
+        "function": {"name": "f", "arguments": "{}"},
+        "extra_content": {"google": {"thought_signature": "sig"}},
+    }
+    frame = {
+        "choices": [
+            {
+                "index": 0,
+                "delta": {
+                    "content": "thinking",
+                    "extra_content": {"google": {"thought": True, "other": 1}},
+                },
+            },
+            {"index": 1, "delta": {"content": "answer"}},
+            {"index": 2, "delta": {"tool_calls": [signed_call]}},
+        ],
+        "usage": {"prompt_tokens": 3},
+    }
+
+    assert move_gemini_thoughts(frame, relay=True) is True
+
+    first, second, third = frame["choices"]
+    assert first["delta"] == {
+        "extra_content": {"google": {"other": 1}},
+        "reasoning_content": "thinking",
+    }
+    assert second["delta"] == {"content": "answer"}
+    assert third["delta"]["tool_calls"] == [signed_call]
+    assert frame["usage"] == {"prompt_tokens": 3}
+
+
+def test_a_usage_only_frame_is_not_rewritten():
+    frame = {"choices": [], "usage": {"prompt_tokens": 3}}
+
+    assert move_gemini_thoughts(frame, relay=False) is False
+    assert frame == {"choices": [], "usage": {"prompt_tokens": 3}}

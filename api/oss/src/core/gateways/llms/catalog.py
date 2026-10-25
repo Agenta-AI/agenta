@@ -64,10 +64,10 @@ AGENTA_VERTEX_LOCATION = "global"
 AGENTA_TIMEOUT_SECONDS = 300.0
 
 # Vertex's shared `global` pool leaves a few percent of Gemini calls waiting minutes for their
-# first byte, and the same body sent again usually answers in seconds. The gateway asks Gemini
-# to stream its thought summaries (`static_fields.py`), so a model that is thinking sends bytes
-# well inside this limit; a call that sends nothing for it is stalled, and is cut and retried.
-AGENTA_FIRST_BYTE_TIMEOUT_SECONDS = 60.0
+# first byte (Vertex sends its headers with it), and the same body sent again usually answers in
+# seconds. The gateway asks Gemini to stream its thought summaries (`static_fields.py`), so a
+# model that is thinking usually sends bytes well inside this limit.
+AGENTA_RESPONSE_HEADERS_TIMEOUT_SECONDS = 60.0
 
 # Every provider the `builtin` namespace can serve. A `builtin` call runs on the platform's
 # account, so the wallet's rate card must price each model these serve.
@@ -180,7 +180,7 @@ def _agenta_endpoint() -> Optional[LLMEndpoint]:
             models=LLMModelFilter(allowlist=list(AGENTA_MODELS)),
             settings=LLMEndpointSettings(
                 timeout_seconds=AGENTA_TIMEOUT_SECONDS,
-                first_byte_timeout_seconds=AGENTA_FIRST_BYTE_TIMEOUT_SECONDS,
+                response_headers_timeout_seconds=AGENTA_RESPONSE_HEADERS_TIMEOUT_SECONDS,
             ),
         ),
     )

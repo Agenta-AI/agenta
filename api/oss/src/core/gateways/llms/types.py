@@ -115,7 +115,7 @@ class LLMUpstreamTimeoutError(LLMUpstreamError):
     """The upstream did not answer within the gateway's timeout.
 
     Raised once the route's whole deadline is spent, or once every retry of a stalled
-    streaming attempt (`first_byte_timeout_seconds`) is spent. The deadline itself is never
+    streaming attempt (`response_headers_timeout_seconds`) is spent. The deadline itself is never
     retried: the model that did not answer in time is the one a retry would wait on again.
     """
 
