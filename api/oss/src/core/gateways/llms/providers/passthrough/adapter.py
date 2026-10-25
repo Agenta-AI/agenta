@@ -40,7 +40,9 @@ from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
     apply_static_fields,
     encode_thought_signatures,
     is_gemini_chat,
+    default_gemini_thinking,
     move_gemini_thoughts,
+    nudge_stalled_chat,
     stream_gemini_thoughts,
 )
 from oss.src.core.gateways.llms.types import LLMUpstreamError, LLMUpstreamTimeoutError
@@ -378,16 +380,21 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         sign = is_gemini_chat(
             route.deployment_kind, context.protocol, route.provider_key
         )
-        # The platform's own Gemini streams its thoughts, so its headers limit
-        # (`response_headers_timeout_seconds`) catches stalls rather than a model that thinks.
+        # The platform's own Gemini thinks at "low" unless asked otherwise, streams its
+        # thoughts so its headers limit (`response_headers_timeout_seconds`) catches stalls
+        # rather than a model that thinks, and varies a request that stalled.
         thoughts = None
         if (
             sign
-            and context.stream
             and route.provider_key == AGENTA_PROVIDER
             and route.deployment_kind == LLMDeploymentKind.VERTEX
         ):
-            body, thoughts = stream_gemini_thoughts(body)
+            if context.stream:
+                body, thoughts = stream_gemini_thoughts(body)
+            else:
+                body = default_gemini_thinking(body)
+            if context.stalled_attempts:
+                body = nudge_stalled_chat(body, attempts=context.stalled_attempts)
         try:
             target, injected_secrets = await _outbound_target(
                 url=url, headers=headers, route=route, secret=secret

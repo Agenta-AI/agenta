@@ -35,10 +35,12 @@ _MOCK_MODELS = ["mock/echo", "gpt-5.5", "claude-sonnet-5"]
 AGENTA_PROVIDER = "agenta"
 
 # The models `builtin/agenta` serves, spelled as Vertex's OpenAI-compatible endpoint names
-# them, so a request body relays to Vertex unchanged.
+# them, so a request body relays to Vertex unchanged. The first is the default model of a
+# new agent (the web app picks the endpoint's first model): gemini-3.8-flash costs the same
+# as 3.7-flash and timed out a third as often in production (October 2026).
 AGENTA_MODELS = (
-    "google/gemini-3.7-flash",
     "google/gemini-3.8-flash",
+    "google/gemini-3.7-flash",
     "google/gemini-4-argon",
 )
 
@@ -67,7 +69,7 @@ AGENTA_TIMEOUT_SECONDS = 300.0
 # first byte (Vertex sends its headers with it), and the same body sent again usually answers in
 # seconds. The gateway asks Gemini to stream its thought summaries (`static_fields.py`), so a
 # model that is thinking usually sends bytes well inside this limit.
-AGENTA_RESPONSE_HEADERS_TIMEOUT_SECONDS = 60.0
+AGENTA_RESPONSE_HEADERS_TIMEOUT_SECONDS = 90.0
 
 # Vertex's opt-in to its Priority PayGo tier (`AGENTA_LLM_GATEWAY_VERTEX_PRIORITY`). The first
 # header keeps the call on shared capacity, the second asks for priority within it.

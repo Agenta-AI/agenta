@@ -98,6 +98,8 @@ _GEMINI_THINKING_LEVELS = {
     "high": "high",
     "xhigh": "high",
 }
+# What a built-in Gemini call that names no reasoning effort thinks at (`default_gemini_thinking`).
+_DEFAULT_LEVEL = "low"
 
 
 def stream_gemini_thoughts(body: bytes) -> Tuple[bytes, Optional[bool]]:
@@ -106,9 +108,9 @@ def stream_gemini_thoughts(body: bytes) -> Tuple[bytes, Optional[bool]]:
     Vertex sends no byte, not even the response headers, until the model's first output. With
     thought summaries on, a model that is thinking usually sends one within seconds, so a long
     silence is most likely a stalled call, which the gateway cuts and retries
-    (`response_headers_timeout_seconds`).
-    Vertex refuses `reasoning_effort` next to a `thinking_config`, so the effort moves into
-    the config as Gemini's `thinking_level`.
+    (`response_headers_timeout_seconds`). Vertex refuses `reasoning_effort` next to a
+    `thinking_config`, so the effort moves into the config as Gemini's `thinking_level`, and a
+    call that names no effort thinks at "low" (`default_gemini_thinking`).
 
     Returns the body and whether the caller asked to see the thoughts: True relays them as
     `reasoning_content`, False removes their text, and None means the body is unchanged. A
@@ -126,11 +128,69 @@ def stream_gemini_thoughts(body: bytes) -> Tuple[bytes, Optional[bool]]:
         isinstance(effort, str) and effort in _GEMINI_THINKING_LEVELS
     ):
         return body, None
-    config: Dict[str, Any] = {"include_thoughts": True}
-    if effort is not None:
-        config["thinking_level"] = _GEMINI_THINKING_LEVELS[effort]
-    payload["extra_body"] = {"google": {"thinking_config": config}}
+    level = _GEMINI_THINKING_LEVELS[effort] if effort is not None else _DEFAULT_LEVEL
+    payload["extra_body"] = {
+        "google": {
+            "thinking_config": {"include_thoughts": True, "thinking_level": level}
+        }
+    }
     return json.dumps(payload).encode(), effort not in (None, "none")
+
+
+def default_gemini_thinking(body: bytes) -> bytes:
+    """Make a non-streaming Gemini chat completion that names no reasoning effort think at
+    "low". Gemini's own default is "medium", which on the built-in models took 4 to 30 s
+    longer to the first answer than "low" (staging, 25 October 2026); a caller that sets
+    no thinking level, as Pi does with thinking off, asked for none."""
+    try:
+        payload = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return body
+    if (
+        not isinstance(payload, dict)
+        or payload.get("reasoning_effort") is not None
+        or payload.get("extra_body") is not None
+    ):
+        return body
+    payload["reasoning_effort"] = _DEFAULT_LEVEL
+    return json.dumps(payload).encode()
+
+
+def nudge_stalled_chat(body: bytes, *, attempts: int) -> bytes:
+    """A stalled chat completion's body for its next attempt: the system prompt ends with one
+    newline per earlier stall.
+
+    Vertex can stay stuck on one request for minutes, stalling again on the identical body,
+    while the same request with any change the model sees answers in seconds; a change only
+    in what the model does not see, such as tool call ids, does not help (staging, 25 October
+    2026). A trailing newline changes nothing the model is asked. A body with no system or
+    developer message is left as it is.
+    """
+    try:
+        payload = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return body
+    messages = payload.get("messages") if isinstance(payload, dict) else None
+    for message in messages if isinstance(messages, list) else []:
+        if not isinstance(message, dict) or message.get("role") not in (
+            "system",
+            "developer",
+        ):
+            continue
+        content = message.get("content")
+        if isinstance(content, str):
+            message["content"] = content + "\n" * attempts
+            return json.dumps(payload).encode()
+        texts = [
+            part
+            for part in (content if isinstance(content, list) else [])
+            if isinstance(part, dict) and isinstance(part.get("text"), str)
+        ]
+        if texts:
+            texts[-1]["text"] += "\n" * attempts
+            return json.dumps(payload).encode()
+        return body
+    return body
 
 
 def move_gemini_thoughts(payload: Any, *, relay: bool) -> bool:

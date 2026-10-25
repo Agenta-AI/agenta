@@ -860,13 +860,17 @@ class LLMGatewayService:
                 )
             except asyncio.TimeoutError as e:
                 # An attempt that sent nothing for `response_headers_timeout_seconds` is stalled,
-                # not slow: the same body sent again usually answers in seconds. Cancelling
-                # it closes its connection, and nothing of it reached the caller.
+                # not slow: sent again it usually answers in seconds. Cancelling it closes its
+                # connection, and nothing of it reached the caller. The adapter learns the
+                # count from the context and may vary the retried request.
                 if not stall_cut or not _may_retry(retry, 0.0, deadline, loop.time()):
                     raise LLMUpstreamTimeoutError(
                         provider_key=target.provider_key
                     ) from e
                 retry += 1
+                context = context.model_copy(
+                    update={"stalled_attempts": context.stalled_attempts + 1}
+                )
                 log.warning(
                     "[gateways] retrying a stalled LLM call",
                     target=target.target_path(),

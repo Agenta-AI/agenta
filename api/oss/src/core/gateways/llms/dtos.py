@@ -119,6 +119,10 @@ class LLMCallContext(BaseModel):
     model: str
     stream: bool = False
     protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS
+    # How many earlier attempts of this call stalled (`response_headers_timeout_seconds`). An
+    # adapter may vary the retried request, since an upstream stuck on one request can stall
+    # again on the identical body.
+    stalled_attempts: int = 0
 
 
 class LLMResolvedRoute(BaseModel):

@@ -30,7 +30,9 @@ from oss.src.core.gateways.llms.providers.passthrough.adapter import (
 )
 from oss.src.core.gateways.llms.providers.passthrough.routing import build_url
 from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
+    default_gemini_thinking,
     move_gemini_thoughts,
+    nudge_stalled_chat,
     stream_gemini_thoughts,
 )
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
@@ -126,8 +128,8 @@ def test_agenta_serves_the_gemini_models_from_vertex(vertex):
     assert endpoint.data.route.region == "global"
     assert endpoint.data.route.extras == {"vertex_project": _PROJECT}
     assert endpoint.data.models.allowlist == [
-        "google/gemini-3.7-flash",
         "google/gemini-3.8-flash",
+        "google/gemini-3.7-flash",
         "google/gemini-4-argon",
     ]
 
@@ -359,10 +361,11 @@ async def test_a_call_reaches_vertex_on_the_platform_token_and_records_its_usage
         "/chat/completions"
     )
     assert request.headers["authorization"] == f"Bearer {_TOKEN}"
-    # A non-streaming body relays byte for byte.
+    # A non-streaming body relays as sent, plus the default thinking level.
     assert json.loads(request.content) == {
         "model": "google/gemini-3.8-flash",
         "messages": [],
+        "reasoning_effort": "low",
     }
     assert vertex == [{"credentials": _DOCUMENT, "project_id": _PROJECT}]
     assert b"Hi" in received
@@ -891,10 +894,17 @@ def test_agenta_waits_five_minutes_for_a_slow_gemini(vertex):
     assert endpoint.data.settings.timeout_seconds == 300
 
 
-def test_agenta_cuts_a_gemini_stream_that_sends_nothing_for_a_minute(vertex):
+def test_agenta_cuts_a_gemini_stream_that_sends_nothing_for_ninety_seconds(vertex):
     endpoint = builtin_llm_endpoint(provider_key="agenta")
 
-    assert endpoint.data.settings.response_headers_timeout_seconds == 60
+    assert endpoint.data.settings.response_headers_timeout_seconds == 90
+
+
+def test_a_new_agent_defaults_to_gemini_3_8_flash(vertex):
+    endpoint = builtin_llm_endpoint(provider_key="agenta")
+
+    # The web app gives a new agent the endpoint's first model.
+    assert endpoint.data.models.allowlist[0] == "google/gemini-3.8-flash"
 
 
 # --- streamed thoughts ------------------------------------------------------- #
@@ -969,7 +979,9 @@ async def test_a_stream_without_reasoning_asks_for_thoughts_and_hides_them(verte
     )
 
     assert sent["extra_body"] == {
-        "google": {"thinking_config": {"include_thoughts": True}}
+        "google": {
+            "thinking_config": {"include_thoughts": True, "thinking_level": "low"}
+        }
     }
     # The thought frame still reaches the caller, so it sees bytes, but carries no text.
     assert deltas[0] == {"role": "assistant"}
@@ -1116,7 +1128,9 @@ def test_a_null_extra_body_still_gets_thoughts():
 
     assert relay is False
     assert json.loads(body)["extra_body"] == {
-        "google": {"thinking_config": {"include_thoughts": True}}
+        "google": {
+            "thinking_config": {"include_thoughts": True, "thinking_level": "low"}
+        }
     }
 
 
@@ -1184,3 +1198,105 @@ async def test_the_priority_switch_puts_agenta_on_vertexs_priority_tier(
         assert headers["x-vertex-ai-llm-shared-request-type"] == "priority"
     else:
         assert "x-vertex-ai-llm-shared-request-type" not in headers
+
+
+@pytest.mark.asyncio
+async def test_a_non_streaming_call_without_reasoning_thinks_low(vertex):
+    requests, _records, _received = await _relay(
+        stream=False, body={"model": "google/gemini-3.7-flash", "messages": []}
+    )
+
+    assert json.loads(requests[0].content)["reasoning_effort"] == "low"
+
+
+def test_a_non_streaming_call_keeps_the_effort_it_named():
+    raw = json.dumps({"model": "m", "reasoning_effort": "high"}).encode()
+
+    assert default_gemini_thinking(raw) == raw
+
+
+@pytest.mark.parametrize(
+    "system, expected",
+    [
+        ({"role": "system", "content": "Be terse."}, "Be terse.\n\n"),
+        ({"role": "developer", "content": "Be terse."}, "Be terse.\n\n"),
+        (
+            {"role": "system", "content": [{"type": "text", "text": "Be terse."}]},
+            [{"type": "text", "text": "Be terse.\n\n"}],
+        ),
+    ],
+)
+def test_a_stalled_request_is_retried_with_its_system_prompt_nudged(system, expected):
+    raw = json.dumps(
+        {"model": "m", "messages": [system, {"role": "user", "content": "hi"}]}
+    ).encode()
+
+    sent = json.loads(nudge_stalled_chat(raw, attempts=2))
+
+    assert sent["messages"][0]["content"] == expected
+    assert sent["messages"][1] == {"role": "user", "content": "hi"}
+
+
+def test_a_request_without_a_system_prompt_is_retried_unchanged():
+    raw = json.dumps(
+        {"model": "m", "messages": [{"role": "user", "content": "hi"}]}
+    ).encode()
+
+    assert nudge_stalled_chat(raw, attempts=1) == raw
+
+
+@pytest.mark.asyncio
+async def test_each_stalled_builtin_retry_sends_a_different_request(
+    vertex, monkeypatch
+):
+    """The built-in route cuts a silent attempt and sends a nudged copy, not the same bytes."""
+    import oss.src.core.gateways.llms.catalog as catalog_module
+
+    monkeypatch.setattr(catalog_module, "AGENTA_RESPONSE_HEADERS_TIMEOUT_SECONDS", 0.05)
+    sent: List[bytes] = []
+    frames = (
+        'data: {"choices": [{"delta": {"content": "Hi"}, "index": 0}]}\n\n'
+        "data: [DONE]\n\n"
+    ).encode()
+
+    class _StallTwice(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            sent.append(request.content)
+            if len(sent) <= 2:
+                await asyncio.Event().wait()
+            return httpx.Response(
+                200, content=frames, headers={"content-type": "text/event-stream"}
+            )
+
+    service = LLMGatewayService(
+        llm_endpoints_dao=_NoRows(),
+        policy=_Policy(),
+        resolver=_NoVault(),
+        upstream_registry=LLMUpstreamRegistry(
+            adapters={
+                "relay": RelayLLMAdapter(
+                    client=httpx.AsyncClient(transport=_StallTwice())
+                )
+            }
+        ),
+    )
+    body = {
+        "model": "google/gemini-3.8-flash",
+        "stream": True,
+        "messages": [
+            {"role": "developer", "content": "Be terse."},
+            {"role": "user", "content": "hi"},
+        ],
+    }
+    result = await service.relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.BUILTIN,
+        name="agenta",
+        body=json.dumps(body).encode(),
+        headers={},
+    )
+    received = b"".join([chunk async for chunk in result.body])
+
+    assert b"Hi" in received
+    systems = [json.loads(raw)["messages"][0]["content"] for raw in sent]
+    assert systems == ["Be terse.", "Be terse.\n", "Be terse.\n\n"]
