@@ -23,6 +23,7 @@ from oss.src.core.gateways.llms.dtos import (
     LLMProtocol,
     LLMResolvedRoute,
 )
+from oss.src.core.gateways.llms.interfaces import CustomTargetLookup
 from oss.src.core.gateways.llms.providers.passthrough.adapter import (
     RelayLLMAdapter,
     _StreamReader,
@@ -274,6 +275,11 @@ class _NoVault:
 class _NoRows:
     async def fetch_endpoint_by_slug(self, *, project_id, slug):
         return None
+
+    async def fetch_custom_target_by_slug(self, *, project_id, organization_id, slug):
+        return CustomTargetLookup(
+            endpoint=await self.fetch_endpoint_by_slug(project_id=project_id, slug=slug)
+        )
 
     async def query_endpoints(self, **_kwargs):
         return []

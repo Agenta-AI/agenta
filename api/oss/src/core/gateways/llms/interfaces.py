@@ -21,7 +21,17 @@ from oss.src.core.gateways.llms.dtos import (
     LLMResolvedRoute,
 )
 from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
+from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.shared.dtos import Windowing
+
+
+@dataclass
+class CustomTargetLookup:
+    """What a custom slug names: a project endpoint row, or an inherited organization
+    `custom_provider` (decrypted, in process only), or neither."""
+
+    endpoint: Optional[LLMEndpoint] = None
+    inherited: Optional[SecretResponseDTO] = None
 
 
 class LLMEndpointsDAOInterface(ABC):
@@ -66,6 +76,25 @@ class LLMEndpointsDAOInterface(ABC):
         construction. None means the custom namespace has no such name — the
         proxy 404s in the surface's own error shape (§9)."""
         raise NotImplementedError
+
+    async def fetch_custom_target_by_slug(
+        self,
+        *,
+        project_id: UUID,
+        organization_id: UUID,
+        #
+        slug: str,
+    ) -> "CustomTargetLookup":
+        """The custom target a slug names, in ONE statement (M5): the project's endpoint
+        row with that slug, else the inheritable `custom_provider` organization row with
+        that slug that is available to the project, whose organization is the project
+        row's AND `organization_id`, and that no project secret with the slug shadows.
+
+        The default serves stores without organization credentials: the endpoint row
+        alone. The Postgres DAO overrides it."""
+        return CustomTargetLookup(
+            endpoint=await self.fetch_endpoint_by_slug(project_id=project_id, slug=slug)
+        )
 
     @abstractmethod
     async def edit_endpoint(

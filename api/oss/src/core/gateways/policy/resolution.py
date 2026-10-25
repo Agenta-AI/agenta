@@ -179,10 +179,14 @@ class SecretsResolver(SecretsResolverInterface):
         own: List[SecretResponseDTO] = []
         inherited: List[SecretResponseDTO] = []
         for secret in secrets:
-            is_own = secret.owner is None or secret.owner.kind == SecretOwnerKind.PROJECT
+            is_own = (
+                secret.owner is None or secret.owner.kind == SecretOwnerKind.PROJECT
+            )
             (own if is_own else inherited).append(secret)
         for group in (own, inherited):
-            candidates = provider_candidates(secrets=group, provider_key=ref.provider_key)
+            candidates = provider_candidates(
+                secrets=group, provider_key=ref.provider_key
+            )
             if candidates:
                 return candidates[0]
         return None

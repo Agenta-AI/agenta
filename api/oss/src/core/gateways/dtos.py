@@ -166,6 +166,32 @@ def injected_credential_values(headers: Mapping[str, str]) -> Tuple[bytes, ...]:
     return tuple(values)
 
 
+def secret_credential_values(secret: Any) -> Tuple[bytes, ...]:
+    """Every credential value a stored secret holds: its primary `provider.key` and each
+    credential extras value (`CREDENTIAL_EXTRAS_KEYS`), whatever header later carries it.
+
+    For an organization credential the relay scans these as well as the injected headers,
+    so an upstream that echoes any of its values is refused (M5). Organization values are
+    at least `MIN_SCANNED_CREDENTIAL_LENGTH` long by the write rule, so none falls under
+    the scan minimum."""
+    from agenta.sdk.agents.connections.credentials import CREDENTIAL_EXTRAS_KEYS
+
+    values: Dict[bytes, None] = {}
+    provider = getattr(getattr(secret, "data", None), "provider", None)
+    if provider is None:
+        return ()
+    candidates = [getattr(provider, "key", None)]
+    extras = getattr(provider, "extras", None)
+    if isinstance(extras, dict):
+        candidates.extend(extras.get(key) for key in CREDENTIAL_EXTRAS_KEYS)
+    for value in candidates:
+        if isinstance(value, str):
+            token = value.strip()
+            if len(token) >= MIN_SCANNED_CREDENTIAL_LENGTH:
+                values[token.encode()] = None
+    return tuple(values)
+
+
 class CredentialEchoScanner:
     """Detects the injected credential in a relayed response, across chunk boundaries.
 
