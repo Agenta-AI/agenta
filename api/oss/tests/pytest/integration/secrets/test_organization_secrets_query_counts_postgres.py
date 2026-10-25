@@ -514,6 +514,28 @@ async def _mode(mode: str, project_ids, monkeypatch):
 
 
 async def _measure(call, mode, project_ids, user, monkeypatch):
+    """Count one call; measured again (up to three times) when a SERIALIZABLE write had
+    to retry because another test wrote at the same moment: a retry repeats the write's
+    statements, and the counts pin the cost without contention."""
+    import oss.src.dbs.postgres.secrets.dao as secrets_dao_module
+
+    retried = []
+    real_wait = secrets_dao_module._wait_before_retry
+
+    async def _counting_wait(attempt):
+        retried.append(attempt)
+        return await real_wait(attempt)
+
+    monkeypatch.setattr(secrets_dao_module, "_wait_before_retry", _counting_wait)
+    for _ in range(3):
+        retried.clear()
+        result = await _measure_once(call, mode, project_ids, user, monkeypatch)
+        if not retried:
+            return result
+    return result
+
+
+async def _measure_once(call, mode, project_ids, user, monkeypatch):
     monkeypatch.setattr(caching, "random", lambda: 0.99)  # no early leak
     monkeypatch.setattr(env.agenta.api.caching, "enabled", True)
     with bearer_request_access(user):
@@ -612,22 +634,37 @@ async def test_organization_routes_cost_one_decision_and_their_own_statements(
 ):
     """Row O (new path): a write adds one statement (the organization's project list)
     and one batched DEL after the commit; a list is one statement."""
+    import oss.src.dbs.postgres.secrets.dao as secrets_dao_module
+
     vault = world["vault"]
     org = world["s1"].organization_id
     monkeypatch.setattr(env.agenta.api.caching, "enabled", True)
+    retried = []
+    real_wait = secrets_dao_module._wait_before_retry
+
+    async def _counting_wait(attempt):
+        retried.append(attempt)
+        return await real_wait(attempt)
+
+    monkeypatch.setattr(secrets_dao_module, "_wait_before_retry", _counting_wait)
+
     with count_statements(get_transactions_engine()) as statements:
         with count_redis_calls() as calls:
             await vault.list_organization_secrets(organization_id=org)
     assert len(statements) == 1 and len(calls) == 0
-    with count_statements(get_transactions_engine()) as statements:
-        with count_redis_calls() as calls:
-            await vault.create_organization_secret(
-                organization_id=org,
-                create_secret_dto=_key(
-                    "openai", f"o-{uuid4().hex[:8]}", "sk-org-openai-12345"
-                ),
-                user_id=world["user"],
-            )
+    for _ in range(3):  # measured again when another test's write forced a retry
+        retried.clear()
+        with count_statements(get_transactions_engine()) as statements:
+            with count_redis_calls() as calls:
+                await vault.create_organization_secret(
+                    organization_id=org,
+                    create_secret_dto=_key(
+                        "openai", f"o-{uuid4().hex[:8]}", "sk-org-openai-12345"
+                    ),
+                    user_id=world["user"],
+                )
+        if not retried:
+            break
     # conflict check + insert + project list
     assert len(statements) == 3, statements
     assert [c.command for c in calls] == ["DEL"]

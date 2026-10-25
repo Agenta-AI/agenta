@@ -85,7 +85,7 @@ _Result = TypeVar("_Result")
 
 _SERIALIZABLE = "SERIALIZABLE"
 _SERIALIZATION_FAILURE = "40001"
-_SERIALIZABLE_ATTEMPTS = 4
+_SERIALIZABLE_ATTEMPTS = 6
 
 # Postgres enum labels are the member NAMES.
 _INHERITABLE_LABELS = ", ".join(f"'{kind.name}'" for kind in sorted(INHERITABLE_KINDS))
@@ -277,6 +277,11 @@ def _inherited_identity_column():
     )
 
 
+async def _wait_before_retry(attempt: int) -> None:
+    # Exponential with jitter: 5 to 20 ms, then up to about 320 ms on the fifth wait.
+    await asyncio.sleep(random.uniform(0.5, 1.0) * 0.01 * (2 ** (attempt - 1)))
+
+
 def owner_columns(owner: SecretOwner) -> dict:
     """The typed column an owner maps to. A user owner is M7."""
     if owner.kind == SecretOwnerKind.PROJECT:
@@ -386,7 +391,7 @@ class SecretsDAO(SecretsDAOInterface):
             except DBAPIError as error:
                 if _sqlstate(error) == _SERIALIZATION_FAILURE:
                     if attempt < _SERIALIZABLE_ATTEMPTS:
-                        await asyncio.sleep(random.uniform(0.005, 0.05) * attempt)
+                        await _wait_before_retry(attempt)
                         continue
                     raise SecretWriteConflict() from None
                 raise _conflict_from(

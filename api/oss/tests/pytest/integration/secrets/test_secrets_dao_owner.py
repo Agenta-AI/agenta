@@ -253,7 +253,7 @@ async def test_organization_operations_refuse_an_sso_id(org):
         await dao.delete_organization_secret(
             organization_id=organization_id, secret_id=sso.id
         )
-        is False
+        is None
     )
     after = await _rows(
         "SELECT data, name FROM secrets WHERE id = :id AND availability = 'all_projects'",
