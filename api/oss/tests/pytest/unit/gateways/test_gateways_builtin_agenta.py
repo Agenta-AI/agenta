@@ -1300,3 +1300,76 @@ async def test_each_stalled_builtin_retry_sends_a_different_request(
     assert b"Hi" in received
     systems = [json.loads(raw)["messages"][0]["content"] for raw in sent]
     assert systems == ["Be terse.", "Be terse.\n", "Be terse.\n\n"]
+
+
+@pytest.mark.asyncio
+async def test_a_5xx_retry_keeps_the_nudge_and_only_a_stall_adds_to_it(
+    vertex, monkeypatch
+):
+    import oss.src.core.gateways.llms.catalog as catalog_module
+
+    async def _no_wait(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(asyncio, "sleep", _no_wait)
+    monkeypatch.setattr(catalog_module, "AGENTA_RESPONSE_HEADERS_TIMEOUT_SECONDS", 0.05)
+    sent: List[bytes] = []
+    frames = (
+        'data: {"choices": [{"delta": {"content": "Hi"}, "index": 0}]}\n\n'
+        "data: [DONE]\n\n"
+    ).encode()
+
+    class _StallThen503ThenOk(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            sent.append(request.content)
+            if len(sent) == 1:
+                await asyncio.Event().wait()
+            if len(sent) == 2:
+                return httpx.Response(503, text="overloaded")
+            return httpx.Response(
+                200, content=frames, headers={"content-type": "text/event-stream"}
+            )
+
+    policy = _AdmittingPolicy()
+    service = LLMGatewayService(
+        llm_endpoints_dao=_NoRows(),
+        policy=policy,
+        resolver=_NoVault(),
+        upstream_registry=LLMUpstreamRegistry(
+            adapters={
+                "relay": RelayLLMAdapter(
+                    client=httpx.AsyncClient(transport=_StallThen503ThenOk())
+                )
+            }
+        ),
+    )
+    body = {
+        "model": "google/gemini-3.8-flash",
+        "stream": True,
+        "reasoning_effort": "high",
+        "messages": [
+            {"role": "system", "content": "Be terse."},
+            {"role": "user", "content": "hi"},
+        ],
+    }
+    result = await service.relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.BUILTIN,
+        name="agenta",
+        body=json.dumps(body).encode(),
+        headers={},
+    )
+    assert b"Hi" in b"".join([chunk async for chunk in result.body])
+
+    bodies = [json.loads(raw) for raw in sent]
+    assert [b["messages"][0]["content"] for b in bodies] == [
+        "Be terse.",
+        "Be terse.\n",
+        "Be terse.\n",
+    ]
+    assert all(
+        b["extra_body"]["google"]["thinking_config"]["thinking_level"] == "high"
+        for b in bodies
+    )
+    assert len(policy.admitted) == 1
+    assert len(policy.records) == 1

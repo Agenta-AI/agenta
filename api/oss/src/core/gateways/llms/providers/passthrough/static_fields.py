@@ -139,9 +139,9 @@ def stream_gemini_thoughts(body: bytes) -> Tuple[bytes, Optional[bool]]:
 
 def default_gemini_thinking(body: bytes) -> bytes:
     """Make a non-streaming Gemini chat completion that names no reasoning effort think at
-    "low". Gemini's own default is "medium", which on the built-in models took 4 to 30 s
-    longer to the first answer than "low" (staging, 25 October 2026); a caller that sets
-    no thinking level, as Pi does with thinking off, asked for none."""
+    "low": Agenta defaults an omitted effort to "low" rather than Gemini's own "medium",
+    which answers markedly later on the built-in models. Pi with thinking off sends no
+    effort."""
     try:
         payload = json.loads(body)
     except (json.JSONDecodeError, TypeError):
