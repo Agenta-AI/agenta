@@ -49,6 +49,11 @@ LLMModelFilter = GatewayEndpointFilter
 
 class LLMEndpointSettings(GatewayEndpointSettings):
     max_output_tokens: Optional[int] = None
+    # How long one streaming attempt may wait for the upstream's response headers before the
+    # gateway cancels it and sends the same body again. Vertex sends its headers with the first
+    # output, so there this bounds the wait for the first byte. Streaming only: a non-streaming
+    # answer arrives whole, so a short limit there would cut long answers that never stalled.
+    response_headers_timeout_seconds: Optional[float] = None
 
 
 class LLMEndpointData(BaseModel):
@@ -114,6 +119,10 @@ class LLMCallContext(BaseModel):
     model: str
     stream: bool = False
     protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS
+    # How many earlier attempts of this call stalled (`response_headers_timeout_seconds`). An
+    # adapter may vary the retried request, since an upstream stuck on one request can stall
+    # again on the identical body.
+    stalled_attempts: int = 0
 
 
 class LLMResolvedRoute(BaseModel):

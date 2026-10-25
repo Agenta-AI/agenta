@@ -1,0 +1,74 @@
+---
+title: "Office file previews, preview comments and a redesigned chat"
+slug: chat-redesign-and-office-previews
+date: 2026-10-24
+tags: [v0.123.0]
+description: "Preview and comment on spreadsheets, Word documents and slides in the Files pane, link to files and folders, and use the redesigned chat transcript and composer."
+---
+
+<Summary>
+
+{/* TODO: add a screenshot or video of the Excel, Word and PowerPoint previews (Files pane) */}
+
+The Files pane now previews Excel, Word and PowerPoint files, so you can open what your agent produces without leaving Agenta. You can also comment on a spot in an HTML app, document, slide or spreadsheet, and the agent receives the comment with its location.
+
+Every file and folder in a session now has a link you can share. The chat transcript, file cards, attachments and composer have a new design. Agents open straight into the playground.
+
+</Summary>
+
+{/* truncate */}
+
+{/* TODO: add a screenshot or video of the Excel, Word and PowerPoint previews (Files pane) */}
+
+## Preview spreadsheets, documents and slides
+
+The Files pane used to show "No preview" for `.xlsx`, `.docx` and `.pptx` files. It now renders all three. The same previews appear in Quick Look and on chat attachments.
+
+- **Spreadsheets** (`.xlsx`, `.xlsm`, `.xls`, `.ods`) show as a grid with column letters, row numbers, sheet tabs and a formula bar. Click a cell to see its address and its formula or stored value.
+- **Word documents** (`.docx`) show as pages. A Reflow switch shows one column of text at full size, which suits a phone.
+- **Slides** (`.pptx`) show one slide at a time, with previous and next controls and a thumbnail strip in wide panes.
+
+An open preview follows the file. When the agent edits a workbook, the table updates without a reload.
+
+## Comment on a preview
+
+Turn on **Comment** in the Files pane toolbar to point at part of a preview and attach a note. You can pick:
+
+- an element of an HTML app,
+- a paragraph, table or image in a document,
+- a shape or a whole slide,
+- a cell or a range of cells in a spreadsheet or CSV file.
+
+Press Enter to stage the comment. Press Cmd/Ctrl+Enter to send it. The agent receives the quoted text and where it came from, for example the slide number or the sheet and cell range. Staged comments show as numbered pins on the preview.
+
+## Link to files, folders and automations
+
+The URL of a session now records the open Files pane and the open automation drawer. You can share a link to a file, a folder, or an automation, and a page reload keeps them open. The file and folder menus have a new **Copy link** action.
+
+## Redesigned chat
+
+- Markdown tables show in a frame with copy as Markdown, CSV download and expand. The first column stays in place while a wide table scrolls.
+- Files that a turn wrote appear as tiles under the answer, with their size and a Download action.
+- File names in the text are links. Hover one to see a preview card.
+- Quoted text in a sent message appears above the message as a card.
+- Staged attachments, the selection toolbar and the composer match the rest of the interface.
+
+Agent links in the app (the agents list, the sidebar, the command palette) now open a new playground session instead of the agent overview.
+
+## SEO Content Agent template
+
+The marketplace has a new **SEO Content Agent**. It covers research, content planning, writing and review in one workspace. Briefs and publication readiness keep separate owner approvals. Learn more in [Agent templates and marketplace](/changelog/agent-templates-and-marketplace).
+
+## Fixes
+
+- Claude 5 models now return JSON that matches your schema when you use a JSON schema response format.
+- Kimi K3.1 Pro agent turns no longer fail with "Provider returned error".
+- A broken Gemini tool call is retried once.
+- The trace drawer no longer swaps spans while you read them.
+- Stopping a run while its sandbox starts now ends the run as cancelled.
+- Time spent waiting for an approval no longer counts in the "worked" duration.
+- The Usage settings tab opens when billing is off.
+- One invalid MCP endpoint no longer hides the valid ones.
+- Stopped sandboxes and their secrets are deleted when a run cannot be pooled and when the runner shuts down.
+
+Thank you to the eight new contributors in this release.
