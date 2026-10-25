@@ -64,7 +64,7 @@ from oss.src.dbs.postgres.memberships.dao import MembershipsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.dbs.postgres.sharing.dao import SharingDAO
 from oss.src.dbs.redis.sessions.contract import running_key
-from oss.src.dbs.redis.sessions.locks import record_turn_admission
+from oss.src.dbs.redis.sessions.locks import TurnAdmission, record_turn_admission
 from oss.src.dbs.redis.shared.engine import get_lock_engine
 from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
@@ -179,7 +179,7 @@ async def _admit(
         project_id=str(project_id),
         session_id=session_id,
         turn_id=turn_id,
-        principal=principal,
+        admission=TurnAdmission(principal=principal, origin="web"),
     )
     if current:
         await lock.set(running_key(str(project_id), session_id), turn_id.encode())

@@ -34,6 +34,7 @@ from oss.src.dbs.redis.sessions.locks import (
     acquire_running,
     bind_turn_for_beat,
     displace_turns,
+    TurnAdmission,
     forget_turn_admissions,
     get_turn_admission,
     release_running,
@@ -1083,18 +1084,17 @@ class SessionStreamsService:
                     admission_envelope=admission_envelope,
                 )
         else:
-            if (
-                running_turn_id
-                and prior_stream.turn_id == running_turn_id
-                and await get_turn_admission(
+            if running_turn_id and prior_stream.turn_id == running_turn_id:
+                record = await get_turn_admission(
                     self._lock,
                     project_id=str(project_id),
                     session_id=request.session_id,
                     turn_id=running_turn_id,
                 )
-                == principal
-            ):
-                return prior_stream, None, None
+                if record is not None and record.admits(
+                    principal=principal, origin=admission_envelope.context.origin
+                ):
+                    return prior_stream, None, None
             try:
                 await self._check_existing_row(
                     project_id=project_id,
@@ -1109,17 +1109,17 @@ class SessionStreamsService:
                 # record (and `running`), and a replayed running beat of the turn would
                 # skip the check. Only the record is dropped: the next beat of the turn
                 # is then fully checked. `running` lapses on its TTL.
-                if (
-                    not request.is_running
-                    and request.turn_id
-                    and await get_turn_admission(
+                record = (
+                    await get_turn_admission(
                         self._lock,
                         project_id=str(project_id),
                         session_id=request.session_id,
                         turn_id=request.turn_id,
                     )
-                    == principal
-                ):
+                    if not request.is_running and request.turn_id
+                    else None
+                )
+                if record is not None and record.principal == principal:
                     await forget_turn_admissions(
                         self._lock,
                         project_id=str(project_id),
@@ -1144,7 +1144,18 @@ class SessionStreamsService:
 
         # The record is written by the beat's bind script (`bind_turn_for_beat`), in the
         # same round trip as the binding.
-        return prior_stream, created_stream, (principal if running_turn_id else None)
+        return (
+            prior_stream,
+            created_stream,
+            (
+                TurnAdmission(
+                    principal=principal,
+                    origin=admission_envelope.context.origin.value,
+                )
+                if running_turn_id
+                else None
+            ),
+        )
 
     @staticmethod
     async def _check_existing_row(

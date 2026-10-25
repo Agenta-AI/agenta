@@ -10,7 +10,6 @@ from oss.src.core.access.context import get_request_access
 from oss.src.core.access.dtos import (
     Decision,
     DecisionReason,
-    PrincipalRef,
     RequestAccess,
     ResourceKind,
     ResourceRef,
@@ -51,6 +50,7 @@ from oss.src.core.sharing.types import (
 )
 from oss.src.core.tools.dtos import AgentError
 from oss.src.dbs.redis.sessions.locks import (
+    TurnAdmission,
     admission_from_values,
     get_turn_admission,
     turn_admission_entries,
@@ -361,8 +361,8 @@ def prefetch_session_write(
 
 async def _turn_admission(
     request: Request, *, session_id: str, turn_id: str
-) -> Optional[PrincipalRef]:
-    """The principal this turn's heartbeat admitted, while the turn holds `running`.
+) -> Optional[TurnAdmission]:
+    """What this turn's heartbeat admitted, while the turn holds `running`.
     From the request's one cache read when the route registered the keys
     (`prefetch_session_write`); otherwise both keys in one `MGET` now. Outside a
     request (no memo) the script reads them. A Redis error reads as no record."""
@@ -408,7 +408,10 @@ async def allow_session_write(
             admitted = await _turn_admission(
                 request, session_id=session_id, turn_id=str(turn_id)
             )
-            if admitted is not None and admitted == envelope.authority.principal:
+            if admitted is not None and admitted.admits(
+                principal=envelope.authority.principal,
+                origin=envelope.context.origin,
+            ):
                 return True
     return await allow_resource(
         request,

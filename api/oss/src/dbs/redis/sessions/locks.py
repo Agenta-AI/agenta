@@ -50,6 +50,26 @@ from oss.src.dbs.redis.sessions.contract import (
 
 log = get_module_logger(__name__)
 
+
+@dataclass(frozen=True)
+class TurnAdmission:
+    """Who a turn's checked heartbeat admitted: the principal and the signed run origin
+    it ran with. A shortcut counts only for the same principal AND origin, so a person's
+    server run (origin subscription, child, evaluation) never opens its turn to the same
+    person's browser or web run."""
+
+    principal: PrincipalRef
+    origin: Optional[str] = None
+
+    def admits(self, *, principal: PrincipalRef, origin: Optional[object]) -> bool:
+        value = getattr(origin, "value", origin)
+        return (
+            self.origin is not None
+            and self.principal == principal
+            and self.origin == (str(value) if value is not None else None)
+        )
+
+
 _RENEW_IF_OWNER_LUA = """
 if redis.call('get', KEYS[1]) == ARGV[1] then
   return redis.call('expire', KEYS[1], ARGV[2])
@@ -631,7 +651,7 @@ async def bind_turn_for_beat(
     turn_id: str,
     replica_id: str,
     replica_address: str,
-    admitted: Optional[PrincipalRef] = None,
+    admitted: Optional[TurnAdmission] = None,
 ) -> Optional[Tuple[TurnBinding, bool]]:
     """A beat's supersession check, `bind_turn` and admission record in one script.
 
@@ -715,17 +735,24 @@ async def get_routable_turn_binding(
 # ---------------------------------------------------------------------------
 
 
-def _admission_value(principal: PrincipalRef) -> bytes:
-    return f"{principal.kind.value}:{principal.id}".encode()
+def _admission_value(admission: TurnAdmission) -> bytes:
+    principal = admission.principal
+    return f"{principal.kind.value}:{principal.id}:{admission.origin or ''}".encode()
 
 
-def _parse_admission_value(raw: Optional[bytes]) -> Optional[PrincipalRef]:
+def _parse_admission_value(raw: Optional[bytes]) -> Optional[TurnAdmission]:
+    """`<kind>:<id>:<origin>`. A record an earlier build wrote (`<kind>:<id>`, no origin)
+    reads with no origin, which no shortcut accepts: that turn's next beat is checked."""
     if not raw:
         return None
     value = raw.decode() if isinstance(raw, (bytes, bytearray)) else str(raw)
-    kind, _, principal_id = value.partition(":")
+    kind, _, rest = value.partition(":")
+    principal_id, _, origin = rest.partition(":")
     try:
-        return PrincipalRef(kind=PrincipalKind(kind), id=principal_id)
+        return TurnAdmission(
+            principal=PrincipalRef(kind=PrincipalKind(kind), id=principal_id),
+            origin=origin or None,
+        )
     except (ValueError, ValidationError):
         return None
 
@@ -736,14 +763,14 @@ async def record_turn_admission(
     project_id: str,
     session_id: str,
     turn_id: str,
-    principal: PrincipalRef,
+    admission: TurnAdmission,
 ) -> None:
-    """Record that this turn's heartbeat admitted `principal`. A Redis error is logged and
+    """Record that this turn's heartbeat admitted `admission`. A Redis error is logged and
     swallowed: the beat already passed, and the next beat is checked again."""
     try:
         await engine.set(
             turn_admitted_key(project_id, session_id, turn_id),
-            _admission_value(principal),
+            _admission_value(admission),
             ex=TURN_BOUND_TTL_SECONDS,
         )
     except Exception as error:  # noqa: BLE001 - a lost record only costs a check
@@ -762,8 +789,8 @@ async def get_turn_admission(
     project_id: str,
     session_id: str,
     turn_id: str,
-) -> Optional[PrincipalRef]:
-    """The principal this turn's heartbeat admitted, when the turn is the session's current
+) -> Optional[TurnAdmission]:
+    """What this turn's heartbeat admitted, when the turn is the session's current
     one (it holds `running`), renewing the record's TTL in the same round trip (one
     script). `None` when there is no record, the turn is not current, or Redis fails
     (logged): the caller then runs the full check."""
@@ -804,7 +831,7 @@ def turn_admission_entries(
 
 def admission_from_values(
     *, running: Optional[bytes], admitted: Optional[bytes], turn_id: str
-) -> Optional[PrincipalRef]:
+) -> Optional[TurnAdmission]:
     """What `CURRENT_TURN_ADMISSION_LUA` answers, from the two keys read at one instant:
     the admitted principal only while `running` holds this turn. A missing key, another
     turn, or an unreadable value is None (the caller runs the full check). No renewal:

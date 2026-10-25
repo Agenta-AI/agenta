@@ -266,3 +266,24 @@ async def test_another_person_s_server_run_is_refused_in_a_private_session(world
         created_by_id=world.bob,
     )
     assert not await _runner_write_allowed(world, bob_eval, session_id)
+
+
+async def test_a_server_run_s_admission_does_not_open_its_turn_to_the_person(world):
+    """Alice's evaluation run is admitted for turn T of its ownerless session. Alice's
+    own web run (same principal, origin web) beating turn T gets no continuity from
+    that record: its beat is checked, and refused (she only reads the session)."""
+    session_id = str(uuid4())
+    turn = str(uuid4())
+    evaluation = _alice_run(world, RunOrigin.EVALUATION, turn)
+    first = await _beat(world, evaluation, session_id, turn)
+    assert first.is_current_turn
+
+    alice_web = make_envelope(
+        principal_id=world.alice,
+        origin="web",
+        run_id=turn,
+        project_id=world.project_id,
+        organization_id=world.organization_id,
+    )
+    with pytest.raises(AdmissionDenied):
+        await _beat(world, alice_web, session_id, turn)

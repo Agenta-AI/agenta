@@ -8,7 +8,7 @@ A web agent session SHALL have a visibility, an optional owner, and named Viewer
 - **THEN** Carol can read the session and cannot send, answer an approval, rename, or change sharing
 
 ### Requirement: Capabilities and agent access still apply
-Every role SHALL also require the project capability for the action. A send SHALL require agent access for the sender's own authority. Reading history SHALL NOT require agent access. Humans SHALL only read an ownerless session in Agenta. A person's server run (an event subscription, a child run, an evaluation run) SHALL run in the ownerless session it created: its signed run origin, not the person sending, decides.
+Every role SHALL also require the project capability for the action. A send SHALL require agent access for the sender's own authority. Reading history SHALL NOT require agent access. Humans SHALL only read an ownerless session in Agenta. A person's server run (an event subscription, a child run, an evaluation run) SHALL run in an ownerless session, like any non-human principal: its signed run origin, not the person sending, decides. A turn admitted for such a run SHALL NOT admit the same person's web or browser requests.
 
 #### Scenario: Participant sends under his own authority
 - **WHEN** Bob, a Participant, sends a turn in Alice's session after he lost access to the agent

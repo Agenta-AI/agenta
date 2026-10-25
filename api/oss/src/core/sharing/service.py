@@ -259,9 +259,9 @@ class SharingService(ResourcePolicyInterface):
             if owner is None:
                 # S2 for non-humans, S3 for humans: a person only reads an ownerless
                 # session. A person's server run (an event subscription, a child run,
-                # an evaluation run) is no person sending: it creates its ownerless
-                # session (CONTRACT section 7) and runs in it with its signed run
-                # context, so it runs like any other non-human principal.
+                # an evaluation run) is no person sending: it creates ownerless sessions
+                # (CONTRACT section 7) and runs in an ownerless session with its signed
+                # run context, like any other non-human principal.
                 allowed = principal.kind != PrincipalKind.HUMAN or (
                     context is not None and context.origin in _SERVER_RUN_ORIGINS
                 )

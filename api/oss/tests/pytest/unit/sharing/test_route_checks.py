@@ -628,7 +628,7 @@ from oss.src.core.sessions.turns.types import (  # noqa: E402
     SessionTurnStreamMismatch,
 )
 from oss.src.dbs.redis.sessions.contract import running_key  # noqa: E402
-from oss.src.dbs.redis.sessions.locks import record_turn_admission  # noqa: E402
+from oss.src.dbs.redis.sessions.locks import TurnAdmission, record_turn_admission  # noqa: E402
 
 _TURN = str(uuid4())
 _OLD_TURN = str(uuid4())
@@ -700,7 +700,9 @@ async def _admit(
         project_id=str(world.project_id),
         session_id=session_id,
         turn_id=turn_id,
-        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=user_id),
+        admission=TurnAdmission(
+            principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=user_id), origin="web"
+        ),
     )
     if current:
         await lock.set(running_key(str(world.project_id), session_id), turn_id)

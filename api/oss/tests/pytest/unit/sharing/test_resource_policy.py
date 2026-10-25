@@ -523,3 +523,24 @@ async def test_manage_agent_ownership_is_admin_only():
         decision = await world.decide(world.bob, Permission.MANAGE_AGENT_OWNERSHIP)
         expected = DecisionReason.ROLE if allowed else DecisionReason.MISSING_CAPABILITY
         assert (decision.allowed, decision.reason) == (allowed, expected), role
+
+
+def test_a_turn_admission_admits_only_the_same_principal_and_origin():
+    from oss.src.dbs.redis.sessions.locks import (  # noqa: PLC0415
+        TurnAdmission,
+        _admission_value,
+        _parse_admission_value,
+    )
+
+    alice = PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4())
+    record = TurnAdmission(principal=alice, origin="subscription")
+    assert _parse_admission_value(_admission_value(record)) == record
+    assert record.admits(principal=alice, origin=RunOrigin.SUBSCRIPTION)
+    assert not record.admits(principal=alice, origin=RunOrigin.WEB)
+    assert not record.admits(principal=alice, origin=None)
+    bob = PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4())
+    assert not record.admits(principal=bob, origin=RunOrigin.SUBSCRIPTION)
+    # A record an earlier build wrote has no origin: no shortcut, the beat is checked.
+    old = _parse_admission_value(f"human:{alice.id}".encode())
+    assert old == TurnAdmission(principal=alice, origin=None)
+    assert not old.admits(principal=alice, origin=RunOrigin.WEB)

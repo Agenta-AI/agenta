@@ -909,6 +909,7 @@ async def test_admission_record_counts_only_for_the_running_turn(lock_engine, re
     renewal) for a turn that does not."""
     from oss.src.dbs.redis.sessions.contract import running_key
     from oss.src.dbs.redis.sessions.locks import (
+        TurnAdmission,
         get_turn_admission,
         record_turn_admission,
     )
@@ -919,7 +920,7 @@ async def test_admission_record_counts_only_for_the_running_turn(lock_engine, re
         project_id=str(_PROJECT),
         session_id=_SESSION,
         turn_id="t1",
-        principal=principal,
+        admission=TurnAdmission(principal=principal, origin="web"),
     )
     key = turn_admitted_key(str(_PROJECT), _SESSION, "t1")
     redis.advance(TURN_BOUND_TTL_SECONDS / 2)
@@ -937,12 +938,12 @@ async def test_admission_record_counts_only_for_the_running_turn(lock_engine, re
     assert await _read() is None
 
     await redis.set(running_key(str(_PROJECT), _SESSION), b"t1")
-    assert await _read() == principal
+    assert await _read() == TurnAdmission(principal=principal, origin="web")
     assert redis.deadlines[key] == redis.now + TURN_BOUND_TTL_SECONDS
 
 
 async def test_admission_record_write_error_is_swallowed(lock_engine, redis):
-    from oss.src.dbs.redis.sessions.locks import record_turn_admission
+    from oss.src.dbs.redis.sessions.locks import TurnAdmission, record_turn_admission
 
     async def _broken(*_args, **_kwargs):
         raise ConnectionError("redis down")
@@ -953,7 +954,9 @@ async def test_admission_record_write_error_is_swallowed(lock_engine, redis):
         project_id=str(_PROJECT),
         session_id=_SESSION,
         turn_id="t1",
-        principal=_ALICE_ENVELOPE.authority.principal,
+        admission=TurnAdmission(
+            principal=_ALICE_ENVELOPE.authority.principal, origin="web"
+        ),
     )
 
 
