@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: Organization access decision for organization credentials
-Every `/organization-secrets/` route SHALL call `decide_organization(principal, credential, authority, organization_id, MANAGE_ORGANIZATION_SECRETS)` and SHALL return HTTP 403 on a denial. The decision SHALL allow only a human principal of a browser session, with no run authority, who has an `organization_members` row in the organization with role `owner` or `admin`. It SHALL NOT read entitlements, project rows, project roles or custom roles, in OSS and EE.
+Every `/organization-secrets/` route SHALL call `decide_organization(access, organization_id, MANAGE_ORGANIZATION_SECRETS)` first and SHALL return HTTP 403 on a denial. The decision SHALL allow only a human principal of a browser session, with no run envelope, acting as itself, who has an `organization_members` row in the organization with role `owner` or `admin`. It SHALL NOT read entitlements, project rows, project roles or custom roles, in OSS and EE.
 
 #### Scenario: Owner adds a company key
 - **WHEN** the organization owner posts a `provider_key` for OpenAI to `/organization-secrets/`
@@ -22,21 +22,35 @@ Every `/organization-secrets/` route SHALL call `decide_organization(principal, 
 - **THEN** Agenta SHALL return HTTP 403.
 
 ### Requirement: Only inheritable kinds
-The organization routes SHALL accept only `provider_key` and `custom_provider`. They SHALL refuse a `custom_provider` whose deployment kind the LLM gateway does not serve. Both refusals SHALL be HTTP 422 naming the reason.
+The organization routes SHALL accept only `provider_key` (of an LLM provider family) and `custom_provider`. They SHALL refuse a `custom_provider` whose deployment kind the LLM gateway does not serve (Bedrock and SageMaker today). Every refusal SHALL be HTTP 422 naming the reason.
 
 #### Scenario: Refused kinds
-- **WHEN** an owner posts a `custom_secret`, a `subscription_provider`, or a `custom_provider` for a Bedrock deployment
+- **WHEN** an owner posts a `custom_secret`, a `subscription_provider`, or a `custom_provider` for a Bedrock or SageMaker deployment
 - **THEN** Agenta SHALL return HTTP 422 and SHALL NOT store a row.
 
+### Requirement: Organization values are long enough to scan
+The organization routes SHALL remove surrounding whitespace from every credential value and SHALL refuse a value shorter than 8 characters with HTTP 422.
+
+#### Scenario: Short key
+- **WHEN** an owner posts a `provider_key` whose key is 7 characters, or 7 characters padded with spaces
+- **THEN** Agenta SHALL return HTTP 422 and SHALL NOT store a row.
+
+### Requirement: Organization routes address inheritable rows only
+Every organization route SHALL address only inheritable organization rows.
+
+#### Scenario: SSO secret id
+- **WHEN** an owner calls any `/organization-secrets/` route with the id of the organization's SSO secret
+- **THEN** Agenta SHALL return HTTP 404 and the SSO row SHALL stay unchanged.
+
 ### Requirement: One owner per row and unique organization slugs
-Every `secrets` row SHALL have exactly one owner column set (`ck_secrets_single_owner`). The core API SHALL describe the owner as `SecretOwner` (CONTRACT.md section 8). Organization slugs SHALL be unique within the organization (`uq_secrets_organization_id_slug`); a duplicate create SHALL return HTTP 409. The migration SHALL delete rows with no owner, and log the count, before it validates the constraint.
+Every `secrets` row SHALL have exactly one owner column set (`ck_secrets_single_owner`). The core API SHALL describe the owner as `SecretOwner` (CONTRACT.md section 8). Organization slugs SHALL be unique within the organization (`uq_secrets_organization_id_slug`); a duplicate create SHALL return HTTP 409. Create SHALL accept an optional slug; without one the server SHALL derive it from the name. The migration SHALL delete rows with no owner, and log the count, before it validates the constraint.
 
 #### Scenario: Duplicate organization slug
 - **WHEN** an owner creates two organization credentials with slug `openai-company`
 - **THEN** the second create SHALL return HTTP 409, and one row SHALL exist.
 
 ### Requirement: Organization values never leave the API
-No HTTP response SHALL carry the value of an organization credential, for any caller, including the organization owner and a request with the `secret-resolve` grant. Only the in-process LLM gateway SHALL use the value. `GET /secrets/` SHALL include inherited rows only when `include_inherited=true` is set and the request does not hold the `secret-resolve` grant.
+No HTTP response SHALL carry the value of an organization credential, or a part of it, for any caller, including the organization owner and a request with the `secret-resolve` grant. Only the in-process LLM gateway SHALL use the value. `GET /secrets/` SHALL include inherited rows only when `include_inherited=true` is set and the request does not hold the `secret-resolve` grant; with the grant the parameter SHALL be ignored. No log record SHALL carry an organization credential value.
 
 #### Scenario: Run credential reads the vault
 - **WHEN** an agent run on a deployment without the LLM gateway reads `GET /secrets/` with its run credential, and the project inherits an OpenAI organization credential
@@ -55,7 +69,7 @@ No HTTP response SHALL carry the value of an organization credential, for any ca
 - **THEN** the sandbox SHALL receive only a gateway credential.
 
 ### Requirement: Project routes do not manage organization rows
-`GET /secrets/{id_or_slug}`, `PUT /secrets/{id}` and `DELETE /secrets/{id}` SHALL resolve project rows only. A project row SHALL shadow an inherited slug only with the same kind and, for `provider_key`, the same provider family; otherwise `POST /secrets/` SHALL return HTTP 409.
+`GET /secrets/{id_or_slug}`, `PUT /secrets/{id}` and `DELETE /secrets/{id}` SHALL resolve project rows only. A project row SHALL shadow an inherited slug only with the same kind and, for `provider_key`, the same provider family; otherwise `POST /secrets/` and `PUT /secrets/{id}` SHALL return HTTP 409. The check SHALL read the database, never a cache, also when the organization side changes (organization create, update, or availability widening, each HTTP 409).
 
 #### Scenario: Project editor deletes an inherited row
 - **WHEN** a project editor calls `DELETE /secrets/{id}` with the id of an organization credential
@@ -66,7 +80,7 @@ No HTTP response SHALL carry the value of an organization credential, for any ca
 - **THEN** Agenta SHALL return HTTP 409 and SHALL NOT store the row.
 
 ### Requirement: EE limits a credential to selected projects
-In EE, with the `Flag.RBAC` entitlement, `PUT /organization-secrets/{secret_id}/projects` SHALL set `availability` to `all_projects` or `selected_projects` with project ids of the same organization. With `selected_projects`, only listed projects SHALL inherit the credential, and with none listed, no project SHALL. OSS SHALL refuse `selected_projects` with HTTP 403. Resolution SHALL apply the same filter in both editions.
+In EE, with the `Flag.RBAC` entitlement, `PUT /organization-secrets/{secret_id}/projects` SHALL set, in one transaction, `availability` to `all_projects` or `selected_projects` with project ids of the same organization. With `selected_projects`, only listed projects SHALL inherit the credential, and with none listed, no project SHALL. OSS SHALL refuse `selected_projects` with HTTP 403. Resolution SHALL apply the same filter in both editions.
 
 #### Scenario: Limit to one project
 - **WHEN** an EE admin limits the OpenAI organization credential to project Sales

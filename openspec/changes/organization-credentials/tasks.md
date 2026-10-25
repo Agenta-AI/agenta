@@ -4,15 +4,15 @@ Order follows the implementation sequence. Spec references: OC = organization-cr
 
 ## 1. Schema
 
-- [ ] 1.1 One `core_oss` revision per design.md "Migration" (no `core_ee` copy); run `uv run api/scripts/migration_gate.py`; it passes without the label (OC "one owner per row").
+- [ ] 1.1 One `core_oss` revision `oss000000054` per design.md "Migration" (no `core_ee` copy); run `uv run api/scripts/migration_gate.py`; it passes without the label (OC "one owner per row").
 - [ ] 1.2 `SecretsDBE` and `SecretsDBA` changes; `SecretProjectDBE`.
 
 ## 2. Core
 
 - [ ] 2.1 `SecretOwnerKind` in `core/secrets/enums.py`; `SecretOwner`, `SecretAvailability`, `INHERITABLE_KINDS`; owner-based DAO methods and mapping.
 - [ ] 2.2 `owner` and `availability` on `SecretResponseDTO`; forced `write_only` for organization rows (OC "never leave the API").
-- [ ] 2.3 Effective-set methods with the organization cache entry and its invalidation (CR "effective set", "slug reference", "default selection", "id references").
-- [ ] 2.4 Organization management service methods; kind and Bedrock refusals; override integrity (OC "inheritable kinds", "project routes").
+- [ ] 2.3 Effective-set methods on one cache entry per project (namespace `effective_secrets`) and its invalidation (CR "effective set", "slug reference", "default selection", "id references").
+- [ ] 2.4 Organization management service methods; kind, family, served-deployment and short-value refusals; override integrity in SQL (OC "inheritable kinds", "project routes").
 
 ## 3. Access
 
@@ -26,8 +26,8 @@ Order follows the implementation sequence. Spec references: OC = organization-cr
 
 ## 5. Gateway
 
-- [ ] 5.1 `SecretsResolver` on the effective methods; real owner in `ResolvedSecret.owner`; project-first default (CR "default selection", "real owner").
-- [ ] 5.2 `inherited_custom_provider_by_slug` in `_namespace_of_slug` and `_resolve_target`; tenancy rule unchanged (CR "custom providers").
+- [ ] 5.1 `SecretsResolver(plane=LLM|MCP)`, the LLM plane on the effective methods; real owner in `ResolvedSecret.owner`; project-first default (CR "default selection", "real owner").
+- [ ] 5.2 One-statement custom target lookup (`fetch_custom_target_by_slug`) and the one-pass slug resolve (`_resolve_slug_target`); echo scan over organization values; tenancy rule unchanged (CR "custom providers").
 
 ## 6. Web
 

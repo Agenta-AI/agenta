@@ -82,7 +82,7 @@ AccessService.decide(*, authority: RunAuthority | None, principal: PrincipalRef,
 - Organization-scoped decisions are NOT in M2. M5 adds them with their own policy that EE no-RBAC shortcuts cannot bypass.
 - Caching: no cache stores a decision. `decide` runs on every call. Membership is cached per (user, project), including its absence, and invalidated by every M1 membership mutation, so decisions stay fast and fresh; the principal record is cached for `AGENTA_CACHE_TTL` and invalidated on key deletion, binding and connection changes, and user deletion. The exchange mints a run credential only after `decide` allows. Credential exchanges that perform no permission check still check principal eligibility (steps 1 and 2). Revocation takes effect at the next decision. A change can take up to `AGENTA_CACHE_TTL` (300 s) in three known cases: Redis invalidation fails; a read that started before the mutation committed refills the old entry after the invalidation; and the ApiKey middleware state on routes that check no permission. Run tokens live 15 minutes, gateway and mount credentials 12 hours, and live streams recheck every 60 seconds.
 - Durable executable work (schedules, subscriptions, evaluation runs) gets one edit rule in M7, not before: only the executing principal may change what it executes. Others with the capability may pause, stop, archive or delete it. A rerun or a copy is new work whose principal is the person who starts it.
-- Organization-scoped decisions (M5) accept only a browser-session human. Every API key, including M6 personal keys, and every run credential is refused.
+- Organization-scoped decisions (M5) accept only a browser-session human with no run envelope. Every API key, including M6 personal keys, and every run credential is refused.
 - List scopes derive owner and grant eligibility from the principal, never from a creator id. List and direct reads must agree for every principal kind.
 
 ## 7. Resource ownership (M3)
@@ -114,6 +114,8 @@ M3 design, as built: [interfaces](interfaces/m3/interfaces.md), [technical desig
 - Agent connection binding (M7): `caller_account | project_default | specific`. `specific` never names a user-owned credential.
 - Shared-session rule (M7): a session shared with others never releases a user-owned credential. The check and a sticky "used a personal credential" mark on the session are done under one session-row lock, before any personal credential is used. A session with that mark cannot be shared later.
 - Organization credential values never reach a user-controlled sandbox. Paths that deliver plaintext refuse inherited organization credentials.
+- Inheritance uses the organization that the project row names; a request whose organization differs from it inherits nothing.
+- Organization credentials serve the LLM plane only. The resolver is built per plane; the MCP plane never reads organization rows.
 - Organization subscription logins are not supported. User-owned subscription logins are M7.
 
 ## 9. Storage (M4)
