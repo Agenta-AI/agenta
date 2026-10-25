@@ -16,6 +16,32 @@ Agenta follows semantic versioning with new releases every week. Stay updated by
 The multi-organization release flips OSS from invite-only to open signup. If your instance is reachable beyond a trusted network, set `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` (and optionally `AGENTA_ACCESS_ALLOWED_DOMAINS`) before upgrading. See [Migrate to Multi-Organization OSS](/self-host/upgrades/multi-org-migration).
 :::
 
+## Upgrading to the release after 0.125.0: workspaces are removed
+
+This release stops creating workspaces. The API answers the organization id wherever it answered a workspace id. It adds two data migrations: one for projects, one for usage meters (Enterprise).
+
+### Upgrade from 0.125.0 only
+
+Run 0.125.0 on every pod before you start this release. A rolling upgrade from 0.124.x or older is not supported: those pods cannot read projects and organizations without a workspace.
+
+### The API answers the organization id
+
+Where a response carries a workspace id (`workspace_id` in projects, `workspaces` in organizations, `default_workspace` in organization details, the items of `GET /workspaces/`), it now carries the organization id, and a workspace name is the organization name. Member lists in organization details carry each member's organization role. Links in invitation and notification emails carry the organization id. Routes still accept a workspace id of the same organization in place of the organization id.
+
+### Workspace create and rename return 410
+
+`POST /organizations/{organization_id}/workspaces/` and `PUT /organizations/{organization_id}/workspaces/{workspace_id}` return `410` with `Workspaces were removed. Projects belong to the organization.` and change nothing.
+
+### Each organization keeps one default project
+
+The upgrade keeps one default project per organization: the default project of the organization's `default` workspace, else of its oldest workspace. Other projects of the organization lose their default flag. Project access does not change. An API key or run credential of the kept default project can act on organization settings, as the default project's keys could before; a key of a project that lost the flag can no longer do so. A project whose workspace belonged to another organization stays in its own organization and loses that workspace.
+
+### Enterprise: per-user quotas during the upgrade
+
+The usage meters of the per-user traces-retrieved quota are re-keyed without the workspace. The counts carry over. While 0.125.0 pods still run next to the new ones, those pods count a user's traces retrieved that day in a separate bucket, so the user's daily count can be split between the two until the 0.125.0 pods are gone; a later release merges the buckets. Billed meters do not change. The migration waits for a running usage report to finish (up to 15 minutes) and blocks new reports while it runs.
+
+An operator plan override with `"scope": "workspace"` now means the organization scope; the API logs one warning when it loads such an override.
+
 ## Upgrading to 0.125.0
 
 This release changes where new mounts store their files and prepares the removal of workspaces. It adds two database migrations.

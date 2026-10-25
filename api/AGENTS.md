@@ -69,6 +69,10 @@ Project membership and access:
 - `check_action_access` delegates to `AccessService.check_request`. Every process that
   checks access calls `bootstrap_access()` at startup (the API and both workers do).
 - No new code reads `workspace_members` or `project_members` to decide access.
+- No code creates or updates `workspaces` or `workspace_members` rows or writes
+  `projects.workspace_id` (workspace removal step 2). The API answers the organization id
+  where a workspace id was. Legacy workspace ids still map to their organization through
+  `db_manager` (`_WORKSPACE_REF_CTE`, `get_workspace`) until step 2b removes those reads.
 - A hot-path membership read is one SQL statement (`fetch_membership_row`,
   `list_membership_rows`). `integration/memberships/test_hot_path_query_counts_postgres.py`
   pins the counts.
