@@ -235,14 +235,15 @@ def normalize_gemini_thinking(body: bytes) -> bytes:
         payload = json.loads(body)
     except (json.JSONDecodeError, TypeError):
         return body
-    config = (
-        payload.setdefault("generationConfig", {})
-        if isinstance(payload, dict)
-        else None
-    )
-    thinking = (
-        config.setdefault("thinkingConfig", {}) if isinstance(config, dict) else None
-    )
+    if not isinstance(payload, dict):
+        return body
+    # A null config is an unset one (ProtoJSON), so it gets the default like an absent one.
+    if payload.get("generationConfig") is None:
+        payload["generationConfig"] = {}
+    config = payload["generationConfig"]
+    if isinstance(config, dict) and config.get("thinkingConfig") is None:
+        config["thinkingConfig"] = {}
+    thinking = config.get("thinkingConfig") if isinstance(config, dict) else None
     if not isinstance(thinking, dict):
         return body
     budget = thinking.pop("thinkingBudget", None)

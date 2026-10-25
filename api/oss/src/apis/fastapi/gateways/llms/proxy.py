@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from oss.src.utils.logging import get_module_logger
 from oss.src.apis.fastapi.gateways.exceptions import log_plane_disabled
 from oss.src.apis.fastapi.gateways.llms.utils import (
+    parse_gemini_call_context,
     LLMRequestBodyError,
     parse_llm_call_context,
     parse_messages_call_context,
@@ -604,14 +605,11 @@ class LLMGatewayProxy:
             return _google_error_response(
                 status_code=400, message="The model must be a bare Gemini model id."
             )
-        context = LLMCallContext(
-            model=f"google/{model}", stream=True, protocol=LLMProtocol.GEMINI
-        )
         return await self._relay(
             request,
             namespace=GatewayEndpointNamespace.BUILTIN,
             name=provider,
-            parser=lambda body: context,
+            parser=lambda body: parse_gemini_call_context(body=body, model=model),
             protocol=LLMProtocol.GEMINI,
         )
 

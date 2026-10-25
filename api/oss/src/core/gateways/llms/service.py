@@ -430,7 +430,9 @@ _GEMINI_GENERATION_FIELDS = frozenset(
         "candidateCount",
     }
 )
-# `fileData` is not here: Vertex would fetch the URL it names on the platform's account.
+# Each protocol object's fields, checked at every depth a part can appear. `fileData` is not a
+# part field: Vertex would fetch the URL it names on the platform's account. Opaque values
+# (function arguments, function responses, JSON schemas) are not walked.
 _GEMINI_PART_FIELDS = frozenset(
     {
         "text",
@@ -441,41 +443,152 @@ _GEMINI_PART_FIELDS = frozenset(
         "thoughtSignature",
     }
 )
+_GEMINI_CONTENT_FIELDS = frozenset({"role", "parts"})
+_GEMINI_INLINE_DATA_FIELDS = frozenset({"mimeType", "data", "displayName"})
+_GEMINI_FUNCTION_CALL_FIELDS = frozenset({"id", "name", "args"})
+_GEMINI_FUNCTION_RESPONSE_FIELDS = frozenset({"id", "name", "response", "parts"})
+_GEMINI_DECLARATION_FIELDS = frozenset(
+    {
+        "name",
+        "description",
+        "parameters",
+        "parametersJsonSchema",
+        "response",
+        "responseJsonSchema",
+    }
+)
+_GEMINI_THINKING_FIELDS = frozenset(
+    {"thinkingLevel", "thinkingBudget", "includeThoughts"}
+)
+_GEMINI_FUNCTION_CALLING_FIELDS = frozenset({"mode", "allowedFunctionNames"})
+_GEMINI_SAFETY_FIELDS = frozenset({"category", "threshold", "method"})
+
+
+def _unknown(value: Any, allowed: frozenset, path: str) -> Optional[str]:
+    """The path of the first field of `value` outside `allowed`, or `path` itself when `value`
+    is not an object; None when every field is allowed."""
+    if not isinstance(value, dict):
+        return path
+    for key in value:
+        if key not in allowed:
+            return f"{path}.{key}"
+    return None
+
+
+def _list_refusal(items: Any, path: str, check) -> Optional[str]:
+    """The first refusal among a list's items, or `path` when it is not a list."""
+    if not isinstance(items, list):
+        return path
+    for item in items:
+        refused = check(item, path)
+        if refused:
+            return refused
+    return None
+
+
+def _part_refusal(part: Any, path: str) -> Optional[str]:
+    refused = _unknown(part, _GEMINI_PART_FIELDS, path)
+    if refused:
+        return refused
+    for field, allowed in (
+        ("inlineData", _GEMINI_INLINE_DATA_FIELDS),
+        ("functionCall", _GEMINI_FUNCTION_CALL_FIELDS),
+        ("functionResponse", _GEMINI_FUNCTION_RESPONSE_FIELDS),
+    ):
+        if field in part:
+            refused = _unknown(part[field], allowed, f"{path}.{field}")
+            if refused:
+                return refused
+    # A function response can carry parts of its own, `fileData` among them.
+    nested = (part.get("functionResponse") or {}).get("parts")
+    if nested is not None:
+        return _list_refusal(nested, f"{path}.functionResponse.parts", _part_refusal)
+    return None
+
+
+def _content_refusal(content: Any, path: str) -> Optional[str]:
+    refused = _unknown(content, _GEMINI_CONTENT_FIELDS, path)
+    if refused or content.get("parts") is None:
+        return refused
+    return _list_refusal(content["parts"], f"{path}.parts", _part_refusal)
+
+
+def _tool_refusal(tool: Any, path: str) -> Optional[str]:
+    if not isinstance(tool, dict) or set(tool) != {"functionDeclarations"}:
+        return path
+    return _list_refusal(
+        tool["functionDeclarations"],
+        f"{path}.functionDeclarations",
+        lambda declaration, at: _unknown(declaration, _GEMINI_DECLARATION_FIELDS, at),
+    )
 
 
 def _gemini_refusal(payload: Dict[str, Any]) -> Optional[str]:
     """The first field of a native Gemini request the built-in endpoint does not serve, as a
     dotted path, or None when every field is one it serves."""
-    for key in payload:
-        if key not in _GEMINI_REQUEST_FIELDS:
-            return key
+    refused = _unknown(payload, _GEMINI_REQUEST_FIELDS, "")
+    if refused:
+        return refused.lstrip(".")
+
+    contents = payload.get("contents")
+    if contents is not None:
+        refused = _list_refusal(contents, "contents", _content_refusal)
+        if refused:
+            return refused
+
+    instruction = payload.get("systemInstruction")
+    if instruction is not None:
+        refused = _content_refusal(instruction, "systemInstruction")
+        if refused:
+            return refused
+
     tools = payload.get("tools")
     if tools is not None:
-        if not isinstance(tools, list):
-            return "tools"
-        for tool in tools:
-            if not isinstance(tool, dict) or set(tool) != {"functionDeclarations"}:
-                return "tools"
+        refused = _list_refusal(tools, "tools", _tool_refusal)
+        if refused:
+            return refused
+
+    safety = payload.get("safetySettings")
+    if safety is not None:
+        refused = _list_refusal(
+            safety,
+            "safetySettings",
+            lambda setting, at: _unknown(setting, _GEMINI_SAFETY_FIELDS, at),
+        )
+        if refused:
+            return refused
+
+    tool_config = payload.get("toolConfig")
+    if tool_config is not None:
+        refused = _unknown(
+            tool_config, frozenset({"functionCallingConfig"}), "toolConfig"
+        )
+        if refused:
+            return refused
+        calling = tool_config.get("functionCallingConfig")
+        if calling is not None:
+            refused = _unknown(
+                calling,
+                _GEMINI_FUNCTION_CALLING_FIELDS,
+                "toolConfig.functionCallingConfig",
+            )
+            if refused:
+                return refused
+
     config = payload.get("generationConfig")
     if config is not None:
-        if not isinstance(config, dict):
-            return "generationConfig"
-        for key, value in config.items():
-            if key not in _GEMINI_GENERATION_FIELDS:
-                return f"generationConfig.{key}"
-            if key == "candidateCount" and value != 1:
-                return "generationConfig.candidateCount"
-    instruction = payload.get("systemInstruction")
-    turns = [instruction] if instruction is not None else []
-    contents = payload.get("contents")
-    if contents is not None and not isinstance(contents, list):
-        return "contents"
-    for turn in turns + list(contents or []):
-        parts = turn.get("parts") if isinstance(turn, dict) else None
-        for part in parts if isinstance(parts, list) else []:
-            for key in part if isinstance(part, dict) else []:
-                if key not in _GEMINI_PART_FIELDS:
-                    return f"contents.parts.{key}"
+        refused = _unknown(config, _GEMINI_GENERATION_FIELDS, "generationConfig")
+        if refused:
+            return refused
+        if config.get("candidateCount") not in (None, 1):
+            return "generationConfig.candidateCount"
+        thinking = config.get("thinkingConfig")
+        if thinking is not None:
+            refused = _unknown(
+                thinking, _GEMINI_THINKING_FIELDS, "generationConfig.thinkingConfig"
+            )
+            if refused:
+                return refused
     return None
 
 

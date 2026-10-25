@@ -240,6 +240,44 @@ async def test_a_model_outside_the_allowlist_is_refused():
             },
             "contents.parts.fileData",
         ),
+        (
+            {
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "functionResponse": {
+                                    "name": "bash",
+                                    "response": {"output": "ok"},
+                                    "parts": [
+                                        {"fileData": {"fileUri": "gs://b/a.pdf"}}
+                                    ],
+                                }
+                            }
+                        ],
+                    }
+                ]
+            },
+            "contents.parts.functionResponse.parts.fileData",
+        ),
+        ({"systemInstruction": "Be terse."}, "systemInstruction"),
+        (
+            {"toolConfig": {"retrievalConfig": {"latLng": {}}}},
+            "toolConfig.retrievalConfig",
+        ),
+        (
+            {"tools": [{"functionDeclarations": [{"name": "f", "behavior": "X"}]}]},
+            "tools.functionDeclarations.behavior",
+        ),
+        (
+            {"generationConfig": {"thinkingConfig": {"thinking_level": "HIGH"}}},
+            "generationConfig.thinkingConfig.thinking_level",
+        ),
+        (
+            {"safetySettings": [{"category": "X", "threshold": "Y", "extra": 1}]},
+            "safetySettings.extra",
+        ),
     ],
 )
 async def test_a_field_the_built_in_endpoint_does_not_price_is_refused(change, field):
@@ -386,13 +424,20 @@ async def test_a_stream_cut_before_its_finish_reason_ends_with_a_google_error():
         # Pi's budget for any level on gemini-4-argon: Vertex's default level applies.
         ({"thinkingBudget": -1, "includeThoughts": True}, {"includeThoughts": True}),
         ({"thinkingBudget": 2048}, {}),
+        # A null config is an unset one, so it gets the default too.
+        ("null-thinking", {"thinkingLevel": "LOW"}),
+        ("null-generation", {"thinkingLevel": "LOW"}),
     ],
 )
 def test_thinking_is_normalized_to_a_level_the_built_in_models_accept(
     thinking, expected
 ):
     body = {"contents": []}
-    if thinking is not None:
+    if thinking == "null-thinking":
+        body["generationConfig"] = {"thinkingConfig": None}
+    elif thinking == "null-generation":
+        body["generationConfig"] = None
+    elif thinking is not None:
         body["generationConfig"] = {"thinkingConfig": thinking}
 
     sent = json.loads(normalize_gemini_thinking(json.dumps(body).encode()))
@@ -584,3 +629,19 @@ def test_the_route_matches_the_path_googles_sdk_calls(path, model):
 
     assert match is Match.FULL
     assert child["path_params"] == {"provider": "agenta", "model": model}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("body", [b"not json", b"[1, 2]", b"\xff\xfe", b""])
+async def test_a_body_that_is_not_a_json_object_is_refused_in_googles_shape(body):
+    service = _MockLlmGatewayService(relay_result=_relay_result(chunks=[_HI]))
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+
+    with _auth_scope():
+        response = await proxy.gemini_stream_builtin(
+            _platform_run(_native_request(body)), "agenta", "gemini-3.8-flash"
+        )
+
+    assert response.status_code == 400
+    assert json.loads(response.body)["error"]["status"] == "INVALID_ARGUMENT"
+    assert service.relay_calls == []
