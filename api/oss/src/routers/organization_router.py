@@ -82,20 +82,10 @@ async def list_organizations(
         organizations_db = await db_manager.get_organizations_by_list_ids(
             user_org_workspace_data["organization_ids"]
         )
-        workspaces_by_org = {}
     else:
         organizations_db = await db_manager.get_user_organizations(
             request.state.user_id
         )
-
-        user_workspaces = await db_manager.fetch_user_workspace_items(
-            user_id=request.state.user_id
-        )
-        workspaces_by_org = {}
-        for workspace_db in user_workspaces:
-            workspaces_by_org.setdefault(workspace_db.organization_id, []).append(
-                str(workspace_db.id)
-            )
 
     response = [
         Organization(
@@ -111,7 +101,8 @@ async def list_organizations(
             #
             owner_id=organization_db.owner_id,
             #
-            workspaces=workspaces_by_org.get(organization_db.id, []),
+            # Workspace removal step 2: the organization is the workspace (design D6).
+            workspaces=[str(organization_db.id)],
         ).model_dump(exclude_unset=True)
         for organization_db in organizations_db
     ]

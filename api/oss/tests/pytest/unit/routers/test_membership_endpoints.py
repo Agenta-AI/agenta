@@ -448,7 +448,7 @@ def invitation(monkeypatch):
     async def _update(invitation_id, values_to_update):
         updates.append(values_to_update)
 
-    async def _notify(workspace, user):
+    async def _notify(**kwargs):
         return True
 
     db = organization_service.db_manager

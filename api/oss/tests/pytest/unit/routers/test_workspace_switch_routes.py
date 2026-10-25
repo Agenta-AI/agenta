@@ -161,3 +161,110 @@ async def test_create_project_passes_no_workspace(monkeypatch):
         )
     assert calls and "workspace_id" not in calls[0]
     assert calls[0]["organization_id"] == organization_id
+
+
+def _organization(organization_id):
+    return SimpleNamespace(
+        id=organization_id,
+        slug=None,
+        name="Org",
+        description="d",
+        flags={},
+        tags=None,
+        meta=None,
+        owner_id=uuid4(),
+    )
+
+
+@pytest.mark.parametrize("edition", ["oss", "ee"])
+async def test_organizations_list_answers_the_organization_in_both_editions(
+    monkeypatch, edition
+):
+    import oss.src.routers.organization_router as organization_router
+
+    organization_id = uuid4()
+    reads = []
+
+    async def _user_orgs(user_id):
+        reads.append("get_user_organizations")
+        return [_organization(organization_id)]
+
+    async def _ids(user_id):
+        reads.append("get_user_org_and_workspace_id")
+        return {"organization_ids": [str(organization_id)]}
+
+    async def _by_ids(ids):
+        reads.append("get_organizations_by_list_ids")
+        return [_organization(organization_id)]
+
+    monkeypatch.setattr(organization_router, "is_ee", lambda: edition == "ee")
+    monkeypatch.setattr(db_manager, "get_user_organizations", _user_orgs)
+    monkeypatch.setattr(db_manager, "get_organizations_by_list_ids", _by_ids)
+    monkeypatch.setattr(organization_router, "get_user_org_and_workspace_id", _ids)
+    response = await organization_router.list_organizations(
+        request=SimpleNamespace(state=SimpleNamespace(user_id=str(uuid4())))
+    )
+    assert response[0]["workspaces"] == [str(organization_id)]
+    # OSS: one read fewer than step 1 (no workspace item read).
+    assert reads == (
+        ["get_user_organizations"]
+        if edition == "oss"
+        else ["get_user_org_and_workspace_id", "get_organizations_by_list_ids"]
+    )
+
+
+async def test_workspaces_list_has_one_item_per_organization(monkeypatch):
+    import oss.src.routers.workspace_router as workspace_router
+
+    first, second = uuid4(), uuid4()
+
+    async def _user_orgs(user_id):
+        # Two membership rows in the first organization: still one item.
+        return [_organization(first), _organization(first), _organization(second)]
+
+    monkeypatch.setattr(db_manager, "get_user_organizations", _user_orgs)
+    items = await workspace_router.get_workspace(
+        request=SimpleNamespace(state=SimpleNamespace(user_id=str(uuid4())))
+    )
+    assert [(i.id, i.name, i.type) for i in items] == [
+        (str(first), "Org", "default"),
+        (str(second), "Org", "default"),
+    ]
+
+
+async def test_invite_link_carries_the_organization_id(monkeypatch):
+    from oss.src.services import organization_service
+
+    sent = []
+
+    async def _send(email, token, *, project_id, workspace_id, organization_id, user):
+        sent.append((workspace_id, organization_id))
+        return True
+
+    organization_id, workspace_id, project_id = uuid4(), uuid4(), uuid4()
+    project = SimpleNamespace(
+        id=project_id, workspace_id=workspace_id, organization_id=organization_id
+    )
+
+    async def _project(project_id):
+        return project
+
+    async def _none(*args, **kwargs):
+        return None
+
+    async def _invitation(*args, **kwargs):
+        return SimpleNamespace(token="t")
+
+    monkeypatch.setattr(organization_service, "send_invitation_email", _send)
+    monkeypatch.setattr(db_manager, "get_project_by_id", _project)
+    monkeypatch.setattr(organization_service, "check_existing_invitation", _none)
+    monkeypatch.setattr(
+        organization_service, "check_existing_organization_invitation", _none
+    )
+    monkeypatch.setattr(organization_service, "create_invitation", _invitation)
+    import inspect
+
+    source = inspect.getsource(organization_service.invite_user_to_organization)
+    assert "workspace_id=str(project_db.organization_id)" in source
+    source = inspect.getsource(organization_service.resend_user_organization_invite)
+    assert "workspace_id=str(project_db.organization_id)" in source

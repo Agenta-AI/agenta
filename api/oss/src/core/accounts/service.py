@@ -16,7 +16,6 @@ from uuid import UUID
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.memberships.service import invalidate_access_caches
-from oss.src.core.memberships.workspaces import legacy_workspace_id
 from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
 from oss.src.core.access.service import (
     invalidate_principals_after_write,
@@ -65,7 +64,6 @@ from oss.src.models.db_models import (
     OrganizationDB,
     ProjectDB,
     UserDB,
-    WorkspaceDB,
 )
 
 try:
@@ -175,6 +173,8 @@ from oss.src.core.accounts.errors import (
     AdminUserNotFoundError,
     AdminValidationError,
     AdminWorkspaceNotFoundError,
+    AdminWorkspaceIsOrganizationError,
+    AdminOwnerProtectedError,
 )
 
 log = get_module_logger(__name__)
@@ -262,26 +262,13 @@ def _org_db_to_read_dto(org: OrganizationDB) -> AdminOrganizationRead:
     )
 
 
-def _ws_db_to_read_dto(ws: WorkspaceDB) -> AdminWorkspaceRead:
-    return AdminWorkspaceRead(
-        id=str(ws.id),
-        name=ws.name or "",
-        organization_id=str(ws.organization_id),
-        created_at=ws.created_at.isoformat() if ws.created_at else None,
-        updated_at=ws.updated_at.isoformat() if ws.updated_at else None,
-    )
-
-
 def _proj_db_to_read_dto(proj: ProjectDB) -> AdminProjectRead:
     return AdminProjectRead(
         id=str(proj.id),
         name=proj.project_name or "",
         organization_id=str(proj.organization_id),
-        workspace_id=str(
-            legacy_workspace_id(
-                workspace_id=proj.workspace_id, organization_id=proj.organization_id
-            )
-        ),
+        # The organization id where a workspace id is expected (design D6).
+        workspace_id=str(proj.organization_id),
         is_default=proj.is_default,
         created_at=proj.created_at.isoformat() if proj.created_at else None,
         updated_at=proj.updated_at.isoformat() if proj.updated_at else None,
@@ -688,7 +675,7 @@ class PlatformAdminAccountsService:
     """
     Service for platform admin account operations.
 
-    Uses existing admin_manager helpers and direct DB access.
+    Uses the db_manager admin helpers and direct DB access.
     No new DAO is introduced.
     """
 
@@ -1107,6 +1094,11 @@ class PlatformAdminAccountsService:
 
         # Collect workspace and project IDs
         workspace_ids: List[UUID] = [UUID(wid) for wid in (target.workspace_ids or [])]
+        # An organization id with no workspace row (the alias workspace removal step 2
+        # answers) deletes nothing, never the organization.
+        for wid in workspace_ids:
+            if not await _db_get_workspace_by_id(wid) and await _db_get_org_by_id(wid):
+                raise AdminWorkspaceIsOrganizationError(str(wid))
         project_ids: List[UUID] = [UUID(pid) for pid in (target.project_ids or [])]
 
         if dry_run:
@@ -1879,6 +1871,10 @@ class PlatformAdminAccountsService:
         wid = _parse_uuid(workspace_id, "workspace_id")
         ws = await _db_get_workspace_by_id(wid)
         if not ws:
+            # An organization id (the alias workspace removal step 2 answers) deletes
+            # nothing: never the organization.
+            if await _db_get_org_by_id(wid):
+                raise AdminWorkspaceIsOrganizationError(workspace_id)
             raise AdminWorkspaceNotFoundError(workspace_id)
 
         scope_snapshot = await read_scope_principals_before_delete(workspace_ids=[wid])
@@ -1895,10 +1891,54 @@ class PlatformAdminAccountsService:
     ) -> AdminDeleteResponse:
         if not is_ee():
             raise AdminNotImplementedError("delete_workspace_membership")
+        mid = _parse_uuid(membership_id, "membership_id")
+        if await _membership_scope(membership_id=mid, scope_type="workspace") is None:
+            alias = await self._delete_organization_membership_alias(
+                organization_id=workspace_id, membership_id=mid
+            )
+            if alias is not None:
+                return alias
         return await self._delete_ee_membership(
             membership_id=membership_id,
             scope_type="workspace",
         )
+
+    async def _delete_organization_membership_alias(
+        self, *, organization_id: str, membership_id: UUID
+    ) -> Optional[AdminDeleteResponse]:
+        """An organization membership id of organization `{ws}` (the alias the admin
+        graph answers for a workspace membership) removes the member through the
+        memberships service; anything else is not an alias (None)."""
+
+        try:
+            org_id = UUID(str(organization_id))
+        except ValueError:
+            return None
+        scope = await _membership_scope(
+            membership_id=membership_id, scope_type="organization"
+        )
+        if scope is None or scope[1] != org_id:
+            return None
+        user = await _db_get_user_by_id(scope[0])
+        if user is None:
+            return None
+        from oss.src.core.memberships.service import (  # noqa: PLC0415
+            get_memberships_service,
+        )
+        from oss.src.core.memberships.types import (  # noqa: PLC0415
+            OrganizationOwnerProtected,
+        )
+
+        try:
+            await get_memberships_service().remove_member(
+                organization_id=org_id, email=user.email
+            )
+        except OrganizationOwnerProtected as exc:
+            raise AdminOwnerProtectedError(str(membership_id)) from exc
+        deleted = AdminDeletedEntities(
+            workspace_memberships=[AdminDeletedEntity(id=str(membership_id))]
+        )
+        return AdminDeleteResponse(dry_run=False, deleted=deleted)
 
     async def delete_project(
         self,

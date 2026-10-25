@@ -107,17 +107,18 @@ async def get_workspace(request: Request):
         HTTPException: If the user does not have permission to perform this action.
     """
 
-    workspaces_db = await db_manager.fetch_user_workspace_items(
-        user_id=request.state.user_id
-    )
+    # Workspace removal step 2: one item per organization of the user (design D6).
+    organizations_db = await db_manager.get_user_organizations(request.state.user_id)
+    # A user can hold two membership rows in one organization: one item each.
+    organizations_db = list({o.id: o for o in organizations_db}.values())
     return [
         Workspace(
-            id=str(workspace_db.id),
-            name=str(workspace_db.name),
-            description=str(workspace_db.description),
-            type=workspace_db.type,  # type: ignore
+            id=str(organization_db.id),
+            name=organization_db.name or "",
+            description=organization_db.description,
+            type="default",  # type: ignore
         )
-        for workspace_db in workspaces_db
+        for organization_db in organizations_db
     ]
 
 

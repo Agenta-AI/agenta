@@ -52,13 +52,14 @@ from oss.src.models.db_models import (  # noqa: F401  (the tables this DAO owns)
 
 _OLDEST = "ORDER BY created_at ASC NULLS LAST, id ASC LIMIT 1"
 
+# Workspace removal step 2: the workspace fields answer the organization (design D6).
 _SUMMARY_COLUMNS = """
     p.id AS project_id,
     p.organization_id,
-    COALESCE(p.workspace_id, p.organization_id) AS workspace_id,
+    p.organization_id AS workspace_id,
     p.is_default,
     p.project_name,
-    CASE WHEN p.workspace_id IS NULL THEN o.name ELSE w.name END AS workspace_name,
+    o.name AS workspace_name,
     o.name AS organization_name,
     o.owner_id AS organization_owner_id
 """
@@ -72,7 +73,6 @@ SELECT {_SUMMARY_COLUMNS},
        pm.id IS NOT NULL AS has_project_row,
        pm.role AS project_role
 FROM projects p
-LEFT JOIN workspaces w ON w.id = p.workspace_id
 JOIN organizations o ON o.id = p.organization_id
 LEFT JOIN LATERAL (
     SELECT id, role FROM organization_members
@@ -100,7 +100,6 @@ FROM (
     ORDER BY organization_id, created_at ASC NULLS LAST, id ASC
 ) om
 JOIN projects p ON p.organization_id = om.organization_id
-LEFT JOIN workspaces w ON w.id = p.workspace_id
 JOIN organizations o ON o.id = p.organization_id
 LEFT JOIN LATERAL (
     SELECT id, role FROM project_members
@@ -118,7 +117,7 @@ WHERE organization_id = :organization_id AND user_id = :user_id
 
 _LIST_PROJECTS_SQL = """
 SELECT p.id AS project_id, p.organization_id,
-       COALESCE(p.workspace_id, p.organization_id) AS workspace_id, p.is_default,
+       p.organization_id AS workspace_id, p.is_default,
        o.owner_id AS organization_owner_id
 FROM projects p
 JOIN organizations o ON o.id = p.organization_id

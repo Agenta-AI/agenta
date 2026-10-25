@@ -53,10 +53,8 @@ from oss.src.models.db_models import (
 from oss.src.dbs.postgres.webhooks.dbes import WebhookSubscriptionDBE
 from oss.src.core.access.permissions.types import (
     Permission,
-    RequiredRole,
 )
 from oss.src.core.access.controls import (
-    get_roles,
     get_role_description,
     get_role_permissions,
 )
@@ -91,27 +89,6 @@ async def fetch_project_by_id(
         )
 
         return project
-
-
-async def fetch_projects_by_workspace(
-    workspace_id: str,
-) -> List[ProjectDB]:
-    """
-    Retrieve all projects that belong to a workspace ordered by creation date.
-    Args:
-        workspace_id (str): Workspace identifier.
-    Returns:
-        List[ProjectDB]: Projects scoped to the workspace.
-    """
-
-    engine = get_transactions_engine()
-    async with engine.session() as session:
-        result = await session.execute(
-            select(ProjectDB)
-            .filter(ProjectDB.workspace_id == uuid.UUID(workspace_id))
-            .order_by(ProjectDB.created_at.asc())
-        )
-        return result.scalars().all()
 
 
 # Maps a workspace id or an organization id inside the statement: a workspace resolves to
@@ -251,26 +228,6 @@ async def fetch_oldest_organization_id(*, user_id: str) -> Optional[str]:
             )
         ).scalar()
     return str(organization_id) if organization_id is not None else None
-
-
-async def fetch_workspace_by_id(
-    workspace_id: str,
-) -> Optional[WorkspaceDB]:
-    engine = get_transactions_engine()
-    async with engine.session() as session:
-        workspace = (
-            (
-                await session.execute(
-                    select(WorkspaceDB).filter_by(
-                        id=uuid.UUID(workspace_id),
-                    )
-                )
-            )
-            .scalars()
-            .first()
-        )
-
-        return workspace
 
 
 async def fetch_organization_by_id(
@@ -527,46 +484,8 @@ async def get_default_workspace_id(user_id: str) -> str:
         return str(memberships[0].workspace_id)
 
 
-class UserWorkspaceItem(NamedTuple):
-    id: uuid.UUID
-    organization_id: uuid.UUID
-    name: Optional[str]
-    description: Optional[str]
-    type: Optional[str]
-    created_at: Optional[datetime]
-    updated_at: Optional[datetime]
-
-
 # The user's workspaces (today's rows), plus one organization-id item for every
 # organization where the user has no workspace membership row.
-_USER_WORKSPACE_ITEMS_SQL = """
-SELECT w.id, w.organization_id, w.name, w.description, w.type, w.created_at, w.updated_at
-FROM workspaces w JOIN workspace_members wm ON wm.workspace_id = w.id
-WHERE wm.user_id = CAST(:user_id AS uuid)
-UNION ALL
-SELECT o.id, o.id, o.name, o.description, 'default', o.created_at, o.updated_at
-FROM organizations o
-WHERE o.id IN (
-    SELECT organization_id FROM organization_members WHERE user_id = CAST(:user_id AS uuid)
-)
-  AND NOT EXISTS (
-      SELECT 1 FROM workspace_members wm JOIN workspaces w ON w.id = wm.workspace_id
-      WHERE wm.user_id = CAST(:user_id AS uuid) AND w.organization_id = o.id)
-ORDER BY created_at ASC NULLS LAST, id ASC
-"""
-
-
-async def fetch_user_workspace_items(*, user_id: str) -> List[UserWorkspaceItem]:
-    """The items of `GET /workspaces/` and of the OSS organization list, in one statement."""
-
-    engine = get_transactions_engine()
-    async with engine.session() as session:
-        rows = (
-            await session.execute(
-                text(_USER_WORKSPACE_ITEMS_SQL), {"user_id": uuid.UUID(str(user_id))}
-            )
-        ).all()
-    return [UserWorkspaceItem(*row) for row in rows]
 
 
 async def create_organization(
@@ -648,43 +567,6 @@ async def update_organization(organization_id: str, values_to_update: Dict[str, 
         await session.refresh(organization)
 
         return organization
-
-
-async def create_or_update_default_project(values_to_update: Dict[str, Any]):
-    """Update the specified project in the database.
-
-    Args:
-        values_to_update (Dict[str, Any]): The values to update in the project
-    """
-
-    organization_id = values_to_update.get("organization_id")
-    if organization_id is None:
-        raise ValueError(
-            "create_or_update_default_project requires 'organization_id' in values_to_update"
-        )
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(ProjectDB).filter_by(
-                organization_id=organization_id,
-                is_default=True,
-            )
-        )
-        project = result.scalars().first()
-
-        if project is None:
-            project = ProjectDB(project_name="Default", is_default=True)
-
-            session.add(project)
-
-        for key, value in values_to_update.items():
-            if hasattr(project, key):
-                setattr(project, key, value)
-
-        await session.commit()
-        await session.refresh(project)
 
 
 async def get_organizations() -> List[OrganizationDB]:
@@ -860,22 +742,6 @@ async def get_workspace(workspace_id: str) -> WorkspaceDB:
         result = await session.execute(query)
         workspace = result.scalars().first()
         return workspace
-
-
-async def get_workspaces() -> List[WorkspaceDB]:
-    """
-    Retrieve workspaces from the database by their IDs.
-
-    Returns:
-        List: A list of workspaces.
-    """
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(select(WorkspaceDB))
-        workspaces = result.scalars().all()
-        return workspaces
 
 
 async def get_user_with_id(user_id: str) -> UserDB:
@@ -1856,20 +1722,6 @@ async def get_organization(organization_id: str) -> OrganizationDB:
         return organization
 
 
-async def get_workspace_members(workspace_id: str) -> List[WorkspaceMemberDB]:
-    """Return all membership rows for a given workspace."""
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(WorkspaceMemberDB).where(
-                WorkspaceMemberDB.workspace_id == uuid.UUID(workspace_id)
-            )
-        )
-        return list(result.scalars().all())
-
-
 async def get_project_members(project_id: str):
     """Get the members of a project."""
 
@@ -1960,138 +1812,88 @@ async def count_organization_members(organization_id: str) -> int:
         return result.scalar() or 0
 
 
-async def get_organization_workspaces(organization_id: str):
-    """Retrieve workspaces belonging to an organization."""
+# The project whose members `GET /organizations/{id}` lists: step 1's exact choice for
+# existing data. The organization's workspace (the `default`-type one, else the oldest),
+# then that workspace's own projects in today's order (`is_default DESC`, NULLs first,
+# then `created_at`); a workspace without projects, or an organization without workspace
+# rows, answers the organization's default by the reader rule. One statement.
+_ORG_DETAILS_PROJECT_SQL = f"""
+WITH ws AS (
+    SELECT w.id FROM workspaces w
+    WHERE w.organization_id = :organization_id
+    ORDER BY (w.type IS NOT DISTINCT FROM 'default') DESC,
+             w.created_at ASC NULLS LAST, w.id ASC
+    LIMIT 1
+)
+SELECT p.* FROM projects p
+LEFT JOIN ws ON ws.id = p.workspace_id
+{_PROJECT_WORKSPACE_JOIN}
+WHERE p.organization_id = :organization_id
+ORDER BY (ws.id IS NOT NULL) DESC,
+         CASE WHEN ws.id IS NOT NULL THEN p.is_default END DESC,
+         CASE WHEN ws.id IS NOT NULL THEN p.created_at END ASC,
+         (p.is_default IS TRUE) DESC,
+         {_ORGANIZATION_DEFAULT_ORDER}
+LIMIT 1
+"""
+
+# The project's members with their organization role (the oldest organization row), and
+# their user, in one statement.
+_ORG_DETAILS_MEMBERS_SQL = """
+SELECT u.id, u.email, u.username, u.created_at, om.role
+FROM project_members pm
+JOIN users u ON u.id = pm.user_id
+LEFT JOIN LATERAL (
+    SELECT role FROM organization_members
+    WHERE organization_id = :organization_id AND user_id = pm.user_id
+    ORDER BY created_at ASC NULLS LAST, id ASC
+    LIMIT 1
+) om ON true
+WHERE pm.project_id = :project_id
+"""
+
+
+async def fetch_org_details_project(organization_id: str) -> Optional[ProjectDB]:
+    """The project whose members the organization details list (one statement)."""
 
     engine = get_transactions_engine()
-
     async with engine.session() as session:
         result = await session.execute(
-            select(WorkspaceDB)
-            .filter_by(organization_id=uuid.UUID(organization_id))
-            .options(  # type: ignore
-                load_only(WorkspaceDB.id, WorkspaceDB.organization_id)
-            )
+            select(ProjectDB).from_statement(text(_ORG_DETAILS_PROJECT_SQL)),
+            {"organization_id": uuid.UUID(str(organization_id))},
         )
-        workspaces = result.scalars().all()
-        return workspaces
-
-
-async def get_workspace_administrators(workspace: WorkspaceDB) -> List[UserDB]:
-    """Retrieve the administrators (ADMIN or OWNER role) of a workspace."""
-
-    members = await get_workspace_members(workspace_id=str(workspace.id))
-
-    admin_user_ids = [
-        str(member.user_id)
-        for member in members
-        if member.role in (RequiredRole.ADMIN, RequiredRole.OWNER)
-    ]
-
-    administrators: List[UserDB] = []
-    for user_id in admin_user_ids:
-        user = await get_user_with_id(user_id=user_id)
-        if user:
-            administrators.append(user)
-
-    return administrators
-
-
-async def create_project(
-    project_name: str,
-    workspace_id: str,
-    organization_id: str,
-    session: AsyncSession,
-    *,
-    is_default: bool = False,
-) -> ProjectDB:
-    """Create a new project."""
-
-    project_db = ProjectDB(
-        project_name=project_name,
-        is_default=is_default,
-        organization_id=uuid.UUID(organization_id),
-        workspace_id=uuid.UUID(workspace_id),
-    )
-
-    session.add(project_db)
-
-    await session.commit()
-
-    log.info(
-        "[scopes] project created",
-        organization_id=organization_id,
-        workspace_id=workspace_id,
-        project_id=project_db.id,
-    )
-
-    return project_db
-
-
-class _OrganizationAsWorkspace(NamedTuple):
-    """The attributes `get_workspace_in_format` reads, built from an organization."""
-
-    id: uuid.UUID
-    organization_id: uuid.UUID
-    name: Optional[str]
-    description: Optional[str]
-    type: str
-    created_at: Optional[datetime]
-    updated_at: Optional[datetime]
-
-    @classmethod
-    def of(cls, organization) -> "_OrganizationAsWorkspace":
-        return cls(
-            id=organization.id,
-            organization_id=organization.id,
-            name=organization.name,
-            description=organization.description,
-            type="default",
-            created_at=organization.created_at,
-            updated_at=organization.updated_at,
-        )
+        return result.scalars().first()
 
 
 async def get_org_details(organization) -> dict:
-    """Retrieve details of an organization (with default workspace + members)."""
+    """The organization details, with the organization where the default workspace
+    goes (workspace removal step 2, design D6): its members are those of the project
+    step 1 listed, with their organization role, plus the pending invitations."""
+
+    from oss.src.models.api.workspace_models import WorkspaceResponse
 
     is_demo = organization.flags.get("is_demo", False) if organization.flags else False
 
-    default_workspace_db = await get_org_default_workspace(organization)
-    project = None
-    if default_workspace_db is None:
-        # No workspace rows (workspace removal step 2): the organization answers its own
-        # id where the default workspace goes, when it has a project. The project read
-        # takes the place of the workspace list read, which has nothing to return here.
-        try:
-            project = await get_project_by_workspace(workspace_id=str(organization.id))
-        except NoResultFound:
-            project = None
-        if project is not None:
-            default_workspace_db = _OrganizationAsWorkspace.of(organization)
-    default_workspace_obj = (
-        await get_workspace_details(
-            default_workspace_db, include_members=not is_demo, project=project
-        )
-        if default_workspace_db is not None
-        else None
+    project = await fetch_org_details_project(str(organization.id))
+    # Design D6: the organization is the default workspace, also without a project (then
+    # with no members).
+    members = (
+        await _org_details_members(organization, project)
+        if project is not None and not is_demo
+        else []
     )
-    default_workspace = (
-        default_workspace_obj.model_dump(mode="json")
-        if default_workspace_obj is not None
-        else None
-    )
-    if isinstance(default_workspace_db, _OrganizationAsWorkspace):
-        workspace_ids = [str(organization.id)]
-    elif default_workspace_db is None:
-        workspace_ids = []
-    else:
-        workspaces = await get_organization_workspaces(
-            organization_id=str(organization.id)
-        )
-        workspace_ids = [str(workspace.id) for workspace in workspaces]
+    default_workspace = WorkspaceResponse(
+        id=str(organization.id),
+        name=organization.name or "",
+        description=organization.description,
+        type="default",
+        members=members,
+        organization=str(organization.id),
+        created_at=str(organization.created_at),
+        updated_at=str(organization.updated_at),
+    ).model_dump(mode="json")
 
-    sample_organization = {
+    return {
         "id": str(organization.id),
         "slug": organization.slug,
         "name": organization.name,
@@ -2100,22 +1902,93 @@ async def get_org_details(organization) -> dict:
         "tags": organization.tags,
         "meta": organization.meta,
         "owner_id": str(organization.owner_id),
-        "workspaces": workspace_ids,
+        "workspaces": [str(organization.id)],
         "default_workspace": default_workspace,
     }
-    return sample_organization
 
 
-async def get_workspace_details(
-    workspace: WorkspaceDB,
-    include_members: bool = True,
-    project: Optional[ProjectDB] = None,
-):
-    """Retrieve details of a workspace in the WorkspaceResponse format."""
+async def _org_details_members(organization, project) -> List[dict]:
+    members = []
 
-    return await get_workspace_in_format(
-        workspace, include_members=include_members, project=project
+    invitations = await get_project_invitations_filtered(
+        project_id=str(project.id), invitation_used=False
     )
+    for invitation in invitations:
+        if invitation.used or str(invitation.project_id) != str(project.id):
+            continue
+        user = await get_user_with_email(invitation.email)
+        members.append(
+            {
+                "user": {
+                    "id": str(user.id) if user else invitation.email,
+                    "email": user.email if user else invitation.email,
+                    "username": (
+                        user.username if user else invitation.email.split("@")[0]
+                    ),
+                    "status": (
+                        "pending"
+                        if invitation.expiration_date > datetime.now(timezone.utc)
+                        else "expired"
+                    ),
+                    "created_at": (
+                        str(user.created_at)
+                        if user
+                        else (
+                            str(invitation.created_at)
+                            if str(invitation.created_at)
+                            else None
+                        )
+                    ),
+                },
+                "roles": [
+                    {
+                        "role_name": invitation.role,
+                        "role_description": get_role_description(
+                            "workspace", _role_slug(invitation.role)
+                        ),
+                    }
+                ],
+            }
+        )
+
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        rows = (
+            await session.execute(
+                text(_ORG_DETAILS_MEMBERS_SQL),
+                {"organization_id": organization.id, "project_id": project.id},
+            )
+        ).all()
+    for row in rows:
+        members.append(
+            {
+                "user": {
+                    "id": str(row.id),
+                    "email": row.email,
+                    "username": row.username,
+                    "status": "member",
+                    "created_at": str(row.created_at),
+                },
+                "roles": (
+                    [
+                        {
+                            "role_name": row.role,
+                            "role_description": get_role_description(
+                                "organization", _role_slug(row.role)
+                            ),
+                            "permissions": _expand_permissions(
+                                get_role_permissions(
+                                    "organization", _role_slug(row.role)
+                                )
+                            ),
+                        }
+                    ]
+                    if row.role
+                    else []
+                ),
+            }
+        )
+    return members
 
 
 async def get_project_invitations_filtered(project_id: str, **kwargs):
@@ -2133,11 +2006,6 @@ async def get_project_invitations_filtered(project_id: str, **kwargs):
         result = await session.execute(stmt)
         invitations = result.scalars().all()
         return invitations
-
-
-async def get_all_workspace_roles() -> List[dict]:
-    """Return the effective workspace role catalog."""
-    return get_roles("workspace")
 
 
 # ---------------------------------------------------------------------------
@@ -2483,30 +2351,6 @@ async def user_exists(user_email: str) -> bool:
     return False if not user else True
 
 
-async def get_org_default_workspace(organization) -> WorkspaceDB:
-    """Get the default workspace for an organization."""
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(WorkspaceDB).filter_by(
-                organization_id=organization.id,
-                type="default",
-            )
-        )
-        workspace = result.scalars().first()
-        if workspace is not None:
-            return workspace
-
-        result = await session.execute(
-            select(WorkspaceDB).filter_by(
-                organization_id=organization.id,
-            )
-        )
-        return result.scalars().first()
-
-
 def _role_slug(role: Any) -> str:
     """Normalize an enum or string role to its slug form."""
     return role.value if hasattr(role, "value") else str(role)
@@ -2517,106 +2361,3 @@ def _expand_permissions(slugs: List[str]) -> List[str]:
     if "*" not in slugs:
         return slugs
     return [p.value for p in Permission]
-
-
-async def get_workspace_in_format(
-    workspace: WorkspaceDB,
-    include_members: bool = True,
-    project: Optional[ProjectDB] = None,
-):
-    """Convert a workspace object to the WorkspaceResponse model."""
-
-    from oss.src.models.api.workspace_models import WorkspaceResponse
-
-    members = []
-
-    if include_members:
-        # The caller may have read the project already.
-        if project is None:
-            project = await get_project_by_workspace(workspace_id=str(workspace.id))
-        project_members = await get_project_members(project_id=str(project.id))
-        invitations = await get_project_invitations_filtered(
-            project_id=str(project.id), invitation_used=False
-        )
-
-        if len(invitations) > 0:
-            for invitation in invitations:
-                if not invitation.used and str(invitation.project_id) == str(
-                    project.id
-                ):
-                    user = await get_user_with_email(invitation.email)
-                    member_dict = {
-                        "user": {
-                            "id": str(user.id) if user else invitation.email,
-                            "email": user.email if user else invitation.email,
-                            "username": (
-                                user.username
-                                if user
-                                else invitation.email.split("@")[0]
-                            ),
-                            "status": (
-                                "pending"
-                                if invitation.expiration_date
-                                > datetime.now(timezone.utc)
-                                else "expired"
-                            ),
-                            "created_at": (
-                                str(user.created_at)
-                                if user
-                                else (
-                                    str(invitation.created_at)
-                                    if str(invitation.created_at)
-                                    else None
-                                )
-                            ),
-                        },
-                        "roles": [
-                            {
-                                "role_name": invitation.role,
-                                "role_description": get_role_description(
-                                    "workspace", _role_slug(invitation.role)
-                                ),
-                            }
-                        ],
-                    }
-                    members.append(member_dict)
-
-        for project_member in project_members:
-            member_role = project_member.role
-            member_dict = {
-                "user": {
-                    "id": str(project_member.user.id),
-                    "email": project_member.user.email,
-                    "username": project_member.user.username,
-                    "status": "member",
-                    "created_at": str(project_member.user.created_at),
-                },
-                "roles": (
-                    [
-                        {
-                            "role_name": member_role,
-                            "role_description": get_role_description(
-                                "project", _role_slug(member_role)
-                            ),
-                            "permissions": _expand_permissions(
-                                get_role_permissions("project", _role_slug(member_role))
-                            ),
-                        }
-                    ]
-                    if member_role
-                    else []
-                ),
-            }
-            members.append(member_dict)
-
-    workspace_response = WorkspaceResponse(
-        id=str(workspace.id),
-        name=workspace.name,
-        description=workspace.description,
-        type=workspace.type,
-        members=members,
-        organization=str(workspace.organization_id),
-        created_at=str(workspace.created_at),
-        updated_at=str(workspace.updated_at),
-    )
-    return workspace_response

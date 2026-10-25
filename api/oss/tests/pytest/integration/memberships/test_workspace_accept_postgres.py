@@ -231,7 +231,7 @@ async def test_resolver_lists_a_project_without_workspace():
         await delete_seeded_organization(seeded)
 
 
-async def test_resolver_rows_of_legacy_projects_are_unchanged():
+async def test_resolver_rows_of_legacy_projects_answer_the_organization():
     seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
     cross = await _seed_cross_organization_project()
     try:
@@ -239,11 +239,12 @@ async def test_resolver_rows_of_legacy_projects_are_unchanged():
             (seeded, seeded.user_ids["m"]),
             (cross, cross.user_ids["m"]),
         ):
+            # Step 2 (design D6): every project answers its organization's id and name.
             expected = {
-                row["id"]: (row["workspace_id"], row["name"])
+                row["id"]: (row["organization_id"], row["name"])
                 for row in await fetch_all(
-                    "SELECT p.id, p.workspace_id, w.name FROM projects p "
-                    "JOIN workspaces w ON w.id = p.workspace_id "
+                    "SELECT p.id, p.organization_id, o.name FROM projects p "
+                    "JOIN organizations o ON o.id = p.organization_id "
                     "WHERE p.organization_id = :o",
                     {"o": org.organization_id},
                 )
@@ -597,70 +598,12 @@ async def test_mixed_organization_writes_from_both_versions():
         assert len(ids) == len(set(ids))
         by_id = {p.project_id: p.workspace_id for p in listed}
         assert by_id[step2] == seeded.organization_id
-        assert by_id[seeded.project_ids[0]] == seeded.workspace_ids[0]
+        assert by_id[seeded.project_ids[0]] == seeded.organization_id  # step 2
     finally:
         await delete_seeded_organization(seeded)
 
 
 # --- workspace list items ---------------------------------------------------- #
-
-
-async def test_user_workspace_items_add_organizations_without_workspaces():
-    seeded = await _seed_organization_without_workspaces()
-    try:
-        engine = get_transactions_engine()
-        await db_manager.fetch_user_workspace_items(user_id=str(seeded.owner_id))
-        with count_statements(engine) as statements:
-            items = await db_manager.fetch_user_workspace_items(
-                user_id=str(seeded.owner_id)
-            )
-        assert len(statements) == 1
-        mine = [i for i in items if i.organization_id == seeded.organization_id]
-        assert len(mine) == 1
-        assert mine[0].id == seeded.organization_id
-        assert mine[0].name == await _organization_name(seeded.organization_id)
-        assert mine[0].type == "default"
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_user_workspace_items_add_members_without_a_workspace_row():
-    seeded = await seed_organization(
-        members={"owner": "owner", "m": "editor"}, workspace_rows=False
-    )
-    try:
-        items = await db_manager.fetch_user_workspace_items(
-            user_id=str(seeded.user_ids["m"])
-        )
-        assert [(i.id, i.organization_id) for i in items] == [
-            (seeded.organization_id, seeded.organization_id)
-        ]
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_user_workspace_items_of_legacy_users_equal_today():
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=3)
-    try:
-        for user_id in seeded.user_ids.values():
-            today = await fetch_all(
-                "SELECT w.id, w.organization_id, w.name, w.description, w.type "
-                "FROM workspaces w JOIN workspace_members wm ON wm.workspace_id = w.id "
-                "WHERE wm.user_id = :u ORDER BY w.created_at ASC",
-                {"u": user_id},
-            )
-            items = await db_manager.fetch_user_workspace_items(user_id=str(user_id))
-            # Today's order leaves ties of `created_at` open (one transaction can create
-            # several workspaces): same items, in `created_at` order.
-            assert sorted(
-                (i.id, i.organization_id, i.name, i.description, i.type) for i in items
-            ) == sorted(
-                (r["id"], r["organization_id"], r["name"], r["description"], r["type"])
-                for r in today
-            )
-            assert [i.created_at for i in items] == sorted(i.created_at for i in items)
-    finally:
-        await delete_seeded_organization(seeded)
 
 
 async def test_org_details_of_an_organization_without_workspaces():
@@ -1212,8 +1155,9 @@ async def test_legacy_workspace_with_a_null_name_keeps_an_empty_name():
         row = await _dao().fetch_membership_row(
             user_id=seeded.user_ids["m"], project_id=seeded.project_ids[0]
         )
-        assert row.summary.workspace_id == seeded.workspace_ids[0]
-        assert row.summary.workspace_name == ""
+        # Step 2: the organization's id and name, whatever the workspace row holds.
+        assert row.summary.workspace_id == seeded.organization_id
+        assert row.summary.workspace_name == row.summary.organization_name
     finally:
         await delete_seeded_organization(seeded)
 
@@ -1239,11 +1183,14 @@ async def test_org_details_of_an_organization_without_workspaces_or_projects():
             )
             with count_statements(engine) as statements:
                 details = await db_manager.get_org_details(organization)
-            assert details["default_workspace"] is None, demo
-            assert details["workspaces"] == [], demo
-            # Today: two default-workspace reads and the workspace list read. Now the
-            # project read takes the place of the workspace list read.
-            assert len(statements) == 3, (demo, statements)
+            # Step 2 (design D6): the organization alias, with no members.
+            assert details["default_workspace"]["id"] == str(seeded.organization_id), (
+                demo
+            )
+            assert details["default_workspace"]["members"] == [], demo
+            assert details["workspaces"] == [str(seeded.organization_id)], demo
+            # Step 1: 3 statements; step 2: the one project read.
+            assert len(statements) == 1, (demo, statements)
     finally:
         await delete_seeded_organization(seeded)
 
@@ -1255,11 +1202,10 @@ async def test_org_details_of_a_legacy_organization_keep_their_statement_count()
         engine = get_transactions_engine()
         with count_statements(engine) as statements:
             details = await db_manager.get_org_details(organization)
-        assert details["default_workspace"]["id"] == str(seeded.workspace_ids[0])
-        assert sorted(details["workspaces"]) == sorted(
-            str(w) for w in seeded.workspace_ids
-        )
-        # default workspace read, project read, members, invitations, workspace list
-        assert len(statements) == 5, statements
+        # Step 2 (design D6): the organization where the default workspace was.
+        assert details["default_workspace"]["id"] == str(seeded.organization_id)
+        assert details["workspaces"] == [str(seeded.organization_id)]
+        # Step 1: 5 statements; step 2: project, invitations, members.
+        assert len(statements) == 3, statements
     finally:
         await delete_seeded_organization(seeded)

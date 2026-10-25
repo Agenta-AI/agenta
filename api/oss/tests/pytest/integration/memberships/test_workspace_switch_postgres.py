@@ -1254,3 +1254,462 @@ async def test_write_statement_counts_drop():
         for seeded in created:
             await delete_seeded_organization(seeded)
         await delete_seeded_organization(legacy)
+
+
+# --- responses per D6, links, the admin notice, admin aliases (Task 5) --------- #
+
+import json  # noqa: E402
+import os  # noqa: E402
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+from pathlib import Path  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
+
+# Optional: the API directory of the step-1 code (feat/m4b-workspace-accept) checked out
+# elsewhere; the comparisons with the step-1 helpers skip without it.
+_STEP1_API = (
+    Path(os.environ["AGENTA_TESTS_STEP1_API"])
+    if os.environ.get("AGENTA_TESTS_STEP1_API")
+    else None
+)
+
+
+def _step1(code: str):
+    """Run `code` against the same database with the step-1 code (captured from
+    feat/m4b-workspace-accept); it prints one JSON value."""
+
+    if _STEP1_API is None or not _STEP1_API.exists():
+        pytest.skip("AGENTA_TESTS_STEP1_API (the step-1 code) is not set")
+    from oss.src.utils.env import env
+
+    environment = {
+        **os.environ,
+        "PYTHONPATH": str(_STEP1_API),
+        "POSTGRES_URI_CORE": env.postgres.uri_core,
+    }
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=_STEP1_API,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert result.returncode == 0, result.stderr[-3000:]
+    return json.loads(result.stdout.strip().splitlines()[-1])
+
+
+_STEP1_ORG_DETAILS_PROJECTS = """
+import asyncio, json, sys
+from oss.src.services import db_manager
+
+async def main(ids):
+    out = {}
+    for organization_id in ids:
+        organization = await db_manager.get_organization(organization_id)
+        workspace = await db_manager.get_org_default_workspace(organization)
+        try:
+            project = await db_manager.get_project_by_workspace(
+                workspace_id=str(workspace.id if workspace else organization.id)
+            )
+        except db_manager.NoResultFound:
+            project = None
+        out[organization_id] = str(project.id) if project else None
+    print(json.dumps(out))
+
+asyncio.run(main(IDS))
+"""
+
+
+async def _step1_org_details_projects(organization_ids):
+    code = _STEP1_ORG_DETAILS_PROJECTS.replace(
+        "IDS", json.dumps([str(o) for o in organization_ids])
+    )
+    return _step1(code)
+
+
+async def _null_type_and_default_type_organization():
+    """Two workspaces with different project members: the `default`-type one created
+    second, a NULL-type one created first. A NULL type must not sort first."""
+
+    seeded = await seed_organization(
+        members={"a": "editor", "b": "viewer"}, workspaces=2
+    )
+    await execute(
+        "UPDATE workspaces SET type = NULL, created_at = now() - interval '1 day' "
+        "WHERE id = :w",
+        {"w": seeded.workspace_ids[0]},
+    )
+    await execute(
+        "DELETE FROM project_members WHERE project_id = :p AND user_id = :u",
+        {"p": seeded.project_ids[1], "u": seeded.user_ids["b"]},
+    )
+    return seeded
+
+
+async def _null_defaults_in_the_default_workspace():
+    seeded = await seed_organization(members={"a": "editor"}, workspaces=1)
+    null_default = await _add_project(
+        organization_id=seeded.organization_id,
+        workspace_id=seeded.workspace_ids[0],
+        is_default=None,
+    )
+    await execute(
+        "INSERT INTO project_members (id, user_id, project_id, role, created_at, "
+        "updated_at) VALUES (gen_random_uuid(), :u, :p, 'viewer', now(), now())",
+        {"u": seeded.owner_id, "p": null_default},
+    )
+    return seeded, null_default
+
+
+async def test_org_details_member_sets_are_unchanged():
+    fixtures = [
+        await _null_type_and_default_type_organization(),
+        (await _null_defaults_in_the_default_workspace())[0],
+        await _no_default_organization(),
+    ]
+    try:
+        seed = [
+            row["id"]
+            for row in await fetch_all(
+                "SELECT id FROM organizations WHERE name NOT LIKE 'membership-seed-%' "
+                "AND created_at < now() - interval '1 hour'"
+            )
+        ]
+        ids = seed + [f.organization_id for f in fixtures]
+        step1 = await _step1_org_details_projects(ids)
+        engine = get_transactions_engine()
+        for organization_id in ids:
+            with count_statements(engine) as statements:
+                project = await db_manager.fetch_org_details_project(
+                    str(organization_id)
+                )
+            assert len(statements) == 1
+            assert (str(project.id) if project else None) == step1[
+                str(organization_id)
+            ], organization_id
+        # The NULL-type fixture lists the `default`-type workspace's members.
+        details = await db_manager.get_org_details(
+            await db_manager.get_organization(str(fixtures[0].organization_id))
+        )
+        listed = {m["user"]["id"] for m in details["default_workspace"]["members"]}
+        assert listed == {str(u) for u in fixtures[0].user_ids.values()} - {
+            str(fixtures[0].user_ids["b"])
+        }
+    finally:
+        for seeded in fixtures:
+            await delete_seeded_organization(seeded)
+
+
+async def test_org_details_workspace_rule_when_physical_order_differs():
+    seeded = await seed_organization(members={"m": "editor"}, workspaces=0)
+    try:
+        newer, older = uuid4(), uuid4()
+        # The newer workspace is inserted first (lower ctid), with a later created_at.
+        for workspace_id, age in ((newer, 0), (older, 2)):
+            await execute(
+                "INSERT INTO workspaces (id, name, type, organization_id, created_at, "
+                "updated_at) VALUES (:id, 'w', NULL, :o, now() - make_interval(days => :age), "
+                "now())",
+                {"id": workspace_id, "o": seeded.organization_id, "age": age},
+            )
+        for workspace_id in (newer, older):
+            project = await _add_project(
+                organization_id=seeded.organization_id,
+                workspace_id=workspace_id,
+                is_default=False,
+            )
+            if workspace_id == older:
+                older_project = project
+        chosen = await db_manager.fetch_org_details_project(str(seeded.organization_id))
+        assert chosen.id == older_project
+        c6 = await fetch_all(
+            "SELECT count(*) AS n FROM ("
+            " SELECT DISTINCT ON (organization_id) organization_id, id AS a FROM workspaces"
+            " WHERE organization_id = :o"
+            " ORDER BY organization_id, (type IS NOT DISTINCT FROM 'default') DESC, ctid) x"
+            " JOIN (SELECT DISTINCT ON (organization_id) organization_id, id AS b"
+            " FROM workspaces WHERE organization_id = :o ORDER BY organization_id,"
+            " (type IS NOT DISTINCT FROM 'default') DESC, created_at ASC NULLS LAST, id ASC)"
+            " y USING (organization_id) WHERE a <> b",
+            {"o": seeded.organization_id},
+        )
+        assert c6[0]["n"] == 1
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_org_details_answer_the_organization():
+    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
+    try:
+        organization = await db_manager.get_organization(str(seeded.organization_id))
+        engine = get_transactions_engine()
+        with count_statements(engine) as statements:
+            details = await db_manager.get_org_details(organization)
+        workspace = details["default_workspace"]
+        assert details["workspaces"] == [str(seeded.organization_id)]
+        assert workspace["id"] == str(seeded.organization_id)
+        assert workspace["name"] == organization.name
+        assert workspace["type"] == "default"
+        roles = {
+            m["user"]["id"]: m["roles"][0]["role_name"] for m in workspace["members"]
+        }
+        assert roles == {
+            str(seeded.owner_id): "owner",
+            str(seeded.user_ids["m"]): "editor",
+        }
+        # Step 1: 5 statements for a legacy organization (workspace, workspace project,
+        # members, invitations, workspace list); step 2: project, invitations, members.
+        assert len(statements) == 3
+        empty = await seed_organization(
+            members={"owner": "owner"}, workspaces=0, projects_per_workspace=0
+        )
+        try:
+            details = await db_manager.get_org_details(
+                await db_manager.get_organization(str(empty.organization_id))
+            )
+            # Design D6: the organization alias, with no members.
+            assert details["default_workspace"]["id"] == str(empty.organization_id)
+            assert details["default_workspace"]["members"] == []
+            assert details["workspaces"] == [str(empty.organization_id)]
+        finally:
+            await delete_seeded_organization(empty)
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_project_list_answers_the_organization():
+    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
+    try:
+        name = (
+            await fetch_all(
+                "SELECT name FROM organizations WHERE id = :o",
+                {"o": seeded.organization_id},
+            )
+        )[0]["name"]
+        engine = get_transactions_engine()
+        with count_statements(engine) as statements:
+            rows = await _dao().list_membership_rows(user_id=seeded.user_ids["m"])
+        mine = [r for r in rows if r.summary.organization_id == seeded.organization_id]
+        assert len(mine) == 2 and len(statements) == 1
+        for row in mine:
+            assert row.summary.workspace_id == seeded.organization_id
+            assert row.summary.workspace_name == name
+        row = await _dao().fetch_membership_row(
+            user_id=seeded.user_ids["m"], project_id=seeded.project_ids[1]
+        )
+        assert row.summary.workspace_id == seeded.organization_id
+        listed = await _dao().list_projects(organization_ids=[seeded.organization_id])
+        assert {p.workspace_id for p in listed} == {seeded.organization_id}
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+class _Mailer:
+    def __init__(self):
+        self.sent = []
+
+    async def send_email(self, **kwargs):
+        self.sent.append(kwargs)
+        return True
+
+
+async def test_accept_sends_the_admin_notice_to_organization_admins(monkeypatch):
+    from oss.src.services import organization_service
+
+    seeded = await seed_organization(
+        members={"a1": "admin", "a2": "admin", "e": "editor"}, workspaces=0
+    )
+    newcomer = await create_user(label="newcomer")
+    seeded.extra_user_ids.append(newcomer)
+    mailer = _Mailer()
+    monkeypatch.setattr(organization_service, "emailing", mailer)
+    try:
+        await execute(
+            "INSERT INTO organization_members (id, user_id, organization_id, role, "
+            "created_at, updated_at) VALUES (gen_random_uuid(), :u, :o, 'viewer', now(), "
+            "now())",
+            {"u": newcomer, "o": seeded.organization_id},
+        )
+        user = await db_manager.get_user_with_id(user_id=str(newcomer))
+        engine = get_transactions_engine()
+        with count_statements(engine) as statements:
+            await organization_service.notify_org_admin_invitation(
+                organization_id=seeded.organization_id,
+                project_id=seeded.project_ids[0],
+                user=user,
+            )
+        emails = {
+            (await fetch_all("SELECT email FROM users WHERE id = :u", {"u": u}))[0][
+                "email"
+            ]
+            for u in (seeded.owner_id, seeded.user_ids["a1"], seeded.user_ids["a2"])
+        }
+        assert {m["to_email"] for m in mailer.sent} == emails
+        assert len(mailer.sent) == 3 and len(statements) == 1
+        link = f"/w/{seeded.organization_id}/p/{seeded.project_ids[0]}/settings?tab=workspace"
+        assert all(link in m["call_to_action"] for m in mailer.sent)
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_admin_delete_of_a_workspace_alias_deletes_nothing():
+    from oss.src.core.accounts.dtos import (
+        AdminAccountsDelete,
+        AdminAccountsDeleteTarget,
+    )
+    from oss.src.core.accounts.errors import AdminWorkspaceIsOrganizationError
+
+    seeded = await seed_organization(members={"m": "editor"}, workspaces=0)
+    service = PlatformAdminAccountsService()
+    try:
+        with pytest.raises(AdminWorkspaceIsOrganizationError):
+            await service.delete_workspace(workspace_id=str(seeded.organization_id))
+        with pytest.raises(AdminWorkspaceIsOrganizationError):
+            await service.delete_accounts(
+                dto=AdminAccountsDelete(
+                    target=AdminAccountsDeleteTarget(
+                        workspace_ids=[str(seeded.organization_id)]
+                    ),
+                    dry_run=False,
+                )
+            )
+        assert await fetch_all(
+            "SELECT 1 FROM organizations WHERE id = :o", {"o": seeded.organization_id}
+        )
+        projects = await fetch_all(
+            "SELECT id FROM projects WHERE organization_id = :o",
+            {"o": seeded.organization_id},
+        )
+        assert [p["id"] for p in projects] == seeded.project_ids
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_admin_delete_of_a_membership_alias_removes_the_member(monkeypatch):
+    from oss.src.core.accounts.errors import AdminOwnerProtectedError
+    from oss.src.core.accounts import service as accounts_module
+
+    import oss.src.core.memberships.service as memberships_module
+    from oss.src.core.memberships.dtos import MembershipPolicy
+    from oss.src.core.memberships.service import MembershipsService
+
+    monkeypatch.setattr(accounts_module, "is_ee", lambda: True)
+    monkeypatch.setattr(
+        memberships_module,
+        "_memberships_service",
+        MembershipsService(
+            memberships_dao=_dao(), policy=MembershipPolicy.PROJECT_ROWS
+        ),
+    )
+    seeded = await seed_organization(members={"m": "editor"}, workspaces=0)
+    service = PlatformAdminAccountsService()
+    try:
+        rows = {
+            row["user_id"]: row["id"]
+            for row in await fetch_all(
+                "SELECT id, user_id FROM organization_members WHERE organization_id = :o",
+                {"o": seeded.organization_id},
+            )
+        }
+        with pytest.raises(AdminOwnerProtectedError):
+            await service.delete_workspace_membership(
+                workspace_id=str(seeded.organization_id),
+                membership_id=str(rows[seeded.owner_id]),
+            )
+        response = await service.delete_workspace_membership(
+            workspace_id=str(seeded.organization_id),
+            membership_id=str(rows[seeded.user_ids["m"]]),
+        )
+        assert response.deleted.workspace_memberships[0].id == str(
+            rows[seeded.user_ids["m"]]
+        )
+        left = await fetch_all(
+            "SELECT 1 FROM organization_members WHERE user_id = :u",
+            {"u": seeded.user_ids["m"]},
+        )
+        assert left == []
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_admin_alias_deletes_on_step1_code_change_nothing():
+    seeded = await seed_organization(members={"m": "editor"}, workspaces=0)
+    try:
+        membership = (
+            await fetch_all(
+                "SELECT id FROM organization_members WHERE user_id = :u",
+                {"u": seeded.user_ids["m"]},
+            )
+        )[0]["id"]
+        code = f"""
+import asyncio, json
+from oss.src.core.accounts.service import PlatformAdminAccountsService
+from oss.src.core.accounts import service as accounts_module
+accounts_module.is_ee = lambda: True
+
+async def main():
+    service = PlatformAdminAccountsService()
+    out = []
+    for call in (
+        lambda: service.delete_workspace(workspace_id="{seeded.organization_id}"),
+        lambda: service.delete_workspace_membership(
+            workspace_id="{seeded.organization_id}", membership_id="{membership}"
+        ),
+    ):
+        try:
+            await call()
+            out.append("deleted")
+        except Exception as exc:
+            out.append(type(exc).__name__)
+    print(json.dumps(out))
+
+asyncio.run(main())
+"""
+        assert _step1(code) == [
+            "AdminWorkspaceNotFoundError",
+            "AdminMembershipNotFoundError",
+        ]
+        assert await fetch_all(
+            "SELECT 1 FROM organization_members WHERE id = :m", {"m": membership}
+        )
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_admin_delete_of_a_legacy_workspace_keeps_the_legacy_cleanup():
+    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
+    try:
+        await PlatformAdminAccountsService().delete_workspace(
+            workspace_id=str(seeded.workspace_ids[1])
+        )
+        assert not await fetch_all(
+            "SELECT 1 FROM workspaces WHERE id = :w", {"w": seeded.workspace_ids[1]}
+        )
+        assert not await fetch_all(
+            "SELECT 1 FROM projects WHERE id = :p", {"p": seeded.project_ids[1]}
+        )
+        assert await fetch_all(
+            "SELECT 1 FROM projects WHERE id = :p", {"p": seeded.project_ids[0]}
+        )
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+def test_session_link_uses_the_organization_id():
+    from oss.src.apis.fastapi.sessions.utils import current_session_response
+
+    organization_id, project_id, session_id = uuid4(), uuid4(), str(uuid4())
+    stream = SimpleNamespace(
+        session_id=session_id,
+        name="s",
+        project_id=project_id,
+        references=[SimpleNamespace(key="workflow", id=uuid4())],
+    )
+    # request.state.workspace_id is the organization id in every auth branch (S-7).
+    response = current_session_response(
+        stream=stream, workspace_id=organization_id, web_url="https://app.example.com"
+    )
+    assert (
+        f"/m/w/{organization_id}/p/{project_id}/sessions/{session_id}" in response.url
+    )

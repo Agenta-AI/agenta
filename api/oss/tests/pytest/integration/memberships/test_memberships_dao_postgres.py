@@ -765,7 +765,8 @@ async def test_membership_row_reads_the_oldest_organization_row_in_one_statement
         assert row.has_organization_row is True
         assert row.has_project_row is True
         assert row.summary.project_name == "project-0-0"
-        assert row.summary.workspace_name == "workspace-0"
+        # Step 2: the organization where the workspace was (design D6).
+        assert row.summary.workspace_name == row.summary.organization_name
         assert row.summary.organization_name.startswith("membership-seed-")
         assert row.summary.organization_owner_id == seeded.owner_id
     finally:
