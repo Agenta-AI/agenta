@@ -69,6 +69,13 @@ AGENTA_TIMEOUT_SECONDS = 300.0
 # model that is thinking usually sends bytes well inside this limit.
 AGENTA_RESPONSE_HEADERS_TIMEOUT_SECONDS = 60.0
 
+# Vertex's opt-in to its Priority PayGo tier (`AGENTA_LLM_GATEWAY_VERTEX_PRIORITY`). The first
+# header keeps the call on shared capacity, the second asks for priority within it.
+AGENTA_VERTEX_PRIORITY_HEADERS = {
+    "X-Vertex-AI-LLM-Request-Type": "shared",
+    "X-Vertex-AI-LLM-Shared-Request-Type": "priority",
+}
+
 # Every provider the `builtin` namespace can serve. A `builtin` call runs on the platform's
 # account, so the wallet's rate card must price each model these serve.
 BUILTIN_LLM_PROVIDERS = (AGENTA_PROVIDER, "mock")
@@ -176,6 +183,9 @@ def _agenta_endpoint() -> Optional[LLMEndpoint]:
             route=LLMEndpointRoute(
                 region=AGENTA_VERTEX_LOCATION,
                 extras={"vertex_project": config.vertex_project},
+                headers=dict(AGENTA_VERTEX_PRIORITY_HEADERS)
+                if config.vertex_priority
+                else None,
             ),
             models=LLMModelFilter(allowlist=list(AGENTA_MODELS)),
             settings=LLMEndpointSettings(

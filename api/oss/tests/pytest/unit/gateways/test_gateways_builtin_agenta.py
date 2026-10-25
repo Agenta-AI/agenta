@@ -1165,3 +1165,22 @@ def test_a_usage_only_frame_is_not_rewritten():
 
     assert move_gemini_thoughts(frame, relay=False) is False
     assert frame == {"choices": [], "usage": {"prompt_tokens": 3}}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("priority", [False, True])
+async def test_the_priority_switch_puts_agenta_on_vertexs_priority_tier(
+    vertex, monkeypatch, priority
+):
+    monkeypatch.setattr(env.llm_gateway, "vertex_priority", priority)
+
+    requests, _records, _received = await _relay(
+        stream=False, body={"model": "google/gemini-3.7-flash", "messages": []}
+    )
+
+    headers = requests[0].headers
+    if priority:
+        assert headers["x-vertex-ai-llm-request-type"] == "shared"
+        assert headers["x-vertex-ai-llm-shared-request-type"] == "priority"
+    else:
+        assert "x-vertex-ai-llm-shared-request-type" not in headers
