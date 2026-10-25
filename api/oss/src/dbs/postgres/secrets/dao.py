@@ -80,6 +80,9 @@ from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
     get_transactions_engine,
 )
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 _Result = TypeVar("_Result")
 
@@ -371,6 +374,8 @@ class SecretsDAO(SecretsDAOInterface):
         self,
         work: Callable[[AsyncConnection], Awaitable[_Result]],
         *,
+        operation: str,
+        ids: dict[str, Optional[UUID]],
         create_secret_dto: Optional[CreateSecretDTO] = None,
     ) -> _Result:
         """Run `work` in one SERIALIZABLE transaction, retried on a serialization failure
@@ -381,7 +386,8 @@ class SecretsDAO(SecretsDAOInterface):
         Postgres tracks serializable reads by index page, so two organization writes in
         different organizations whose index entries share a page can abort one another
         without a real conflict. The retries absorb that; a real conflict still ends in
-        409 or in the domain refusal its retry finds."""
+        409 or in the domain refusal its retry finds. Each retry is logged at debug with
+        the operation name and the row ids only."""
         for attempt in range(1, _SERIALIZABLE_ATTEMPTS + 1):
             try:
                 async with self.engine.transaction(
@@ -391,6 +397,16 @@ class SecretsDAO(SecretsDAOInterface):
             except DBAPIError as error:
                 if _sqlstate(error) == _SERIALIZATION_FAILURE:
                     if attempt < _SERIALIZABLE_ATTEMPTS:
+                        log.debug(
+                            "[secrets] serializable write retried",
+                            operation=operation,
+                            attempt=attempt,
+                            **{
+                                name: str(value)
+                                for name, value in ids.items()
+                                if value is not None
+                            },
+                        )
                         await _wait_before_retry(attempt)
                         continue
                     raise SecretWriteConflict() from None
@@ -477,7 +493,12 @@ class SecretsDAO(SecretsDAOInterface):
                 raise SecretShadowConflict(slug=create_secret_dto.slug or "")
             return _dto(row)
 
-        return await self._serializable(work, create_secret_dto=create_secret_dto)
+        return await self._serializable(
+            work,
+            operation="create_project_secret",
+            ids={"project_id": project_id},
+            create_secret_dto=create_secret_dto,
+        )
 
     async def get_by_id(
         self,
@@ -555,7 +576,11 @@ class SecretsDAO(SecretsDAOInterface):
                 finally:
                     await session.close()
 
-            return await self._serializable(work)
+            return await self._serializable(
+                work,
+                operation="update_project_secret",
+                ids={"project_id": owner.id, "secret_id": secret_id},
+            )
 
         try:
             async with self.engine.session() as session:
@@ -845,7 +870,12 @@ class SecretsDAO(SecretsDAOInterface):
             row.selected_project_ids = sorted(selected) if selected else []
             return _dto(vars(row), with_selected=True)
 
-        return await self._serializable(work, create_secret_dto=create_secret_dto)
+        return await self._serializable(
+            work,
+            operation="create_organization_secret",
+            ids={"organization_id": organization_id},
+            create_secret_dto=create_secret_dto,
+        )
 
     async def update_organization_secret(
         self,
@@ -931,7 +961,11 @@ class SecretsDAO(SecretsDAOInterface):
             row.selected_project_ids = stored.selected_project_ids or []
             return _dto(vars(row), with_selected=True)
 
-        return await self._serializable(work)
+        return await self._serializable(
+            work,
+            operation="update_organization_secret",
+            ids={"organization_id": organization_id, "secret_id": secret_id},
+        )
 
     async def delete_organization_secret(
         self, *, organization_id: UUID, secret_id: UUID
@@ -1017,7 +1051,11 @@ class SecretsDAO(SecretsDAOInterface):
             row.selected_project_ids = sorted(selected)
             return _dto(vars(row), with_selected=True)
 
-        return await self._serializable(work)
+        return await self._serializable(
+            work,
+            operation="set_organization_secret_availability",
+            ids={"organization_id": organization_id, "secret_id": secret_id},
+        )
 
     async def list_organization_project_ids(
         self, *, organization_id: UUID
