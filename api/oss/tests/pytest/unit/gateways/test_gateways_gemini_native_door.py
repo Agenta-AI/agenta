@@ -278,13 +278,52 @@ async def test_a_model_outside_the_allowlist_is_refused():
             {"safetySettings": [{"category": "X", "threshold": "Y", "extra": 1}]},
             "safetySettings.extra",
         ),
+        (
+            {"systemInstruction": {"parts": [{"fileData": {"fileUri": "gs://b/a"}}]}},
+            "systemInstruction.parts.fileData",
+        ),
+        (
+            {
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [
+                            {
+                                "inlineData": {
+                                    "mimeType": "image/png",
+                                    "data": "AAAA",
+                                    "fileUri": "gs://b/a",
+                                }
+                            }
+                        ],
+                    }
+                ]
+            },
+            "contents.parts.inlineData.fileUri",
+        ),
+        (
+            {"toolConfig": {"functionCallingConfig": {"mode": "ANY", "streamArgs": 1}}},
+            "toolConfig.functionCallingConfig.streamArgs",
+        ),
+        ({"contents": {"role": "user"}}, "contents"),
+        ({"contents": [{"role": "user", "parts": "hi"}]}, "contents.parts"),
+        ({"contents": [{"role": "user", "parts": ["hi"]}]}, "contents.parts"),
+        (
+            {"tools": [{"functionDeclarations": {"name": "f"}}]},
+            "tools.functionDeclarations",
+        ),
+        ({"generationConfig": "fast"}, "generationConfig"),
+        ({"safetySettings": {"category": "X"}}, "safetySettings"),
     ],
 )
 async def test_a_field_the_built_in_endpoint_does_not_price_is_refused(change, field):
+    transport = _Scripted(_HI)
     with pytest.raises(LLMCapabilityNotAllowedError) as refused:
-        await _native(_service(_Scripted(_HI)), {**_REQUEST, **change})
+        await _native(_service(transport), {**_REQUEST, **change})
 
     assert refused.value.field == field
+    # Refused before the platform's account is reached.
+    assert transport.requests == []
 
 
 @pytest.mark.asyncio
@@ -645,3 +684,39 @@ async def test_a_body_that_is_not_a_json_object_is_refused_in_googles_shape(body
     assert response.status_code == 400
     assert json.loads(response.body)["error"]["status"] == "INVALID_ARGUMENT"
     assert service.relay_calls == []
+
+
+@pytest.mark.asyncio
+async def test_opaque_arguments_responses_and_schemas_pass_unchecked():
+    """The allowlist checks protocol objects, not what the model and tools put inside them."""
+    transport = _Scripted(_HI)
+    odd = {"fileData": {"fileUri": "gs://b/a"}, "routingConfig": 1, "anything": [1]}
+    body = {
+        **_REQUEST,
+        "tools": [
+            {
+                "functionDeclarations": [
+                    {
+                        "name": "f",
+                        "parametersJsonSchema": {"type": "object", "properties": odd},
+                    }
+                ]
+            }
+        ],
+        "contents": [
+            {
+                "role": "model",
+                "parts": [{"functionCall": {"name": "f", "args": odd, "id": "c1"}}],
+            },
+            {
+                "role": "user",
+                "parts": [
+                    {"functionResponse": {"name": "f", "id": "c1", "response": odd}}
+                ],
+            },
+        ],
+    }
+
+    await _native(_service(transport), body)
+
+    assert json.loads(transport.requests[0].content)["contents"] == body["contents"]

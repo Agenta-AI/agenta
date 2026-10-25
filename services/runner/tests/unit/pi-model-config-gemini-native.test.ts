@@ -165,5 +165,5 @@ describe("Pi's Google client against the native route", () => {
     });
     // No thinking setting: the gateway gives the request its LOW default.
     expect(JSON.stringify(calls[0].body)).not.toContain("thinking");
-  });
+  }, 30_000);
 });

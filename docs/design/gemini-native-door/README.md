@@ -80,8 +80,9 @@ answer relayed as received; usage read from usageMetadata; errors rebuilt in Goo
   `systemInstruction` may carry `text`, `inlineData`, `functionCall`, `functionResponse`,
   `thought`, `thoughtSignature`; `fileData` is refused (Vertex would fetch a URL on the
   platform's account). Exact camelCase keys, so snake_case aliases are refused too.
-- Ceilings: `_CEILING_FIELDS[GEMINI]` reads `generationConfig.maxOutputTokens` (nested; the
-  ceiling helper gains a path).
+- Ceilings: not applied on the native door. Only the built-in endpoint serves it, and the
+  built-in endpoint configures no `max_output_tokens` ceiling; `_enforce_ceilings` returns the
+  body unchanged for `GEMINI`. A ceiling there would need a nested `generationConfig` path.
 - Thinking: the door normalizes `generationConfig.thinkingConfig` for the built-in models,
   so every request carries a level these models accept. No thinking setting at all,
   `thinkingBudget: 0`, or `thinkingLevel: MINIMAL` become `thinkingLevel: LOW` (thinking off).
@@ -196,19 +197,24 @@ refuses budgets), and `LOW`, `MEDIUM`, `HIGH` pass. Retries: Pi retries the init
 
 ## Tests
 
-- API unit: door routing and context from the path; allowlist with the `google/` prefix;
-  capability refusals; ceiling on `maxOutputTokens`; default LOW written only when absent;
-  `__thought__` split; nudge on stall retries; usage from `usageMetadata` (stream and whole);
-  error shapes (status body, stream break, domain errors) with the marker; terminal marker; the
-  placeholder key never reaches Vertex; wallet admitted once and charged once across retries.
-- SDK unit: resolution with and without `protocol`; base URLs.
-- Runner unit: models.json for `protocol: "gemini"` (API, base, headers, thinking map) and
-  without it (unchanged); classifier strings.
-- End to end (local stack, staging Vertex): tools, parallel tools, MCP schemas, image and PDF,
-  stop, park and resume, a session started on the OpenAI route, model switches, thinking off
-  and high, wallet charge equals Vertex usage, forced 400, 429, wallet refusal, forced stall.
-- Stall A/B: 120 follow-ups through the OpenAI door and 120 through the native door.
-- Release gate: a new built-in Gemini cell.
+- API unit (`test_gateways_gemini_native_door.py`): route matching for the path Google's SDK
+  calls, context from the path, bare model ids, malformed bodies; the allowlist at every depth
+  (top level, tools, tool config, safety settings, generation and thinking config, parts in
+  contents, system instruction and function responses, inline data), with zero upstream calls
+  on a refusal; opaque arguments, responses and schemas pass; thinking normalization; usage
+  from `usageMetadata`; the stall nudge; Google error shapes with the marker; terminal detection;
+  the placeholder key never reaches Vertex; wallet admitted once and charged once; the resolve
+  hint.
+- SDK unit: resolution with and without `protocol`; a shared golden for the native route's
+  model connection.
+- Runner unit: models.json for `protocol: "gemini"` (API, base, headers, bare id, no reasoning
+  flag) and without it (unchanged); identities pinned to their pre-change values; a mocked
+  fetch of Pi's Google client (URL, headers, no thinking setting); classifier strings.
+- End to end (local stack and staging, staging's Vertex account): tools across turns, parallel
+  bash, long tool chains with approvals, three models, a session started on the OpenAI route,
+  wallet charges, live UI QA.
+- Stall A/B: direct to Vertex, 120 follow-ups per endpoint; through the product, 15 two-turn
+  tool sessions per route.
 
 ## Workflow
 

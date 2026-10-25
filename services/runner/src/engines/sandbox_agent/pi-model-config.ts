@@ -30,7 +30,6 @@ import type {
 import { GATEWAY_CREDENTIALS_VALUE_ENV } from "./run-plan.ts";
 import { GATEWAY_PLACEHOLDER_API_KEY } from "../../extensions/model-provider-override.ts";
 
-/** The API dialect this builder emits. The only value v1 supports (design Decision 1). */
 /**
  * The dialects Pi speaks to a custom provider: OpenAI chat completions, or Google's native
  * Gemini protocol on a gateway route that serves it (`modelConnection.protocol === "gemini"`).
