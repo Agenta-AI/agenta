@@ -13,7 +13,7 @@ def _custom_provider_secret(url: str) -> dict:
                 "url": url,
                 "version": None,
                 "key": None,
-                "extras": {},
+                "extras": {"api_key": "fixture-custom-key"},
             },
             "models": ["gpt-4o-mini"],
             "model_keys": ["my-gw/custom/gpt-4o-mini"],
@@ -32,7 +32,7 @@ def test_custom_provider_private_url_is_dropped_from_api_base(monkeypatch):
 
     settings = SecretsManager.get_provider_settings("my-gw/custom/gpt-4o-mini")
 
-    # extras is empty (no "extras" AND "url" pair survives), so no api_base leaks through.
+    # The blocked URL is not included in the custom provider settings.
     assert settings is None or "api_base" not in settings
 
 

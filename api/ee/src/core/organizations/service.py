@@ -987,6 +987,7 @@ from ee.src.core.fraud.service import (  # noqa: E402
     signup_is_fraud,
 )
 from ee.src.core.accounts.service import (  # noqa: E402
+    email_variant_blocks_grant,
     returning_account_blocks_grants,
 )
 
@@ -1036,7 +1037,13 @@ async def _free_credits_check(organization_email: str) -> tuple[bool, bool]:
     """Apply the mint policy to a new organization's owner email, and return
     (award the signup grant, raise the wallet floor). A refusal in
     FLOOR_RAISING_REFUSALS skips the grant and raises the floor. Any other refusal,
-    a missing policy or any error skips the grant and keeps the normal floor."""
+    a missing policy or any error skips the grant and keeps the normal floor.
+
+    A Gmail address whose normalized form already belongs to another live user (a dot
+    or `+tag` variant of one inbox) is refused and raises the floor too. The per-domain
+    cap skips freemail domains, so it does not catch these. That lookup fails open."""
+    if await email_variant_blocks_grant(email=organization_email):
+        return False, True
     try:
         async with asyncio.timeout(5):
             policy = await signup_policy.resolve_mint_policy()

@@ -2,13 +2,15 @@ from datetime import datetime
 from typing import List, Optional
 
 import uuid_utils.compat as uuid_utils
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, exists, func, select
 from uuid import UUID
 
+from oss.src.core.auth.emails import GMAIL_ALIASES, GMAIL_DOMAIN, normalize_email
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
     get_transactions_engine,
 )
+from oss.src.models.db_models import UserDB
 
 from ee.src.core.accounts.types import (
     AccountTombstone,
@@ -89,3 +91,39 @@ class AccountTombstonesDAO(AccountTombstonesDAOInterface):
                 )
             ).scalar_one_or_none()
             return map_tombstone_dbe_to_dto(dbe) if dbe is not None else None
+
+    async def exists_live_email_variant(self, *, email: str) -> bool:
+        normalized = normalize_email(email)
+        if normalized.count("@") != 1:
+            return False
+        local, domain = normalized.split("@", 1)
+        # Gmail only. Outside Gmail the mint policy already refuses a `+tag` sign-up
+        # (`plus_local_part`), and a plain address that signs up after its own `+tag`
+        # test account is a real user, not a second inbox.
+        if domain != GMAIL_DOMAIN:
+            return False
+
+        # `normalize_email` in SQL, so the lookup stays one query and no address
+        # leaves the database.
+        stored = func.lower(func.trim(UserDB.email))
+        stored_local = func.split_part(func.split_part(stored, "@", 1), "+", 1)
+        stored_domain = func.split_part(stored, "@", 2)
+        matches = [
+            stored_domain.in_(sorted(GMAIL_ALIASES)),
+            func.replace(stored_local, ".", "") == local,
+        ]
+
+        async with self.engine.session() as session:
+            return bool(
+                (
+                    await session.execute(
+                        select(
+                            exists().where(
+                                UserDB.deleted_at.is_(None),
+                                stored != email.strip().lower(),
+                                *matches,
+                            )
+                        )
+                    )
+                ).scalar_one()
+            )

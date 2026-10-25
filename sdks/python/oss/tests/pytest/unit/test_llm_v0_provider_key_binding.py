@@ -14,7 +14,10 @@ from types import SimpleNamespace
 import pytest
 
 from agenta.sdk.engines.running import handlers
-from agenta.sdk.engines.running.errors import UnknownConnectionV0Error
+from agenta.sdk.engines.running.errors import (
+    UnknownConnectionV0Error,
+    InvalidConfigurationParameterV0Error,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -235,3 +238,30 @@ async def test_concurrent_calls_with_different_connections_do_not_cross_contamin
     assert order == ["sk-second", "sk-first"]
     assert first[1] == {}
     assert second[1] == {}
+
+
+@pytest.mark.parametrize("family", ["openai", "anthropic", "gemini"])
+@pytest.mark.parametrize("connection", [None, "custom-connection"])
+async def test_custom_connection_without_key_stops_before_model_call(
+    litellm, vault, monkeypatch, family, connection
+):
+    monkeypatch.setenv(f"{family.upper()}_API_KEY", "fixture-environment-key")
+    model = f"custom-connection/{family}/fixture-model"
+    vault(
+        [
+            _provider_key(kind=family, key="fixture-environment-key"),
+            {
+                "kind": "custom_provider",
+                "slug": "custom-connection",
+                "data": {
+                    "kind": family,
+                    "provider_slug": "custom-connection",
+                    "provider": {"extras": {"api_base": "https://provider.example/v1"}},
+                    "model_keys": [model],
+                },
+            },
+        ]
+    )
+    with pytest.raises(InvalidConfigurationParameterV0Error):
+        await _run([{"model": model, "connection": connection}])
+    assert litellm.calls == []

@@ -21,6 +21,7 @@ from agenta.sdk.models.workflows import (
 )
 from agenta.sdk.models.shared import resolve_session_id
 from agenta.sdk.engines.running.errors import ErrorStatus
+from agenta.sdk.redaction.redactor import strip_echoed_key_fragments
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.utils.logging import get_module_logger
@@ -231,7 +232,7 @@ class NormalizerMiddleware:
             error_status = WorkflowServiceStatus(
                 type=exc.type,
                 code=exc.code,
-                message=exc.message,
+                message=strip_echoed_key_fragments(exc.message),
                 stacktrace=returned_stacktrace(exc.stacktrace),
                 failure_code=failure_code,
                 retry_after=retry_after_of(exc),
@@ -246,7 +247,7 @@ class NormalizerMiddleware:
             if code in [401, 403, 429] and failure_code != "access_denied":
                 code = 424
 
-            message = str(exc) or "Internal Server Error"
+            message = strip_echoed_key_fragments(str(exc)) or "Internal Server Error"
 
             stacktrace = format_exception(
                 exc,  # type: ignore

@@ -241,6 +241,7 @@ people can reach.
 | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` | `agenta.services.code.sandbox_runner` | `agenta.services.code.sandboxRunner` |
 | `AGENTA_SERVICES_CODE_SANDBOX_TIMEOUT` | n/a (SDK-side) | n/a |
 | `AGENTA_SERVICES_CODE_SANDBOX_WAIT_TIMEOUT` | n/a (SDK-side) | n/a |
+| `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` | n/a (SDK-side) | `services.env.AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` |
 | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` | n/a (SDK-side) | `agenta.services.middleware.authEnabled` |
 | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
 | `AGENTA_SERVICES_PATH_PREFIX` | n/a (read by the services entrypoint) | `services.env.AGENTA_SERVICES_PATH_PREFIX` |
@@ -1357,6 +1358,13 @@ own `AGENTA_RUNNER_DAYTONA_SNAPSHOT`; see the [runner Daytona section](#daytona)
 | `PERPLEXITYAI_API_KEY` | `llm.perplexityai` | `llm.perplexityai` |
 | `TOGETHERAI_API_KEY` | `llm.togetherai` | `llm.togetherai` |
 | `XAI_API_KEY` | `llm.xai` | `llm.xai` |
+
+A prompt or an evaluator runs on the provider keys saved in its project. The keys above, set on
+the services container, are used only when a project has no key of its own for that provider,
+and only when `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` allows it. It defaults to `true` in the
+OSS edition and to `false` in the EE edition. With it off, a project without a saved key gets the
+error "No API key found for model". A custom provider always uses its own key and never one of
+these.
 
 ## loops
 
