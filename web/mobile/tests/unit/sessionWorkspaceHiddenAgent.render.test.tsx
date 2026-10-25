@@ -44,7 +44,8 @@ vi.mock("@/features/chat/useStartBlankSession", () => ({
     useStartBlankSession: () => () => undefined,
 }))
 vi.mock("@/features/chat/useTriggerTestRun", () => ({useTriggerTestRun: () => undefined}))
-vi.mock("@agenta/entity-ui/drive", () => ({
+vi.mock("@agenta/entity-ui/drive", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/entity-ui/drive")>()),
     DriveSessionProvider: ({children}: {children: React.ReactNode}) => children,
     SessionFilesPane: () => null,
     useSessionFilesPane: () => ({open: false, close: () => undefined, toggle: () => undefined}),
