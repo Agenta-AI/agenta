@@ -10,7 +10,12 @@ import {
 } from "react"
 
 import {cellsToTable, type PreviewQuote} from "@agenta/shared/quotes"
-import type {PreviewPick, PreviewPinRect, PreviewRect} from "@agenta/ui/quote-selection"
+import {
+    pressClosedNote,
+    type PreviewPick,
+    type PreviewPinRect,
+    type PreviewRect,
+} from "@agenta/ui/quote-selection"
 
 import {boxToRange, rangeToBox, tableWidth, type CellBox} from "./cellAddress"
 import type {Sheet, SheetCell, Workbook} from "./workbook"
@@ -148,7 +153,8 @@ export function useSheetComments({
     }, [dragging, rootRef])
 
     const onPointerDown = useCallback((e: ReactPointerEvent<HTMLElement>) => {
-        if (e.button !== 0) return
+        // A press that closed an open note only closes it, as a click in a preview frame does.
+        if (e.button !== 0 || pressClosedNote(e.nativeEvent)) return
         const point = pointOf(e.target)
         if (!point) return
         // Keeps the browser from selecting text under the drag.
