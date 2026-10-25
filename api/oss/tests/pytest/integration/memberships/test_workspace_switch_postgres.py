@@ -42,6 +42,10 @@ def _revision():
     return load_revision_module(_REVISION)
 
 
+def _dao() -> MembershipsDAO:
+    return MembershipsDAO(engine=get_transactions_engine())
+
+
 # --- shapes ------------------------------------------------------------------ #
 
 
@@ -89,6 +93,12 @@ async def _no_default_organization() -> SeededOrganization:
     await execute(
         "UPDATE projects SET is_default = false WHERE organization_id = :o",
         {"o": seeded.organization_id},
+    )
+    # The seed writes both workspaces in one transaction (same `now()`): make the second
+    # one younger so the order does not depend on random ids.
+    await execute(
+        "UPDATE workspaces SET created_at = created_at + interval '1 second' WHERE id = :w",
+        {"w": seeded.workspace_ids[1]},
     )
     return seeded
 
@@ -444,5 +454,385 @@ async def test_step1_stale_project_read_keeps_a_default():
         assert await _committed_defaults(seeded.organization_id) == [
             seeded.project_ids[1]
         ]
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+# --- one default-project rule (R1, R2, R4) ------------------------------------ #
+
+import oss.src.core.access.permissions.service as permissions_service  # noqa: E402
+import oss.src.services.db_manager as db_manager  # noqa: E402
+from oss.src.core.access.dtos import RequestCredentialKind  # noqa: E402
+from oss.src.core.access.permissions.types import Permission  # noqa: E402
+from oss.tests.pytest.utils.statements import count_statements  # noqa: E402
+
+
+async def _consolidated(seeded: SeededOrganization) -> SeededOrganization:
+    """Run 053's switch for this organization only, committed."""
+
+    engine = get_transactions_engine()._engine
+    async with engine.begin() as connection:
+        await _switch(connection, [seeded.organization_id])
+    return seeded
+
+
+async def _readers(ref) -> tuple:
+    by_workspace = await db_manager.get_project_by_workspace(str(ref))
+    default = await db_manager.fetch_default_project(
+        workspace_or_organization_id=str(ref)
+    )
+    return by_workspace.id, default.project_id if default else None
+
+
+async def test_default_helpers_agree_for_every_seed_scope():
+    # Every workspace id and organization id of the seed (not of other tests) whose
+    # organization has a default project, after the consolidation of the seed copy.
+    refs = await fetch_all(
+        "SELECT w.id AS ref FROM workspaces w JOIN organizations o "
+        "ON o.id = w.organization_id WHERE o.name NOT LIKE 'membership-seed-%' "
+        "AND EXISTS (SELECT 1 FROM projects p WHERE p.organization_id = o.id "
+        "AND p.is_default IS TRUE) "
+        "UNION ALL SELECT o.id FROM organizations o WHERE o.name NOT LIKE "
+        "'membership-seed-%' AND EXISTS (SELECT 1 FROM projects p WHERE "
+        "p.organization_id = o.id AND p.is_default IS TRUE)"
+    )
+    assert refs
+    for row in refs:
+        by_workspace, default = await _readers(row["ref"])
+        assert by_workspace == default, row["ref"]
+
+
+async def test_member_routes_and_bearer_pick_the_same_project():
+    seeded = await _consolidated(await _multi_default_organization())
+    try:
+        for ref in (*seeded.workspace_ids, seeded.organization_id):
+            assert await _readers(ref) == (seeded.project_ids[1],) * 2
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_readers_pick_the_d11_default_when_two_remain():
+    seeded = await _consolidated(await _multi_default_organization())
+    try:
+        # A step-1-shaped write after 053: a second default in a secondary workspace.
+        await execute(
+            "UPDATE projects SET is_default = true WHERE id = :p",
+            {"p": seeded.project_ids[2]},
+        )
+        for ref in (*seeded.workspace_ids, seeded.organization_id):
+            assert await _readers(ref) == (seeded.project_ids[1],) * 2
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_default_lookups_stay_in_the_ref_organization():
+    cross, other = await _cross_organization_project()
+    try:
+        await _consolidated(cross)
+        # The cross-organization shape written again after 053 (a step-1 admin call).
+        await execute(
+            "UPDATE projects SET workspace_id = :w WHERE id = :p",
+            {"w": other.workspace_ids[0], "p": cross.project_ids[1]},
+        )
+        by_workspace, default = await _readers(other.workspace_ids[0])
+        assert by_workspace == default == other.project_ids[0]
+        first = await db_manager.get_project_by_workspace(
+            str(other.workspace_ids[0]), use_default=False
+        )
+        assert first.id == other.project_ids[0]
+        own = await _readers(cross.organization_id)
+        assert own == (cross.project_ids[0],) * 2
+    finally:
+        await delete_seeded_organization(cross)
+
+
+async def test_get_project_by_workspace_falls_back_without_a_default():
+    seeded = await _no_default_organization()
+    try:
+        for ref in (*seeded.workspace_ids, seeded.organization_id):
+            project = await db_manager.get_project_by_workspace(str(ref))
+            # Both workspaces are `default`-type: the oldest workspace's project.
+            assert project.id == seeded.project_ids[0]
+            assert (
+                await db_manager.fetch_default_project(
+                    workspace_or_organization_id=str(ref)
+                )
+                is None
+            )
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_default_lookups_are_one_statement():
+    seeded = await _consolidated(await _multi_default_organization())
+    try:
+        engine = get_transactions_engine()
+        for ref in (seeded.workspace_ids[2], seeded.organization_id):
+            with count_statements(engine) as fetched:
+                await db_manager.fetch_default_project(
+                    workspace_or_organization_id=str(ref)
+                )
+            with count_statements(engine) as found:
+                await db_manager.get_project_by_workspace(str(ref))
+            assert len(fetched) == 1
+            assert len(found) == 1
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+# --- check_organization_write follows the organization default (owner question 1,
+# option (a): the D-11 default) ------------------------------------------------ #
+
+
+class _KeyAccess:
+    def __init__(self, project_id):
+        self.credential_kind = RequestCredentialKind.API_KEY
+        self.project_id = project_id
+
+
+async def _organization_write(monkeypatch, organization_id, key_project_id) -> bool:
+    checked = []
+
+    async def check_action_access(*, user_uid, project_id, permission):
+        checked.append(project_id)
+        return str(project_id) == str(key_project_id)
+
+    monkeypatch.setattr(
+        permissions_service, "get_request_access", lambda: _KeyAccess(key_project_id)
+    )
+    monkeypatch.setattr(permissions_service, "check_action_access", check_action_access)
+    allowed = await permissions_service.check_organization_write(
+        user_uid="u",
+        organization_id=str(organization_id),
+        permission=Permission.EDIT_WORKSPACE,
+    )
+    assert len(checked) == 1
+    return allowed
+
+
+async def test_check_organization_write_uses_the_organization_default(monkeypatch):
+    # The oldest default (project 0) is not in the `default`-type workspace (project 1).
+    seeded = await _consolidated(await _multi_default_organization())
+    try:
+        engine = get_transactions_engine()
+        with count_statements(engine) as statements:
+            kept = await _organization_write(
+                monkeypatch, seeded.organization_id, seeded.project_ids[1]
+            )
+        assert kept is True
+        assert len(statements) == 1
+        assert (
+            await _organization_write(
+                monkeypatch, seeded.organization_id, seeded.project_ids[0]
+            )
+            is False
+        )
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_kept_default_key_can_update_organization_settings(monkeypatch):
+    seeded = await _consolidated(await _multi_default_organization())
+    try:
+        # Newly allowed: before step 2 the oldest default (project 0) decided.
+        assert await _organization_write(
+            monkeypatch, seeded.organization_id, seeded.project_ids[1]
+        )
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_cleared_default_key_cannot_update_organization_settings(monkeypatch):
+    seeded = await _consolidated(await _multi_default_organization())
+    try:
+        # Newly refused: the key of the oldest default, which 053 cleared.
+        assert not await _organization_write(
+            monkeypatch, seeded.organization_id, seeded.project_ids[0]
+        )
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+def test_organization_write_callers_go_through_check_organization_write():
+    # Organization settings, domains, SSO providers and billing all decide through
+    # `check_organization_write`, so the two tests above cover them.
+    from pathlib import Path
+
+    api = Path(__file__).resolve().parents[5]
+    callers = {
+        "oss/src/routers/organization_router.py",
+        "oss/src/routers/workspace_router.py",
+        "ee/src/apis/fastapi/billing/router.py",
+        "ee/src/apis/fastapi/organizations/router.py",
+    }
+    for relative in callers:
+        path = api / relative
+        if not path.exists():
+            continue
+        assert "check_organization_write" in path.read_text(), relative
+
+
+# --- default writers serialize on the organization lock (S-30) ---------------- #
+
+_LOCK_SQL = (
+    "SELECT pg_advisory_xact_lock(hashtextextended('agenta:project_default:' "
+    "|| CAST(:o AS text), 0))"
+)
+
+
+async def _hold_lock_and_promote(connection, organization_id, project_id):
+    await connection.execute(text(_LOCK_SQL), {"o": str(organization_id)})
+    await connection.execute(
+        text(
+            "UPDATE projects SET is_default = (id = :p) WHERE organization_id = :o "
+            "AND (is_default IS TRUE OR id = :p)"
+        ),
+        {"o": organization_id, "p": project_id},
+    )
+
+
+def test_writers_and_053_use_one_lock_key():
+    revision = _revision()
+    assert "'agenta:project_default:' || o::text" in revision._ADVISORY_LOCKS_SQL
+    assert "'agenta:project_default:'" in db_manager._PROJECT_DEFAULT_LOCK_SQL
+    from oss.src.dbs.postgres.memberships import dao as memberships_dao
+
+    assert "'agenta:project_default:'" in memberships_dao._LOCK_WITH_PROJECT_DEFAULT_SQL
+
+
+async def test_default_writers_serialize_on_the_organization_lock():
+    seeded = await _consolidated(await _multi_default_organization())
+    try:
+        p_a, p_b = seeded.project_ids[1], seeded.project_ids[2]
+        engine = get_transactions_engine()._engine
+        async with engine.connect() as a:
+            transaction = await a.begin()
+            await _hold_lock_and_promote(a, seeded.organization_id, p_b)
+            # B starts while pA is still the committed default.
+            b = asyncio.create_task(db_manager.set_default_project(str(p_a)))
+            assert await _blocked(b)
+            await transaction.commit()
+        promoted = await b
+        assert promoted.id == p_a and promoted.is_default is True
+        assert await _committed_defaults(seeded.organization_id) == [p_a]
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_create_and_admin_create_serialize_with_set_default():
+    seeded = await _consolidated(await _multi_default_organization())
+    try:
+        engine = get_transactions_engine()._engine
+        for writer in ("create", "admin"):
+            async with engine.connect() as a:
+                transaction = await a.begin()
+                await _hold_lock_and_promote(
+                    a, seeded.organization_id, seeded.project_ids[2]
+                )
+                if writer == "create":
+                    task = asyncio.create_task(
+                        _dao().create_project(
+                            organization_id=seeded.organization_id,
+                            workspace_id=seeded.organization_id,
+                            name="made-default",
+                            is_default=True,
+                        )
+                    )
+                else:
+                    task = asyncio.create_task(
+                        db_manager.admin_create_project(
+                            name="admin-default",
+                            org_id=seeded.organization_id,
+                            is_default=True,
+                        )
+                    )
+                assert await _blocked(task)
+                await transaction.commit()
+            created = await task
+            created_id = created.scope.project_id if writer == "create" else created.id
+            assert await _committed_defaults(seeded.organization_id) == [created_id]
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_053_waits_for_a_step2_promotion():
+    seeded = await _multi_default_organization()
+    try:
+        p_b = seeded.project_ids[2]
+        engine = get_transactions_engine()._engine
+        async with engine.connect() as a:
+            transaction = await a.begin()
+            await _hold_lock_and_promote(a, seeded.organization_id, p_b)
+            migration = await _migration_task(seeded.organization_id)
+            assert await _blocked(migration)
+            await transaction.commit()
+        counts = await migration
+        assert counts["cleared"] == 0
+        assert await _committed_defaults(seeded.organization_id) == [p_b]
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_053_waits_for_a_step2_create_with_make_default():
+    seeded = await _multi_default_organization()
+    try:
+        engine = get_transactions_engine()._engine
+        async with engine.connect() as a:
+            transaction = await a.begin()
+            await a.execute(text(_LOCK_SQL), {"o": str(seeded.organization_id)})
+            migration = await _migration_task(seeded.organization_id)
+            assert await _blocked(migration)
+            await transaction.commit()
+        await migration
+        created = await _dao().create_project(
+            organization_id=seeded.organization_id,
+            workspace_id=seeded.organization_id,
+            name="after",
+            is_default=True,
+        )
+        assert await _committed_defaults(seeded.organization_id) == [
+            created.scope.project_id
+        ]
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_default_writer_statement_counts():
+    seeded = await _consolidated(await _multi_default_organization())
+    try:
+        engine = get_transactions_engine()
+        with count_statements(engine) as promoted:
+            await db_manager.set_default_project(str(seeded.project_ids[2]))
+        with count_statements(engine) as created:
+            await _dao().create_project(
+                organization_id=seeded.organization_id,
+                workspace_id=seeded.organization_id,
+                name="c",
+                is_default=True,
+            )
+        with count_statements(engine) as admin_created:
+            await db_manager.admin_create_project(
+                name="a", org_id=seeded.organization_id, is_default=False
+            )
+        assert len(promoted) == 2  # step 1: read, clear, set, refresh
+        assert (
+            len(created) <= 5
+        )  # step 1: 6 (lock, resolve, has-default, unset, insert, seed, owner)
+        assert len(admin_created) == 2  # step 1: 1 insert (+1 lock, admin-only)
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_admin_routes_cannot_create_a_second_default():
+    seeded = await _consolidated(await _multi_default_organization())
+    try:
+        first = await db_manager.admin_create_project(
+            name="one", org_id=seeded.organization_id, is_default=True
+        )
+        second = await db_manager.admin_create_project(
+            name="two", org_id=seeded.organization_id, is_default=True
+        )
+        assert await _committed_defaults(seeded.organization_id) == [second.id]
+        assert first.id != second.id
     finally:
         await delete_seeded_organization(seeded)

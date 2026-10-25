@@ -1,5 +1,6 @@
 import os
 import uuid
+import uuid_utils.compat as uuid_compat
 from contextlib import asynccontextmanager
 import json
 from pathlib import Path
@@ -128,26 +129,29 @@ WITH ref AS (
 )
 """
 
-# The organization's default project when no workspace decides: the `default`-type
-# workspace's, else the oldest workspace's, else the oldest project (D-11 order).
+# The organization's default project (D-11 order): the project in the `default`-type
+# workspace, else in the oldest workspace, else the oldest project. Only a workspace of the
+# project's own organization counts (`pw` joins on both ids). A NULL workspace type is not
+# `default` and sorts with the other workspaces by age.
 _ORGANIZATION_DEFAULT_ORDER = """
-(pw.type = 'default') DESC NULLS LAST,
+(pw.type IS NOT DISTINCT FROM 'default') DESC,
 pw.created_at ASC NULLS LAST, pw.id ASC NULLS LAST,
 p.created_at ASC NULLS LAST, p.id ASC
 """
 
-# A workspace's own projects first, in today's order (`is_default DESC`, NULLS FIRST as
-# before, then `created_at`), so every workspace that has a project keeps its answer; for an
-# organization id, or a workspace with no project, the organization's default project.
+_PROJECT_WORKSPACE_JOIN = """
+LEFT JOIN workspaces pw ON pw.id = p.workspace_id AND pw.organization_id = p.organization_id
+"""
+
+# One rule for every reader: a workspace id or an organization id names the organization
+# (the reference's own organization, never another one); the answer is the organization's
+# default project, else its first project by the same order.
 _PROJECT_BY_WORKSPACE_SQL = f"""
 {_WORKSPACE_REF_CTE}
 SELECT p.* FROM ref
-JOIN projects p ON (p.workspace_id = ref.workspace_id OR p.organization_id = ref.organization_id)
-LEFT JOIN workspaces pw ON pw.id = p.workspace_id
-ORDER BY (p.workspace_id = ref.workspace_id) DESC NULLS LAST,
-         CASE WHEN p.workspace_id = ref.workspace_id THEN p.is_default END DESC,
-         CASE WHEN p.workspace_id = ref.workspace_id THEN p.created_at END ASC,
-         (p.is_default IS TRUE) DESC,
+JOIN projects p ON p.organization_id = ref.organization_id
+{_PROJECT_WORKSPACE_JOIN}
+ORDER BY (p.is_default IS TRUE) DESC,
          {_ORGANIZATION_DEFAULT_ORDER}
 LIMIT 1
 """
@@ -155,25 +159,22 @@ LIMIT 1
 _FIRST_PROJECT_BY_WORKSPACE_SQL = f"""
 {_WORKSPACE_REF_CTE}
 SELECT p.* FROM ref
-JOIN projects p ON (p.workspace_id = ref.workspace_id OR p.organization_id = ref.organization_id)
+JOIN projects p ON p.organization_id = ref.organization_id
 ORDER BY (p.workspace_id = ref.workspace_id) DESC NULLS LAST,
          p.created_at ASC NULLS LAST, p.id ASC
 LIMIT 1
 """
 
-# The default project of a workspace (its own default) or of an organization; a workspace
-# without its own default falls back to the organization's default.
+# The default project of the organization a workspace id or an organization id names.
 _DEFAULT_PROJECT_SQL = f"""
 {_WORKSPACE_REF_CTE}
 SELECT p.id AS project_id, p.organization_id AS project_organization_id,
        p.workspace_id AS project_workspace_id, ref.workspace_id AS ref_workspace_id,
        ref.organization_id AS ref_organization_id
 FROM ref
-JOIN projects p ON p.is_default IS TRUE
-     AND (p.workspace_id = ref.workspace_id OR p.organization_id = ref.organization_id)
-LEFT JOIN workspaces pw ON pw.id = p.workspace_id
-ORDER BY (p.workspace_id = ref.workspace_id) DESC NULLS LAST,
-         {_ORGANIZATION_DEFAULT_ORDER}
+JOIN projects p ON p.is_default IS TRUE AND p.organization_id = ref.organization_id
+{_PROJECT_WORKSPACE_JOIN}
+ORDER BY {_ORGANIZATION_DEFAULT_ORDER}
 LIMIT 1
 """
 
@@ -1144,51 +1145,64 @@ async def delete_project(project_id: str) -> None:
         )
 
 
+# Every default-project writer (and revision oss000000053) takes this lock as the first
+# statement of its transaction, then decides in a later statement, so two writers for one
+# organization never both see "no other default" or clear each other's choice.
+_PROJECT_DEFAULT_LOCK_SQL = """
+SELECT pg_advisory_xact_lock(
+    hashtextextended('agenta:project_default:' || CAST(:organization_id AS text), 0)
+)
+"""
+
+_LOCK_PROJECT_ORGANIZATION_SQL = """
+SELECT pg_advisory_xact_lock(
+    hashtextextended('agenta:project_default:' || p.organization_id::text, 0)
+), p.organization_id
+FROM projects p WHERE p.id = :id
+"""
+
+_SET_DEFAULT_PROJECT_SQL = """
+WITH cleared AS (
+    UPDATE projects SET is_default = false
+    WHERE organization_id = :organization_id AND is_default IS TRUE AND id <> :id
+)
+UPDATE projects SET is_default = true WHERE id = :id
+RETURNING *
+"""
+
+
 async def set_default_project(project_id: str) -> ProjectDB:
-    """
-    Mark the provided project as the default for its workspace.
+    """Make the project the one default project of its organization.
 
-    Args:
-        project_id (str): Identifier of project to promote.
-
-    Returns:
-        ProjectDB: Updated project.
+    Two statements in one transaction: the organization lock (with the project's
+    immutable organization id), then one statement that clears every other default of the
+    organization and sets this one, on a snapshot taken after the lock.
     """
 
+    project_uuid = uuid.UUID(project_id)
     engine = get_transactions_engine()
 
     async with engine.session() as session:
-        project = await session.get(ProjectDB, uuid.UUID(project_id))
-        if project is None:
+        locked = (
+            await session.execute(
+                text(_LOCK_PROJECT_ORGANIZATION_SQL), {"id": project_uuid}
+            )
+        ).first()
+        if locked is None:
             raise NoResultFound(f"Project with ID {project_id} not found")
 
-        if project.is_default:
-            return project
-
-        # The default of the project's scope: its workspace, or its whole organization
-        # when it has no workspace (projects that workspace removal step 2 writes).
-        scope = (
-            ProjectDB.workspace_id == project.workspace_id
-            if project.workspace_id is not None
-            else ProjectDB.organization_id == project.organization_id
+        result = await session.execute(
+            select(ProjectDB)
+            .from_statement(text(_SET_DEFAULT_PROJECT_SQL))
+            .execution_options(populate_existing=True),
+            {"id": project_uuid, "organization_id": locked.organization_id},
         )
-        await session.execute(
-            update(ProjectDB)
-            .where(
-                scope,
-                ProjectDB.is_default == True,  # noqa: E712
-            )
-            .values(is_default=False)
-        )
-
-        project.is_default = True
+        project = result.scalars().one()
         await session.commit()
-        await session.refresh(project)
 
         log.info(
             "[scopes] project set as default",
             organization_id=str(project.organization_id),
-            workspace_id=str(project.workspace_id),
             project_id=project_id,
         )
 
@@ -1390,49 +1404,6 @@ async def delete_invitation(invitation_id: str) -> bool:
         await session.commit()
 
         return True
-
-
-async def get_project_by_organization_id(organization_id: str):
-    """Get project by organization ID.
-
-    Args:
-        organization_id (str): The ID of the organization.
-
-    Returns:
-        ProjectDB: project object
-    """
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(ProjectDB).filter_by(organization_id=uuid.UUID(organization_id))
-        )
-        project = result.scalars().first()
-        return project
-
-
-async def get_default_project_by_organization_id(organization_id: str):
-    """Get the default project for an organization.
-
-    Unlike `get_project_by_organization_id`, this filters to `is_default=True`
-    so callers that depend on the OSS singleton invariant don't accidentally
-    pick up an ephemeral per-account project.
-    """
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(ProjectDB)
-            .filter_by(
-                organization_id=uuid.UUID(organization_id),
-                is_default=True,
-            )
-            # An organization with several workspaces has a default project in
-            # each: the oldest one is the organization's.
-            .order_by(ProjectDB.created_at.asc(), ProjectDB.id.asc())
-        )
-        return result.scalars().first()
 
 
 async def get_project_invitation_by_token_and_email(
@@ -1741,25 +1712,50 @@ async def admin_create_workspace(
         return ws_db
 
 
+_ADMIN_INSERT_PROJECT_SQL = """
+WITH cleared AS (
+    UPDATE projects SET is_default = false
+    WHERE organization_id = :organization_id AND is_default IS TRUE
+      AND CAST(:is_default AS boolean)
+)
+INSERT INTO projects (id, project_name, is_default, organization_id, workspace_id,
+                      created_at, updated_at)
+VALUES (:id, :name, :is_default, :organization_id, :workspace_id, now(), now())
+RETURNING *
+"""
+
+
 async def admin_create_project(
     name: str,
     org_id: uuid.UUID,
-    ws_id: uuid.UUID,
+    ws_id: Optional[uuid.UUID] = None,
     *,
     is_default: bool = False,
 ) -> ProjectDB:
+    """Create a project; with `is_default`, it becomes the organization's one default.
+
+    The organization lock first (admin only: one statement more than before), then one
+    insert that also clears the other defaults.
+    """
+
     engine = get_transactions_engine()
 
     async with engine.session() as session:
-        proj_db = ProjectDB(
-            project_name=name,
-            is_default=is_default,
-            organization_id=org_id,
-            workspace_id=ws_id,
+        await session.execute(
+            text(_PROJECT_DEFAULT_LOCK_SQL), {"organization_id": str(org_id)}
         )
-        session.add(proj_db)
+        result = await session.execute(
+            select(ProjectDB).from_statement(text(_ADMIN_INSERT_PROJECT_SQL)),
+            {
+                "id": uuid_compat.uuid7(),
+                "name": name,
+                "is_default": bool(is_default),
+                "organization_id": org_id,
+                "workspace_id": ws_id,
+            },
+        )
+        proj_db = result.scalars().one()
         await session.commit()
-        await session.refresh(proj_db)
         log.info("[admin] project created", project_id=str(proj_db.id))
         return proj_db
 

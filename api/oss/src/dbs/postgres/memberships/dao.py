@@ -199,6 +199,16 @@ def _prefix_pattern(search: str) -> str:
 
 _LOCK_SQL = "SELECT pg_advisory_xact_lock(hashtextextended('memberships:' || :organization_id, 0))"
 
+# The memberships lock and the default-project lock of the organization, in one statement
+# (the same order everywhere: no writer takes the project-default lock first and then the
+# memberships lock).
+_LOCK_WITH_PROJECT_DEFAULT_SQL = """
+SELECT pg_advisory_xact_lock(hashtextextended('memberships:' || :organization_id, 0)),
+       pg_advisory_xact_lock(
+           hashtextextended('agenta:project_default:' || :organization_id, 0)
+       )
+"""
+
 # The same lock for writers outside this DAO (the admin ownership transfer).
 ORGANIZATION_LOCK_SQL = _LOCK_SQL
 
@@ -295,27 +305,24 @@ ORDER BY (w.id = CAST(:workspace_id AS uuid)) DESC, (w.type = 'default') DESC NU
 LIMIT 1
 """
 
-# The default of a project's scope: its workspace, or its whole organization when it has no
-# workspace (projects that workspace removal step 2 writes).
-_SCOPE_DEFAULT_FILTER = """
-is_default IS TRUE
-AND ((CAST(:workspace_id AS uuid) IS NOT NULL AND workspace_id = CAST(:workspace_id AS uuid))
-  OR (CAST(:workspace_id AS uuid) IS NULL AND organization_id = CAST(:organization_id AS uuid)))
-"""
-
-_WORKSPACE_HAS_DEFAULT_SQL = f"""
-SELECT 1 FROM projects WHERE {_SCOPE_DEFAULT_FILTER} LIMIT 1
-"""
-
-_UNSET_DEFAULTS_SQL = f"""
-UPDATE projects SET is_default = false, updated_at = now()
-WHERE {_SCOPE_DEFAULT_FILTER}
-"""
-
+# One statement after the locks: with `make_default`, every other default of the
+# organization is cleared; the new project is the default when asked, or when the
+# organization has none (the main query sees the snapshot before the clear).
 _INSERT_PROJECT_SQL = """
+WITH cleared AS (
+    UPDATE projects SET is_default = false, updated_at = now()
+    WHERE organization_id = :organization_id AND is_default IS TRUE
+      AND CAST(:make_default AS boolean)
+)
 INSERT INTO projects (id, project_name, is_default, organization_id, workspace_id,
                       created_at, updated_at)
-VALUES (:id, :name, :is_default, :organization_id, :workspace_id, now(), now())
+SELECT :id, :name,
+       CAST(:make_default AS boolean) OR NOT EXISTS (
+           SELECT 1 FROM projects
+           WHERE organization_id = :organization_id AND is_default IS TRUE
+       ),
+       :organization_id, :workspace_id, now(), now()
+RETURNING is_default
 """
 
 # One statement, whatever the member count: one row per organization member, with the
@@ -676,7 +683,10 @@ class MembershipsDAO(MembershipsDAOInterface):
         project_id = uuid_compat.uuid7()
 
         async with self.engine.transaction() as connection:
-            await self._lock(connection, organization_id)
+            await connection.execute(
+                text(_LOCK_WITH_PROJECT_DEFAULT_SQL),
+                {"organization_id": str(organization_id)},
+            )
 
             resolved = (
                 await connection.execute(
@@ -691,32 +701,19 @@ class MembershipsDAO(MembershipsDAOInterface):
 
             # NULL for an organization without workspaces.
             project_workspace_id = resolved.id if resolved is not None else None
-            scope = {
-                "organization_id": organization_id,
-                "workspace_id": project_workspace_id,
-            }
 
-            # As today: the new project becomes the default when asked, or when its
-            # scope (the workspace, else the organization) has none.
             should_be_default = (
-                is_default
-                or (
-                    await connection.execute(text(_WORKSPACE_HAS_DEFAULT_SQL), scope)
-                ).first()
-                is None
-            )
-            if should_be_default:
-                await connection.execute(text(_UNSET_DEFAULTS_SQL), scope)
-
-            await connection.execute(
-                text(_INSERT_PROJECT_SQL),
-                {
-                    **scope,
-                    "id": project_id,
-                    "name": name,
-                    "is_default": should_be_default,
-                },
-            )
+                await connection.execute(
+                    text(_INSERT_PROJECT_SQL),
+                    {
+                        "organization_id": organization_id,
+                        "workspace_id": project_workspace_id,
+                        "id": project_id,
+                        "name": name,
+                        "make_default": bool(is_default),
+                    },
+                )
+            ).scalar_one()
 
             seeded = await connection.execute(
                 text(_SEED_PROJECT_MEMBERS_SQL),

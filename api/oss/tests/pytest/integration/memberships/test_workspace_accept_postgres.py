@@ -290,8 +290,9 @@ async def test_fetch_default_project_by_workspace_id():
             ref = await db_manager.fetch_default_project(
                 workspace_or_organization_id=str(workspace_id)
             )
-            assert ref.project_id == project_id
-            assert ref.project_workspace_id == workspace_id
+            # Step 2: any id of the organization answers the organization's default.
+            assert ref.project_id == seeded.project_ids[1]
+            assert ref.ref_workspace_id == workspace_id
             assert ref.ref_organization_id == seeded.organization_id
     finally:
         await delete_seeded_organization(seeded)
@@ -393,7 +394,7 @@ async def test_get_default_project_id_from_workspace_keeps_its_contract():
     try:
         assert await db_manager.get_default_project_id_from_workspace(
             workspace_id=str(seeded.workspace_ids[0])
-        ) == str(seeded.project_ids[0])
+        ) == str(seeded.project_ids[1])
         assert await db_manager.get_default_project_id_from_workspace(
             workspace_id=str(seeded.organization_id)
         ) == str(seeded.project_ids[1])
@@ -434,48 +435,6 @@ async def test_get_project_by_workspace_accepts_the_organization_id():
         await delete_seeded_organization(no_workspaces)
 
 
-async def test_get_project_by_workspace_keeps_the_legacy_answer():
-    # Its own shapes (a fresh database has none), plus every workspace already there.
-    own = await seed_organization(members={"m": "editor"}, workspaces=3)
-    try:
-        await execute(
-            "UPDATE projects SET is_default = false WHERE workspace_id = :w",
-            {"w": own.workspace_ids[2]},
-        )
-        workspaces = await fetch_all(
-            "SELECT w.id FROM workspaces w WHERE EXISTS "
-            "(SELECT 1 FROM projects p WHERE p.workspace_id = w.id)"
-        )
-        assert workspaces
-        checked = 0
-        for row in workspaces:
-            today = await fetch_all(_TODAY_PROJECT_BY_WORKSPACE_SQL, {"w": row["id"]})
-            if not today:
-                continue  # deleted by a test that runs in parallel
-            try:
-                project = await db_manager.get_project_by_workspace(
-                    workspace_id=str(row["id"])
-                )
-            except db_manager.NoResultFound:
-                if await fetch_all(_TODAY_PROJECT_BY_WORKSPACE_SQL, {"w": row["id"]}):
-                    raise
-                continue
-            checked += 1
-            # Today's order leaves ties of (is_default, created_at) open: the answer is one
-            # of the tied rows.
-            first = today[0]["id"]
-            tied = await fetch_all(
-                "SELECT id FROM projects WHERE workspace_id = :w "
-                "AND is_default IS NOT DISTINCT FROM (SELECT is_default FROM projects WHERE id = :p) "
-                "AND created_at IS NOT DISTINCT FROM (SELECT created_at FROM projects WHERE id = :p)",
-                {"w": row["id"], "p": first},
-            )
-            assert project.id in {t["id"] for t in tied}, row["id"]
-        assert checked
-    finally:
-        await delete_seeded_organization(own)
-
-
 async def test_get_project_by_workspace_keeps_a_workspace_without_default():
     seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
     try:
@@ -485,7 +444,8 @@ async def test_get_project_by_workspace_keeps_a_workspace_without_default():
             {"p": seeded.project_ids[1]},
         )
         project = await db_manager.get_project_by_workspace(workspace_id=str(secondary))
-        assert project.id == seeded.project_ids[1]  # its own project, as today
+        # Step 2: the organization's default, not the workspace's own project.
+        assert project.id == seeded.project_ids[0]
     finally:
         await delete_seeded_organization(seeded)
 
@@ -505,7 +465,8 @@ async def test_get_project_by_workspace_keeps_today_order_for_null_defaults():
         )
         today = await fetch_all(_TODAY_PROJECT_BY_WORKSPACE_SQL, {"w": workspace_id})
         assert today[0]["id"] == null_default  # NULLS FIRST under DESC
-        assert project.id == null_default
+        # Step 2: the default project wins (`is_default IS TRUE` first).
+        assert project.id == seeded.project_ids[0]
     finally:
         await delete_seeded_organization(seeded)
 
@@ -524,10 +485,8 @@ async def test_both_default_helpers_stay_in_the_organization_after_the_step2_con
         by_bearer = await db_manager.fetch_default_project(
             workspace_or_organization_id=str(secondary)
         )
-        # Step 1 keeps today's answer for the member routes (the workspace's own project)
-        # and the Bearer answer is the organization default; both are projects of the
-        # same organization. Step 2 makes them agree.
-        assert by_route.id == seeded.project_ids[2]
+        # Step 2: both helpers answer the organization default.
+        assert by_route.id == seeded.project_ids[1]
         assert by_bearer.project_id == seeded.project_ids[1]
         assert by_route.organization_id == seeded.organization_id
         assert by_bearer.project_organization_id == seeded.organization_id
@@ -666,7 +625,8 @@ async def test_set_default_project_with_a_workspace_keeps_the_workspace_scope():
                 {"o": seeded.organization_id},
             )
         }
-        assert defaults == {seeded.project_ids[0], extra}
+        # Step 2: the default is organization-wide.
+        assert defaults == {extra}
     finally:
         await delete_seeded_organization(seeded)
 
@@ -679,17 +639,18 @@ async def test_mixed_organization_writes_from_both_versions():
             "UPDATE projects SET is_default = false WHERE id = :p",
             {"p": seeded.project_ids[2]},
         )
-        # (1) A step-1 workspace-scoped write sets a second default (accepted, D-20).
-        await _dao().create_project(
+        # (1) Step 2: a project created as default clears every other default of the
+        # organization (no second default).
+        created = await _dao().create_project(
             organization_id=seeded.organization_id,
             workspace_id=secondary,
-            name="step1-default",
+            name="step2-default",
             is_default=True,
         )
         ref = await db_manager.fetch_default_project(
             workspace_or_organization_id=str(seeded.organization_id)
         )
-        assert ref.project_id == seeded.project_ids[1]
+        assert ref.project_id == created.scope.project_id
         # (2) A step-2-shaped write: a NULL-workspace project becomes the only default.
         step2 = await _add_project(
             organization_id=seeded.organization_id, workspace_id=None, is_default=False
