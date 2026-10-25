@@ -839,3 +839,10 @@ class CachedEffectiveSecrets(BaseModel):
     organization_id: Optional[UUID] = None
     secrets: List[SecretResponseDTO] = []
     inherited: List[SecretResponseDTO] = []
+
+
+class PublicInheritedSecretResponseDTO(PublicSecretResponseDTO):
+    """An inherited organization row as a project member sees it: no value, no preview,
+    nothing about other projects, and the project row that overrides it, if any."""
+
+    overridden_by_secret_id: Optional[UUID] = None

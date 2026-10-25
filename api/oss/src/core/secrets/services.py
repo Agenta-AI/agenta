@@ -1261,7 +1261,9 @@ class VaultService:
 
         if create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY:
             await self._name_and_slug_provider_key(
-                owner=SecretOwner(kind=SecretOwnerKind.ORGANIZATION, id=organization_id),
+                owner=SecretOwner(
+                    kind=SecretOwnerKind.ORGANIZATION, id=organization_id
+                ),
                 create_secret_dto=create_secret_dto,
             )
         elif not create_secret_dto.slug and create_secret_dto.header.name:

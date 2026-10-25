@@ -18,10 +18,12 @@ from typing import Any, Dict, Optional, Tuple
 from agenta.sdk.agents.connections.credentials import CREDENTIAL_EXTRAS_KEYS
 
 from oss.src.core.secrets.dtos import (
+    PublicInheritedSecretResponseDTO,
     PublicSecretResponseDTO,
     SecretResponseDTO,
     SecretValueStatus,
 )
+from oss.src.core.secrets.enums import SecretOwnerKind
 
 
 # EVERY credential-bearing field per secret kind, as (container attribute, field names).
@@ -174,18 +176,35 @@ def _value_status(secret: SecretResponseDTO) -> SecretValueStatus:
     )
 
 
+def _is_organization_row(secret: SecretResponseDTO) -> bool:
+    return (
+        secret.owner is not None and secret.owner.kind == SecretOwnerKind.ORGANIZATION
+    )
+
+
 def project_secret_response(
     secret: SecretResponseDTO,
     *,
     reveal_write_only: bool,
 ) -> PublicSecretResponseDTO:
-    """Build the public response, optionally retaining a write-only value for runtime."""
+    """Build the public response, optionally retaining a write-only value for runtime.
+
+    An organization row is never revealed, whatever `reveal_write_only` says, and has no
+    preview: no HTTP response carries an organization value or a part of one (M5)."""
+    organization_row = _is_organization_row(secret)
+    if organization_row:
+        reveal_write_only = False
+
     public_data = secret.model_dump(mode="python", exclude={"management"})
     if secret.management is not None:
         public_data["management"] = {"policy": secret.management.policy}
 
+    value_status = _value_status(secret)
+    if organization_row:
+        value_status = SecretValueStatus(configured=value_status.configured)
+
     projected = PublicSecretResponseDTO.model_validate(
-        {**public_data, "value_status": _value_status(secret)}
+        {**public_data, "value_status": value_status}
     )
 
     if not reveal_write_only:
@@ -222,3 +241,30 @@ def project_secret_response(
 def redact_secret_response(secret: SecretResponseDTO) -> PublicSecretResponseDTO:
     """Return the public response with write-only credential material stripped."""
     return project_secret_response(secret, reveal_write_only=False)
+
+
+def organization_secret_response(secret: SecretResponseDTO) -> PublicSecretResponseDTO:
+    """An organization row for its management routes: no value, no preview, with its
+    availability and selected projects."""
+    return project_secret_response(secret, reveal_write_only=False)
+
+
+def inherited_secret_response(
+    secret: SecretResponseDTO,
+    *,
+    overridden_by_secret_id=None,
+) -> PublicInheritedSecretResponseDTO:
+    """An inherited row as a project member sees it: no value, no preview, and nothing
+    about other projects (`availability` and `selected_project_ids` dropped)."""
+    projected = project_secret_response(
+        secret.model_copy(update={"availability": None, "selected_project_ids": None}),
+        reveal_write_only=False,
+    )
+    return PublicInheritedSecretResponseDTO.model_validate(
+        {
+            **projected.model_dump(mode="python"),
+            "availability": None,
+            "selected_project_ids": None,
+            "overridden_by_secret_id": overridden_by_secret_id,
+        }
+    )

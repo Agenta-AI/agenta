@@ -94,6 +94,7 @@ from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.limits import NoProjectLimits
 from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
@@ -125,6 +126,7 @@ from oss.src.core.providers.service import ProviderProbeService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
+from oss.src.apis.fastapi.organization_secrets.router import OrganizationSecretsRouter
 from oss.src.apis.fastapi.providers.router import ProvidersRouter
 from oss.src.apis.fastapi.webhooks.router import WebhooksRouter
 from oss.src.apis.fastapi.auth.router import auth_router
@@ -793,11 +795,20 @@ _t_services = time.perf_counter()
 # Membership and access first: every permission check goes through them.
 bootstrap_access()
 
+# The EE project limit of organization credentials reuses the RBAC entitlement (M5).
+if is_ee():
+    from ee.src.core.secrets.limits import EntitlementProjectLimits
+
+    _project_limits = EntitlementProjectLimits(rbac=get_access_service().rbac)
+else:
+    _project_limits = NoProjectLimits()
+
 vault_service = VaultService(
     secrets_dao=secrets_dao,
     llm_endpoint_registrar=LLMEndpointRegistrar(
         llm_endpoints_dao=llm_endpoints_dao,
     ),
+    project_limits=_project_limits,
 )
 
 subscription_login_service = SubscriptionLoginService(
@@ -1150,6 +1161,8 @@ _startup(f"[STARTUP] Service initialization completed (+{_t_services_done:.3f}s)
 _t_routers = time.perf_counter()
 
 # ROUTERS ----------------------------------------------------------------------
+
+organization_secrets = OrganizationSecretsRouter(vault_service=vault_service)
 
 secrets = VaultRouter(
     vault_service=vault_service,
@@ -1714,6 +1727,11 @@ _t_mount_routers = time.perf_counter()
 app.include_router(
     router=secrets.router,
     tags=["Secrets"],
+)
+
+app.include_router(
+    router=organization_secrets.router,
+    tags=["Organization Secrets"],
 )
 
 app.include_router(
