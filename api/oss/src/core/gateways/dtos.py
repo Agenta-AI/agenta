@@ -6,6 +6,7 @@ given, and how a relayed response is checked for the credential the gateway inje
 """
 
 import json
+import re
 from enum import Enum
 from http.cookiejar import CookieJar
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -208,6 +209,11 @@ def _echo_forms(token: str) -> Tuple[str, ...]:
         forms[_go_html_escaped(escaped)] = None
         # Go with SetEscapeHTML(false): only the line and paragraph separators.
         forms[_go_separators_escaped(escaped)] = None
+    # .NET System.Text.Json (JavaScriptEncoder.Default) also escapes ", ', +, `, <, >
+    # and & as \uXXXX, with upper-case hex; some encoders write the same in lower case.
+    dotnet = _dotnet_escaped(token)
+    forms[dotnet] = None
+    forms[_lower_hex(dotnet)] = None
     for form in list(forms):
         forms[form.replace("/", "\\/")] = None
     return tuple(forms)
@@ -220,6 +226,22 @@ _GO_ESCAPES = {
     "\u2028": "\\u2028",
     "\u2029": "\\u2029",
 }
+
+
+_UNICODE_ESCAPE = re.compile(r"\\u[0-9a-fA-F]{4}")
+
+
+def _dotnet_escaped(token: str) -> str:
+    escaped = json.dumps(token, ensure_ascii=True)[1:-1].replace('\\"', "\\u0022")
+    for character in "'+`<>&":
+        escaped = escaped.replace(character, f"\\u{ord(character):04X}")
+    return _UNICODE_ESCAPE.sub(
+        lambda match: match.group(0).upper().replace("U", "u"), escaped
+    )
+
+
+def _lower_hex(text: str) -> str:
+    return _UNICODE_ESCAPE.sub(lambda match: "\\u" + match.group(0)[2:].lower(), text)
 
 
 def _go_separators_escaped(text: str) -> str:

@@ -155,9 +155,8 @@ async def test_project_secrets_keep_todays_scan():
 async def test_a_padded_value_is_stored_stripped_and_its_echo_refused(
     monkeypatch, field
 ):
-    """The late Codex finding: `"  m5key123  "` must not be stored with its padding, or the
-    scan (which strips) and the stored value disagree. The value is stored stripped, so
-    the upstream echoing the bare token is refused."""
+    """`"  m5key123  "` is stored stripped, so the stored value and the scanned value
+    agree, and an upstream echoing the bare token is refused."""
     import oss.src.core.secrets.services as services_module
     from oss.src.core.secrets.dtos import CreateSecretDTO
     from oss.src.core.secrets.services import VaultService
@@ -220,7 +219,7 @@ async def test_a_padded_value_is_stored_stripped_and_its_echo_refused(
 async def test_a_json_escaped_echo_of_an_organization_value_is_refused(
     value, where, stream
 ):
-    """Codex r2: a value with characters JSON escapes (quotes, backslashes, `/`,
+    """A value with characters JSON escapes (quotes, backslashes, `/`,
     non-ASCII) is echoed escaped inside a JSON or SSE-JSON body; the scan finds it."""
     secret = SecretResponseDTO.model_validate(
         {
@@ -276,7 +275,7 @@ async def test_a_json_escaped_echo_of_an_organization_value_is_refused(
 )
 @pytest.mark.parametrize("stream", [False, True])
 async def test_a_go_style_escaped_echo_is_refused(value, stream):
-    """Codex r2b: Go's encoder escapes <, >, & and U+2028/U+2029 and keeps other
+    """Go's encoder escapes <, >, & and U+2028/U+2029 and keeps other
     non-ASCII characters. (The write rule refuses such characters in header values; a
     structured document such as a Vertex service account can still hold them.)"""
     secret = SecretResponseDTO.model_validate(
@@ -331,7 +330,7 @@ async def test_a_go_style_escaped_echo_is_refused(value, stream):
 
 
 async def test_a_go_separator_only_escape_of_a_document_is_refused():
-    """Go with SetEscapeHTML(false) escapes only U+2028/U+2029 (Codex r2c)."""
+    """Go with SetEscapeHTML(false) escapes only U+2028/U+2029."""
     value = "doc-<abc> é-defgh"
     secret = SecretResponseDTO.model_validate(
         {
@@ -372,6 +371,49 @@ async def test_a_go_separator_only_escape_of_a_document_is_refused():
         route=_route(),
         secret=resolved,
         context=LLMCallContext(model="gpt-4o", stream=True),
+        body=_body(),
+        headers={},
+    )
+    with pytest.raises(LLMUpstreamCredentialEchoError):
+        [chunk async for chunk in result.body]
+
+
+@pytest.mark.parametrize("hex_case", ["upper", "lower"])
+async def test_a_dotnet_style_escaped_echo_is_refused(hex_case):
+    """System.Text.Json escapes +, ' and ` as \\uXXXX (upper-case hex by default); an
+    organization key may hold them, so the scan covers that spelling too."""
+    value = "org-key+abc'def`ghi"
+    secret = SecretResponseDTO.model_validate(
+        {
+            "id": str(uuid4()),
+            "slug": "company",
+            "kind": "custom_provider",
+            "data": {
+                "kind": "custom",
+                "provider": {"url": "https://upstream.example/v1", "key": value},
+                "models": [{"slug": "gpt-4o"}],
+            },
+            "header": {"name": "Company"},
+            "owner": {"kind": "organization", "id": str(uuid4())},
+        }
+    )
+    resolved = ResolvedSecret(
+        secret=secret, owner=secret.owner, origin=SecretOrigin.VAULT
+    )
+    escaped = (
+        value.replace("+", "\\u002B").replace("'", "\\u0027").replace("`", "\\u0060")
+    )
+    if hex_case == "lower":
+        escaped = escaped.replace("\\u002B", "\\u002b")
+    body = ('{"note": "' + escaped + '"}').encode()
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=body)
+
+    result = await _adapter(handler).relay_chat_completion(
+        route=_route(),
+        secret=resolved,
+        context=LLMCallContext(model="gpt-4o", stream=False),
         body=_body(),
         headers={},
     )
