@@ -497,57 +497,11 @@ async def test_both_default_helpers_stay_in_the_organization_after_the_step2_con
 # --- writers ---------------------------------------------------------------- #
 
 
-async def test_create_project_with_the_organization_id_uses_the_default_workspace():
-    seeded = await _multi_workspace_organization()
-    try:
-        created = await _dao().create_project(
-            organization_id=seeded.organization_id,
-            workspace_id=seeded.organization_id,
-            name="by-organization-id",
-            is_default=False,
-        )
-        rows = await fetch_all(
-            "SELECT workspace_id, is_default FROM projects WHERE id = :p",
-            {"p": created.scope.project_id},
-        )
-        assert rows[0]["workspace_id"] == seeded.workspace_ids[1]
-        assert rows[0]["is_default"] is False
-        assert created.scope.workspace_id == seeded.workspace_ids[1]
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_create_project_refuses_a_workspace_of_another_organization():
-    seeded = await seed_organization(members={"m": "editor"})
-    other = await seed_organization(members={"owner": "owner"})
-    try:
-        from oss.src.core.memberships.types import WorkspaceNotFound
-
-        with pytest.raises(WorkspaceNotFound):
-            await _dao().create_project(
-                organization_id=seeded.organization_id,
-                workspace_id=other.workspace_ids[0],
-                name="foreign",
-                is_default=False,
-            )
-        with pytest.raises(WorkspaceNotFound):
-            await _dao().create_project(
-                organization_id=seeded.organization_id,
-                workspace_id=other.organization_id,
-                name="foreign-organization",
-                is_default=False,
-            )
-    finally:
-        await delete_seeded_organization(seeded)
-        await delete_seeded_organization(other)
-
-
 async def test_create_project_in_an_organization_without_workspaces():
     seeded = await _seed_organization_without_workspaces()
     try:
         created = await _dao().create_project(
             organization_id=seeded.organization_id,
-            workspace_id=seeded.organization_id,
             name="no-workspace",
             is_default=False,
         )
@@ -561,7 +515,6 @@ async def test_create_project_in_an_organization_without_workspaces():
 
         made_default = await _dao().create_project(
             organization_id=seeded.organization_id,
-            workspace_id=seeded.organization_id,
             name="no-workspace-default",
             is_default=True,
         )
@@ -570,25 +523,6 @@ async def test_create_project_in_an_organization_without_workspaces():
             {"o": seeded.organization_id},
         )
         assert [row["id"] for row in defaults] == [made_default.scope.project_id]
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_create_project_statement_count_is_unchanged():
-    seeded = await seed_organization(members={"m": "editor"})
-    try:
-        engine = get_transactions_engine()
-        counts = []
-        for workspace_id in (seeded.workspace_ids[0], seeded.organization_id):
-            with count_statements(engine) as statements:
-                await _dao().create_project(
-                    organization_id=seeded.organization_id,
-                    workspace_id=workspace_id,
-                    name=f"count-{uuid4().hex[:6]}",
-                    is_default=False,
-                )
-            counts.append(len(statements))
-        assert counts[0] == counts[1]
     finally:
         await delete_seeded_organization(seeded)
 
@@ -634,7 +568,6 @@ async def test_set_default_project_with_a_workspace_keeps_the_workspace_scope():
 async def test_mixed_organization_writes_from_both_versions():
     seeded = await _multi_workspace_organization()
     try:
-        secondary = seeded.workspace_ids[2]
         await execute(
             "UPDATE projects SET is_default = false WHERE id = :p",
             {"p": seeded.project_ids[2]},
@@ -643,7 +576,6 @@ async def test_mixed_organization_writes_from_both_versions():
         # organization (no second default).
         created = await _dao().create_project(
             organization_id=seeded.organization_id,
-            workspace_id=secondary,
             name="step2-default",
             is_default=True,
         )

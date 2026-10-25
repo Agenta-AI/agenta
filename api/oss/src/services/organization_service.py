@@ -16,9 +16,6 @@ from oss.src.utils import emailing
 from oss.src.models.api.workspace_models import (
     InviteRequest,
     ResendInviteRequest,
-    CreateWorkspace,
-    UpdateWorkspace,
-    WorkspaceResponse,
 )
 from oss.src.core.access.controls import get_role
 from oss.src.core.access.permissions.types import DefaultRole, Permission
@@ -570,26 +567,6 @@ async def get_workspace(workspace_id: str) -> WorkspaceDB:
     raise HTTPException(
         status_code=404, detail=f"Workspace by id {workspace_id} not found"
     )
-
-
-async def create_new_workspace(
-    payload: CreateWorkspace, organization_id: str, user_id: str
-) -> WorkspaceResponse:
-    """Create a new workspace (with owner membership, default project, seeds)."""
-
-    return await db_manager.create_workspace_with_defaults(
-        payload, organization_id, user_id
-    )
-
-
-async def update_workspace(
-    payload: UpdateWorkspace, workspace_id: str
-) -> WorkspaceResponse:
-    """Update a workspace's details."""
-
-    workspace = await get_workspace(workspace_id)
-
-    return await db_manager.update_workspace(payload, workspace)
 
 
 async def get_all_workspace_permissions() -> List[Permission]:

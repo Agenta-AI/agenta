@@ -15,7 +15,6 @@ from oss.src.utils.common import is_ee, is_oss, APIRouter
 from oss.src.services import db_manager
 from oss.src.core.memberships.dtos import ProjectListing
 from oss.src.core.memberships.service import get_memberships_service
-from oss.src.core.memberships.types import WorkspaceNotFound
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 
@@ -198,16 +197,12 @@ async def create_project(
         if refusal:
             raise HTTPException(status_code=403, detail=refusal)
 
-    try:
-        scope = await get_memberships_service().create_project(
-            organization_id=UUID(str(organization_id)),
-            workspace_id=UUID(str(organization_id)),
-            name=project_name,
-            is_default=payload.make_default,
-            actor_user_id=UUID(str(request.state.user_id)),
-        )
-    except WorkspaceNotFound as exc:
-        raise HTTPException(status_code=400, detail=_CONTEXT_REQUIRED) from exc
+    scope = await get_memberships_service().create_project(
+        organization_id=UUID(str(organization_id)),
+        name=project_name,
+        is_default=payload.make_default,
+        actor_user_id=UUID(str(request.state.user_id)),
+    )
 
     # Import here to avoid circular import at module load time
     from oss.src.core.evaluators.defaults import create_default_evaluators

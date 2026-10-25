@@ -127,7 +127,6 @@ async def test_create_project_seeds_every_organization_member():
     try:
         created = await _dao().create_project(
             organization_id=seeded.organization_id,
-            workspace_id=seeded.workspace_ids[0],
             name="P2",
             is_default=False,
         )
@@ -153,7 +152,6 @@ async def test_create_project_leaves_nothing_when_seeding_fails(monkeypatch):
         with pytest.raises(ProgrammingError, match="no_such_column_for_seeding"):
             await _dao().create_project(
                 organization_id=seeded.organization_id,
-                workspace_id=seeded.workspace_ids[0],
                 name="P-fail",
                 is_default=True,
             )
@@ -181,11 +179,11 @@ async def test_workspace_create_seeds_every_organization_member():
 
         created = await _dao().create_project(
             organization_id=seeded.organization_id,
-            workspace_id=workspace,
             name="Default",
             is_default=True,
         )
 
+        # Step 2: made default, it is the organization's one default.
         assert created.scope.is_default is True
         assert created.seeded_count == 3
         rows = await fetch_all(
@@ -207,7 +205,6 @@ async def test_create_project_seeds_2000_members_in_one_statement():
         with count_statements(get_transactions_engine()) as statements:
             created = await _dao().create_project(
                 organization_id=seeded.organization_id,
-                workspace_id=seeded.workspace_ids[0],
                 name="Big",
                 is_default=False,
             )
@@ -292,9 +289,8 @@ async def test_invite_accept_writes_every_row():
         assert await _organization_roles(seeded.organization_id, newcomer) == [
             "annotator"
         ]
-        assert await _workspace_roles(seeded.workspace_ids, newcomer) == {
-            w: "annotator" for w in seeded.workspace_ids
-        }
+        # Step 2: no workspace row is written.
+        assert await _workspace_roles(seeded.workspace_ids, newcomer) == {}
         assert await _project_roles(seeded.project_ids, newcomer) == {
             p: ["annotator"] for p in seeded.project_ids
         }
@@ -507,8 +503,9 @@ async def test_transfer_ownership_seeds_the_new_owner_in_every_project():
         assert await _organization_roles(seeded.organization_id, seeded.owner_id) == [
             "admin"
         ]
+        # Step 2: workspace rows are not written (the new owner keeps their old row).
         assert await _workspace_roles(seeded.workspace_ids, new_owner) == {
-            seeded.workspace_ids[0]: "owner"
+            seeded.workspace_ids[0]: "admin"
         }
         # p1: both had a row, so the roles swap (as the admin transfer tool does);
         # p2: only the former owner had one, so the new owner is seeded as owner.
@@ -528,8 +525,8 @@ async def test_transfer_ownership_seeds_the_new_owner_in_every_project():
 async def test_transfer_never_leaves_the_new_owner_below_owner():
     """The former owner's rows held `viewer` (the admin accounts path wrote the column
     default). The swap moves those roles to the new owner; the new owner must still end
-    as `owner` on the organization, workspace and project rows, and the former owner
-    takes the new owner's previous roles."""
+    as `owner` on the organization and project rows, and the former owner takes the
+    new owner's previous roles. Step 2 writes no workspace row."""
 
     seeded = await seed_organization(members={"a": "editor"}, workspaces=2)
     new_owner = seeded.user_ids["a"]
@@ -558,7 +555,7 @@ async def test_transfer_never_leaves_the_new_owner_below_owner():
 
         assert await _organization_roles(seeded.organization_id, new_owner) == ["owner"]
         assert await _workspace_roles(seeded.workspace_ids, new_owner) == {
-            w: "owner" for w in seeded.workspace_ids
+            seeded.workspace_ids[0]: "editor"
         }
         assert await _project_roles(seeded.project_ids, new_owner) == {
             p: ["owner"] for p in seeded.project_ids
@@ -598,7 +595,6 @@ async def test_app_and_admin_transfers_leave_the_same_rows():
             org_ids=[admin.organization_id],
             source_id=admin.owner_id,
             target_id=admin.user_ids["a"],
-            workspace_ids=admin.workspace_ids,
             project_ids=admin.project_ids,
         )
 

@@ -14,9 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, load_only
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 
-from oss.src.core.memberships.service import get_memberships_service
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
@@ -612,40 +610,6 @@ async def create_organization(
         )
 
         return organization_db
-
-
-async def create_workspace(name: str, organization_id: str):
-    """Create a new workspace in the database.
-
-    Args:
-        name (str): The name of the workspace
-        organization_id (str): The ID of the organization
-
-    Returns:
-        WorkspaceDB: instance of workspace
-    """
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        workspace_db = WorkspaceDB(
-            name=name,
-            organization_id=uuid.UUID(organization_id),
-            description="Default Workspace",
-            type="default",
-        )
-
-        session.add(workspace_db)
-
-        await session.commit()
-
-        log.info(
-            "[scopes] workspace created",
-            organization_id=organization_id,
-            workspace_id=workspace_db.id,
-        )
-
-        return workspace_db
 
 
 async def update_organization(organization_id: str, values_to_update: Dict[str, Any]):
@@ -1655,63 +1619,6 @@ async def admin_create_organization(
         return org_db
 
 
-async def admin_create_workspace(
-    name: str,
-    org_id: uuid.UUID,
-    *,
-    is_default: bool = False,
-) -> WorkspaceDB:
-    """Create or reuse a workspace (admin path).
-
-    On OSS the workspace under the singleton org is itself a singleton —
-    if one already exists it is returned; otherwise a single new
-    workspace is created under a row lock on the org so concurrent
-    callers converge on the same row. Combined with admin_create_organization
-    and the delete guards, OSS exposes exactly one org and one workspace.
-
-    On EE behavior is unchanged: a fresh workspace row is always inserted.
-    """
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        if not is_ee():
-            await session.execute(
-                select(OrganizationDB.id).filter_by(id=org_id).with_for_update()
-            )
-            existing = await session.execute(
-                select(WorkspaceDB).filter_by(organization_id=org_id)
-            )
-            ws_db = existing.scalars().first()
-            if ws_db is not None:
-                await session.commit()
-                return ws_db
-
-            ws_db = WorkspaceDB(
-                name=name,
-                type="default" if is_default else None,
-                organization_id=org_id,
-            )
-            session.add(ws_db)
-            await session.commit()
-            await session.refresh(ws_db)
-            log.info(
-                "[admin] workspace ensured (oss singleton)",
-                workspace_id=str(ws_db.id),
-            )
-            return ws_db
-
-        ws_db = WorkspaceDB(
-            name=name,
-            type="default" if is_default else None,
-            organization_id=org_id,
-        )
-        session.add(ws_db)
-        await session.commit()
-        await session.refresh(ws_db)
-        log.info("[admin] workspace created", workspace_id=str(ws_db.id))
-        return ws_db
-
-
 _ADMIN_INSERT_PROJECT_SQL = """
 WITH cleared AS (
     UPDATE projects SET is_default = false
@@ -1720,7 +1627,7 @@ WITH cleared AS (
 )
 INSERT INTO projects (id, project_name, is_default, organization_id, workspace_id,
                       created_at, updated_at)
-VALUES (:id, :name, :is_default, :organization_id, :workspace_id, now(), now())
+VALUES (:id, :name, :is_default, :organization_id, NULL, now(), now())
 RETURNING *
 """
 
@@ -1728,11 +1635,11 @@ RETURNING *
 async def admin_create_project(
     name: str,
     org_id: uuid.UUID,
-    ws_id: Optional[uuid.UUID] = None,
     *,
     is_default: bool = False,
 ) -> ProjectDB:
-    """Create a project; with `is_default`, it becomes the organization's one default.
+    """Create a project of the organization (no workspace); with `is_default`, it
+    becomes the organization's one default.
 
     The organization lock first (admin only: one statement more than before), then one
     insert that also clears the other defaults.
@@ -1751,7 +1658,6 @@ async def admin_create_project(
                 "name": name,
                 "is_default": bool(is_default),
                 "organization_id": org_id,
-                "workspace_id": ws_id,
             },
         )
         proj_db = result.scalars().one()
@@ -2122,138 +2028,6 @@ async def create_project(
     return project_db
 
 
-async def create_workspace_db_object(
-    session: AsyncSession,
-    payload,
-    organization: OrganizationDB,
-    user: UserDB,
-    return_wrk_prj: bool = False,
-):
-    """Create a new workspace with its owner membership, default project, and seeds."""
-
-    workspace = WorkspaceDB(
-        name=payload.name,
-        type=payload.type if payload.type else "",
-        description=payload.description if payload.description else "",
-        organization_id=organization.id,
-    )
-
-    session.add(workspace)
-
-    await session.commit()
-
-    log.info(
-        "[scopes] workspace created",
-        organization_id=organization.id,
-        workspace_id=workspace.id,
-    )
-
-    workspace_member = WorkspaceMemberDB(
-        user_id=user.id,
-        workspace_id=workspace.id,
-        role="owner",
-    )
-
-    session.add(workspace_member)
-
-    await session.commit()
-    await session.refresh(workspace, attribute_names=["organization"])
-
-    log.info(
-        "[scopes] workspace membership created",
-        organization_id=workspace.organization_id,
-        workspace_id=workspace.id,
-        user_id=user.id,
-        membership_id=workspace_member.id,
-    )
-
-    # The default project, seeded with every organization member, in one
-    # transaction (MembershipsService.create_project).
-    scope = await get_memberships_service().create_project(
-        organization_id=organization.id,
-        workspace_id=workspace.id,
-        name="Default",
-        is_default=True,
-        actor_user_id=user.id,
-    )
-    project_db = await fetch_project_by_id(project_id=str(scope.project_id))
-
-    await add_default_simple_testsets(
-        project_id=str(project_db.id),
-        user_id=str(user.id),
-    )
-
-    from oss.src.core.evaluators.defaults import create_default_evaluators
-    from oss.src.core.environments.defaults import create_default_environments
-
-    await create_default_evaluators(
-        project_id=project_db.id,
-        user_id=user.id,
-    )
-    await create_default_environments(
-        project_id=project_db.id,
-        user_id=user.id,
-    )
-
-    if return_wrk_prj:
-        return workspace, project_db
-
-    return workspace
-
-
-async def create_workspace_with_defaults(payload, organization_id: str, user_id: str):
-    """Create a new workspace (rich form, with owner/project/seeds).
-
-    Renamed from the EE `create_workspace` to avoid colliding with the OSS
-    `create_workspace(name, organization_id)` helper.
-    """
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        user_result = await session.execute(
-            select(UserDB).filter_by(id=uuid.UUID(user_id))
-        )
-        user = user_result.scalars().first()
-        if user is None:
-            raise NoResultFound(f"User with id {user_id} not found")
-
-        organization_result = await session.execute(
-            select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
-        )
-        organization = organization_result.scalars().first()
-        if organization is None:
-            raise NoResultFound(f"Organization with id {organization_id} not found")
-
-        workspace_db = await create_workspace_db_object(
-            session, payload, organization, user
-        )
-
-        return await get_workspace_in_format(workspace_db)
-
-
-async def update_workspace(payload, workspace: WorkspaceDB):
-    """Update a workspace's details."""
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(select(WorkspaceDB).filter_by(id=workspace.id))
-        workspace = result.scalars().first()
-
-        if not workspace:
-            raise NoResultFound(f"Workspace with id {str(workspace.id)} not found")
-
-        for key, value in payload.dict(exclude_unset=True).items():
-            if hasattr(workspace, key):
-                setattr(workspace, key, value)
-
-        await session.commit()
-        await session.refresh(workspace)
-
-        return await get_workspace_in_format(workspace)
-
-
 class _OrganizationAsWorkspace(NamedTuple):
     """The attributes `get_workspace_in_format` reads, built from an organization."""
 
@@ -2499,63 +2273,6 @@ async def admin_swap_org_memberships(
             )
 
 
-async def admin_swap_workspace_memberships(
-    workspace_ids: List[uuid.UUID],
-    source_id: uuid.UUID,
-    target_id: uuid.UUID,
-    *,
-    session: Optional[AsyncSession] = None,
-) -> None:
-    """Swap workspace membership roles between source and target."""
-    async with _admin_session(session) as session:
-        source_rows = (
-            (
-                await session.execute(
-                    select(WorkspaceMemberDB).where(
-                        WorkspaceMemberDB.user_id == source_id,
-                        WorkspaceMemberDB.workspace_id.in_(workspace_ids),
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-
-        target_rows = (
-            (
-                await session.execute(
-                    select(WorkspaceMemberDB).where(
-                        WorkspaceMemberDB.user_id == target_id,
-                        WorkspaceMemberDB.workspace_id.in_(workspace_ids),
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-
-        source_by_ws = {row.workspace_id: row.role for row in source_rows}
-        target_by_ws = {row.workspace_id: row.role for row in target_rows}
-
-        for ws_id in set(source_by_ws) & set(target_by_ws):
-            await session.execute(
-                update(WorkspaceMemberDB)
-                .where(
-                    WorkspaceMemberDB.user_id == target_id,
-                    WorkspaceMemberDB.workspace_id == ws_id,
-                )
-                .values(role=source_by_ws[ws_id])
-            )
-            await session.execute(
-                update(WorkspaceMemberDB)
-                .where(
-                    WorkspaceMemberDB.user_id == source_id,
-                    WorkspaceMemberDB.workspace_id == ws_id,
-                )
-                .values(role=target_by_ws[ws_id])
-            )
-
-
 async def admin_swap_project_memberships(
     project_ids: List[uuid.UUID],
     source_id: uuid.UUID,
@@ -2649,7 +2366,6 @@ async def admin_transfer_ownership(
     org_ids: List[uuid.UUID],
     source_id: uuid.UUID,
     target_id: uuid.UUID,
-    workspace_ids: List[uuid.UUID],
     project_ids: List[uuid.UUID],
 ) -> List[uuid.UUID]:
     """The admin ownership transfer in one transaction, under the membership lock of
@@ -2657,9 +2373,10 @@ async def admin_transfer_ownership(
 
     Under the locks it checks again that the source owns each organization and that
     the target has an organization row there; other organizations are left out.
-    Then it moves the ownership, swaps the organization, workspace and project roles
-    (workspaces and projects of the transferred organizations only), and seeds the
-    new owner into every project. Returns the transferred organization ids.
+    Then it moves the ownership, swaps the organization and project roles (projects
+    of the transferred organizations only), and seeds the new owner into every
+    project. Workspace rows are no longer written. Returns the transferred
+    organization ids.
     """
     from oss.src.dbs.postgres.memberships.dao import (  # noqa: PLC0415
         ORGANIZATION_LOCK_SQL,
@@ -2703,20 +2420,6 @@ async def admin_transfer_ownership(
         if not eligible:
             return []
 
-        ws_scope = (
-            (
-                await session.execute(
-                    select(WorkspaceDB.id).where(
-                        WorkspaceDB.id.in_(workspace_ids),
-                        WorkspaceDB.organization_id.in_(eligible),
-                    )
-                )
-            )
-            .scalars()
-            .all()
-            if workspace_ids
-            else []
-        )
         proj_scope = (
             (
                 await session.execute(
@@ -2738,10 +2441,6 @@ async def admin_transfer_ownership(
         await admin_swap_org_memberships(
             eligible, source_id, target_id, session=session
         )
-        if ws_scope:
-            await admin_swap_workspace_memberships(
-                list(ws_scope), source_id, target_id, session=session
-            )
         if proj_scope:
             await admin_swap_project_memberships(
                 list(proj_scope), source_id, target_id, session=session

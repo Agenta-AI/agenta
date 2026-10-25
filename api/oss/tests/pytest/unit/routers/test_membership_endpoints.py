@@ -12,7 +12,7 @@ from oss.src.core.auth import service as auth_service_module
 from oss.src.core.memberships.dtos import OrganizationMember
 from oss.src.core.memberships.types import MemberNotFound, OrganizationOwnerProtected
 import oss.src.routers.workspace_router as workspace_router
-from oss.src.core.access.permissions.types import Permission, RequiredRole
+from oss.src.core.access.permissions.types import RequiredRole
 
 
 DENIED = (
@@ -100,63 +100,6 @@ async def test_remove_user_by_a_non_admin_answers_403(monkeypatch, project):
     assert access.calls[0]["role"] == RequiredRole.ADMIN
     assert access.calls[0]["project_id"] == str(project.id)
     assert removed == []
-
-
-def _wire_update_workspace(monkeypatch, *, project, workspace_organization_id):
-    access = _Recorder(result=False)
-
-    async def _get_project_by_workspace(workspace_id):
-        return project
-
-    async def _get_workspace(workspace_id):
-        return SimpleNamespace(
-            id=project.workspace_id, organization_id=workspace_organization_id
-        )
-
-    monkeypatch.setattr(organization_router, "check_action_access", access)
-    monkeypatch.setattr(
-        organization_router.db_manager,
-        "get_project_by_workspace",
-        _get_project_by_workspace,
-    )
-    monkeypatch.setattr(organization_router.db_manager, "get_workspace", _get_workspace)
-    return access
-
-
-async def test_update_workspace_checks_edit_workspace(monkeypatch, project):
-    access = _wire_update_workspace(
-        monkeypatch, project=project, workspace_organization_id=project.organization_id
-    )
-
-    response = await organization_router.update_workspace(
-        request=_request(),
-        organization_id=str(project.organization_id),
-        workspace_id=str(project.workspace_id),
-        payload=SimpleNamespace(name="x", description=None),
-    )
-
-    assert response.status_code == 403
-    assert access.calls[0]["permission"] == Permission.EDIT_WORKSPACE
-    assert access.calls[0]["project_id"] == str(project.id)
-
-
-async def test_update_workspace_of_another_organization_is_404(monkeypatch, project):
-    # A legacy project of organization A that points at a workspace of organization
-    # B: an admin of A must not reach B's workspace through it.
-    access = _wire_update_workspace(
-        monkeypatch, project=project, workspace_organization_id=uuid4()
-    )
-
-    for organization_id in (project.organization_id, uuid4()):
-        response = await organization_router.update_workspace(
-            request=_request(),
-            organization_id=str(organization_id),
-            workspace_id=str(project.workspace_id),
-            payload=SimpleNamespace(name="x", description=None),
-        )
-        assert response.status_code == 404
-
-    assert access.calls == []
 
 
 # -- writers through MembershipsService -----------------------------------------------
@@ -571,69 +514,6 @@ async def test_invite_accept_for_an_existing_member_is_already_accepted(
 
 
 # -- workspace create and ownership transfer --------------------------------------------
-
-
-async def test_workspace_create_seeds_its_default_project_through_create_project(
-    monkeypatch,
-):
-    import oss.src.services.db_manager as db_manager_module
-    from oss.src.core.memberships.dtos import ProjectScope
-
-    organization = SimpleNamespace(id=uuid4())
-    user = SimpleNamespace(id=uuid4())
-    project_id = uuid4()
-    calls = []
-
-    class _Service:
-        async def create_project(self, **kwargs):
-            calls.append(kwargs)
-            return ProjectScope(
-                project_id=project_id,
-                organization_id=organization.id,
-                workspace_id=kwargs["workspace_id"],
-                is_default=True,
-            )
-
-    class _Session:
-        def add(self, obj):
-            if getattr(obj, "id", None) is None:
-                obj.id = uuid4()
-
-        async def commit(self):
-            pass
-
-        async def refresh(self, obj, attribute_names=None):
-            pass
-
-    async def _noop(**kwargs):
-        return None
-
-    async def _fetch_project_by_id(project_id):
-        return SimpleNamespace(id=project_id)
-
-    monkeypatch.setattr(memberships_module, "_memberships_service", _Service())
-    monkeypatch.setattr(db_manager_module, "fetch_project_by_id", _fetch_project_by_id)
-    monkeypatch.setattr(db_manager_module, "add_default_simple_testsets", _noop)
-    import oss.src.core.environments.defaults as environments_defaults
-    import oss.src.core.evaluators.defaults as evaluators_defaults
-
-    monkeypatch.setattr(evaluators_defaults, "create_default_evaluators", _noop)
-    monkeypatch.setattr(environments_defaults, "create_default_environments", _noop)
-
-    workspace, project = await db_manager_module.create_workspace_db_object(
-        _Session(),
-        SimpleNamespace(name="Second", type=None, description=None),
-        organization,
-        user,
-        return_wrk_prj=True,
-    )
-
-    assert len(calls) == 1
-    assert calls[0]["is_default"] is True
-    assert calls[0]["name"] == "Default"
-    assert calls[0]["organization_id"] == organization.id
-    assert calls[0]["actor_user_id"] == user.id
-    assert project.id == str(project_id) or project.id == project_id
 
 
 async def test_transfer_route_calls_the_service_and_maps_errors(monkeypatch):

@@ -178,6 +178,10 @@ async def seed_organization(
     missing. Every member gets an organization row, a workspace row in every workspace
     (unless `workspace_rows` is False) and a project row in every project (unless
     `project_rows` is False), all with their role.
+
+    `workspaces=0` writes the shape workspace removal step 2 writes: no workspace and
+    no workspace member rows, and `projects_per_workspace` projects with a NULL
+    `workspace_id`. Any other value writes the legacy shape (existing data).
     """
 
     members = dict(members)
@@ -221,23 +225,24 @@ async def seed_organization(
         workspace_ids: List[UUID] = []
         project_ids: List[UUID] = []
 
-        for w in range(workspaces):
-            workspace_id = uuid4()
-            workspace_ids.append(workspace_id)
-            await connection.execute(
-                text(
-                    "INSERT INTO workspaces "
-                    "(id, name, type, organization_id, created_at, updated_at) "
-                    "VALUES (:id, :name, 'default', :organization_id, now(), now())"
-                ),
-                {
-                    "id": workspace_id,
-                    "name": f"workspace-{w}",
-                    "organization_id": organization_id,
-                },
-            )
+        for w in range(max(workspaces, 1)):
+            workspace_id = uuid4() if workspaces else None
+            if workspace_id is not None:
+                workspace_ids.append(workspace_id)
+                await connection.execute(
+                    text(
+                        "INSERT INTO workspaces "
+                        "(id, name, type, organization_id, created_at, updated_at) "
+                        "VALUES (:id, :name, 'default', :organization_id, now(), now())"
+                    ),
+                    {
+                        "id": workspace_id,
+                        "name": f"workspace-{w}",
+                        "organization_id": organization_id,
+                    },
+                )
 
-            if workspace_rows:
+            if workspace_id is not None and workspace_rows:
                 for label, role in members.items():
                     await connection.execute(
                         text(

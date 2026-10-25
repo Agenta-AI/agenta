@@ -485,21 +485,30 @@ async def _readers(ref) -> tuple:
 
 
 async def test_default_helpers_agree_for_every_seed_scope():
-    # Every workspace id and organization id of the seed (not of other tests) whose
-    # organization has a default project, after the consolidation of the seed copy.
-    refs = await fetch_all(
-        "SELECT w.id AS ref FROM workspaces w JOIN organizations o "
-        "ON o.id = w.organization_id WHERE o.name NOT LIKE 'membership-seed-%' "
-        "AND EXISTS (SELECT 1 FROM projects p WHERE p.organization_id = o.id "
-        "AND p.is_default IS TRUE) "
-        "UNION ALL SELECT o.id FROM organizations o WHERE o.name NOT LIKE "
-        "'membership-seed-%' AND EXISTS (SELECT 1 FROM projects p WHERE "
-        "p.organization_id = o.id AND p.is_default IS TRUE)"
-    )
-    assert refs
-    for row in refs:
-        by_workspace, default = await _readers(row["ref"])
-        assert by_workspace == default, row["ref"]
+    # Every workspace id and organization id of the seed (when the database holds one; not
+    # of other tests) whose organization has a default project, plus this test's own
+    # multi-workspace organization with several defaults (before any consolidation).
+    own = await _multi_default_organization()
+    try:
+        # (Organizations older than an hour: tests running in parallel create and delete
+        # their own.)
+        seed = (
+            "(o.id = CAST(:own AS uuid) OR (o.name NOT LIKE 'membership-seed-%' AND "
+            "o.created_at < now() - interval '1 hour')) AND EXISTS (SELECT 1 FROM "
+            "projects p WHERE p.organization_id = o.id AND p.is_default IS TRUE)"
+        )
+        refs = await fetch_all(
+            "SELECT w.id AS ref FROM workspaces w JOIN organizations o "
+            f"ON o.id = w.organization_id WHERE {seed} "
+            f"UNION ALL SELECT o.id FROM organizations o WHERE {seed}",
+            {"own": own.organization_id},
+        )
+        assert len(refs) >= 4
+        for row in refs:
+            by_workspace, default = await _readers(row["ref"])
+            assert by_workspace == default, row["ref"]
+    finally:
+        await delete_seeded_organization(own)
 
 
 async def test_member_routes_and_bearer_pick_the_same_project():
@@ -733,7 +742,6 @@ async def test_create_and_admin_create_serialize_with_set_default():
                     task = asyncio.create_task(
                         _dao().create_project(
                             organization_id=seeded.organization_id,
-                            workspace_id=seeded.organization_id,
                             name="made-default",
                             is_default=True,
                         )
@@ -786,7 +794,6 @@ async def test_053_waits_for_a_step2_create_with_make_default():
         await migration
         created = await _dao().create_project(
             organization_id=seeded.organization_id,
-            workspace_id=seeded.organization_id,
             name="after",
             is_default=True,
         )
@@ -806,7 +813,6 @@ async def test_default_writer_statement_counts():
         with count_statements(engine) as created:
             await _dao().create_project(
                 organization_id=seeded.organization_id,
-                workspace_id=seeded.organization_id,
                 name="c",
                 is_default=True,
             )
@@ -836,3 +842,415 @@ async def test_admin_routes_cannot_create_a_second_default():
         assert first.id != second.id
     finally:
         await delete_seeded_organization(seeded)
+
+
+# --- no code path writes workspace rows (R7, S-10, S-11, S-21) ---------------- #
+
+import re  # noqa: E402
+from contextlib import contextmanager  # noqa: E402
+
+from sqlalchemy import event  # noqa: E402
+
+from oss.src.core.accounts.dtos import (  # noqa: E402
+    AdminAccountsCreate,
+    AdminOrganizationCreate,
+    AdminOrganizationMembershipCreate,
+    AdminProjectCreate,
+    AdminSimpleAccountsWorkspacesCreate,
+    AdminSimpleAccountsWorkspacesMembershipsCreate,
+    AdminWorkspaceCreate,
+    AdminWorkspaceMembershipCreate,
+    EntityRef,
+)
+from oss.src.core.accounts.service import PlatformAdminAccountsService  # noqa: E402
+from oss.tests.pytest.utils.membership_seed import create_user  # noqa: E402
+
+_WORKSPACE_WRITE = re.compile(
+    r"^\s*(INSERT\s+INTO|UPDATE|WITH\b.*?\b(INSERT\s+INTO|UPDATE))\s+workspace(s|_members)\b",
+    re.I | re.S,
+)
+
+
+@contextmanager
+def _workspace_writes():
+    """Every statement that writes `workspaces` or `workspace_members`, or writes
+    `projects.workspace_id` with a non-NULL value."""
+
+    found = []
+    sync_engine = get_transactions_engine()._engine.sync_engine
+
+    def _record(conn, cursor, statement, parameters, context, executemany):
+        text_ = " ".join(statement.split())
+        if _WORKSPACE_WRITE.search(text_) or re.search(
+            r"\b(INSERT INTO|UPDATE) workspace", text_, re.I
+        ):
+            found.append(text_)
+            return
+        if re.search(r"\b(INSERT INTO|UPDATE) projects\b", text_, re.I) and (
+            "workspace_id" in text_
+        ):
+            rows = parameters if executemany else [parameters]
+            for row in rows:
+                values = row.values() if isinstance(row, dict) else row
+                if isinstance(row, dict):
+                    if row.get("workspace_id") is not None:
+                        found.append(text_)
+                elif "workspace_id" in text_ and _positional_workspace(text_, values):
+                    found.append(text_)
+
+    event.listen(sync_engine, "before_cursor_execute", _record)
+    try:
+        yield found
+    finally:
+        event.remove(sync_engine, "before_cursor_execute", _record)
+
+
+def _positional_workspace(statement, values) -> bool:
+    """For a positional INSERT INTO projects (...) VALUES ($1, ...): the value bound to
+    the `workspace_id` column, when it is a parameter."""
+
+    match = re.search(r"INSERT INTO projects \(([^)]*)\) VALUES \(([^)]*)\)", statement)
+    if not match:
+        return False
+    columns = [c.strip() for c in match.group(1).split(",")]
+    slots = [v.strip() for v in match.group(2).split(",")]
+    if "workspace_id" not in columns:
+        return False
+    slot = slots[columns.index("workspace_id")]
+    if slot.upper() == "NULL":
+        return False
+    index = re.match(r"\$(\d+)", slot)
+    values = list(values)
+    return bool(index) and values[int(index.group(1)) - 1] is not None
+
+
+async def _signup_organization():
+    from oss.src.services import commoners
+
+    user_id = await create_user(label="signup")
+    user = await db_manager.get_user_with_id(user_id=str(user_id))
+    organization = await commoners.create_organization(user=user, name="signup-org")
+    seeded = SeededOrganization(
+        organization_id=organization.id,
+        owner_id=user_id,
+        workspace_ids=[],
+        project_ids=[],
+        user_ids={"owner": user_id},
+    )
+    return seeded
+
+
+async def test_no_code_path_writes_workspace_rows():
+    legacy = await seed_organization(members={"m": "editor"}, workspaces=2)
+    joiner = await create_user(label="joiner")
+    legacy.extra_user_ids.append(joiner)
+    admin = PlatformAdminAccountsService()
+    created = []
+    try:
+        with _workspace_writes() as writes:
+            signup = await _signup_organization()
+            created.append(signup)
+            dao = _dao()
+            await dao.create_project(
+                organization_id=legacy.organization_id, name="a", is_default=True
+            )
+            await dao.create_project(
+                organization_id=legacy.organization_id, name="b", is_default=False
+            )
+            await dao.set_member_role(
+                organization_id=legacy.organization_id,
+                user_id=legacy.user_ids["m"],
+                role="viewer",
+                must_exist=True,
+            )
+            await dao.set_member_role(
+                organization_id=legacy.organization_id,
+                user_id=joiner,
+                role="editor",
+                join_all_projects=True,
+            )
+            await dao.set_member_role(
+                organization_id=legacy.organization_id,
+                user_id=joiner,
+                role="admin",
+                join_project_ids=[legacy.project_ids[1]],
+            )
+            await dao.set_member_role(
+                organization_id=legacy.organization_id,
+                user_id=joiner,
+                role="viewer",
+                join_all_projects=True,
+                must_be_absent=True,
+            )
+            await dao.transfer_ownership(
+                organization_id=legacy.organization_id,
+                new_owner_id=legacy.user_ids["m"],
+                current_owner_id=legacy.owner_id,
+            )
+            await db_manager.set_default_project(str(legacy.project_ids[1]))
+            await db_manager.admin_create_project(
+                name="admin", org_id=legacy.organization_id, is_default=False
+            )
+            await admin.create_workspace(
+                dto=AdminSimpleAccountsWorkspacesCreate(
+                    workspace=AdminWorkspaceCreate(
+                        name="w",
+                        organization_ref=EntityRef(id=str(legacy.organization_id)),
+                    )
+                )
+            )
+            await admin.create_workspace_membership(
+                dto=AdminSimpleAccountsWorkspacesMembershipsCreate(
+                    membership=AdminWorkspaceMembershipCreate(
+                        workspace_ref=EntityRef(id=str(legacy.workspace_ids[0])),
+                        user_ref=EntityRef(id=str(joiner)),
+                        role="editor",
+                    )
+                )
+            )
+            graph = await admin.create_accounts(
+                dto=AdminAccountsCreate(
+                    organizations={
+                        "org": AdminOrganizationCreate(
+                            name="graph-org", owner_user_ref=EntityRef(id=str(joiner))
+                        )
+                    },
+                    workspaces={
+                        "wrk": AdminWorkspaceCreate(
+                            name="graph-ws", organization_ref=EntityRef(ref="org")
+                        )
+                    },
+                    projects={
+                        "prj": AdminProjectCreate(
+                            name="graph-prj",
+                            organization_ref=EntityRef(ref="org"),
+                            workspace_ref=EntityRef(ref="wrk"),
+                            is_default=True,
+                        )
+                    },
+                    organization_memberships={
+                        "om": AdminOrganizationMembershipCreate(
+                            organization_ref=EntityRef(ref="org"),
+                            user_ref=EntityRef(id=str(joiner)),
+                            role="owner",
+                        )
+                    },
+                    workspace_memberships={
+                        "wm": AdminWorkspaceMembershipCreate(
+                            workspace_ref=EntityRef(ref="wrk"),
+                            user_ref=EntityRef(id=str(joiner)),
+                            role="owner",
+                        )
+                    },
+                )
+            )
+            graph_org = UUID(graph.accounts[0].organizations["org"].id)
+            created.append(
+                SeededOrganization(
+                    organization_id=graph_org,
+                    owner_id=joiner,
+                    workspace_ids=[],
+                    project_ids=[],
+                    user_ids={},
+                )
+            )
+        assert writes == []
+    finally:
+        for seeded in created:
+            await delete_seeded_organization(seeded)
+        await delete_seeded_organization(legacy)
+
+
+async def test_remove_member_still_deletes_legacy_workspace_rows():
+    legacy = await seed_organization(members={"m": "editor"}, workspaces=2)
+    try:
+        email = (
+            await fetch_all(
+                "SELECT email FROM users WHERE id = :u", {"u": legacy.user_ids["m"]}
+            )
+        )[0]["email"]
+        await _dao().remove_member(organization_id=legacy.organization_id, email=email)
+        left = await fetch_all(
+            "SELECT 1 FROM workspace_members WHERE user_id = :u",
+            {"u": legacy.user_ids["m"]},
+        )
+        assert left == []
+    finally:
+        await delete_seeded_organization(legacy)
+
+
+async def test_signup_creates_no_workspace_and_a_null_workspace_project():
+    seeded = await _signup_organization()
+    try:
+        workspaces = await fetch_all(
+            "SELECT 1 FROM workspaces WHERE organization_id = :o",
+            {"o": seeded.organization_id},
+        )
+        projects = await fetch_all(
+            "SELECT workspace_id, is_default FROM projects WHERE organization_id = :o",
+            {"o": seeded.organization_id},
+        )
+        members = await fetch_all(
+            "SELECT 1 FROM workspace_members WHERE user_id = :u",
+            {"u": seeded.owner_id},
+        )
+        assert workspaces == [] and members == []
+        assert [(p["workspace_id"], p["is_default"]) for p in projects] == [
+            (None, True)
+        ]
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_create_project_defaults_are_organization_wide():
+    seeded = await _multi_default_organization()
+    try:
+        created = await _dao().create_project(
+            organization_id=seeded.organization_id, name="new", is_default=True
+        )
+        assert await _committed_defaults(seeded.organization_id) == [
+            created.scope.project_id
+        ]
+        assert created.scope.workspace_id == seeded.organization_id
+        other = await _dao().create_project(
+            organization_id=seeded.organization_id, name="other", is_default=False
+        )
+        assert other.scope.is_default is False
+        rows = await fetch_all(
+            "SELECT workspace_id FROM projects WHERE id = ANY(CAST(:p AS uuid[]))",
+            {"p": [created.scope.project_id, other.scope.project_id]},
+        )
+        assert [r["workspace_id"] for r in rows] == [None, None]
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_create_project_is_the_default_of_an_organization_without_one():
+    seeded = await _no_default_organization()
+    try:
+        created = await _dao().create_project(
+            organization_id=seeded.organization_id, name="new", is_default=False
+        )
+        assert created.scope.is_default is True
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_admin_graph_answers_the_organization_for_workspaces():
+    legacy = await seed_organization(members={"owner": "owner"})
+    try:
+        before = await fetch_all(
+            "SELECT id FROM workspaces WHERE organization_id = :o",
+            {"o": legacy.organization_id},
+        )
+        response = await PlatformAdminAccountsService().create_workspace(
+            dto=AdminSimpleAccountsWorkspacesCreate(
+                workspace=AdminWorkspaceCreate(
+                    name="w",
+                    organization_ref=EntityRef(id=str(legacy.organization_id)),
+                )
+            )
+        )
+        workspace = response.accounts[0].workspaces["wrk"]
+        assert workspace.id == workspace.organization_id == str(legacy.organization_id)
+        after = await fetch_all(
+            "SELECT id FROM workspaces WHERE organization_id = :o",
+            {"o": legacy.organization_id},
+        )
+        assert after == before
+        projects = await fetch_all(
+            "SELECT id FROM projects WHERE organization_id = :o",
+            {"o": legacy.organization_id},
+        )
+        assert [p["id"] for p in projects] == legacy.project_ids  # no project made
+    finally:
+        await delete_seeded_organization(legacy)
+
+
+async def test_admin_graph_workspace_membership_answers_the_organization_membership():
+    legacy = await seed_organization(members={"m": "editor"})
+    outsider = await create_user(label="outsider")
+    legacy.extra_user_ids.append(outsider)
+    service = PlatformAdminAccountsService()
+    try:
+        row = (
+            await fetch_all(
+                "SELECT id FROM organization_members WHERE user_id = :u",
+                {"u": legacy.user_ids["m"]},
+            )
+        )[0]
+        for ref in (legacy.workspace_ids[0], legacy.organization_id):
+            response = await service.create_workspace_membership(
+                dto=AdminSimpleAccountsWorkspacesMembershipsCreate(
+                    membership=AdminWorkspaceMembershipCreate(
+                        workspace_ref=EntityRef(id=str(ref)),
+                        user_ref=EntityRef(id=str(legacy.user_ids["m"])),
+                        role="viewer",
+                    )
+                )
+            )
+            membership = response.accounts[0].workspace_memberships["mem"]
+            assert membership.id == str(row["id"])
+            assert membership.workspace_id == str(legacy.organization_id)
+            assert membership.role == "editor"  # the organization role; nothing written
+        from oss.src.core.accounts.errors import AdminMembershipNotFoundError
+
+        with pytest.raises(AdminMembershipNotFoundError):
+            await service.create_workspace_membership(
+                dto=AdminSimpleAccountsWorkspacesMembershipsCreate(
+                    membership=AdminWorkspaceMembershipCreate(
+                        workspace_ref=EntityRef(id=str(legacy.organization_id)),
+                        user_ref=EntityRef(id=str(outsider)),
+                        role="viewer",
+                    )
+                )
+            )
+    finally:
+        await delete_seeded_organization(legacy)
+
+
+async def test_write_statement_counts_drop():
+    legacy = await seed_organization(members={"m": "editor"}, workspaces=2)
+    joiner = await create_user(label="joiner")
+    legacy.extra_user_ids.append(joiner)
+    created = []
+    engine = get_transactions_engine()
+    try:
+        with count_statements(engine) as signup:
+            created.append(await _signup_organization())
+        with count_statements(engine) as joined:
+            await _dao().set_member_role(
+                organization_id=legacy.organization_id,
+                user_id=joiner,
+                role="editor",
+                join_all_projects=True,
+            )
+        with count_statements(engine) as transferred:
+            await _dao().transfer_ownership(
+                organization_id=legacy.organization_id,
+                new_owner_id=legacy.user_ids["m"],
+                current_owner_id=legacy.owner_id,
+            )
+        with count_statements(engine) as made:
+            await _dao().create_project(
+                organization_id=legacy.organization_id, name="c", is_default=False
+            )
+
+        # Step 1 sent, per path: signup 2 more writes (workspace, workspace member);
+        # set_member_role(join_all) 8 (lock, owner, row, upsert, update projects,
+        # insert projects, update and insert workspace rows) -> 6; transfer 2 more for
+        # the two workspace promotions and one read + 2 updates per shared workspace;
+        # create_project 6 (lock, resolve workspace, has-default, unset, insert,
+        # seed, owner = 7 with make_default) -> 4.
+        assert not any(
+            re.search(r"\b(INSERT INTO|UPDATE) workspace", s, re.I) for s in signup
+        ), signup
+        assert len(joined) == 6
+        assert not any(
+            re.search(r"\b(INSERT INTO|UPDATE) workspace", s, re.I) for s in transferred
+        ), transferred
+        assert len(made) == 4
+    finally:
+        for seeded in created:
+            await delete_seeded_organization(seeded)
+        await delete_seeded_organization(legacy)
