@@ -751,6 +751,13 @@ export interface ModelConnection {
    * in which case only a `custom` deployment counts (`servedByCustomConnection`).
    */
   customConnection?: boolean;
+  /**
+   * The protocol the gateway route also serves natively, which a runner that knows it speaks
+   * instead of the one `provider` implies: "gemini" on the built-in Gemini route (Google's
+   * native `streamGenerateContent`, `docs/design/gemini-native-door`). `endpoint.baseUrl` is
+   * still the OpenAI-compatible route; omitted by older SDKs and APIs.
+   */
+  protocol?: string;
 }
 
 /**

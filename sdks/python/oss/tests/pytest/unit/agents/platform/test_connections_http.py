@@ -1855,3 +1855,64 @@ async def test_a_401_is_not_an_access_refusal(fake_http, connection, body):
             context=_context(),
         )
     assert not isinstance(raised.value, ConnectionAccessDeniedError)
+
+
+async def test_a_builtin_gemini_route_carries_the_native_protocol_to_the_runner(
+    fake_http, connection
+):
+    # The gateway also serves the built-in Gemini route natively. The hint rides to the runner,
+    # while the base URL stays the OpenAI-compatible route for a runner that ignores it.
+    fake_http(
+        connections,
+        payload={
+            "connection": {
+                "namespace": "builtin",
+                "name": "agenta",
+                "provider_key": "openai",
+                "deployment_kind": "custom",
+                "model": "google/gemini-3.8-flash",
+                "protocol": "gemini",
+            }
+        },
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model="google/gemini-3.8-flash",
+            connection={"mode": "agenta", "slug": "agenta", "namespace": "builtin"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.protocol == "gemini"
+    assert resolved.endpoint.base_url.endswith("/gateways/llms/builtin/agenta/v1")
+    assert resolved.to_wire()["protocol"] == "gemini"
+
+
+async def test_a_route_without_a_protocol_puts_none_on_the_wire(fake_http, connection):
+    fake_http(
+        connections,
+        payload={
+            "connection": {
+                "namespace": "builtin",
+                "name": "agenta",
+                "provider_key": "openai",
+                "deployment_kind": "custom",
+                "model": "google/gemini-3.8-flash",
+                "protocol": None,
+            }
+        },
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model="google/gemini-3.8-flash",
+            connection={"mode": "agenta", "slug": "agenta", "namespace": "builtin"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.protocol is None
+    assert "protocol" not in resolved.to_wire()

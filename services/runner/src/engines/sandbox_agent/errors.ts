@@ -484,7 +484,10 @@ export const MODEL_REQUEST_TIMED_OUT = /\bRequest timed out\.(?:\s|$)/;
 export const MODEL_REQUEST_TIMED_OUT_MESSAGE =
   "The model provider did not answer in time. Try again in a moment.";
 
-export const MALFORMED_FUNCTION_CALL = /finish_reason: malformed_function_call/;
+// Pi's OpenAI client words it `finish_reason: malformed_function_call`; its Google client, on the
+// built-in Gemini route's native protocol, `Provider stopped with: MALFORMED_FUNCTION_CALL`.
+export const MALFORMED_FUNCTION_CALL =
+  /finish_reason: malformed_function_call|Provider stopped with: MALFORMED_FUNCTION_CALL/;
 export const MALFORMED_FUNCTION_CALL_MESSAGE =
   "The model sent a tool call that could not be read (malformed_function_call). Try again, or pick another model.";
 
@@ -726,7 +729,10 @@ export function classifyRunError(
   if (
     /\b(?:WebSocket (?:error|closed|connect timeout|idle timeout|stream closed)|connection error|fetch failed)\b/i.test(
       raw,
-    )
+    ) ||
+    // Pi's Google client, when the native Gemini stream breaks off before its finish reason
+    // (`@google/genai` does not raise an error event inside a stream).
+    /Google stream ended without a finish reason/.test(raw)
   ) {
     return {
       message:

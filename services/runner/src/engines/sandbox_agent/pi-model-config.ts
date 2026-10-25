@@ -31,7 +31,11 @@ import { GATEWAY_CREDENTIALS_VALUE_ENV } from "./run-plan.ts";
 import { GATEWAY_PLACEHOLDER_API_KEY } from "../../extensions/model-provider-override.ts";
 
 /** The API dialect this builder emits. The only value v1 supports (design Decision 1). */
-export type PiProviderApi = "openai-completions";
+/**
+ * The dialects Pi speaks to a custom provider: OpenAI chat completions, or Google's native
+ * Gemini protocol on a gateway route that serves it (`modelConnection.protocol === "gemini"`).
+ */
+export type PiProviderApi = "openai-completions" | "google-generative-ai";
 
 /**
  * The canonical env var a managed OpenAI-compatible key resolves into (design Decision 2). The
@@ -63,7 +67,7 @@ export interface PiModelConfigPlan {
    */
   apiKeyEnv: typeof OPENAI_API_KEY_ENV;
   /** The exact selected model(s). v1 registers exactly one. */
-  models: Array<{ id: string }>;
+  models: Array<{ id: string; reasoning?: boolean }>;
   /**
    * Gateway credentials use `$ENV_VAR` indirection so raw values never reach this file.
    * Absent when the connection is not gateway-routed.
@@ -386,6 +390,28 @@ export function buildPiModelConfigPlan(
       : (model as string);
   const modelId = stripped || (model as string);
 
+  // The gateway also serves this route in Google's native protocol. Pi's Google client
+  // appends `/models/<id>:streamGenerateContent` to a base that already carries its version,
+  // calls the model by its bare Gemini id, and is told the model thinks so the person's
+  // thinking level reaches Gemini (`docs/design/gemini-native-door`). The connection's base
+  // stays the OpenAI-compatible `/v1` route for runners that do not know `protocol`.
+  const native =
+    gatewayCredentials &&
+    request.modelConnection?.protocol === "gemini" &&
+    /\/v1\/?$/.test(baseUrl as string);
+  if (native) {
+    return {
+      providerId: slug as string,
+      providerFamily: "openai",
+      api: "google-generative-ai",
+      baseUrl: (baseUrl as string).replace(/\/v1\/?$/, "/v1beta"),
+      apiKey: GATEWAY_PLACEHOLDER_API_KEY,
+      apiKeyEnv: OPENAI_API_KEY_ENV,
+      models: [{ id: modelId.replace(/^google\//, ""), reasoning: true }],
+      headers: { [gatewayCredentials.header]: `$${GATEWAY_CREDENTIALS_VALUE_ENV}` },
+    };
+  }
+
   return {
     providerId: slug as string,
     providerFamily: "openai",
@@ -426,7 +452,10 @@ export function serializePiModelsJson(plan: PiModelsJsonPlan): string {
         api: plan.api,
         apiKey: plan.apiKey,
         ...(plan.headers ? { headers: plan.headers } : {}),
-        models: plan.models.map((model) => ({ id: model.id })),
+        models: plan.models.map((model) => ({
+          id: model.id,
+          ...(model.reasoning ? { reasoning: true } : {}),
+        })),
       };
   const document = { providers: { [piModelsJsonProviderId(plan)]: block } };
   return `${JSON.stringify(document, null, 2)}\n`;
