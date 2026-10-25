@@ -596,6 +596,7 @@ async def test_session_delete_invalidates_policy_and_grantee_caches(world, monke
 # Redis read, no decision); every other caller is checked with RUN_SESSIONS.
 
 import oss.src.apis.fastapi.sharing.utils as sharing_utils  # noqa: E402
+import oss.src.utils.caching as caching_module  # noqa: E402
 from datetime import datetime, timezone  # noqa: E402
 
 from fastapi import HTTPException  # noqa: E402
@@ -625,12 +626,14 @@ _OLD_TURN = str(uuid4())
 
 
 class _Lock:
-    """The lock engine's admission and `running` keys: `set`, `delete` and the current
-    turn admission script, counting the script's round trips."""
+    """The volatile Redis's admission and `running` keys: `set`, `delete`, the current
+    turn admission script and `MGET` (the request's one cache read, which reads the two
+    keys of a runner write), counting their round trips."""
 
     def __init__(self, *, fail: bool = False) -> None:
         self.values: dict = {}
         self.round_trips = 0
+        self.scripts = 0
         self.fail = fail
 
     async def set(self, key, value, ex=None, **_):
@@ -645,6 +648,7 @@ class _Lock:
     async def eval(self, script, numkeys, *keys_and_args):
         assert "AGENTA_CURRENT_TURN_ADMISSION" in script
         self.round_trips += 1
+        self.scripts += 1
         if self.fail:
             raise ConnectionError("redis down")
         keys = [k.decode() if isinstance(k, bytes) else k for k in keys_and_args[:2]]
@@ -656,11 +660,18 @@ class _Lock:
             return None
         return self.values.get(keys[1])
 
+    async def mget(self, names):
+        self.round_trips += 1
+        if self.fail:
+            raise ConnectionError("redis down")
+        return [self.values.get(name) for name in names]
+
 
 @pytest.fixture
 def lock(monkeypatch) -> _Lock:
     lock = _Lock()
     monkeypatch.setattr(sharing_utils, "get_lock_engine", lambda: lock)
+    monkeypatch.setattr(caching_module, "_cache_engine", lock)
     return lock
 
 
@@ -965,7 +976,9 @@ async def test_admitted_runner_writes_without_a_decision(
     else:
         assert status_code == 200, name
         assert resource_checks == [], name
+        # The two admission keys ride in the request's one cache read: no script.
         assert lock.round_trips == 1, name
+        assert lock.scripts == 0, name
     assert _service_calls(routers) + publish.await_count >= 1, name
 
 
@@ -1064,6 +1077,7 @@ async def test_admission_record_error_fails_closed(world, monkeypatch):
     )
     broken = _Lock(fail=True)
     monkeypatch.setattr(sharing_utils, "get_lock_engine", lambda: broken)
+    monkeypatch.setattr(caching_module, "_cache_engine", broken)
     private_id = world.private_session.session_id
     routers = _runner_routers(world)
     _, call = _runner_writes(routers, private_id)[0]
@@ -1094,3 +1108,136 @@ async def test_viewer_write_is_403_access_denied(world, lock, route):
     assert detail["code"] == "access_denied", name
     assert detail["details"]["reason"] == "resource_denied", name
     assert _service_calls(routers) == 0, name
+
+
+# -- admission renewal: the heartbeats renew, the writes do not -----------------------------
+#
+# Defaults: a runner beats every HEARTBEAT_INTERVAL_SECONDS (30 s); the admission record
+# and `running` live TURN_BOUND_TTL_SECONDS / RUNNING_TTL_SECONDS (3600 s each) after the
+# last beat that renewed them, so a turn may miss 119 beats in a row and keep its free path.
+# A runner write reads the two keys in its one cache read and renews neither.
+
+from oss.src.dbs.redis.sessions.contract import (  # noqa: E402
+    HEARTBEAT_INTERVAL_SECONDS,
+    RUNNING_TTL_SECONDS,
+    TURN_BOUND_TTL_SECONDS,
+)
+from oss.src.dbs.redis.sessions.locks import get_turn_admission  # noqa: E402
+
+
+class _ClockLock(_Lock):
+    """`_Lock` with key expiry on a clock the test moves (`advance`)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.now = 0.0
+        self.expires: dict = {}
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+        for key, at in list(self.expires.items()):
+            if at <= self.now:
+                self.values.pop(key, None)
+                self.expires.pop(key, None)
+
+    async def set(self, key, value, ex=None, **_):
+        key = key.decode() if isinstance(key, bytes) else key
+        self.values[key] = value
+        if ex:
+            self.expires[key] = self.now + int(ex)
+        return True
+
+    async def eval(self, script, numkeys, *keys_and_args):
+        value = await super().eval(script, numkeys, *keys_and_args)
+        if value is not None:  # the script's EXPIRE of the admission record
+            key = keys_and_args[1]
+            key = key.decode() if isinstance(key, bytes) else key
+            self.expires[key] = self.now + int(keys_and_args[3])
+        return value
+
+
+@pytest.fixture
+def clock_lock(monkeypatch) -> _ClockLock:
+    lock = _ClockLock()
+    monkeypatch.setattr(sharing_utils, "get_lock_engine", lambda: lock)
+    monkeypatch.setattr(caching_module, "_cache_engine", lock)
+    return lock
+
+
+async def _beat(world: _World, lock: _ClockLock, *, session_id: str) -> None:
+    """One steady running beat of `_TURN`: the runner renews `running`, and the API's
+    verified-continuity read (`get_turn_admission`, what `_admit_heartbeat` calls for a
+    steady beat) renews the admission record."""
+    key = running_key(str(world.project_id), session_id)
+    await lock.set(key, _TURN, ex=RUNNING_TTL_SECONDS)
+    assert await get_turn_admission(
+        lock,
+        project_id=str(world.project_id),
+        session_id=session_id,
+        turn_id=_TURN,
+    )
+
+
+async def _bob_ingest(world: _World, routers, session_id: str):
+    _, call = _runner_writes(routers, session_id)[0]
+    access = world.request_access(world.bob, "secret")
+    with _as(access):
+        return await _answer(call, _write_request(world, access))
+
+
+def test_the_admission_record_outlives_many_missed_beats():
+    assert TURN_BOUND_TTL_SECONDS >= 10 * HEARTBEAT_INTERVAL_SECONDS
+    assert RUNNING_TTL_SECONDS >= 10 * HEARTBEAT_INTERVAL_SECONDS
+
+
+async def test_a_turn_longer_than_one_ttl_stays_admitted_while_it_beats(
+    world, clock_lock, monkeypatch
+):
+    """Bob's run was admitted on Alice's private session (his access is gone since: a
+    full check hides the session). His turn runs two TTLs and beats every interval: his
+    write at the end still takes the free path."""
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.sessions.router.publish_record",
+        AsyncMock(return_value=True),
+    )
+    private_id = world.private_session.session_id
+    await _admit(world, clock_lock, user_id=world.bob, session_id=private_id)
+    await _beat(world, clock_lock, session_id=private_id)
+    elapsed = 0
+    while elapsed < 2 * TURN_BOUND_TTL_SECONDS:
+        clock_lock.advance(HEARTBEAT_INTERVAL_SECONDS)
+        elapsed += HEARTBEAT_INTERVAL_SECONDS
+        await _beat(world, clock_lock, session_id=private_id)
+
+    routers = _runner_routers(world)
+    assert await _bob_ingest(world, routers, private_id) == (200, {"ok": True})
+
+
+async def test_writes_after_the_beats_stop_lose_the_free_path_at_the_ttl(
+    world, clock_lock, monkeypatch
+):
+    """The beats stop. Bob's runner keeps writing every minute: the writes renew
+    nothing, so the first write past one TTL after the last beat takes the full check,
+    which hides Alice's session (the not-found body), and nothing is stored."""
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.sessions.router.publish_record",
+        AsyncMock(return_value=True),
+    )
+    private_id = world.private_session.session_id
+    await _admit(world, clock_lock, user_id=world.bob, session_id=private_id)
+    await _beat(world, clock_lock, session_id=private_id)
+
+    elapsed = 0
+    while elapsed + 60 < TURN_BOUND_TTL_SECONDS:
+        clock_lock.advance(60)
+        elapsed += 60
+        routers = _runner_routers(world)
+        assert await _bob_ingest(world, routers, private_id) == (200, {"ok": True})
+
+    clock_lock.advance(TURN_BOUND_TTL_SECONDS - elapsed)
+    routers = _runner_routers(world)
+    assert await _bob_ingest(world, routers, private_id) == (
+        404,
+        NOT_FOUND_ERROR.model_dump(exclude_none=True),
+    )
+    assert _service_calls(routers) == 0

@@ -10,6 +10,7 @@ from oss.src.core.access.context import get_request_access
 from oss.src.core.access.dtos import (
     Decision,
     DecisionReason,
+    PrincipalRef,
     RequestAccess,
     ResourceKind,
     ResourceRef,
@@ -29,6 +30,7 @@ from oss.src.core.sharing.dtos import (
     Visibility,
 )
 from oss.src.core.access.prefetch import forget as forget_prefetch
+from oss.src.core.access.prefetch import read as read_prefetch
 from oss.src.core.access.prefetch import register as register_prefetch
 from oss.src.core.workflows.dtos import AGENT_REFERENCE_KEYS
 from oss.src.core.sharing.service import (
@@ -48,7 +50,11 @@ from oss.src.core.sharing.types import (
     SharingError,
 )
 from oss.src.core.tools.dtos import AgentError
-from oss.src.dbs.redis.sessions.locks import get_turn_admission
+from oss.src.dbs.redis.sessions.locks import (
+    admission_from_values,
+    get_turn_admission,
+    turn_admission_entries,
+)
 from oss.src.dbs.redis.shared.engine import get_lock_engine
 from oss.src.middlewares.auth import request_run_envelope
 
@@ -332,6 +338,51 @@ def session_recheck(
     return SessionRecheck(request, action=action, session_id=session_id)
 
 
+def prefetch_session_write(
+    request: Request, *, session_id: Optional[str], turn_id: Optional[str]
+) -> None:
+    """A runner write's entries, registered before the route's capability check so its
+    one cache read reads them: the session's sharing entry (the full check) and, when
+    the body names a turn and the request carries a run envelope, the turn's two
+    admission keys (the continuity path). No I/O."""
+
+    prefetch_session(request, session_id)
+    if session_id and turn_id and request_run_envelope(request) is not None:
+        for entry in turn_admission_entries(
+            project_id=str(request.state.project_id),
+            session_id=str(session_id),
+            turn_id=str(turn_id),
+        ):
+            register_prefetch(entry)
+
+
+async def _turn_admission(
+    request: Request, *, session_id: str, turn_id: str
+) -> Optional[PrincipalRef]:
+    """The principal this turn's heartbeat admitted, while the turn holds `running`.
+    From the request's one cache read when the route registered the keys
+    (`prefetch_session_write`); otherwise both keys in one `MGET` now. Outside a
+    request (no memo) the script reads them. A Redis error reads as no record."""
+
+    running_entry, admitted_entry = turn_admission_entries(
+        project_id=str(request.state.project_id),
+        session_id=session_id,
+        turn_id=turn_id,
+    )
+    register_prefetch(running_entry)
+    register_prefetch(admitted_entry)
+    found_running, running = await read_prefetch(running_entry)
+    found_admitted, admitted = await read_prefetch(admitted_entry)
+    if not (found_running and found_admitted):
+        return await get_turn_admission(
+            get_lock_engine(),
+            project_id=str(request.state.project_id),
+            session_id=session_id,
+            turn_id=turn_id,
+        )
+    return admission_from_values(running=running, admitted=admitted, turn_id=turn_id)
+
+
 async def allow_session_write(
     request: Request,
     *,
@@ -341,19 +392,18 @@ async def allow_session_write(
     """`allow_resource(RUN_SESSIONS)` on a session for a runner write route (records,
     interactions, turns: rule S2), with the heartbeat's verified continuity as the
     free path. When the body names a turn and that turn's heartbeat admitted this
-    request's principal on this session (the admission record, one Redis read that
-    renews it), the write is allowed with no decision: it is the run the heartbeat
-    authorized. Any other write (no turn, no record, a record of another principal,
-    session or turn, a Redis error) runs the full check."""
+    request's principal on this session (the admission record, read with `running` in
+    the request's one cache read), the write is allowed with no decision: it is the run
+    the heartbeat authorized. Any other write (no turn, no record, a record of another
+    principal, session or turn, a Redis error) runs the full check. The write never
+    renews the record: the turn's heartbeats do, so a turn whose beats stopped loses the
+    free path when the record expires."""
 
     if turn_id:
         envelope = request_run_envelope(request)
         if envelope is not None:
-            admitted = await get_turn_admission(
-                get_lock_engine(),
-                project_id=str(request.state.project_id),
-                session_id=session_id,
-                turn_id=str(turn_id),
+            admitted = await _turn_admission(
+                request, session_id=session_id, turn_id=str(turn_id)
             )
             if admitted is not None and admitted == envelope.authority.principal:
                 return True

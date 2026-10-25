@@ -657,29 +657,44 @@ async def get_cache_many(entries: list) -> list:
     `project_id`, `user_id`, `key`) and an optional `model`. Returns one value per
     entry, `None` for a miss. No lock and no retry: a caller falls back to `get_cache`
     for an entry that missed. Caching disabled, or a Redis error: all `None`.
+
+    An entry `{"raw": <key>}` names a plain key of the same Redis (a session lock key)
+    and returns its bytes as stored, also when caching is disabled: the read it saves
+    is not a cache read.
     """
 
     if not entries:
         return []
-    if not env.agenta.api.caching.enabled:
-        return [None] * len(entries)
+    caching = env.agenta.api.caching.enabled
+    read = [
+        i for i, entry in enumerate(entries) if caching or entry.get("raw") is not None
+    ]
+    values: list = [None] * len(entries)
+    if not read:
+        return values
     try:
         names = [
-            _pack(
-                namespace=entry.get("namespace"),
-                key=entry.get("key"),
-                project_id=entry.get("project_id"),
-                user_id=entry.get("user_id"),
+            entries[i]["raw"]
+            if entries[i].get("raw") is not None
+            else _pack(
+                namespace=entries[i].get("namespace"),
+                key=entries[i].get("key"),
+                project_id=entries[i].get("project_id"),
+                user_id=entries[i].get("user_id"),
             )
-            for entry in entries
+            for i in read
         ]
         raws = await _cache_engine.mget(names)
-        return [
-            _deserialize(raw, model=entry.get("model"), is_list=False)
-            if raw is not None
-            else None
-            for raw, entry in zip(raws, entries)
-        ]
+        for i, raw in zip(read, raws):
+            entry = entries[i]
+            if raw is None:
+                continue
+            values[i] = (
+                raw
+                if entry.get("raw") is not None
+                else _deserialize(raw, model=entry.get("model"), is_list=False)
+            )
+        return values
     except Exception as e:  # pylint: disable=broad-except
         log.warn("[cache] MGET ", count=len(entries))
         log.warn(e)

@@ -58,6 +58,7 @@ from oss.src.apis.fastapi.sharing.utils import (
     prefetch_beat,
     prefetch_session,
     prefetch_session_list,
+    prefetch_session_write,
     session_read_scope_for_request,
     stream_sharing_for_request,
     session_recheck,
@@ -75,6 +76,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.redis.sessions.contract import (
     live_events_channel,
     project_watch_channel,
+    validate_session_id,
     watch_channel,
 )
 from oss.src.dbs.redis.shared.engine import get_lock_engine, get_streams_engine
@@ -799,10 +801,18 @@ class SessionStreamsRouter:
         ):
             session_id = _unknown_session_id()
 
-        stream = await self._service.fetch(
-            project_id=UUID(str(project_id)),
-            session_id=session_id,
-        )
+        # The policy read of the check found no row for this session (it reads every
+        # row, archived or deleted too): there is no stream to read. A valid id answers
+        # from that one read; an invalid one still reaches the service's own refusal.
+        if validate_session_id(session_id) and session_was_missing(
+            project_id=UUID(str(project_id)), session_id=session_id
+        ):
+            stream = None
+        else:
+            stream = await self._service.fetch(
+                project_id=UUID(str(project_id)),
+                session_id=session_id,
+            )
         # Browsers read this route too; a pod address is cluster-internal, so only the
         # services layer, which proves itself with the runner token, gets it.
         binding = None
@@ -1363,7 +1373,9 @@ class RecordsRouter:
         body: SessionRecordsIncompleteRequest,
     ) -> dict:
         # Same permission as record ingest: the runner reports on the log it writes.
-        prefetch_session(request, body.session_id)
+        prefetch_session_write(
+            request, session_id=body.session_id, turn_id=body.turn_id
+        )
         if not await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -1417,6 +1429,15 @@ class RecordsRouter:
         body: SessionRecordIngestBody,
     ) -> dict:
         project_id = request.state.project_id
+        # The write's admission keys and session entry ride in this check's one cache
+        # read. A frame batch is checked on its first frame's session and execution.
+        head = (body[0] if body else None) if isinstance(body, list) else body
+        if head is not None:
+            prefetch_session_write(
+                request,
+                session_id=head.session_id,
+                turn_id=head.execution_id if head.kind == "frame" else head.turn_id,
+            )
         if not await check_action_access(
             user_uid=request.state.user_id,
             project_id=project_id,
@@ -1611,7 +1632,9 @@ class InteractionsRouter:
         # `allow_session_write`: a role that lost RUN_SESSIONS is refused with 403 even
         # when its turn's admission record would let the write through. The session entry
         # rides in this check's one cache read.
-        prefetch_session(request, body.session_id)
+        prefetch_session_write(
+            request, session_id=body.session_id, turn_id=body.turn_id
+        )
         if not await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(request.state.project_id),
@@ -1742,7 +1765,9 @@ class InteractionsRouter:
         # `allow_session_write`: a role that lost RUN_SESSIONS is refused with 403 even
         # when its turn's admission record would let the write through. The session entry
         # rides in this check's one cache read.
-        prefetch_session(request, body.session_id)
+        prefetch_session_write(
+            request, session_id=body.session_id, turn_id=body.turn_id
+        )
         if not await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(request.state.project_id),
@@ -1771,6 +1796,8 @@ class InteractionsRouter:
     ) -> SessionInteractionsResponse:
         project_id: UUID = request.state.project_id
 
+        # The session entry rides in this check's one cache read.
+        prefetch_session(request, body.query.session_id if body.query else None)
         authorized = await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(project_id),
@@ -2322,6 +2349,7 @@ class SessionMountsRouter:
         session_id: str = Query(...),
         include_archived: bool = Query(default=False),
     ) -> SessionMountsResponse:
+        prefetch_session(request, session_id)
         await self._check(request, Permission.VIEW_SESSIONS, Permission.VIEW_MOUNTS)
         if not await self._allow_session(
             request, session_id=session_id, actions=(Permission.VIEW_MOUNTS,)
@@ -2398,6 +2426,8 @@ class SessionMountsRouter:
     ) -> MountCredentialsResponse:
         _validate_session_id_http(session_id)
 
+        # The session entry rides in this check's one cache read.
+        prefetch_session(request, session_id)
         await self._check(request, Permission.RUN_SESSIONS, Permission.USE_MOUNTS)
         # Signing an unknown id creates its mount, so a hidden one answers the one
         # canonical not-found body.
@@ -2567,7 +2597,11 @@ class SessionTurnsRouter:
         # `allow_session_write`: a role that lost RUN_SESSIONS is refused with 403 even
         # when its turn's admission record would let the write through. The session entry
         # rides in this check's one cache read.
-        prefetch_session(request, body.session_id)
+        prefetch_session_write(
+            request,
+            session_id=body.session_id,
+            turn_id=str(body.turn_id) if body.turn_id else None,
+        )
         if not await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(request.state.project_id),
@@ -2678,6 +2712,12 @@ class SessionTurnsRouter:
             resource=session_resource(session_id),
         ):
             query = query.model_copy(update={"session_id": _unknown_session_id()})
+        elif session_id and session_was_missing(
+            project_id=UUID(str(project_id)), session_id=session_id
+        ):
+            # The check's policy read found no row for this session, and every turn
+            # references its session's row (a NOT NULL foreign key): no turn to read.
+            return SessionTurnsResponse(count=0, turns=[])
 
         turns = await self.turns_service.query_turns(
             project_id=project_id,

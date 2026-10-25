@@ -31,6 +31,9 @@ class FakeCache:
         # When true every call behaves like a Redis error: get misses, set and
         # invalidate return None.
         self.fail = fail
+        # Plain keys a raw `get_cache_many` entry reads (see `get_cache_many`).
+        self.raw_values: dict = {}
+        self.raw_reader = None
 
     # -- the three helpers, same signatures as oss.src.utils.caching -----------------
 
@@ -62,12 +65,25 @@ class FakeCache:
             return None
 
     async def get_cache_many(self, entries: list) -> list:
-        """One round trip for several entries (`MGET`)."""
+        """One round trip for several entries (`MGET`). A raw entry (`{"raw": key}`, a
+        plain key such as a session lock key) reads `raw_values`, a dict, or
+        `raw_reader`, an async function of the key names (a real Redis); its bytes come
+        back as stored."""
 
         if entries:
             self.read_round_trips += 1
+        raw_names = [entry["raw"] for entry in entries if entry.get("raw") is not None]
+        raws: dict = {}
+        if raw_names and not self.fail:
+            if self.raw_reader is not None:
+                raws = dict(zip(raw_names, await self.raw_reader(raw_names)))
+            else:
+                raws = {name: self.raw_values.get(name) for name in raw_names}
         values = []
         for entry in entries:
+            if entry.get("raw") is not None:
+                values.append(raws.get(entry["raw"]))
+                continue
             name = caching._pack(
                 namespace=entry.get("namespace"),
                 key=entry.get("key"),

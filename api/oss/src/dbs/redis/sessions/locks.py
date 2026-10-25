@@ -705,9 +705,11 @@ async def get_routable_turn_binding(
 # Written after a heartbeat passed `RunAdmission`, read by the next running beat of the same
 # turn and by the runner write routes: when it names the caller's principal, the check is
 # skipped (verified continuity). It counts only while its turn holds the session's `running`
-# lock, read in the same script, so an old turn's id never reuses it. Same TTL as the turn
-# binding; every read renews it, like `bind_turn` renews the binding, so a long turn is not
-# rechecked only because the record expired. The turn's end beat, its displacement and its
+# lock, read at the same instant (one script, or one `MGET`), so an old turn's id never
+# reuses it. Same TTL as the turn binding; every verified heartbeat renews it, like
+# `bind_turn` renews the binding, so a long turn is not rechecked only because the record
+# expired. A runner write reads it with `running` in the request's one cache read and never
+# renews it: a turn whose beats stopped loses the free path when the record expires. The turn's end beat, its displacement and its
 # stop delete it. Any Redis failure reads as "no record", which means a full check, never
 # continuity.
 # ---------------------------------------------------------------------------
@@ -784,6 +786,39 @@ async def get_turn_admission(
         )
         return None
     return _parse_admission_value(raw)
+
+
+def turn_admission_entries(
+    *, project_id: str, session_id: str, turn_id: str
+) -> Tuple[dict, dict]:
+    """The two plain keys a runner write reads for its turn's admission: the session's
+    `running` key and the turn's `admitted` key, as raw `get_cache_many` entries. A
+    route registers them before its access decision, so its one `MGET` reads them
+    (an `MGET` reads both keys at one instant, as the script does)."""
+
+    return (
+        {"raw": running_key(project_id, session_id)},
+        {"raw": turn_admitted_key(project_id, session_id, turn_id)},
+    )
+
+
+def admission_from_values(
+    *, running: Optional[bytes], admitted: Optional[bytes], turn_id: str
+) -> Optional[PrincipalRef]:
+    """What `CURRENT_TURN_ADMISSION_LUA` answers, from the two keys read at one instant:
+    the admitted principal only while `running` holds this turn. A missing key, another
+    turn, or an unreadable value is None (the caller runs the full check). No renewal:
+    the turn's heartbeats renew the record (every steady beat, through
+    `get_turn_admission`)."""
+
+    if running is None or admitted is None:
+        return None
+    value = (
+        running.decode() if isinstance(running, (bytes, bytearray)) else str(running)
+    )
+    if value != turn_id:
+        return None
+    return _parse_admission_value(admitted)
 
 
 async def forget_turn_admissions(

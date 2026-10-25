@@ -129,8 +129,11 @@ def fake_cache(monkeypatch) -> FakeCache:
 
 
 @pytest.fixture
-async def lock(monkeypatch):
-    """The real lock engine on a real Redis, or a skip with the reason."""
+async def lock(monkeypatch, fake_cache):
+    """The real lock engine on a real Redis, or a skip with the reason. The fake cache
+    reads a raw entry (a runner write's admission keys, in the request's one cache read)
+    from the same Redis, on its own client: those reads count as the cache's round trip,
+    as they are one `MGET` with the cache entries in production."""
 
     from redis.asyncio import Redis
 
@@ -154,7 +157,10 @@ async def lock(monkeypatch):
     await engine.close()
     lock = _Lock(engine)
     monkeypatch.setattr(sharing_utils, "get_lock_engine", lambda: lock)
+    reader = Redis.from_url(uri)
+    fake_cache.raw_reader = reader.mget
     yield lock
+    await reader.aclose()
     await engine.close()
 
 
@@ -348,9 +354,10 @@ async def test_admitted_runner_ingest_is_one_redis_read_and_no_statement(
 
     assert answer == {"ok": True}
     assert statements == []
-    # The session check adds no cache read and no decision: one lock script only.
+    # The session check adds no round trip and no decision: the admission keys ride in
+    # the capability check's one cache read, and no lock script runs.
     assert cache_round_trips == capability
-    assert lock_round_trips == 1
+    assert lock_round_trips == 0
 
 
 async def test_old_turn_replay_after_grant_removal_is_refused(
@@ -390,7 +397,7 @@ async def test_full_check_ingest_reads_no_statement_when_warm(
     seeded, fake_cache, lock, access_service
 ):
     """No admission record (a lost record, a Redis restart): the full check runs, with
-    every read warm in the cache: one round trip beyond the capability check."""
+    every read warm in the cache, and no round trip beyond the capability check."""
 
     alice = seeded.user_ids["alice"]
     session_id = await _private_session(seeded.project_ids[0], alice)
@@ -403,10 +410,10 @@ async def test_full_check_ingest_reads_no_statement_when_warm(
 
     assert answer == {"ok": True}
     assert statements == []
-    # The session policy and the owner's membership: two cache reads beyond the
-    # capability check, plus the admission read that missed.
-    assert cache_round_trips - capability == 1
-    assert lock_round_trips == 1
+    # The session entry and the admission keys ride in the capability check's one
+    # cache read (the owner is the caller: its membership is in that read too).
+    assert cache_round_trips - capability == 0
+    assert lock_round_trips == 0
 
 
 async def test_plain_check_resource_cost_when_warm(seeded, fake_cache, access_service):

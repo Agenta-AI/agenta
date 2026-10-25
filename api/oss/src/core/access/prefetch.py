@@ -6,7 +6,8 @@ request registers them here first (the resource's sharing entry, a list's grants
 admission's session and agent), and the decision's `MGET` reads them too. The value of each
 entry, a hit or a miss, is then kept in the request memo, so the later read makes no round
 trip. An entry registered after the decision's `MGET` is read by the first reader that needs
-it, together with every other entry still pending (one `MGET`).
+it, together with every other entry still pending (one `MGET`). A raw entry (`{"raw": key}`)
+names a plain key of the same Redis, such as a session lock key, read as stored.
 
 Outside a request there is no memo and nothing is registered: every reader reads Redis
 itself, as before. `request_memo_scope` gives a unit of work outside a request (a queued
@@ -25,8 +26,11 @@ _VALUES = "prefetch_values"
 
 
 def memo_key(entry: Dict[str, Any]) -> Tuple[str, str, str, str]:
-    """The memo key of one `get_cache_many` entry: its naming arguments."""
+    """The memo key of one `get_cache_many` entry: its naming arguments, or the plain
+    key of a raw entry."""
 
+    if entry.get("raw") is not None:
+        return ("raw", "", "", str(entry["raw"]))
     key = entry.get("key")
     return (
         str(entry.get("namespace")),

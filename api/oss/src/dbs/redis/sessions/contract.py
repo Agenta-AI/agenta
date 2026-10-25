@@ -141,8 +141,9 @@ def turn_admitted_key(project_id: str, session_id: str, turn_id: str) -> str:
     API-side only: the heartbeat writes it after a beat passed `RunAdmission`, and a later
     running beat of the same turn by the same principal skips the check (verified
     continuity). It counts only while the turn holds `running`, lives as long as the turn
-    binding, each verified read renews it, and the turn's end, displacement or stop
-    deletes it.
+    binding, each verified heartbeat read renews it (a runner write reads it with
+    `running` in its one cache read and never renews it), and the turn's end,
+    displacement or stop deletes it.
     """
     return f"admitted:{project_id}:session:{session_id}:turn:{turn_id}"
 
