@@ -149,7 +149,9 @@ class TestProjectProviderCredentials:
             )
 
             sent = _recorded_authorizations()[before:]
-            assert all(_ENV_KEY not in (header or "") for header in sent), sent
+            assert sent == [], sent
+            assert response.status_code == 400, response.text
+            assert "an explicit API key for the custom provider" in response.text
             assert _ENV_KEY not in response.text
         finally:
             api("DELETE", f"/secrets/{secret_id}")

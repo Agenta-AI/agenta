@@ -74,15 +74,20 @@ def env_provider_keys_enabled() -> bool:
     return (getenv("AGENTA_LICENSE") or "").strip().lower() != "ee"
 
 
-# Provider keys a deployment can set (`llm.*` in Helm, the compose env files, or by hand for
-# Azure) whose spelling no standard provider kind produces. They never become local secrets, but
-# litellm still reads them from the environment, so they are held with the rest.
+# Provider credentials a deployment can set (`llm.*` in Helm, the compose env files, or by hand
+# for Azure and Vertex) whose spelling no standard provider kind produces. They never become
+# local secrets, but litellm and the OpenAI client still read them from the environment (an
+# Azure AD token even wins over a key the call carries), so they are held with the rest.
 _DEPLOYED_PROVIDER_KEY_NAMES = (
     "TOGETHERAI_API_KEY",
     "XAI_API_KEY",
     "AZURE_API_KEY",
     "AZURE_OPENAI_API_KEY",
     "AZURE_AI_API_KEY",
+    "AZURE_AD_TOKEN",
+    "AZURE_OPENAI_AD_TOKEN",
+    "VERTEXAI_CREDENTIALS",
+    "VERTEX_CREDENTIALS",
 )
 
 

@@ -7,11 +7,13 @@ Two rules, both about where a provider key may come from:
   default and the EE edition does not. Once held, they never stay in the process environment,
   where litellm and the OpenAI client would pick them up for a call that carries no key.
 - A model of a custom connection takes its key and its endpoint from that connection alone. A
-  key saved for a provider's own endpoint is never paired with a custom connection's URL.
+  key saved for a provider's own endpoint is never paired with a custom connection's URL, and a
+  custom connection that needs a key and has none is refused before any call.
 """
 
 import pytest
 
+from agenta.sdk.engines.running.errors import InvalidConfigurationParameterV0Error
 from agenta.sdk.managers.secrets import SecretsManager
 from agenta.sdk.middlewares.running import vault
 from agenta.sdk.redaction import strip_echoed_key_fragments
@@ -132,10 +134,16 @@ def test_every_deployed_provider_key_is_held():
     }
 
     assert deployed <= set(vault.env_provider_key_names())
-    # Not deployed by the chart, but litellm's Azure route reads them when a call has no key.
-    assert {"AZURE_API_KEY", "AZURE_OPENAI_API_KEY"} <= set(
-        vault.env_provider_key_names()
-    )
+    # Not deployed by the chart, but litellm and the OpenAI client read them from the
+    # environment for Azure and Vertex calls.
+    assert {
+        "AZURE_API_KEY",
+        "AZURE_OPENAI_API_KEY",
+        "AZURE_AD_TOKEN",
+        "AZURE_OPENAI_AD_TOKEN",
+        "VERTEXAI_CREDENTIALS",
+        "VERTEX_CREDENTIALS",
+    } <= set(vault.env_provider_key_names())
 
 
 async def test_held_keys_do_not_serve_when_not_allowed(monkeypatch, fetch):
@@ -190,23 +198,23 @@ def _settings(monkeypatch, secrets, model):
 
 
 def test_custom_connection_without_a_key_gets_no_standard_key(monkeypatch):
-    settings = _settings(
-        monkeypatch, [_local_openai(), _custom_openai({})], "my-gw/openai/gpt-4o"
-    )
+    with pytest.raises(InvalidConfigurationParameterV0Error) as error:
+        _settings(
+            monkeypatch, [_local_openai(), _custom_openai({})], "my-gw/openai/gpt-4o"
+        )
 
-    assert settings["api_base"] == TENANT_URL
-    assert "api_key" not in settings
+    assert ENV_KEY not in error.value.message
 
 
 def test_custom_connection_without_a_key_ignores_a_stored_standard_key(monkeypatch):
-    settings = _settings(
-        monkeypatch,
-        [_vault_openai("sk-project-openai"), _custom_openai({})],
-        "my-gw/openai/gpt-4o",
-    )
+    with pytest.raises(InvalidConfigurationParameterV0Error) as error:
+        _settings(
+            monkeypatch,
+            [_vault_openai("sk-project-openai"), _custom_openai({})],
+            "my-gw/openai/gpt-4o",
+        )
 
-    assert settings["api_base"] == TENANT_URL
-    assert "api_key" not in settings
+    assert "sk-project-openai" not in error.value.message
 
 
 def test_custom_connection_uses_its_own_key(monkeypatch):
@@ -292,3 +300,47 @@ async def test_returned_stacktrace_does_not_echo_a_key_fragment(monkeypatch):
 
     assert b"stacktrace" in response.body
     assert b"wxyz" not in response.body
+
+
+async def test_azure_call_never_sends_a_deployment_ad_token(monkeypatch):
+    """The Azure client prefers an AD token from the environment over the call's own key."""
+    import httpx
+    from openai import AsyncAzureOpenAI
+
+    monkeypatch.setenv("AZURE_OPENAI_AD_TOKEN", "deployment-token-fixture")
+    vault.hold_env_provider_keys()
+
+    sent = []
+
+    def _handler(request):
+        sent.append(
+            request.headers.get("authorization") or request.headers.get("api-key")
+        )
+        return httpx.Response(
+            200,
+            json={
+                "id": "x",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "gpt-4o",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "ok"},
+                    }
+                ],
+            },
+        )
+
+    client = AsyncAzureOpenAI(
+        api_key="tenant-azure-key",
+        api_version="2024-06-01",
+        azure_endpoint="https://tenant.example.com",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(_handler)),
+    )
+    await client.chat.completions.create(
+        model="gpt-4o", messages=[{"role": "user", "content": "hi"}]
+    )
+
+    assert sent == ["tenant-azure-key"]
