@@ -15,7 +15,7 @@ The short lock timeout bounds how long requests queue behind a waiting lock requ
 timeout the hook fails cleanly and the deploy is retried.
 
 Revision ID: oss000000051
-Revises: oss000000050
+Revises: oss000000049
 Create Date: 2026-10-24 00:00:00.000000
 
 """
@@ -25,7 +25,7 @@ from typing import Sequence, Union
 from alembic import op
 
 revision: str = "oss000000051"
-down_revision: Union[str, None] = "oss000000050"
+down_revision: Union[str, None] = "oss000000049"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
