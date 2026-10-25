@@ -62,7 +62,12 @@ describe("decisionToReply", () => {
     assert.equal(decisionToReply("allow", ["always"]), "once");
   });
 
-  it("maps deny onto reject", () => {
+  it("maps deny onto decline when available, or reject otherwise", () => {
+    assert.equal(
+      decisionToReply("deny", ["always", "once", "decline", "reject"]),
+      "decline",
+      "deny should prefer decline when decline is offered",
+    );
     assert.equal(
       decisionToReply("deny", ["always", "once", "reject"]),
       "reject",
