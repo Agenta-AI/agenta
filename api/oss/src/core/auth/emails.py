@@ -21,3 +21,13 @@ def normalize_email(email: str) -> str:
         local = local.replace(".", "")
         domain = GMAIL_DOMAIN
     return f"{local}@{domain}"
+
+
+def fold_gmail_variant(email: str) -> str:
+    """`normalize_email` for a Gmail or Googlemail address; any other address is only
+    lowercased and stripped. Outside Gmail, `user+tag@` and `user@` can be different
+    mailboxes, so they stay different here."""
+    normalized = normalize_email(email)
+    if normalized.count("@") == 1 and normalized.endswith(f"@{GMAIL_DOMAIN}"):
+        return normalized
+    return email.strip().lower()

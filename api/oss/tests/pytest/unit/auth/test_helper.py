@@ -390,12 +390,17 @@ async def test_is_auth_info_blocked_matches_a_blocked_plus_tag_entry(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_is_auth_info_blocked_keeps_dots_outside_gmail(monkeypatch):
-    _block_only_emails(monkeypatch, {"first.last@acme.test"})
+async def test_is_auth_info_blocked_matches_exactly_outside_gmail(monkeypatch):
+    _block_only_emails(monkeypatch, {"first.last@acme.test", "sales+eu@acme.test"})
 
     assert await auth_helper.is_auth_info_blocked(
-        auth_helper.parse_auth_info("first.last+tag@acme.test")
+        auth_helper.parse_auth_info("First.Last@acme.test")
     )
-    assert not await auth_helper.is_auth_info_blocked(
-        auth_helper.parse_auth_info("firstlast@acme.test")
-    )
+    for other_mailbox in (
+        "firstlast@acme.test",
+        "first.last+tag@acme.test",
+        "sales@acme.test",
+    ):
+        assert not await auth_helper.is_auth_info_blocked(
+            auth_helper.parse_auth_info(other_mailbox)
+        )
