@@ -418,6 +418,7 @@ async def test_private_and_unknown_ids_answer_the_same(world, monkeypatch, famil
                     "project_id": str(project_id),
                     "session_id": known,
                     "slug": "cwd",
+                    "storage_prefix": f"{project_id}/sessions/{known}/cwd",
                 }
             ]
 

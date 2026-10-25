@@ -964,6 +964,7 @@ async def test_test_run_ordered_delta_outside_parameters_is_refused(monkeypatch)
             workflows_service=workflows,
             tracing_service=FakeTracingService(),
             envelope=make_envelope(),
+            run_admission=NoopRunAdmission(),
         )
 
     assert workflows.scope_policies == [PARAMETERS_ONLY]
@@ -991,6 +992,7 @@ async def test_test_run_non_scope_delta_error_is_not_reported_as_scope(monkeypat
             workflows_service=_RejectingWorkflowsService(),
             tracing_service=FakeTracingService(),
             envelope=make_envelope(),
+            run_admission=NoopRunAdmission(),
         )
 
     assert exc.value.reason == Reason.INVALID_DELTA
@@ -1022,6 +1024,7 @@ async def test_test_run_ordered_delta_outside_parameters_is_refused_for_each_roo
             workflows_service=workflows,
             tracing_service=FakeTracingService(),
             envelope=make_envelope(),
+            run_admission=NoopRunAdmission(),
         )
 
     assert isinstance(exc_info.value.__cause__, ChangeSetError)
@@ -1076,6 +1079,8 @@ async def test_test_run_legacy_delta_inside_parameters_keeps_other_fields(
         "url": "https://agent.internal",
         "parameters": {"agent": {"model": "base", "instructions": "hi"}},
     }
+
+
 async def test_test_run_into_a_private_agent_is_access_denied(monkeypatch):
     """`test_run` is a child run: the admission checks the target agent before any
     delta is applied or anything is invoked; a refusal is the `access_denied` tool

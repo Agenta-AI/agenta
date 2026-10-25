@@ -171,6 +171,7 @@ def test_stream_header_rejects_noop_bodies_before_calling_service(payload):
         SessionStreamsRouter(
             service=service,
             interactions_service=AsyncMock(),
+            run_admission=NoopRunAdmission(),
         )
     )
 
