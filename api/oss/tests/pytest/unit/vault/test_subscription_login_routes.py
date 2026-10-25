@@ -175,6 +175,12 @@ class _FakeSecretsDAO:
         **_kwargs,
     ):
         project_id, organization_id = owner_scope(owner)
+        # Like the real DAO: the row is handed to `authorize_delete` under the lock.
+        stored = self.rows.get(str(secret_id))
+        if stored is None:
+            return
+        if authorize_delete is not None:
+            authorize_delete(map_secrets_dbe_to_dto(secrets_dbe=stored))
         self.rows.pop(str(secret_id), None)
 
 

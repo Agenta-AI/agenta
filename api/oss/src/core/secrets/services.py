@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Optional, Sequence
+from typing import Any, Callable, List, Optional, Sequence, Tuple
 from uuid import UUID, uuid4
 
 from pydantic import ValidationError
@@ -854,6 +854,18 @@ class VaultService:
             (secret for secret in entry.inherited if secret.id == secret_id), None
         )
 
+    async def list_project_and_inherited_secrets(
+        self, *, organization_id: UUID, project_id: UUID
+    ) -> Tuple[List[SecretResponseDTO], List[InheritedSecret]]:
+        """The project's rows and its inherited rows, from ONE entry read
+        (`GET /secrets/?include_inherited=true`)."""
+        entry = await self._effective_entry(project_id=project_id)
+        if not self._inherits(entry=entry, organization_id=organization_id):
+            return list(entry.secrets), []
+        return list(entry.secrets), inherited_secrets(
+            entry=entry, organization_id=organization_id
+        )
+
     async def list_inherited_secrets(
         self, *, organization_id: UUID, project_id: UUID
     ) -> List[InheritedSecret]:
@@ -1094,7 +1106,7 @@ class VaultService:
         secret_id: UUID,
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
-    ) -> None:
+    ) -> bool:
         # The DAO hands the row to `authorize_delete` under its write lock; capturing it
         # there is what tells us which endpoint slug to drop, without a second read.
         deleted: list[SecretResponseDTO] = []
@@ -1120,6 +1132,8 @@ class VaultService:
                 project_id=project_id,
                 secret_dto=stored_secret_dto,
             )
+
+        return bool(deleted)
 
     # -- organization credentials (M5) --------------------------------------------
 
