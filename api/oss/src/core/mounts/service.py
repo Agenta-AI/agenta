@@ -50,6 +50,7 @@ from oss.src.core.mounts.types import (
     MountProtected,
     MountSlugReserved,
     MountStorageUnavailable,
+    organization_storage_prefix,
 )
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.utils.caching import get_cache, set_cache
@@ -109,6 +110,18 @@ def is_protected_mount(mount: Mount) -> bool:
     return mount.slug == mint_session_slug(
         session_id=mount.session_id,
         name=ATTACHMENTS_MOUNT_NAME,
+    )
+
+
+def is_organization_keyed(*, mount: Mount, organization_id: UUID) -> bool:
+    """True exactly when the stored prefix is the organization layout of this mount.
+
+    A mount for which it is false keeps its files under another scope (the project layout of
+    mounts created by earlier versions); moving such a mount to another project must be refused.
+    """
+    return mount.storage_prefix == organization_storage_prefix(
+        organization_id=organization_id,
+        mount_id=mount.id,
     )
 
 
