@@ -208,3 +208,64 @@ async def test_a_padded_value_is_stored_stripped_and_its_echo_refused(
     )
     with pytest.raises(LLMUpstreamCredentialEchoError):
         [chunk async for chunk in result.body]
+
+
+@pytest.mark.parametrize(
+    "value",
+    ['org-key-"abcdefgh"', "org-key\\abcdefgh", "org/key/abcdefgh", "org-key-abcdéfgh"],
+    ids=["quotes", "backslash", "slashes", "non-ascii"],
+)
+@pytest.mark.parametrize("where", ["key", "extras"])
+@pytest.mark.parametrize("stream", [False, True])
+async def test_a_json_escaped_echo_of_an_organization_value_is_refused(
+    value, where, stream
+):
+    """Codex r2: a value with characters JSON escapes (quotes, backslashes, `/`,
+    non-ASCII) is echoed escaped inside a JSON or SSE-JSON body; the scan finds it."""
+    secret = SecretResponseDTO.model_validate(
+        {
+            "id": str(uuid4()),
+            "slug": "company",
+            "kind": "custom_provider",
+            "data": {
+                "kind": "custom",
+                "provider": {
+                    "url": "https://upstream.example/v1",
+                    "key": value if where == "key" else KEY,
+                    "extras": {"api_key": value if where == "extras" else EXTRA},
+                },
+                "models": [{"slug": "gpt-4o"}],
+            },
+            "header": {"name": "Company"},
+            "owner": {"kind": "organization", "id": str(uuid4())},
+        }
+    )
+    resolved = ResolvedSecret(
+        secret=secret, owner=secret.owner, origin=SecretOrigin.VAULT
+    )
+    escaped = json.dumps({"note": f"you sent {value}"}, ensure_ascii=True).encode()
+    escaped_slash = escaped.replace(b"/", b"\\/")
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if not stream:
+            return httpx.Response(200, content=escaped_slash)
+        frame = b"data: " + escaped_slash + b"\n\n"
+        half = len(frame) // 2
+
+        async def body():
+            yield frame[:half]
+            yield frame[half:]
+
+        return httpx.Response(
+            200, headers={"content-type": "text/event-stream"}, content=body()
+        )
+
+    result = await _adapter(handler).relay_chat_completion(
+        route=_route(),
+        secret=resolved,
+        context=LLMCallContext(model="gpt-4o", stream=stream),
+        body=_body(),
+        headers={},
+    )
+    with pytest.raises(LLMUpstreamCredentialEchoError):
+        [chunk async for chunk in result.body]

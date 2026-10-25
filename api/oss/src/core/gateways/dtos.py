@@ -5,11 +5,13 @@ headers may reach a tenant-configured upstream, which cookie jar an upstream cli
 given, and how a relayed response is checked for the credential the gateway injected.
 """
 
+import json
 from enum import Enum
 from http.cookiejar import CookieJar
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import httpx
+from agenta.sdk.agents.connections.credentials import CREDENTIAL_EXTRAS_KEYS
 from pydantic import BaseModel, Field
 
 
@@ -174,8 +176,6 @@ def secret_credential_values(secret: Any) -> Tuple[bytes, ...]:
     so an upstream that echoes any of its values is refused (M5). Organization values are
     at least `MIN_SCANNED_CREDENTIAL_LENGTH` long by the write rule, so none falls under
     the scan minimum."""
-    from agenta.sdk.agents.connections.credentials import CREDENTIAL_EXTRAS_KEYS
-
     values: Dict[bytes, None] = {}
     provider = getattr(getattr(secret, "data", None), "provider", None)
     if provider is None:
@@ -187,9 +187,24 @@ def secret_credential_values(secret: Any) -> Tuple[bytes, ...]:
     for value in candidates:
         if isinstance(value, str):
             token = value.strip()
-            if len(token) >= MIN_SCANNED_CREDENTIAL_LENGTH:
-                values[token.encode()] = None
+            if len(token) < MIN_SCANNED_CREDENTIAL_LENGTH:
+                continue
+            for form in _echo_forms(token):
+                values[form.encode()] = None
     return tuple(values)
+
+
+def _echo_forms(token: str) -> Tuple[str, ...]:
+    """The spellings an upstream can echo a value in: raw, and JSON-escaped as a JSON or
+    SSE-JSON body writes it (quotes and backslashes escaped, non-ASCII as `\\uXXXX` or
+    raw, and `/` optionally as `\\/`). The scan is a substring search over bytes, so
+    each spelling is searched for, also across stream chunks."""
+    forms: Dict[str, None] = {token: None}
+    for ensure_ascii in (True, False):
+        forms[json.dumps(token, ensure_ascii=ensure_ascii)[1:-1]] = None
+    for form in list(forms):
+        forms[form.replace("/", "\\/")] = None
+    return tuple(forms)
 
 
 class CredentialEchoScanner:
