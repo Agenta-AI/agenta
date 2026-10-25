@@ -195,6 +195,7 @@ from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
 from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
 from oss.src.dbs.postgres.gateways.mcps.oauth_dao import MCPOAuthAttemptsDAO
+from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.gateways.llms.registrar import LLMEndpointRegistrar
@@ -1408,8 +1409,16 @@ channel_tools = ChannelToolsRouter(
 # other DAOs, because the vault's endpoint registrar takes it.
 mcp_endpoints_dao = MCPEndpointsDAO(engine=_transactions_engine)
 
-secrets_resolver = SecretsResolver(
+# One resolver per plane (M5): only the LLM gateway reads the effective set (project rows,
+# then inherited organization credentials). Every other user of a resolver (the MCP
+# gateway, the shared policy service) gets the project-only plane.
+llm_secrets_resolver = SecretsResolver(
     vault_service=vault_service,
+    plane=GatewayPlane.LLM,
+)
+mcp_secrets_resolver = SecretsResolver(
+    vault_service=vault_service,
+    plane=GatewayPlane.MCP,
 )
 
 # The wallet's side of the gateway seam, bound only in EE with the wallet on. Otherwise the
@@ -1461,7 +1470,7 @@ if ee and is_ee() and env.wallets.enabled and env.mock_gateways.enabled:
     )
 
 gateway_policy_service = GatewayPolicyService(
-    resolver=secrets_resolver,
+    resolver=mcp_secrets_resolver,
     spend_admission=gateway_spend_admission,
     usage_sink=gateway_usage_sink,
 )
@@ -1469,7 +1478,7 @@ gateway_policy_service = GatewayPolicyService(
 llm_gateway_service = LLMGatewayService(
     llm_endpoints_dao=llm_endpoints_dao,
     policy=gateway_policy_service,
-    resolver=secrets_resolver,
+    resolver=llm_secrets_resolver,
     upstream_registry=LLMUpstreamRegistry(
         adapters={
             "relay": RelayLLMAdapter(),
@@ -1495,7 +1504,7 @@ mcp_oauth_connect_service = MCPOAuthConnectService(
 mcp_gateway_service = MCPGatewayService(
     mcp_endpoints_dao=mcp_endpoints_dao,
     policy=gateway_policy_service,
-    resolver=secrets_resolver,
+    resolver=mcp_secrets_resolver,
     connections_service=connections_service,
     agenta_tools_router=tools,
     upstream_registry=MCPUpstreamRegistry(

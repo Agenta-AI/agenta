@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from oss.src.core.gateways.policy.dtos import (
+    SecretOwnerKind,
     GatewayOutcome,
     GatewayTarget,
     SecretMode,
@@ -26,6 +27,9 @@ class NamedProviderConnection(BaseModel):
 
     secret_id: UUID
     provider_key: str
+    # Whose row the slug names (M5): a project row, or an inherited organization row.
+    # Names only; the id reference built from it carries this kind.
+    owner_kind: SecretOwnerKind = SecretOwnerKind.PROJECT
 
 
 class SecretsResolverInterface(ABC):
@@ -68,7 +72,8 @@ class SecretsResolverInterface(ABC):
 
     @abstractmethod
     async def available_provider_keys(self, *, scope: AuthScope) -> Set[str]:
-        """Provider keys with a resolvable project-owned secret. Names only,
+        """Provider keys with a resolvable secret: the project's, and on the LLM plane
+        also the organization credentials it inherits (M5). Names only,
         never a value — an existence test that must not read a secret.
 
         Same scan as the ProviderKeyRef arm (provider_key + custom_provider),
