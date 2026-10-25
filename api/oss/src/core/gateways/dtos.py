@@ -143,8 +143,10 @@ def no_cookie_jar() -> CookieJar:
 _INJECTED_CREDENTIAL_HEADERS = frozenset({"authorization", "x-api-key", "api-key"})
 
 # Below this length a value is too short to identify anything, and scanning for it would
-# refuse responses over a coincidence.
-_MIN_SCANNED_CREDENTIAL_LENGTH = 8
+# refuse responses over a coincidence. Public because an organization credential must be
+# at least this long (after its surrounding whitespace is removed), so the scan covers
+# every organization value the gateway uses (M5).
+MIN_SCANNED_CREDENTIAL_LENGTH = 8
 
 
 def injected_credential_values(headers: Mapping[str, str]) -> Tuple[bytes, ...]:
@@ -159,7 +161,7 @@ def injected_credential_values(headers: Mapping[str, str]) -> Tuple[bytes, ...]:
             continue
         _, _, remainder = value.partition(" ")
         token = (remainder or value).strip()
-        if len(token) >= _MIN_SCANNED_CREDENTIAL_LENGTH:
+        if len(token) >= MIN_SCANNED_CREDENTIAL_LENGTH:
             values[token.encode()] = None
     return tuple(values)
 

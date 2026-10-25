@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Sequence
 from uuid import UUID, uuid4
 
 from pydantic import ValidationError
@@ -16,13 +16,22 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.secrets.enums import (
     STANDARD_PROVIDER_DISPLAY_NAMES,
     SUBSCRIPTION_PROVIDER_DISPLAY_NAMES,
+    INHERITABLE_KINDS,
+    LLMCustomProviderKind,
+    SecretAvailability,
     SecretKind,
     SecretOwnerKind,
     StandardProviderKind,
     SubscriptionProviderKind,
 )
+from oss.src.core.events.types import EventType
+from oss.src.core.events.utils import _build_event, _safe_publish
+from oss.src.core.gateways.dtos import MIN_SCANNED_CREDENTIAL_LENGTH
+from oss.src.core.gateways.llms.registrar import custom_provider_deployment_kind
+from oss.src.core.gateways.llms.types import LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS
 from oss.src.core.secrets.interfaces import (
     LLMEndpointRegistrarInterface,
+    ProjectLimitsInterface,
     SecretsDAOInterface,
 )
 from oss.src.core.secrets.context import set_data_encryption_key
@@ -32,6 +41,10 @@ from oss.src.core.secrets.redaction import (
     SECONDARY_CREDENTIAL_FIELDS,
 )
 from oss.src.core.secrets.types import (
+    OrganizationSecretKindNotInheritable,
+    OrganizationSecretNotServed,
+    OrganizationSecretValueTooShort,
+    ProjectLimitNotAllowed,
     ServerOwnedFieldNotWritable,
     SubscriptionProviderConflict,
 )
@@ -40,6 +53,7 @@ from oss.src.core.secrets.inheritance import (
     effective_secrets,
     inherited_secrets,
     inherits,
+    is_llm_provider_family,
 )
 from oss.src.core.secrets.dtos import (
     CachedEffectiveSecrets,
@@ -451,9 +465,13 @@ class VaultService:
         secrets_dao: SecretsDAOInterface,
         *,
         llm_endpoint_registrar: Optional[LLMEndpointRegistrarInterface] = None,
+        # Whether an organization may limit a credential to selected projects. None
+        # refuses every limit (workers and other roots that manage no credential).
+        project_limits: Optional[ProjectLimitsInterface] = None,
     ):
         self.secrets_dao = secrets_dao
         self.llm_endpoint_registrar = llm_endpoint_registrar
+        self.project_limits = project_limits
         self._data_encryption_key = env.agenta.crypt_key
 
     async def create_secret(
@@ -854,10 +872,11 @@ class VaultService:
         await invalidate_cache(project_id=str(project_id))
         clear_request_memo()
 
-    async def _invalidate_organization(self, *, organization_id: UUID) -> None:
+    async def _invalidate_organization(self, *, organization_id: UUID) -> List[UUID]:
         """After an organization-credential write commits: the `effective_secrets` entry
         of each project of the organization (exact keys, batched), then the memo. A
-        failure is logged and never fails the writer."""
+        failure is logged and never fails the writer. Returns the projects read."""
+        project_ids: List[UUID] = []
         try:
             project_ids = await self.secrets_dao.list_organization_project_ids(
                 organization_id=organization_id
@@ -879,6 +898,7 @@ class VaultService:
             )
         finally:
             clear_request_memo()
+        return project_ids
 
     async def update_secret(
         self,
@@ -1101,3 +1121,258 @@ class VaultService:
                 project_id=project_id,
                 secret_dto=stored_secret_dto,
             )
+
+    # -- organization credentials (M5) --------------------------------------------
+
+    def _check_organization_secret(self, *, secret: Any) -> None:
+        """The product rules of a shareable credential, on the payload as it will be
+        stored: an inheritable kind, an LLM family for a key, a deployment the gateway
+        serves, and values long enough for the gateway's echo scan.
+
+        Normalizes the credential values in place first (surrounding whitespace removed),
+        so the minimum applies to the value the gateway will send and scan."""
+        kind = secret.kind
+        if kind not in INHERITABLE_KINDS:
+            raise OrganizationSecretKindNotInheritable(kind=str(kind.value))
+        if kind == SecretKind.PROVIDER_KEY and not is_llm_provider_family(secret.data):
+            raise OrganizationSecretKindNotInheritable(kind=str(kind.value))
+        if kind == SecretKind.CUSTOM_PROVIDER:
+            deployment = custom_provider_deployment_kind(
+                LLMCustomProviderKind(_provider_family(secret.data))
+            )
+            if deployment not in LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS:
+                raise OrganizationSecretNotServed(deployment_kind=deployment.value)
+
+        provider = getattr(secret.data, "provider", None)
+        if provider is None:
+            return
+        values = []
+        key = getattr(provider, "key", None)
+        if isinstance(key, str):
+            provider.key = key.strip()
+            values.append(provider.key)
+        extras = getattr(provider, "extras", None)
+        if isinstance(extras, dict):
+            for extras_key in CREDENTIAL_EXTRAS_KEYS:
+                value = extras.get(extras_key)
+                if isinstance(value, str):
+                    extras[extras_key] = value.strip()
+                    values.append(extras[extras_key])
+        for value in values:
+            if len(value) < MIN_SCANNED_CREDENTIAL_LENGTH:
+                raise OrganizationSecretValueTooShort(
+                    min_length=MIN_SCANNED_CREDENTIAL_LENGTH
+                )
+
+    async def _check_project_limit(
+        self, *, organization_id: UUID, availability: SecretAvailability
+    ) -> None:
+        if availability != SecretAvailability.SELECTED_PROJECTS:
+            return
+        if self.project_limits is None or not (
+            await self.project_limits.allows_selected_projects(
+                organization_id=organization_id
+            )
+        ):
+            raise ProjectLimitNotAllowed()
+
+    async def _organization_written(
+        self,
+        *,
+        organization_id: UUID,
+        secret: Optional[SecretResponseDTO],
+        secret_id: UUID,
+        action: str,
+        user_id: Optional[UUID],
+    ) -> None:
+        """After the commit: invalidate every project entry of the organization, then
+        publish one audit event (ids and kinds only)."""
+        project_ids = await self._invalidate_organization(
+            organization_id=organization_id
+        )
+        if not project_ids:
+            return
+        attributes = {
+            "organization_id": str(organization_id),
+            "secret_id": str(secret_id),
+            "action": action,
+            "user_id": str(user_id) if user_id else None,
+        }
+        if secret is not None:
+            attributes["kind"] = secret.kind.value
+            attributes["availability"] = (
+                secret.availability.value if secret.availability else None
+            )
+            attributes["project_count"] = (
+                len(secret.selected_project_ids or [])
+                if secret.availability == SecretAvailability.SELECTED_PROJECTS
+                else len(project_ids)
+            )
+        try:
+            await _safe_publish(
+                organization_id=organization_id,
+                # The event store is keyed by project; the organization's event rides
+                # on its first project (the default one first), read for invalidation.
+                project_id=project_ids[0],
+                event=_build_event(
+                    event_type=EventType.ORGANIZATION_SECRETS_CHANGED,
+                    attributes={k: v for k, v in attributes.items() if v is not None},
+                ),
+            )
+        except Exception:  # noqa: BLE001 - audit must never fail the writer
+            log.warning(
+                "[secrets] organization credential event not published",
+                organization_id=str(organization_id),
+            )
+
+    async def list_organization_secrets(
+        self, *, organization_id: UUID
+    ) -> List[SecretResponseDTO]:
+        """Inheritable organization rows, read from Postgres (management route)."""
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            return await self.secrets_dao.list_organization_secrets(
+                organization_id=organization_id
+            )
+
+    async def fetch_organization_secret(
+        self, *, organization_id: UUID, secret_id: UUID
+    ) -> Optional[SecretResponseDTO]:
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            return await self.secrets_dao.fetch_organization_secret(
+                organization_id=organization_id, secret_id=secret_id
+            )
+
+    async def create_organization_secret(
+        self,
+        *,
+        organization_id: UUID,
+        create_secret_dto: CreateSecretDTO,
+        user_id: Optional[UUID],
+        availability: SecretAvailability = SecretAvailability.ALL_PROJECTS,
+        project_ids: Sequence[UUID] = (),
+    ) -> SecretResponseDTO:
+        reject_server_owned_fields(secret=create_secret_dto.secret)
+        self._check_organization_secret(secret=create_secret_dto.secret)
+        await self._check_project_limit(
+            organization_id=organization_id, availability=availability
+        )
+        # An organization credential is never readable back, whatever the caller asked.
+        create_secret_dto.write_only = True
+
+        if create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY:
+            await self._name_and_slug_provider_key(
+                owner=SecretOwner(kind=SecretOwnerKind.ORGANIZATION, id=organization_id),
+                create_secret_dto=create_secret_dto,
+            )
+        elif not create_secret_dto.slug and create_secret_dto.header.name:
+            create_secret_dto.slug = get_slug_from_name_and_id(
+                create_secret_dto.header.name,
+                uuid4(),
+            )
+
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            secret_dto = await self.secrets_dao.create_organization_secret(
+                organization_id=organization_id,
+                create_secret_dto=create_secret_dto,
+                availability=availability,
+                project_ids=list(project_ids),
+                user_id=user_id,
+            )
+
+        await self._organization_written(
+            organization_id=organization_id,
+            secret=secret_dto,
+            secret_id=secret_dto.id,
+            action="created",
+            user_id=user_id,
+        )
+        return secret_dto
+
+    async def update_organization_secret(
+        self,
+        *,
+        organization_id: UUID,
+        secret_id: UUID,
+        update_secret_dto: UpdateSecretDTO,
+        user_id: Optional[UUID],
+    ) -> Optional[SecretResponseDTO]:
+        reject_server_owned_fields(secret=update_secret_dto.secret)
+
+        def resolve_update(
+            stored_secret_dto: SecretResponseDTO,
+            requested_update: UpdateSecretDTO,
+        ) -> UpdateSecretDTO:
+            # Keep-on-omit under the row lock, then the rules on the merged payload.
+            merged = _merge_update(stored_secret_dto, requested_update)
+            if merged.secret is not None:
+                self._check_organization_secret(secret=merged.secret)
+            return merged
+
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            secret_dto = await self.secrets_dao.update_organization_secret(
+                organization_id=organization_id,
+                secret_id=secret_id,
+                update_secret_dto=update_secret_dto,
+                user_id=user_id,
+                resolve_update=resolve_update,
+            )
+
+        if secret_dto is not None:
+            await self._organization_written(
+                organization_id=organization_id,
+                secret=secret_dto,
+                secret_id=secret_id,
+                action="updated",
+                user_id=user_id,
+            )
+        return secret_dto
+
+    async def delete_organization_secret(
+        self,
+        *,
+        organization_id: UUID,
+        secret_id: UUID,
+        user_id: Optional[UUID] = None,
+    ) -> bool:
+        deleted = await self.secrets_dao.delete_organization_secret(
+            organization_id=organization_id, secret_id=secret_id
+        )
+        if deleted:
+            await self._organization_written(
+                organization_id=organization_id,
+                secret=None,
+                secret_id=secret_id,
+                action="deleted",
+                user_id=user_id,
+            )
+        return deleted
+
+    async def set_organization_secret_availability(
+        self,
+        *,
+        organization_id: UUID,
+        secret_id: UUID,
+        availability: SecretAvailability,
+        project_ids: Sequence[UUID],
+        user_id: Optional[UUID],
+    ) -> Optional[SecretResponseDTO]:
+        await self._check_project_limit(
+            organization_id=organization_id, availability=availability
+        )
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            secret_dto = await self.secrets_dao.set_organization_secret_availability(
+                organization_id=organization_id,
+                secret_id=secret_id,
+                availability=availability,
+                project_ids=list(project_ids),
+                user_id=user_id,
+            )
+        if secret_dto is not None:
+            await self._organization_written(
+                organization_id=organization_id,
+                secret=secret_dto,
+                secret_id=secret_id,
+                action="availability_changed",
+                user_id=user_id,
+            )
+        return secret_dto

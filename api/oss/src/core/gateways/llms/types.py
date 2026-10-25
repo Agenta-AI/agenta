@@ -3,6 +3,7 @@
 from typing import Optional
 
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.core.gateways.llms.dtos import LLMDeploymentKind
 from oss.src.core.gateways.types import GatewaysError
 
 
@@ -155,3 +156,20 @@ class LLMEndpointProviderMissingError(GatewaysError):
             f"LLM endpoint {namespace.value}/{name} has no provider, "
             "so no gateway route can be built for it."
         )
+
+
+# The deployment kinds the LLM gateway serves, written out rather than derived, so adding
+# or removing one is a deliberate edit (a test pins this set against the passthrough auth
+# table, `providers/passthrough/auth.py::_AUTH`). Bedrock is relayed to an endpoint whose
+# model ids differ from the ones people save, so agents on it take the vault path; SageMaker
+# has no fixed request protocol. An organization credential of an unserved deployment could
+# reach a run only in plaintext, so organizations cannot share one (M5).
+LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS = frozenset(
+    {
+        LLMDeploymentKind.DIRECT,
+        LLMDeploymentKind.CUSTOM,
+        LLMDeploymentKind.AZURE,
+        LLMDeploymentKind.VERTEX,
+        LLMDeploymentKind.MOCK,
+    }
+)

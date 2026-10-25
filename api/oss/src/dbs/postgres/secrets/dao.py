@@ -222,8 +222,10 @@ DELETE FROM secrets AS s WHERE s.id = CAST(:secret_id AS UUID) AND {_ORGANIZATIO
 RETURNING s.id
 """
 
+# The default project first: an organization event rides on it.
 _LIST_ORGANIZATION_PROJECT_IDS_SQL = (
-    "SELECT id FROM projects WHERE organization_id = CAST(:organization_id AS UUID)"
+    "SELECT id FROM projects WHERE organization_id = CAST(:organization_id AS UUID) "
+    "ORDER BY is_default DESC, created_at, id"
 )
 
 
