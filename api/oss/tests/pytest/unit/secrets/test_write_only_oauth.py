@@ -18,7 +18,10 @@ from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage
 from oss.src.core.secrets.dtos import CreateSecretDTO, SecretResponseDTO
 from oss.src.core.secrets.redaction import redact_secret_response
 from oss.src.core.secrets.services import VaultService
-from oss.tests.pytest.utils.organization_secrets import owner_scope
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 
 PROJECT_ID = uuid4()
@@ -32,6 +35,8 @@ CLIENT_SECRET = "synthetic-client-secret-000000000"
 
 class _FakeSecretsDAO:
     """In-memory DAO, same shape as `unit/secrets/test_write_only.py`'s."""
+
+    load_effective = load_effective_from_list
 
     def __init__(self):
         self.records: dict = {}

@@ -13,7 +13,10 @@ from oss.src.core.webhooks.types import (
     WebhookSubscriptionData,
     WebhookSubscriptionEdit,
 )
-from oss.tests.pytest.utils.organization_secrets import owner_scope
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 
 PROJECT_ID = uuid4()
@@ -21,6 +24,8 @@ USER_ID = uuid4()
 
 
 class _FakeSecretsDAO:
+    load_effective = load_effective_from_list
+
     def __init__(self):
         self.records: dict = {}
 

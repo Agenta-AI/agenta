@@ -21,7 +21,10 @@ from oss.src.dbs.postgres.secrets.mappings import (
     map_secrets_dbe_to_dto,
     map_secrets_dto_to_dbe,
 )
-from oss.tests.pytest.utils.organization_secrets import owner_scope
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 
 PROJECT_ID = uuid4()
@@ -43,6 +46,8 @@ def _management():
 
 
 class _DAO:
+    load_effective = load_effective_from_list
+
     def __init__(self):
         self.record = None
 

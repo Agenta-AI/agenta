@@ -425,3 +425,81 @@ class InMemorySecretsDAO:
     async def list_organization_project_ids(self, *, organization_id):
         self.calls.append("list_organization_project_ids")
         return [p for p, o in self.projects.items() if o == organization_id]
+
+
+class RecordingCacheEngine:
+    """An in-memory stand-in for the Redis cache engine behind `oss.src.utils.caching`.
+
+    Install it with `install_cache_engine(monkeypatch)`: the REAL `get_cache`, `set_cache`
+    and `invalidate_cache` then run on it, so the lock path and every command are counted
+    (`commands`: "GET", "SET NX", "SET", "DEL", "SCAN"). `fail=True` makes every command
+    raise, like a Redis that is down.
+    """
+
+    def __init__(self, *, fail: bool = False):
+        self.store: Dict[str, bytes] = {}
+        self.commands: List[str] = []
+        self.fail = fail
+
+    @staticmethod
+    def _name(name) -> str:
+        return name.decode() if isinstance(name, (bytes, bytearray)) else str(name)
+
+    def _record(self, command: str) -> None:
+        self.commands.append(command)
+        if self.fail:
+            raise ConnectionError("redis is down (test)")
+
+    async def get(self, name):
+        self._record("GET")
+        return self.store.get(self._name(name))
+
+    async def set(self, name, value, nx: bool = False, px=None, **_):
+        self._record("SET NX" if nx else "SET")
+        name = self._name(name)
+        if nx and name in self.store:
+            return None
+        self.store[name] = value if isinstance(value, bytes) else str(value).encode()
+        return True
+
+    async def delete(self, *names):
+        self._record("DEL")
+        count = 0
+        for name in names:
+            count += self.store.pop(self._name(name), None) is not None
+        return count
+
+    async def scan(self, cursor=0, match=None, count=None):
+        from fnmatch import fnmatchcase
+
+        self._record("SCAN")
+        return 0, [k for k in self.store if match is None or fnmatchcase(k, match)]
+
+    async def expire(self, name, ttl):
+        self._record("EXPIRE")
+        return True
+
+    async def mget(self, names):
+        self._record("MGET")
+        return [self.store.get(self._name(n)) for n in names]
+
+
+def install_cache_engine(monkeypatch, *, fail: bool = False) -> RecordingCacheEngine:
+    """Run the real cache helpers on a `RecordingCacheEngine`, with no early leak."""
+    from oss.src.utils import caching
+    from oss.src.utils.env import env
+
+    engine = RecordingCacheEngine(fail=fail)
+    monkeypatch.setattr(env.agenta.api.caching, "enabled", True)
+    monkeypatch.setattr(caching, "_cache_engine", engine)
+    monkeypatch.setattr(caching, "random", lambda: 0.99)
+    return engine
+
+
+async def load_effective_from_list(self, *, project_id):
+    """`load_effective` for the older in-memory fakes: the project's rows from the fake's
+    own `list`, no organization (so nothing is inherited)."""
+    secrets = await self.list(
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=project_id)
+    )
+    return CachedEffectiveSecrets(project_id=project_id, secrets=list(secrets or []))

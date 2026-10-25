@@ -25,7 +25,10 @@ from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClien
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT
 from oss.tests.pytest.utils.principals import envelope_for_claims
-from oss.tests.pytest.utils.organization_secrets import owner_scope
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 
 def _vault_router(vault_service: VaultService) -> VaultRouter:
@@ -48,6 +51,8 @@ KEY = "sk-test-openai-secret"
 
 
 class _FakeSecretsDAO:
+    load_effective = load_effective_from_list
+
     def __init__(self):
         self.records: dict = {}
 

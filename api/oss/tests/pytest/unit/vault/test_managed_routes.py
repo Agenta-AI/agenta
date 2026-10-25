@@ -12,7 +12,10 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
-from oss.tests.pytest.utils.organization_secrets import owner_scope
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 
 def _vault_router(vault_service: VaultService) -> VaultRouter:
@@ -32,6 +35,8 @@ USER_ID = str(uuid4())
 
 
 class _DAO:
+    load_effective = load_effective_from_list
+
     def __init__(self):
         self.record = SecretResponseDTO(
             id=uuid4(),

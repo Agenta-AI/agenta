@@ -27,7 +27,10 @@ from oss.tests.pytest.utils.deployment import (  # noqa: F401
     deployment_databases,
     the_deployment_under_test,
 )
-from oss.tests.pytest.utils.organization_secrets import owner_scope
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 # example.com: routable and in no blocked range.
 _PUBLIC_ADDRESS = "93.184.216.34"
@@ -237,6 +240,8 @@ def local_mcp_oauth_provider() -> LocalMCPOAuthProvider:
 
 class _InMemorySecretsDAO:
     """The narrow SecretsDAO shape exercised by the OAuth storage adapter."""
+
+    load_effective = load_effective_from_list
 
     def __init__(self) -> None:
         self.records: list[tuple[UUID, SecretResponseDTO]] = []

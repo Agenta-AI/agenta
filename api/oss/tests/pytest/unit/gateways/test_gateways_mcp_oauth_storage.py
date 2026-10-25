@@ -32,12 +32,17 @@ from oss.src.core.secrets.dtos import (
 from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.shared.dtos import Header
-from oss.tests.pytest.utils.organization_secrets import owner_scope
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.secrets.enums import SecretOwnerKind
 
 
 class _FakeSecretsDAO:
+    load_effective = load_effective_from_list
+
     def __init__(self) -> None:
         self.records: List[Tuple[UUID, SecretResponseDTO]] = []
         self.create_calls = 0

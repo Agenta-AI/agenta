@@ -15,7 +15,10 @@ from oss.src.core.secrets.enums import (
     SubscriptionProviderKind,
 )
 from oss.src.core.secrets.services import VaultService, next_provider_key_name
-from oss.tests.pytest.utils.organization_secrets import owner_scope
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 
 PROJECT_ID = uuid4()
@@ -28,6 +31,8 @@ class _FakeSecretsDAO:
     Records carry their scope and every read filters on it, like the real DAO — otherwise a
     test could see provider numbering or saved policy cross a project boundary.
     """
+
+    load_effective = load_effective_from_list
 
     def __init__(self):
         self.records: list[tuple[tuple, SecretResponseDTO]] = []

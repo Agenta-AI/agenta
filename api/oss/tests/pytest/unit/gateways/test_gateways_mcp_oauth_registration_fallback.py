@@ -29,7 +29,10 @@ from oss.tests.pytest.utils.mcp_endpoints import InMemoryMCPEndpoints
 from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
 from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO, SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
-from oss.tests.pytest.utils.organization_secrets import owner_scope
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 _API_URL = "https://api.agenta.ai"
 _SERVER_URL = "https://mcp.acme.io/"
@@ -50,6 +53,8 @@ _AS_METADATA = {
 
 
 class _FakeSecretsDAO:
+    load_effective = load_effective_from_list
+
     def __init__(self) -> None:
         self.records: List[Tuple[UUID, SecretResponseDTO]] = []
 

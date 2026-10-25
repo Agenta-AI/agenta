@@ -1,10 +1,16 @@
-from typing import Any, Callable, Optional
+from typing import Any, Callable, List, Optional
 from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
 from oss.src.utils.env import env
-from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
+from oss.src.core.access.context import clear_request_memo, get_request_memo
+from oss.src.utils.caching import (
+    get_cache,
+    invalidate_cache,
+    invalidate_cache_entries,
+    set_cache,
+)
 from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.secrets.enums import (
@@ -29,7 +35,14 @@ from oss.src.core.secrets.types import (
     ServerOwnedFieldNotWritable,
     SubscriptionProviderConflict,
 )
+from oss.src.core.secrets.inheritance import (
+    InheritedSecret,
+    effective_secrets,
+    inherited_secrets,
+    inherits,
+)
 from oss.src.core.secrets.dtos import (
+    CachedEffectiveSecrets,
     CreateSecretDTO,
     SecretOwner,
     subscription_provider_slug,
@@ -48,6 +61,13 @@ from oss.src.core.secrets.managed import (
 
 
 log = get_module_logger(__name__)
+
+# One cache entry per project: its rows, its row's organization, and the inheritable
+# organization rows available to it. Keyed on the FULL project id (`_pack` keeps only 12
+# characters of the project slot), in the project slot so project-wide invalidation clears
+# it, from old pods too.
+_EFFECTIVE_NAMESPACE = "effective_secrets"
+_EFFECTIVE_MEMO = "secrets_effective"
 
 
 def _owner_of(
@@ -526,7 +546,7 @@ class VaultService:
             )
 
         if project_id is not None:
-            await invalidate_cache(project_id=str(project_id))
+            await self._invalidate_project(project_id)
 
         await self._register_llm_endpoint(
             project_id=project_id,
@@ -710,30 +730,155 @@ class VaultService:
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
     ):
+        """The project's own rows (project_id), or an organization's rows of any kind
+        (organization_id, uncached, EE SSO).
+
+        A project read is the `effective_secrets` entry's project rows: the same one cache
+        read, filled by the same one statement, as before M5. It never carries inherited
+        rows, so every plaintext reader sees project rows only."""
         if project_id is not None:
-            secrets_dtos = await get_cache(
-                namespace="list_secrets",
-                project_id=str(project_id),
-                key={},
-                model=SecretResponseDTO,
-                is_list=True,
-            )
-            if secrets_dtos is not None:
-                return secrets_dtos
+            entry = await self._effective_entry(project_id=project_id)
+            return list(entry.secrets)
 
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
-            secrets_dtos = await self.secrets_dao.list(
+            return await self.secrets_dao.list(
                 owner=_owner_of(project_id=project_id, organization_id=organization_id)
             )
 
-        if project_id is not None:
-            await set_cache(
-                namespace="list_secrets",
+    # -- the effective set (M5) ---------------------------------------------------
+
+    async def _effective_entry(self, *, project_id: UUID) -> CachedEffectiveSecrets:
+        """The project's one cache entry, read through today's `get_cache` path.
+
+        Warm: one GET. Cold: the lock path and ONE `load_effective` statement. The entry
+        stays in the request memo for the rest of the request. A cached value whose
+        project id differs is a miss."""
+        memo = get_request_memo()
+        memo_key = (_EFFECTIVE_MEMO, project_id)
+        if memo is not None and memo_key in memo:
+            return memo[memo_key]
+
+        cache_key = {"p": str(project_id)}
+        entry = await get_cache(
+            namespace=_EFFECTIVE_NAMESPACE,
+            project_id=str(project_id),
+            key=cache_key,
+            model=CachedEffectiveSecrets,
+        )
+        if entry is not None and entry.project_id != project_id:
+            log.warning(
+                "[secrets] effective entry of another project ignored",
                 project_id=str(project_id),
-                key={},
-                value=secrets_dtos,
+                entry_project_id=str(entry.project_id),
             )
-        return secrets_dtos
+            entry = None
+
+        if entry is None:
+            with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+                entry = await self.secrets_dao.load_effective(project_id=project_id)
+            await set_cache(
+                namespace=_EFFECTIVE_NAMESPACE,
+                project_id=str(project_id),
+                key=cache_key,
+                value=entry,
+            )
+
+        if memo is not None:
+            memo[memo_key] = entry
+        return entry
+
+    def _inherits(
+        self, *, entry: CachedEffectiveSecrets, organization_id: Optional[UUID]
+    ) -> bool:
+        if inherits(entry=entry, organization_id=organization_id):
+            return True
+        if entry.inherited and entry.organization_id is not None:
+            log.warning(
+                "[secrets] organization mismatch",
+                project_id=str(entry.project_id),
+                project_organization_id=str(entry.organization_id),
+                request_organization_id=str(organization_id),
+            )
+        return False
+
+    async def list_effective_secrets(
+        self, *, organization_id: UUID, project_id: UUID
+    ) -> List[SecretResponseDTO]:
+        """Project rows, then available inherited rows whose slug no project row uses.
+        In-process readers only (the LLM gateway); never an HTTP response."""
+        entry = await self._effective_entry(project_id=project_id)
+        if not self._inherits(entry=entry, organization_id=organization_id):
+            return list(entry.secrets)
+        return effective_secrets(entry=entry, organization_id=organization_id)
+
+    async def get_effective_secret_by_slug(
+        self, *, organization_id: UUID, project_id: UUID, slug: str
+    ) -> Optional[SecretResponseDTO]:
+        secrets = await self.list_effective_secrets(
+            organization_id=organization_id, project_id=project_id
+        )
+        return next((secret for secret in secrets if secret.slug == slug), None)
+
+    async def get_effective_secret_by_id(
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        secret_id: UUID,
+        owner_kind: SecretOwnerKind,
+    ) -> Optional[SecretResponseDTO]:
+        """A project reference: today's project-scoped read by id. An organization
+        reference: only an inherited row available to the project. Never a substitute."""
+        if owner_kind == SecretOwnerKind.PROJECT:
+            return await self.get_secret_by_id(secret_id, project_id=project_id)
+        if owner_kind != SecretOwnerKind.ORGANIZATION:
+            return None
+        entry = await self._effective_entry(project_id=project_id)
+        if not self._inherits(entry=entry, organization_id=organization_id):
+            return None
+        return next(
+            (secret for secret in entry.inherited if secret.id == secret_id), None
+        )
+
+    async def list_inherited_secrets(
+        self, *, organization_id: UUID, project_id: UUID
+    ) -> List[InheritedSecret]:
+        entry = await self._effective_entry(project_id=project_id)
+        if not self._inherits(entry=entry, organization_id=organization_id):
+            return []
+        return inherited_secrets(entry=entry, organization_id=organization_id)
+
+    async def _invalidate_project(self, project_id: UUID) -> None:
+        """Every cache entry of the project (old pods' namespaces included), then the
+        request memo, so a later read in this request sees the write."""
+        await invalidate_cache(project_id=str(project_id))
+        clear_request_memo()
+
+    async def _invalidate_organization(self, *, organization_id: UUID) -> None:
+        """After an organization-credential write commits: the `effective_secrets` entry
+        of each project of the organization (exact keys, batched), then the memo. A
+        failure is logged and never fails the writer."""
+        try:
+            project_ids = await self.secrets_dao.list_organization_project_ids(
+                organization_id=organization_id
+            )
+            await invalidate_cache_entries(
+                [
+                    {
+                        "namespace": _EFFECTIVE_NAMESPACE,
+                        "project_id": str(project_id),
+                        "key": {"p": str(project_id)},
+                    }
+                    for project_id in project_ids
+                ]
+            )
+        except Exception:  # noqa: BLE001 - see the docstring
+            log.warning(
+                "[secrets] cache invalidation failed",
+                organization_id=str(organization_id),
+            )
+        finally:
+            clear_request_memo()
 
     async def update_secret(
         self,
@@ -773,7 +918,7 @@ class VaultService:
             )
 
         if project_id is not None:
-            await invalidate_cache(project_id=str(project_id))
+            await self._invalidate_project(project_id)
 
         # An update that moves a row off `custom_provider` leaves the endpoint registered
         # for it behind, because registration returns early for every other kind and
@@ -840,7 +985,7 @@ class VaultService:
             )
 
         if changed and project_id is not None:
-            await invalidate_cache(project_id=str(project_id))
+            await self._invalidate_project(project_id)
         return secret_dto
 
     async def update_managed_secret(
@@ -868,7 +1013,7 @@ class VaultService:
             )
 
         if project_id is not None:
-            await invalidate_cache(project_id=str(project_id))
+            await self._invalidate_project(project_id)
 
         # Keep the gateway endpoint in step, as `update_secret` does: a model the manager
         # re-pointed must reach the endpoint's allowlist too.
@@ -908,7 +1053,7 @@ class VaultService:
             )
 
         if project_id is not None:
-            await invalidate_cache(project_id=str(project_id))
+            await self._invalidate_project(project_id)
 
         for stored_secret_dto in deleted:
             await self._deregister_llm_endpoint(
@@ -923,7 +1068,7 @@ class VaultService:
         reader that finds the cached list disagrees with the stored row needs the same door,
         rather than reaching for the cache helper itself.
         """
-        await invalidate_cache(project_id=str(project_id))
+        await self._invalidate_project(project_id)
 
     async def delete_secret(
         self,
@@ -949,7 +1094,7 @@ class VaultService:
             )
 
         if project_id is not None:
-            await invalidate_cache(project_id=str(project_id))
+            await self._invalidate_project(project_id)
 
         for stored_secret_dto in deleted:
             await self._deregister_llm_endpoint(

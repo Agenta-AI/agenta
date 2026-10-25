@@ -14,6 +14,7 @@ from agenta.sdk.agents.connections.credentials import secret_value_configured
 
 import oss.src.core.secrets.services as secrets_services_module
 from oss.src.core.secrets.dtos import (
+    CachedEffectiveSecrets,
     CreateSecretDTO,
     SecretResponseDTO,
     SecretValueRequiredError,
@@ -29,7 +30,10 @@ from oss.src.dbs.postgres.secrets.mappings import (
     map_secrets_dto_to_dbe,
     map_secrets_dto_to_dbe_update,
 )
-from oss.tests.pytest.utils.organization_secrets import owner_scope
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 
 PROJECT_ID = uuid4()
@@ -37,6 +41,8 @@ PROJECT_ID = uuid4()
 
 class _FakeSecretsDAO:
     """In-memory DAO: stores what the service hands it, like the real mapping would."""
+
+    load_effective = load_effective_from_list
 
     def __init__(self):
         self.records: dict = {}
@@ -183,18 +189,19 @@ async def test_project_list_cache_stores_the_canonical_plaintext_dto(
         return await original_list(*args, **kwargs)
 
     async def fake_get_cache(**kwargs):
-        assert kwargs["namespace"] == "list_secrets"
+        # One entry per project (M5): the full project id in the key, the project's rows
+        # inside, and the real cached model.
+        assert kwargs["namespace"] == "effective_secrets"
         assert kwargs["project_id"] == str(PROJECT_ID)
-        assert kwargs["key"] == {}
-        assert kwargs["model"] is SecretResponseDTO
-        assert kwargs["is_list"] is True
+        assert kwargs["key"] == {"p": str(PROJECT_ID)}
+        assert kwargs["model"] is CachedEffectiveSecrets
         return cached
 
     async def fake_set_cache(**kwargs):
         nonlocal cached
-        assert kwargs["namespace"] == "list_secrets"
+        assert kwargs["namespace"] == "effective_secrets"
         assert kwargs["project_id"] == str(PROJECT_ID)
-        assert kwargs["key"] == {}
+        assert kwargs["key"] == {"p": str(PROJECT_ID)}
         cached = kwargs["value"]
         return True
 
@@ -211,7 +218,7 @@ async def test_project_list_cache_stores_the_canonical_plaintext_dto(
 
     assert dao_calls == 1
     assert first == second
-    assert cached[0].data.provider.key == "sk-test-openai-key-bc"
+    assert cached.secrets[0].data.provider.key == "sk-test-openai-key-bc"
 
 
 @pytest.mark.asyncio

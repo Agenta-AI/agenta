@@ -23,7 +23,10 @@ from oss.src.core.secrets.managed import (
 )
 from oss.src.core.secrets.redaction import redact_secret_response
 from oss.src.core.secrets.services import VaultService
-from oss.tests.pytest.utils.organization_secrets import owner_scope
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 
 PROJECT_ID = uuid4()
@@ -36,6 +39,8 @@ BASE_URL = "https://93.184.216.34/v1"
 class _FakeSecretsDAO:
     """Enough of the postgres DAO to exercise create, update and delete, including the two
     callbacks the real DAO invokes under its write lock."""
+
+    load_effective = load_effective_from_list
 
     def __init__(self):
         self.records: list[SecretResponseDTO] = []
