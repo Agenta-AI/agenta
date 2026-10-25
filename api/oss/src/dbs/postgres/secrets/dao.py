@@ -30,7 +30,6 @@ from sqlalchemy import (
     bindparam,
     cast,
     column,
-    exists,
     func,
     or_,
     select,
@@ -254,10 +253,16 @@ def _inherited_identity_column():
             o.kind.in_(sorted(INHERITABLE_KINDS)),
             or_(
                 o.availability == SecretAvailability.ALL_PROJECTS.value,
-                exists().where(
+                # Correlated explicitly: auto-correlation does not reach the outermost
+                # `secrets` through the scalar subquery, and an uncorrelated EXISTS
+                # would treat every limited row as available.
+                select(SecretProjectDBE.secret_id)
+                .where(
                     SecretProjectDBE.secret_id == o.id,
                     SecretProjectDBE.project_id == SecretsDBE.project_id,
-                ),
+                )
+                .correlate_except(SecretProjectDBE)
+                .exists(),
             ),
         )
         .limit(1)

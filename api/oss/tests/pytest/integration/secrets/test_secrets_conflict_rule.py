@@ -340,3 +340,34 @@ async def test_a_derived_slug_collision_is_refused_in_the_one_insert(org, monkey
             )
     assert len(statements) == 1
     assert await _pairs(org) == []
+
+
+async def test_a_limited_organization_row_only_constrains_the_projects_it_reaches(org):
+    """The shadow check of the user update reads availability per project: an
+    organization row limited to Sales never blocks a Marketing row with its slug."""
+    slug = _slug()
+    sales, marketing = org.project_ids
+    await _org_row(
+        org, slug, availability=SecretAvailability.SELECTED_PROJECTS, projects=[sales]
+    )
+    vault = VaultService(SecretsDAO())
+    mine = await vault.create_secret(
+        project_id=marketing, create_secret_dto=_create(slug=slug, family="anthropic")
+    )
+    changed = await vault.update_secret(
+        secret_id=mine.id,
+        project_id=marketing,
+        update_secret_dto=UpdateSecretDTO.model_validate(
+            {
+                "secret": {
+                    "kind": "provider_key",
+                    "data": {
+                        "kind": "mistral",
+                        "provider": {"key": "sk-mis-123456789"},
+                    },
+                }
+            }
+        ),
+    )
+    assert str(changed.data.kind.value) == "mistral"
+    assert await _pairs(org) == []
