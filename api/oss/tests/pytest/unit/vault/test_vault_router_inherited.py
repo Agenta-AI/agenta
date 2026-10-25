@@ -159,9 +159,26 @@ async def test_project_routes_answer_404_for_an_organization_id_and_slug(world):
         ).status_code
         == 404
     )
-    assert client.delete(f"/secrets/{inherited.id}").status_code == 404
     assert inherited.id in world["dao"].records
     assert world["dao"].records[inherited.id].header.name == "OpenAI"
+
+
+async def test_project_delete_of_an_organization_id_or_unknown_id_answers_204_and_changes_nothing(
+    world,
+):
+    inherited = await _org(world, slug="openai-company")
+    client = world["client"]
+    before = {
+        secret_id: record.model_dump(mode="json")
+        for secret_id, record in world["dao"].records.items()
+    }
+    assert client.delete(f"/secrets/{inherited.id}").status_code == 204
+    assert client.delete(f"/secrets/{uuid4()}").status_code == 204
+    after = {
+        secret_id: record.model_dump(mode="json")
+        for secret_id, record in world["dao"].records.items()
+    }
+    assert after == before
 
 
 async def test_post_with_an_inherited_slug_and_another_kind_answers_409(world):

@@ -395,7 +395,7 @@ Every route calls `decide_organization(access=get_request_access(), organization
 | `GET /secrets/{id_or_slug}` | Project rows only (unchanged lookup). An organization id or slug answers 404. |
 | `POST /secrets/` | Project row. NEW 409 `SecretShadowConflict` for an explicit slug that shadows an inherited row with another kind or family. |
 | `PUT /secrets/{id}` | Project row. NEW 409 for a kind or family change of a row that shadows an inherited slug. An organization id answers 404. |
-| `DELETE /secrets/{id}` | Project row. An organization id answers 404 and the row stays. |
+| `DELETE /secrets/{id}` | Project row. An organization id answers 204, as an unknown id does today, and the row stays. |
 | Subscription routes | Unchanged. Subscription kinds are never inheritable. |
 
 The response model of `GET /secrets/` becomes a discriminated union on `owner.kind`. The Fern client is regenerated from an EE spec served over HTTP .
@@ -454,7 +454,7 @@ These points were settled while the backend was built. They extend the sections 
 - Organization credential values that the gateway puts in a header (the primary `key` and every credential extras value except the `vertex_ai_credentials` document) are stripped of surrounding whitespace, must be at least 8 characters long, and may hold only printable ASCII characters that JSON encoders do not escape. A value with a quote, a backslash, `<`, `>`, `&`, a space or a non-ASCII character is refused with 422 ("This credential holds characters that cannot be shared. Use letters, digits and common symbols only."). A non-text extras value is refused too.
 - The relay scans every organization value in its raw spelling and in the spellings JSON encoders produce (quotes and backslashes escaped, `\uXXXX` for non-ASCII, Go's escapes of `<`, `>`, `&`, U+2028 and U+2029, and `\/`). An upstream that escapes plain ASCII characters on purpose is not detected by any substring scan; project secrets have the same limit.
 - A non-streaming echo refusal reaches the caller as the existing generic upstream failure (424, `upstream_error`). The value never reaches the caller.
-- `DELETE /secrets/{id}` answers 404 when the id is not a row of the project, an organization credential's id included. Before this change, a delete of an unknown id answered 204.
+- `DELETE /secrets/{id}` keeps today's answer: an id that is not a row of the project, an organization credential's id included, answers 204 and changes nothing. The answer does not tell a project caller that an organization row exists. Only the organization routes delete organization rows.
 - `GET /secrets/?include_inherited=true` returns `PublicInheritedSecretResponseDTO` items (defined in `core/secrets/dtos.py`) after the project rows.
 - `LLMEndpointsDAOInterface.fetch_custom_target_by_slug` has a default that reads the endpoint row only, for stores without organization credentials. The Postgres DAO answers both parts in one statement.
 - A `SERIALIZABLE` secrets write is tried up to six times with a short, growing random wait, then answers 409 (`SecretWriteConflict`). Postgres tracks serializable reads by index page, so concurrent organization writes in different organizations can abort each other without a real conflict, and the retries absorb that.

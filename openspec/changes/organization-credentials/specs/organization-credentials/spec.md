@@ -73,7 +73,7 @@ No HTTP response SHALL carry the value of an organization credential, or a part 
 
 #### Scenario: Project editor deletes an inherited row
 - **WHEN** a project editor calls `DELETE /secrets/{id}` with the id of an organization credential
-- **THEN** Agenta SHALL return HTTP 404, and the row SHALL stay.
+- **THEN** Agenta SHALL return HTTP 204, as it does today for any id that is not a row of the project, and SHALL change no row.
 
 #### Scenario: Mismatched override
 - **WHEN** a project creates a `custom_provider` with the slug of an inherited `provider_key`

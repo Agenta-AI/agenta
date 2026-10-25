@@ -500,7 +500,10 @@ class VaultRouter:
             )
 
         try:
-            deleted = await self.service.delete_secret(
+            # Project rows only: an id that is not a row of this project (an organization
+            # credential's id included) deletes nothing and still answers 204, so the
+            # answer never tells a project caller that an organization row exists.
+            await self.service.delete_secret(
                 project_id=UUID(request.state.project_id),
                 secret_id=UUID(secret_id),
             )
@@ -508,12 +511,6 @@ class VaultRouter:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=e.message
             ) from e
-        if not deleted:
-            # Project rows only: an organization credential's id (or any id that is not a
-            # row of this project) is not found here, and nothing is deleted (M5).
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
-            )
         return status.HTTP_204_NO_CONTENT
 
     async def _require(self, request: Request, *permissions: Permission) -> None:

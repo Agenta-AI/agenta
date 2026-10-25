@@ -126,8 +126,10 @@ def test_no_route_returns_an_organization_value(org, company):
 
 def test_project_routes_do_not_touch_organization_rows(org, company):
     for who in ("editor", "admin", "owner"):
+        # Status quo: a project delete of an id that is not a project row answers 204
+        # and deletes nothing (the row is checked below).
         assert (
-            org.call("DELETE", f"/secrets/{company['id']}", as_=who).status_code == 404
+            org.call("DELETE", f"/secrets/{company['id']}", as_=who).status_code == 204
         )
         assert (
             org.call(
