@@ -10,6 +10,12 @@ from uuid import uuid4
 
 import pytest
 
+pytestmark = [
+    pytest.mark.acceptance,
+    pytest.mark.integration,
+    pytest.mark.xdist_group("sharing_hidden_references"),
+]
+
 
 def _private_agent_revision(alice):
     slug = f"m3-embed-{uuid4().hex[:12]}"

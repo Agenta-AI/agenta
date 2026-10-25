@@ -10,6 +10,12 @@ from uuid import uuid4
 
 import pytest
 
+pytestmark = [
+    pytest.mark.acceptance,
+    pytest.mark.integration,
+    pytest.mark.xdist_group("sharing_list_parity"),
+]
+
 
 def _new_session(caller, *, visibility, name):
     session_id = f"m3-parity-{uuid4().hex[:16]}"

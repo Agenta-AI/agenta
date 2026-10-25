@@ -300,7 +300,10 @@ async def test_child_run_is_admitted_and_invokes_the_admitted_request():
     assert admitted["boundary"] == "child_run"
     assert admitted["session_id"] is None
     assert str(admitted["project_id"]) == request.state.project_id
-    # The child runs as its parent: same principal, origin child.
+    # The child runs as its parent: same principal and sender, origin child.
+    parent = request.state.run_envelope
+    assert admitted["envelope"].authority == parent.authority
+    assert admitted["envelope"].sender == parent.sender
     assert admitted["envelope"].context.origin.value == "child"
     assert workflows.calls[0]["request"] is admitted["request"]
 
