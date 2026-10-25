@@ -344,3 +344,63 @@ async def test_signup_on_lookalike_domain_is_not_blocked(
     assert await overrides._create_account(email, "uid") is True
 
     create_accounts.assert_awaited_once()
+
+
+def _block_only_emails(monkeypatch, blocked_emails):
+    monkeypatch.setattr(
+        auth_helper,
+        "get_blocked_emails",
+        AsyncMock(return_value=set(blocked_emails)),
+    )
+    monkeypatch.setattr(
+        auth_helper,
+        "get_allowed_domains",
+        AsyncMock(return_value=set()),
+    )
+    monkeypatch.setattr(
+        auth_helper,
+        "get_blocked_domains",
+        AsyncMock(return_value=set()),
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "fa.rmer.one@gmail.com",
+        "farmer.o.ne@gmail.com",
+        "farmerone+x@gmail.com",
+        "Farmer.One+promo@googlemail.com",
+    ],
+)
+async def test_is_auth_info_blocked_matches_gmail_variants(monkeypatch, variant):
+    _block_only_emails(monkeypatch, {"f.armer.one@gmail.com"})
+
+    assert await auth_helper.is_auth_info_blocked(auth_helper.parse_auth_info(variant))
+
+
+@pytest.mark.asyncio
+async def test_is_auth_info_blocked_matches_a_blocked_plus_tag_entry(monkeypatch):
+    _block_only_emails(monkeypatch, {"farmerone+old@gmail.com"})
+
+    assert await auth_helper.is_auth_info_blocked(
+        auth_helper.parse_auth_info("farmer.one@gmail.com")
+    )
+
+
+@pytest.mark.asyncio
+async def test_is_auth_info_blocked_matches_exactly_outside_gmail(monkeypatch):
+    _block_only_emails(monkeypatch, {"first.last@acme.test", "sales+eu@acme.test"})
+
+    assert await auth_helper.is_auth_info_blocked(
+        auth_helper.parse_auth_info("First.Last@acme.test")
+    )
+    for other_mailbox in (
+        "firstlast@acme.test",
+        "first.last+tag@acme.test",
+        "sales@acme.test",
+    ):
+        assert not await auth_helper.is_auth_info_blocked(
+            auth_helper.parse_auth_info(other_mailbox)
+        )
