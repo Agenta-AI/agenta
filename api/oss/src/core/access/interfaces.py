@@ -10,6 +10,7 @@ from oss.src.core.access.dtos import (
     PrincipalRecord,
     PrincipalRef,
     ResourceRef,
+    RunContext,
     ScopePrincipals,
     UserPrincipals,
 )
@@ -36,6 +37,7 @@ class ResourcePolicyInterface(ABC):
         action: Action,
         project_id: UUID,
         resource: ResourceRef,
+        context: Optional[RunContext] = None,
     ) -> Optional[DecisionReason]: ...
 
     def prefetch(self, *, project_id: UUID, resource: ResourceRef) -> None:

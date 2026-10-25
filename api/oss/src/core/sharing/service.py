@@ -25,6 +25,7 @@ from oss.src.core.access.dtos import (
     RequestAccess,
     ResourceKind,
     ResourceRef,
+    RunContext,
     RunOrigin,
 )
 from oss.src.core.access.interfaces import (
@@ -118,6 +119,9 @@ def session_was_missing(*, project_id: UUID, session_id: str) -> bool:
 
 # The origins where a turn's sender owns what the turn creates.
 _SENDER_OWNS_ORIGINS = (RunOrigin.WEB, RunOrigin.API)
+# A person's runs that the server starts, never the person sending: they create their
+# session without an owner (CONTRACT section 7) and still run in it (rule S2).
+_SERVER_RUN_ORIGINS = (RunOrigin.SUBSCRIPTION, RunOrigin.CHILD, RunOrigin.EVALUATION)
 # The origins where a human principal owns what it creates without a sender.
 _HUMAN_OWNS_ORIGINS = (RunOrigin.WEB, RunOrigin.SCHEDULE)
 
@@ -150,6 +154,7 @@ class SharingService(ResourcePolicyInterface):
         action: Action,
         project_id: UUID,
         resource: ResourceRef,
+        context: Optional[RunContext] = None,
     ) -> Optional[DecisionReason]:
         """The resource rules A1, A2, S1 to S4 (interfaces 3.1). None allows,
         `RESOURCE_DENIED` denies. Another resource kind, a session action outside the
@@ -166,6 +171,7 @@ class SharingService(ResourcePolicyInterface):
                 action=action,
                 project_id=project_id,
                 session_id=resource.id,
+                context=context,
             )
         return None
 
@@ -202,6 +208,7 @@ class SharingService(ResourcePolicyInterface):
         action: Action,
         project_id: UUID,
         session_id: str,
+        context: Optional[RunContext] = None,
     ) -> Optional[DecisionReason]:
         if not isinstance(action, Permission) or action not in (
             _SESSION_READ_ACTIONS | {Permission.RUN_SESSIONS, Permission.EDIT_SESSIONS}
@@ -250,9 +257,14 @@ class SharingService(ResourcePolicyInterface):
 
         elif action == Permission.RUN_SESSIONS:
             if owner is None:
-                # S2 for non-humans, S3 for humans: humans only read ownerless
-                # sessions.
-                allowed = principal.kind != PrincipalKind.HUMAN
+                # S2 for non-humans, S3 for humans: a person only reads an ownerless
+                # session. A person's server run (an event subscription, a child run,
+                # an evaluation run) is no person sending: it creates its ownerless
+                # session (CONTRACT section 7) and runs in it with its signed run
+                # context, so it runs like any other non-human principal.
+                allowed = principal.kind != PrincipalKind.HUMAN or (
+                    context is not None and context.origin in _SERVER_RUN_ORIGINS
+                )
             else:
                 # S2: the active owner or a participant.
                 allowed = (

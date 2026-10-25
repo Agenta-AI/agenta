@@ -121,14 +121,17 @@ class AccessService:
         #
         project_id: Optional[UUID] = None,
         resource: Optional[ResourceRef] = None,
+        context: Optional[RunContext] = None,
     ) -> Decision:
+        """`context`: the run context of a server-signed run envelope (a run credential,
+        or durable work), never of a client field. The resource rules read its origin."""
         return await self._decide(
             authority=authority,
             principal=principal,
             action=action,
             project_id=project_id,
             resource=resource,
-            context=None,
+            context=context,
         )
 
     async def _decide(
@@ -201,6 +204,7 @@ class AccessService:
                 action=action,
                 project_id=project,
                 resource=resource,
+                context=context,
             )
             if denial is not None:
                 return self._deny_resource(
@@ -268,12 +272,20 @@ class AccessService:
             if access.credential_kind == RequestCredentialKind.BEARER_SESSION
             else access.authority
         )
+        # Only a run credential carries a run context: it is signed by the server.
+        context = (
+            access.envelope.context
+            if access.credential_kind == RequestCredentialKind.RUN_CREDENTIAL
+            and access.envelope is not None
+            else None
+        )
         return await self.decide(
             authority=authority,
             principal=access.principal,
             action=action,
             project_id=project_id,
             resource=resource,
+            context=context,
         )
 
     async def check_human(

@@ -11,6 +11,8 @@ from oss.src.core.access.dtos import (
     ResourceKind,
     ResourceRef,
     RoleRequirement,
+    RunContext,
+    RunOrigin,
 )
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.sharing.dtos import (
@@ -65,12 +67,13 @@ class _People:
             resource=ResourceRef(kind=ResourceKind.AGENT, id=str(artifact_id)),
         )
 
-    async def session(self, principal, state, action):
+    async def session(self, principal, state, action, context=None):
         return await self.world.service.evaluate(
             principal=principal,
             action=action,
             project_id=self.world.project_id,
             resource=ResourceRef(kind=ResourceKind.SESSION, id=state.session_id),
+            context=context,
         )
 
     def shared_session(self, policy):
@@ -164,6 +167,51 @@ async def test_s3_human_cannot_send_to_ownerless(people):
         assert (
             await people.session(_human(user), ownerless, Permission.VIEW_SESSIONS)
             is None
+        )
+
+
+@pytest.mark.parametrize(
+    "origin, allowed",
+    [
+        (None, False),
+        (RunOrigin.WEB, False),
+        (RunOrigin.API, False),
+        (RunOrigin.SCHEDULE, False),
+        (RunOrigin.INSTALLATION, False),
+        (RunOrigin.SUBSCRIPTION, True),
+        (RunOrigin.CHILD, True),
+        (RunOrigin.EVALUATION, True),
+    ],
+)
+async def test_s2_a_person_s_server_run_runs_in_an_ownerless_session(
+    people, origin, allowed
+):
+    """A person's server run (subscription, child, evaluation: the signed run context)
+    runs in the ownerless session it creates; the person sending (web) only reads it."""
+    ownerless = people.shared_session(OWNERLESS_PROJECT_POLICY)
+    context = None if origin is None else RunContext(origin=origin)
+    answer = await people.session(
+        _human(people.dana), ownerless, Permission.RUN_SESSIONS, context
+    )
+    assert (answer is None) is allowed
+
+
+@pytest.mark.parametrize(
+    "origin", [RunOrigin.SUBSCRIPTION, RunOrigin.CHILD, RunOrigin.EVALUATION]
+)
+async def test_s2_a_server_run_opens_no_owned_session(people, origin):
+    """The origin opens ownerless sessions only: Dana's server run is refused in a
+    session Alice owns, private or project-visible."""
+    for policy in (_private(people.alice), _project(people.alice)):
+        state = people.shared_session(policy)
+        assert (
+            await people.session(
+                _human(people.dana),
+                state,
+                Permission.RUN_SESSIONS,
+                RunContext(origin=origin),
+            )
+            == DENIED
         )
 
 

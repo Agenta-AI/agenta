@@ -47,7 +47,7 @@ class _Policy:
     def __init__(self) -> None:
         self.calls = []
 
-    async def evaluate(self, *, principal, action, project_id, resource):
+    async def evaluate(self, *, principal, action, project_id, resource, context=None):
         self.calls.append((principal, action, project_id, resource))
         assert resource.kind == ResourceKind.AGENT
         if resource.id == str(_PRIVATE) and not (

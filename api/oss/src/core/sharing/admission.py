@@ -108,6 +108,7 @@ class RunAdmission:
                 principal=principal,
                 action=Permission.RUN_SESSIONS,
                 resource=session,
+                context=envelope.context,
             )
             if not decision.allowed:
                 view = await self._access_service.decide(
@@ -115,6 +116,7 @@ class RunAdmission:
                     principal=principal,
                     action=Permission.VIEW_SESSIONS,
                     resource=session,
+                    context=envelope.context,
                 )
                 self._refuse(
                     envelope=envelope,
@@ -132,6 +134,7 @@ class RunAdmission:
                 principal=principal,
                 action=Permission.RUN_WORKFLOWS,
                 resource=agent,
+                context=envelope.context,
             )
             if not decision.allowed:
                 # A private agent is hidden from everyone but its owner.
@@ -159,6 +162,7 @@ class RunAdmission:
             principal=authority.principal,
             action=Permission.VIEW_SESSIONS,
             resource=ResourceRef(kind=ResourceKind.SESSION, id=str(session_id)),
+            context=envelope.context,
         )
         return decision.allowed
 

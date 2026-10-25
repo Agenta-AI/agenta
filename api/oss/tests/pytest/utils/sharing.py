@@ -45,6 +45,7 @@ class AllowAllResourcePolicy(ResourcePolicyInterface):
         action: Action,
         project_id: UUID,
         resource: ResourceRef,
+        context=None,
     ) -> Optional[DecisionReason]:
         self.calls.append(
             {
@@ -455,13 +456,21 @@ class RuleAccessService:
         self.decide_calls: List[dict] = []
 
     async def decide(
-        self, *, authority, principal, action, project_id=None, resource=None
+        self,
+        *,
+        authority,
+        principal,
+        action,
+        project_id=None,
+        resource=None,
+        context=None,
     ):
         from oss.src.core.access.dtos import Decision  # noqa: PLC0415
 
         self.decide_calls.append(
             {"principal": principal, "action": action, "resource": resource}
         )
+        self.contexts = getattr(self, "contexts", []) + [context]
         if self._rule(principal, action, resource):
             return Decision(allowed=True, reason=DecisionReason.ROLE)
         return Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED)
