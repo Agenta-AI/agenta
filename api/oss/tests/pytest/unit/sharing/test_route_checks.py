@@ -622,7 +622,10 @@ from oss.src.apis.fastapi.sessions.router import (  # noqa: E402
 from oss.src.core.sessions.interactions.dtos import SessionInteraction  # noqa: E402
 from oss.src.core.sessions.interactions.types import InteractionNotFound  # noqa: E402
 from oss.src.core.sessions.turns.dtos import SessionTurn  # noqa: E402
-from oss.src.core.sessions.turns.types import SessionTurnNotFound  # noqa: E402
+from oss.src.core.sessions.turns.types import (  # noqa: E402
+    SessionTurnNotFound,
+    SessionTurnStreamMismatch,
+)
 from oss.src.dbs.redis.sessions.contract import running_key  # noqa: E402
 from oss.src.dbs.redis.sessions.locks import record_turn_admission  # noqa: E402
 
@@ -1268,21 +1271,15 @@ def _append(routers, *, session_id: str, stream_id):
     )
 
 
-@pytest.mark.parametrize("target", ["another_session", "no_row"])
-async def test_a_turn_naming_another_session_s_stream_is_refused(
-    world, lock, monkeypatch, target
-):
-    """Alice may write her private session, but her turn names the project session's
-    row (or a session id with no row and that row): the not-found body, and nothing is
-    appended. Otherwise the turn would be read under a session it does not belong to."""
+async def test_a_turn_for_a_session_with_no_row_is_refused(world, lock):
+    """Alice's turn names a session id with no row (and some existing row): the check
+    found no row, so a row created since was never checked. The not-found body, and
+    nothing is appended."""
     routers = _runner_routers(world)
-    session_id = (
-        world.private_session.session_id
-        if target == "another_session"
-        else f"s-{uuid4().hex}"
-    )
     call = _append(
-        routers, session_id=session_id, stream_id=world.project_session.stream_id
+        routers,
+        session_id=f"s-{uuid4().hex}",
+        stream_id=world.project_session.stream_id,
     )
 
     access = world.request_access(world.alice, "secret")
@@ -1291,6 +1288,26 @@ async def test_a_turn_naming_another_session_s_stream_is_refused(
 
     assert answer == (404, NOT_FOUND_ERROR.model_dump(exclude_none=True))
     routers.turns_service.append_turn.assert_not_awaited()
+
+
+async def test_a_turn_naming_another_session_s_stream_answers_not_found(world, lock):
+    """The insert finds the stream is not the session's row (the DAO's one statement):
+    the route answers as for a hidden session."""
+    routers = _runner_routers(world)
+    routers.turns_service.append_turn.side_effect = SessionTurnStreamMismatch(
+        world.private_session.session_id
+    )
+    call = _append(
+        routers,
+        session_id=world.private_session.session_id,
+        stream_id=world.project_session.stream_id,
+    )
+
+    access = world.request_access(world.alice, "secret")
+    with _as(access):
+        answer = await _answer(call, _write_request(world, access))
+
+    assert answer == (404, NOT_FOUND_ERROR.model_dump(exclude_none=True))
 
 
 async def test_a_turn_naming_its_session_s_stream_is_appended(world, lock):

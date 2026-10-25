@@ -60,7 +60,6 @@ from oss.src.apis.fastapi.sharing.utils import (
     prefetch_session_list,
     prefetch_session_write,
     session_read_scope_for_request,
-    stream_of_session,
     stream_sharing_for_request,
     session_recheck,
     session_resource,
@@ -172,7 +171,10 @@ from oss.src.core.sessions.mounts.service import SessionMountsService
 from oss.src.core.sessions.mounts.dtos import SessionMountQuery
 from oss.src.core.sessions.turns.dtos import SessionTurnComplete, SessionTurnCreate
 from oss.src.core.sessions.turns.service import SessionTurnsService
-from oss.src.core.sessions.turns.types import SessionTurnNotFound
+from oss.src.core.sessions.turns.types import (
+    SessionTurnNotFound,
+    SessionTurnStreamMismatch,
+)
 from oss.src.core.sessions.dtos import SessionExpansion
 from oss.src.core.sessions.service import SessionsService
 from oss.src.core.mounts.types import MountNotFound
@@ -2609,45 +2611,47 @@ class SessionTurnsRouter:
             permission=Permission.RUN_SESSIONS,
         ):
             raise FORBIDDEN_EXCEPTION
-        # An unknown id stores the turn, so a hidden session answers the canonical
-        # not-found body.
+        # A hidden session answers the canonical not-found body, as one with no row does.
         if not await allow_session_write(
             request,
             session_id=body.session_id,
             turn_id=str(body.turn_id) if body.turn_id else None,
         ):
             raise not_found_exception()
-        # The turn's stream must be its session's row: a session with no row, or the row
-        # of another session, answers as a hidden one (the turns query of a session
-        # with no row reads nothing).
-        if not await stream_of_session(
-            request, session_id=body.session_id, stream_id=body.stream_id
+        # A turn needs its session's row. The check found none: a row created since was
+        # never checked, and the runner appends only after its heartbeat created the row.
+        if session_was_missing(
+            project_id=UUID(str(project_id)), session_id=body.session_id
         ):
             raise not_found_exception()
 
         # Runtime handles are reused on the next turn, so only the runner may write them.
         runner_verified = has_valid_runner_token(request)
 
-        turn = await self.turns_service.append_turn(
-            project_id=project_id,
-            user_id=user_id,
-            turn=SessionTurnCreate(
-                session_id=body.session_id,
-                turn_id=body.turn_id,
-                stream_id=body.stream_id,
-                turn_index=body.turn_index,
-                harness_kind=body.harness_kind,
-                agent_session_id=body.agent_session_id if runner_verified else None,
-                sandbox_id=body.sandbox_id if runner_verified else None,
-                references=body.references,
-                trace_id=body.trace_id,
-                span_id=body.span_id,
-                start_time=body.start_time,
-                end_time=body.end_time,
-                # Attribution comes from the request's credential, never the body.
-                envelope=request_run_envelope(request),
-            ),
-        )
+        try:
+            turn = await self.turns_service.append_turn(
+                project_id=project_id,
+                user_id=user_id,
+                turn=SessionTurnCreate(
+                    session_id=body.session_id,
+                    turn_id=body.turn_id,
+                    stream_id=body.stream_id,
+                    turn_index=body.turn_index,
+                    harness_kind=body.harness_kind,
+                    agent_session_id=body.agent_session_id if runner_verified else None,
+                    sandbox_id=body.sandbox_id if runner_verified else None,
+                    references=body.references,
+                    trace_id=body.trace_id,
+                    span_id=body.span_id,
+                    start_time=body.start_time,
+                    end_time=body.end_time,
+                    # Attribution comes from the request's credential, never the body.
+                    envelope=request_run_envelope(request),
+                ),
+            )
+        except SessionTurnStreamMismatch as error:
+            # The stream is another session's row: answered as a hidden session.
+            raise not_found_exception() from error
         return SessionTurnResponse(count=1, turn=turn)
 
     @intercept_exceptions()
@@ -2724,8 +2728,8 @@ class SessionTurnsRouter:
             project_id=UUID(str(project_id)), session_id=session_id
         ):
             # The check's policy read found no row for this session. A turn references a
-            # session row (a NOT NULL foreign key), and `append_turn` refuses a stream
-            # that is not its own session's row, so no turn belongs here. A turn an
+            # session row (a NOT NULL foreign key), and its insert refuses a stream that
+            # is not its own session's row, so no turn belongs here. A turn an
             # earlier build wrote with another session's stream stays unread: it is
             # that session's data, shown as a session with no row shows nothing.
             return SessionTurnsResponse(count=0, turns=[])

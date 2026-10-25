@@ -634,21 +634,6 @@ class SharingService(ResourcePolicyInterface):
             project_id=project_id, principal=principal, state=state, grants=grants
         )
 
-    async def session_stream_id(
-        self,
-        *,
-        project_id: UUID,
-        session_id: str,
-    ) -> Optional[UUID]:
-        """The id of the session's row, or None when the session has no row. From the
-        request memo or the session's cache entry when this request already read it (no
-        round trip), else one cache read, and one indexed read on a miss."""
-
-        access = await self._session_access(
-            project_id=project_id, session_id=session_id
-        )
-        return access.stream_id if access is not None else None
-
     async def cached_session_sharing(
         self,
         *,

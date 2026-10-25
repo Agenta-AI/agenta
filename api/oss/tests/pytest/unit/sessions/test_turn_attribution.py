@@ -34,10 +34,6 @@ def _allow(monkeypatch):
     monkeypatch.setattr(
         router_module, "check_action_access", AsyncMock(return_value=True)
     )
-    # Not about the turn's stream: every append names its session's row.
-    monkeypatch.setattr(
-        router_module, "stream_of_session", AsyncMock(return_value=True)
-    )
 
 
 def _router():

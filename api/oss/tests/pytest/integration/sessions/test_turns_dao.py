@@ -142,6 +142,25 @@ def dao():
     return SessionTurnsDAO(engine=get_transactions_engine())
 
 
+async def _stream_for(project_and_stream, session_id: str) -> uuid.UUID:
+    """A row for another session of the project: a turn names its own session's row."""
+    stream_id = uuid.uuid4()
+    async with get_transactions_engine().session() as session:
+        await session.execute(
+            text(
+                "INSERT INTO session_streams (id, project_id, session_id) "
+                "VALUES (:id, :project_id, :session_id)"
+            ),
+            {
+                "id": stream_id,
+                "project_id": project_and_stream["project_id"],
+                "session_id": session_id,
+            },
+        )
+        await session.commit()
+    return stream_id
+
+
 async def test_append_turn_persists_and_query_returns_turn_id(dao, project_and_stream):
     """W1.6: append a turn — round-trips every field, and created_by_id is the caller."""
     project_id = project_and_stream["project_id"]
@@ -315,6 +334,7 @@ async def test_query_turns_filters_by_references_gin_contains(dao, project_and_s
     project_id = project_and_stream["project_id"]
     stream_id = project_and_stream["stream_id"]
     session_id = project_and_stream["session_id"] + "-refs"
+    stream_id = uuid.uuid4()
 
     async with get_transactions_engine().session() as session:
         await session.execute(
@@ -322,7 +342,7 @@ async def test_query_turns_filters_by_references_gin_contains(dao, project_and_s
                 "INSERT INTO session_streams (id, project_id, session_id) "
                 "VALUES (:id, :project_id, :session_id)"
             ),
-            {"id": uuid.uuid4(), "project_id": project_id, "session_id": session_id},
+            {"id": stream_id, "project_id": project_id, "session_id": session_id},
         )
         await session.commit()
 
@@ -370,6 +390,7 @@ async def test_query_session_ids_by_references_dedups_and_caps(dao, project_and_
     stream_id = project_and_stream["stream_id"]
     session_id = project_and_stream["session_id"]
     other_session_id = session_id + "-other"
+    other_stream_id = await _stream_for(project_and_stream, other_session_id)
 
     target_ref = SessionReference(id=uuid.uuid4(), slug="target-workflow", version="v1")
 
@@ -390,7 +411,7 @@ async def test_query_session_ids_by_references_dedups_and_caps(dao, project_and_
         user_id=None,
         turn=SessionTurnCreate(
             session_id=other_session_id,
-            stream_id=stream_id,
+            stream_id=other_stream_id,
             turn_index=0,
             harness_kind=HarnessKind.PI,
             references=[target_ref],
@@ -416,6 +437,7 @@ async def test_query_turns_orders_by_turn_index_with_id_tiebreaker(
     project_id = project_and_stream["project_id"]
     stream_id = project_and_stream["stream_id"]
     session_id = project_and_stream["session_id"] + "-window"
+    stream_id = uuid.uuid4()
 
     async with get_transactions_engine().session() as session:
         await session.execute(
@@ -423,7 +445,7 @@ async def test_query_turns_orders_by_turn_index_with_id_tiebreaker(
                 "INSERT INTO session_streams (id, project_id, session_id) "
                 "VALUES (:id, :project_id, :session_id)"
             ),
-            {"id": uuid.uuid4(), "project_id": project_id, "session_id": session_id},
+            {"id": stream_id, "project_id": project_id, "session_id": session_id},
         )
         await session.commit()
 
@@ -464,13 +486,14 @@ async def test_query_turns_orders_by_turn_index_with_id_tiebreaker(
     tie_reference = SessionReference(id=uuid.uuid4(), slug="ordering-tie")
     tied_turns = []
     for tied_session_id in (f"{session_id}-tie-a", f"{session_id}-tie-b"):
+        tied_stream_id = await _stream_for(project_and_stream, tied_session_id)
         tied_turns.append(
             await dao.append(
                 project_id=project_id,
                 user_id=None,
                 turn=SessionTurnCreate(
                     session_id=tied_session_id,
-                    stream_id=stream_id,
+                    stream_id=tied_stream_id,
                     turn_index=1,
                     harness_kind=HarnessKind.PI,
                     references=[tie_reference],
@@ -493,6 +516,7 @@ async def test_latest_turn_and_latest_turn_per_harness(dao, project_and_stream):
     project_id = project_and_stream["project_id"]
     stream_id = project_and_stream["stream_id"]
     session_id = project_and_stream["session_id"] + "-latest"
+    stream_id = uuid.uuid4()
 
     async with get_transactions_engine().session() as session:
         await session.execute(
@@ -500,7 +524,7 @@ async def test_latest_turn_and_latest_turn_per_harness(dao, project_and_stream):
                 "INSERT INTO session_streams (id, project_id, session_id) "
                 "VALUES (:id, :project_id, :session_id)"
             ),
-            {"id": uuid.uuid4(), "project_id": project_id, "session_id": session_id},
+            {"id": stream_id, "project_id": project_id, "session_id": session_id},
         )
         await session.commit()
 
@@ -575,6 +599,7 @@ async def test_delete_by_session_id_hard_deletes(dao, project_and_stream):
     project_id = project_and_stream["project_id"]
     stream_id = project_and_stream["stream_id"]
     session_id = project_and_stream["session_id"] + "-delete"
+    stream_id = uuid.uuid4()
 
     async with get_transactions_engine().session() as session:
         await session.execute(
@@ -582,7 +607,7 @@ async def test_delete_by_session_id_hard_deletes(dao, project_and_stream):
                 "INSERT INTO session_streams (id, project_id, session_id) "
                 "VALUES (:id, :project_id, :session_id)"
             ),
-            {"id": uuid.uuid4(), "project_id": project_id, "session_id": session_id},
+            {"id": stream_id, "project_id": project_id, "session_id": session_id},
         )
         await session.commit()
 
@@ -607,3 +632,58 @@ async def test_delete_by_session_id_hard_deletes(dao, project_and_stream):
         project_id=project_id, query=SessionTurnQuery(session_id=session_id)
     )
     assert remaining == []
+
+
+async def test_append_refuses_a_stream_that_is_not_its_session_s_row(
+    dao, project_and_stream
+):
+    """The insert is one statement that writes the row only when its stream is the row
+    of its session: a turn naming another session id (with no row, or another row) and
+    this stream is refused, and nothing is written."""
+    from oss.src.core.sessions.turns.types import SessionTurnStreamMismatch
+    from oss.tests.pytest.utils.statements import count_statements
+
+    project_id = project_and_stream["project_id"]
+    stream_id = project_and_stream["stream_id"]
+
+    with count_statements(get_transactions_engine()) as statements:
+        with pytest.raises(SessionTurnStreamMismatch):
+            await dao.append(
+                project_id=project_id,
+                user_id=project_and_stream["user_id"],
+                turn=SessionTurnCreate(
+                    session_id=f"another-{uuid.uuid4().hex[:8]}",
+                    stream_id=stream_id,
+                    turn_index=0,
+                    harness_kind=HarnessKind.PI,
+                ),
+            )
+    assert len([s for s in statements if s.lstrip().upper().startswith("INSERT")]) == 1
+
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        count = (
+            await session.execute(
+                text("SELECT count(*) FROM session_turns WHERE project_id = :p"),
+                {"p": project_id},
+            )
+        ).scalar_one()
+    assert count == 0
+
+
+async def test_append_is_one_statement(dao, project_and_stream):
+    from oss.tests.pytest.utils.statements import count_statements
+
+    with count_statements(get_transactions_engine()) as statements:
+        turn = await dao.append(
+            project_id=project_and_stream["project_id"],
+            user_id=project_and_stream["user_id"],
+            turn=SessionTurnCreate(
+                session_id=project_and_stream["session_id"],
+                stream_id=project_and_stream["stream_id"],
+                turn_index=0,
+                harness_kind=HarnessKind.PI,
+            ),
+        )
+    assert turn.created_at is not None and turn.id is not None
+    assert len(statements) == 1
