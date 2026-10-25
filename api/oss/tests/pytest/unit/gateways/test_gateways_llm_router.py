@@ -193,6 +193,7 @@ def test_resolve_agent_connection_returns_route_metadata_only(client, service, a
             "provider_key": "openai",
             "deployment_kind": "custom",
             "model": "gpt-4o",
+            "protocol": None,
         }
     }
     assert service.calls == ["resolve_agent_connection"]

@@ -399,6 +399,86 @@ _CEILING_FIELDS: Dict[LLMProtocol, Tuple[str, ...]] = {
 }
 
 
+# What a native Gemini request may carry on the built-in endpoint. An allowlist, because the
+# native request has many fields that pick another model or a feature priced beyond the tokens
+# (`generationConfig.routingConfig`, `modelConfig`, `responseModalities`, `speechConfig`,
+# hosted tools, `cachedContent`, ...). Exact camelCase keys, so snake_case aliases are refused.
+_GEMINI_REQUEST_FIELDS = frozenset(
+    {
+        "contents",
+        "systemInstruction",
+        "tools",
+        "toolConfig",
+        "generationConfig",
+        "safetySettings",
+    }
+)
+_GEMINI_GENERATION_FIELDS = frozenset(
+    {
+        "temperature",
+        "topP",
+        "topK",
+        "maxOutputTokens",
+        "stopSequences",
+        "seed",
+        "presencePenalty",
+        "frequencyPenalty",
+        "responseMimeType",
+        "responseSchema",
+        "responseJsonSchema",
+        "thinkingConfig",
+        "candidateCount",
+    }
+)
+# `fileData` is not here: Vertex would fetch the URL it names on the platform's account.
+_GEMINI_PART_FIELDS = frozenset(
+    {
+        "text",
+        "inlineData",
+        "functionCall",
+        "functionResponse",
+        "thought",
+        "thoughtSignature",
+    }
+)
+
+
+def _gemini_refusal(payload: Dict[str, Any]) -> Optional[str]:
+    """The first field of a native Gemini request the built-in endpoint does not serve, as a
+    dotted path, or None when every field is one it serves."""
+    for key in payload:
+        if key not in _GEMINI_REQUEST_FIELDS:
+            return key
+    tools = payload.get("tools")
+    if tools is not None:
+        if not isinstance(tools, list):
+            return "tools"
+        for tool in tools:
+            if not isinstance(tool, dict) or set(tool) != {"functionDeclarations"}:
+                return "tools"
+    config = payload.get("generationConfig")
+    if config is not None:
+        if not isinstance(config, dict):
+            return "generationConfig"
+        for key, value in config.items():
+            if key not in _GEMINI_GENERATION_FIELDS:
+                return f"generationConfig.{key}"
+            if key == "candidateCount" and value != 1:
+                return "generationConfig.candidateCount"
+    instruction = payload.get("systemInstruction")
+    turns = [instruction] if instruction is not None else []
+    contents = payload.get("contents")
+    if contents is not None and not isinstance(contents, list):
+        return "contents"
+    for turn in turns + list(contents or []):
+        parts = turn.get("parts") if isinstance(turn, dict) else None
+        for part in parts if isinstance(parts, list) else []:
+            for key in part if isinstance(part, dict) else []:
+                if key not in _GEMINI_PART_FIELDS:
+                    return f"contents.parts.{key}"
+    return None
+
+
 def _requested_max_output_tokens(value: Any) -> Optional[float]:
     """One alias's value as a token count, or None when it names no usable maximum.
 
@@ -585,12 +665,17 @@ class LLMGatewayService:
                 namespace=target.namespace, name=target.name
             )
         deployment_kind = target.deployment_kind
+        protocol: Optional[LLMProtocol] = None
         if deployment_kind == LLMDeploymentKind.MOCK:
             resolved_provider = "anthropic" if model.startswith("claude-") else "openai"
         elif target.namespace == GatewayEndpointNamespace.BUILTIN:
             # A real `builtin` endpoint answers the harness on one OpenAI-compatible
             # chat-completions surface, whatever upstream serves it behind the gateway. The
             # harness drives that surface as it drives any OpenAI-compatible custom route.
+            # The Vertex-backed one also serves Gemini's native protocol, which a harness that
+            # knows `protocol` speaks instead (`docs/design/gemini-native-door`).
+            if deployment_kind == LLMDeploymentKind.VERTEX:
+                protocol = LLMProtocol.GEMINI
             resolved_provider = "openai"
             deployment_kind = LLMDeploymentKind.CUSTOM
         elif target.provider_key == "gemini":
@@ -618,6 +703,7 @@ class LLMGatewayService:
             # The harness sends this id to the gateway, and the gateway relays it to the
             # upstream, so it must be the upstream's own name for the model.
             model=target.upstream_model(model),
+            protocol=protocol,
         )
 
     # Data plane
@@ -664,24 +750,36 @@ class LLMGatewayService:
         protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS,
         run_id: Optional[str] = None,
         run_labels: Optional[Dict[str, str]] = None,
+        context: Optional[LLMCallContext] = None,
     ) -> LLMRelayResult:
-        """Relay one request for the specified protocol."""
+        """Relay one request for the specified protocol.
+
+        A protocol that names the model outside its body (Gemini's native door carries it in
+        the URL) passes the `context` the door built; every other protocol's is read from the
+        body.
+        """
         target = await self._resolve_target(scope=scope, namespace=namespace, name=name)
         self._check_active(target=target)
-        context = _parse_call_context(body, protocol)
+        if context is None:
+            context = _parse_call_context(body, protocol)
         payload = _json_object(body)
 
         # Allowlist and ceiling before secret (§8): a refused model must not cost a
         # vault read, and the refusal reason must be the allowlist, never a coincidental
         # secret gap.
         self._check_allowlist(target=target, context=context, payload=payload)
-        self._check_builtin_capabilities(target=target, payload=payload)
+        self._check_builtin_capabilities(
+            target=target, payload=payload, protocol=context.protocol
+        )
         body = self._enforce_ceilings(
             target=target, context=context, body=body, payload=payload
         )
         body = self._request_stream_usage(target=target, context=context, body=body)
-        upstream_body, context = self._upstream_model_names(
-            target=target, context=context, body=body
+        upstream_body, context = (
+            # The native door's model is in the URL and the body names none to rename.
+            (body, context)
+            if context.protocol == LLMProtocol.GEMINI
+            else self._upstream_model_names(target=target, context=context, body=body)
         )
         if upstream_body is not body:
             # The renamed spelling is measured too, so a model denied under one of its two
@@ -1081,16 +1179,27 @@ class LLMGatewayService:
 
     @staticmethod
     def _check_builtin_capabilities(
-        *, target: _ResolvedLlmTarget, payload: Dict[str, Any]
+        *,
+        target: _ResolvedLlmTarget,
+        payload: Dict[str, Any],
+        protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS,
     ) -> None:
         """Refuse what a `builtin` endpoint's provider bills beyond the reported tokens.
 
         Only function tools pass. A provider-side tool (Google Search grounding through
         `web_search_options` or a non-function `tools` entry) and the provider extension
         object `extra_body` are refused, so nothing runs on the platform's account that the
-        rate card does not price.
+        rate card does not price. The native Gemini door is checked against an allowlist
+        instead (`_gemini_refusal`).
         """
         if target.namespace != GatewayEndpointNamespace.BUILTIN:
+            return
+        if protocol == LLMProtocol.GEMINI:
+            field = _gemini_refusal(payload)
+            if field is not None:
+                raise LLMCapabilityNotAllowedError(
+                    field=field, namespace=target.namespace, name=target.name
+                )
             return
         for field in _UNPRICED_BUILTIN_FIELDS:
             if payload.get(field) is not None:
@@ -1127,7 +1236,8 @@ class LLMGatewayService:
         configured a ceiling; every other request still relays byte-for-byte (D34).
         """
         ceiling = target.settings.max_output_tokens
-        if ceiling is None:
+        # The native Gemini door serves only the built-in endpoint, which sets no ceiling.
+        if ceiling is None or context.protocol == LLMProtocol.GEMINI:
             return body
 
         aliases = _CEILING_FIELDS[context.protocol]

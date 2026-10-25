@@ -32,7 +32,10 @@ from oss.src.core.gateways.llms.dtos import (
 )
 from oss.src.core.gateways.llms.interfaces import LLMRelayResult, LLMUpstreamInterface
 from oss.src.core.gateways.llms.providers.passthrough.auth import build_auth_headers
-from oss.src.core.gateways.llms.providers.passthrough.routing import build_url
+from oss.src.core.gateways.llms.providers.passthrough.routing import (
+    build_url,
+    vertex_gemini_native_url,
+)
 from oss.src.core.gateways.llms.providers.passthrough.upstream_errors import (
     relay_upstream_errors,
 )
@@ -42,7 +45,9 @@ from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
     is_gemini_chat,
     default_gemini_thinking,
     move_gemini_thoughts,
+    normalize_gemini_thinking,
     nudge_stalled_chat,
+    nudge_stalled_gemini,
     stream_gemini_thoughts,
 )
 from oss.src.core.gateways.llms.types import LLMUpstreamError, LLMUpstreamTimeoutError
@@ -107,6 +112,9 @@ def _usage_from_payload(payload: Any, protocol: LLMProtocol) -> Optional[Gateway
     if not isinstance(payload, dict):
         return None
 
+    if protocol == LLMProtocol.GEMINI:
+        return _gemini_usage(payload.get("usageMetadata"))
+
     usage = payload.get("usage")
     if usage is None and protocol == LLMProtocol.RESPONSES:
         # A Responses stream's usage rides the terminal `response.completed` event,
@@ -165,6 +173,32 @@ def _usage_from_payload(payload: Any, protocol: LLMProtocol) -> Optional[Gateway
         input_tokens=prompt,
         cache_read_tokens=cached,
         output_tokens=output,
+    )
+
+
+def _gemini_usage(metadata: Any) -> Optional[GatewayUsage]:
+    """A native Gemini call's usage from its `usageMetadata`, which only the last event of a
+    stream carries in full.
+
+    Explicit counters only. The prompt count includes the cached slice, so fresh input is the
+    rest, plus any tool-use prompt; thoughts are billed as output beside the answer.
+    `totalTokenCount` is not used: it would count tool-use input as output.
+    """
+    if not isinstance(metadata, dict) or "promptTokenCount" not in metadata:
+        return None
+
+    def count(field: str) -> int:
+        value = metadata.get(field)
+        return value if isinstance(value, int) else 0
+
+    cached = count("cachedContentTokenCount")
+    return GatewayUsage(
+        calls=1,
+        input_tokens=max(
+            count("promptTokenCount") + count("toolUsePromptTokenCount") - cached, 0
+        ),
+        cache_read_tokens=cached or None,
+        output_tokens=count("candidatesTokenCount") + count("thoughtsTokenCount"),
     )
 
 
@@ -370,13 +404,22 @@ class RelayLLMAdapter(LLMUpstreamInterface):
         body: bytes,
         headers: Dict[str, str],
     ) -> LLMRelayResult:
-        url = build_url(route, context.protocol, stream=context.stream)
-        body = apply_static_fields(
-            provider_key=route.provider_key,
-            deployment_kind=route.deployment_kind,
-            protocol=context.protocol,
-            body=body,
-        )
+        if context.protocol == LLMProtocol.GEMINI:
+            # The built-in Gemini endpoint's native door (`docs/design/gemini-native-door`):
+            # the body is Vertex's own request, relayed with a thinking level its model
+            # accepts, and varied after a stall like the chat door's.
+            url = vertex_gemini_native_url(route)
+            body = normalize_gemini_thinking(body)
+            if context.stalled_attempts:
+                body = nudge_stalled_gemini(body, attempts=context.stalled_attempts)
+        else:
+            url = build_url(route, context.protocol, stream=context.stream)
+            body = apply_static_fields(
+                provider_key=route.provider_key,
+                deployment_kind=route.deployment_kind,
+                protocol=context.protocol,
+                body=body,
+            )
         sign = is_gemini_chat(
             route.deployment_kind, context.protocol, route.provider_key
         )
