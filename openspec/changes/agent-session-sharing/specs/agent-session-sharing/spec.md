@@ -8,7 +8,7 @@ A web agent session SHALL have a visibility, an optional owner, and named Viewer
 - **THEN** Carol can read the session and cannot send, answer an approval, rename, or change sharing
 
 ### Requirement: Capabilities and agent access still apply
-Every role SHALL also require the project capability for the action. A send SHALL require agent access for the sender's own authority. Reading history SHALL NOT require agent access. Humans SHALL only read an ownerless session in Agenta.
+Every role SHALL also require the project capability for the action. A send SHALL require agent access for the sender's own authority. Reading history SHALL NOT require agent access. Humans SHALL only read an ownerless session in Agenta. A person's server run (an event subscription, a child run, an evaluation run) SHALL run in the ownerless session it created: its signed run origin, not the person sending, decides.
 
 #### Scenario: Participant sends under his own authority
 - **WHEN** Bob, a Participant, sends a turn in Alice's session after he lost access to the agent
@@ -17,6 +17,10 @@ Every role SHALL also require the project capability for the action. A send SHAL
 #### Scenario: Ownerless session
 - **WHEN** a member opens a project-visible session that an API key started
 - **THEN** the member can read it and cannot send to it, and the API key can still send to it
+
+#### Scenario: A person's subscription runs in its ownerless session
+- **WHEN** an event subscription that Alice created fires, and its run (Alice's principal, origin subscription) beats and writes in the ownerless session it claimed
+- **THEN** every beat, write and next turn of that run is admitted, and Alice sending in that session from /m is still refused
 
 ### Requirement: Every session insertion path sets the initial policy
 Turn start, rename before the first turn, trigger claim, and first-heartbeat creation SHALL insert the row with a policy that `SharingService.initial_policy` computed on the server. The rename create arm SHALL accept an optional requested visibility. No conflict arm SHALL change the access fields.

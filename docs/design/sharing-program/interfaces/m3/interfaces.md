@@ -366,7 +366,7 @@ return AccessPolicy(visibility=requested or Visibility.PRIVATE, owner_user_id=ow
 | A2 | agent | any | `private`, principal is `human`, `principal.id = owner_user_id` |
 | S1 | session | `VIEW_SESSIONS`, `USE_MOUNTS`, `VIEW_MOUNTS` | `project`; or `private`, owner active, and principal is the human owner or has a grant |
 | S2 | session | `RUN_SESSIONS` (send, steer, cancel, answer an approval) | owner active and principal is the human owner or a `participant`; or owner NULL and principal is not `human` |
-| S3 | session | `RUN_SESSIONS` | owner NULL and principal is `human`: deny (humans only read ownerless sessions) |
+| S3 | session | `RUN_SESSIONS` | owner NULL and principal is `human`: deny (humans only read ownerless sessions), except a person's server run: the decision's signed run context (a run credential, or durable work) has origin `subscription`, `child` or `evaluation`. `decide` takes that `context`; `check_request` passes it only for a run credential |
 | S4 | session | `EDIT_SESSIONS` (rename, archive, unarchive, delete) | owner set: principal is the active human owner; owner NULL: any principal (today's behavior) |
 
 `fetch_session_policy` assigns the policy of a legacy row (`visibility IS NULL`) before `evaluate` reads it, so the rules never see `NULL`.
