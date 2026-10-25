@@ -10,9 +10,16 @@ import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest
 
 import {sessionSharingCopy, shareDisclosureCopy} from "../../src/sharing/copy"
 import type {SharingWriteResult} from "../../src/sharing/result"
-import {SessionShareDialog, type SessionShareDialogProps} from "../../src/sharing/SessionShareDialog"
+import {
+    SessionShareDialog,
+    type SessionShareDialogProps,
+} from "../../src/sharing/SessionShareDialog"
 
-const alice: ProjectMemberProfile = {user_id: "u-alice", email: "alice@acme.com", name: "Alice Martin"}
+const alice: ProjectMemberProfile = {
+    user_id: "u-alice",
+    email: "alice@acme.com",
+    name: "Alice Martin",
+}
 const bob: ProjectMemberProfile = {user_id: "u-bob", email: "bob@acme.com", name: "Bob Lee"}
 const carol: ProjectMemberProfile = {user_id: "u-carol", email: "carol@acme.com", name: "Carol Ng"}
 
@@ -262,7 +269,9 @@ describe("a member whose project role cannot send (QA D3)", () => {
 
     it("a Can send grant shows as view only, with the reason", () => {
         render({
-            sharing: sharing({grants: [{stream_id: "s", user_id: carol.user_id, role: "participant"}]}),
+            sharing: sharing({
+                grants: [{stream_id: "s", user_id: carol.user_id, role: "participant"}],
+            }),
             people: [alice, bob, viewerRole],
         })
         const row = document.querySelector('[data-testid="session-grant-row"]')!

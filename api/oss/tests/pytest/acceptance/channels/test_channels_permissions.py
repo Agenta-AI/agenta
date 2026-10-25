@@ -234,8 +234,11 @@ def _seed(owner):
     threads = _poll(
         lambda: _ok(owner("POST", "/channels/threads/query", json={}))["threads"]
     )
+    # The reply needs the agent's run (a real project agent since M3), which starts a
+    # sandbox: up to 90 s on a cold preview deployment.
     outbox = _poll(
-        lambda: _ok(owner("POST", "/channels/outbox/events/query", json={}))["events"]
+        lambda: _ok(owner("POST", "/channels/outbox/events/query", json={}))["events"],
+        attempts=180,
     )
     assert inbox and threads and outbox, (
         "seeding did not produce an inbox event, a thread and an outbox event: "

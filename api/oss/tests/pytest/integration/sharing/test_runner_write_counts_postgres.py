@@ -153,8 +153,12 @@ async def lock(monkeypatch, fake_cache):
         await probe.aclose()
 
     engine = get_lock_engine()
-    # The client binds to the event loop that opens it: each test opens its own.
-    await engine.close()
+    # The client binds to the event loop that opens it: each test opens its own. A
+    # client of an earlier test's (closed) loop cannot be closed here: it is dropped.
+    try:
+        await engine.close()
+    except RuntimeError:
+        engine._r = None
     lock = _Lock(engine)
     monkeypatch.setattr(sharing_utils, "get_lock_engine", lambda: lock)
     reader = Redis.from_url(uri)

@@ -4,11 +4,7 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {
-    ACCESS_REFUSED_REASON,
-    describeRefusedSend,
-    readSendRefusal,
-} from "../../../src/model/error"
+import {ACCESS_REFUSED_REASON, describeRefusedSend, readSendRefusal} from "../../../src/model/error"
 
 describe("a send refused for access", () => {
     it("a 403 with no stated reason names the access refusal", () => {

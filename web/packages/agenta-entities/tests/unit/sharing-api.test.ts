@@ -94,7 +94,9 @@ describe("sharing schemas", () => {
                 can_take_ownership: false,
             },
             disclosure: {
-                connections: [{provider: "composio", integration: "github", connection: "my-github"}],
+                connections: [
+                    {provider: "composio", integration: "github", connection: "my-github"},
+                ],
                 turns_use_run_credentials: true,
                 files_and_tool_results_shared: true,
                 trace_readers_can_read: true,

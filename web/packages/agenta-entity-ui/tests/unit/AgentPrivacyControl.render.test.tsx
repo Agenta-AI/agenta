@@ -184,7 +184,9 @@ describe("AgentPrivacyDialog", () => {
             ...over,
         }
         act(() =>
-            root.render(createElement(AgentPrivacyDialog, {...props, open, onOpenChange: () => {}})),
+            root.render(
+                createElement(AgentPrivacyDialog, {...props, open, onOpenChange: () => {}}),
+            ),
         )
         return onSetVisibility
     }

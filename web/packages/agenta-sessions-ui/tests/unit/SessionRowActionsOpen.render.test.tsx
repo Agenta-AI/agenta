@@ -31,11 +31,21 @@ afterEach(() => {
 describe("the rail's session row menu", () => {
     it("asks for an Open entry that follows the row's link", () => {
         const menuItems = vi.fn(() => [])
-        const chrome = {menuItems, onMenuClick: vi.fn(() => () => undefined), renameSession: vi.fn()}
+        const chrome = {
+            menuItems,
+            onMenuClick: vi.fn(() => () => undefined),
+            renameSession: vi.fn(),
+        }
         act(() =>
             root.render(
                 createElement(SessionRowActions, {
-                    session: {sessionId: "s1", appId: "a1", name: "Chat", archived: false, ownerUserId: "me"},
+                    session: {
+                        sessionId: "s1",
+                        appId: "a1",
+                        name: "Chat",
+                        archived: false,
+                        ownerUserId: "me",
+                    },
                     chrome: chrome as never,
                     children: createElement("a", {href: "/w/w1/p/p1/sessions/s1"}, "Chat"),
                 }),

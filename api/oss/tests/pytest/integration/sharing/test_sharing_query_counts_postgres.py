@@ -154,8 +154,13 @@ class RedisCommands:
 
 
 async def _close_redis_clients() -> None:
-    await caching._cache_engine.close()
-    await get_lock_engine().close()
+    """Close both clients. A client opened on an earlier test's event loop (now closed)
+    cannot be closed on this one: it is dropped instead, and reopens on first use."""
+    for engine in (caching._cache_engine, get_lock_engine()):
+        try:
+            await engine.close()
+        except RuntimeError:  # "Event loop is closed"
+            engine._r = None
 
 
 @pytest.fixture

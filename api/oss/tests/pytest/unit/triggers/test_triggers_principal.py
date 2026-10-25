@@ -409,10 +409,12 @@ async def test_environment_trigger_private_target_paused():
 
     private_agent = uuid4()
     rules = RuleAccessService(
-        lambda principal, action, resource: not (
-            resource is not None
-            and resource.kind == ResourceKind.AGENT
-            and resource.id == str(private_agent)
+        lambda principal, action, resource: (
+            not (
+                resource is not None
+                and resource.kind == ResourceKind.AGENT
+                and resource.id == str(private_agent)
+            )
         )
     )
     setup = _dispatch_setup(

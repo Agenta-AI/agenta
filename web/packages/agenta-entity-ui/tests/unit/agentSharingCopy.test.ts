@@ -6,7 +6,9 @@ const strings = (value: unknown): string[] => {
     if (typeof value === "string") return [value]
     if (typeof value === "function") {
         const sample = ["Alice Martin", "Bob Lee"]
-        return strings((value as (...args: unknown[]) => unknown)(...Array(value.length).fill(sample)))
+        return strings(
+            (value as (...args: unknown[]) => unknown)(...Array(value.length).fill(sample)),
+        )
     }
     if (value && typeof value === "object") return Object.values(value).flatMap(strings)
     return []
