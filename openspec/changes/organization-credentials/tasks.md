@@ -4,30 +4,30 @@ Order follows the implementation sequence. Spec references: OC = organization-cr
 
 ## 1. Schema
 
-- [ ] 1.1 One `core_oss` revision `oss000000054` per design.md "Migration" (no `core_ee` copy); run `uv run api/scripts/migration_gate.py`; it passes without the label (OC "one owner per row").
-- [ ] 1.2 `SecretsDBE` and `SecretsDBA` changes; `SecretProjectDBE`.
+- [x] 1.1 One `core_oss` revision `oss000000054` per design.md "Migration" (no `core_ee` copy); run `uv run api/scripts/migration_gate.py`; it passes without the label (OC "one owner per row").
+- [x] 1.2 `SecretsDBE` and `SecretsDBA` changes; `SecretProjectDBE`.
 
 ## 2. Core
 
-- [ ] 2.1 `SecretOwnerKind` in `core/secrets/enums.py`; `SecretOwner`, `SecretAvailability`, `INHERITABLE_KINDS`; owner-based DAO methods and mapping.
-- [ ] 2.2 `owner` and `availability` on `SecretResponseDTO`; forced `write_only` for organization rows (OC "never leave the API").
-- [ ] 2.3 Effective-set methods on one cache entry per project (namespace `effective_secrets`) and its invalidation (CR "effective set", "slug reference", "default selection", "id references").
-- [ ] 2.4 Organization management service methods; kind, family, served-deployment and short-value refusals; override integrity in SQL (OC "inheritable kinds", "project routes").
+- [x] 2.1 `SecretOwnerKind` in `core/secrets/enums.py`; `SecretOwner`, `SecretAvailability`, `INHERITABLE_KINDS`; owner-based DAO methods and mapping.
+- [x] 2.2 `owner` and `availability` on `SecretResponseDTO`; forced `write_only` for organization rows (OC "never leave the API").
+- [x] 2.3 Effective-set methods on one cache entry per project (namespace `effective_secrets`) and its invalidation (CR "effective set", "slug reference", "default selection", "id references").
+- [x] 2.4 Organization management service methods; kind, family, served-deployment and short-value refusals; override integrity in SQL (OC "inheritable kinds", "project routes").
 
 ## 3. Access
 
-- [ ] 3.1 `OrganizationAction` and `decide_organization` in `core/access/` (OC "organization access decision").
+- [x] 3.1 `OrganizationAction` and `decide_organization` in `core/access/` (OC "organization access decision").
 
 ## 4. Routes
 
-- [ ] 4.1 `OrganizationSecretsRouter` at `/organization-secrets/` with the EE limit route (OC "EE limits").
-- [ ] 4.2 `GET /secrets/?include_inherited=true`, never with inherited rows under the `secret-resolve` grant; single-row and write routes stay project-only (OC "never leave the API", "project routes").
+- [x] 4.1 `OrganizationSecretsRouter` at `/organization-secrets/` with the EE limit route (OC "EE limits").
+- [x] 4.2 `GET /secrets/?include_inherited=true`, never with inherited rows under the `secret-resolve` grant; single-row and write routes stay project-only (OC "never leave the API", "project routes").
 - [ ] 4.3 Regenerate the Fern client from an EE OpenAPI spec.
 
 ## 5. Gateway
 
-- [ ] 5.1 `SecretsResolver(plane=LLM|MCP)`, the LLM plane on the effective methods; real owner in `ResolvedSecret.owner`; project-first default (CR "default selection", "real owner").
-- [ ] 5.2 One-statement custom target lookup (`fetch_custom_target_by_slug`) and the one-pass slug resolve (`_resolve_slug_target`); echo scan over organization values; tenancy rule unchanged (CR "custom providers").
+- [x] 5.1 `SecretsResolver(plane=LLM|MCP)`, the LLM plane on the effective methods; real owner in `ResolvedSecret.owner`; project-first default (CR "default selection", "real owner").
+- [x] 5.2 One-statement custom target lookup (`fetch_custom_target_by_slug`) and the one-pass slug resolve (`_resolve_slug_target`); echo scan over organization values; tenancy rule unchanged (CR "custom providers").
 
 ## 6. Web
 

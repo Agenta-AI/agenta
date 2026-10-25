@@ -116,6 +116,7 @@ M3 design, as built: [interfaces](interfaces/m3/interfaces.md), [technical desig
 - Organization credential values never reach a user-controlled sandbox. Paths that deliver plaintext refuse inherited organization credentials.
 - Inheritance uses the organization that the project row names; a request whose organization differs from it inherits nothing.
 - Organization credentials serve the LLM plane only. The resolver is built per plane; the MCP plane never reads organization rows.
+- M5 interfaces and technical design: `interfaces/m5/interfaces.md`, `interfaces/m5/technical-design.md`.
 - Organization subscription logins are not supported. User-owned subscription logins are M7.
 
 ## 9. Storage (M4)
