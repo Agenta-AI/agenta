@@ -39,7 +39,7 @@ In-process readers use one effective set: project rows, then available inheritab
 - Inheritance uses the organization that the project row names. A request whose organization differs inherits nothing.
 - Only the LLM plane reads organization rows. The resolver is built per plane (`SecretsResolver(plane=LLM|MCP)`); the MCP plane is today's project-only code.
 - The resolve path for a bare slug runs one pass (`_resolve_slug_target`): custom target, builtin, provider family, then a slugged `provider_key` row. It gives today's answers with fewer reads.
-- A project row may shadow an inherited slug only with the same kind and, for `provider_key`, the same provider family. The rule is checked in SQL against the database on every write that can create the pair, in `SERIALIZABLE` transactions with one retry, then 409.
+- A project row may shadow an inherited slug only with the same kind and, for `provider_key`, the same provider family. The rule is checked in SQL against the database on every write that can create the pair, in `SERIALIZABLE` transactions with up to six attempts, then 409.
 - `uq_secrets_organization_id_slug` makes organization slugs unique. SSO rows have no slug.
 
 `ResolvedSecret.owner` reports the real owner for audit and usage labels.

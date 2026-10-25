@@ -14,7 +14,7 @@ Scope: backend first. OpenSpec `tasks.md` sections 1 (schema), 2 (core), 3 (acce
 | `oss/src/dbs/postgres/secrets/dbas.py` | `availability = Column(String, nullable=False, server_default="all_projects")`. |
 | `oss/src/dbs/postgres/secrets/dbes.py` | `SecretsDBE.__table_args__` gains the two checks and two partial indexes (metadata matches the revision); NEW `SecretProjectDBE`. |
 | `oss/src/dbs/postgres/secrets/mappings.py` | `owner`, `availability`, `selected_project_ids` in `map_secrets_dbe_to_dto`; NEW `map_secret_row_with_projects`. |
-| `oss/src/dbs/postgres/secrets/dao.py` | Owner-based methods; `_owner_filter(owner)`; NEW `load_effective` (one statement), the seven organization operations (all `INHERITABLE_KINDS`-only, atomic), `list_organization_project_ids`; the conflict rule folded into the explicit-slug project insert and the user-update lock read; `SERIALIZABLE` transactions with one retry; `DBAPIError` -> domain errors `from None`. SQL constants `_LOAD_EFFECTIVE_SQL`, `_INSERT_PROJECT_SECRET_CHECKED_SQL`, `_ORGANIZATION_CONFLICTS_SQL`, `_INSERT_SECRET_PROJECTS_SQL`. |
+| `oss/src/dbs/postgres/secrets/dao.py` | Owner-based methods; `_owner_filter(owner)`; NEW `load_effective` (one statement), the seven organization operations (all `INHERITABLE_KINDS`-only, atomic), `list_organization_project_ids`; the conflict rule folded into the explicit-slug project insert and the user-update lock read; `SERIALIZABLE` transactions with up to six attempts; `DBAPIError` -> domain errors `from None`. SQL constants `_LOAD_EFFECTIVE_SQL`, `_INSERT_PROJECT_SECRET_CHECKED_SQL`, `_ORGANIZATION_CONFLICTS_SQL`, `_INSERT_SECRET_PROJECTS_SQL`. |
 
 ### 1.2 Core layer
 
@@ -232,7 +232,7 @@ Every existing request is equal or lower in every cache mode. Network round trip
 - Prompts, completion and chat apps, and AI evaluators never use organization credentials (owner decision 3). Teams can be surprised; the UI phase explains it.
 - Old pods during the rollout do not serve organization credentials (short "no key" window).
 - `_resolve_slug_target` replaces two functions on the resolve path. Mitigation: a table test that compares its answers with the captured old code for every project shape, provider-family slugs included.
-- `SERIALIZABLE` writes can abort with `40001` under concurrency; one internal retry, then 409. Only explicit-slug project creates, project user updates and organization writes run at that level.
+- `SERIALIZABLE` writes can abort with `40001` under concurrency; up to six attempts with a growing random wait, then 409. Only explicit-slug project creates, project user updates and organization writes run at that level.
 - Organization writes in a large organization delete one cache key per project (batched, after the commit; admin path only).
 - Merge overlaps with other open changes: `entrypoints/routers.py` (M3), `core/gateways/policy/audit.py` and `AuthScope` (M4b step 2), `api/AGENTS.md`, `core/events/types.py` (M3), Fern generated files (M3).
 

@@ -204,7 +204,7 @@ class SecretShadowConflict(SecretsError):
 
 
 class SecretWriteConflict(SecretsError):
-    """A conflict-checked write failed to serialize twice in a row."""
+    """A conflict-checked write failed to serialize on every attempt (`_SERIALIZABLE_ATTEMPTS`)."""
 
     retryable = True
 

@@ -13,7 +13,7 @@ Three rules hold for every write here:
   one slug and another kind or provider family") is checked against the database, inside
   the write's own transaction, never against a cache. Those transactions run
   `SERIALIZABLE` (set on the `BEGIN`, no extra statement); a serialization failure is
-  retried once, then `SecretWriteConflict`.
+  retried (`_SERIALIZABLE_ATTEMPTS` attempts in all), then `SecretWriteConflict`.
 - The organization operations address inheritable organization rows only
   (`kind IN INHERITABLE_KINDS AND project_id IS NULL`), so an SSO row is never listed,
   read, changed or deleted through them.

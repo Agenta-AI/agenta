@@ -136,7 +136,8 @@ Organization-scoped decisions and organization credentials (M5):
   cache read for organization rows. Project writes invalidate it with the project-wide
   invalidation; organization writes delete each project's entry after the commit.
 - Organization credential writes and the project writes that can meet an inherited slug
-  run the shadow rule in SQL inside a `SERIALIZABLE` transaction (one retry, then 409).
+  run the shadow rule in SQL inside a `SERIALIZABLE` transaction (up to six attempts,
+  `_SERIALIZABLE_ATTEMPTS`, with a growing random wait, then 409).
   Secrets DAO errors are raised `from None` as domain errors: the SQL parameters of a
   secrets write hold the plaintext value.
 - `integration/secrets/test_organization_secrets_query_counts_postgres.py` pins the vault
