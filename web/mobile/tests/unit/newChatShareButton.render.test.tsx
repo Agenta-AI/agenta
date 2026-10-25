@@ -91,6 +91,13 @@ describe("a brand-new chat", () => {
                 predicate: (query) => query.queryKey.includes("session-stream"),
             })
         })
-        expect(host.querySelector('[data-testid="share"]')).not.toBeNull()
+        // The re-read answers on a later tick under load: wait for it, do not assume one.
+        await vi.waitFor(
+            async () => {
+                await act(async () => undefined)
+                expect(host.querySelector('[data-testid="share"]')).not.toBeNull()
+            },
+            {timeout: 5000},
+        )
     })
 })
