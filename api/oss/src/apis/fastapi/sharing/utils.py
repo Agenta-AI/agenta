@@ -414,6 +414,20 @@ async def allow_session_write(
     )
 
 
+async def stream_of_session(
+    request: Request, *, session_id: str, stream_id: UUID
+) -> bool:
+    """True when `stream_id` is the row of `session_id`. A turn names both, and every
+    read of a session's turns goes by the session id: a turn whose stream is another
+    session's row would be read under a session it does not belong to. Free on a warm
+    send (the session entry this request already read)."""
+
+    actual = await get_sharing_service().session_stream_id(
+        project_id=UUID(str(request.state.project_id)), session_id=session_id
+    )
+    return actual is not None and str(actual) == str(stream_id)
+
+
 def artifact_id_of(entity: Any) -> Optional[UUID]:
     """The agent (artifact) id a workflow, application or evaluator variant or
     revision belongs to; the id itself for an artifact."""

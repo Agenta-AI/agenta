@@ -156,6 +156,11 @@ class _RecordingAccess:
 def world(monkeypatch) -> _World:
     world = _World()
     monkeypatch.setattr(access_module, "_access_service", world.access)
+    import oss.src.apis.fastapi.sharing.utils as utils_module  # noqa: PLC0415
+
+    monkeypatch.setattr(
+        utils_module, "get_sharing_service", lambda: world.world.service
+    )
     return world
 
 
@@ -724,6 +729,7 @@ def _runner_routers(world: _World):
 
     turns.complete_turn.side_effect = _complete
     return SimpleNamespace(
+        world=world,
         records=RecordsRouter(records_service=records),
         interactions=InteractionsRouter(
             interactions_service=interactions, commands_service=AsyncMock()
@@ -736,8 +742,11 @@ def _runner_routers(world: _World):
 
 
 def _runner_writes(routers, session_id: str):
-    """(name, call) per runner write route; every body names `_TURN` where it can."""
+    """(name, call) per runner write route; every body names `_TURN` where it can, and
+    a turn names its session's row (a random one for a session with no row)."""
     now = datetime.now(timezone.utc)
+    state = routers.world.world.dao.sessions.get((routers.world.project_id, session_id))
+    stream_id = state.stream_id if state is not None else uuid4()
     return [
         (
             "record_ingest",
@@ -797,7 +806,7 @@ def _runner_writes(routers, session_id: str):
                 body=SessionTurnAppendRequest(
                     session_id=session_id,
                     turn_id=_TURN,
-                    stream_id=uuid4(),
+                    stream_id=stream_id,
                     turn_index=0,
                     harness_kind="mock",
                 ),
@@ -1241,3 +1250,60 @@ async def test_writes_after_the_beats_stop_lose_the_free_path_at_the_ttl(
         NOT_FOUND_ERROR.model_dump(exclude_none=True),
     )
     assert _service_calls(routers) == 0
+
+
+# -- a turn names its own session's row ------------------------------------------------------
+
+
+def _append(routers, *, session_id: str, stream_id):
+    return lambda r: routers.turns.append_turn(
+        request=r,
+        body=SessionTurnAppendRequest(
+            session_id=session_id,
+            turn_id=_TURN,
+            stream_id=stream_id,
+            turn_index=0,
+            harness_kind="mock",
+        ),
+    )
+
+
+@pytest.mark.parametrize("target", ["another_session", "no_row"])
+async def test_a_turn_naming_another_session_s_stream_is_refused(
+    world, lock, monkeypatch, target
+):
+    """Alice may write her private session, but her turn names the project session's
+    row (or a session id with no row and that row): the not-found body, and nothing is
+    appended. Otherwise the turn would be read under a session it does not belong to."""
+    routers = _runner_routers(world)
+    session_id = (
+        world.private_session.session_id
+        if target == "another_session"
+        else f"s-{uuid4().hex}"
+    )
+    call = _append(
+        routers, session_id=session_id, stream_id=world.project_session.stream_id
+    )
+
+    access = world.request_access(world.alice, "secret")
+    with _as(access):
+        answer = await _answer(call, _write_request(world, access))
+
+    assert answer == (404, NOT_FOUND_ERROR.model_dump(exclude_none=True))
+    routers.turns_service.append_turn.assert_not_awaited()
+
+
+async def test_a_turn_naming_its_session_s_stream_is_appended(world, lock):
+    routers = _runner_routers(world)
+    call = _append(
+        routers,
+        session_id=world.private_session.session_id,
+        stream_id=world.private_session.stream_id,
+    )
+
+    access = world.request_access(world.alice, "secret")
+    with _as(access):
+        status_code, _ = await _answer(call, _write_request(world, access))
+
+    assert status_code == 200
+    routers.turns_service.append_turn.assert_awaited_once()

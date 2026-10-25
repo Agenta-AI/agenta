@@ -60,6 +60,7 @@ from oss.src.apis.fastapi.sharing.utils import (
     prefetch_session_list,
     prefetch_session_write,
     session_read_scope_for_request,
+    stream_of_session,
     stream_sharing_for_request,
     session_recheck,
     session_resource,
@@ -2616,6 +2617,13 @@ class SessionTurnsRouter:
             turn_id=str(body.turn_id) if body.turn_id else None,
         ):
             raise not_found_exception()
+        # The turn's stream must be its session's row: a session with no row, or the row
+        # of another session, answers as a hidden one (the turns query of a session
+        # with no row reads nothing).
+        if not await stream_of_session(
+            request, session_id=body.session_id, stream_id=body.stream_id
+        ):
+            raise not_found_exception()
 
         # Runtime handles are reused on the next turn, so only the runner may write them.
         runner_verified = has_valid_runner_token(request)
@@ -2715,8 +2723,11 @@ class SessionTurnsRouter:
         elif session_id and session_was_missing(
             project_id=UUID(str(project_id)), session_id=session_id
         ):
-            # The check's policy read found no row for this session, and every turn
-            # references its session's row (a NOT NULL foreign key): no turn to read.
+            # The check's policy read found no row for this session. A turn references a
+            # session row (a NOT NULL foreign key), and `append_turn` refuses a stream
+            # that is not its own session's row, so no turn belongs here. A turn an
+            # earlier build wrote with another session's stream stays unread: it is
+            # that session's data, shown as a session with no row shows nothing.
             return SessionTurnsResponse(count=0, turns=[])
 
         turns = await self.turns_service.query_turns(
