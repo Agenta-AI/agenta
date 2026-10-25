@@ -425,3 +425,43 @@ async def test_every_organization_write_publishes_one_event(world):
         }
         assert SENTINEL_KEY not in str(attributes)
         assert "openai-company" not in str(attributes)
+
+
+@pytest.mark.parametrize("value", [12345678901, ["m5extra-list-value"], {"v": "x"}])
+async def test_refuses_a_non_text_credential_extras_value(world, value):
+    vault = world["vault"]()
+    body = org_secret_payload(
+        kind="custom_provider", family="custom", extras={"api_key": value}
+    )
+    with pytest.raises(OrganizationSecretValueTooShort):
+        await vault.create_organization_secret(
+            organization_id=world["organization_id"],
+            create_secret_dto=CreateSecretDTO.model_validate(body),
+            user_id=uuid4(),
+        )
+    created = await vault.create_organization_secret(
+        organization_id=world["organization_id"],
+        create_secret_dto=_dto(kind="custom_provider", family="custom", slug="c"),
+        user_id=uuid4(),
+    )
+    with pytest.raises(OrganizationSecretValueTooShort):
+        await vault.update_organization_secret(
+            organization_id=world["organization_id"],
+            secret_id=created.id,
+            update_secret_dto=UpdateSecretDTO.model_validate(
+                {
+                    "secret": {
+                        "kind": "custom_provider",
+                        "data": {
+                            "kind": "custom",
+                            "provider": {
+                                "url": "https://llm.example.com/v1",
+                                "extras": {"api_key": value},
+                            },
+                            "models": [{"slug": "m"}],
+                        },
+                    }
+                }
+            ),
+            user_id=uuid4(),
+        )

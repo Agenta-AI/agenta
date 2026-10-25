@@ -519,14 +519,6 @@ class VaultService:
         reject_server_owned_fields(secret=create_secret_dto.secret)
         owner = _owner_of(project_id=project_id, organization_id=organization_id)
 
-        # A slug the caller chose (or the canonical subscription slug) can meet an
-        # inherited organization slug; a derived slug ends with 12 random hex characters
-        # and cannot. Only the former runs the shadow check (folded into the insert).
-        check_shadow = owner.kind == SecretOwnerKind.PROJECT and (
-            bool(create_secret_dto.slug)
-            or create_secret_dto.secret.kind == SecretKind.SUBSCRIPTION_PROVIDER
-        )
-
         # custom_secret and custom_provider are addressed by slug; derive one from the name when
         # absent so the record keeps its identity when the display name later changes.
         if (
@@ -556,11 +548,15 @@ class VaultService:
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
+            # Every project row with a slug runs the shadow check, folded into its one
+            # insert: a caller's slug, a canonical subscription slug and a derived one
+            # alike (a derived slug only makes a collision unlikely, not impossible).
             secret_dto = await self.secrets_dao.create(
                 owner=owner,
                 create_secret_dto=create_secret_dto,
                 management=management,
-                check_shadow=check_shadow,
+                check_shadow=owner.kind == SecretOwnerKind.PROJECT
+                and bool(create_secret_dto.slug),
             )
 
         if project_id is not None:
@@ -1030,6 +1026,9 @@ class VaultService:
                 update_secret_dto=update_secret_dto,
                 owner=_owner_of(project_id=project_id, organization_id=organization_id),
                 resolve_update=_resolve_managed_update(manager),
+                # The manager may re-point a row's provider; an inherited row with the
+                # same slug must not end up with another identity.
+                check_shadow=project_id is not None,
             )
 
         if project_id is not None:
@@ -1155,9 +1154,16 @@ class VaultService:
         if isinstance(extras, dict):
             for extras_key in CREDENTIAL_EXTRAS_KEYS:
                 value = extras.get(extras_key)
-                if isinstance(value, str):
-                    extras[extras_key] = value.strip()
-                    values.append(extras[extras_key])
+                if value is None:
+                    continue
+                if not isinstance(value, str):
+                    # A number or a structure would be sent as its text form, which the
+                    # rule below never measured: refuse every non-text credential value.
+                    raise OrganizationSecretValueTooShort(
+                        min_length=MIN_SCANNED_CREDENTIAL_LENGTH
+                    )
+                extras[extras_key] = value.strip()
+                values.append(extras[extras_key])
         for value in values:
             if len(value) < MIN_SCANNED_CREDENTIAL_LENGTH:
                 raise OrganizationSecretValueTooShort(

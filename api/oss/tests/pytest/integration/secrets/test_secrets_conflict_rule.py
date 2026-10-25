@@ -283,3 +283,60 @@ async def test_derived_slug_project_create_keeps_todays_statements(org):
     assert created.slug and len(created.slug.rsplit("-", 1)[-1]) == 12
     assert len(statements) == 1
     assert statements[0].lstrip().upper().startswith("INSERT INTO SECRETS")
+
+
+async def test_managed_update_cannot_change_an_override_identity(org):
+    from oss.src.core.secrets.managed import SecretManagementDTO, SecretManager
+
+    slug = _slug()
+    await _org_row(org, slug)
+    vault = VaultService(SecretsDAO())
+    manager = SecretManager.STARTER_CREDITS_BRIDGE
+    managed = await vault.create_managed_secret(
+        project_id=org.project_ids[0],
+        create_secret_dto=_create(slug=slug),
+        management=SecretManagementDTO(manager=manager),
+    )
+    with pytest.raises(SecretShadowConflict):
+        await vault.update_managed_secret(
+            secret_id=managed.id,
+            project_id=org.project_ids[0],
+            manager=manager,
+            update_secret_dto=UpdateSecretDTO.model_validate(
+                {
+                    "secret": {
+                        "kind": "provider_key",
+                        "data": {
+                            "kind": "anthropic",
+                            "provider": {"key": "sk-ant-123456789"},
+                        },
+                    }
+                }
+            ),
+        )
+    assert await _pairs(org) == []
+
+
+async def test_a_derived_slug_collision_is_refused_in_the_one_insert(org, monkeypatch):
+    import oss.src.core.secrets.services as services_module
+
+    slug = _slug()
+    await _org_row(org, slug)
+    monkeypatch.setattr(services_module, "get_slug_from_name_and_id", lambda *_: slug)
+    vault = VaultService(SecretsDAO())
+    body = CreateSecretDTO.model_validate(
+        {
+            "header": {"name": "token"},
+            "secret": {
+                "kind": "custom_secret",
+                "data": {"secret": {"format": "text", "content": "value-123456"}},
+            },
+        }
+    )
+    with count_statements(get_transactions_engine()) as statements:
+        with pytest.raises(SecretShadowConflict):
+            await vault.create_secret(
+                project_id=org.project_ids[0], create_secret_dto=body
+            )
+    assert len(statements) == 1
+    assert await _pairs(org) == []
