@@ -620,8 +620,16 @@ async def test_project_writes_keep_their_statements(mode, world, monkeypatch):
         )
         assert outcome == "ok", (row, mode)
         before = BEFORE[row][mode]
-        # The same statements and commands as before M5, exactly.
-        assert (statements, redis) == before, (row, mode, statements, redis, before)
+        # The same statements as before M5, exactly. The Redis side of a write is the
+        # project-wide invalidation, as before: a SCAN, and a DEL when the SCAN found
+        # entries (which depends on what other code cached for the project, not on M5).
+        assert statements == before[0], (row, mode, statements, before)
+        assert redis in (before[1], before[1] + 1) if before[1] else redis == 0, (
+            row,
+            mode,
+            redis,
+            before,
+        )
         if row == "P2":
             # The shadow check is folded into the one insert; SERIALIZABLE rides the BEGIN.
             assert len(sql) == 1 and sql[0].lstrip().upper().startswith(
