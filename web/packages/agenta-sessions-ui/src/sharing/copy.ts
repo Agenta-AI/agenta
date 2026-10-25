@@ -24,7 +24,7 @@ export const sessionRoleCopy: Record<SessionRole, {label: string; description: s
 export const sessionSharingCopy = {
     shareButton: "Share",
     tooltipPrivate: "Private",
-    tooltipPeople: (count: number) => `Shared with ${count} people`,
+    tooltipPeople: (count: number) => `Shared with ${count} ${count === 1 ? "person" : "people"}`,
     tooltipProject: "Everyone in the project can view",
     tooltipNotShareable: "You can share this chat after its first message.",
     lockOwner: "Private: only you and the people you add",

@@ -11,7 +11,7 @@ import {useAtomValue} from "jotai"
 
 import {isMyPrivateAgent} from "../agents/myPrivateAgent"
 import {useAgentChannels} from "../agents/useAgentChannels"
-import {AgentPrivacyDialogHost} from "../chat/AgentPrivacyHost"
+import {AgentPrivacyDialogHost} from "../chat/AgentPrivacyDialogHost"
 import {useCurrentProject} from "../context/useCurrentProject"
 
 import type {SettingsTabProps} from "./settingsTabProps"

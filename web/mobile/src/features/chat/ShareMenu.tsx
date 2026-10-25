@@ -21,7 +21,8 @@ import {isMyPrivateAgent} from "../agents/myPrivateAgent"
 import {useAgentPublishPanel} from "../agents/useAgentPublishPanel"
 import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
 
-import {AgentPrivacyDialogHost, AgentPrivacyHost} from "./AgentPrivacyHost"
+import {AgentPrivacyDialogHost} from "./AgentPrivacyDialogHost"
+import {AgentPrivacyHost} from "./AgentPrivacyHost"
 import {ShareMenuItem} from "./ShareMenuItem"
 
 /**
@@ -138,7 +139,7 @@ export const ShareMenu = ({
             <AgentPrivacyHost
                 agentId={agentId}
                 agentName={agentName}
-                access={agentsQuery.data ? (agent?.access ?? null) : undefined}
+                access={agentsQuery.data ? (agent ? (agent.access ?? null) : undefined) : undefined}
                 workspaceId={workspaceId}
                 projectId={projectId}
                 connections={publish.connections}

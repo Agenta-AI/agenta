@@ -21,8 +21,8 @@ const carol = {user_id: "u-carol", email: "carol@acme.com", name: "Carol Ng"}
 const PEOPLE = [alice, bob, carol]
 const DISCLOSURE: ShareDisclosure = {
     connections: [
-        {provider: "gmail", integration: "composio", connection: "c1"},
-        {provider: "shopify", integration: "composio", connection: "c2"},
+        {provider: "composio", integration: "gmail", connection: "c1"},
+        {provider: "composio", integration: "shopify", connection: "c2"},
     ],
     turns_use_run_credentials: true,
     files_and_tool_results_shared: true,

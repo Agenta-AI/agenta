@@ -661,24 +661,9 @@ class SessionStreamsService:
             admission_envelope=admission_envelope,
         )
 
-        # A turn that was already displaced (handover, cancel, steer, kill, sweep) is dead
-        # forever: refuse the beat before it touches ANY lock or the row. This is what keeps
-        # the ambiguous "`alive` held by another turn + no `running`" state safe to resolve as
-        # a handover below — the dangerous reading of that state was a zombie beat from an
-        # older turn taking the nest of a session parked awaiting approval, which then made
-        # the user's approval resume look superseded and abort. A zombie is by definition a
-        # turn that already lost the nest, so the tombstone written at the moment it lost it
-        # is the discriminator the locks alone cannot provide. Refusing early also stops the
-        # zombie's own turn-end beat from clearing the LIVE turn's `running`.
-        # A turn that was already displaced (handover, cancel, steer, kill, sweep) is dead
-        # forever: refuse the beat before it touches ANY lock or the row. This is what keeps
-        # the ambiguous "`alive` held by another turn + no `running`" state safe to resolve as
-        # a handover below — the dangerous reading of that state was a zombie beat from an
-        # older turn taking the nest of a session parked awaiting approval, which then made
-        # the user's approval resume look superseded and abort. A zombie is by definition a
-        # turn that already lost the nest, so the tombstone written at the moment it lost it
-        # is the discriminator the locks alone cannot provide. Refusing early also stops the
-        # zombie's own turn-end beat from clearing the LIVE turn's `running`.
+        # A displaced turn's beat is refused by the bind script before any lock: a zombie
+        # must never take the nest of a parked session or clear the live turn's `running`
+        # (a row its beat inserted for a deleted session is removed again, below).
         #
         # A turn runs on exactly one runner pod. The first pod to beat it binds it, and a beat
         # from any other pod for the same turn id changes no lock and no row. That covers its
@@ -702,6 +687,16 @@ class SessionStreamsService:
                 admitted=admitted,
             )
             if bound is None:
+                if created_stream is not None:
+                    # A displaced turn's late beat inserted the row of a session that
+                    # was deleted after it lost the nest (the tombstone check rides in
+                    # the bind script, after the insert). The row is that zombie's:
+                    # remove it, so the deleted session does not come back. The cost
+                    # falls on the zombie beat only.
+                    await self.hard_delete(
+                        project_id=project_id, session_id=request.session_id
+                    )
+                    created_stream = None
                 return SessionHeartbeatResult(
                     stream=created_stream or prior_stream,
                     replica_id=request.replica_id,

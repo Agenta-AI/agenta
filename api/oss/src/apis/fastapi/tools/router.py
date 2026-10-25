@@ -296,7 +296,8 @@ def _admission_error_result(
 
 
 # The reserved tools that act on an agent the arguments name (by its variant), with the
-# argument key that carries it, and those that act on a session's drive. The ids are
+# argument key that carries it, those that read an agent's drive by its artifact id, and
+# those that act on a session's drive. The ids are
 # "bound from the run" by the runner, but a direct caller of /tools/call sets them: each
 # is checked against the item's policy before the handler runs.
 _AGENT_TARGET_KEYS = {
@@ -305,8 +306,9 @@ _AGENT_TARGET_KEYS = {
 }
 _SESSION_TARGET_ACTIONS = {
     CREATE_APP_CALL_REF: _Permission.RUN_SESSIONS,
-    LIST_STARTERS_CALL_REF: _Permission.VIEW_SESSIONS,
 }
+# The reserved tools that read an agent's drive by its artifact id.
+_AGENT_ARTIFACT_TARGETS = {LIST_STARTERS_CALL_REF}
 
 
 def _arguments_dict(arguments: Any) -> Optional[dict]:
@@ -356,6 +358,23 @@ async def _checked_reserved_arguments(
         ):
             return arguments
         parsed[key] = {**target, "workflow_variant_id": str(uuid4())}
+        return parsed
+
+    if call_ref in _AGENT_ARTIFACT_TARGETS:
+        parsed = _arguments_dict(arguments)
+        raw = parsed.get("artifact_id") if parsed is not None else None
+        if not isinstance(raw, str) or not raw.strip():
+            return arguments
+        try:
+            artifact_id = UUID(raw.strip())
+        except ValueError:
+            return arguments
+        if await allow_agent(
+            request, action=_Permission.VIEW_WORKFLOWS, artifact_id=artifact_id
+        ):
+            return arguments
+        # A hidden agent answers what an agent with no drive answers: the bundle only.
+        parsed.pop("artifact_id", None)
         return parsed
 
     if call_ref in _SESSION_TARGET_ACTIONS:

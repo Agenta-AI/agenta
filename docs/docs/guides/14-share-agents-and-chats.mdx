@@ -14,7 +14,7 @@ New agents and chats that you create in Agenta are private. Only you can see the
 | A chat you start in Agenta | Private | You |
 | An agent or chat created with an API key | Shared with the project | None |
 | A chat that comes from Slack | Shared with the project | None |
-| Agents and chats that existed before sharing was released | Shared with the project | The person who created them |
+| Agents and chats that existed before sharing was released | Shared with the project | The person who created them or started the chat, when Agenta recorded who that was. Otherwise none. |
 
 - A private agent or chat is hidden from everyone except its owner and, for a chat, the people the owner added. It does not appear in lists. A link to it opens the same page as a link to a chat that does not exist: "This chat does not exist, or you do not have access to it."
 - Project roles do not open private items. An organization owner or a project admin cannot see another member's private agent or chat.
@@ -106,7 +106,7 @@ Before you share an agent with the project, Agenta shows a similar notice: every
 
 ## Limits
 
-- **Credentials already issued.** When you remove someone's access, file storage and gateway credentials that Agenta already issued to them keep working until they expire, after up to 12 hours. Their next request is refused.
+- **Credentials already issued.** When you remove someone's access, file storage and gateway credentials that Agenta already issued to them keep working until they expire, after up to 12 hours. Their next request for a new credential is refused.
 - **Traces.** Project members who can read traces can read the traces of a private chat. This changes in a later release.
 - **Delay.** A sharing change applies to the next request. If Agenta cannot clear its cache, a change can take up to 300 seconds. An open chat stream checks access again every 60 seconds.
 - **Running turns.** A turn that is already running finishes. The change applies to the next turn.

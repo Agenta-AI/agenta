@@ -861,7 +861,10 @@ async def handle_commit_revision(
         return PlatformHandlerResult.failure(e.error)
     variant_id = _bound_variant_id(parsed, key="workflow_revision")
     payload = dict(parsed.get("workflow_revision") or {})
+    # The bound variant is the ONLY variant of the commit: its alias is set to the same id,
+    # so a caller cannot have one variant checked and another written.
     payload["workflow_variant_id"] = str(variant_id)
+    payload["variant_id"] = str(variant_id)
 
     # A whole configuration carries every field the scope exists to protect, so the shape
     # is refused rather than filtered. The agent's tool only ever sends a delta.

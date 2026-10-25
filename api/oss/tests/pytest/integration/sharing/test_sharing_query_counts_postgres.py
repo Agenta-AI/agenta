@@ -112,8 +112,10 @@ pytestmark = pytest.mark.integration
 # M2 top (M3 Task 0, ~/agenta-m3-qa/before/query-counts.json): the same in OSS and EE.
 HB_STEADY = 2
 HB_FIRST = 4
-HB_CREATE = 3
-SEND = 3
+# A session row is now inserted in one statement (no separate refresh read), and never over
+# a deleted private session's tombstone: one statement fewer than M2.
+HB_CREATE = 2
+SEND = 2
 SQ = 2
 SSQ = 1
 WQ = 1

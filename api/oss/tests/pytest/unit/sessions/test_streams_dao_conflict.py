@@ -5,7 +5,9 @@ No live DB: a fake TransactionsEngine raises the real asyncpg unique-violation s
 DAO's `except IntegrityError` branch is exercised deterministically.
 """
 
+from collections import defaultdict
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -22,10 +24,8 @@ class _FakeSession:
     def __init__(self, *, raise_on_commit: bool):
         self._raise_on_commit = raise_on_commit
 
-    def add(self, _dbe):
-        pass
-
-    async def commit(self):
+    async def execute(self, statement):
+        # The insert is one statement: the unique index refuses the loser there.
         if self._raise_on_commit:
             raise IntegrityError(
                 "INSERT INTO session_streams ...",
@@ -35,11 +35,19 @@ class _FakeSession:
                     '"uq_session_streams_project_session_id"'
                 ),
             )
+        row = defaultdict(lambda: None)
+        row.update(
+            {
+                "id": uuid4(),
+                "created_at": datetime.now(timezone.utc),
+                "project_id": uuid4(),
+                "session_id": "sess-race-1",
+            }
+        )
+        return SimpleNamespace(first=lambda: SimpleNamespace(_mapping=row))
 
-    async def refresh(self, dbe):
-        # Mimic the DB-assigned server defaults a real INSERT ... RETURNING would populate.
-        dbe.id = uuid4()
-        dbe.created_at = datetime.now(timezone.utc)
+    async def commit(self):
+        pass
 
     async def rollback(self):
         pass

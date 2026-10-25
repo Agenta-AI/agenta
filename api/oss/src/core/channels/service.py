@@ -1443,20 +1443,27 @@ class ChannelsService:
         )
         if current_default is not None and current_default.id != agent_id:
             current_default.flags.is_default = False
-            await self._edit_agent_row(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                agent=ChannelAgentEdit(
-                    id=current_default.id,
-                    name=current_default.name,
-                    description=current_default.description,
-                    tags=current_default.tags,
-                    meta=current_default.meta,
-                    data=current_default.data,
-                    flags=current_default.flags,
-                ),
+            clear = ChannelAgentEdit(
+                id=current_default.id,
+                name=current_default.name,
+                description=current_default.description,
+                tags=current_default.tags,
+                meta=current_default.meta,
+                data=current_default.data,
+                flags=current_default.flags,
             )
+            try:
+                await self._edit_agent_row(
+                    project_id=project_id, user_id=user_id, agent=clear
+                )
+            except SharedItemNotFound:
+                # The old default's agent no longer resolves, or is private now: its
+                # binding is turned off instead of blocking the new default. This write
+                # never activates a binding.
+                clear.flags = clear.flags.model_copy(update={"is_active": False})
+                await self._edit_agent_row(
+                    project_id=project_id, user_id=user_id, agent=clear
+                )
 
         agent.flags.is_default = True
         updated = await self._edit_agent_row(

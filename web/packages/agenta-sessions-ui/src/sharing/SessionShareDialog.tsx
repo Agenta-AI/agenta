@@ -108,9 +108,7 @@ export const SessionShareDialog = ({
 
     const isOwner = sharing?.my_role === "owner"
     const ready = Boolean(sharing) && !loading && !loadError
-    // An open confirmation acts only inside the open dialog, on a state that is known and still
-    // the owner's: a re-read that fails, loads an account name, or takes the ownership away
-    // closes it.
+    // Confirmations close when the state is unknown or no longer the owner's.
     const writable = open && ready && isOwner
     // A confirmation left pending when the dialog closes does not come back on its own later.
     useEffect(() => {

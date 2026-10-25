@@ -84,17 +84,12 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
 import {AgentPrivacyHost} from "../../src/features/chat/AgentPrivacyHost"
 import {ShareMenu} from "../../src/features/chat/ShareMenu"
 
-vi.mock("../../src/features/chat/AgentPrivacyHost", async (importOriginal) => {
-    const original =
-        await importOriginal<typeof import("../../src/features/chat/AgentPrivacyHost")>()
-    return {
-        ...original,
-        AgentPrivacyDialogHost: (props: Record<string, unknown>) => {
-            dialogHosts.push(props)
-            return null
-        },
-    }
-})
+vi.mock("../../src/features/chat/AgentPrivacyDialogHost", () => ({
+    AgentPrivacyDialogHost: (props: Record<string, unknown>) => {
+        dialogHosts.push(props)
+        return null
+    },
+}))
 
 let root: Root | null = null
 let host: HTMLDivElement | null = null

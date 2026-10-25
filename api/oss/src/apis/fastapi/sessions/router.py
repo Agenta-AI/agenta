@@ -107,6 +107,7 @@ from oss.src.core.sessions.streams.dtos import (
 from oss.src.core.sessions.streams.types import (
     ConcurrencyLimitExceeded,
     SessionIdInvalid,
+    SessionIdTombstoned,
     SessionNameProtected,
     SessionTurnInUse,
     SessionTurnMismatch,
@@ -459,6 +460,9 @@ def _handle_session_exceptions():
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=e.message,
                 ) from e
+            except SessionIdTombstoned as e:
+                # A deleted private session's id: answered as a hidden session.
+                raise not_found_exception() from e
             except SessionCreationRequiresRunCredential as e:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
@@ -3237,6 +3241,9 @@ def _handle_command_exceptions():
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=e.message,
                 ) from e
+            except SessionIdTombstoned as e:
+                # A deleted private session's id: answered as a hidden session.
+                raise not_found_exception() from e
             except ExecutionExpectationFailed as e:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,

@@ -61,7 +61,7 @@ export const SessionGrantRoleMenu = ({
                         className="items-start"
                     >
                         <span className="mt-0.5 flex size-3.5 shrink-0">
-                            {option === role ? <CheckIcon size={14} aria-hidden /> : null}
+                            {option === shown ? <CheckIcon size={14} aria-hidden /> : null}
                         </span>
                         <span className="flex flex-col">
                             <span>{sessionRoleCopy[option].label}</span>

@@ -17,6 +17,7 @@ import {
     useFilesPaneLayout,
 } from "@agenta/chat/state"
 import {useDriveDirtyGuard} from "@agenta/entities/drive"
+import type {SessionStream} from "@agenta/entities/session"
 import {sharingKeys, type SessionSharingResponse} from "@agenta/entities/sharing"
 import {
     DriveLinkContext,
@@ -49,6 +50,7 @@ import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
 import {useDriveUrlSync} from "./useDriveUrlSync"
 import {useLeaveSession} from "./useLeaveSession"
+import {sessionHeaderKey} from "./useSessionHeader"
 import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTriggerTestRun} from "./useTriggerTestRun"
@@ -297,12 +299,16 @@ export const SessionWorkspace = ({
     const closeTabs = useSessionTabClose({agentId, sessionId, base})
     // Archiving the session you are on has to move you off it.
     const sessionActions = useSessionActions({onRemoved: useLeaveSession(base)})
-    // Read from the cache the tab strip fills, not fetched here: the first-run draft has no row.
+    // Read from the session row the screen already caches (it carries the reader's sharing
+    // state), or from the Share dialog's read; not fetched here: the first-run draft has no row.
     const isNotOwner = useCallback(
         (id: string) => {
-            const cached = getHostQueryClient().getQueryData<SessionSharingResponse>(
-                sharingKeys.session(id, projectId),
-            )?.sharing
+            const client = getHostQueryClient()
+            const cached =
+                client.getQueryData<SessionStream | null>(sessionHeaderKey(projectId, id))
+                    ?.sharing ??
+                client.getQueryData<SessionSharingResponse>(sharingKeys.session(id, projectId))
+                    ?.sharing
             return Boolean(cached?.policy.owner_user_id) && cached?.my_role !== "owner"
         },
         [projectId],

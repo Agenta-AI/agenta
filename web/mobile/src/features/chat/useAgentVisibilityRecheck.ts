@@ -1,12 +1,6 @@
 import {useEffect, useRef} from "react"
 
-/**
- * Re-read the agent's latest revision each time the session's sharing recheck reads (the 60 s
- * budget, see `useChatAccess`'s `checkedAt`). The server answers a hidden agent like an unknown
- * one, so this is what turns "the owner made the agent private" into `agentHidden` while the
- * chat stays open: no separate timer, and nothing on the first read (the revision query has
- * just loaded then). `enabled` is false while no agent is bound, so nothing asks for an empty id.
- */
+/** Re-reads the agent revision on each sharing recheck; the server hides a private agent as unknown. */
 export const useAgentVisibilityRecheck = ({
     checkedAt,
     enabled,

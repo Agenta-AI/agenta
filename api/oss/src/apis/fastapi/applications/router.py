@@ -1810,6 +1810,7 @@ class ApplicationsRouter:
         return response
 
     @intercept_exceptions()
+    @handle_git_exceptions()
     @handle_workflow_exceptions()
     async def commit_application_revision(
         self,

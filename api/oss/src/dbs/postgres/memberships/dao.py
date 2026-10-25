@@ -152,6 +152,9 @@ _PROJECT_MEMBERS_BY_POLICY = {
 }
 
 _DEFAULT_MEMBERS_LIMIT = 50
+# The largest page a members query returns: a bigger `limit` is clamped, so one request
+# never sorts and returns a whole organization's members.
+_MAX_MEMBERS_LIMIT = 500  # the /m roster page (MEMBER_ROSTER_PAGE_SIZE)
 
 
 def _query_project_members_sql(
@@ -482,7 +485,10 @@ class MembershipsDAO(MembershipsDAOInterface):
     ) -> List[ProjectMemberProfile]:
         search = (search or "").strip() or None
         cursor = windowing.next if windowing else None
-        limit = (windowing.limit if windowing else None) or _DEFAULT_MEMBERS_LIMIT
+        limit = min(
+            (windowing.limit if windowing else None) or _DEFAULT_MEMBERS_LIMIT,
+            _MAX_MEMBERS_LIMIT,
+        )
 
         params = {"project_id": project_id, "limit": limit}
         if search is not None:

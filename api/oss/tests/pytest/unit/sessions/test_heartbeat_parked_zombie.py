@@ -531,3 +531,36 @@ async def test_kill_tombstones_the_killed_turn(lock_engine):
 
 async def _noop_kill(*, project_id: str, session_id: str) -> None:
     return None
+
+
+@pytest.mark.asyncio
+async def test_zombie_beat_after_a_delete_does_not_bring_the_session_back(lock_engine):
+    """The session is deleted after turn-old lost the nest. Its late running beat finds no
+    row and inserts one (admission passes; the supersession check rides in the bind
+    script, after the insert). The bind refuses the beat, and the row it inserted is
+    removed again: the deleted session stays deleted."""
+    dao = _FakeStreamsDAO()
+    svc = _service(lock_engine, dao)
+    await _park_a_session(svc, lock_engine)
+    dao.row = None  # the session was deleted
+    deleted = []
+
+    async def _hard_delete(*, project_id, session_id):
+        deleted.append(session_id)
+        dao.row = None
+        return True
+
+    svc.hard_delete = _hard_delete
+
+    zombie = await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("turn-old"),
+        envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
+    )
+
+    assert zombie.is_current_turn is False
+    assert deleted == [_SESSION]
+    assert dao.row is None

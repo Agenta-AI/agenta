@@ -126,3 +126,41 @@ async def test_a_live_row_reads_as_before(seeded):
 
     assert tombstone is None
     assert state == plain
+
+
+async def test_no_session_is_created_over_a_tombstone(seeded):
+    """The create is one statement that writes nothing over a tombstone: a heartbeat, a
+    start or a send that names a deleted private session's id cannot bring it back."""
+    from oss.src.core.sessions.streams.dtos import SessionStreamCreate  # noqa: PLC0415
+    from oss.src.core.sessions.streams.types import SessionIdTombstoned  # noqa: PLC0415
+    from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY  # noqa: PLC0415
+
+    project_id = seeded.project_ids[0]
+    alice = seeded.user_ids["alice"]
+    session_id = await _session(project_id, alice, "private")
+    dao = SessionStreamsDAO(engine=get_transactions_engine())
+    await dao.hard_delete_by_session_id(project_id=project_id, session_id=session_id)
+
+    with count_statements(get_transactions_engine()) as statements:
+        with pytest.raises(SessionIdTombstoned):
+            await dao.create(
+                project_id=project_id,
+                user_id=None,
+                stream=SessionStreamCreate(
+                    session_id=session_id, access=OWNERLESS_PROJECT_POLICY
+                ),
+            )
+    assert len(statements) == 1
+    assert (
+        await dao.get_by_session_id(project_id=project_id, session_id=session_id)
+        is None
+    )
+
+    fresh = await dao.create(
+        project_id=project_id,
+        user_id=None,
+        stream=SessionStreamCreate(
+            session_id=f"tombstone-fresh-{uuid7().hex}", access=OWNERLESS_PROJECT_POLICY
+        ),
+    )
+    assert fresh.id is not None and fresh.created_at is not None

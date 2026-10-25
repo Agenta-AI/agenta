@@ -7,6 +7,7 @@ from sqlalchemy import (
     any_,
     case,
     cast,
+    exists,
     false,
     func,
     literal,
@@ -39,7 +40,11 @@ from oss.src.core.sessions.streams.interfaces import (
     TriggerSessionClaimsDAOInterface,
 )
 from oss.src.core.sessions.streams.naming import refuse_name_change
-from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
+from oss.src.core.sessions.streams.types import (
+    SessionIdTombstoned,
+    SessionStreamAlreadyExists,
+)
+from oss.src.dbs.postgres.sharing.dbes import SessionTraceTombstoneDBE
 from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.core.sharing.dtos import AccessPolicy, SessionReadScope, Visibility
 from oss.src.core.triggers.dtos import TRIGGER_DELIVERY_RETRYABLE_STATUS_CODE
@@ -167,17 +172,47 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             user_id=user_id,
             stream=stream,
         )
+        # One statement, and none over a tombstone: the id of a deleted private session
+        # stays its former owner's (its records stay with tracing retention), so no row
+        # is ever created with it again. The row comes back with its server defaults.
+        table = SessionStreamDBE.__table__
+        values = {
+            column.name: getattr(dbe, column.key)
+            for column in table.columns
+            if getattr(dbe, column.key, None) is not None
+        }
+        values.setdefault("id", uuid.uuid7())
+        names = list(values)
+        tombstone = SessionTraceTombstoneDBE.__table__
+        source = select(
+            *(literal(values[name], type_=table.c[name].type) for name in names)
+        ).where(
+            ~exists().where(
+                tombstone.c.project_id == project_id,
+                tombstone.c.session_id == stream.session_id,
+            )
+        )
+        statement = (
+            insert(table)
+            .from_select(names, source, include_defaults=False)
+            .returning(*table.columns)
+        )
         try:
             async with self.engine.session() as session:
-                session.add(dbe)
+                row = (await session.execute(statement)).first()
                 await session.commit()
-                await session.refresh(dbe)
         except IntegrityError as e:
             error_str = str(e.orig) if e.orig else str(e)
             if "uq_session_streams_project_session_id" in error_str:
                 raise SessionStreamAlreadyExists(session_id=stream.session_id) from e
             raise
-        return map_stream_dbe_to_dto(stream_dbe=dbe)
+        if row is None:
+            raise SessionIdTombstoned(session_id=stream.session_id)
+        return map_stream_dbe_to_dto(
+            stream_dbe=SessionStreamDBE(
+                **{column.key: row._mapping[column.name] for column in table.columns}
+            )
+        )
 
     async def claim_trigger_delivery(
         self,

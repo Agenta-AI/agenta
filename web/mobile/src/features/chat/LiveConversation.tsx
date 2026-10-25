@@ -293,12 +293,9 @@ export const LiveConversation = ({
     // Landing on a session — a new one from `+` or the shortcut, or a switch to an existing one —
     // puts the caret in the composer, once it can take input. Not while the caret is already in
     // some other field: a self-commit remounts this screen mid-edit in the config pane.
-    // One gate for every write on this screen: the composer, the approval card and its shortcut,
-    // the queued messages, the parked question, connection and secret docks, tool answers from
-    // the transcript, rewind and retry, the setup card and a held Home task.
+    // One gate for every write on this screen.
     const locked = !canSend || Boolean(readOnly)
-    // For a callback that runs later than the render that offered it (a confirm dialog's OK):
-    // it asks the gate as it is then, not as it was when the dialog opened.
+    // Access can go while a confirm dialog is open: late callbacks read the gate as it is now.
     const lockedRef = useRef(locked)
     lockedRef.current = locked
     // A screen that is gone (the chat was taken away) answers every late callback as locked.

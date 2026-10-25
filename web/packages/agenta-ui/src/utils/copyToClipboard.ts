@@ -14,8 +14,12 @@ const copyBySelection = (text: string): boolean => {
     area.style.top = "0"
     area.style.left = "0"
     area.style.opacity = "0"
-    document.body.appendChild(area)
+    // Inside the open dialog when there is one: a modal keeps focus in its own scope, so a
+    // text area outside it could not be focused and selected. Focus goes back afterwards.
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const host = previous?.closest<HTMLElement>("[role=dialog],[role=alertdialog]") ?? document.body
     try {
+        host.appendChild(area)
         area.focus()
         area.select()
         return typeof document.execCommand === "function" && document.execCommand("copy")
@@ -23,6 +27,7 @@ const copyBySelection = (text: string): boolean => {
         return false
     } finally {
         area.remove()
+        previous?.focus()
     }
 }
 

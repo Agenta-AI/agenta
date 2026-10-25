@@ -210,14 +210,17 @@ def prefetch_beat(request: Request, *, session_id: str, references) -> None:
 
     prefetch_session(request, session_id)
     for reference in references or ():
-        if getattr(reference, "key", None) == "workflow" and getattr(
+        if getattr(reference, "key", None) != "workflow" or not getattr(
             reference, "id", None
         ):
-            register_prefetch(
-                agent_access_entry(
-                    UUID(str(request.state.project_id)), UUID(str(reference.id))
-                )
-            )
+            continue
+        try:
+            agent_id = UUID(str(reference.id))
+        except ValueError:
+            continue  # not an agent id: the beat's admission answers it
+        register_prefetch(
+            agent_access_entry(UUID(str(request.state.project_id)), agent_id)
+        )
 
 
 async def stream_sharing_for_request(request: Request, *, stream) -> Any:

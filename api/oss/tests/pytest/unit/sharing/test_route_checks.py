@@ -1383,9 +1383,7 @@ async def test_reserved_tool_on_a_private_agent(world, monkeypatch, call_ref, ke
     assert (named == variant_id) is (who == "alice")
 
 
-@pytest.mark.parametrize(
-    "call_ref", ["tools.agenta.create_app", "tools.agenta.list_starters"]
-)
+@pytest.mark.parametrize("call_ref", ["tools.agenta.create_app"])
 async def test_reserved_tool_on_a_private_session_is_not_found(world, call_ref):
     import oss.src.apis.fastapi.tools.router as tools_module  # noqa: PLC0415
 
@@ -1453,3 +1451,55 @@ async def test_a_tombstoned_session_is_hidden_but_from_its_former_owner(
 
     assert check == expected
     assert unknown == ResourceCheck.ALLOWED
+
+
+@pytest.mark.parametrize("who", ["alice", "bob"])
+async def test_list_starters_of_a_private_agent_reads_the_bundle_only(world, who):
+    """Bob names Alice's private agent: the starters list reads no agent drive (what an
+    agent with no drive answers). Alice reads her agent's drive."""
+    import oss.src.apis.fastapi.tools.router as tools_module  # noqa: PLC0415
+
+    user = world.alice if who == "alice" else world.bob
+    access = world.request_access(user, "secret")
+    arguments = {"artifact_id": str(world.private_agent), "session_id": "s-any"}
+    with _as(access):
+        checked = await tools_module._checked_reserved_arguments(
+            _write_request(world, access),
+            call_ref="tools.agenta.list_starters",
+            arguments=dict(arguments),
+            workflows_service=None,
+        )
+    assert ("artifact_id" in checked) is (who == "alice")
+
+
+async def test_commit_revision_writes_only_the_checked_variant():
+    """A caller sends its own visible variant as `workflow_variant_id` and another one as
+    `variant_id`: the commit carries the checked variant under both names."""
+    from oss.src.core.tools.platform_handlers import (  # noqa: PLC0415
+        handle_commit_revision,
+    )
+
+    checked, other = uuid4(), uuid4()
+    seen = {}
+
+    class _Workflows:
+        async def commit_workflow_revision_checked(self, **kwargs):
+            seen["commit"] = kwargs["workflow_revision_commit"]
+            raise RuntimeError("stop here")
+
+    with pytest.raises(Exception):
+        await handle_commit_revision(
+            arguments={
+                "workflow_revision": {
+                    "workflow_variant_id": str(checked),
+                    "variant_id": str(other),
+                    "delta": {"set": {"parameters": {"agent": {"instructions": "x"}}}},
+                }
+            },
+            project_id=uuid4(),
+            user_id=uuid4(),
+            workflows_service=_Workflows(),
+        )
+    commit = seen["commit"]
+    assert commit.workflow_variant_id == checked
+    assert commit.variant_id == checked
