@@ -21,6 +21,7 @@ from pydantic import (
     Field,
 )
 
+from agenta.sdk.redaction.redactor import strip_echoed_key_fragments
 from agenta.sdk.models.shared import (
     TraceID,
     SpanID,
@@ -289,7 +290,18 @@ def returns_stacktrace() -> bool:
 
 def returned_stacktrace(stacktrace: Optional[Any]) -> Optional[Any]:
     """The traceback to put on an error body, which is normally none of it."""
-    return stacktrace if returns_stacktrace() else None
+    if not returns_stacktrace():
+        return None
+
+    # The traceback repeats the exception text, so it carries whatever the message did.
+    if isinstance(stacktrace, str):
+        return strip_echoed_key_fragments(stacktrace)
+    if isinstance(stacktrace, list):
+        return [
+            strip_echoed_key_fragments(line) if isinstance(line, str) else line
+            for line in stacktrace
+        ]
+    return stacktrace
 
 
 class WorkflowRequestData(BaseModel):
