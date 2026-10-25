@@ -3,7 +3,7 @@ thought signatures in tool call ids."""
 
 import json
 import mimetypes
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -86,6 +86,136 @@ def _split_thought_signatures(messages: List[Any], *, restore: bool) -> bool:
                     call["extra_content"] = {"google": {"thought_signature": signature}}
                 split = True
     return split
+
+
+# Gemini's thinking levels for an OpenAI `reasoning_effort`. gemini-3.7-flash refuses
+# "minimal" (HTTP 400, "Thinking level is unsupported"), so the lightest efforts map to "low".
+_GEMINI_THINKING_LEVELS = {
+    "none": "low",
+    "minimal": "low",
+    "low": "low",
+    "medium": "medium",
+    "high": "high",
+    "xhigh": "high",
+}
+# What a built-in Gemini call that names no reasoning effort thinks at (`default_gemini_thinking`).
+_DEFAULT_LEVEL = "low"
+
+
+def stream_gemini_thoughts(body: bytes) -> Tuple[bytes, Optional[bool]]:
+    """Ask a streaming Gemini chat completion to stream its thought summaries.
+
+    Vertex sends no byte, not even the response headers, until the model's first output. With
+    thought summaries on, a model that is thinking usually sends one within seconds, so a long
+    silence is most likely a stalled call, which the gateway cuts and retries
+    (`response_headers_timeout_seconds`). Vertex refuses `reasoning_effort` next to a
+    `thinking_config`, so the effort moves into the config as Gemini's `thinking_level`, and a
+    call that names no effort thinks at "low" (`default_gemini_thinking`).
+
+    Returns the body and whether the caller asked to see the thoughts: True relays them as
+    `reasoning_content`, False removes their text, and None means the body is unchanged. A
+    body that already carries an `extra_body` (the built-in route refuses a non-null one
+    before this) or an effort Gemini has no level for is left for Vertex to judge.
+    """
+    try:
+        payload = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return body, None
+    if not isinstance(payload, dict) or payload.get("extra_body") is not None:
+        return body, None
+    effort = payload.pop("reasoning_effort", None)
+    if effort is not None and not (
+        isinstance(effort, str) and effort in _GEMINI_THINKING_LEVELS
+    ):
+        return body, None
+    level = _GEMINI_THINKING_LEVELS[effort] if effort is not None else _DEFAULT_LEVEL
+    payload["extra_body"] = {
+        "google": {
+            "thinking_config": {"include_thoughts": True, "thinking_level": level}
+        }
+    }
+    return json.dumps(payload).encode(), effort not in (None, "none")
+
+
+def default_gemini_thinking(body: bytes) -> bytes:
+    """Make a non-streaming Gemini chat completion that names no reasoning effort think at
+    "low": Agenta defaults an omitted effort to "low" rather than Gemini's own "medium",
+    which answers markedly later on the built-in models. Pi with thinking off sends no
+    effort."""
+    try:
+        payload = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return body
+    if (
+        not isinstance(payload, dict)
+        or payload.get("reasoning_effort") is not None
+        or payload.get("extra_body") is not None
+    ):
+        return body
+    payload["reasoning_effort"] = _DEFAULT_LEVEL
+    return json.dumps(payload).encode()
+
+
+def nudge_stalled_chat(body: bytes, *, attempts: int) -> bytes:
+    """A stalled chat completion's body for its next attempt: the system prompt ends with one
+    newline per earlier stall.
+
+    Vertex can stay stuck on one request for minutes, stalling again on the identical body,
+    while the same request with any change the model sees answers in seconds; a change only
+    in what the model does not see, such as tool call ids, does not help (staging, 25 October
+    2026). A trailing newline changes nothing the model is asked. A body with no system or
+    developer message is left as it is.
+    """
+    try:
+        payload = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return body
+    messages = payload.get("messages") if isinstance(payload, dict) else None
+    for message in messages if isinstance(messages, list) else []:
+        if not isinstance(message, dict) or message.get("role") not in (
+            "system",
+            "developer",
+        ):
+            continue
+        content = message.get("content")
+        if isinstance(content, str):
+            message["content"] = content + "\n" * attempts
+            return json.dumps(payload).encode()
+        texts = [
+            part
+            for part in (content if isinstance(content, list) else [])
+            if isinstance(part, dict) and isinstance(part.get("text"), str)
+        ]
+        if texts:
+            texts[-1]["text"] += "\n" * attempts
+            return json.dumps(payload).encode()
+        return body
+    return body
+
+
+def move_gemini_thoughts(payload: Any, *, relay: bool) -> bool:
+    """Take Gemini's thought summaries out of a parsed chunk's `content`, where Vertex puts
+    them marked `extra_content.google.thought`, so no client shows them as the answer. With
+    `relay` they become `reasoning_content`, which OpenAI-compatible clients read as thinking;
+    without, their text is dropped and the chunk still reaches the caller."""
+    moved = False
+    choices = payload.get("choices") if isinstance(payload, dict) else None
+    for choice in choices if isinstance(choices, list) else []:
+        delta = choice.get("delta") if isinstance(choice, dict) else None
+        extra = delta.get("extra_content") if isinstance(delta, dict) else None
+        google = extra.get("google") if isinstance(extra, dict) else None
+        if not isinstance(google, dict) or google.get("thought") is not True:
+            continue
+        del google["thought"]
+        if not google:
+            del extra["google"]
+        if not extra:
+            del delta["extra_content"]
+        text = delta.pop("content", None)
+        if relay and text:
+            delta["reasoning_content"] = text
+        moved = True
+    return moved
 
 
 # Vertex's chat completions refuse an OpenAI `file` content part ("Unrecognized 'type'

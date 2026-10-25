@@ -1297,6 +1297,12 @@ class LLMGatewayConfig(BaseModel):
         os.getenv("AGENTA_LLM_GATEWAY_VERTEX_SA_JSON_B64") or None
     )
     vertex_project: str | None = os.getenv("AGENTA_LLM_GATEWAY_VERTEX_PROJECT") or None
+    # Send `builtin/agenta` calls on Vertex's Priority PayGo tier instead of Standard. Google
+    # bills Priority above Standard and the wallet still charges Standard rates, so the
+    # platform pays the difference. On staging it cut stalls by about two thirds, not to zero.
+    vertex_priority: bool = _parse_bool_env(
+        "AGENTA_LLM_GATEWAY_VERTEX_PRIORITY", default=False
+    )
 
     model_config = ConfigDict(extra="ignore")
 
