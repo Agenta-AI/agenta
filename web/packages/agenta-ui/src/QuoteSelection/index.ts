@@ -4,14 +4,18 @@ export {QuoteNote, type QuoteNoteProps} from "./QuoteNote"
 export {useQuoteSource} from "./sources"
 export {useFileQuoteFreshness} from "./useQuoteFreshness"
 export {
+    clearQuoteReveal,
     clearQuotes,
     clearSessionQuotes,
     getQuotes,
     registerQuoteSubmit,
     removeQuote,
     restoreQuotes,
+    revealQuote,
     updateQuote,
+    useQuoteReveal,
     useStagedQuotes,
+    type QuoteReveal,
 } from "./store"
 export {
     frameRectToRoot,

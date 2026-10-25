@@ -14,7 +14,7 @@ import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {
     registerQuoteSubmit,
     removeQuote,
-    updateQuote,
+    revealQuote,
     useStagedQuotes,
 } from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
@@ -28,7 +28,7 @@ import {useFilePalette} from "../hooks/useFilePalette"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 
 import ComposerAttachments from "./ComposerAttachments"
-import ComposerQuotes from "./ComposerQuotes"
+import {QuoteTiles} from "./ComposerQuotes"
 import ComposerRejections from "./ComposerRejections"
 import RecordingWaveform from "./RecordingWaveform"
 import {useStagedFilesViewer} from "./useStagedFilesViewer"
@@ -323,15 +323,7 @@ export const ChatComposer = ({
                 header={
                     <>
                         {headerExtra}
-                        <HeightCollapse open={quotes.length > 0}>
-                            <ComposerQuotes
-                                quotes={quotes}
-                                onRemove={(id) => removeQuote(quoteSessionId, id)}
-                                onEdit={(id, note) => updateQuote(quoteSessionId, id, {note})}
-                                touch={!hasKeyboard}
-                            />
-                        </HeightCollapse>
-                        <HeightCollapse open={files.length > 0}>
+                        <HeightCollapse open={quotes.length > 0 || files.length > 0}>
                             <ComposerAttachments
                                 files={files}
                                 onRemove={removeFile}
@@ -340,6 +332,15 @@ export const ChatComposer = ({
                                 }
                                 onRetry={uploads.retry}
                                 canRetry={uploads.canRetry}
+                                leading={
+                                    quotes.length > 0 ? (
+                                        <QuoteTiles
+                                            quotes={quotes}
+                                            onRemove={(id) => removeQuote(quoteSessionId, id)}
+                                            onOpen={(id) => revealQuote(quoteSessionId, id)}
+                                        />
+                                    ) : null
+                                }
                             />
                         </HeightCollapse>
                     </>

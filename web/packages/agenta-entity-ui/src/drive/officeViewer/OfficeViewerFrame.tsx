@@ -62,6 +62,7 @@ export function OfficeViewerFrame({
     // The slide the frame last reported; a new object per report, so pins follow every one.
     const [shown, setShown] = useState<{slide: number} | null>(null)
     const [pick, setPick] = useState<PreviewPick | null>(null)
+    const [dismissSignal, setDismissSignal] = useState(0)
     const [pinRects, setPinRects] = useState<PreviewPinRect[]>([])
     const sessionId = usePreviewCommentSession()
     const {enabled, setEnabled} = usePreviewCommentMode()
@@ -144,6 +145,12 @@ export function OfficeViewerFrame({
                 case "pick-cancel":
                     setEnabled(false)
                     return
+                case "pick-dismiss":
+                    setDismissSignal((n) => n + 1)
+                    return
+                case "pick-toggle":
+                    setEnabled(!enabledRef.current)
+                    return
                 case "pin-rects": {
                     const root = rootRef.current
                     if (!box || !root) return
@@ -184,6 +191,9 @@ export function OfficeViewerFrame({
     useEffect(() => {
         if (shown) send({type: "pins", pins})
     }, [shown, pins, send])
+    useEffect(() => {
+        if (shown && sessionId) send({type: "pick-keys"})
+    }, [shown, sessionId, send])
 
     // A file that keeps the renderer busy falls back to download instead of loading forever.
     const loading = state.status === "loading"
@@ -242,6 +252,14 @@ export function OfficeViewerFrame({
                     target={target}
                     pick={pick}
                     onPickConsumed={() => setPick(null)}
+                    onNoteChange={(held) => send({type: "pick-hold", held})}
+                    dismissSignal={dismissSignal}
+                    onRevealPin={({id, source: {anchor}}) => {
+                        if (anchor.type === "element" && slides && anchor.page)
+                            step(anchor.page - 1 - targetRef.current)
+                        send({type: "pin-reveal", id})
+                    }}
+                    commenting={enabled}
                     pinRects={pinRects}
                 />
             ) : null}

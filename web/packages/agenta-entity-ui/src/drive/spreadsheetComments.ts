@@ -20,6 +20,8 @@ export interface CellSelection {
     box: CellBox | null
     onPointerDown: (e: ReactPointerEvent<HTMLElement>) => void
     onPointerOver: (e: ReactPointerEvent<HTMLElement>) => void
+    /** A note is open: the grid shows no hover until it closes. */
+    held?: boolean
 }
 
 interface CellPoint {

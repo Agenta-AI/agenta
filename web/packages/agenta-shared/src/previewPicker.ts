@@ -31,11 +31,20 @@ export interface PinQuery {
 export type HostToPicker =
     | {type: "pick-start"; format: PickerFormat; page?: number}
     | {type: "pick-stop"}
+    /** The host can comment here: forward the comment-mode shortcut. */
+    | {type: "pick-keys"}
+    /** A note is open: no hover, and a click or Esc in the frame dismisses the note. */
+    | {type: "pick-hold"; held: boolean}
     | {type: "pins"; pins: PinQuery[]}
+    /** Scroll a pinned comment's element into view. */
+    | {type: "pin-reveal"; id: string}
 
 export type PickerToHost =
     | {type: "picked"; element: PickedElement; text: string; rect: PickerRect}
     | {type: "pick-cancel"}
+    | {type: "pick-dismiss"}
+    /** The comment-mode shortcut was pressed inside the frame. */
+    | {type: "pick-toggle"}
     | {type: "pin-rects"; rects: {id: string; rect: PickerRect | null}[]}
 
 export const PICKER_SELECTOR_CAP = 500
@@ -45,7 +54,18 @@ export const PICKER_TAG_CAP = 40
 export const PICKER_ID_CAP = 100
 export const PICKER_PIN_RECTS_CAP = 200
 
-const HOST_TO_PICKER_TYPES: readonly string[] = ["pick-start", "pick-stop", "pins"]
+const HOST_TO_PICKER_TYPES: readonly string[] = [
+    "pick-start",
+    "pick-stop",
+    "pick-keys",
+    "pick-hold",
+    "pins",
+    "pin-reveal",
+]
+
+/** Alt+M, matched on `code`: macOS Option+M reports `key` as "µ". */
+export const isCommentModeChord = (e: KeyboardEvent): boolean =>
+    e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.repeat && e.code === "KeyM"
 
 /** The DOCX renderer's class on a Word body block: `ag-p<n>` paragraph, `ag-t<n>` table. */
 export const blockClass = (kind: "p" | "t", index: number): string => `ag-${kind}${index}`
@@ -71,7 +91,9 @@ interface PickerInbound {
     type?: unknown
     format?: unknown
     page?: unknown
+    held?: unknown
     pins?: unknown
+    id?: unknown
 }
 
 export function installPreviewPicker(
@@ -100,6 +122,8 @@ export function installPreviewPicker(
 
     var PRESS_WINDOW = 1500
     var mode: PickerMode | null = null
+    var held = false
+    var keys = false
     var pressed: {target: EventTarget | null; at: number} | null = null
     // Touch has no hover: a tap's compat mouseover would leave the highlight stuck.
     var touchedAt = 0
@@ -364,11 +388,17 @@ export function installPreviewPicker(
         if (type !== "click" || !pressed) return
         var fresh = pressed.target === event.target && Date.now() - pressed.at < PRESS_WINDOW
         pressed = null
-        if (fresh) pick(event as MouseEvent)
+        if (!fresh) return
+        if (held) post({type: "pick-dismiss"})
+        else pick(event as MouseEvent)
     }
 
     function onHover(event: Event): void {
         if (!mode) return
+        if (held) {
+            removeHighlight()
+            return
+        }
         if (noHover || (event as PointerEvent).pointerType === "touch") return
         if (Date.now() - touchedAt < PRESS_WINDOW) return
         var found = pickable(event.target)
@@ -376,10 +406,38 @@ export function installPreviewPicker(
         else removeHighlight()
     }
 
+    function editable(node: EventTarget | null): boolean {
+        var el = toElement(node) as HTMLElement | null
+        if (!el) return false
+        var tag = el.tagName
+        return !!el.isContentEditable || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT"
+    }
+
     function onKey(event: KeyboardEvent): void {
+        // Matches `isCommentModeChord`; an app's own text field keeps its Option+M.
+        if (
+            event.altKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.shiftKey &&
+            !event.repeat &&
+            event.code === "KeyM" &&
+            keys &&
+            !held &&
+            (mode || !editable(event.target))
+        ) {
+            event.preventDefault()
+            event.stopPropagation()
+            post({type: "pick-toggle"})
+            return
+        }
         if (!mode || event.key !== "Escape") return
         event.preventDefault()
         event.stopPropagation()
+        if (held) {
+            post({type: "pick-dismiss"})
+            return
+        }
         mode = null
         removeHighlight()
         post({type: "pick-cancel"})
@@ -508,7 +566,19 @@ export function installPreviewPicker(
             ensureObserver()
         } else if (m.type === "pick-stop") {
             mode = null
+            held = false
             removeHighlight()
+        } else if (m.type === "pick-keys") {
+            keys = true
+        } else if (m.type === "pick-hold") {
+            held = m.held === true
+            if (held) removeHighlight()
+        } else if (m.type === "pin-reveal") {
+            for (var r = 0; r < pins.length; r++) {
+                if (pins[r].id !== m.id) continue
+                var target = resolvePin(pins[r])
+                if (target) target.scrollIntoView({block: "center", inline: "nearest"})
+            }
         } else if (m.type === "pins") {
             var next = readPins(m.pins)
             if (!next) return
@@ -579,6 +649,8 @@ export function parsePickerMessage(
 ): PickerToHost | null {
     if (!isRecord(data)) return null
     if (data.type === "pick-cancel") return {type: "pick-cancel"}
+    if (data.type === "pick-dismiss") return {type: "pick-dismiss"}
+    if (data.type === "pick-toggle") return {type: "pick-toggle"}
     if (data.type === "picked") {
         const element = parsePickedElement(data.element)
         const text = cappedString(data.text, PICKER_TEXT_CAP)
