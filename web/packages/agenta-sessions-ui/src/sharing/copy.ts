@@ -25,7 +25,7 @@ export const sessionSharingCopy = {
     shareButton: "Share",
     tooltipPrivate: "Private",
     tooltipPeople: (count: number) => `Shared with ${count} ${count === 1 ? "person" : "people"}`,
-    tooltipProject: "Everyone in the project can view",
+    tooltipProject: "Everyone in the project can view and send",
     tooltipNotShareable: "You can share this chat after its first message.",
     lockOwner: "Private: only you and the people you add",
     lockShared: (owner: string) => `Private: shared with you by ${owner}`,
@@ -44,12 +44,14 @@ export const sessionSharingCopy = {
         `You can view this chat. Only ${owner} can change who has access.`,
     panelCanSend: "You can read and send in this chat.",
     panelPrivate: (owner: string) => `Private: only people ${owner} added can open it.`,
-    panelOwnerLeft: (owner: string) =>
-        `${owner} left this project. Everyone in the project can still read this chat, but no one can send to it.`,
     panelChannel:
         "This chat comes from Slack. Everyone in the project can read it here. Reply in Slack to continue it.",
-    panelNoOwner:
-        "This chat was started by an API key, so it has no owner. Everyone in the project can read it, but no one can send to it here.",
+    panelNoOwnerCanSend:
+        "This chat was started by an API key or an automation, so it has no owner. Everyone in the project can read it and send to it.",
+    panelOwnerLeftCanSend: (owner: string) =>
+        `${owner} left this project. Everyone in the project can still read this chat and send to it.`,
+    /** The reader's own project role cannot send (the approved refused-send sentence). */
+    panelYouViewOnly: "You can view this chat, but you cannot send to it.",
 
     dialogTitle: "Share this chat",
     inviteButton: "Invite",
@@ -63,7 +65,7 @@ export const sessionSharingCopy = {
     generalPrivateDescription: "Only you and the people you add can open this chat.",
     generalProject: "Shared with project",
     generalProjectDescription: (project: string) =>
-        `Everyone in ${project} can view this chat. Only the people above can send.`,
+        `Everyone in ${project} can view this chat and send to it.`,
     stopSharing: "Stop sharing",
     copyLink: "Copy share link",
     linkCopied: "Link copied. Only people with access can open it.",

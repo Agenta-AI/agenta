@@ -365,8 +365,8 @@ return AccessPolicy(visibility=requested or Visibility.PRIVATE, owner_user_id=ow
 | A1 | agent | any | no row, or `visibility = project` |
 | A2 | agent | any | `private`, principal is `human`, `principal.id = owner_user_id` |
 | S1 | session | `VIEW_SESSIONS`, `USE_MOUNTS`, `VIEW_MOUNTS` | `project`; or `private`, owner active, and principal is the human owner or has a grant |
-| S2 | session | `RUN_SESSIONS` (send, steer, cancel, answer an approval) | owner active and principal is the human owner or a `participant`; or owner NULL and principal is not `human` |
-| S3 | session | `RUN_SESSIONS` | owner NULL and principal is `human`: deny (humans only read ownerless sessions), except a person's server run: the decision's signed run context (a run credential, or durable work) has origin `subscription`, `child` or `evaluation`. `decide` takes that `context`; `check_request` passes it only for a run credential |
+| S2 | session | `RUN_SESSIONS` (send, steer, cancel, answer an approval) | `project` and no channel session (`is_channel` false; unknown reads as a channel session): any principal (the project capability is step 3; a send also checks the agent); `private`: owner active and principal is the human owner or a `participant`; a channel session: principal is not `human` |
+| S3 | session | `RUN_SESSIONS` | a channel session and principal is `human`: deny (people only read Slack chats in Agenta), except a person's server run: the decision's signed run context (a run credential, or durable work) has origin `subscription`, `child` or `evaluation`. `decide` takes that `context`; `check_request` passes it only for a run credential |
 | S4 | session | `EDIT_SESSIONS` (rename, archive, unarchive, delete) | owner set: principal is the active human owner; owner NULL: any principal (today's behavior) |
 
 `fetch_session_policy` assigns the policy of a legacy row (`visibility IS NULL`) before `evaluate` reads it, so the rules never see `NULL`.

@@ -17,6 +17,7 @@ from sqlalchemy import (
     text,
     update as sa_update,
 )
+from sqlalchemy import column as sa_column, table as sa_table
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID as PG_UUID, insert
 from sqlalchemy.exc import IntegrityError
 
@@ -189,20 +190,46 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             if getattr(dbe, column.key, None) is not None
         }
         values.setdefault("id", uuid.uuid7())
+        values.setdefault("owner_user_id", None)
         names = list(values)
+        # A channel thread that names the session id makes it a channel session: it is
+        # project-visible and ownerless, whoever creates the row (CONTRACT section 7,
+        # channel policy first). The same statement applies that policy and says so, so
+        # the row's cache entry needs no extra read.
+        threads = sa_table(
+            "channel_threads",
+            sa_column("project_id", PG_UUID(as_uuid=True)),
+            sa_column("session_id", table.c.session_id.type),
+        )
+        in_channel = exists().where(
+            threads.c.project_id == project_id,
+            threads.c.session_id == stream.session_id,
+        )
+        channel_policy = {
+            "visibility": literal(
+                Visibility.PROJECT.value, type_=table.c.visibility.type
+            ),
+            "owner_user_id": literal(None, type_=table.c.owner_user_id.type),
+        }
+
+        def _value(name):
+            value = literal(values[name], type_=table.c[name].type)
+            if name in channel_policy:
+                return case((in_channel, channel_policy[name]), else_=value)
+            return value
+
         tombstone = SessionTraceTombstoneDBE.__table__
-        source = select(
-            *(literal(values[name], type_=table.c[name].type) for name in names)
-        ).where(
+        source = select(*(_value(name) for name in names)).where(
             ~exists().where(
                 tombstone.c.project_id == project_id,
                 tombstone.c.session_id == stream.session_id,
             )
         )
+        has_channel_thread = in_channel.label("has_channel_thread")
         statement = (
             insert(table)
             .from_select(names, source, include_defaults=False)
-            .returning(*table.columns)
+            .returning(*table.columns, has_channel_thread)
         )
         try:
             async with self.engine.session() as session:
@@ -221,11 +248,13 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             raise
         if row is None:
             raise SessionIdTombstoned(session_id=stream.session_id)
-        return map_stream_dbe_to_dto(
+        created = map_stream_dbe_to_dto(
             stream_dbe=SessionStreamDBE(
                 **{column.key: row._mapping[column.name] for column in table.columns}
             )
         )
+        created._has_channel_thread = bool(row._mapping["has_channel_thread"])
+        return created
 
     async def claim_trigger_delivery(
         self,

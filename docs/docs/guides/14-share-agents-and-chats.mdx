@@ -72,7 +72,7 @@ The roles are:
 - A message that a person sends runs with that person's access. If that person cannot run the agent, the message does not run.
 - Only the owner can rename, share, archive or delete the chat.
 
-To share the chat with the whole project, set **General access** to **Shared with project**. Everyone in the project can then view the chat. Only the people in **People with access** can send.
+To share the chat with the whole project, set **General access** to **Shared with project**. Everyone in the project can then view the chat, send to it and answer its approvals, also a person you gave **Can view**. Only the owner can still rename, share, archive or delete it.
 
 ### Change or remove access
 
@@ -102,7 +102,7 @@ Before you share an agent with the project, Agenta shows a similar notice: every
 - The owner's private agents and private chats lock. No one can open them, including the people the owner added. If the owner joins the project again, access comes back.
 - The owner's shared agents stay shared and have no active owner. Agenta keeps the owner on the agent. If the owner joins the project again, they are the owner of the agent again.
 - A project admin can take ownership of a shared agent that has no active owner: open the privacy menu of the agent and click **Take ownership**. The admin becomes the owner and can make the agent private. After that, the previous owner does not get the agent back when they join the project again.
-- The owner's shared chats stay readable by everyone in the project. No one can send to them.
+- The owner's chats that are shared with the project stay open to everyone in the project, who can still send to them. The owner's private chats stay locked.
 
 ## Limits
 
@@ -110,8 +110,8 @@ Before you share an agent with the project, Agenta shows a similar notice: every
 - **Traces.** Project members who can read traces can read the traces of a private chat. This changes in a later release.
 - **Delay.** A sharing change applies to the next request. If Agenta cannot clear its cache, a change can take up to 300 seconds. An open chat stream checks access again every 60 seconds.
 - **Running turns.** A turn that is already running finishes. The change applies to the next turn.
-- **API keys and Slack.** Agents and chats created with an API key or from Slack are always shared with the project and have no owner.
-- **API keys and owned chats.** An API key cannot continue a chat that a person owns; an SDK client starts a new chat.
+- **API keys and Slack.** Agents and chats created with an API key or from Slack are always shared with the project and have no owner. Everyone in the project can send to a chat an API key started. A chat from Slack can be read in Agenta; people reply to it in Slack.
+- **API keys and owned chats.** An API key cannot continue a private chat that a person owns; an SDK client starts a new chat.
 
 :::warning[Self-hosted deployments]
 If you roll back Agenta to a release from before sharing, private agents and chats become visible to everyone in their project.

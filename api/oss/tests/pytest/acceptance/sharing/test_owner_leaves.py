@@ -2,8 +2,8 @@
 
 A private item needs an active owner: when Alice is removed, her private session and
 her private agent are locked for everyone (they read like unknown ids), and the grants
-she gave are inert. Her project-visible session stays readable and runs for nobody;
-her project-visible agent still runs, and an admin can take it over. When Alice is
+she gave are inert. Every member can still read her project-visible session and send
+to it; her project-visible agent still runs, and an admin can take it over. When Alice is
 added back, access returns without anyone sharing again.
 
 Each test removes Alice and adds her back at the end.
@@ -29,6 +29,7 @@ from oss.tests.pytest.acceptance.sharing.support import (
     remove_member,
     same_answer,
     stream_is_readable,
+    stream_row,
     turn_rows,
 )
 
@@ -97,7 +98,7 @@ def test_private_items_locked(sharing_cast):
             )
 
 
-def test_project_agent_runs_project_session_readonly(sharing_cast):
+def test_project_session_stays_open_to_members(sharing_cast):
     alice, bob, dana = (sharing_cast[label] for label in ("alice", "bob", "dana"))
     agent = new_agent(alice, visibility="project")
     session_id = new_session_id()
@@ -107,13 +108,24 @@ def test_project_agent_runs_project_session_readonly(sharing_cast):
     assert turn.status_code == 200, turn.text
 
     with _alice_removed(sharing_cast):
-        # Readable by every member, runnable by nobody.
+        # Readable by every member, and a member sends under their own authority.
         assert stream_is_readable(bob, session_id)
         assert session_id in listed_sessions(bob)
-        send = _send(bob, session_id)
-        assert send.status_code == 403, send.text
-        assert send.json()["detail"]["code"] == "access_denied"
-        assert send.json()["detail"]["details"]["reason"] == "resource_denied"
+        send = invoke(bob, session_id=session_id, agent=agent, text="bob asks")
+        assert send.status_code == 200, send.text
+
+        def both_turns():
+            rows = turn_rows(sharing_cast.project_id, session_id)
+            return rows if len(rows) >= 2 else None
+
+        turns = poll(both_turns)
+        assert [row["principal_id"] for row in turns] == [alice.user_id, bob.user_id]
+
+        # Delete is an edit, and an edit stays with the owner: Bob's delete is
+        # refused and the session stays.
+        delete = bob("DELETE", "/sessions/streams/", params={"session_id": session_id})
+        assert delete.status_code == 403, delete.text
+        assert stream_row(sharing_cast.project_id, session_id)["deleted_at"] is None
 
         # The project agent still runs, in a session of Bob's.
         own_session = new_session_id()

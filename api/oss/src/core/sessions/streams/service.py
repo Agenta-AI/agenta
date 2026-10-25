@@ -87,6 +87,7 @@ from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.types import AgentReferenceUnresolved
 from oss.src.core.sharing.service import (
     cache_created_session_access,
+    created_session_access,
     get_sharing_service,
     invalidate_sharing_caches,
     session_was_missing,
@@ -1069,6 +1070,33 @@ class SessionStreamsService:
                     # A channel session is the one its installation's run creates.
                     is_channel=envelope.context.origin == RunOrigin.INSTALLATION,
                 )
+                if (
+                    created_stream.has_channel_thread
+                    and envelope.context.origin != RunOrigin.INSTALLATION
+                ):
+                    # A channel thread named the id: the insert wrote the channel policy,
+                    # not this run's, so the beat is checked against the row it wrote (its
+                    # fresh cache entry). Only this rare beat pays the check; a refused
+                    # beat removes the row it inserted, unless another turn adopted it.
+                    try:
+                        await self._check_existing_row(
+                            project_id=project_id,
+                            request=request,
+                            prior_stream=created_stream,
+                            run_admission=run_admission,
+                            admission_envelope=admission_envelope,
+                        )
+                    except BaseException:
+                        if await self._dao.delete_row_if_unchanged(
+                            project_id=project_id,
+                            session_id=request.session_id,
+                            stream_id=created_stream.id,
+                            turn_id=created_stream.turn_id,
+                        ):
+                            await invalidate_sharing_caches(
+                                project_id=project_id, session_ids=[request.session_id]
+                            )
+                        raise
             except SessionStreamAlreadyExists:
                 # Another first touch (`_start_turn`, a rename, another beat) won: check
                 # this beat against the winning row, as for any existing row.
@@ -1620,12 +1648,15 @@ class SessionStreamsService:
         created = await self._dao.create(
             project_id=project_id, user_id=user_id, stream=stream
         )
+        policy, in_channel = created_session_access(
+            created, requested=stream.access, by_installation=is_channel
+        )
         await cache_created_session_access(
             project_id=project_id,
             session_id=stream.session_id,
             stream_id=getattr(created, "id", None),
-            policy=stream.access,
-            is_channel=is_channel,
+            policy=policy,
+            is_channel=in_channel,
         )
         return created
 

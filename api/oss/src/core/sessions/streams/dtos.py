@@ -3,7 +3,14 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    field_validator,
+    model_validator,
+)
 
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
@@ -94,6 +101,13 @@ class SessionStream(Identifier, Header, Lifecycle):
     # The caller's sharing state, on the one-session stream query only (the chat screen
     # reads it there instead of `GET /sessions/{id}/sharing`). None elsewhere.
     sharing: Optional[SessionSharingState] = None
+    # Set by the row insert only: whether a channel thread names this session id (read
+    # in the insert statement). Never serialized. None: not known.
+    _has_channel_thread: Optional[bool] = PrivateAttr(default=None)
+
+    @property
+    def has_channel_thread(self) -> Optional[bool]:
+        return self._has_channel_thread
 
 
 class SessionStreamReadOptions(BaseModel):

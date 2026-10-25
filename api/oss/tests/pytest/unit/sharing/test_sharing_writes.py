@@ -544,7 +544,7 @@ async def test_fetch_session_sharing_roles_and_grants(people):
     with pytest.raises(SharedItemNotFound):
         await _fetch(_human(people.dana))
 
-    # A project session: Dana reads it and cannot send.
+    # A project session: project visibility gives Dana Participant: she reads and sends.
     shared = _session(people, _project(people.alice))
     dana = await people.service.fetch_session_sharing(
         project_id=people.project_id,
@@ -552,19 +552,36 @@ async def test_fetch_session_sharing_roles_and_grants(people):
         session_id=shared.session_id,
     )
     assert (dana.my_role, dana.can_send, dana.grants) == (
-        EffectiveRole.VIEWER,
-        False,
+        EffectiveRole.PARTICIPANT,
+        True,
         [],
     )
+    # A Viewer grant on a project session: project access wins, he is a Participant.
+    people.world.add_grant(state=shared, user_id=people.bob, role=SessionRole.VIEWER)
+    bob = await people.service.fetch_session_sharing(
+        project_id=people.project_id,
+        principal=_human(people.bob),
+        session_id=shared.session_id,
+    )
+    assert (bob.my_role, bob.can_send) == (EffectiveRole.PARTICIPANT, True)
 
-    # An ownerless session: humans read only, other principals send (S2, S3).
+    # An ownerless session that is no channel session: members send too.
     ownerless = _session(people, _project(None))
     human = await people.service.fetch_session_sharing(
         project_id=people.project_id,
         principal=_human(people.dana),
         session_id=ownerless.session_id,
     )
-    assert human.can_send is False
+    assert human.can_send is True
+
+    # A channel (Slack) session keeps its rule: humans read only (S3).
+    channel_state = people.world.add_session(policy=_project(None), is_channel=True)
+    in_channel = await people.service.fetch_session_sharing(
+        project_id=people.project_id,
+        principal=_human(people.dana),
+        session_id=channel_state.session_id,
+    )
+    assert (in_channel.my_role, in_channel.can_send) == (EffectiveRole.VIEWER, False)
     key = await people.service.fetch_session_sharing(
         project_id=people.project_id,
         principal=PrincipalRef(kind=PrincipalKind.API_KEY, id=uuid4()),

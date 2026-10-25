@@ -364,7 +364,7 @@ Each runs in OSS and EE, RBAC on and off. Concurrency stays in integration only.
 | `test_ownerless_creation.py` | `test_api_key_private_request_creates_ownerless`, `test_slack_tool_call_creates_ownerless` |
 | `test_default_visibility.py` | `test_omitted_visibility_human_chat_private`, `test_omitted_visibility_human_agent_private`, `test_omitted_visibility_api_key_project`, `test_header_create_with_project_visibility` |
 | `test_shared_turns_authority.py` | `test_bob_turn_after_alice_runs_as_bob` |
-| `test_owner_leaves.py` | `test_private_items_locked`, `test_project_agent_runs_project_session_readonly`, `test_access_returns_on_rejoin` |
+| `test_owner_leaves.py` | `test_private_items_locked`, `test_project_session_stays_open_to_members`, `test_access_returns_on_rejoin` |
 | `test_shortcuts_closed.py` | `test_org_owner_and_no_rbac_get_404` |
 | `test_session_files_follow_session.py` | `test_removed_member_credential_request_denied` |
 | `test_channel_sessions.py` | `test_linked_sender_session_ownerless_readable`, `test_activate_private_agent_rejected`, `test_application_family_reference_is_resolved` |

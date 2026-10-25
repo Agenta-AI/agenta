@@ -15,7 +15,11 @@ from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInte
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.starts.dtos import SessionStartResult
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
-from oss.src.core.sharing.service import cache_created_session_access
+from oss.src.core.access.dtos import RunOrigin
+from oss.src.core.sharing.service import (
+    cache_created_session_access,
+    created_session_access,
+)
 from oss.src.core.sessions.streams.dtos import SessionStreamCreate
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
@@ -187,6 +191,7 @@ class SessionStartsService:
         user_id: UUID,
         session_id: str,
         access: AccessPolicy,
+        is_channel: bool = False,
     ) -> bool:
         """Create the session row with its initial policy, unless a first touch (a
         heartbeat, a rename, another start with the same key) already created it: that
@@ -199,11 +204,15 @@ class SessionStartsService:
             )
         except SessionStreamAlreadyExists:
             return False
+        policy, in_channel = created_session_access(
+            created, requested=access, by_installation=is_channel
+        )
         await cache_created_session_access(
             project_id=project_id,
             session_id=session_id,
             stream_id=getattr(created, "id", None),
-            policy=access,
+            policy=policy,
+            is_channel=in_channel,
         )
         return True
 
@@ -356,6 +365,8 @@ class SessionStartsService:
                     user_id=user_id,
                     session_id=session_id,
                     access=access,
+                    # A channel session is the one its installation's run creates.
+                    is_channel=envelope.context.origin == RunOrigin.INSTALLATION,
                 )
                 if not created:
                     await self._run_admission.admit(

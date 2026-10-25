@@ -155,16 +155,15 @@ def test_heartbeats_do_not_change_owner(sharing_cast):
     row = stream_row(sharing_cast.project_id, owned)
     assert (row["visibility"], row["owner_user_id"]) == ("private", alice.user_id)
 
-    # A person's beat never claims an ownerless session: refused (rule S3), and the
-    # row keeps no owner.
+    # A person's beat never claims an ownerless session. The session is
+    # project-visible, so a member may run in it, and the row keeps no owner.
     beat = heartbeat(
         alice_run,
         session_id=ownerless,
         turn_id=new_session_id(),
         references=agent_references(agent),
     )
-    assert beat.status_code == 403, beat.text
-    assert beat.json()["detail"]["details"]["reason"] == "resource_denied"
+    assert beat.status_code == 200, beat.text
     row = stream_row(sharing_cast.project_id, ownerless)
     assert (row["visibility"], row["owner_user_id"]) == ("project", None)
 

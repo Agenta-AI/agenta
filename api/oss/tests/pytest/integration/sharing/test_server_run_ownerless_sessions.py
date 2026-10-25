@@ -32,7 +32,10 @@ from oss.src.core.access.dtos import (
 )
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.principals import child_envelope, stored_work_envelope
-from oss.src.core.sessions.streams.dtos import SessionHeartbeatRequest
+from oss.src.core.sessions.streams.dtos import (
+    SessionHeartbeatRequest,
+    SessionStreamHeaderEdit,
+)
 from oss.src.core.sharing.dtos import SharedItemKind
 from oss.src.core.sharing.service import get_sharing_service
 from oss.src.core.sharing.types import AdmissionDenied
@@ -226,13 +229,56 @@ async def test_a_person_s_child_or_evaluation_run_runs_in_its_session(world, ori
     await _a_whole_run(world, envelope, str(uuid4()))
 
 
-async def test_a_person_s_web_send_into_an_ownerless_session_stays_refused(world):
-    """The rule the fix keeps: a person sending interactively (web origin) in an
-    ownerless session only reads it, for the heartbeat and for a runner write."""
+async def _channel_session(world) -> str:
+    """An ownerless, project-visible Slack session: its row and its channel thread, as
+    the channel inbox writes them (no cache entry: the decision reads the row)."""
+    from uuid_utils.compat import uuid7  # noqa: PLC0415
+
+    session_id = str(uuid4())
+    await execute(
+        "INSERT INTO session_streams (project_id, id, session_id, visibility) "
+        "VALUES (:p, :id, :s, 'project')",
+        {"p": world.project_id, "id": uuid7(), "s": session_id},
+    )
+    await execute(
+        "INSERT INTO channel_threads (id, project_id, space_id, agent_id, session_id) "
+        "VALUES (:id, :p, :space, :agent, :s)",
+        {
+            "id": uuid4(),
+            "p": world.project_id,
+            "space": uuid4(),
+            "agent": uuid4(),
+            "s": session_id,
+        },
+    )
+    return session_id
+
+
+async def test_a_person_sends_in_an_ownerless_project_session(world):
+    """Project visibility gives members Participant (R3 option 2): Bob, sending from the
+    web, runs in an evaluation's ownerless session, for the heartbeat and for a runner
+    write."""
     session_id = str(uuid4())
     evaluation = _alice_run(world, RunOrigin.EVALUATION, "eval-turn")
-    await _beat(world, evaluation, session_id, str(uuid4()))  # an ownerless session
+    eval_turn = str(uuid4())
+    await _beat(world, evaluation, session_id, eval_turn)  # an ownerless session
+    await _beat(world, evaluation, session_id, eval_turn, running=False)
 
+    bob_web = make_envelope(
+        principal_id=world.bob,
+        origin="web",
+        run_id="bob-turn",
+        project_id=world.project_id,
+        organization_id=world.organization_id,
+    )
+    assert (await _beat(world, bob_web, session_id, str(uuid4()))).is_current_turn
+    assert await _runner_write_allowed(world, bob_web, session_id)
+
+
+async def test_a_person_s_web_send_into_a_channel_session_stays_refused(world):
+    """A channel (Slack) session keeps its rule: a person sending from the web only
+    reads it, for the heartbeat and for a runner write."""
+    session_id = await _channel_session(world)
     bob_web = make_envelope(
         principal_id=world.bob,
         origin="web",
@@ -269,10 +315,10 @@ async def test_another_person_s_server_run_is_refused_in_a_private_session(world
 
 
 async def test_a_server_run_s_admission_does_not_open_its_turn_to_the_person(world):
-    """Alice's evaluation run is admitted for turn T of its ownerless session. Alice's
-    own web run (same principal, origin web) beating turn T gets no continuity from
-    that record: its beat is checked, and refused (she only reads the session)."""
-    session_id = str(uuid4())
+    """Alice's evaluation run is admitted for turn T of a channel session (where people
+    only read). Alice's own web run (same principal, origin web) beating turn T gets no
+    continuity from that record: its beat is checked, and refused."""
+    session_id = await _channel_session(world)
     turn = str(uuid4())
     evaluation = _alice_run(world, RunOrigin.EVALUATION, turn)
     first = await _beat(world, evaluation, session_id, turn)
@@ -287,3 +333,208 @@ async def test_a_server_run_s_admission_does_not_open_its_turn_to_the_person(wor
     )
     with pytest.raises(AdmissionDenied):
         await _beat(world, alice_web, session_id, turn)
+
+
+# -- the legacy shapes of the production-copy rehearsal ---------------------------------
+#
+# `oss000000049` makes every legacy session project-visible and names its owner
+# (`test_sharing_backfill` covers that walk). These tests seed the rows as the walk
+# leaves them and check what a member may do there. Under R3 option 1 each send below
+# was refused (the member only read the session).
+
+
+async def _backfilled_session(world, *, owner=None, turns=()) -> str:
+    """A legacy session as `oss000000049` leaves it: project-visible, with `owner` (None
+    for ownerless) and the given turns `(principal_id, sender_user_id, origin)`."""
+    from uuid_utils.compat import uuid7  # noqa: PLC0415
+
+    session_id, stream_id = str(uuid4()), uuid7()
+    await execute(
+        "INSERT INTO session_streams (project_id, id, session_id, visibility, "
+        "owner_user_id) VALUES (:p, :id, :s, 'project', :o)",
+        {"p": world.project_id, "id": stream_id, "s": session_id, "o": owner},
+    )
+    for index, (principal_id, sender_user_id, origin) in enumerate(turns):
+        await execute(
+            "INSERT INTO session_turns (project_id, id, session_id, stream_id, "
+            "turn_index, harness_kind, principal_kind, principal_id, sender_user_id, "
+            "origin, created_by_id) VALUES (:p, :id, :s, :st, :i, 'pi', :pk, :pid, "
+            ":sender, :origin, :u)",
+            {
+                "p": world.project_id,
+                "id": uuid4(),
+                "s": session_id,
+                "st": stream_id,
+                "i": index,
+                "pk": "human" if principal_id else None,
+                "pid": principal_id,
+                "sender": sender_user_id,
+                "origin": origin,
+                "u": sender_user_id,
+            },
+        )
+    return session_id
+
+
+def _web(world, user_id):
+    return make_envelope(
+        principal_id=user_id,
+        origin="web",
+        run_id=str(uuid4()),
+        project_id=world.project_id,
+        organization_id=world.organization_id,
+    )
+
+
+async def _human_may(world, user_id, action, session_id) -> bool:
+    decision = await world.access.decide(
+        authority=None,
+        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=user_id),
+        action=action,
+        project_id=world.project_id,
+        resource=ResourceRef(kind=ResourceKind.SESSION, id=session_id),
+    )
+    return decision.allowed
+
+
+async def _member_sends(world, user_id, session_id):
+    """The member's web send runs: the heartbeat admits the turn, and the runner write
+    check passes."""
+    envelope, turn = _web(world, user_id), str(uuid4())
+    assert await _human_may(world, user_id, Permission.RUN_SESSIONS, session_id)
+    assert (await _beat(world, envelope, session_id, turn)).is_current_turn
+    assert await _runner_write_allowed(world, envelope, session_id)
+    await _beat(world, envelope, session_id, turn, running=False)
+
+
+async def test_f1_a_member_sends_the_first_message_of_an_empty_ownerless_session(world):
+    """F1: an empty legacy session with no creator stays ownerless. A member sends the
+    first message."""
+    session_id = await _backfilled_session(world)
+    await _member_sends(world, world.bob, session_id)
+    # The send still needs the role's capability: a project Viewer only reads.
+    assert not await _human_may(
+        world, world.viewer, Permission.RUN_SESSIONS, session_id
+    )
+    assert await _human_may(world, world.viewer, Permission.VIEW_SESSIONS, session_id)
+    # An ownerless session has no owner to keep edits: rule S4 is unchanged.
+    assert await _human_may(world, world.bob, Permission.EDIT_SESSIONS, session_id)
+
+
+async def test_f3a_a_member_sends_in_a_session_whose_only_turn_is_a_child_run(world):
+    """F3a: the only turn has origin child with a human sender, so the session stays
+    ownerless. Its sender and another member both send."""
+    session_id = await _backfilled_session(
+        world, turns=[(world.alice, world.alice, "child")]
+    )
+    await _member_sends(world, world.bob, session_id)
+    await _member_sends(world, world.alice, session_id)
+
+
+async def test_f3b_the_second_sender_sends_and_edits_stay_with_the_owner(world):
+    """F3b: a chat from before run principals with two senders goes to the first one.
+    The second sender sends again and answers approvals (an approval answer is the
+    same RUN_SESSIONS check on the session). Edit (rename, archive, delete, end the
+    session) stays with the backfilled owner (rule S4): the second sender cannot edit
+    it."""
+    session_id = await _backfilled_session(
+        world,
+        owner=world.alice,
+        turns=[(None, world.alice, None), (None, world.bob, None)],
+    )
+    await _member_sends(world, world.bob, session_id)
+    assert not await _human_may(world, world.bob, Permission.EDIT_SESSIONS, session_id)
+    assert await _human_may(world, world.alice, Permission.EDIT_SESSIONS, session_id)
+    assert await _human_may(world, world.bob, Permission.VIEW_SESSIONS, session_id)
+
+
+async def test_a_rename_before_the_first_beat_keeps_a_channel_session_read_only(world):
+    """A channel thread exists before its session row (the channel inbox writes the
+    thread first). An API key renames the session, so the rename creates the ownerless,
+    project-visible row and writes its cache entry. That entry says it is a channel
+    session (the insert statement reads the thread), so the warm decision still refuses
+    a person's send."""
+    session_id = str(uuid4())
+    await execute(
+        "INSERT INTO channel_threads (id, project_id, space_id, agent_id, session_id) "
+        "VALUES (:id, :p, :space, :agent, :s)",
+        {
+            "id": uuid4(),
+            "p": world.project_id,
+            "space": uuid4(),
+            "agent": uuid4(),
+            "s": session_id,
+        },
+    )
+    created = await world.streams.set_header(
+        project_id=world.project_id,
+        user_id=None,
+        session_id=session_id,
+        header=SessionStreamHeaderEdit(name="from slack"),
+        access=get_sharing_service().initial_policy(
+            principal=PrincipalRef(kind=PrincipalKind.API_KEY, id=uuid4()),
+            origin=RunOrigin.API,
+            sender_user_id=None,
+            kind=SharedItemKind.SESSION,
+        ),
+    )
+    assert created is not None and created.owner_user_id is None
+    assert not await _human_may(world, world.bob, Permission.RUN_SESSIONS, session_id)
+    assert await _human_may(world, world.bob, Permission.VIEW_SESSIONS, session_id)
+
+
+async def test_a_person_s_rename_never_claims_a_channel_session(world):
+    """A channel thread exists before its session row. Bob renames the session id from
+    the web, so his rename creates the row with his private policy requested. The
+    insert writes the channel policy instead (project-visible, ownerless), so Bob owns
+    nothing, cannot send, and every member reads it."""
+    session_id = str(uuid4())
+    await execute(
+        "INSERT INTO channel_threads (id, project_id, space_id, agent_id, session_id) "
+        "VALUES (:id, :p, :space, :agent, :s)",
+        {
+            "id": uuid4(),
+            "p": world.project_id,
+            "space": uuid4(),
+            "agent": uuid4(),
+            "s": session_id,
+        },
+    )
+    created = await world.streams.set_header(
+        project_id=world.project_id,
+        user_id=world.bob,
+        session_id=session_id,
+        header=SessionStreamHeaderEdit(name="mine now"),
+        access=world.private_policy(world.bob),
+    )
+    assert created is not None
+    assert (created.visibility.value, created.owner_user_id) == ("project", None)
+    assert not await _human_may(world, world.bob, Permission.RUN_SESSIONS, session_id)
+    assert await _human_may(world, world.alice, Permission.VIEW_SESSIONS, session_id)
+
+
+async def test_a_person_s_first_beat_into_a_channel_thread_is_refused(world):
+    """A channel thread exists before its session row, and a person's web run sends the
+    first heartbeat for that id. The insert writes the channel policy, the beat is then
+    checked against it and refused (people only read a channel session), and the row
+    it inserted is removed again: no row and no admission record."""
+    session_id = str(uuid4())
+    await execute(
+        "INSERT INTO channel_threads (id, project_id, space_id, agent_id, session_id) "
+        "VALUES (:id, :p, :space, :agent, :s)",
+        {
+            "id": uuid4(),
+            "p": world.project_id,
+            "space": uuid4(),
+            "agent": uuid4(),
+            "s": session_id,
+        },
+    )
+    bob_web = _web(world, world.bob)
+    with pytest.raises(AdmissionDenied):
+        await _beat(world, bob_web, session_id, str(uuid4()))
+    assert (
+        await SessionStreamsDAO(engine=get_transactions_engine()).get_by_session_id(
+            project_id=world.project_id, session_id=session_id
+        )
+    ) is None

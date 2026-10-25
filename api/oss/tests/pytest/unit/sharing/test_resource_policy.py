@@ -143,22 +143,35 @@ async def test_s1_project_session_readable_by_everyone(people):
 
 async def test_s2_run_sessions(people):
     run = Permission.RUN_SESSIONS
-    for policy in (_private(people.alice), _project(people.alice)):
-        state = people.shared_session(policy)
-        assert await people.session(_human(people.alice), state, run) is None
-        assert await people.session(_human(people.carol), state, run) is None
-        assert await people.session(_human(people.bob), state, run) == DENIED
-        assert await people.session(_human(people.dana), state, run) == DENIED
-        # An owned session runs only for its human owner and participants.
-        assert await people.session(_api_key(), state, run) == DENIED
+    private = people.shared_session(_private(people.alice))
+    assert await people.session(_human(people.alice), private, run) is None
+    assert await people.session(_human(people.carol), private, run) is None
+    assert await people.session(_human(people.bob), private, run) == DENIED
+    assert await people.session(_human(people.dana), private, run) == DENIED
+    # A private session runs only for its human owner and participants.
+    assert await people.session(_api_key(), private, run) == DENIED
+
+    # Project visibility gives every member Participant: everyone with the capability
+    # sends, a Viewer grant included, and an API key of the project too.
+    project = people.shared_session(_project(people.alice))
+    for principal in (
+        _human(people.alice),
+        _human(people.bob),
+        _human(people.carol),
+        _human(people.dana),
+        _api_key(),
+    ):
+        assert await people.session(principal, project, run) is None
 
     ownerless = people.world.add_session(policy=OWNERLESS_PROJECT_POLICY)
     assert await people.session(_api_key(), ownerless, run) is None
     assert await people.session(_installation(), ownerless, run) is None
 
 
-async def test_s3_human_cannot_send_to_ownerless(people):
-    ownerless = people.shared_session(OWNERLESS_PROJECT_POLICY)
+async def test_s3_human_cannot_send_to_a_channel_session(people):
+    ownerless = people.world.add_session(
+        policy=OWNERLESS_PROJECT_POLICY, is_channel=True
+    )
     for user in (people.alice, people.bob, people.carol):
         assert (
             await people.session(_human(user), ownerless, Permission.RUN_SESSIONS)
@@ -186,9 +199,13 @@ async def test_s3_human_cannot_send_to_ownerless(people):
 async def test_s2_a_person_s_server_run_runs_in_an_ownerless_session(
     people, origin, allowed
 ):
-    """A person's server run (subscription, child, evaluation: the signed run context)
-    runs in the ownerless session it creates; the person sending (web) only reads it."""
-    ownerless = people.shared_session(OWNERLESS_PROJECT_POLICY)
+    """In a channel session, where people only read: a person's server run
+    (subscription, child, evaluation: the signed run context) still runs; the person
+    sending (web) only reads it."""
+    # A channel session: project visibility gives members no send there (S3 holds).
+    ownerless = people.world.add_session(
+        policy=OWNERLESS_PROJECT_POLICY, is_channel=True
+    )
     context = None if origin is None else RunContext(origin=origin)
     answer = await people.session(
         _human(people.dana), ownerless, Permission.RUN_SESSIONS, context
@@ -201,8 +218,8 @@ async def test_s2_a_person_s_server_run_runs_in_an_ownerless_session(
 )
 async def test_s2_a_server_run_opens_no_owned_session(people, origin):
     """The origin opens ownerless sessions only: Dana's server run is refused in a
-    session Alice owns, private or project-visible."""
-    for policy in (_private(people.alice), _project(people.alice)):
+    private session Alice owns."""
+    for policy in (_private(people.alice),):
         state = people.shared_session(policy)
         assert (
             await people.session(
@@ -212,6 +229,17 @@ async def test_s2_a_server_run_opens_no_owned_session(people, origin):
                 RunContext(origin=origin),
             )
             == DENIED
+        )
+
+
+async def test_s2_members_send_in_an_ownerless_project_session(people):
+    """An ownerless project session that is no channel session (an API key's, a
+    subscription's, a child's, an evaluation's): every member sends and answers."""
+    ownerless = people.world.add_session(policy=OWNERLESS_PROJECT_POLICY)
+    for user in (people.alice, people.bob, people.dana):
+        assert (
+            await people.session(_human(user), ownerless, Permission.RUN_SESSIONS)
+            is None
         )
 
 
@@ -250,13 +278,23 @@ async def test_owner_left_locks_private_and_blocks_sends(people):
         for action in READ_ACTIONS + (Permission.RUN_SESSIONS,):
             assert await people.session(_human(user), private, action) == DENIED
 
-    # Project: members still read; nobody sends, the participant included.
+    # Project: members still read, and send (project visibility gives Participant),
+    # so a pending approval can still be answered after the owner left.
     assert (
         await people.session(_human(people.dana), project, Permission.VIEW_SESSIONS)
         is None
     )
     assert (
         await people.session(_human(people.carol), project, Permission.RUN_SESSIONS)
+        is None
+    )
+    assert (
+        await people.session(_human(people.dana), project, Permission.RUN_SESSIONS)
+        is None
+    )
+    # Rename, archive and delete stay with the owner, who left: nobody (S4).
+    assert (
+        await people.session(_human(people.dana), project, Permission.EDIT_SESSIONS)
         == DENIED
     )
 

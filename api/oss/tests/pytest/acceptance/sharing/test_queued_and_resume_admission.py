@@ -12,6 +12,7 @@ import pytest
 
 from oss.tests.pytest.acceptance.sharing.support import (
     core_rows,
+    create_header,
     grant,
     invoke,
     new_agent,
@@ -179,6 +180,36 @@ def test_bob_approves_alice_turn(sharing_cast):
     parked = invoke(alice, session_id=session_id, agent=agent, text="deploy it")
     assert parked.status_code == 200, parked.text
     grant(alice, session_id, user_id=bob.user_id, role="participant")
+    interaction = _pending_interaction(bob, session_id)
+
+    response = _respond(bob, interaction["id"])
+    assert response.status_code == 202, response.text
+
+    approved = poll(
+        lambda: [
+            row
+            for row in turn_rows(sharing_cast.project_id, session_id)
+            if row["approved_by_user_id"]
+        ]
+    )
+    assert [
+        (row["principal_kind"], row["principal_id"], row["approved_by_user_id"])
+        for row in approved
+    ] == [("human", alice.user_id, bob.user_id)]
+
+
+def test_a_member_approves_in_a_project_session(sharing_cast):
+    """Project visibility gives every member Participant (R3 option 2): Bob, with no
+    grant, approves the gate of Alice's turn in her project-visible session. The run
+    resumes with Alice's authority and records Bob as the approver."""
+
+    alice, bob = sharing_cast["alice"], sharing_cast["bob"]
+    agent = new_agent(alice, visibility="project", behavior="approval", tool="deploy")
+    session_id = new_session_id()
+    created = create_header(alice, session_id, visibility="project")
+    assert created.status_code == 200, created.text
+    parked = invoke(alice, session_id=session_id, agent=agent, text="deploy it")
+    assert parked.status_code == 200, parked.text
     interaction = _pending_interaction(bob, session_id)
 
     response = _respond(bob, interaction["id"])

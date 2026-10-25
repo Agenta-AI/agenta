@@ -21,17 +21,20 @@ export const SessionAccessChip = ({
 }: SessionAccessChipProps) => {
     const ownerless = !sharing.policy.owner_user_id
     const ownerName = personName(owner) || sharing.policy.owner_user_id || ""
-    const canSend = sharing.can_send && !fromChannel && !ownerless
+    const canSend = sharing.can_send && !fromChannel
 
     let lines: string[]
     if (fromChannel) lines = [copy.panelChannel]
-    else if (ownerless) lines = [copy.panelNoOwner]
-    else if (!sharing.owner_is_active) lines = [copy.panelOwnerLeft(ownerName)]
+    // A project chat with no active owner: every member whose role can send may send.
+    // A reader who cannot send is held back by their own role, so say that.
+    else if (ownerless) lines = [copy.panelNoOwnerCanSend]
+    else if (!sharing.owner_is_active) lines = [copy.panelOwnerLeftCanSend(ownerName)]
     else {
         lines = [canSend ? copy.panelCanSend : copy.panelViewer(ownerName)]
         if (sharing.policy.visibility === "private") lines.push(copy.panelPrivate(ownerName))
     }
     const infoNote = fromChannel || ownerless || !sharing.owner_is_active
+    if (infoNote && !fromChannel && !canSend) lines.push(copy.panelYouViewOnly)
 
     return (
         <Popover>
@@ -60,7 +63,14 @@ export const SessionAccessChip = ({
                     </div>
                 ) : null}
                 {infoNote ? (
-                    <Alert type="info" showIcon role="note" message={lines[0]} />
+                    <>
+                        <Alert type="info" showIcon role="note" message={lines[0]} />
+                        {lines.slice(1).map((line) => (
+                            <p key={line} className="m-0 text-sm text-muted-foreground">
+                                {line}
+                            </p>
+                        ))}
+                    </>
                 ) : (
                     lines.map((line, index) => (
                         <p

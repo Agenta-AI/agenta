@@ -256,7 +256,12 @@ class SharingService(ResourcePolicyInterface):
             )
 
         elif action == Permission.RUN_SESSIONS:
-            if owner is None:
+            if _project_members_send(policy=policy, is_channel=access.is_channel):
+                # S2 for a project-visible session that is not a channel session:
+                # every member with the project capability sends and answers approvals
+                # (step 3 checked the capability; a send also checks the agent).
+                allowed = True
+            elif owner is None:
                 # S2 for non-humans, S3 for humans: a person only reads an ownerless
                 # session. A person's server run (an event subscription, a child run,
                 # an evaluation run) is no person sending: it creates ownerless sessions
@@ -1014,8 +1019,13 @@ class SharingService(ResourcePolicyInterface):
             None,
         )
 
+        members_send = _project_members_send(policy=policy, is_channel=state.is_channel)
         if is_owner:
             my_role = EffectiveRole.OWNER
+        elif members_send:
+            # Project access gives Participant, above any grant (a Viewer grant stays
+            # stored and applies again if the owner makes the session private).
+            my_role = EffectiveRole.PARTICIPANT
         elif grant_role is not None and owner_is_active:
             # A grant works only while its owner is an active member.
             my_role = EffectiveRole(grant_role.value)
@@ -1025,7 +1035,9 @@ class SharingService(ResourcePolicyInterface):
             my_role = EffectiveRole.NONE
 
         # Rule S2 (with S3): the router ANDs it with the full decision.
-        if owner is None:
+        if members_send:
+            can_send = True
+        elif owner is None:
             can_send = principal.kind != PrincipalKind.HUMAN
         else:
             can_send = owner_is_active and (
@@ -1100,6 +1112,15 @@ def _require_visible_agent(
         raise SharedItemNotFound()
 
 
+def _project_members_send(*, policy: AccessPolicy, is_channel: Optional[bool]) -> bool:
+    """Project visibility gives every member Participant (read, send, answer
+    approvals), owned or ownerless, whether or not the owner is still a member. A channel
+    (Slack) session keeps its own rule, and an entry that does not say whether the
+    session is a channel session is treated as one (fail closed)."""
+
+    return policy.visibility == Visibility.PROJECT and is_channel is False
+
+
 def _not_shareable_reason(state: SessionPolicyState) -> Optional[NotShareableReason]:
     if state.is_channel:
         return NotShareableReason.CHANNEL
@@ -1172,6 +1193,23 @@ def prefetch_session_read_scope(*, project_id: UUID, principal: PrincipalRef) ->
     user_id = _human_id(principal)
     if user_id is not None:
         prefetch.register(user_grants_entry(project_id, user_id))
+
+
+def created_session_access(
+    created: Any, *, requested: AccessPolicy, by_installation: bool
+) -> Tuple[AccessPolicy, Optional[bool]]:
+    """The policy and the channel flag of a row the insert just created. A channel thread
+    that names the session id makes it a channel session: the insert then wrote the
+    channel policy (project-visible, ownerless), not the requested one. A session created
+    by a channel installation's run is a channel session too. The flag is None when the
+    insert did not say (the entry then reads the row once)."""
+
+    has_thread = getattr(created, "has_channel_thread", None)
+    if has_thread is True:
+        return AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=None), True
+    if by_installation:
+        return requested, True
+    return requested, has_thread if isinstance(has_thread, bool) else None
 
 
 async def cache_created_session_access(
