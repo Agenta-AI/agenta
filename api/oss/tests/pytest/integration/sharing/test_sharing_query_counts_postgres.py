@@ -673,6 +673,79 @@ async def test_refused_beat_writes_nothing(world):
         assert all(s.lstrip().upper().startswith("SELECT") for s in statements)
 
 
+async def _channel_thread(world) -> str:
+    """A channel thread with no session row yet (the inbox writes the thread first)."""
+    session_id = _sid()
+    await execute(
+        "INSERT INTO channel_threads (id, project_id, space_id, agent_id, session_id) "
+        "VALUES (:id, :p, :space, :agent, :s)",
+        {
+            "id": uuid4(),
+            "p": world.project_id,
+            "space": uuid4(),
+            "agent": uuid4(),
+            "s": session_id,
+        },
+    )
+    return session_id
+
+
+async def test_channel_thread_creation_paths(world, redis_commands):
+    """A first touch on a channel thread's session id, counted apart from the normal
+    create (pinned above as HB_CREATE and SEND). The insert that finds the thread costs
+    the normal create's statements. The session check reads the entry the insert just
+    cached; a refused beat or send then adds one guarded UPDATE that clears the
+    refused turn from the kept row, and deletes nothing."""
+
+    with pytest.raises(AdmissionDenied):  # warm
+        await _beat(world, await _channel_thread(world), str(uuid4()))
+    for attempt in range(2):
+        session_id = await _channel_thread(world)
+        with count_statements(get_transactions_engine()) as statements:
+            with pytest.raises(AdmissionDenied):
+                await _beat(world, session_id, str(uuid4()))
+    assert len(statements) == HB_CREATE + 1
+    assert [s for s in statements if s.lstrip().upper().startswith("UPDATE")]
+    assert not [s for s in statements if s.lstrip().upper().startswith("DELETE")]
+
+    async def _send(session_id: str):
+        return await world.streams.command(
+            project_id=world.project_id,
+            user_id=world.alice,
+            request=SessionStreamCommandRequest(
+                session_id=session_id,
+                data={"inputs": {"messages": [{"role": "user", "content": "OK?"}]}},
+            ),
+            access=world.private_policy(world.alice),
+            recheck=_session_recheck(world, world.alice, session_id),
+        )
+
+    session_id = await _channel_thread(world)
+    with count_statements(get_transactions_engine()) as statements:
+        with pytest.raises(AdmissionDenied):
+            await _send(session_id)
+    # The send's normal statements (row read, per-id lock, insert); the refusal hands
+    # back the turn's locks and adds the one guarded UPDATE of the kept row.
+    assert len(statements) == SEND + 1
+    assert not [s for s in statements if s.lstrip().upper().startswith("DELETE")]
+    assert not [s for s in statements if s.lstrip().upper().startswith("DELETE")]
+
+
+def _session_recheck(world, user_id, session_id):
+    """The route's session check, as `session_recheck` runs it: the RUN_SESSIONS
+    decision of the person on the session."""
+
+    async def _recheck():
+        await world.admission.admit(
+            envelope=world.envelope(user_id),
+            session_id=session_id,
+            agent_artifact_id=None,
+            boundary="test",
+        )
+
+    return _recheck
+
+
 # -- send, lists, agent queries -------------------------------------------------------
 
 

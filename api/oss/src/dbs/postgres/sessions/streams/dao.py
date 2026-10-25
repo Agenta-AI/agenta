@@ -1029,6 +1029,36 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             await session.commit()
             return bool(result.rowcount)
 
+    async def release_refused_turn(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        stream_id: UUID,
+        turn_id: Optional[str],
+    ) -> bool:
+        """The row a refused first touch inserted stays (it is the channel session's
+        own row), but not as that request's live turn: clear its liveness flags and its
+        turn id, only while the row still holds the turn id the insert wrote (None
+        included). A rename keeps its header,
+        and a turn that adopted the row since is not touched."""
+        flags = func.coalesce(SessionStreamDBE.flags, cast({}, JSONB)).op("||")(
+            cast({"is_alive": False, "is_running": False}, JSONB)
+        )
+        async with self.engine.session() as session:
+            result = await session.execute(
+                sa_update(SessionStreamDBE)
+                .where(
+                    SessionStreamDBE.project_id == project_id,
+                    SessionStreamDBE.session_id == session_id,
+                    SessionStreamDBE.id == stream_id,
+                    SessionStreamDBE.turn_id.is_not_distinct_from(turn_id),
+                )
+                .values(flags=flags, turn_id=None, turn_started_at=None)
+            )
+            await session.commit()
+            return bool(result.rowcount)
+
     async def count_active(
         self,
         *,

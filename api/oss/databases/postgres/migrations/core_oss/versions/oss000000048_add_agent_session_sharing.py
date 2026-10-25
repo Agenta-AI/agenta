@@ -13,6 +13,7 @@ sessions is `oss000000049`, a separate revision of the same release.
 | agent_access | NEW table: one row per agent that has an owner. No row = project-visible, ownerless. |
 | session_grants | NEW table: named Viewer and Participant grants on a session. |
 | session_streams | NEW nullable columns visibility, owner_user_id; check ck_session_streams_visibility_owner; index ix_session_streams_project_id_owner_user_id. |
+| channel_threads | NEW index ix_channel_threads_project_id_session_id: the session row insert and the session's sharing read ask whether a thread names a session id. |
 | session_trace_tombstones | NEW table: one row per deleted private session (its former owner). The session-trace-privacy design (M9) defines it; M3 writes it, so a deleted private session stays hidden from everyone but its former owner. |
 
 `session_streams.visibility IS NULL` marks a row written by pre-sharing code (old pods
@@ -24,7 +25,7 @@ instead of queueing every other query behind it, and the deploy is rerun. The
 `ACCESS EXCLUSIVE` phase is catalog-only: two nullable columns with no default, and the
 check constraint added `NOT VALID`. Entering the autocommit block commits that phase;
 `VALIDATE CONSTRAINT` (`SHARE UPDATE EXCLUSIVE`, writes keep running) and the concurrent
-index run after it.
+indexes run after it.
 
 Rerun. Entering the autocommit block commits the tables, the columns and the
 constraint, so a rerun after a failure in the block finds them. Every statement is
@@ -72,9 +73,20 @@ $$;
 
 _VALIDATE_CONSTRAINT = f"ALTER TABLE session_streams VALIDATE CONSTRAINT {_CONSTRAINT}"
 
-_CREATE_INDEX = (
-    f"CREATE INDEX CONCURRENTLY IF NOT EXISTS {_INDEX} "
-    "ON session_streams (project_id, owner_user_id)"
+_THREAD_INDEX = "ix_channel_threads_project_id_session_id"
+
+# Concurrent builds: writes keep running while each index is built.
+_CREATE_INDEXES = (
+    (
+        _INDEX,
+        f"CREATE INDEX CONCURRENTLY IF NOT EXISTS {_INDEX} "
+        "ON session_streams (project_id, owner_user_id)",
+    ),
+    (
+        _THREAD_INDEX,
+        f"CREATE INDEX CONCURRENTLY IF NOT EXISTS {_THREAD_INDEX} "
+        "ON channel_threads (project_id, session_id)",
+    ),
 )
 
 
@@ -200,31 +212,38 @@ def upgrade() -> None:
     # released before the table scan of VALIDATE and the index build.
     with op.get_context().autocommit_block():
         op.execute(_VALIDATE_CONSTRAINT)
-        op.execute(_CREATE_INDEX)
+        for name, statement in _CREATE_INDEXES:
+            op.execute(statement)
 
-        # IF NOT EXISTS skips an invalid index left by an interrupted build, so stop
-        # here instead of recording the revision without the index.
-        is_valid = (
-            op.get_bind()
-            .execute(
-                text(
-                    "SELECT indisvalid FROM pg_catalog.pg_index "
-                    "WHERE indexrelid = pg_catalog.to_regclass(:name)"
-                ),
-                {"name": _INDEX},
+            # IF NOT EXISTS skips an invalid index left by an interrupted build, so
+            # stop here instead of recording the revision without the index.
+            is_valid = (
+                op.get_bind()
+                .execute(
+                    text(
+                        "SELECT indisvalid FROM pg_catalog.pg_index "
+                        "WHERE indexrelid = pg_catalog.to_regclass(:name)"
+                    ),
+                    {"name": name},
+                )
+                .scalar()
             )
-            .scalar()
-        )
-        if is_valid is not True:
-            raise RuntimeError(
-                f"Index {_INDEX} is missing or invalid. Run "
-                f"REINDEX INDEX CONCURRENTLY {_INDEX} outside a transaction, "
-                "then rerun the migration."
-            )
+            if is_valid is not True:
+                raise RuntimeError(
+                    f"Index {name} is missing or invalid. Run "
+                    f"REINDEX INDEX CONCURRENTLY {name} outside a transaction, "
+                    "then rerun the migration."
+                )
 
 
 def downgrade() -> None:
     with op.get_context().autocommit_block():
+        op.drop_index(
+            _THREAD_INDEX,
+            table_name="channel_threads",
+            postgresql_concurrently=True,
+            if_exists=True,
+        )
         op.drop_index(
             _INDEX,
             table_name="session_streams",

@@ -195,7 +195,9 @@ class SessionStartsService:
     ) -> bool:
         """Create the session row with its initial policy, unless a first touch (a
         heartbeat, a rename, another start with the same key) already created it: that
-        row keeps its policy. True when this call created the row."""
+        row keeps its policy. True when this call created the row with the policy it
+        asked for. False also when a channel thread named the id, so the insert wrote the
+        channel policy instead: the caller then checks that row like an existing one."""
         try:
             created = await self._streams.create(
                 project_id=project_id,
@@ -214,7 +216,9 @@ class SessionStartsService:
             policy=policy,
             is_channel=in_channel,
         )
-        return True
+        return not (
+            getattr(created, "has_channel_thread", None) is True and not is_channel
+        )
 
     async def _release_dispatch(
         self,

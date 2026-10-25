@@ -4,9 +4,9 @@ None of these tests changes the shared stack database:
 
 - The rerun test runs the real `upgrade()` twice, through Alembic's own operations, in a
   scratch schema that is created and dropped inside one rolled-back transaction. The
-  scratch schema holds copies of the tables the revision alters or references
-  (`projects`, `users`, `workflow_artifacts`, `session_streams`), with `session_streams`
-  in its pre-revision shape. `search_path` puts the scratch schema first, so the
+  scratch schema holds copies of the tables the revision alters, indexes or references
+  (`projects`, `users`, `workflow_artifacts`, `session_streams`, `channel_threads`),
+  with `session_streams` and `channel_threads` in their pre-revision shape. `search_path` puts the scratch schema first, so the
   revision's unqualified names hit the copies. The autocommit block cannot commit inside
   the test transaction, so the test runs its statements in place and drops the
   `CONCURRENTLY` keyword there (PostgreSQL refuses it inside a transaction block).
@@ -36,6 +36,9 @@ REVISION = "oss000000048_add_agent_session_sharing.py"
 
 # Tables the revision alters (session_streams) or references with a foreign key.
 _SHADOWED = ("projects", "users", "workflow_artifacts", "session_streams")
+# Tables the revision only indexes: copied without their indexes (the pre-revision
+# shape), so the build never reaches the shared table.
+_INDEXED = ("channel_threads",)
 
 
 @asynccontextmanager
@@ -142,6 +145,13 @@ async def test_schema_revision_is_rerunnable():
                     f"CREATE TABLE {schema}.{table} (LIKE public.{table} INCLUDING ALL)"
                 )
             )
+        for table in _INDEXED:
+            await connection.execute(
+                text(
+                    f"CREATE TABLE {schema}.{table} (LIKE public.{table} "
+                    "INCLUDING DEFAULTS INCLUDING CONSTRAINTS)"
+                )
+            )
         # The pre-revision shape: dropping the columns also drops the copied check
         # constraint and index that involve them.
         await connection.execute(
@@ -186,6 +196,7 @@ async def test_schema_revision_is_rerunnable():
         "ix_session_streams_project_id_owner_user_id",
         "ix_agent_access_project_id_owner_user_id",
         "ix_session_grants_project_id_user_id",
+        "ix_channel_threads_project_id_session_id",
     ):
         assert indexes[name] is True
 
@@ -201,17 +212,23 @@ async def test_migrated_database_has_the_valid_constraint_and_index():
                 )
             )
         ).scalar()
-        valid = (
-            await connection.execute(
-                text(
-                    "SELECT indisvalid FROM pg_catalog.pg_index WHERE indexrelid = "
-                    "pg_catalog.to_regclass("
-                    "'public.ix_session_streams_project_id_owner_user_id')"
+        valid = [
+            (
+                await connection.execute(
+                    text(
+                        "SELECT indisvalid FROM pg_catalog.pg_index WHERE indexrelid = "
+                        "pg_catalog.to_regclass(:name)"
+                    ),
+                    {"name": f"public.{name}"},
                 )
+            ).scalar()
+            for name in (
+                "ix_session_streams_project_id_owner_user_id",
+                "ix_channel_threads_project_id_session_id",
             )
-        ).scalar()
+        ]
     assert validated is True
-    assert valid is True
+    assert valid == [True, True]
 
 
 async def _insert_stream(connection, *, visibility, owner_user_id):
