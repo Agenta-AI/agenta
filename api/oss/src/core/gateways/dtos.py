@@ -206,6 +206,8 @@ def _echo_forms(token: str) -> Tuple[str, ...]:
         # Go's encoder also escapes <, > and & (HTML-safe) and U+2028 / U+2029, while it
         # keeps other non-ASCII characters as they are.
         forms[_go_html_escaped(escaped)] = None
+        # Go with SetEscapeHTML(false): only the line and paragraph separators.
+        forms[_go_separators_escaped(escaped)] = None
     for form in list(forms):
         forms[form.replace("/", "\\/")] = None
     return tuple(forms)
@@ -218,6 +220,10 @@ _GO_ESCAPES = {
     "\u2028": "\\u2028",
     "\u2029": "\\u2029",
 }
+
+
+def _go_separators_escaped(text: str) -> str:
+    return text.replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
 
 
 def _go_html_escaped(text: str) -> str:

@@ -328,3 +328,52 @@ async def test_a_go_style_escaped_echo_is_refused(value, stream):
     )
     with pytest.raises(LLMUpstreamCredentialEchoError):
         [chunk async for chunk in result.body]
+
+
+async def test_a_go_separator_only_escape_of_a_document_is_refused():
+    """Go with SetEscapeHTML(false) escapes only U+2028/U+2029 (Codex r2c)."""
+    value = "doc-<abc> é-defgh"
+    secret = SecretResponseDTO.model_validate(
+        {
+            "id": str(uuid4()),
+            "slug": "company",
+            "kind": "custom_provider",
+            "data": {
+                "kind": "custom",
+                "provider": {"url": "https://upstream.example/v1", "key": value},
+                "models": [{"slug": "gpt-4o"}],
+            },
+            "header": {"name": "Company"},
+            "owner": {"kind": "organization", "id": str(uuid4())},
+        }
+    )
+    resolved = ResolvedSecret(
+        secret=secret, owner=secret.owner, origin=SecretOrigin.VAULT
+    )
+    frame = (
+        b"data: "
+        + json.dumps({"note": value}, ensure_ascii=False)
+        .replace(" ", "\\u2028")
+        .encode()
+        + b"\n\n"
+    )
+    half = len(frame) // 2
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        async def body():
+            yield frame[:half]
+            yield frame[half:]
+
+        return httpx.Response(
+            200, headers={"content-type": "text/event-stream"}, content=body()
+        )
+
+    result = await _adapter(handler).relay_chat_completion(
+        route=_route(),
+        secret=resolved,
+        context=LLMCallContext(model="gpt-4o", stream=True),
+        body=_body(),
+        headers={},
+    )
+    with pytest.raises(LLMUpstreamCredentialEchoError):
+        [chunk async for chunk in result.body]
