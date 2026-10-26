@@ -26,6 +26,7 @@ supported_llm_models = {
         "anthropic/claude-sonnet-4-6",
         "anthropic/claude-opus-4-5",
         "anthropic/claude-sonnet-4-5",
+        "anthropic/claude-haiku-5-5",
         "anthropic/claude-haiku-4-5",
     ],
     "cohere": [
