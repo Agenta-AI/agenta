@@ -19,7 +19,6 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from oss.src.core.channels.dtos import RESOLVABLE_AGENT_REFERENCE_KEYS
 from oss.src.core.sharing.dtos import (
     AccessPolicy,
     AgentPolicyWriteResult,
@@ -84,59 +83,6 @@ SET visibility = EXCLUDED.visibility,
     owner_user_id = EXCLUDED.owner_user_id,
     updated_at = now(),
     updated_by_id = :user_id
-"""
-
-
-def _channel_agent_match_sql() -> str:
-    """The channel agents whose `data->'references'` name the artifact: the artifact by
-    id or slug, or one of its variants or revisions by id or slug, in every reference
-    family a channel agent can hold (`RESOLVABLE_AGENT_REFERENCE_KEYS`)."""
-
-    sources = {
-        "": "artifact",
-        "_variant": "variants",
-        "_revision": "revisions",
-    }
-    clauses = []
-    for key in sorted(RESOLVABLE_AGENT_REFERENCE_KEYS):
-        _family, _, member = key.partition("_")
-        source = sources["_" + member if member else ""]
-        for field in ("id", "slug"):
-            clauses.append(
-                f"(a.data -> 'references' -> '{key}' ->> '{field}') "
-                f"IN (SELECT {field} FROM {source})"
-            )
-    return "\n       OR ".join(clauses)
-
-
-# `channel_agents.data` is JSON, `flags` is JSONB. `flags` may be SQL NULL, so the
-# merge starts from an empty object. Rows already inactive are left alone.
-_DEACTIVATE_CHANNEL_AGENTS_SQL = f"""
-WITH artifact AS (
-    SELECT CAST(id AS text) AS id, slug
-    FROM workflow_artifacts
-    WHERE project_id = :project_id AND id = :artifact_id
-), variants AS (
-    SELECT CAST(id AS text) AS id, slug
-    FROM workflow_variants
-    WHERE project_id = :project_id AND artifact_id = :artifact_id
-), revisions AS (
-    SELECT CAST(id AS text) AS id, slug
-    FROM workflow_revisions
-    WHERE project_id = :project_id AND artifact_id = :artifact_id
-)
-UPDATE channel_agents a
-SET flags = (
-        CASE WHEN jsonb_typeof(a.flags) = 'object' THEN a.flags ELSE '{{}}'::jsonb END
-    ) || '{{"is_active": false}}'::jsonb,
-    updated_at = now(),
-    updated_by_id = :user_id
-WHERE a.project_id = :project_id
-  AND (a.flags ->> 'is_active') IS DISTINCT FROM 'false'
-  AND (
-       {_channel_agent_match_sql()}
-  )
-RETURNING a.id
 """
 
 
@@ -373,23 +319,7 @@ class SharingDAO(SharingDAOInterface):
                 },
             )
 
-            deactivated: List[UUID] = []
-            if policy.visibility == Visibility.PRIVATE:
-                deactivated = list(
-                    (
-                        await connection.execute(
-                            text(_DEACTIVATE_CHANNEL_AGENTS_SQL),
-                            {**params, "user_id": user_id},
-                        )
-                    )
-                    .scalars()
-                    .all()
-                )
-
-        return AgentPolicyWriteResult(
-            policy=policy,
-            deactivated_channel_agent_ids=deactivated,
-        )
+        return AgentPolicyWriteResult(policy=policy)
 
     # -- sessions -----------------------------------------------------------------------
 
@@ -595,9 +525,9 @@ async def lock_agent_policy(
     """Inside the caller's write transaction (`session` is an ORM session or a
     connection): lock `workflow_artifacts (project_id, id)` FOR UPDATE, then read the
     agent's policy, uncached. The lock is held until the caller commits, so a concurrent
-    `set_agent_policy` either committed before this read (and a PRIVATE policy is seen
-    here) or waits for the caller's commit (and then deactivates what it wrote). Same
-    lock order as `set_agent_policy`: the artifact first, then `channel_agents`.
+    `set_agent_policy` (a make-private, a transfer) either committed before this read
+    (and its policy is seen here) or waits for the caller's commit. Same lock order as
+    `set_agent_policy`: the artifact first, then `channel_agents`.
 
     None when the agent has no access row, or no artifact row (a static catalog agent,
     which is never private)."""
@@ -615,15 +545,20 @@ async def guard_agent_activation(
     *,
     project_id: UUID,
     artifact_id: UUID,
+    user_id: UUID,
 ) -> None:
-    """`lock_agent_policy`, then refuse a private agent with `SharedItemNotFound`
-    (what an unknown agent answers). A channel binding of a private agent is never
-    written active."""
+    """`lock_agent_policy`, then refuse a private agent of someone else with
+    `SharedItemNotFound` (what an unknown agent answers): only its owner writes an
+    active channel binding of a private agent (rule A2: nobody else may see it)."""
 
     policy = await lock_agent_policy(
         session, project_id=project_id, artifact_id=artifact_id
     )
-    if policy is not None and policy.visibility == Visibility.PRIVATE:
+    if (
+        policy is not None
+        and policy.visibility == Visibility.PRIVATE
+        and policy.owner_user_id != user_id
+    ):
         raise SharedItemNotFound()
 
 

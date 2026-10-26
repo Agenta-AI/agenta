@@ -46,7 +46,6 @@ def bootstrap_access() -> AccessService:
     sharing_service = SharingService(
         sharing_dao=SharingDAO(engine=get_transactions_engine()),
         memberships_service=memberships_service,
-        principals_dao=principals_dao,
     )
 
     access_service = AccessService(

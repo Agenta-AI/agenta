@@ -112,8 +112,8 @@ class ChannelsService:
         # and archive-cascade need it.
         self.vault_service = vault_service
         # Same rule: only a write that leaves an agent binding active needs it, to
-        # resolve the agent the binding runs (the private-agent guard). Without it,
-        # such a write fails closed.
+        # resolve the agent the binding runs (the activation guard). Without it, such a
+        # write fails closed.
         self.workflows_service = workflows_service
 
     # --- principal invalidation ------------------------------------------------ #
@@ -1252,11 +1252,11 @@ class ChannelsService:
         is_active: bool,
     ) -> Optional[UUID]:
         """The agent a binding write must guard, or None when the write leaves the
-        binding inactive. A private agent may not answer a channel: the DAO locks
-        this agent's artifact in the write transaction and refuses a private one
-        (`guard_artifact_id`). A reference that names no agent or resolves to
-        nothing is refused here with `SharedItemNotFound`, what an unknown agent
-        answers. Reads no cache."""
+        binding inactive. A private agent answers a channel only through a binding its
+        owner writes: the DAO locks this agent's artifact in the write transaction and
+        refuses a private agent of someone else (`guard_artifact_id`). A reference that
+        names no agent or resolves to nothing is refused here with
+        `SharedItemNotFound`, what an unknown agent answers. Reads no cache."""
 
         if not is_active:
             return None
@@ -1287,9 +1287,7 @@ class ChannelsService:
         taken from the stored row when the edit sends none, and it is guarded when
         those flags leave the binding active. The references the guard checks are
         the references the write stores, so a write that sends only flags (or
-        nothing) cannot reactivate a private agent's binding. The edit writes the
-        whole flags, so a stale active flag is guarded too: it would otherwise
-        reactivate a binding that a make-private just turned off."""
+        nothing) cannot activate a binding of someone else's private agent."""
 
         if agent.data is None or agent.data.references is None or agent.flags is None:
             stored = await self.channels_dao.fetch_agent(
@@ -1442,28 +1440,14 @@ class ChannelsService:
             connection_id=agent.connection_id,
         )
         if current_default is not None and current_default.id != agent_id:
-            current_default.flags.is_default = False
-            clear = ChannelAgentEdit(
-                id=current_default.id,
-                name=current_default.name,
-                description=current_default.description,
-                tags=current_default.tags,
-                meta=current_default.meta,
-                data=current_default.data,
-                flags=current_default.flags,
+            # Only `is_default` changes, in one statement: the old default keeps its
+            # stored references and active flag, so the write needs no guard (the
+            # caller may not own the old default's private agent).
+            await self.channels_dao.clear_agent_default(
+                project_id=project_id,
+                user_id=user_id,
+                agent_id=current_default.id,
             )
-            try:
-                await self._edit_agent_row(
-                    project_id=project_id, user_id=user_id, agent=clear
-                )
-            except SharedItemNotFound:
-                # The old default's agent no longer resolves, or is private now: its
-                # binding is turned off instead of blocking the new default. This write
-                # never activates a binding.
-                clear.flags = clear.flags.model_copy(update={"is_active": False})
-                await self._edit_agent_row(
-                    project_id=project_id, user_id=user_id, agent=clear
-                )
 
         agent.flags.is_default = True
         updated = await self._edit_agent_row(

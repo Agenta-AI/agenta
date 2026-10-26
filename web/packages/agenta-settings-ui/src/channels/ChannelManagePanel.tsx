@@ -20,7 +20,6 @@ import {
     ArrowsLeftRight,
     ChatCircle,
     Hash,
-    LockSimple,
     Plus,
     UsersThree,
     Warning,
@@ -86,11 +85,7 @@ export interface ChannelManagePanelProps {
     onUseOwnBot?: () => void
     /** Open the connect flow again for this connection, to replace a dead install. */
     onReconnect?: () => void
-    /** True while the agent is the reader's private agent: an off binding cannot be turned on. */
-    agentPrivate?: boolean
-    /** Opens "Privacy and owner" for this agent; the private note links to it. */
-    onShareAgent?: () => void
-    /** Turn the binding that answers here back on (it is off after a make-private). */
+    /** Turn the binding that answers here back on. */
     onTurnOn?: () => Promise<void>
 }
 
@@ -126,8 +121,6 @@ export const ChannelManagePanel = ({
     onAdd,
     onUseOwnBot,
     onReconnect,
-    agentPrivate = false,
-    onShareAgent,
     onTurnOn,
 }: ChannelManagePanelProps) => {
     const isSlack = connection.platform === "slack"
@@ -430,7 +423,7 @@ export const ChannelManagePanel = ({
         behavior !== null && (kind === "private" ? !behavior.dm : !behavior.group)
 
     const {title} = connectionRowText(connection, hostedHandle)
-    // The binding is off (the agent was made private): nothing answers until it is turned on.
+    // The binding is off: nothing answers until it is turned on.
     const off = !!connection.agentOff
     // One row per connection; the channels it sits in are listed inside it.
     const offPlaces = (spaces ?? [])
@@ -444,28 +437,6 @@ export const ChannelManagePanel = ({
     const offBlock =
         off && onTurnOn ? (
             <div className="flex flex-col gap-3" data-testid="channels-off">
-                {agentPrivate ? (
-                    <Alert
-                        type="warning"
-                        showIcon
-                        role="note"
-                        icon={<LockSimple />}
-                        message={channelSharingCopy.manageOffPrivate(name)}
-                        action={
-                            onShareAgent ? (
-                                <Button
-                                    variant="link"
-                                    size="xs"
-                                    onClick={onShareAgent}
-                                    data-testid="channels-off-share"
-                                >
-                                    {channelSharingCopy.shareWithProject}
-                                </Button>
-                            ) : undefined
-                        }
-                        data-testid="channels-off-private"
-                    />
-                ) : null}
                 <div className="flex items-center gap-3 px-1">
                     <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-muted">
                         {platformLogo(connection.platform, 16)}
@@ -485,8 +456,7 @@ export const ChannelManagePanel = ({
                     </span>
                     <Button
                         size="sm"
-                        variant={agentPrivate ? "outline" : "default"}
-                        disabled={agentPrivate || busy !== null}
+                        disabled={busy !== null}
                         onClick={() => void run("turn-on", onTurnOn)}
                         data-testid="channels-turn-on"
                     >

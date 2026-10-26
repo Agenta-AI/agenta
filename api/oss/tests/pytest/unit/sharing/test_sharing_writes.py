@@ -7,20 +7,13 @@ from uuid import UUID, uuid4
 
 import pytest
 
-import oss.src.core.access.service as access_module
 import oss.src.core.events.utils as events_utils
-import oss.src.core.memberships.service as memberships_module
 import oss.src.core.sharing.service as sharing_module
-import oss.src.dbs.postgres.access.dao as principals_dao_module
 from oss.src.core.access.dtos import (
     DecisionReason,
     PrincipalKind,
-    PrincipalRecord,
     PrincipalRef,
-    RunAuthority,
 )
-from oss.src.core.access.permissions.types import Permission
-from oss.src.core.access.service import AccessService
 from oss.src.core.access.types import AccessDenied
 from oss.src.core.channels.dtos import (
     ChannelAgent,
@@ -34,6 +27,7 @@ from oss.src.core.channels.service import ChannelsService
 from oss.src.core.events.types import EventType
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.sharing.dtos import (
+    NotShareableReason,
     AccessPolicy,
     EffectiveRole,
     SessionGrantInput,
@@ -51,10 +45,6 @@ from oss.src.core.sharing.types import (
     SharingConflict,
 )
 from oss.src.core.workflows.types import AgentReferenceUnresolved
-from oss.src.dbs.postgres.access.dao import PrincipalsDAO
-from oss.src.utils.env import env
-from oss.tests.pytest.utils.cache import FakeCache
-from oss.tests.pytest.utils.memberships import RecordingRbac
 from oss.tests.pytest.utils.principals import make_envelope, make_request_access
 from oss.tests.pytest.utils.sharing import SharingWorld
 
@@ -395,6 +385,19 @@ def _invite(*grants) -> SessionSharingChange:
     )
 
 
+async def test_the_owner_shares_a_private_channel_session(people):
+    """The channel session of Alice's private agent is hers: she shares it like any
+    other chat of hers."""
+    state = _session(people, _private(people.alice), is_channel=True)
+    sharing = await people.service.set_session_sharing(
+        **people.write_kwargs(people.alice),
+        session_id=state.session_id,
+        change=_invite((people.bob, SessionRole.VIEWER)),
+    )
+    assert (sharing.shareable, sharing.not_shareable_reason) == (True, None)
+    assert [g.user_id for g in sharing.grants] == [people.bob]
+
+
 async def test_session_not_shareable_reasons(people):
     cases = [
         (_session(people, _project(None), is_channel=True), "channel"),
@@ -574,14 +577,18 @@ async def test_fetch_session_sharing_roles_and_grants(people):
     )
     assert human.can_send is True
 
-    # A channel (Slack) session keeps its rule: humans read only (S3).
+    # A channel (Slack, Telegram) session is a project session: members send too.
     channel_state = people.world.add_session(policy=_project(None), is_channel=True)
     in_channel = await people.service.fetch_session_sharing(
         project_id=people.project_id,
         principal=_human(people.dana),
         session_id=channel_state.session_id,
     )
-    assert (in_channel.my_role, in_channel.can_send) == (EffectiveRole.VIEWER, False)
+    assert (in_channel.my_role, in_channel.can_send) == (
+        EffectiveRole.PARTICIPANT,
+        True,
+    )
+    assert in_channel.not_shareable_reason == NotShareableReason.CHANNEL
     key = await people.service.fetch_session_sharing(
         project_id=people.project_id,
         principal=PrincipalRef(kind=PrincipalKind.API_KEY, id=uuid4()),
@@ -724,68 +731,6 @@ async def test_audit_event_attributes(monkeypatch):
     assert event.attributes["grants_added"] == []
 
 
-async def test_make_private_invalidates_installation_principals(people, monkeypatch):
-    monkeypatch.setattr(env.agenta.api.caching, "enabled", True, raising=False)
-    FakeCache().install(
-        monkeypatch, principals_dao_module, access_module, memberships_module
-    )
-    binding_id = uuid4()
-    installation = PrincipalRef(kind=PrincipalKind.INSTALLATION, id=binding_id)
-    records = {
-        installation: PrincipalRecord(
-            principal=installation,
-            project_id=people.project_id,
-            acting_user_id=people.alice,
-            is_active=True,
-        )
-    }
-    principals = PrincipalsDAO(engine=None)
-
-    async def _read(*, principal):
-        return records.get(principal)
-
-    monkeypatch.setattr(principals, "_read", _read)
-    people.world.service._principals_dao = principals
-    access_service = AccessService(
-        memberships=people.world.service._memberships,
-        rbac=RecordingRbac(),
-        principals=principals,
-        resource_policy=people.world.service,
-    )
-    authority = RunAuthority(
-        principal=installation,
-        organization_id=people.world.organization_id,
-        project_id=people.project_id,
-    )
-
-    async def _decide():
-        return await access_service.decide(
-            authority=authority,
-            principal=installation,
-            action=Permission.RUN_SESSIONS,
-            project_id=people.project_id,
-        )
-
-    assert (await _decide()).allowed  # the active record is now cached
-
-    artifact_id = people.agent(_project(people.alice))
-    people.world.dao.channel_agents[(people.project_id, artifact_id)] = [binding_id]
-    # The DAO deactivates the binding in the same transaction as the policy.
-    records[installation] = records[installation].model_copy(
-        update={"is_active": False}
-    )
-
-    await people.service.set_agent_visibility(
-        **people.write_kwargs(people.alice),
-        artifact_id=artifact_id,
-        visibility=Visibility.PRIVATE,
-    )
-
-    decision = await _decide()
-    assert decision.allowed is False
-    assert decision.reason == DecisionReason.PRINCIPAL_INACTIVE
-
-
 # -- channel activation ---------------------------------------------------------------
 
 
@@ -806,22 +751,27 @@ class _Workflows:
 
 def _channels(world: SharingWorld, workflows: _Workflows):
     """A `ChannelsService` whose DAO applies the guard like the Postgres DAO: a
-    private agent named by `guard_artifact_id` is refused before the write."""
+    private agent named by `guard_artifact_id` is refused before the write unless the
+    writer owns it."""
 
     dao = MagicMock()
     dao.writes = []
     dao.fetch_connection = AsyncMock(return_value=MagicMock())
 
-    def _guard(project_id, guard_artifact_id):
+    def _guard(project_id, user_id, guard_artifact_id):
         dao.writes.append(guard_artifact_id)
         if guard_artifact_id is None:
             return
         policy = world.dao.agents.get((project_id, guard_artifact_id))
-        if policy is not None and policy.visibility == Visibility.PRIVATE:
+        if (
+            policy is not None
+            and policy.visibility == Visibility.PRIVATE
+            and policy.owner_user_id != user_id
+        ):
             raise SharedItemNotFound()
 
     async def _create(*, project_id, user_id, agent, guard_artifact_id=None):
-        _guard(project_id, guard_artifact_id)
+        _guard(project_id, user_id, guard_artifact_id)
         return ChannelAgent(
             id=uuid4(),
             slug=agent.slug,
@@ -831,7 +781,7 @@ def _channels(world: SharingWorld, workflows: _Workflows):
         )
 
     async def _edit(*, project_id, user_id, agent, guard_artifact_id=None):
-        _guard(project_id, guard_artifact_id)
+        _guard(project_id, user_id, guard_artifact_id)
         return MagicMock()
 
     dao.create_agent = AsyncMock(side_effect=_create)
@@ -855,13 +805,17 @@ def _create(references, *, is_active=True) -> ChannelAgentCreate:
     )
 
 
-async def test_activate_private_agent_rejected(monkeypatch):
+async def test_activate_private_agent_of_someone_else_rejected(monkeypatch):
+    """Only the owner of a private agent activates a binding of it (Bob cannot see
+    Alice's private agent, so he cannot put it in a channel)."""
+
     monkeypatch.setattr(
         "oss.src.core.channels.service.invalidate_principals_after_write",
         AsyncMock(),
     )
     world = SharingWorld()
     alice = world.add_member(uuid4())
+    bob = world.add_member(uuid4())
     private = world.dao.add_agent(project_id=world.project_id, policy=_private(alice))
     shared = world.dao.add_agent(project_id=world.project_id, policy=_project(alice))
     references = {"workflow": Reference(id=private)}
@@ -869,8 +823,15 @@ async def test_activate_private_agent_rejected(monkeypatch):
     service, dao = _channels(world, _Workflows(resolved=private))
     with pytest.raises(SharedItemNotFound):
         await service.create_agent(
-            project_id=world.project_id, user_id=alice, agent=_create(references)
+            project_id=world.project_id, user_id=bob, agent=_create(references)
         )
+    assert dao.writes == [private]
+
+    # Alice, the owner, puts her private agent in a channel.
+    dao.writes.clear()
+    await service.create_agent(
+        project_id=world.project_id, user_id=alice, agent=_create(references)
+    )
     assert dao.writes == [private]
 
     # An inactive binding is not an activation: no guard, written.
@@ -891,8 +852,8 @@ async def test_activate_private_agent_rejected(monkeypatch):
     )
     assert dao.writes == [shared]
 
-    # Edit: the result of the edit decides. Reactivating a binding of a private agent
-    # is refused.
+    # Edit: the result of the edit decides. Bob reactivating a binding of Alice's
+    # private agent is refused.
     service, dao = _channels(world, _Workflows(resolved=private))
     existing = ChannelAgent(
         id=uuid4(),
@@ -905,7 +866,7 @@ async def test_activate_private_agent_rejected(monkeypatch):
     with pytest.raises(SharedItemNotFound):
         await service.edit_agent(
             project_id=world.project_id,
-            user_id=alice,
+            user_id=bob,
             agent=ChannelAgentEdit(
                 id=existing.id, flags=ChannelAgentFlags(is_active=True)
             ),
@@ -913,7 +874,7 @@ async def test_activate_private_agent_rejected(monkeypatch):
     # Keeping it inactive is fine.
     await service.edit_agent(
         project_id=world.project_id,
-        user_id=alice,
+        user_id=bob,
         agent=ChannelAgentEdit(id=existing.id, name="renamed"),
     )
     assert dao.writes == [private, None]
@@ -936,10 +897,11 @@ async def test_every_binding_write_left_active_is_guarded():
 
     world = SharingWorld()
     alice = world.add_member(uuid4())
+    bob = world.add_member(uuid4())
     private = world.dao.add_agent(project_id=world.project_id, policy=_private(alice))
     shared = world.dao.add_agent(project_id=world.project_id, policy=_project(alice))
 
-    # A flags-only reactivation of a private agent's binding is refused.
+    # Bob's flags-only reactivation of a binding of Alice's private agent is refused.
     service, dao = _channels(world, _Workflows(resolved=private))
     stored = _stored_binding({"workflow": Reference(id=private)}, is_active=False)
     dao.fetch_agent = AsyncMock(return_value=stored)
@@ -949,7 +911,7 @@ async def test_every_binding_write_left_active_is_guarded():
     ):
         with pytest.raises(SharedItemNotFound):
             await service._edit_agent_row(
-                project_id=world.project_id, user_id=alice, agent=edit
+                project_id=world.project_id, user_id=bob, agent=edit
             )
     assert dao.writes == [private, private]
 
@@ -1018,6 +980,36 @@ async def test_set_agent_default_guards_the_active_binding():
     )
     assert dao.writes == [None]
     assert dao.edit_agent.await_args.kwargs["agent"].flags.is_active is False
+
+
+async def test_set_agent_default_keeps_the_old_default_on():
+    """Bob moves the default away from the binding of Alice's private agent: the old
+    default loses only `is_default`, in one statement (no guard, no stale write of its
+    other fields), so Alice's agent keeps answering."""
+
+    world = SharingWorld()
+    alice = world.add_member(uuid4())
+    bob = world.add_member(uuid4())
+    private = world.dao.add_agent(project_id=world.project_id, policy=_private(alice))
+    shared = world.dao.add_agent(project_id=world.project_id, policy=_project(alice))
+
+    service, dao = _channels(world, _Workflows(resolved=shared))
+    old_default = _stored_binding(
+        {"workflow": Reference(id=private)}, is_active=True, is_default=True
+    )
+    promoted = _stored_binding({"workflow": Reference(id=shared)}, is_active=True)
+    dao.fetch_agent = AsyncMock(return_value=promoted)
+    dao.fetch_default_agent = AsyncMock(return_value=old_default)
+    dao.clear_agent_default = AsyncMock(return_value=None)
+    await service.set_agent_default(
+        project_id=world.project_id, user_id=bob, agent_id=promoted.id
+    )
+    dao.clear_agent_default.assert_awaited_once_with(
+        project_id=world.project_id, user_id=bob, agent_id=old_default.id
+    )
+    # Only the promoted binding is written through the guarded edit.
+    assert dao.writes == [shared]
+    assert dao.edit_agent.await_count == 1
 
 
 async def test_unresolved_or_missing_agent_reference_is_refused():

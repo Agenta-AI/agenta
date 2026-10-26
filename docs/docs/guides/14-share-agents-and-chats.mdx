@@ -13,7 +13,8 @@ New agents and chats that you create in Agenta are private. Only you can see the
 | An agent you create in Agenta | Private | You |
 | A chat you start in Agenta | Private | You |
 | An agent or chat created with an API key | Shared with the project | None |
-| A chat that comes from Slack | Shared with the project | None |
+| A chat that comes from Slack or Telegram, with an agent that is shared with the project | Shared with the project | None |
+| A chat that comes from Slack or Telegram, with a private agent | Private | The agent's owner |
 | Agents and chats that existed before sharing was released | Shared with the project | The person who created them or started the chat, when Agenta recorded who that was. Otherwise none. |
 
 - A private agent or chat is hidden from everyone except its owner and, for a chat, the people the owner added. It does not appear in lists. A link to it opens the same page as a link to a chat that does not exist: "This chat does not exist, or you do not have access to it."
@@ -34,7 +35,7 @@ Only the owner of an agent can change who sees it.
 When you make an agent private:
 
 - Other members no longer see or run it. They can still read the chats they already had with it, but they cannot send to them.
-- If the agent is connected to Slack or another channel, the connection turns off, and messages there get no answer. If you share the agent again, turn the connection back on in **Channels**. See [Connect an agent to Slack](/guides/connect-slack).
+- If the agent is connected to Slack or another channel through a connection you made, it keeps answering there. A connection another member made stops answering. New chats from the channel are private to you. See [Connect an agent to Slack](/guides/connect-slack).
 
 When you share an agent with the project, everyone in the project can run it and make it use its connected accounts.
 
@@ -110,7 +111,9 @@ Before you share an agent with the project, Agenta shows a similar notice: every
 - **Traces.** Project members who can read traces can read the traces of a private chat. This changes in a later release.
 - **Delay.** A sharing change applies to the next request. If Agenta cannot clear its cache, a change can take up to 300 seconds. An open chat stream checks access again every 60 seconds.
 - **Running turns.** A turn that is already running finishes. The change applies to the next turn.
-- **API keys and Slack.** Agents and chats created with an API key or from Slack are always shared with the project and have no owner. Everyone in the project can send to a chat an API key started. A chat from Slack can be read in Agenta; people reply to it in Slack.
+- **API keys and channels.** Agents and chats created with an API key are always shared with the project and have no owner. Chats from Slack or Telegram with a shared agent are too. Everyone in the project can send to these chats in Agenta.
+- **Channel event logs.** Project members who can view channels can read the message logs of a channel connection through the channel API, also for a private agent.
+- **Private agents and subagents in channels.** In a Slack or Telegram chat, a private agent cannot call another private agent as a subagent.
 - **API keys and owned chats.** An API key cannot continue a private chat that a person owns; an SDK client starts a new chat.
 
 :::warning[Self-hosted deployments]

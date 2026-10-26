@@ -122,6 +122,9 @@ class SessionStreamCreate(Header):
     session_id: str
     # The initial sharing policy. Required: every insert path decides it on the server.
     access: AccessPolicy
+    # The row is created by a channel installation's own run: `access` is then the
+    # channel policy (`channel_session_policy`), and a channel thread does not replace it.
+    by_channel_run: bool = False
     # Who chose `name`. Typed here and encoded by the mapper, so the core never handles the
     # storage representation.
     name_source: Optional[SessionNameSource] = None

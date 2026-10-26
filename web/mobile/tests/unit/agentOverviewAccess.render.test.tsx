@@ -85,7 +85,7 @@ describe("the agent overview's access", () => {
         expect(seen.notFound).toBe(false)
     })
 
-    it("the reader's own private agent is private for the Publish panel", async () => {
+    it("the reader's own private agent opens", async () => {
         workflows.current = {
             data: [
                 {
@@ -98,7 +98,6 @@ describe("the agent overview's access", () => {
         }
         await mount("mine")
         expect(seen.notFound).toBe(false)
-        expect(seen.agentPrivate).toBe(true)
         expect(retrieve).not.toHaveBeenCalled()
     })
 })

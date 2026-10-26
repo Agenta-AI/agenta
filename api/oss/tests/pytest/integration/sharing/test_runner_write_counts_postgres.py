@@ -227,7 +227,6 @@ def access_service(monkeypatch) -> AccessService:
         resource_policy=SharingService(
             sharing_dao=SharingDAO(engine=engine),
             memberships_service=memberships,
-            principals_dao=principals,
         ),
     )
     monkeypatch.setattr(access_module, "_access_service", service)

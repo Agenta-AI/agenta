@@ -12,7 +12,6 @@ import {
 } from "@agenta/entities/sharing"
 import {
     sharingWriteResultFromError,
-    type AgentChannelConnection,
     type AgentPrivacyProps,
     type SharingPerson,
     type SharingWriteResult,
@@ -32,18 +31,6 @@ import {useDisclosureProviderLabel} from "./useDisclosureProviderLabel"
 
 const PLATFORMS = ["slack", "telegram", "whatsapp"] as const
 
-/** One entry per channel app bound to the agent (a Slack app in one workspace), never a channel.
- *  Only the ones that answer now: make-private turns these off. */
-const channelConnectionsOf = (connections: ChannelConnections): AgentChannelConnection[] =>
-    PLATFORMS.flatMap((platform) =>
-        agentConnectionsOf(connections, platform)
-            .filter((connection) => !connection.agentOff)
-            .map((connection) => ({
-                platform: channelPlatformLabel[platform],
-                workspace: connection.workspaceName ?? null,
-            })),
-    )
-
 /** The platforms with a connection of this agent that is still off. */
 const channelsOffOf = (connections: ChannelConnections): string[] =>
     PLATFORMS.filter((platform) =>
@@ -59,7 +46,7 @@ export interface AgentPrivacyHostOptions {
     connections?: ChannelConnections
     /** Opens the agent's Publish panel; "Open Channels" links to it. */
     onOpenChannels?: () => void
-    /** Runs after a successful write; make-private turns channel connections off. */
+    /** Runs after a successful write. */
     onChanged?: () => void
     /**
      * The agent's access policy as the agent list row already carries it. With it the control
@@ -133,7 +120,6 @@ export const useAgentPrivacyProps = ({
         return rosterQuery.data?.find((member) => member.user_id === ownerId) ?? null
     }, [rosterQuery.data, me, ownerId])
 
-    const channelConnections = useMemo(() => channelConnectionsOf(connections), [connections])
     const channelsOff = useMemo(() => channelsOffOf(connections), [connections])
 
     const outcome = async (write: () => Promise<unknown>): Promise<SharingWriteResult> => {
@@ -166,7 +152,6 @@ export const useAgentPrivacyProps = ({
             labels.retry()
         },
         owner,
-        channelConnections,
         channelsOff,
         onOpenChannels,
         members: membersQuery.data?.members ?? [],

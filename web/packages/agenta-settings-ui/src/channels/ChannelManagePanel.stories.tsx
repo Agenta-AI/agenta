@@ -69,12 +69,9 @@ const setup = {slack: SLACK_SETUP, telegram: TELEGRAM_SETUP}
 const ManageHost = ({
     connection: initial,
     options,
-    agentPrivate,
 }: {
     connection: ChannelConnection
     options?: ChannelStoryActionsOptions
-    /** The agent is the reader's private agent (agent sharing). */
-    agentPrivate?: boolean
 }) => {
     const [connection, setConnection] = useState<ChannelConnection | null>(initial)
     const [sentTo, setSentTo] = useState<string | null>(null)
@@ -125,8 +122,6 @@ const ManageHost = ({
                 onDisconnect={async () => {
                     await actions.disconnect(connection.platform, connection.connectionId ?? "")
                 }}
-                agentPrivate={agentPrivate}
-                onShareAgent={() => setSentTo('"Privacy and owner" for this agent')}
                 onTurnOn={async () => {
                     await actions.turnOn(connection.platform, connection.connectionId ?? "")
                 }}
@@ -145,30 +140,13 @@ const ManageHost = ({
 
 const slackOff: ChannelConnection = {...slackHere, workspaceName: WORKSPACE_NAME, agentOff: true}
 
-/** Agent sharing: the owner made the agent private, so its Slack connection is off. */
-export const OffWhileAgentIsPrivate: Story = {
-    render: () => <ManageHost connection={slackOff} agentPrivate />,
-    parameters: {
-        docs: {
-            description: {
-                story:
-                    'The note says why the connection is off and links to "Privacy and owner". ' +
-                    "The connection row lists its channels; Turn on stays disabled while the " +
-                    "agent is private.",
-            },
-        },
-    },
-}
-
-/** Agent sharing: the agent is shared again, and the connection stays off until turned on. */
-export const OffAfterAgentSharedAgain: Story = {
+/** The binding is off, and the connection stays off until turned on. */
+export const OffUntilTurnedOn: Story = {
     render: () => <ManageHost connection={slackOff} />,
     parameters: {
         docs: {
             description: {
-                story:
-                    "The API stores only that the binding is off, not why, so the reason shows " +
-                    "only while the agent is private. Turn on is enabled; press it.",
+                story: "The connection row lists its channels. Turn on is enabled; press it.",
             },
         },
     },
