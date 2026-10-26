@@ -1,8 +1,8 @@
 # M5 `organization-credentials`: technical design
 
-Status: implemented in the backend. The web part is planned after the design review.
+Status: implemented in the backend under option B (owner decision, 2026-10-26): an agent uses exactly the connection it picked, by scope and slug. Nothing is inherited or overridden automatically. The web UI is built separately from the approved design board.
 
-Scope: backend first. OpenSpec `tasks.md` sections 1 (schema), 2 (core), 3 (access), 4 (routes, Fern included), 5 (gateway), and the backend rows of section 7 (QA). Section 6 (web) is an outline in `interfaces.md` section 7; it is planned after the design board is approved.
+Scope: backend first. OpenSpec `tasks.md` sections 1 (schema), 2 (core), 3 (access), 4 (routes, Fern included), 5 (gateway and SDK), the explicit-connection part of section 6, and the backend rows of section 7 (QA).
 
 ## 1. File-by-file plan
 
@@ -13,244 +13,196 @@ Scope: backend first. OpenSpec `tasks.md` sections 1 (schema), 2 (core), 3 (acce
 | `oss/databases/postgres/migrations/core_oss/versions/oss000000054_add_organization_credentials.py` (NEW) | Revision of interfaces 1.3. |
 | `oss/src/dbs/postgres/secrets/dbas.py` | `availability = Column(String, nullable=False, server_default="all_projects")`. |
 | `oss/src/dbs/postgres/secrets/dbes.py` | `SecretsDBE.__table_args__` gains the two checks and two partial indexes (metadata matches the revision); NEW `SecretProjectDBE`. |
-| `oss/src/dbs/postgres/secrets/mappings.py` | `owner`, `availability`, `selected_project_ids` in `map_secrets_dbe_to_dto`; NEW `map_secret_row_with_projects`. |
-| `oss/src/dbs/postgres/secrets/dao.py` | Owner-based methods; `_owner_filter(owner)`; NEW `load_effective` (one statement), the seven organization operations (all `INHERITABLE_KINDS`-only, atomic), `list_organization_project_ids`; the conflict rule folded into the explicit-slug project insert and the user-update lock read; `SERIALIZABLE` transactions with up to six attempts; `DBAPIError` -> domain errors `from None`. SQL constants `_LOAD_EFFECTIVE_SQL`, `_INSERT_PROJECT_SECRET_CHECKED_SQL`, `_ORGANIZATION_CONFLICTS_SQL`, `_INSERT_SECRET_PROJECTS_SQL`. |
+| `oss/src/dbs/postgres/secrets/mappings.py` | `owner`, `availability`, `selected_project_ids` in `map_secrets_dbe_to_dto`. |
+| `oss/src/dbs/postgres/secrets/dao.py` | Owner-based methods; `_owner_filter(owner)`; NEW `load_effective` (one statement), the organization operations (all `ORGANIZATION_SECRET_KINDS`-only, atomic), `list_organization_project_ids`; `DBAPIError` -> domain errors `from None`. Project writes keep today's statements. |
 
 ### 1.2 Core layer
 
 | File | Change |
 | --- | --- |
-| `oss/src/core/secrets/enums.py` | `SecretOwnerKind` (moved, + `ORGANIZATION`), `SecretAvailability`, `INHERITABLE_KINDS`. |
-| `oss/src/core/secrets/dtos.py` | `SecretOwner`; three response fields, the organization `write_only` validator, `hide_input_in_errors` on every value-holding model; `CachedEffectiveSecrets`. |
-| `oss/src/core/secrets/types.py` | Eight NEW exceptions (interfaces 2.3). |
+| `oss/src/core/secrets/enums.py` | `SecretOwnerKind` (moved, + `ORGANIZATION`), `SecretAvailability`, `ORGANIZATION_SECRET_KINDS`. |
+| `oss/src/core/secrets/dtos.py` | `SecretOwner`; three response fields, the organization `write_only` validator, `hide_input_in_errors` on every value-holding model; `CachedEffectiveSecrets` (project rows and available organization rows). |
+| `oss/src/core/secrets/types.py` | NEW exceptions (interfaces 2.3). |
 | `oss/src/core/secrets/interfaces.py` | Owner-based `SecretsDAOInterface`; NEW `ProjectLimitsInterface`. |
-| `oss/src/core/secrets/inheritance.py` (NEW) | Pure read-side merge and candidate functions (the conflict rule lives in SQL). |
+| `oss/src/core/secrets/scopes.py` (NEW) | Pure functions: `organization_matches`, `available_organization_secrets`, `provider_candidates`, `is_llm_provider_family`. |
 | `oss/src/core/secrets/limits.py` (NEW) | `NoProjectLimits`. |
-| `oss/src/core/secrets/services.py` | Owner mapping; the one `effective_secrets` entry per project on today's `get_cache` path; effective readers; organization management; invalidation helpers; request memo use. |
-| `oss/src/core/secrets/redaction.py` | No reveal and no preview for organization rows; `inherited_secret_response`, `organization_secret_response`. |
+| `oss/src/core/secrets/services.py` | Owner mapping; the one `effective_secrets` entry per project on today's `get_cache` path; scoped readers; organization management (default name with the owner); invalidation helpers; request memo use. |
+| `oss/src/core/secrets/redaction.py` | No reveal and no preview for organization rows; `organization_connection_response`, `organization_secret_response`. |
 | `ee/src/core/secrets/limits.py` (NEW) | `EntitlementProjectLimits(rbac)`. |
 | `oss/src/core/access/organizations.py` (NEW) | `OrganizationAction`, `decide_organization`. |
+| `oss/src/core/gateways/dtos.py` | `GatewayEndpointNamespace.ORGANIZATION`; `MIN_SCANNED_CREDENTIAL_LENGTH` public; NEW `secret_credential_values`. |
 | `oss/src/core/gateways/policy/dtos.py` | Import `SecretOwnerKind`, `SecretOwner` from core secrets; `BoundSecretRef.owner_kind`. |
-| `oss/src/core/gateways/policy/interfaces.py` | `NamedProviderConnection.owner_kind`; docstrings say "effective set". |
-| `oss/src/dbs/postgres/gateways/llms/dao.py` | NEW `fetch_custom_target_by_slug` (one statement: project endpoint row, else the available, unshadowed inherited `custom_provider`), replacing `fetch_endpoint_by_slug` on the gateway target path. |
-| `oss/src/core/gateways/dtos.py` | `MIN_SCANNED_CREDENTIAL_LENGTH` public; NEW `secret_credential_values`. |
-| `oss/src/core/gateways/llms/providers/passthrough/adapter.py` | Scans the organization secret's own values too (~97). |
-| `oss/src/core/gateways/policy/resolution.py` | `plane` constructor argument; LLM plane: effective reads, project-first default, owner-aware id references; MCP plane: today's code. |
-| `oss/src/core/gateways/policy/types.py` | `SecretNotFoundError` accepts `ORGANIZATION`. |
-| `oss/src/core/gateways/policy/audit.py` | `secret_owner_kind` attribute (section 7). |
-| `oss/src/core/gateways/llms/types.py` | `LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS` (explicit; Bedrock and SageMaker not served), pinned against `providers/passthrough/auth.py::_AUTH`. |
-| `oss/src/core/gateways/llms/service.py` | `_ResolvedLlmTarget.secret_owner_kind`; inherited custom target in `_resolve_target`; `_resolve_slug_target` (provider-family names before any read); the Bedrock check reads the served set. |
-| `oss/src/core/gateways/mcps/service.py` | Import paths only (`SecretOwnerKind`). No behavior change. |
+| `oss/src/core/gateways/policy/interfaces.py` | `NamedProviderConnection.owner_kind`; NEW `organization_connection` (default None). |
+| `oss/src/core/gateways/policy/resolution.py` | `plane` constructor argument; every plane reads project rows; the LLM plane answers `organization_connection`. |
+| `oss/src/core/gateways/llms/providers/passthrough/adapter.py` | Scans the organization secret's own values too. |
+| `oss/src/core/gateways/llms/types.py` | `LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS`; NEW `LLMNamedConnectionNotFoundError`, `LLMOrganizationConnectionSlugRequiredError`. |
+| `oss/src/core/gateways/llms/service.py` | `_ResolvedLlmTarget.secret_owner_kind` and `resolved_secret`; `connection_scope` on `resolve_agent_connection`; `_organization_target`; `_resolve_slug_target` (one pass over project shapes). |
+| `oss/src/core/workflows/service.py` | `_reject_unrunnable_agent_connection` at every agent commit. |
+| `oss/src/core/agent_templates/compiler.py` | The explicit project default connection. |
 
 ### 1.3 Router layer and wiring
 
 | File | Change |
 | --- | --- |
 | `oss/src/apis/fastapi/organization_secrets/{__init__,router,models}.py` (NEW) | `OrganizationSecretsRouter`, request and response models, `handle_organization_secret_exceptions`. |
-| `oss/src/apis/fastapi/vault/router.py` | `include_inherited`; 409 shadow mapping; union response model. |
-| `oss/src/apis/fastapi/vault/models.py` | `PublicInheritedSecretResponse`. |
-| `entrypoints/routers.py` | `VaultService(..., project_limits=...)`; two resolvers (`plane=LLM` for the LLM gateway, `plane=MCP` for every other current user of `secrets_resolver`); mount `OrganizationSecretsRouter` with `tags=["Organization Secrets"]`. |
-| `entrypoints/worker_streams.py`, `entrypoints/worker_queues.py` | No change (their `VaultService` reads project rows by id only; `project_limits=None`). |
-| `web/packages/agenta-api-client/src/generated/**`, `web/packages/agenta-sdk/src/resources.ts` | Fern regeneration and `getOrganizationSecretsClient()` . |
+| `oss/src/apis/fastapi/vault/router.py` | `include_organization`. |
+| `oss/src/apis/fastapi/gateways/llms/{models,router,proxy}.py`, `gateways/exceptions.py` | `connection_scope`; the `organization` relay routes; the two new error mappings. |
+| `oss/src/apis/fastapi/providers/{models,router}.py` | `secret_scope` on the probe. |
+| `entrypoints/routers.py` | `VaultService(..., project_limits=...)`; two resolvers (`plane=LLM` for the LLM gateway, `plane=MCP` for every other user); mount `OrganizationSecretsRouter` with `tags=["Organization Secrets"]`. |
+| `utils/env.py` | NEW `AGENTA_RUNNER_REQUIRE_NAMED_SELF_MANAGED_CONNECTION` (default false; true on the cloud). |
+| `web/packages/agenta-api-client/src/generated/**` | Fern regeneration. |
 
-### 1.4 Not changed (checked)
+### 1.4 SDK and web
 
-- SDK (`sdks/python/agenta/sdk/**`), services, runner: no change. In gateway mode the API chooses the connection; on the vault fallback the SDK reads `GET /secrets/` without `include_inherited`.
-- `oss/src/core/secrets/utils.py::get_llm_providers_secrets` (no caller), webhooks, channels, MCP OAuth storage, the providers probe, subscription routes: project rows only, unchanged.
-- EE SSO (`ee/src/core/organizations/service.py`): keeps `VaultService(..., organization_id=...)` calls; SSO rows are never inheritable and never listed by the organization routes.
-- `hosting/`, Helm, Railway, `utils/env.py`: no new environment variable.
+- SDK (`sdks/python/agenta/sdk/agents/**`): `Connection.scope`, the `organization` namespace, `connection_scope` on resolve, `OrganizationConnectionUnavailableError` on every plaintext path, `WireConnection.scope` (interfaces 3.9).
+- Web (`web/packages/agenta-entities`, `agenta-entity-ui`): every save path writes the connection explicitly (`explicitAgentConnection`, `withExplicitAgentConnection`, `composeModelValue`).
+- Runner: no change (it holds no provider key in gateway mode, and routing comes from the resolved base URL).
 
 ## 2. Key flows
 
-### 2.1 Gateway relay with an inherited key (`POST /gateways/llms/standard/openai/v1/chat/completions`, the sandbox's gateway credential)
+### 2.1 An agent with no connection (`POST /gateways/llms/standard/openai/v1/chat/completions`)
 
-1. The auth middleware verifies the gateway-audience Secret token; `AuthScope(organization_id, project_id, user_id)` comes from its claims (minted after an access decision, M2).
-2. `_resolve_target(STANDARD, "openai")` builds the generated endpoint (no read).
-3. Allowlist, ceilings, `policy.authorize` (unchanged).
-4. The LLM-plane resolver: `resolve(ProviderKeyRef("openai"))` -> `list_effective_secrets` -> one `get_cache` of the project's `effective_secrets` entry (warm: one `GET`, as today) -> in memory: project candidates for `openai`; if none, inherited candidates -> `ResolvedSecret(owner=SecretOwner(ORGANIZATION, org_id))`.
-5. Relay, then audit with `secret_owner_kind=organization`.
+`resolve(ProviderKeyRef("openai"))` reads the project's entry (warm: one `GET`, as today) and picks among the project's own rows with today's tie rule. An organization row is never a candidate, so agents saved before M5 run exactly as before.
 
-### 2.2 Agent connection resolve with a slug (`POST /gateways/llms/resolve` from the SDK at run start)
+### 2.2 An agent that names an organization connection
 
-`_resolve_slug_target(scope, slug)`: (1) `fetch_custom_target_by_slug` (one statement) -> custom target from the project endpoint row or from an inherited `custom_provider`; (2) builtin provider of that name -> builtin target; (3) a provider-family name (`standard_llm_endpoint`) -> standard target, no read; (4) one effective read: a `provider_key` row with the slug (project first) -> standard target pinned with its owner kind; (5) else `LLMEndpointNotFoundError(custom/<slug>)` as today, then the existing retired starter-credits fallback (its `has_connection` reads the memo).
+1. The SDK sends `POST /gateways/llms/resolve` with `connection_slug`, `connection_namespace = organization` and `connection_scope = organization`.
+2. `_organization_target(scope, slug)`: `resolver.organization_connection` (one entry read) -> the row available to the project -> a standard-family target (`provider_key`) or a target built from the row (`custom_provider`), pinned to the row, carrying it. A miss: `connection_not_found` (404, scope and slug).
+3. The harness calls `/gateways/llms/organization/{slug}/v1/...`. The relay resolves the same target (the memo makes the entry read free in the same request; a new request reads the entry once) and uses the carried row; audit has `secret_owner_kind=organization`.
 
-### 2.3 Project member lists credentials (`GET /secrets/?include_inherited=true`)
+### 2.3 An agent that names a project slug
 
-`VIEW_SECRET` check (unchanged). No `secret-resolve` grant -> `list_inherited_secrets` (the same one entry read as `GET /secrets/`) -> project rows through `project_secret_response`, then each inherited row through `inherited_secret_response` (no values, no other project ids, override marker).
+`_resolve_slug_target(scope, slug)`: (1) the project endpoint row (one statement); (2) builtin; (3) a provider family (no read); (4) a project `provider_key` row with the slug (one entry read); (5) else `LLMEndpointNotFoundError(custom/<slug>)`, then the retired starter-credits fallback. It never reaches an organization row.
 
-### 2.4 Owner adds a company key (`POST /organization-secrets/`)
+### 2.4 Project member lists connections (`GET /secrets/?include_organization=true`)
 
-`decide_organization` (one statement) -> kind, family and served-deployment checks (in memory) -> ONE `SERIALIZABLE` transaction: conflict check against project rows (`FOR SHARE`), insert (unique organization slug index), availability and `secret_projects` with the organization check; any refusal rolls everything back -> after the commit: `list_organization_project_ids`, exact `DEL` of each project's entry, `clear_request_memo()`, the audit event -> response without value.
+`VIEW_SECRET` check (unchanged). No `secret-resolve` grant -> `list_project_and_organization_secrets` (the same one entry read as `GET /secrets/`) -> project rows through `project_secret_response`, then each organization row through `organization_connection_response` (no values, no preview, no other project ids).
 
-### 2.5 EE admin limits a key (`PUT /organization-secrets/{id}/projects`)
+### 2.5 Owner adds a company key (`POST /organization-secrets/`)
 
-`decide_organization` -> `selected_projects`: `project_limits.allows_selected_projects` (EE: RBAC entitlement, 30 s memo; OSS: 403) -> ONE `SERIALIZABLE` transaction: lock the organization row, conflict check for the projects that gain access, organization-checked insert, delete of the rest -> after the commit, invalidate. The next relay of a removed project misses the key: a pinned id fails with not-found, an unnamed call falls back to the project's own key or fails "no key".
+`decide_organization` (one statement) -> kind, family, value and served-deployment checks (in memory) -> the default name "OpenAI (Organization)" when none is given -> ONE transaction: insert (unique organization slug index), availability (`all_projects` by default) and `secret_projects` with the organization check; any refusal rolls everything back -> after the commit: `list_organization_project_ids`, exact `DEL` of each project's entry, `clear_request_memo()`, the audit event -> response without value.
 
-### 2.6 Project overrides an inherited slug (`POST /secrets/` with the inherited slug)
+### 2.6 EE admin limits a key (`PUT /organization-secrets/{id}/projects`)
 
-`EDIT_SECRET` check -> ONE `SERIALIZABLE` statement: insert unless an available organization row with that slug has another kind or family (409 then) -> project invalidation. From now on a slug reference in this project resolves the project row; other projects keep the organization row. For a `custom_provider`, the registrar writes the project endpoint row, which wins over the inherited target.
+`decide_organization` -> `selected_projects`: `project_limits.allows_selected_projects` (EE: RBAC entitlement, 30 s memo; OSS: 403) -> ONE transaction: lock the organization row, set availability, replace `secret_projects` (organization-checked) -> after the commit, invalidate. An agent of a removed project that names the connection fails with `connection_not_found`; a pinned id fails with not-found.
+
+### 2.7 A member tests an organization connection (`POST /providers/probe` with `secret_scope = organization`)
+
+`VIEW_SECRET` check -> the organization row by id from the project's entry (never a project row) -> the probe with the stored value. Changed fields need `decide_organization`.
 
 ## 3. Request counts (every cache mode)
 
-R = Redis round trips, S = Postgres statements, for the secrets part of each request (the access decision, the policy check and the relay are unchanged). "Before" is `origin/main`. M5 keeps exactly today's cache mechanics for project vault reads: one `get_cache` on one key per project. So an "entry read" costs the same before and after in every mode:
-
-| Mode of one entry read | Before (`list_secrets` entry) | After (`effective_secrets` entry) |
-| --- | --- | --- |
-| Warm | 1 R (`GET`) | 1 R (`GET`) |
-| Cold, lock leader | `GET`, `SET NX`, 1 S, `SET`, `DEL` = 4 R + 1 S | the same 4 R + 1 S (`load_effective` is one statement) |
-| Cold, lock follower | `GET`, `SET NX` refused, backoff, `GET` = 3 R | the same 3 R |
-| Cache disabled | 0 R + 1 S | 0 R + 1 S |
-| Redis failing | failed `GET` + 1 S + failed `SET` | the same |
-| Second read in the same request | another entry read | 0 (request memo) |
-
-Per request (in entry reads, U, plus other statements):
+R = Redis round trips, S = Postgres statements, for the secrets part of each request. "Before" is `origin/main`. M5 keeps exactly today's cache mechanics for project vault reads: one `get_cache` on one key per project, so an entry read (U) costs the same before and after in every mode (warm 1 R; cold leader 4 R + 1 S; cold follower 3 R; cache disabled 1 S; Redis failing 2 failed R + 1 S; a second read in the same request 0).
 
 | # | Request | Before | After |
 | --- | --- | --- | --- |
 | A | Relay, standard by provider family (the common agent call) | 1 U | 1 U |
 | B | Relay, standard by a project slug | 1 U + 1 S (id read) | 1 U + 1 S |
-| C | Relay, standard by an organization slug (fails today: no such slug) | 1 U, then not found | 1 U (the id read uses the memo) |
+| C | Relay, organization key named by scope (new path) | n/a | 1 U |
 | D | Relay, custom project endpoint row | 2 S | 2 S |
-| E | Relay, inherited custom provider (fails today: not found after 1 S) | 1 S | 1 S (`fetch_custom_target_by_slug` returns the row; the relay uses it) |
-| E2 | Relay, unknown custom slug, organization with or without credentials | 1 S, not found | 1 S, not found |
+| E | Relay, organization custom provider named by scope (new path) | n/a | 1 U |
+| E2 | Relay, unknown custom slug | 1 S, not found | 1 S, not found |
 | F | Resolve, provider only | 0 | 0 |
 | G | Resolve, project custom slug | 2 S | 1 S |
 | H | Resolve, project standard slug (not a family name) | 1 S + 2 U | 1 S + 1 U |
 | H2 | Resolve, provider-family slug (`openai`), with or without a project key | 1 S | 1 S |
-| I | Resolve, organization `provider_key` slug (fails today after 2 S + 2 U) | 2 S + 2 U | 1 S + 1 U |
-| I2 | Resolve, inherited custom slug (fails today after 2 S + 2 U) | 2 S + 2 U | 1 S |
-| I3 | Resolve, unknown slug, organization with or without credentials | 2 S + 2 U, not found | 1 S + 1 U, not found |
+| I | Resolve, organization key named by scope (new path) | n/a | 1 U |
+| I2 | Resolve, organization custom provider named by scope (new path) | n/a | 1 U |
+| I3 | Resolve, unknown project slug | 2 S + 2 U, not found | 1 S + 1 U, not found |
 | J | `GET /secrets/` (vault fallback, `VaultMiddleware`, `/w`, `/m`) | 1 U | 1 U |
-| K | `GET /secrets/?include_inherited=true` | today the parameter is ignored: 1 U | 1 U |
+| K | `GET /secrets/?include_organization=true` (new path) | n/a | 1 U |
 | L | `GET /gateways/llms/endpoints` | 1 U + 1 S | 1 U + 1 S |
-| M1 | MCP endpoint list (`available_provider_keys`) | 1 U + its statements | the same (MCP plane, today's code) |
-| M2 | MCP relay, standard (`ProviderKeyRef`) | 1 U | 1 U |
-| M3 | MCP relay, bound secret | 1 S | 1 S |
-| P1 | Project secret create, server-derived slug | today's statements | the same |
-| P2 | Project secret create, caller-given slug | 1 S insert | 1 S (the check is folded into the insert, `SERIALIZABLE` on `BEGIN`) |
-| P3 | Project secret user update | `SELECT ... FOR UPDATE` + `UPDATE` | the same 2 S (the check is folded into the lock read, `SERIALIZABLE`) |
-| O | Organization management route (did not exist) | n/a | 1 S decision + the route's statements; writes add 1 S + exact `DEL`s for invalidation after the commit |
+| M1 to M3 | MCP endpoint list, relay standard, relay bound secret | today | the same (MCP plane, project rows) |
+| P1 to P3 | Project secret create (derived slug, caller slug), user update | today's statements | the same statements, the same isolation |
+| O | Organization management route (new path) | n/a | 1 S decision + the route's statements; writes add 1 S (the project list) + exact `DEL`s after the commit |
 
-Every existing request is equal or lower in every cache mode. Network round trips between services: M5 adds no HTTP call. The isolation option of P2 and P3 rides the `BEGIN` and adds no statement; the count tests pin every row.
+Every existing request is equal or lower in every cache mode. M5 adds no HTTP call between services. The count tests pin every row in all five modes on both editions.
 
 ## 4. Cache design
 
-- One entry per project (`effective_secrets`), holding the project row's organization, the project's rows and the inherited rows AVAILABLE to that project. Filled by one statement on today's `get_cache` lock path. An organization with no credentials stores an empty list in the same entry.
-- Identity: the key holds the full project uuid (`_pack` truncates the `project_id` slot to 12 characters, so the slot alone is not unique); the value holds `project_id` and a read with another id is a miss. The `project_id` slot stays the project id, so today's project-wide pattern invalidation (`invalidate_cache(project_id=...)`) clears it, also from old pods. Two projects with the same 12-character suffix over-invalidate each other (harmless) and never share an entry.
-- Invalidation: project writes as today; organization-credential writes and availability changes delete each project entry of the organization (exact keys, batched) after the commit. A new project needs no invalidation (its first read fills the entry). A deleted project's entry expires by TTL.
+- One entry per project (`effective_secrets`), holding the project row's organization, the project's rows and the organization rows AVAILABLE to that project. Filled by one statement on today's `get_cache` lock path. An organization with no credentials stores an empty list in the same entry.
+- Identity: the key holds the full project uuid (`_pack` truncates the `project_id` slot to 12 characters); the value holds `project_id`, and a read with another id is a miss. The `project_id` slot stays the project id, so today's project-wide pattern invalidation clears it, also from old pods.
+- Invalidation: project writes as today; organization writes and availability changes delete each project entry of the organization (exact keys, batched) after the commit. A new project needs no invalidation. A deleted project's entry expires by TTL.
 - Request memo: the entry lives for the rest of the request in M2's request memo; vault invalidation clears the memo.
-- Serializer and logs: every nullable field has an explicit `= None`; the model round-trips through `_serialize` / `_deserialize`; `hide_input_in_errors=True` keeps values out of the `[cache]` warning that logs a deserialization error.
-- Old `list_secrets` namespace: new code never reads or writes it; old pods do until the rollout ends.
+- Serializer and logs: every nullable field has an explicit `= None`; the model round-trips through `_serialize` / `_deserialize`; `hide_input_in_errors=True` keeps values out of the `[cache]` warning.
 
 ## 5. Security properties and their tests
 
-| # | Property | Enforced by | Tests  |
+| # | Property | Enforced by | Tests |
 | --- | --- | --- | --- |
-| P1 | No HTTP response carries an organization credential value, for any caller (every project role, the organization owner, a run credential with the `secret-resolve` grant), and no gateway relay echoes one back to the sandbox. | `write_only` validator for organization rows; `project_secret_response` refuses to reveal them; organization and inherited projections drop every credential field; no preview; the passthrough echo scan covers every organization value (at least 8 characters by the write rule). | `test_no_route_returns_an_organization_value` (every secrets-returning route and role, Task 13); gateway echo: a mock upstream that echoes the organization key in a response header, in a non-streaming body and split across two streamed chunks gets the `upstream_echoed_credential` refusal and the key never reaches the client, also for a key carried in a custom-provider extras field (Task 13); create and update with a 7-character value: 422 (Task 5); `test_resolve_grant_never_reveals_organization_rows` (Task 8); redaction unit tests over every `CREDENTIAL_FIELDS` kind (Task 8). |
-| P2 | Organization values never reach a sandbox or a plaintext path. | `GET /secrets/` never includes inherited rows under the grant; no endpoint row for organization custom providers; the sandbox holds only a gateway-audience credential. | Gateway off: run credential `GET /secrets/?include_inherited=true` has no inherited row and the sandbox env has no key (Tasks 13, 16); completion app and AI evaluator see project rows only (Task 16). |
-| P3 | One organization access decision; only a browser-session human owner or admin passes; no project shortcut applies. | `decide_organization`, called first by every organization route. | Unit rule table (Task 6); acceptance EE hobby `editor` 403, owner API key 403, owner run credential 403, owner and admin 200, both editions (Task 13). |
-| P4 | Tenant isolation: no organization row reaches a project of another organization, and no project reads another project's entry. | Entry keyed by the full project id and validated; the project row's organization pins inheritance; organization DAO statements filter by organization; `secret_projects` inserts only same-organization projects. | `test_mismatched_organization_inherits_nothing`, `test_equal_suffix_projects_never_share_an_entry` (same organization and two organizations, Task 4); `test_foreign_project_limit_refused` (Tasks 3, 13); cross-organization ids on every organization route 404 (Task 7). |
-| P5 | Project routes never read, change or delete an organization row. | Project-scoped DAO filters (unchanged). | Project editor `DELETE` with an organization id: 204 (status quo), row stays; `PUT` with an organization id: 404, row stays; `GET /secrets/{org slug}`: 404 (Task 8). |
-| P6 | An id reference never substitutes another row. | Owner-aware `BoundSecretRef`; organization ids answered only from the available inherited list. | Pinned organization credential deleted, and limited away: not-found, no project key used (Tasks 9, 13). |
-| P7 | A project row and an available organization row never share a slug with another kind or family. | The conflict rule in SQL on every write that can create the pair, `SERIALIZABLE`, against the database, never the shadow-filtered view. | Override kind change, family change, availability widening, organization create over an existing project slug, stale caches (entry warmed before the conflicting write), two concurrent conflicting writes on two connections (one 409) (Tasks 3, 5, 8). |
-| P8 | No secret value or token in logs or audit events. | Ids and kinds in logs; `hide_input_in_errors` on every value-holding model; DAO errors raised `from None` with no parameters; audit adds `secret_owner_kind` only. | Sentinel tests: a sentinel credential in a malformed cache entry, a malformed stored row, a failed insert and an unexpected DAO error; every captured log record (including `[cache]` and `[INTERCEPTED]`) is searched for the sentinel (Tasks 4, 7, 8); stack log grep in QA (Task 16). |
-| P9 | Cache safety: no cached decision; bounded staleness; Redis holds decrypted values as it does for project rows today. | Section 4. | Invalidation tests with `FakeCache` and real Redis, an old-pod write after a warmed new entry (Tasks 4, 16). |
-| P10 | EE SSO secrets are never inherited, never listed in a project, never addressed by the organization routes. | `INHERITABLE_KINDS` in `load_effective` (SQL), in the merge, and in all seven organization DAO operations. | `test_sso_secret_stays_out` (Task 4); an SSO id against all six organization routes: 404, row unchanged (Task 7); SSO login acceptance (Task 16). |
-| P11 | The MCP plane never resolves an organization row. | The resolver's `plane` argument; the MCP instance runs today's code. | Organization `provider_key` of family `mock` (a name in both catalogs): absent from the MCP endpoint list and from MCP `ProviderKeyRef("mock")` resolution, with the mock gateways on (Task 9); MCP rows M1 to M3 in the count tests (Task 12). |
-| P12 | A deployment the gateway does not serve is refused at create, at update and at resolve. | `LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS`, pinned against the passthrough auth table. | Bedrock and SageMaker create 422 and update 422 (Task 5); a stored inherited Bedrock or SageMaker row (inserted by SQL) answers `LLMGatewayConnectionNotServedError` (Task 10); the set-vs-`_AUTH` pin test (Task 5). |
-| P13 | OSS refuses the project limit; EE needs the RBAC entitlement. | `ProjectLimitsInterface`. | OSS 403; EE hobby 403; EE business 200 (Tasks 7, 13). |
+| P1 | No HTTP response carries an organization credential value or a preview, for any caller, and no gateway relay echoes one back. | `write_only` validator for organization rows; `project_secret_response` refuses to reveal them; organization projections drop every credential field; the passthrough echo scan covers every organization value in the spellings JSON encoders produce. | `test_no_route_returns_an_organization_value`; echo refusals (header, body, split stream, extras, JSON-escaped forms); short and unscannable values refused; redaction unit tests. |
+| P2 | Organization values never reach a sandbox or a plaintext path. | `GET /secrets/` never includes organization rows under the grant; the SDK refuses an organization connection on every plaintext path; the sandbox holds only a gateway-audience credential. | `test_the_run_credential_never_receives_an_organization_row`; `test_an_organization_connection_never_falls_back_to_the_vault`; `test_an_organization_connection_never_resolves_from_plaintext_rows`. |
+| P3 | One organization access decision; only a browser-session human owner or admin manages; no project shortcut applies. | `decide_organization`, called first by every organization route and by a probe with changed fields. | Unit rule table; acceptance: EE hobby `editor` 403, owner API key 403, owner run credential 403, owner and admin 200. |
+| P4 | Tenant isolation. | Entry keyed by the full project id and validated; the project row's organization pins organization rows; organization DAO statements filter by organization; `secret_projects` inserts only same-organization projects. | Mismatched organization gets no organization row; equal-suffix projects never share an entry; foreign project limit refused; cross-organization ids 404. |
+| P5 | Project routes never read, change or delete an organization row. | Project-scoped DAO filters (unchanged). | `DELETE` with an organization id: 204, row stays; `PUT`: 404; `GET /secrets/{org slug}`: 404. |
+| P6 | A reference never substitutes another row. | Scope on every named reference; owner-aware `BoundSecretRef`; organization rows answered only from the available list. | One slug in both scopes answers each scope's own row; an organization name miss is `connection_not_found`, never the project default; a pinned organization connection deleted or limited away: not found. |
+| P7 | An agent with no connection never uses an organization row. | The provider scan reads project rows only. | `test_the_provider_scan_never_reads_an_organization_row`; acceptance: the unnamed call fails where only the organization has a key. |
+| P8 | No secret value or token in logs or audit events. | Ids and kinds in logs; `hide_input_in_errors`; DAO errors raised `from None`; audit adds `secret_owner_kind` only. | Sentinel tests over every captured log record; stack log grep in QA. |
+| P9 | Cache safety: no cached decision; bounded staleness. | Section 4. | Invalidation tests with the recording engine and real Redis; an old-pod write after a warmed new entry. |
+| P10 | EE SSO secrets are never shared, listed in a project, or addressed by the organization routes. | `ORGANIZATION_SECRET_KINDS` in `load_effective` (SQL) and in every organization DAO operation. | An SSO id against all six routes: 404, row unchanged; SSO never in a project list. |
+| P11 | The MCP plane never resolves an organization row. | The resolver's `plane` argument. | An organization `mock` key is absent from the MCP list and MCP resolution. |
+| P12 | A deployment the gateway does not serve is refused at create, at update and at resolve. | `LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS`, pinned against the passthrough auth table. | Bedrock and SageMaker create and update 422; a stored row answers not served. |
+| P13 | OSS refuses the project limit; EE needs the RBAC entitlement. | `ProjectLimitsInterface`. | OSS 403; EE hobby 403; EE business 200. |
+| P14 | An older runtime fails closed on an organization connection. | Namespace `organization` on every saved organization connection; the commit check. | `test_an_organization_connection_needs_scope_slug_and_its_namespace`; `test_an_incomplete_organization_connection_is_refused`. |
 
 ## 6. Migration
 
-- Steps: interfaces 1.3. `core_oss/env.py` runs with `transaction_per_migration=True`; the first part (column, check, table, delete, guards, `NOT VALID` constraint) commits as one transaction under `lock_timeout = 5s`; the indexes and the two `VALIDATE CONSTRAINT` statements run in an autocommit block, so the `ACCESS EXCLUSIVE` phase is short and validation takes only `SHARE UPDATE EXCLUSIVE`.
-- Interrupted run: the first phase is committed and `alembic_version` is not; the rerun repeats the first phase as no-ops, drops an INVALID index `CONCURRENTLY` and builds it again, then validates (interfaces 1.3).
-- Rollback: the app rolls back; the schema stays. Old code works on the new schema (section 1.4 of interfaces).
+- Steps: interfaces 1.3. The first part (column, check, table, delete, guards, `NOT VALID` constraint) commits as one transaction under `lock_timeout = 5s`; the indexes and the two `VALIDATE CONSTRAINT` statements run in an autocommit block.
+- Interrupted run: the first phase is committed and `alembic_version` is not; the rerun repeats the first phase as no-ops, drops an INVALID index `CONCURRENTLY` and builds it again, then validates.
+- Rollback: the app rolls back; the schema stays. Old code works on the new schema.
 
 ## 7. Audit and observability
 
-- Gateway audit (`gateways.called`): NEW attribute `secret_owner_kind` (`project` or `organization`) when a secret was resolved (`GatewayOutcome.owner`). The organization id is already on the event. No secret id is added (unchanged rule: names and ids of targets only).
-- Organization credential writes publish NEW `EventType.ORGANIZATION_SECRETS_CHANGED` (`organization_secrets.changed`) with `organization_id`, `secret_id`, `kind`, `action` (`created`, `updated`, `deleted`, `availability_changed`), `availability`, project count, and the acting user id. No value, no name. This gives the "audit trail" the authorization checklist asks for; M3 added `EventType` values the same way. If `core/events/types.py` conflicts with M3 at the rebase, keep both values.
-- Logs: `[access] organization decision denied` (info); `[secrets] organization mismatch` (warning); `[secrets] cache invalidation failed` (warning); `[secrets] include_inherited ignored for a resolve grant` (info). Ids and kinds only.
+- Gateway audit (`gateways.called`): NEW attribute `secret_owner_kind` (`project` or `organization`) when a secret was resolved.
+- Organization credential writes publish NEW `EventType.ORGANIZATION_SECRETS_CHANGED` (`organization_secrets.changed`) with `organization_id`, `secret_id`, `kind`, `action`, `availability`, project count, and the acting user id. No value, no name.
+- Logs: `[access] organization decision denied` (info); `[secrets] organization mismatch` (warning); `[secrets] cache invalidation failed` (warning); `[secrets] include_organization ignored for a resolve grant` (info). Ids and kinds only.
 
 ## 8. Test plan
 
-### 8.1 Unit (`api/oss/tests/pytest/unit/secrets/`, `unit/access/`, `unit/gateways/`, `unit/migrations/`)
+### 8.1 Unit
 
-- `secrets/test_inheritance.py`: merge order, override by slug, mismatched organization, SSO and non-inheritable kinds dropped, `provider_candidates` tie rule inside each group.
-- `secrets/test_secret_owner_dto.py`: `SecretOwner` frozen; organization rows forced `write_only`; `CachedEffectiveSecrets` round-trips `_serialize` / `_deserialize`; `hide_input_in_errors` is set on every value-holding model (a list of classes in the test, so a new model without it fails).
-- `secrets/test_effective_reads.py` (FakeCache recording commands, fake DAO): the entry-read sequence of section 3 in all five modes (warm, cold leader, cold follower, disabled, Redis failing); full-uuid key; identity mismatch is a miss; equal 12-character suffixes in one and in two organizations never share an entry and project-wide invalidation still clears both; memo serves the second read; organization write deletes exactly the organization's project keys and clears the memo; failed invalidation logs and does not raise.
-- `secrets/test_organization_secrets_service.py`: kind, family, Bedrock and SageMaker refusals on create and update; limit allowed and refused per edition; keep-on-omit update; one audit event per write.
-- `secrets/test_redaction_organization.py`: no reveal with the flag, no preview, inherited projection drops credential fields and project ids, for every `CREDENTIAL_FIELDS` kind of `INHERITABLE_KINDS`.
-- `secrets/test_no_values_in_logs.py`: sentinel credential in a malformed cache entry (`get_cache` and the memo path), a malformed stored row, an unexpected DAO error through `intercept_exceptions`; every captured record (including `[cache]` and `[INTERCEPTED]`) is free of the sentinel.
-- `gateways/test_served_deployments.py`: `LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS` matches `providers/passthrough/auth.py::_AUTH` (Bedrock and SageMaker not served).
-- `access/test_decide_organization.py`: the rule table of interfaces 3.5.
-- `gateways/test_gateways_resolution.py` (MODIFIED) and NEW `test_gateways_resolution_inheritance.py`: LLM plane project-first default, slug project then organization, id references by owner kind, real owner; MCP plane: an organization `mock` key is never listed or resolved.
-- `gateways/test_gateways_llm_service.py` (MODIFIED): `_resolve_slug_target` gives today's answers for every project shape, provider-family slugs with and without a project key included (table test against the old two-step code captured in the test); inherited custom target; unserved kinds.
-- `migrations/test_organization_credentials_migration_gate.py`: `migration_gate.scan_files` on `oss000000054`: no failing finding.
+- `secrets/test_scopes.py`: two scopes, mismatched organization, SSO dropped, the tie rule.
+- `secrets/test_secret_owner_dto.py`, `test_effective_reads.py`, `test_organization_secrets_service.py`, `test_redaction_organization.py`, `test_no_values_in_logs.py`, `test_services.py` (the default organization name).
+- `gateways/test_gateways_resolution_scopes.py`: the provider scan and project slugs read project rows only; `organization_connection` by plane and availability.
+- `gateways/test_gateways_llm_organization_targets.py`: organization targets (key and custom provider), typed misses, incomplete references, unserved kinds, one entry read per request, and `_resolve_slug_target` against the old two-step code for every project shape.
+- `workflows/test_commit_connection_validation.py`, `agent_templates/test_compiler.py`, `providers/test_provider_probe.py` (organization probes).
+- SDK: `agents/platform/test_connections_http.py`, `test_gateway_plane_fallbacks.py`.
+- Web: `connectionUtils.test.ts`, `connectionPicker.test.ts`, `agent-creation-prefs.test.ts`.
 
-### 8.2 Integration (real Postgres, `api/oss/tests/pytest/integration/secrets/`)
+### 8.2 Integration (real Postgres)
 
-- `test_organization_credentials_migration.py`: upgrade on a scratch copy with orphan rows (deleted, count logged); a both-owner row and duplicate organization slugs (each stops, AND the orphan rows are still there: the delete rolled back); rerun after a completed run; an interrupted run (first phase committed, the job killed before the index phase) then a rerun; an index forced INVALID then a rerun (dropped and rebuilt); the constraint rejects a new orphan; the unique index rejects a duplicate organization slug.
-- `test_secrets_dao_owner.py`: owner-based CRUD; `load_effective` is one statement (with and without rows, unknown project, availability applied, SSO excluded); every organization operation refuses an SSO id; atomic create (a foreign project id, a forced failure after the insert: no row left; a concurrent reader on a second connection never sees the row before its limit); the conflict rule on two connections for each write pair (explicit-slug project create vs organization create, project kind change vs organization create, availability widening vs project create): exactly one succeeds, the other gets 409, the invariant holds; stale cache: the entry warmed before a conflicting organization write does not let a conflicting project write pass (the check reads the database).
-- `test_organization_secrets_query_counts_postgres.py`: rows A to P3 and M1 to M3 of section 3, both licenses, real Redis, in all five cache modes for the rows that read the entry (cache disabled through `env.agenta.api.caching.enabled` patched off; Redis failing through a client that raises).
+- `test_organization_credentials_migration.py`, `test_secrets_dao_owner.py`, `test_secrets_scopes.py` (two slug spaces; project writes keep today's statements and isolation), `test_organization_secrets_query_counts_postgres.py` (every row of section 3, five cache modes, both editions).
 
-### 8.3 Acceptance (real stack, `api/oss/tests/pytest/acceptance/organization_secrets/`)
+### 8.3 Acceptance (real stack, `acceptance/organization_secrets/`)
 
-`test_organization_secrets_authorization`, `test_organization_secrets_crud`, `test_organization_secrets_limits` (EE plans, OSS refusal), `test_inherited_list_redaction`, `test_project_routes_do_not_touch_organization_rows`, `test_override_by_slug`, `test_gateway_uses_inherited_key` (mock LLM gateway), `test_gateway_off_plaintext_paths`, `test_inherited_custom_provider` (mock LLM as a `custom` provider), `test_pinned_reference_never_substitutes`, `test_sso_unaffected` (EE, SSO id against all six routes).
+`test_organization_secrets_authorization`, `test_organization_secrets_scopes` (lists, project routes, named organization connections through the mock LLM, one slug in both scopes, custom providers, echo refusals, pinned references, the EE limit), `test_gateway_off_plaintext_paths`, `test_sso_unaffected`.
 
-### 8.4 Compatibility
-
-- Pre-M5 rows with the new API: on the restored pre-M5 dump plus `054`, every existing project secret lists, reads, updates and resolves as before (response diff against the pre-M5 API on the same dump: only the additive `owner` field); SSO login works.
-- Old-pod write after a warm new entry: a new pod warms `effective_secrets`; the pre-M5 API container writes a project secret; the next new-pod read misses and shows the change.
-
-## 9. QA matrix (backend rows of OpenSpec tasks.md section 7)
+## 9. QA matrix
 
 | Boundary | Check | Where |
 | --- | --- | --- |
-| Gateway run (OSS, EE) | An organization OpenAI key  serves an agent in an old and a new project; a slug override wins only in its project; with both keys and no name, the project key is used (audit `secret_owner_kind`). | local stack, `/m` agent chat and API |
-| Plaintext paths | Gateway off (`AGENTA_LLM_GATEWAY_ENABLED=false`): the run's `GET /secrets/` has no inherited row; the sandbox env has no organization key; a named organization slug fails "connection not found". A completion app and an AI evaluator run on project keys only. | local stack with the flag off |
-| Redaction | Every project role and the organization owner: no response carries an organization value (route sweep script). | local stack, both editions |
-| Organization authorization | EE hobby org `editor` 403; owner API key 403; owner run credential 403; owner and admin 200, both editions. | local stack |
-| Id reference | A pinned organization credential deleted, then limited away: the run fails and uses nothing else. | local EE stack |
-| Custom provider | An organization `custom` provider pointing at the mock LLM serves an agent by slug with no endpoint row (SQL: `llm_endpoints` unchanged); a project endpoint row with that slug wins. | local stack |
-| EE limit | A limited credential is invisible to other projects (list and resolve); deleting the only selected project leaves no inheritor; OSS gets 403. | local stack |
-| SSO | EE SSO login works; SSO secrets never appear in a project list. | local EE stack (SSO provider fixture) |
-| Mixed versions | The migration runs while the pre-M5 API image serves (local EE stack, old image, `alembic upgrade head` from the lane); old pods keep serving project keys; an old-pod write clears a new pod's warmed entry; the pinned pre-M5 SDK and runner resolve as before; pre-M5 rows behave as before on the new API (section 8.4). | local EE stack |
+| Gateway run (OSS, EE) | An agent that names an organization connection runs on it; an agent with no connection, or a project slug, never uses it; one slug in both scopes answers each scope's own row (audit `secret_owner_kind`). | local stack, API and services |
+| Plaintext paths | The run's `GET /secrets/` has no organization row; the sandbox env has no organization key; a named organization connection without the gateway fails. A completion app and an AI evaluator run on project keys only. | local stack |
+| Redaction | Every project role and the organization owner: no response carries an organization value or preview. | local stack, both editions |
+| Organization authorization | EE hobby org `editor` 403; owner API key 403; owner run credential 403; owner and admin 200. | local stack |
+| Saved agents | Every save path and the template default write an explicit connection; an incomplete organization connection and, on the cloud, `self_managed` without a slug are refused at save. | local stack |
+| EE limit | A limited connection is invisible to other projects (list and resolve); deleting the only selected project leaves it with no project; OSS gets 403. | local stack |
+| Mixed versions | The migration runs while the pre-M5 API image serves; pre-M5 rows behave as before; an old services image refuses an organization connection. | local EE stack |
 
 ## 10. Docs and config
 
-- `openspec/changes/organization-credentials/{design,tasks}.md` and `specs/*/spec.md`: the deviations ; `openspec validate organization-credentials --strict`.
-- `docs/design/sharing-program/CONTRACT.md` section 8: one line for the tenancy pin and one for the MCP rule (section 12).
-- `api/AGENTS.md`: access section ("organization-scoped decisions go through `decide_organization`; project RBAC shortcuts never apply"), secrets section ("in-process readers use the effective set; HTTP project routes stay project-only").
-- Self-host and user docs: with the UI phase (they describe screens). The backend PR body states the API and the gateway requirement.
-- Config: no new environment variable (evidence: diff of `utils/env.py`, `hosting/` empty).
+- OpenSpec `organization-credentials` (validated `--strict`), CONTRACT section 8, `api/AGENTS.md`, this folder.
+- Config: `AGENTA_RUNNER_REQUIRE_NAMED_SELF_MANAGED_CONNECTION` (set to `true` on the cloud deployments).
 
 ## 11. Risks
 
-- A project that adds its own key for a provider stops using the organization key for unnamed calls (the intended override).
-- Most self-hosted OSS deployments run with the gateway off (default `false`); organization credentials do nothing there. The UI phase shows this (board C4).
-- Prompts, completion and chat apps, and AI evaluators never use organization credentials (owner decision 3). Teams can be surprised; the UI phase explains it.
-- Old pods during the rollout do not serve organization credentials (short "no key" window).
-- `_resolve_slug_target` replaces two functions on the resolve path. Mitigation: a table test that compares its answers with the captured old code for every project shape, provider-family slugs included.
-- `SERIALIZABLE` writes can abort with `40001` under concurrency; up to six attempts with a growing random wait, then 409. Only explicit-slug project creates, project user updates and organization writes run at that level.
+- An agent must name an organization connection to use it. A team that wants every agent on the company key edits each agent or picks it when the agent is created.
+- Prompts, completion and chat apps, and AI evaluators never use organization connections (owner decision 3).
+- Old pods during the rollout do not serve organization connections (a short `connection_not_found` window).
+- Renaming an organization connection's slug breaks the agents that name it (typed `connection_not_found`; the "needs configuration" state is designed separately).
 - Organization writes in a large organization delete one cache key per project (batched, after the commit; admin path only).
-- Merge overlaps with other open changes: `entrypoints/routers.py` (M3), `core/gateways/policy/audit.py` and `AuthScope` (M4b step 2), `api/AGENTS.md`, `core/events/types.py` (M3), Fern generated files (M3).
 
-## 12. Contract changes and open items
+## 12. Existing code findings, not widened into M5
 
-Contract edits (applied in Task 0b with the spec files):
-
-1. CONTRACT section 8, add: "Inheritance uses the organization that the project row names; a request whose organization differs from it inherits nothing."
-2. CONTRACT section 8, add: "Organization credentials serve the LLM plane only. The resolver is built per plane; the MCP plane never reads organization rows."
-3. CONTRACT section 6, wording: "Organization-scoped decisions (M5) accept only a browser-session human with no run envelope."
-
-Existing code findings, not widened into M5:
-
-- A. `utils/caching.py::_pack` keeps only the last 12 characters of `project_id` and `user_id` for every namespace. Two projects (or users) with the same suffix share today's entries, for example `list_secrets` and the auth and membership caches: a cross-project read on a collision. M5's own entry is safe (full id in the key, identity check). A general fix is a separate change.
-- B. The transactions engine does not set `hide_parameters`, and `intercept_exceptions` logs `format_exc()`. An unmapped database error in today's project secret writes can log the plaintext JSON bound to `pgp_sym_encrypt`. M5 wraps every `SecretsDAO` write (today's project writes included) and raises domain errors `from None`, so the secrets table is covered; the general fix for other tables (engine `hide_parameters=True`) is a separate change.
-
-Open items, none blocking the backend build:
-
-- Board question G3 (key preview on organization rows). The plan shows no preview. Allowing it is a security property change that only the owner can accept.
-- Board items F1 and F5 (gateway-off status and a reason code) are small backend additions for the UI phase.
-- Clarification for the owner (not a security change): "legacy completion and chat apps" covers the prompt playground and AI evaluators too, because they share the `VaultMiddleware` path.
+- A. `utils/caching.py::_pack` keeps only the last 12 characters of `project_id` and `user_id` for every namespace. Two projects (or users) with the same suffix share today's entries. M5's own entry is safe (full id in the key, identity check). A general fix is a separate change.
+- B. The transactions engine does not set `hide_parameters`, and `intercept_exceptions` logs `format_exc()`. M5 wraps every `SecretsDAO` write and raises domain errors `from None`; the general fix for other tables is a separate change.

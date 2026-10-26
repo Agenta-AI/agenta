@@ -21,7 +21,7 @@ Every `/organization-secrets/` route SHALL call `decide_organization(access, org
 - **WHEN** an agent run of an organization owner calls `GET /organization-secrets/` with its run credential
 - **THEN** Agenta SHALL return HTTP 403.
 
-### Requirement: Only inheritable kinds
+### Requirement: Only shareable kinds
 The organization routes SHALL accept only `provider_key` (of an LLM provider family) and `custom_provider`. They SHALL refuse a `custom_provider` whose deployment kind the LLM gateway does not serve (Bedrock and SageMaker today). Every refusal SHALL be HTTP 422 naming the reason.
 
 #### Scenario: Refused kinds
@@ -35,8 +35,8 @@ The organization routes SHALL remove surrounding whitespace from every credentia
 - **WHEN** an owner posts a `provider_key` whose key is 7 characters, or 7 characters padded with spaces
 - **THEN** Agenta SHALL return HTTP 422 and SHALL NOT store a row.
 
-### Requirement: Organization routes address inheritable rows only
-Every organization route SHALL address only inheritable organization rows.
+### Requirement: Organization routes address shareable rows only
+Every organization route SHALL address only shareable organization rows.
 
 #### Scenario: SSO secret id
 - **WHEN** an owner calls any `/organization-secrets/` route with the id of the organization's SSO secret
@@ -50,37 +50,73 @@ Every `secrets` row SHALL have exactly one owner column set (`ck_secrets_single_
 - **THEN** the second create SHALL return HTTP 409, and one row SHALL exist.
 
 ### Requirement: Organization values never leave the API
-No HTTP response SHALL carry the value of an organization credential, or a part of it, for any caller, including the organization owner and a request with the `secret-resolve` grant. Only the in-process LLM gateway SHALL use the value. `GET /secrets/` SHALL include inherited rows only when `include_inherited=true` is set and the request does not hold the `secret-resolve` grant; with the grant the parameter SHALL be ignored. No log record SHALL carry an organization credential value.
+No HTTP response SHALL carry the value of an organization credential, a part of it or a preview of it, for any caller, including the organization owner and a request with the `secret-resolve` grant. Only the in-process LLM gateway SHALL use the value. No log record SHALL carry it.
 
 #### Scenario: Run credential reads the vault
-- **WHEN** an agent run on a deployment without the LLM gateway reads `GET /secrets/` with its run credential, and the project inherits an OpenAI organization credential
-- **THEN** the response SHALL NOT contain the inherited row, and the sandbox SHALL NOT receive its value.
+- **WHEN** an agent run reads `GET /secrets/` with its run credential, and an OpenAI organization connection is available to the project
+- **THEN** the response SHALL NOT contain the organization row, and the sandbox SHALL NOT receive its value.
 
 #### Scenario: Legacy vault middleware
 - **WHEN** a completion app's vault middleware loads the project vault
 - **THEN** it SHALL receive only project rows.
 
 #### Scenario: Project member lists credentials
-- **WHEN** a project admin calls `GET /secrets/?include_inherited=true`
-- **THEN** the inherited item SHALL carry `owner`, provider, name, slug and status, and no value.
+- **WHEN** a project member calls `GET /secrets/?include_organization=true`
+- **THEN** each organization item SHALL carry `owner`, provider, name, slug and status, and no value and no preview.
+
+#### Scenario: Project member tests an organization connection
+- **WHEN** a project member calls `POST /providers/probe` with the id of an organization connection available to the project and `secret_scope = organization`
+- **THEN** Agenta SHALL test the stored value as saved and SHALL answer the result without the value. A probe that changes a stored field SHALL need the organization access decision.
 
 #### Scenario: Gateway uses the value
-- **WHEN** an agent run calls OpenAI through the gateway with an inherited key
+- **WHEN** an agent run calls OpenAI through the gateway with an organization connection it named
 - **THEN** the sandbox SHALL receive only a gateway credential.
 
-### Requirement: Project routes do not manage organization rows
-`GET /secrets/{id_or_slug}`, `PUT /secrets/{id}` and `DELETE /secrets/{id}` SHALL resolve project rows only. A project row SHALL shadow an inherited slug only with the same kind and, for `provider_key`, the same provider family; otherwise `POST /secrets/` and `PUT /secrets/{id}` SHALL return HTTP 409. The check SHALL read the database, never a cache, also when the organization side changes (organization create, update, or availability widening, each HTTP 409).
+### Requirement: Project members list the organization connections they may use
+`GET /secrets/` SHALL include the organization rows available to the project, without values, only when `include_organization=true` is set and the request does not hold the `secret-resolve` grant; with the grant the parameter SHALL be ignored.
 
-#### Scenario: Project editor deletes an inherited row
-- **WHEN** a project editor calls `DELETE /secrets/{id}` with the id of an organization credential
+#### Scenario: Resolve grant
+- **WHEN** a request with the `secret-resolve` grant calls `GET /secrets/?include_organization=true`
+- **THEN** the response SHALL hold project rows only.
+
+### Requirement: Project routes do not manage organization rows
+`GET /secrets/{id_or_slug}`, `PUT /secrets/{id}` and `DELETE /secrets/{id}` SHALL resolve project rows only. Project and organization rows SHALL be two slug spaces: a project row MAY use the slug of an organization row, with any kind or family, and neither write SHALL check the other.
+
+#### Scenario: Project editor deletes an organization row
+- **WHEN** a project editor calls `DELETE /secrets/{id}` with the id of an organization connection
 - **THEN** Agenta SHALL return HTTP 204, as it does today for any id that is not a row of the project, and SHALL change no row.
 
-#### Scenario: Mismatched override
-- **WHEN** a project creates a `custom_provider` with the slug of an inherited `provider_key`
-- **THEN** Agenta SHALL return HTTP 409 and SHALL NOT store the row.
+#### Scenario: Same slug, another kind
+- **WHEN** a project creates a `custom_provider` with the slug of an organization `provider_key`
+- **THEN** Agenta SHALL store the project row, and the organization row SHALL stay unchanged.
+
+### Requirement: New organization connections are available to all projects
+A new organization connection SHALL start with `availability = all_projects` unless the request sets another value. Its default display name SHALL carry the owner ("OpenAI (Organization)", then "OpenAI (Organization) 2").
+
+#### Scenario: Default name and availability
+- **WHEN** an owner posts an OpenAI `provider_key` with no name and no availability
+- **THEN** Agenta SHALL store it with availability `all_projects` and the name "OpenAI (Organization)".
+
+### Requirement: Saved agents name their connection explicitly
+Every agent save path and the template default SHALL write an explicit `agent.llm.connection`. An organization connection SHALL be saved with scope `organization`, its slug and namespace `organization`; a commit missing any of them SHALL be refused with HTTP 422 (`invalid_agent_connection`).
+
+#### Scenario: Incomplete organization connection
+- **WHEN** an agent is saved with scope `organization` and no slug
+- **THEN** Agenta SHALL return HTTP 422 and SHALL NOT store the revision.
+
+#### Scenario: Template agent
+- **WHEN** an agent is created from a template whose base revision names no connection
+- **THEN** the stored agent SHALL carry `{"mode": "agenta", "scope": "project"}`.
+
+### Requirement: Self-managed connections name a login on the cloud
+Where the runners hold no operator login (`AGENTA_RUNNER_REQUIRE_NAMED_SELF_MANAGED_CONNECTION`, set on the cloud), a commit with a `self_managed` connection and no slug SHALL be refused with HTTP 422. Self-hosted deployments SHALL keep the operator login.
+
+#### Scenario: Self-managed on the cloud
+- **WHEN** an agent with `{"mode": "self_managed"}` is saved on the cloud
+- **THEN** Agenta SHALL return HTTP 422 and SHALL NOT store the revision.
 
 ### Requirement: EE limits a credential to selected projects
-In EE, with the `Flag.RBAC` entitlement, `PUT /organization-secrets/{secret_id}/projects` SHALL set, in one transaction, `availability` to `all_projects` or `selected_projects` with project ids of the same organization. With `selected_projects`, only listed projects SHALL inherit the credential, and with none listed, no project SHALL. OSS SHALL refuse `selected_projects` with HTTP 403. Resolution SHALL apply the same filter in both editions.
+In EE, with the `Flag.RBAC` entitlement, `PUT /organization-secrets/{secret_id}/projects` SHALL set, in one transaction, `availability` to `all_projects` or `selected_projects` with project ids of the same organization. With `selected_projects`, only agents of listed projects SHALL use the connection, and with none listed, no project SHALL. OSS SHALL refuse `selected_projects` with HTTP 403. Resolution SHALL apply the same filter in both editions.
 
 #### Scenario: Limit to one project
 - **WHEN** an EE admin limits the OpenAI organization credential to project Sales
@@ -88,7 +124,7 @@ In EE, with the `Flag.RBAC` entitlement, `PUT /organization-secrets/{secret_id}/
 
 #### Scenario: Last selected project deleted
 - **WHEN** the only selected project of a limited credential is deleted
-- **THEN** no project SHALL inherit the credential.
+- **THEN** no project SHALL be able to use the connection.
 
 #### Scenario: Foreign project id
 - **WHEN** an EE admin lists a project of another organization

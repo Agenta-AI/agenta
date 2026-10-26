@@ -9,10 +9,10 @@ Order follows the implementation sequence. Spec references: OC = organization-cr
 
 ## 2. Core
 
-- [x] 2.1 `SecretOwnerKind` in `core/secrets/enums.py`; `SecretOwner`, `SecretAvailability`, `INHERITABLE_KINDS`; owner-based DAO methods and mapping.
+- [x] 2.1 `SecretOwnerKind` in `core/secrets/enums.py`; `SecretOwner`, `SecretAvailability`, `ORGANIZATION_SECRET_KINDS`; owner-based DAO methods and mapping.
 - [x] 2.2 `owner` and `availability` on `SecretResponseDTO`; forced `write_only` for organization rows (OC "never leave the API").
-- [x] 2.3 Effective-set methods on one cache entry per project (namespace `effective_secrets`) and its invalidation (CR "effective set", "slug reference", "default selection", "id references").
-- [x] 2.4 Organization management service methods; kind, family, served-deployment and short-value refusals; override integrity in SQL (OC "inheritable kinds", "project routes").
+- [x] 2.3 One cache entry per project (namespace `effective_secrets`) with the project's rows and the available organization rows, and its invalidation (CR "scope and slug", "project default", "id references").
+- [x] 2.4 Organization management service methods; kind, family, served-deployment and short-value refusals; default name with the owner; new connections available to all projects (OC "shareable kinds", "all projects").
 
 ## 3. Access
 
@@ -21,30 +21,33 @@ Order follows the implementation sequence. Spec references: OC = organization-cr
 ## 4. Routes
 
 - [x] 4.1 `OrganizationSecretsRouter` at `/organization-secrets/` with the EE limit route (OC "EE limits").
-- [x] 4.2 `GET /secrets/?include_inherited=true`, never with inherited rows under the `secret-resolve` grant; single-row and write routes stay project-only (OC "never leave the API", "project routes").
-- [ ] 4.3 Regenerate the Fern client from an EE OpenAPI spec.
+- [x] 4.2 `GET /secrets/?include_organization=true`, never with organization rows under the `secret-resolve` grant; single-row and write routes stay project-only; members test an organization connection as saved (OC "never leave the API", "project routes").
+- [x] 4.3 Regenerate the Fern client from an EE OpenAPI spec.
+- [x] 4.4 Commit check for agent connections (organization connection complete; `self_managed` with a slug on the cloud) and the template default connection (OC "explicit connection").
 
 ## 5. Gateway
 
-- [x] 5.1 `SecretsResolver(plane=LLM|MCP)`, the LLM plane on the effective methods; real owner in `ResolvedSecret.owner`; project-first default (CR "default selection", "real owner").
-- [x] 5.2 One-statement custom target lookup (`fetch_custom_target_by_slug`) and the one-pass slug resolve (`_resolve_slug_target`); echo scan over organization values; tenancy rule unchanged (CR "custom providers").
+- [x] 5.1 `SecretsResolver(plane=LLM|MCP)`; only the LLM plane answers an organization reference; real owner in `ResolvedSecret.owner`; the project default reads project rows only (CR "project default", "real owner").
+- [x] 5.2 The `organization` gateway namespace (resolve with `connection_scope`, relay routes), the one-pass project slug resolve (`_resolve_slug_target`); echo scan over organization values; tenancy rule unchanged (CR "own gateway namespace").
+- [x] 5.3 SDK: `Connection.scope` and `WireConnection.scope`, the `organization` namespace, `connection_scope` on resolve, and the refusal without the gateway (CR "older runtime refuses").
 
 ## 6. Web
 
-- [ ] 6.1 `/m` organization settings: credentials page with the EE limit control.
-- [ ] 6.2 `/m` project credentials: request `include_inherited=true`; inherited rows read-only with an owner badge, "Overridden in this project", and "Override in this project" (same slug and kind).
-- [ ] 6.3 Run `pnpm lint-fix` in `web`.
+- [x] 6.0 Every `/m` save path writes the picked or default connection explicitly (`scope` included).
+- [ ] 6.1 `/m` organization settings: credentials page with the EE limit control (design approved; built separately).
+- [ ] 6.2 `/m` connection picker: organization connections the project may use, saved with scope `organization` (built separately).
+- [x] 6.3 Run `pnpm lint-fix` in `web`.
 
 ## 7. QA matrix
 
 | Boundary | Test |
 | --- | --- |
-| Gateway run (OSS, EE) | An organization key serves agents in new and old projects; a slug override wins only in its project; the default prefers the project key. |
-| Plaintext paths | Gateway off: the run credential's `GET /secrets/` has no inherited row, the sandbox has no organization key, and a named organization slug fails. A completion app's vault middleware sees project rows only. |
+| Gateway run (OSS, EE) | An organization connection serves an agent that names it by scope; an agent with no connection or a project slug never uses it; one slug in both scopes answers each scope's own row. |
+| Plaintext paths | The run credential's `GET /secrets/` has no organization row, the sandbox has no organization key, and without the gateway a named organization connection fails. A completion app's vault middleware sees project rows only. |
 | Redaction | Every project role and the organization owner: no response carries an organization value. |
 | Organization authorization | EE without RBAC: an organization `editor` gets 403; an owner's API key and an owner's run credential get 403; owner and admin succeed in both editions. |
 | Id reference | A pinned organization credential deleted or limited away: the run fails and uses nothing else. |
-| Custom provider | An organization Azure provider serves an agent by slug with no endpoint row; a project endpoint row with that slug wins. |
-| EE limit | A limited credential is invisible to other projects; deleting the only selected project leaves no inheritor; OSS gets 403. |
+| Custom provider | An organization Azure provider serves an agent that names it, with no endpoint row. |
+| EE limit | A limited connection is invisible to other projects; deleting the only selected project leaves it with no project; OSS gets 403. |
 | SSO | SSO login works; SSO secrets never appear in a project list. |
 | Mixed versions | Production copy: the migration runs while old pods serve; an old SDK runner resolves as before. |

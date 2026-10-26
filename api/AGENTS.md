@@ -125,21 +125,23 @@ Organization-scoped decisions and organization credentials (M5):
   itself, with no run envelope, whose organization role is `owner` or `admin`. It reads
   the member row uncached and nothing else, so project RBAC shortcuts (the EE no-RBAC
   bypass, the organization-owner shortcut) never apply.
-- In-process readers that may use organization credentials (the LLM gateway only) read the
-  effective set (`VaultService.list_effective_secrets` and its by-id and by-slug forms).
-  `SecretsResolver` is built per plane: the LLM plane reads the effective set, the MCP
-  plane is project-only. HTTP project routes (`/secrets/...`) stay project-only, and
-  `GET /secrets/?include_inherited=true` adds inherited rows without values, never under the
+- An agent names its connection by scope and slug (`project`, the default, or
+  `organization`). Nothing is inherited or overridden: a project slug reads project rows
+  only, no connection means the project default, and an organization connection resolves
+  only by `VaultService.get_organization_connection` (or `get_connection_secret_by_id` for
+  a bound reference), in the gateway namespace `organization`. `SecretsResolver` is built
+  per plane; only the LLM plane answers an organization connection. HTTP project routes
+  (`/secrets/...`) stay project-only, and `GET /secrets/?include_organization=true` adds the
+  organization rows available to the project without values, never under the
   `secret-resolve` grant.
 - A project's vault lives in ONE cache entry (`effective_secrets`, keyed on the full
-  project id), filled by one statement (`SecretsDAO.load_effective`). Do not add a second
-  cache read for organization rows. Project writes invalidate it with the project-wide
-  invalidation; organization writes delete each project's entry after the commit.
-- Organization credential writes and the project writes that can meet an inherited slug
-  run the shadow rule in SQL inside a `SERIALIZABLE` transaction (up to six attempts,
-  `_SERIALIZABLE_ATTEMPTS`, with a growing random wait, then 409).
-  Secrets DAO errors are raised `from None` as domain errors: the SQL parameters of a
-  secrets write hold the plaintext value.
+  project id), filled by one statement (`SecretsDAO.load_effective`), with the project's
+  rows and the available organization rows. Do not add a second cache read for
+  organization rows. Project writes invalidate it with the project-wide invalidation;
+  organization writes delete each project's entry after the commit.
+- Project and organization rows are two slug spaces; no write checks one against the
+  other. Secrets DAO errors are raised `from None` as domain errors: the SQL parameters of
+  a secrets write hold the plaintext value.
 - `integration/secrets/test_organization_secrets_query_counts_postgres.py` pins the vault
   and gateway hot paths in five cache modes (warm, cold leader, cold follower, cache
   disabled, Redis failing). It needs a reachable Redis: run it with a throwaway one

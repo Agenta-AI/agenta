@@ -2,7 +2,7 @@
 
 ## Context
 
-The `secrets` table already allows an organization owner, and EE stores SSO secrets that way. M5 adds inheritance, override, the EE project limit, value confinement and an organization access decision. Shared rules: CONTRACT.md sections 6, 8 and 12. Code facts: `research-organization-credentials.md`. The interface details are in `docs/design/sharing-program/interfaces/m5/`.
+The `secrets` table already allows an organization owner, and EE stores SSO secrets that way. M5 adds organization connections that an agent names by scope and slug, the EE project limit, value confinement and an organization access decision. Nothing is inherited or overridden automatically (owner decision, option B, 2026-10-26). Shared rules: CONTRACT.md sections 6, 8 and 12. Code facts: `research-organization-credentials.md`. The interface details are in `docs/design/sharing-program/interfaces/m5/`.
 
 ## Decisions
 
@@ -12,51 +12,52 @@ Core uses `SecretOwner(kind, id)` (CONTRACT.md section 8). It is a frozen pydant
 
 M7 adds `secrets.user_id`. A user row also carries `organization_id`, so M7 replaces the constraint and adds `AND user_id IS NULL` to the organization slug index.
 
-### D2. Inheritable kinds
+### D2. Shareable kinds
 
-`INHERITABLE_KINDS = {provider_key, custom_provider}`. An organization `provider_key` must name an LLM provider family. A `custom_provider` whose deployment kind the gateway does not serve is refused at creation, at update and at resolution, because its value could reach a run only in plaintext. The served deployments are an explicit set, `LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS`, pinned by a test against the passthrough auth table; today Bedrock and SageMaker are not served. `custom_secret` (plaintext by design), `subscription_provider` (not supported for organizations) and the feature-owned kinds stay project-owned. `sso_provider` stays organization-only and is never inherited. Every organization DAO operation filters `kind IN INHERITABLE_KINDS`, so an SSO id answers 404 on every organization route.
+`ORGANIZATION_SECRET_KINDS = {provider_key, custom_provider}`. An organization `provider_key` must name an LLM provider family. A `custom_provider` whose deployment kind the gateway does not serve is refused at creation, at update and at resolution, because its value could reach a run only in plaintext. The served deployments are an explicit set, `LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS`, pinned by a test against the passthrough auth table; today Bedrock and SageMaker are not served. `custom_secret` (plaintext by design) and the feature-owned kinds stay project-owned. `sso_provider` stays organization-only and is never shared. Every organization DAO operation filters `kind IN ORGANIZATION_SECRET_KINDS`, so an SSO id answers 404 on every organization route.
 
 An organization credential value (the primary value and every credential extras value) is stripped of surrounding whitespace and must then be at least 8 characters (`MIN_SCANNED_CREDENTIAL_LENGTH`), so the gateway's echo scan covers every organization value. The passthrough adapter scans every value of an organization secret, not only the injected auth headers.
 
 ### D3. Values never leave the API
 
-The LLM gateway resolves inherited credentials in process, and the sandbox receives only a gateway-audience credential. HTTP reads treat inherited rows as follows:
+The LLM gateway resolves organization connections in process, and the sandbox receives only a gateway-audience credential. HTTP reads treat organization rows as follows:
 
-- `GET /secrets/` lists project rows, as today. With `include_inherited=true` it adds inherited rows, without values. A request with the `secret-resolve` grant never receives inherited rows; the parameter is ignored for it.
+- `GET /secrets/` lists project rows, as today. With `include_organization=true` it adds the organization rows available to the project, without values and without previews. A request with the `secret-resolve` grant never receives organization rows; the parameter is ignored for it.
 - `GET /secrets/{id_or_slug}`, `PUT` and `DELETE /secrets/{id}` stay project-only.
 - `/organization-secrets/*` never returns a value or a partial value (no key preview), also to owners. Admins replace values; they do not read them back.
+- `POST /providers/probe` tests an organization connection as saved for any member of a project it is available to (`secret_scope = organization`); a probe that changes a stored field needs the organization access decision. The value goes from the API to the provider only.
 - Every model that holds a value sets `hide_input_in_errors`, and the secrets DAO raises domain errors without SQL parameters, so no value reaches a log.
 
-So the plaintext paths (the SDK vault fallback and the `VaultMiddleware` of legacy completion and chat apps, the prompt playground and AI evaluators) see only project rows, for every SDK version. Only `/m` sends `include_inherited`, so existing clients see no change.
+So the plaintext paths (the SDK vault fallback and the `VaultMiddleware` of legacy completion and chat apps, the prompt playground and AI evaluators) see only project rows, for every SDK version.
 
-### D4. Resolution
+### D4. Resolution by scope and slug
 
-In-process readers use one effective set: project rows, then available inheritable organization rows whose slug no project row uses.
+An agent names its connection with a scope: `project` (the default, also for agents saved before M5) or `organization`.
 
-- Slug reference: project row, else organization row, else the existing not-found error. M7 keeps this meaning (CONTRACT.md section 8).
-- No name: the project's candidates for the provider first; organization candidates only when the project has none. The existing tie rules apply inside the group. The API makes this choice in gateway mode, so the SDK does not change.
+- Project scope, with a slug: today's resolution over the project's rows only (custom endpoint row, builtin, provider family, a slugged `provider_key` row), in one pass (`_resolve_slug_target`). It never reaches an organization row.
+- No connection: the project's candidates for the provider, with the existing tie rules. An organization row is never a candidate. Agents saved before M5 keep this behavior with no data change.
+- Organization scope: only the shareable organization row with that slug that is available to the project, from the organization the project row names. Otherwise a typed `connection_not_found` (with the scope and slug), so a later "needs configuration" state can use it. It resolves to the gateway namespace `organization` (`/gateways/llms/organization/{slug}/v1/...`): a `provider_key` routes like a standard endpoint of its family, a `custom_provider` builds its target from the row (no endpoint row is written). Both are pinned to the row, and the target carries it, so the relay reads nothing more.
 - `BoundSecretRef` (an id) carries `owner_kind` (default `project`). A project reference keeps today's read; an organization reference answers only that row while it is available. Never a substitute.
-- Inheritance uses the organization that the project row names. A request whose organization differs inherits nothing.
-- Only the LLM plane reads organization rows. The resolver is built per plane (`SecretsResolver(plane=LLM|MCP)`); the MCP plane is today's project-only code.
-- The resolve path for a bare slug runs one pass (`_resolve_slug_target`): custom target, builtin, provider family, then a slugged `provider_key` row. It gives today's answers with fewer reads.
-- A project row may shadow an inherited slug only with the same kind and, for `provider_key`, the same provider family. The rule is checked in SQL against the database on every write that can create the pair, in `SERIALIZABLE` transactions with up to six attempts, then 409.
-- `uq_secrets_organization_id_slug` makes organization slugs unique. SSO rows have no slug.
+- Only the LLM plane reads organization rows. The resolver is built per plane (`SecretsResolver(plane=LLM|MCP)`); the MCP plane is project-only.
+- Project and organization rows are two slug spaces (`uq_secrets_project_id_slug`, `uq_secrets_organization_id_slug`). No write checks one against the other, so no write needs a `SERIALIZABLE` transaction.
 
 `ResolvedSecret.owner` reports the real owner for audit and usage labels.
 
-### D5. Inherited custom providers have no endpoint row
+### D5. Fail closed across versions
 
-The custom target lookup is one statement (`LLMEndpointsDAO.fetch_custom_target_by_slug`): the project endpoint row with the slug, else the available, unshadowed inherited `custom_provider` with that slug of the project row's organization. The gateway builds the target from the inherited row with `map_custom_provider_secret_to_endpoint`, pinned to its id, and carries the row so the relay reads nothing more. No endpoint row is written, so nothing fans out to every project or drifts. A project endpoint row with the same slug wins. The tenancy rule `check_secret_is_owned_by_project` does not change.
+An organization connection is saved as `{"mode": "agenta", "scope": "organization", "namespace": "organization", "slug": ...}`. The SDK `Connection` model fills the namespace when it is omitted, and the commit check refuses an incomplete one (`invalid_agent_connection`). A services image older than M5 does not know the `organization` namespace and refuses the connection instead of reading the slug as a project connection. Without the gateway, the SDK refuses an organization connection (`organization_connection_unavailable`) and never reads the vault for it. The runner holds no provider key in gateway mode, so its version does not matter here.
+
+Every save path writes the connection explicitly: the `/m` model picker and the agent create path write `{"mode": "agenta", "scope": "project"}` for the project default, and the template compiler writes it when the base revision names none. On the cloud (`AGENTA_RUNNER_REQUIRE_NAMED_SELF_MANAGED_CONNECTION=true`), a commit with a `self_managed` connection and no slug is refused: the cloud runners hold no operator login.
 
 ### D6. EE project limit
 
 `secrets.availability` is `all_projects` (default) or `selected_projects`, with the join table `secret_projects`. The explicit mode avoids "no rows means every project": when the last selected project is deleted, the credential reaches no project. OSS has the same schema and filter, but refuses `selected_projects`. EE allows it with the `Flag.RBAC` entitlement (`ProjectLimitsInterface`: OSS `NoProjectLimits`, EE `EntitlementProjectLimits`). `all_projects` is always allowed.
 
-Organization create, update and availability change each run in one transaction: conflict check, row, availability and `secret_projects` (same-organization projects only). Any refusal leaves no change. Cache invalidation runs after the commit.
+A new connection starts with `all_projects`. Organization create, update and availability change each run in one transaction: row, availability and `secret_projects` (same-organization projects only). Any refusal leaves no change. Cache invalidation runs after the commit.
 
 ### D7. One cache entry per project
 
-`VaultService.list_effective_secrets(organization_id, project_id)` and its by-id and by-slug forms serve every in-process reader. The effective set of a project lives in ONE cache entry (namespace `effective_secrets`, key holding the full project id, value carrying the project id and the project row's organization), read through today's `get_cache` path and filled by one statement that also reads the available organization rows. There is no separate organization entry, so every cache mode costs what today's project vault read costs. The entry stays in the request memo for the rest of the request. Organization writes delete each project entry of the organization after the commit; project writes keep today's project-wide invalidation. The merge runs in memory.
+A project's rows and the organization rows available to it live in ONE cache entry (namespace `effective_secrets`, key holding the full project id, value carrying the project id and the project row's organization), read through today's `get_cache` path and filled by one statement. There is no separate organization entry, so every existing path costs what today's project vault read costs. The entry stays in the request memo for the rest of the request. Organization writes delete each project entry of the organization after the commit; project writes keep today's project-wide invalidation.
 
 ### D8. Organization access decision
 
@@ -110,14 +111,13 @@ class SecretAvailability(str, Enum):
     SELECTED_PROJECTS = "selected_projects"
 
 class VaultService:
-    async def list_effective_secrets(self, *, organization_id, project_id) -> list[SecretResponseDTO]: ...
-    async def get_effective_secret_by_id(self, *, organization_id, project_id, secret_id, owner_kind) -> SecretResponseDTO | None: ...
-    async def get_effective_secret_by_slug(self, *, organization_id, project_id, slug) -> SecretResponseDTO | None: ...
-    async def list_inherited_secrets(self, *, organization_id, project_id) -> list[InheritedSecret]: ...
+    async def get_organization_connection(self, *, organization_id, project_id, slug) -> SecretResponseDTO | None: ...
+    async def get_connection_secret_by_id(self, *, organization_id, project_id, secret_id, owner_kind) -> SecretResponseDTO | None: ...
+    async def list_project_and_organization_secrets(self, *, organization_id, project_id) -> tuple[list[SecretResponseDTO], list[SecretResponseDTO]]: ...
     # plus list/fetch/create/update/delete_organization_secret and set_organization_secret_availability
 ```
 
-`SecretsDAOInterface` methods take `owner: SecretOwner` and gain `load_effective` (one statement) and the organization operations. `SecretResponseDTO` gains `owner`, `availability` and `selected_project_ids`; the fail-closed validator forces `write_only=True` for organization rows. `SecretsResolver` takes a `plane`; the LLM instance reads through the effective methods. Keyword arguments let M7 add the principal's user without changing callers. EE SSO callers keep their current service parameters.
+`SecretsDAOInterface` methods take `owner: SecretOwner` and gain `load_effective` (one statement) and the organization operations. `SecretResponseDTO` gains `owner`, `availability` and `selected_project_ids`; the fail-closed validator forces `write_only=True` for organization rows. `SecretsResolver` takes a `plane`; only the LLM instance answers `organization_connection`. Keyword arguments let M7 add the principal's user without changing callers. EE SSO callers keep their current service parameters.
 
 Audit: `gateways.called` gains `secret_owner_kind`; organization writes publish `organization_secrets.changed` with ids and kinds only.
 
@@ -135,20 +135,19 @@ One `core_oss` revision, `oss000000054`; EE runs it, so there is no `core_ee` co
 | --- | --- |
 | Old API pods on the new schema | They read organization rows by id only, ignore the new column and table, and never return an organization value. A gateway call that an old pod serves does not see organization credentials, so a run can fail with "no key" until the rollout ends. Their project writes clear every cache entry of the project, the new one included. |
 | New pods on old data | Not possible: the migration runs before new pods start. |
-| Old SDK or runner, new API | No change: without `include_inherited`, responses are today's responses plus the additive `owner` and `availability` fields. |
+| Old SDK or runner, new API | No change: without `include_organization`, responses are today's responses plus the additive `owner` field. An agent saved with an organization connection fails on a services image older than M5 (D5). |
 
 M5 adds no durable work type.
 
 ## Risks
 
-- A project that adds its own key stops using the organization key for unnamed calls (the intended override; the UI marks the inherited row).
-- Organization credentials do not work without the gateway, for Bedrock or SageMaker, or in legacy completion and chat apps, the prompt playground and AI evaluators (every `VaultMiddleware` workflow) (D3).
-- `SERIALIZABLE` writes can abort under concurrency; one internal retry, then 409.
-- One-way: the override key is the slug.
+- An agent must name an organization connection to use it: a team that wants every agent on the company key edits each agent (or picks it when the agent is created).
+- Organization connections do not work for Bedrock or SageMaker, or in legacy completion and chat apps, the prompt playground and AI evaluators (every `VaultMiddleware` workflow) (D3).
+- The scope and slug are stored in each agent config: renaming an organization connection's slug breaks the agents that name it (a typed `connection_not_found`).
 
 ## Decided questions
 
 1. Legacy completion and chat apps, the prompt playground and AI evaluators (every `VaultMiddleware` workflow) cannot use organization credentials (owner, 2026-10-25). Revisit when they route through the gateway.
-2. The override key is the slug, not the display name (owner).
+2. An agent uses exactly the connection it picked, by scope and slug; nothing is inherited or overridden (owner, option B, 2026-10-26). This replaces the earlier override-by-slug decision.
 3. Organization owners and admins manage organization credentials, in both editions, with one rule (owner, 2026-10-25).
 4. The EE project limit is gated by `Flag.RBAC`; no new plan flag (owner, 2026-10-25).

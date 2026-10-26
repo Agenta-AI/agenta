@@ -108,13 +108,14 @@ M3 design, as built: [interfaces](interfaces/m3/interfaces.md), [technical desig
 
 - One owner DTO in core: `SecretOwner(kind: organization | project | user, id)`. Storage keeps the existing typed columns (`organization_id`, `project_id`, later `user_id`) with a check constraint.
 - Two kinds of reference, never mixed:
-  - A named reference (slug) resolves by inheritance: project, then organization. This is M5.
+  - A named reference carries a scope and a slug: `project` (the default, also when omitted) or `organization`. It resolves only in its own scope; a project row and an organization row with the same slug never stand in for each other. Nothing is inherited or overridden automatically (owner decision, option B, 2026-10-26). This is M5.
   - An exact binding names one credential id and never substitutes another. This is M7.
+- An agent with no connection keeps the project's default for the provider; an organization credential is never chosen for it. Every save path writes the connection explicitly.
 - Existing slug references keep their M5 named meaning after M7. M7 does not reclassify them as exact.
 - Agent connection binding (M7): `caller_account | project_default | specific`. `specific` never names a user-owned credential.
 - Shared-session rule (M7): a session shared with others never releases a user-owned credential. The check and a sticky "used a personal credential" mark on the session are done under one session-row lock, before any personal credential is used. A session with that mark cannot be shared later.
-- Organization credential values never reach a user-controlled sandbox. Paths that deliver plaintext refuse inherited organization credentials.
-- Inheritance uses the organization that the project row names; a request whose organization differs from it inherits nothing.
+- Organization credential values never reach a user-controlled sandbox. Paths that deliver plaintext refuse organization credentials.
+- Organization rows come from the organization that the project row names; a request whose organization differs from it gets none. An admin chooses which projects may use each organization credential (all projects by default; selected projects in EE).
 - Organization credentials serve the LLM plane only. The resolver is built per plane; the MCP plane never reads organization rows.
 - M5 interfaces and technical design: `interfaces/m5/interfaces.md`, `interfaces/m5/technical-design.md`.
 - Organization subscription logins are not supported. User-owned subscription logins are M7.
@@ -204,7 +205,7 @@ Two kinds of dependency. An implementation dependency means the code of one piec
 | M4b | M1 (the M4b mount step needs nothing but M4a live) |
 | M5 | M2, or the same release |
 | M6a | M2 |
-| M6b | M3 and M5 (a personal project needs inherited keys to be usable) |
+| M6b | M3 and M5 (a personal project needs organization keys to be usable) |
 | M6c | the M4b mount step and M6b |
 | M6d | M6a (doors refuse keys and installations only once those are service accounts) and M6b; the run-an-agent door also needs M9b |
 | M9a | nothing |
