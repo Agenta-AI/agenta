@@ -45,6 +45,7 @@ from oss.src.core.sharing.types import (
     SharingConflict,
 )
 from oss.src.core.workflows.types import AgentReferenceUnresolved
+from oss.src.core.access.context import reset_request_access, set_request_access
 from oss.tests.pytest.utils.principals import make_envelope, make_request_access
 from oss.tests.pytest.utils.sharing import SharingWorld
 
@@ -758,7 +759,7 @@ def _channels(world: SharingWorld, workflows: _Workflows):
     dao.writes = []
     dao.fetch_connection = AsyncMock(return_value=MagicMock())
 
-    def _guard(project_id, user_id, guard_artifact_id):
+    def _guard(project_id, guard_user_id, guard_artifact_id):
         dao.writes.append(guard_artifact_id)
         if guard_artifact_id is None:
             return
@@ -766,12 +767,14 @@ def _channels(world: SharingWorld, workflows: _Workflows):
         if (
             policy is not None
             and policy.visibility == Visibility.PRIVATE
-            and policy.owner_user_id != user_id
+            and (guard_user_id is None or policy.owner_user_id != guard_user_id)
         ):
             raise SharedItemNotFound()
 
-    async def _create(*, project_id, user_id, agent, guard_artifact_id=None):
-        _guard(project_id, user_id, guard_artifact_id)
+    async def _create(
+        *, project_id, user_id, agent, guard_artifact_id=None, guard_user_id=None
+    ):
+        _guard(project_id, guard_user_id, guard_artifact_id)
         return ChannelAgent(
             id=uuid4(),
             slug=agent.slug,
@@ -780,20 +783,76 @@ def _channels(world: SharingWorld, workflows: _Workflows):
             flags=agent.flags,
         )
 
-    async def _edit(*, project_id, user_id, agent, guard_artifact_id=None):
-        _guard(project_id, user_id, guard_artifact_id)
+    async def _edit(
+        *, project_id, user_id, agent, guard_artifact_id=None, guard_user_id=None
+    ):
+        _guard(project_id, guard_user_id, guard_artifact_id)
         return MagicMock()
 
     dao.create_agent = AsyncMock(side_effect=_create)
     dao.edit_agent = AsyncMock(side_effect=_edit)
     return (
-        ChannelsService(
-            channels_dao=dao,
-            adapter_registry=MagicMock(),
-            workflows_service=workflows,
+        _AsRequestingHuman(
+            ChannelsService(
+                channels_dao=dao,
+                adapter_registry=MagicMock(),
+                workflows_service=workflows,
+            )
         ),
         dao,
     )
+
+
+class _AsRequestingHuman:
+    """The service as a route calls it: each call runs inside the request of the human
+    named by its `user_id` (a browser session), so the guard sees that person."""
+
+    def __init__(self, service: ChannelsService):
+        self._service = service
+
+    def __getattr__(self, name):
+        method = getattr(self._service, name)
+
+        async def _call(**kwargs):
+            token = set_request_access(_human_access(kwargs["user_id"]))
+            try:
+                return await method(**kwargs)
+            finally:
+                reset_request_access(token)
+
+        return _call
+
+
+def _human_access(user_id):
+    return make_request_access(
+        envelope=make_envelope(principal_id=user_id), credential_kind="bearer_session"
+    )
+
+
+async def test_an_api_key_never_activates_a_private_agent_binding():
+    """An API key acts for its creator, but only the owner as a person may put a
+    private agent in a channel: the key of Alice, the owner, is refused too."""
+
+    world = SharingWorld()
+    alice = world.add_member(uuid4())
+    private = world.dao.add_agent(project_id=world.project_id, policy=_private(alice))
+    service, dao = _channels(world, _Workflows(resolved=private))
+    key = make_request_access(
+        envelope=make_envelope(kind="api_key", principal_id=uuid4()),
+        credential_kind="api_key",
+        acting_user_id=alice,
+    )
+    token = set_request_access(key)
+    try:
+        with pytest.raises(SharedItemNotFound):
+            await service._service.create_agent(
+                project_id=world.project_id,
+                user_id=alice,
+                agent=_create({"workflow": Reference(id=private)}),
+            )
+    finally:
+        reset_request_access(token)
+    assert dao.writes == [private]
 
 
 def _create(references, *, is_active=True) -> ChannelAgentCreate:

@@ -360,6 +360,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         agent: ChannelAgentCreate,
         #
         guard_artifact_id: Optional[UUID] = None,
+        guard_user_id: Optional[UUID] = None,
     ) -> ChannelAgent:
         agent_dbe = map_agent_dto_to_dbe_create(
             project_id=project_id,
@@ -374,7 +375,7 @@ class ChannelsDAO(ChannelsDAOInterface):
                     session,
                     project_id=project_id,
                     artifact_id=guard_artifact_id,
-                    user_id=user_id,
+                    user_id=guard_user_id,
                 )
 
             session.add(agent_dbe)
@@ -466,6 +467,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         agent: ChannelAgentEdit,
         #
         guard_artifact_id: Optional[UUID] = None,
+        guard_user_id: Optional[UUID] = None,
     ) -> Optional[ChannelAgent]:
         async with self.engine.session() as session:
             if guard_artifact_id is not None:
@@ -474,7 +476,7 @@ class ChannelsDAO(ChannelsDAOInterface):
                     session,
                     project_id=project_id,
                     artifact_id=guard_artifact_id,
-                    user_id=user_id,
+                    user_id=guard_user_id,
                 )
 
             stmt = select(ChannelAgentDBE).where(

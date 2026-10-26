@@ -54,6 +54,7 @@ from oss.src.core.channels.dtos import (
     ChannelTriggerState,
     ChannelTurnInput,
 )
+from oss.src.core.access.context import get_request_access
 from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
 from oss.src.core.access.service import invalidate_principals_after_write
 from oss.src.core.channels.fill import select_forwardfill_range
@@ -1317,6 +1318,7 @@ class ChannelsService:
             agent=agent,
             #
             guard_artifact_id=guard_artifact_id,
+            guard_user_id=_guard_user_id(),
         )
 
     async def create_agent(
@@ -1346,6 +1348,7 @@ class ChannelsService:
             agent=agent,
             #
             guard_artifact_id=guard_artifact_id,
+            guard_user_id=_guard_user_id(),
         )
 
     async def fetch_agent(
@@ -3056,3 +3059,15 @@ def _channel_defaults(capabilities: ChannelCapabilities):
         backfill=capabilities.fill.backfill.supported,
         forwardfill=capabilities.fill.forwardfill.supported,
     )
+
+
+def _guard_user_id() -> Optional[UUID]:
+    """The person whose request writes the binding: only a human principal can be the
+    owner a private agent's binding needs. An API key, a run credential of an
+    installation or any other non-human principal, and a write outside a request, get
+    None, so they never activate a private agent's binding (`guard_agent_activation`)."""
+
+    access = get_request_access()
+    if access is None or access.principal.kind != PrincipalKind.HUMAN:
+        return None
+    return access.principal.id

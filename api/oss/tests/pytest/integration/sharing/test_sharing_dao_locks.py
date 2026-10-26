@@ -784,6 +784,7 @@ async def test_activation_guard_refuses_a_private_agent_of_someone_else():
                 user_id=bob,
                 agent=_binding(private),
                 guard_artifact_id=private,
+                guard_user_id=bob,
             )
         assert await _active_bindings(project_id, private) == []
 
@@ -793,6 +794,7 @@ async def test_activation_guard_refuses_a_private_agent_of_someone_else():
             user_id=alice,
             agent=_binding(private),
             guard_artifact_id=private,
+            guard_user_id=alice,
         )
         assert len(await _active_bindings(project_id, private)) == 1
 
@@ -802,6 +804,7 @@ async def test_activation_guard_refuses_a_private_agent_of_someone_else():
                 user_id=bob,
                 agent=_binding(artifact_id),
                 guard_artifact_id=artifact_id,
+                guard_user_id=bob,
             )
             assert len(await _active_bindings(project_id, artifact_id)) == 1
 
@@ -824,6 +827,7 @@ async def test_activation_guard_refuses_a_private_agent_of_someone_else():
                     flags=ChannelAgentFlags(is_active=True),
                 ),
                 guard_artifact_id=private,
+                guard_user_id=bob,
             )
         assert len(await _active_bindings(project_id, private)) == 1
 
@@ -923,6 +927,7 @@ async def test_activation_against_make_private():
                 user_id=alice,
                 agent=_binding(artifact_id),
                 guard_artifact_id=artifact_id,
+                guard_user_id=alice,
             )
             make_private = _dao().set_agent_policy(
                 project_id=project_id,

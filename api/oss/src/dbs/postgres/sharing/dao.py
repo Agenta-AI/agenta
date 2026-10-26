@@ -547,11 +547,13 @@ async def guard_agent_activation(
     *,
     project_id: UUID,
     artifact_id: UUID,
-    user_id: UUID,
+    user_id: Optional[UUID],
 ) -> None:
-    """`lock_agent_policy`, then refuse a private agent of someone else with
-    `SharedItemNotFound` (what an unknown agent answers): only its owner writes an
-    active channel binding of a private agent (rule A2: nobody else may see it)."""
+    """`lock_agent_policy`, then refuse a private agent with `SharedItemNotFound`
+    (what an unknown agent answers) unless `user_id` (the human whose request writes)
+    is its owner: only its owner writes an active channel binding of a private agent
+    (rule A2: nobody else may see it). None, for an API key or any other non-human
+    principal, never passes."""
 
     policy = await lock_agent_policy(
         session, project_id=project_id, artifact_id=artifact_id
@@ -559,7 +561,7 @@ async def guard_agent_activation(
     if (
         policy is not None
         and policy.visibility == Visibility.PRIVATE
-        and policy.owner_user_id != user_id
+        and (user_id is None or policy.owner_user_id != user_id)
     ):
         raise SharedItemNotFound()
 
