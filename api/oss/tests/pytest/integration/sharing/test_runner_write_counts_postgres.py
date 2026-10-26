@@ -481,3 +481,122 @@ async def test_bob_is_refused_with_the_not_found_body(
     assert refused.value.detail == sharing_utils.NOT_FOUND_ERROR.model_dump(
         exclude_none=True
     )
+
+
+def _frame(session_id: str, turn_id: str = TURN, index: int = 0):
+    from datetime import datetime, timezone  # noqa: PLC0415
+
+    return SessionRecordIngestRequest(
+        version=1,
+        kind="frame",
+        session_id=session_id,
+        execution_id=turn_id,
+        frame_or_event_id=f"{turn_id}:{index}",
+        frame_index=index,
+        entity_id="m1",
+        type="text-delta",
+        payload={"id": "m1", "delta": "partial"},
+        created_at=datetime.now(timezone.utc),
+    )
+
+
+async def _measured_frame(seeded, access, session_id, fake_cache, lock):
+    """One warm frame request: its answer (or refusal status) and its costs."""
+
+    async def _once():
+        token = set_request_access(access)
+        try:
+            return await RecordsRouter(records_service=AsyncMock()).ingest_record_event(
+                request=_request(seeded, access), body=_frame(session_id)
+            )
+        except HTTPException as error:
+            return error.status_code
+        finally:
+            reset_request_access(token)
+
+    await _once()  # warms every cache
+    cache_before, lock_before = fake_cache.read_round_trips, lock.round_trips
+    with count_statements(get_transactions_engine()) as statements:
+        answer = await _once()
+    return (
+        answer,
+        statements,
+        fake_cache.read_round_trips - cache_before,
+        lock.round_trips - lock_before,
+    )
+
+
+async def test_a_frame_after_stop_answers_409_at_the_cost_of_a_running_frame(
+    seeded, fake_cache, lock, access_service, monkeypatch
+):
+    """A Stop (or a newer turn) moved the session's running turn while the runner still
+    streams. The turn's next frame answers 409 (not 403, which the runner reads as lost
+    access), publishes nothing, and costs no statement and no round trip more than a
+    frame of the running turn. Bob, who cannot see the session, keeps his 403."""
+
+    monkeypatch.setattr(router_module, "get_lock_engine", lambda: lock)
+    publish = AsyncMock(return_value=True)
+    monkeypatch.setattr(router_module, "publish_live_frame", publish)
+    alice = seeded.user_ids["alice"]
+    project_id = seeded.project_ids[0]
+    session_id = await _private_session(project_id, alice)
+    access = _access(seeded, alice)
+    await _admit(
+        lock, project_id=project_id, session_id=session_id, principal=access.principal
+    )
+
+    running = await _measured_frame(seeded, access, session_id, fake_cache, lock)
+    assert running[0] == {"ok": True}
+    published = publish.await_count
+
+    # The Stop: the turn no longer holds `running`.
+    await lock.delete(running_key(str(project_id), session_id))
+    stopped = await _measured_frame(seeded, access, session_id, fake_cache, lock)
+    # A newer turn holds `running`.
+    await lock.set(running_key(str(project_id), session_id), str(uuid4()).encode())
+    superseded = await _measured_frame(seeded, access, session_id, fake_cache, lock)
+
+    for answer in (stopped, superseded):
+        assert answer[0] == 409
+        assert answer[1] == []
+        assert answer[2] <= running[2]
+        assert answer[3] <= running[3]
+    assert running[1] == []
+    assert publish.await_count == published
+
+    bob = await _measured_frame(
+        seeded, _access(seeded, seeded.user_ids["bob"]), session_id, fake_cache, lock
+    )
+    assert bob[0] == 403
+    assert bob[1] == []
+    assert publish.await_count == published
+
+
+async def test_an_old_admission_never_turns_a_hidden_frame_into_409(
+    seeded, fake_cache, lock, access_service, monkeypatch
+):
+    """Bob's runner was admitted for an old turn while he could run the session; he can
+    no longer see it, and his turn is not the running one. His frame takes the full
+    check, not his old admission: 403, which ends his turn as access denied."""
+
+    monkeypatch.setattr(router_module, "get_lock_engine", lambda: lock)
+    publish = AsyncMock(return_value=True)
+    monkeypatch.setattr(router_module, "publish_live_frame", publish)
+    alice = seeded.user_ids["alice"]
+    bob = seeded.user_ids["bob"]
+    project_id = seeded.project_ids[0]
+    session_id = await _private_session(project_id, alice)
+    await _admit(
+        lock,
+        project_id=project_id,
+        session_id=session_id,
+        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=bob),
+        current=False,
+    )
+
+    answer = await _measured_frame(
+        seeded, _access(seeded, bob), session_id, fake_cache, lock
+    )
+
+    assert answer[0] == 403
+    publish.assert_not_awaited()
