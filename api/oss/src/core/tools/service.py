@@ -67,6 +67,27 @@ log = get_module_logger(__name__)
 
 _SLUG_SEGMENT_RE = re.compile(r"^[a-zA-Z0-9-]+(?:_[a-zA-Z0-9-]+)*$")
 
+# How many tool references `resolve_tools` resolves at once. Bounds the fan-out against the
+# provider catalog and the connections table for an agent with many tools.
+_RESOLVE_CONCURRENCY = 8
+
+
+async def _gather_in_order(*awaitables):
+    """``asyncio.gather`` that fails the way a serial loop does.
+
+    Results keep argument order. The error raised is the first awaitable's in that order,
+    not the first to fail in time, and the awaitables after it are cancelled.
+    """
+    tasks = [asyncio.ensure_future(awaitable) for awaitable in awaitables]
+    try:
+        return [await task for task in tasks]
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        # Consume every outcome so a sibling's error is not reported as never retrieved.
+        await asyncio.gather(*tasks, return_exceptions=True)
+
 
 def _validate_slug_segments(provider_key: str, segments: Iterable[str]) -> None:
     """Refuse a routing segment outside the safe allowlist before it reaches a provider."""
@@ -226,7 +247,45 @@ class ToolsService:
         a tool key maps to exactly one provider action ID on every path. The provider
         crawl is bounded by a deadline and its result is cached whole; a crawl that
         cannot finish raises, so a partial catalog never reaches the cache.
+
+        Concurrent calls for the same catalog share one fetch. A caller that is
+        cancelled does not cancel the fetch for the others.
         """
+        key = (provider_key, integration_key, toolkit_version or "latest")
+        # One provider crawl per catalog at a time: concurrent resolves of the same
+        # integration share it instead of each crawling every page.
+        fetches: Dict[Tuple[str, str, str], "asyncio.Future"] = (
+            self.__dict__.setdefault("_catalog_fetches", {})
+        )
+        fetch = fetches.get(key)
+        if fetch is None:
+            fetch = asyncio.ensure_future(
+                self._fetch_all_actions(
+                    provider_key=provider_key,
+                    integration_key=integration_key,
+                    toolkit_version=toolkit_version,
+                )
+            )
+            fetches[key] = fetch
+
+            def _done(done: "asyncio.Future", key=key) -> None:
+                if fetches.get(key) is done:
+                    del fetches[key]
+                # Retrieve the outcome so a fetch every caller left is not reported
+                # as an exception that was never retrieved.
+                if not done.cancelled():
+                    done.exception()
+
+            fetch.add_done_callback(_done)
+        return list(await asyncio.shield(fetch))
+
+    async def _fetch_all_actions(
+        self,
+        *,
+        provider_key: str,
+        integration_key: str,
+        toolkit_version: Optional[str] = None,
+    ) -> List[ToolCatalogEntry]:
         started = perf_counter()
         cache_key = {
             "provider": provider_key,
@@ -589,32 +648,36 @@ class ToolsService:
         A ``gateway_connection`` entry validates the same connection and answers with
         the whole catalog slice instead. One request may carry both formats.
         """
-        builtins: List[str] = []
-        custom: List[ResolvedTool] = []
-        gateway_connections: List[ResolvedGatewayConnection] = []
+        builtins = [
+            ref.name for ref in tools if isinstance(ref, BuiltinTool) and ref.name
+        ]
+        refs = [
+            ref
+            for ref in tools
+            if isinstance(ref, (GatewayConnectionTool, ComposioTool))
+        ]
+        semaphore = asyncio.Semaphore(_RESOLVE_CONCURRENCY)
 
-        for ref in tools:
-            if isinstance(ref, BuiltinTool):
-                if ref.name:
-                    builtins.append(ref.name)
-                continue
+        async def _resolve(ref):
+            resolve = (
+                self._resolve_gateway_connection
+                if isinstance(ref, GatewayConnectionTool)
+                else self._resolve_composio_tool
+            )
+            async with semaphore:
+                return await resolve(project_id=project_id, ref=ref)
 
-            if isinstance(ref, GatewayConnectionTool):
-                gateway_connections.append(
-                    await self._resolve_gateway_connection(
-                        project_id=project_id,
-                        ref=ref,
-                    )
-                )
-                continue
-
-            if isinstance(ref, ComposioTool):
-                custom.append(
-                    await self._resolve_composio_tool(
-                        project_id=project_id,
-                        ref=ref,
-                    )
-                )
+        # The references do not depend on each other, so they resolve together. The error the
+        # caller sees is still the first failing reference in request order.
+        resolved = await _gather_in_order(*(_resolve(ref) for ref in refs))
+        gateway_connections: List[ResolvedGatewayConnection] = [
+            item
+            for ref, item in zip(refs, resolved)
+            if isinstance(ref, GatewayConnectionTool)
+        ]
+        custom: List[ResolvedTool] = [
+            item for ref, item in zip(refs, resolved) if isinstance(ref, ComposioTool)
+        ]
 
         return ToolsResolution(
             builtins=builtins,
