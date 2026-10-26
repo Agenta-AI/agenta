@@ -624,9 +624,10 @@ class SessionStreamsRouter:
             tags=["Sessions"],
             description=(
                 "Send a turn to a session, steer the running turn, or attach to it.\n\n"
-                "**Deprecated:** a call with no `data` and no `force` stops the running "
-                "turn. This stop mode is deprecated and will be removed in a later "
-                "release. To stop a turn, call `POST /sessions/{session_id}/cancel`."
+                "**Deprecated:** a call with no non-empty `data.inputs` and with `force` "
+                "false or omitted stops the running turn. This stop mode is deprecated "
+                "and will be removed in a later release. To stop a turn, call "
+                "`POST /sessions/{session_id}/cancel`."
             ),
         )
         self.router.add_api_route(

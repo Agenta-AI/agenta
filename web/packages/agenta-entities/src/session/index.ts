@@ -92,7 +92,6 @@ export {
     type SessionDelivery,
     type SessionMessagePreview,
     type SessionWindowing,
-    type SessionStreamCommandResponse,
     type PendingSessionInput,
     type CommandMode,
     mountFileSchema,
