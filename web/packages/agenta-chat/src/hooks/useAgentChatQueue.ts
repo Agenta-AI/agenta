@@ -120,8 +120,9 @@ interface UseAgentChatQueueArgs {
     restoreRefusedSend?: (message: QueuedMessage) => boolean | Promise<boolean>
     /** A durable send was admitted: the turn it started, or `null` for a parked input. */
     onSendAccepted?: (message: QueuedMessage, executionId: string | null) => void
-    /** A durable send will never become a turn: rejected before it left, or refused after. */
-    onSendFailed?: (message: QueuedMessage) => void
+    /** A durable send will never become a turn: rejected before it left (with the error that
+     * rejected it), or refused after. */
+    onSendFailed?: (message: QueuedMessage, error?: unknown) => void
     /** The durable session queue. Every send is admitted through it. */
     server: ServerQueueAdapter
     /** This tab's own run is going, which the server snapshot reports a poll late. */
@@ -537,7 +538,7 @@ export const useAgentChatQueue = ({
                 },
                 (error: unknown) => {
                     echoes.drop(message.id)
-                    onSendFailedRef.current?.(message)
+                    onSendFailedRef.current?.(message, error)
                     if (forgetDeferredRemoval(message.id)) return
                     throw error
                 },

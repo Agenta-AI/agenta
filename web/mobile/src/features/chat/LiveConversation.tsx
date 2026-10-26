@@ -26,6 +26,7 @@ import {
     getInteractionAvailability,
     getLivePendingApprovals,
     isSessionTurnStopping,
+    refusedSendReason,
     type TurnViewModel,
 } from "@agenta/chat/model"
 import {getSessionTurnId} from "@agenta/chat/state"
@@ -51,13 +52,19 @@ import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
 import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
+import type {FileUIPart} from "ai"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useProjectPermission} from "../context/useProjectPermission"
-import {failPendingTaskAtom, pendingTasksAtom, sendPendingTaskAtom} from "../home/pendingTask"
+import {
+    failPendingTaskAtom,
+    keepFailedSendAtom,
+    pendingTasksAtom,
+    sendPendingTaskAtom,
+} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
 import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
 import {useWalletSummary} from "../wallet/useWalletSummary"
@@ -179,6 +186,34 @@ export const LiveConversation = ({
     const registerLocalSession = useSetAtom(registerLocalSessionAtom)
     const markLocalSessionAccepted = useSetAtom(markLocalSessionAcceptedAtom)
     const dropUnacceptedLocalSession = useSetAtom(dropUnacceptedLocalSessionAtom)
+    // A send outlives this screen. One that fails after the user left has no composer to go back
+    // to, so its session stays listed and the message waits as a failed task for their return.
+    const keepFailedSend = useSetAtom(keepFailedSendAtom)
+    const onScreenRef = useRef(false)
+    useEffect(() => {
+        onScreenRef.current = true
+        return () => {
+            onScreenRef.current = false
+        }
+    }, [])
+    const sendFailed = useCallback(
+        (message: {text: string; fileParts?: FileUIPart[]}, error?: unknown) => {
+            if (onScreenRef.current) {
+                dropUnacceptedLocalSession(sessionId)
+                return
+            }
+            keepFailedSend({
+                sessionId,
+                task: {
+                    agentId: agentId ?? entityId,
+                    text: message.text,
+                    parts: message.fileParts,
+                    failureReason: refusedSendReason(error) ?? undefined,
+                },
+            })
+        },
+        [agentId, dropUnacceptedLocalSession, entityId, keepFailedSend, sessionId],
+    )
     const followCommitRef = useRef<(revisionId: string) => void>(() => undefined)
     const conversation = useAgentConversation({
         entityId,
@@ -189,7 +224,7 @@ export const LiveConversation = ({
         sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
         restoreRefusedSend,
         onSendAccepted: () => markLocalSessionAccepted(sessionId),
-        onSendFailed: () => dropUnacceptedLocalSession(sessionId),
+        onSendFailed: sendFailed,
     })
     const canEditSecrets = useProjectPermission(projectId, "edit_secret")
     const store = useStore()
@@ -356,17 +391,17 @@ export const LiveConversation = ({
                 await sendToConversation(input)
             } catch (error) {
                 // The durable path reports this through `onSendFailed` too; this covers the rest.
-                dropUnacceptedLocalSession(sessionId)
+                sendFailed({text: input.text, fileParts: input.parts}, error)
                 throw error
             }
         },
         [
             agentId,
             buildKitReadyAtom,
-            dropUnacceptedLocalSession,
             firstTurn,
             projectId,
             registerLocalSession,
+            sendFailed,
             sendToConversation,
             sessionId,
             store,
