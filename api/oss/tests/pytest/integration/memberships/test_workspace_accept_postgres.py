@@ -435,32 +435,36 @@ async def test_get_project_by_workspace_accepts_the_organization_id():
 
 
 async def test_get_project_by_workspace_keeps_the_legacy_answer():
-    # Its own shapes (a fresh database has none), plus every workspace already there.
+    # Only its own rows: tests that run in parallel create and delete workspaces and
+    # projects in the same database. The shapes: a workspace with its default project and
+    # two more (one not default, one with a NULL default), a workspace with one default
+    # project, and a workspace whose only project is not default.
     own = await seed_organization(members={"m": "editor"}, workspaces=3)
     try:
+        await _add_project(
+            organization_id=own.organization_id,
+            workspace_id=own.workspace_ids[0],
+            is_default=False,
+            name="not-default",
+        )
+        await _add_project(
+            organization_id=own.organization_id,
+            workspace_id=own.workspace_ids[0],
+            is_default=None,
+            name="null-default",
+        )
         await execute(
             "UPDATE projects SET is_default = false WHERE workspace_id = :w",
             {"w": own.workspace_ids[2]},
         )
-        workspaces = await fetch_all(
-            "SELECT w.id FROM workspaces w WHERE EXISTS "
-            "(SELECT 1 FROM projects p WHERE p.workspace_id = w.id)"
-        )
-        assert workspaces
-        checked = 0
-        for row in workspaces:
-            today = await fetch_all(_TODAY_PROJECT_BY_WORKSPACE_SQL, {"w": row["id"]})
-            if not today:
-                continue  # deleted by a test that runs in parallel
-            try:
-                project = await db_manager.get_project_by_workspace(
-                    workspace_id=str(row["id"])
-                )
-            except db_manager.NoResultFound:
-                if await fetch_all(_TODAY_PROJECT_BY_WORKSPACE_SQL, {"w": row["id"]}):
-                    raise
-                continue
-            checked += 1
+        for workspace_id in own.workspace_ids:
+            today = await fetch_all(
+                _TODAY_PROJECT_BY_WORKSPACE_SQL, {"w": workspace_id}
+            )
+            assert today, workspace_id
+            project = await db_manager.get_project_by_workspace(
+                workspace_id=str(workspace_id)
+            )
             # Today's order leaves ties of (is_default, created_at) open: the answer is one
             # of the tied rows.
             first = today[0]["id"]
@@ -468,10 +472,9 @@ async def test_get_project_by_workspace_keeps_the_legacy_answer():
                 "SELECT id FROM projects WHERE workspace_id = :w "
                 "AND is_default IS NOT DISTINCT FROM (SELECT is_default FROM projects WHERE id = :p) "
                 "AND created_at IS NOT DISTINCT FROM (SELECT created_at FROM projects WHERE id = :p)",
-                {"w": row["id"], "p": first},
+                {"w": workspace_id, "p": first},
             )
-            assert project.id in {t["id"] for t in tied}, row["id"]
-        assert checked
+            assert project.id in {t["id"] for t in tied}, workspace_id
     finally:
         await delete_seeded_organization(own)
 
