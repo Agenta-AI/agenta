@@ -69,6 +69,8 @@ export function createOutputBudget(
         v?.type === "tool_call" || v?.type === "tool_result" ? v.id : undefined;
       const toolId = acpToolId ?? eventToolId;
       const key = toolId != null ? `tool:${String(toolId)}` : MODEL_STEP;
+      // A harness may reuse the id of a finished call, so a new announcement starts a new step.
+      if (v?.sessionUpdate === "tool_call" && toolId != null) steps.delete(key);
       const step = steps.get(key) ?? { bytes: 0, events: 0, snapshot: 0 };
       // The update that completes or fails a call is kept as its result, so it is charged in full.
       const progress =

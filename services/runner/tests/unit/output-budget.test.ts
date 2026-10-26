@@ -172,10 +172,11 @@ describe("per-step output budget", () => {
   });
 
   it("charges every completed result in full, also when a call id is announced again", () => {
-    vi.stubEnv("AGENTA_RUNNER_OUTPUT_MAX_BYTES", "16384");
+    vi.stubEnv("AGENTA_RUNNER_OUTPUT_MAX_TURN_BYTES", "16384");
     const exceeded = vi.fn();
     const budget = createOutputBudget(exceeded, () => {});
-    // The tracer keeps each completion as a result, so reusing one id must not discount them.
+    // The tracer keeps each completion as a result, so reusing one id must not discount them
+    // against the turn.
     let accepted = 0;
     while (
       budget.accept(toolCall("reused")) &&
@@ -184,6 +185,17 @@ describe("per-step output budget", () => {
       accepted++;
     expect(accepted).toBeLessThan(17);
     expect(exceeded).toHaveBeenCalledTimes(1);
+  });
+
+  it("starts a new step when a finished call id is announced again", () => {
+    vi.stubEnv("AGENTA_RUNNER_OUTPUT_MAX_BYTES", "4096");
+    const exceeded = vi.fn();
+    const budget = createOutputBudget(exceeded, () => {});
+    for (let i = 0; i < 5; i++) {
+      expect(budget.accept(toolCall("same"))).toBe(true);
+      expect(budget.accept({ ...progress("same", "o".repeat(1000)), status: "completed" })).toBe(true);
+    }
+    expect(exceeded).not.toHaveBeenCalled();
   });
 
   it("lets a long turn of normal steps finish", () => {
