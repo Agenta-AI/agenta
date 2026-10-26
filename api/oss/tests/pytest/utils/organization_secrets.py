@@ -509,3 +509,23 @@ async def load_effective_from_list(self, *, project_id):
         owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=project_id)
     )
     return CachedEffectiveSecrets(project_id=project_id, secrets=list(secrets or []))
+
+
+async def retry_write_conflict(make_call, *, attempts: int = 5):
+    """Run a fixture write again when it answers `SecretWriteConflict`.
+
+    On a small test database Postgres scans `secrets` and `projects` whole, so its
+    serializable reads lock the whole table and parallel tests abort one another more
+    often than a real deployment does. Setup writes retry here; measured calls never do.
+    """
+    import asyncio
+
+    from oss.src.core.secrets.types import SecretWriteConflict
+
+    for attempt in range(1, attempts + 1):
+        try:
+            return await make_call()
+        except SecretWriteConflict:
+            if attempt == attempts:
+                raise
+            await asyncio.sleep(0.05 * attempt)

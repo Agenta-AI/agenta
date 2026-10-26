@@ -50,7 +50,10 @@ from oss.tests.pytest.utils.membership_seed import (
     delete_seeded_organization,
     seed_organization,
 )
-from oss.tests.pytest.utils.organization_secrets import make_auth_scope
+from oss.tests.pytest.utils.organization_secrets import (
+    make_auth_scope,
+    retry_write_conflict,
+)
 from oss.tests.pytest.utils.principals import bearer_request_access
 from oss.tests.pytest.utils.redis_calls import count_redis_calls
 from oss.tests.pytest.utils.statements import count_statements
@@ -363,30 +366,42 @@ async def world(redis_reachable):
     org = seeded.organization_id
     user = seeded.owner_id
     tag = uuid4().hex[:8]
-    openai = await vault.create_secret(
-        project_id=p1,
-        create_secret_dto=_key("openai", f"openai-sales-{tag}", "sk-proj-openai-1234"),
-        user_id=user,
+    openai = await retry_write_conflict(
+        lambda: vault.create_secret(
+            project_id=p1,
+            create_secret_dto=_key(
+                "openai", f"openai-sales-{tag}", "sk-proj-openai-1234"
+            ),
+            user_id=user,
+        )
     )
-    await vault.create_secret(
-        project_id=p1,
-        create_secret_dto=_key("mock", f"mock-{tag}", "sk-proj-mock-1234"),
-        user_id=user,
+    await retry_write_conflict(
+        lambda: vault.create_secret(
+            project_id=p1,
+            create_secret_dto=_key("mock", f"mock-{tag}", "sk-proj-mock-1234"),
+            user_id=user,
+        )
     )
-    custom = await vault.create_secret(
-        project_id=p1, create_secret_dto=_custom("Project Azure"), user_id=user
+    custom = await retry_write_conflict(
+        lambda: vault.create_secret(
+            project_id=p1, create_secret_dto=_custom("Project Azure"), user_id=user
+        )
     )
     org_slug = f"openai-company-{tag}"
     inherited_custom = f"azure-company-{tag}"
-    await vault.create_organization_secret(
-        organization_id=org,
-        create_secret_dto=_key("anthropic", org_slug, "sk-org-anthropic-1234"),
-        user_id=user,
+    await retry_write_conflict(
+        lambda: vault.create_organization_secret(
+            organization_id=org,
+            create_secret_dto=_key("anthropic", org_slug, "sk-org-anthropic-1234"),
+            user_id=user,
+        )
     )
-    await vault.create_organization_secret(
-        organization_id=org,
-        create_secret_dto=_custom("Company Azure", slug=inherited_custom),
-        user_id=user,
+    await retry_write_conflict(
+        lambda: vault.create_organization_secret(
+            organization_id=org,
+            create_secret_dto=_custom("Company Azure", slug=inherited_custom),
+            user_id=user,
+        )
     )
     yield dict(
         seeded=seeded,
@@ -559,7 +574,7 @@ async def _measure_once(call, mode, project_ids, user, monkeypatch):
         finally:
             if mode == "redis_failing":
                 failing.__exit__(None, None, None)
-    return len(statements), len(calls), statements, outcome
+    return len(statements), list(calls), statements, outcome
 
 
 @pytest.mark.parametrize("mode", MODES)
@@ -568,9 +583,10 @@ async def test_existing_and_new_paths_cost_no_more_than_before(
     row, mode, world, monkeypatch
 ):
     call, project_ids = _rows(world)[row]
-    statements, redis, _, outcome = await _measure(
+    statements, redis_calls, _, outcome = await _measure(
         call, mode, project_ids, world["user"], monkeypatch
     )
+    redis = len(redis_calls)
     # Every row answers as intended; any other error fails the test.
     assert outcome == ("not_found" if row in NOT_FOUND else "ok"), (row, mode)
     assert (statements, redis) == _expected(row, mode), (row, mode)
@@ -615,21 +631,28 @@ async def test_project_writes_keep_their_statements(mode, world, monkeypatch):
         ("P2", p2_caller_slug, [p2]),
         ("P3", p3_user_update, [world["p1"]]),
     ):
-        statements, redis, sql, outcome = await _measure(
+        statements, redis_calls, sql, outcome = await _measure(
             call, mode, projects, world["user"], monkeypatch
         )
+        commands = [redis_call.command.upper() for redis_call in redis_calls]
         assert outcome == "ok", (row, mode)
         before = BEFORE[row][mode]
         # The same statements as before M5, exactly. The Redis side of a write is the
-        # project-wide invalidation, as before: a SCAN, and a DEL when the SCAN found
-        # entries (which depends on what other code cached for the project, not on M5).
-        assert statements == before[0], (row, mode, statements, before)
-        assert redis in (before[1], before[1] + 1) if before[1] else redis == 0, (
+        # project-wide invalidation, as before: SCAN, and a DEL when the SCAN found
+        # entries. Both depend on the keyspace, not on M5: a SCAN takes one call per
+        # cursor page, so a Redis filled by parallel tests needs more pages.
+        assert statements == before[0], (
             row,
             mode,
-            redis,
+            statements,
             before,
+            [statement.strip()[:60] for statement in sql],
         )
+        if before[1]:
+            assert commands and set(commands) <= {"SCAN", "DEL"}, (row, mode, commands)
+            assert commands.count("DEL") <= 1, (row, mode, commands)
+        else:
+            assert commands == [], (row, mode, commands, before)
         if row == "P2":
             # The shadow check is folded into the one insert; SERIALIZABLE rides the BEGIN.
             assert len(sql) == 1 and sql[0].lstrip().upper().startswith(
