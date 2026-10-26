@@ -202,6 +202,28 @@ def org(admin_api, ag_env):
     world.delete()
 
 
+def llm_gateway_disabled(org) -> bool:
+    """True when the deployment answers the LLM gateway with `llm_gateway_disabled`."""
+    response = requests.get(
+        f"{org.api_url}/gateways/llms/endpoints/",
+        headers={"Authorization": org.api_key("owner")},
+        timeout=BASE_TIMEOUT,
+    )
+    detail = (
+        (response.json() or {}).get("detail") if response.status_code == 403 else None
+    )
+    code = detail.get("code") if isinstance(detail, dict) else None
+    return code == "llm_gateway_disabled"
+
+
+@pytest.fixture(scope="module")
+def gateway_on(org):
+    if llm_gateway_disabled(org):
+        pytest.skip(
+            "the deployment runs with the LLM gateway off; this test needs it on"
+        )
+
+
 @pytest.fixture(scope="module")
 def hobby_org(admin_api, ag_env):
     if not is_ee():

@@ -8,10 +8,9 @@ the SDK, and the sandbox never receives the value.
 """
 
 import pytest
-import requests
 
 from oss.tests.pytest.acceptance.organization_secrets.conftest import (
-    BASE_TIMEOUT,
+    llm_gateway_disabled,
     provider_key,
     unique,
 )
@@ -23,16 +22,7 @@ KEY = "sk-m5acc-gateway-off-0123456789"
 
 @pytest.fixture(scope="module")
 def gateway_off(org):
-    response = requests.get(
-        f"{org.api_url}/gateways/llms/endpoints/",
-        headers={"Authorization": org.api_key("owner")},
-        timeout=BASE_TIMEOUT,
-    )
-    detail = (
-        (response.json() or {}).get("detail") if response.status_code == 403 else None
-    )
-    code = detail.get("code") if isinstance(detail, dict) else None
-    if code != "llm_gateway_disabled":
+    if not llm_gateway_disabled(org):
         pytest.skip("the deployment runs the LLM gateway; this suite needs it off")
 
 

@@ -183,7 +183,7 @@ def company_mock(org):
     return created.json()
 
 
-def test_the_gateway_uses_the_inherited_key(org, company_mock):
+def test_the_gateway_uses_the_inherited_key(org, company_mock, gateway_on):
     # Marketing has no key of its own: the unnamed call uses the company key.
     response = _relay(org, "/gateways/llms/standard/mock/v1")
     assert response.status_code == 200, response.text
@@ -238,7 +238,7 @@ def _refused_as_echo(response, value):
     assert value not in response.text
 
 
-def test_a_slug_override_wins_only_in_its_project(org):
+def test_a_slug_override_wins_only_in_its_project(org, gateway_on):
     slug = unique("override")
     _company_custom(org, slug=slug)
     own = _project_custom(org, slug=slug, project=org.sales, echo=True)
@@ -254,7 +254,7 @@ def test_a_slug_override_wins_only_in_its_project(org):
         org.call("DELETE", f"/secrets/{own['id']}", as_="editor", project=org.sales)
 
 
-def test_an_upstream_echoing_the_organization_key_is_refused(org):
+def test_an_upstream_echoing_the_organization_key_is_refused(org, gateway_on):
     slug = unique("echo-company")
     _company_custom(org, slug=slug, echo=True)
     _refused_as_echo(
@@ -262,7 +262,9 @@ def test_an_upstream_echoing_the_organization_key_is_refused(org):
     )
 
 
-def test_an_inherited_custom_provider_serves_by_slug_with_no_endpoint_row(org):
+def test_an_inherited_custom_provider_serves_by_slug_with_no_endpoint_row(
+    org, gateway_on
+):
     slug = unique("custom-company")
     _company_custom(org, slug=slug)
     response = _relay(org, f"/gateways/llms/custom/{slug}/v1")
@@ -285,7 +287,7 @@ def test_an_inherited_custom_provider_serves_by_slug_with_no_endpoint_row(org):
         org.call("DELETE", f"/secrets/{own['id']}", as_="editor", project=org.marketing)
 
 
-def test_a_pinned_organization_credential_never_substitutes(org):
+def test_a_pinned_organization_credential_never_substitutes(org, gateway_on):
     slug = unique("pinned")
     created = org.call(
         "POST",
