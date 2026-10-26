@@ -1,0 +1,1 @@
+{"title":"Body","body":{"required":true,"content":{"application/json":{"schema":{"properties":{"visibility":{"type":"string","enum":["private","project"],"title":"Visibility","description":"`private`: the owner and the grantees see the session. `project`: every project member sees it."}},"type":"object","required":["visibility"],"title":"SessionVisibilityRequest"}}}}}
