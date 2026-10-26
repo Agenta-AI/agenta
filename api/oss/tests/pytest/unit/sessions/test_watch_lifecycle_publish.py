@@ -251,7 +251,31 @@ async def test_first_beat_of_a_runner_minted_turn_publishes_running(lock_engine)
     )
     assert publisher.lifecycle_calls == []
 
-    # A new turn on the same session is a fresh transition.
+    # A refused turn-2 beat while turn-1 still holds running must NOT publish.
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=SessionHeartbeatRequest(
+            session_id=session_id,
+            replica_id="replica-1",
+            turn_id="runner-turn-2",
+            is_running=True,
+        ),
+    )
+    assert publisher.lifecycle_calls == []
+
+    # runner-turn-1 ends:
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=SessionHeartbeatRequest(
+            session_id=session_id,
+            replica_id="replica-1",
+            turn_id="runner-turn-1",
+            is_running=False,
+        ),
+    )
+    publisher.lifecycle_calls.clear()
+
+    # A new turn on the same session after turn-1 ended is a fresh transition.
     await svc.heartbeat(
         project_id=_PROJECT,
         request=SessionHeartbeatRequest(
