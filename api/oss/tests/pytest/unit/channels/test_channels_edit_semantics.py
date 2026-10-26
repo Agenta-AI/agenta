@@ -382,20 +382,47 @@ async def test_connect_here_retargets_the_answering_agent_to_this_app():
     dao.create_agent.assert_not_awaited()
 
 
-async def test_connect_here_is_a_no_op_when_this_agent_already_answers():
+async def test_connect_here_is_guarded_when_this_agent_already_answers():
+    """The answering agent already matches: the write still runs, because it is the
+    guarded write. A bind link for a private agent's connection is issued only to its
+    owner as a person; outside a person's request the guard gets no user, so the DAO
+    refuses a private agent."""
+    from oss.src.core.access.context import reset_request_access, set_request_access
+    from oss.tests.pytest.utils.principals import make_envelope, make_request_access
+
     conn = _hosted_conn()
     app_a = uuid4()
     agent = _agent_with_ref(conn.id, str(app_a))
-    service, dao = _ensure_service(conn, agent)
 
+    service, dao = _ensure_service(conn, agent)
     await service.ensure_hosted_telegram_connection(
         project_id=uuid4(),
         user_id=uuid4(),
         references={"application": {"id": str(app_a)}},
     )
-
-    dao.edit_agent.assert_not_awaited()
+    dao.edit_agent.assert_awaited_once()
+    kwargs = dao.edit_agent.await_args.kwargs
+    assert kwargs["guard_artifact_id"] is not None
+    assert kwargs["guard_user_id"] is None
     dao.create_agent.assert_not_awaited()
+
+    alice = uuid4()
+    service, dao = _ensure_service(conn, agent)
+    token = set_request_access(
+        make_request_access(
+            envelope=make_envelope(principal_id=alice),
+            credential_kind="bearer_session",
+        )
+    )
+    try:
+        await service.ensure_hosted_telegram_connection(
+            project_id=uuid4(),
+            user_id=alice,
+            references={"application": {"id": str(app_a)}},
+        )
+    finally:
+        reset_request_access(token)
+    assert dao.edit_agent.await_args.kwargs["guard_user_id"] == alice
 
 
 async def test_reconnect_after_disconnect_reuses_the_restored_agent():

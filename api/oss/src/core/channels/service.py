@@ -917,20 +917,21 @@ class ChannelsService:
             )
         else:
             # Per-project connection, retargeted by agent: the connect action
-            # points this project's Telegram at the CALLING agent. If the
-            # answering agent already matches, this is a no-op; if it is a
-            # different agent, retarget it here ("disconnect from agent X and
-            # connect here"). One shared connection, one answering agent.
+            # points this project's Telegram at the CALLING agent. If it is a
+            # different agent, this retargets it ("disconnect from agent X and
+            # connect here"). One shared connection, one answering agent. The write
+            # runs also when the answering agent already matches: it is the guarded
+            # write, so a bind link for a private agent's connection is issued only to
+            # its owner (no write would let another caller reuse that binding).
             answering = next((a for a in active if a.flags.is_default), active[0])
-            if _reference_id(references) != _reference_id(answering.data.references):
-                await self.edit_agent(
-                    project_id=project_id,
-                    user_id=user_id,
-                    agent=ChannelAgentEdit(
-                        id=answering.id,
-                        data=ChannelAgentDataEdit(references=references),
-                    ),
-                )
+            await self.edit_agent(
+                project_id=project_id,
+                user_id=user_id,
+                agent=ChannelAgentEdit(
+                    id=answering.id,
+                    data=ChannelAgentDataEdit(references=references),
+                ),
+            )
 
         return connection
 
@@ -3019,17 +3020,6 @@ def _parse_sigil(*, content: list, sigil: Optional[str]) -> Optional[str]:
             return match.group(1)
 
     return None
-
-
-def _reference_id(references) -> Optional[str]:
-    """The id of the first (and, for a hosted channel agent, only) reference,
-    handling both a plain dict and a Reference object. Used to tell whether the
-    connection's answering agent already points at the requested app."""
-    if not references:
-        return None
-    value = next(iter(references.values()))
-    raw = value.get("id") if isinstance(value, dict) else getattr(value, "id", None)
-    return str(raw) if raw is not None else None
 
 
 def _channel_defaults(capabilities: ChannelCapabilities):

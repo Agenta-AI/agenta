@@ -19,6 +19,7 @@ from oss.tests.pytest.acceptance.sharing.support import (
     NOT_FOUND_BODY,
     core_rows,
     fetch_sharing,
+    invoke,
     listed_sessions,
     new_agent,
     poll,
@@ -111,6 +112,27 @@ def test_linked_sender_session_ownerless_readable(sharing_cast):
     assert sharing.status_code == 200, sharing.text
     assert sharing.json()["sharing"]["shareable"] is False
     assert sharing.json()["sharing"]["not_shareable_reason"] == "channel"
+
+    # Bob writes to the channel chat from the web app, as /m sends it: the turn runs
+    # in that session (a member sends to a project channel chat).
+    assert fetch_sharing(sharing_cast["bob"], session_id).json()["sharing"]["can_send"]
+    sent = invoke(
+        sharing_cast["bob"],
+        session_id=session_id,
+        agent=sharing_cast.installation.agent,
+        text="hello from the web",
+    )
+    assert sent.status_code == 200, sent.text
+    bob_id = str(sharing_cast.people["bob"].user_id)
+    bob_turns = poll(
+        lambda: [
+            row
+            for row in turn_rows(sharing_cast.project_id, session_id)
+            if str(row["sender_user_id"]) == bob_id
+        ],
+        timeout=40,
+    )
+    assert bob_turns, "Bob's turn did not run in the channel session"
 
 
 def _bind(caller, cast, references):
