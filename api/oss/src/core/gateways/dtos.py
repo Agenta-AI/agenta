@@ -6,7 +6,6 @@ given, and how a relayed response is checked for the credential the gateway inje
 """
 
 import json
-import re
 from enum import Enum
 from http.cookiejar import CookieJar
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -211,9 +210,8 @@ def _echo_forms(token: str) -> Tuple[str, ...]:
         forms[_go_separators_escaped(escaped)] = None
     # .NET System.Text.Json (JavaScriptEncoder.Default) also escapes ", ', +, `, <, >
     # and & as \uXXXX, with upper-case hex; some encoders write the same in lower case.
-    dotnet = _dotnet_escaped(token)
-    forms[dotnet] = None
-    forms[_lower_hex(dotnet)] = None
+    forms[_dotnet_escaped(token, upper=True)] = None
+    forms[_dotnet_escaped(token, upper=False)] = None
     for form in list(forms):
         forms[form.replace("/", "\\/")] = None
     return tuple(forms)
@@ -228,20 +226,26 @@ _GO_ESCAPES = {
 }
 
 
-_UNICODE_ESCAPE = re.compile(r"\\u[0-9a-fA-F]{4}")
+_DOTNET_ESCAPED = frozenset("\"'+`<>&")
 
 
-def _dotnet_escaped(token: str) -> str:
-    escaped = json.dumps(token, ensure_ascii=True)[1:-1].replace('\\"', "\\u0022")
-    for character in "'+`<>&":
-        escaped = escaped.replace(character, f"\\u{ord(character):04X}")
-    return _UNICODE_ESCAPE.sub(
-        lambda match: match.group(0).upper().replace("U", "u"), escaped
-    )
-
-
-def _lower_hex(text: str) -> str:
-    return _UNICODE_ESCAPE.sub(lambda match: "\\u" + match.group(0)[2:].lower(), text)
+def _dotnet_escaped(token: str, *, upper: bool) -> str:
+    """The spelling `System.Text.Json` writes, built per character so a literal
+    `\\u...` inside the value stays as the encoder writes it (backslash escaped)."""
+    parts = []
+    for character in token:
+        if character in _DOTNET_ESCAPED or ord(character) > 0x7E:
+            escaped = json.dumps(character, ensure_ascii=True)[1:-1]
+            if not escaped.startswith("\\u"):  # `"` is `\"` in Python's spelling
+                escaped = f"\\u{ord(character):04x}"
+            parts.append(
+                escaped.replace("\\u", "\\U").upper().replace("\\U", "\\u")
+                if upper
+                else escaped
+            )
+        else:
+            parts.append(json.dumps(character)[1:-1])
+    return "".join(parts)
 
 
 def _go_separators_escaped(text: str) -> str:

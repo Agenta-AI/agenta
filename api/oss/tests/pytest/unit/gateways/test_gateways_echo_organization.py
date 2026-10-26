@@ -379,10 +379,19 @@ async def test_a_go_separator_only_escape_of_a_document_is_refused():
 
 
 @pytest.mark.parametrize("hex_case", ["upper", "lower"])
-async def test_a_dotnet_style_escaped_echo_is_refused(hex_case):
+@pytest.mark.parametrize(
+    "value, escaped_upper",
+    [
+        ("org-key+abc'def`ghi", "org-key\\u002Babc\\u0027def\\u0060ghi"),
+        # A literal `\\u002b` in the value stays as the encoder writes it (backslash
+        # escaped, hex untouched); only the real `+` becomes an escape.
+        ("org-key\\u002b+abcdef", "org-key\\\\u002b\\u002Babcdef"),
+    ],
+    ids=["symbols", "literal-escape-text"],
+)
+async def test_a_dotnet_style_escaped_echo_is_refused(hex_case, value, escaped_upper):
     """System.Text.Json escapes +, ' and ` as \\uXXXX (upper-case hex by default); an
     organization key may hold them, so the scan covers that spelling too."""
-    value = "org-key+abc'def`ghi"
     secret = SecretResponseDTO.model_validate(
         {
             "id": str(uuid4()),
@@ -400,9 +409,7 @@ async def test_a_dotnet_style_escaped_echo_is_refused(hex_case):
     resolved = ResolvedSecret(
         secret=secret, owner=secret.owner, origin=SecretOrigin.VAULT
     )
-    escaped = (
-        value.replace("+", "\\u002B").replace("'", "\\u0027").replace("`", "\\u0060")
-    )
+    escaped = escaped_upper
     if hex_case == "lower":
         escaped = escaped.replace("\\u002B", "\\u002b")
     body = ('{"note": "' + escaped + '"}').encode()
