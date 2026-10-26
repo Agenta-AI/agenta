@@ -15,6 +15,7 @@ Logs never include secret names or values, only counts.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Dict, Mapping, Optional, Sequence
 from urllib.parse import quote
 
@@ -44,38 +45,41 @@ async def resolve_named_secrets(
         return {}
 
     requested = list(dict.fromkeys(str(name) for name in names))
-    resolved: Dict[str, str] = {}
     headers = connection.headers()
 
-    async with httpx.AsyncClient(timeout=connection.timeout) as client:
-        for name in requested:
-            try:
-                response = await client.get(
-                    f"{api_base}/secrets/{quote(name, safe='')}",
-                    headers=headers,
+    async def _read(client: httpx.AsyncClient, name: str) -> Optional[str]:
+        try:
+            response = await client.get(
+                f"{api_base}/secrets/{quote(name, safe='')}",
+                headers=headers,
+            )
+            if response.status_code == 404:
+                return None
+            if response.status_code >= 400:
+                log.warning("agent: named-secret read HTTP %s", response.status_code)
+                return None
+            payload = response.json()
+            value = _text_custom_secret_value(payload)
+            if value is None and _is_write_only_redacted(payload):
+                # Engineering copy; adjust freely. No secret name in the log (module
+                # policy above); the caller knows which names it requested.
+                log.error(
+                    "agent: a requested named secret is write-only: its value "
+                    "cannot be read back outside the platform runtime. For "
+                    "standalone runs, set the value directly in the tool's "
+                    "environment configuration instead."
                 )
-                if response.status_code == 404:
-                    continue
-                if response.status_code >= 400:
-                    log.warning(
-                        "agent: named-secret read HTTP %s", response.status_code
-                    )
-                    continue
-                payload = response.json()
-                value = _text_custom_secret_value(payload)
-                if value is not None:
-                    resolved[name] = value
-                elif _is_write_only_redacted(payload):
-                    # Engineering copy; adjust freely. No secret name in the log (module
-                    # policy above); the caller knows which names it requested.
-                    log.error(
-                        "agent: a requested named secret is write-only: its value "
-                        "cannot be read back outside the platform runtime. For "
-                        "standalone runs, set the value directly in the tool's "
-                        "environment configuration instead."
-                    )
-            except Exception:  # pylint: disable=broad-except
-                log.warning("agent: named-secret read failed", exc_info=True)
+            return value
+        except Exception:  # pylint: disable=broad-except
+            log.warning("agent: named-secret read failed", exc_info=True)
+            return None
+
+    # One read per name, all in flight at once: each one swallows its own failure.
+    async with httpx.AsyncClient(timeout=connection.timeout) as client:
+        values = await asyncio.gather(*(_read(client, name) for name in requested))
+    resolved: Dict[str, str] = {
+        name: value for name, value in zip(requested, values) if value is not None
+    }
 
     missing_count = len(requested) - len(resolved)
     if missing_count:
