@@ -17,9 +17,9 @@ from fastapi.responses import JSONResponse, Response
 
 from oss.src.apis.fastapi.shared.runner_auth import assert_runner_token
 from oss.src.core.access.permissions.service import check_action_access
-from oss.src.core.rollout.switches import wallet_mode_for
 from oss.src.core.access.permissions.types import Permission
 from oss.src.utils.context import get_auth_scope
+from oss.src.utils.env import env
 from oss.src.utils.exceptions import BadRequestException, intercept_exceptions
 
 from ee.src.apis.fastapi.wallets.models import (
@@ -126,8 +126,8 @@ class WalletsRouter:
             return FORBIDDEN_RESPONSE
         organization_id = get_auth_scope().organization_id
         summary = await self.service.summary(organization_id=organization_id)
-        mode = await wallet_mode_for(organization_id)
-        return WalletSummaryResponse(summary=summary, mode=mode.value)
+        mode = "enforce" if env.wallets.enabled else "off"
+        return WalletSummaryResponse(summary=summary, mode=mode)
 
     @intercept_exceptions()
     async def query_usage(
