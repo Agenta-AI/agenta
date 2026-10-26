@@ -81,6 +81,9 @@ class SessionPolicyState(BaseModel):
     session_id: str
     policy: AccessPolicy
     is_channel: bool  # a channel_threads row names this session
+    # The channel binding (installation) of the session's newest thread; None when no
+    # thread names it. Every thread of a session has the same binding.
+    channel_binding_id: Optional[UUID] = None
     references_agent: bool  # session_streams.references names an agent
 
 
@@ -215,6 +218,8 @@ class CachedSessionAccess(BaseModel):
     missing: bool = False
     # A channel_threads row names the session (None: an entry written before this field).
     is_channel: Optional[bool] = None
+    # That thread's channel binding (installation id); None when not known.
+    channel_binding_id: Optional[UUID] = None
 
 
 class CachedUserGrants(BaseModel):

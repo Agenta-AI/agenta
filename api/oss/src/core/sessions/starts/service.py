@@ -1,7 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 from time import monotonic
-from typing import Any, AsyncIterator, Awaitable, Callable
+from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 from uuid import UUID, uuid4
 
 from agenta.sdk.agents import Message
@@ -15,7 +15,7 @@ from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInte
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.starts.dtos import SessionStartResult
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
-from oss.src.core.access.dtos import RunOrigin
+from oss.src.core.access.dtos import PrincipalKind, RunOrigin
 from oss.src.core.sharing.service import (
     cache_created_session_access,
     channel_session_policy,
@@ -193,7 +193,7 @@ class SessionStartsService:
         user_id: UUID,
         session_id: str,
         access: AccessPolicy,
-        by_channel_run: bool = False,
+        channel_binding_id: Optional[UUID] = None,
     ) -> bool:
         """Create the session row with its initial policy, unless a first touch (a
         heartbeat, a rename, another start with the same key) already created it: that
@@ -207,13 +207,13 @@ class SessionStartsService:
                 stream=SessionStreamCreate(
                     session_id=session_id,
                     access=access,
-                    by_channel_run=by_channel_run,
+                    channel_binding_id=channel_binding_id,
                 ),
             )
         except SessionStreamAlreadyExists:
             return False
-        policy, in_channel = created_session_access(
-            created, requested=access, by_installation=by_channel_run
+        policy, in_channel, binding_id = created_session_access(
+            created, requested=access, channel_binding_id=channel_binding_id
         )
         await cache_created_session_access(
             project_id=project_id,
@@ -221,6 +221,7 @@ class SessionStartsService:
             stream_id=getattr(created, "id", None),
             policy=policy,
             is_channel=in_channel,
+            channel_binding_id=binding_id,
         )
         return True
 
@@ -354,7 +355,10 @@ class SessionStartsService:
         # A channel session is the one its installation's run creates: private to the
         # agent's owner when the agent is private. One memo for both: the policy read
         # takes the agent entry the admission read (no round trip).
-        by_channel_run = envelope.context.origin == RunOrigin.INSTALLATION
+        by_channel_run = (
+            envelope.context.origin == RunOrigin.INSTALLATION
+            and envelope.authority.principal.kind == PrincipalKind.INSTALLATION
+        )
         with request_memo_scope():
             agent_artifact_id = await self._run_admission.admit_request(
                 envelope=envelope,
@@ -382,7 +386,9 @@ class SessionStartsService:
                     user_id=user_id,
                     session_id=session_id,
                     access=access,
-                    by_channel_run=by_channel_run,
+                    channel_binding_id=(
+                        envelope.authority.principal.id if by_channel_run else None
+                    ),
                 )
                 if not created:
                     await self._run_admission.admit(

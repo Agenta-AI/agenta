@@ -56,13 +56,15 @@ def map_agent_access_dto_to_dbe(
 
 def map_session_state_row_to_dto(row) -> SessionPolicyState:
     """A session policy read row (`stream_id`, `session_id`, `visibility`,
-    `owner_user_id`, `is_channel`, `references_agent`)."""
+    `owner_user_id`, `channel_binding_id`, `references_agent`). A channel thread
+    names the session when `channel_binding_id` is set."""
 
     return SessionPolicyState(
         stream_id=row.stream_id,
         session_id=row.session_id,
         policy=map_agent_access_dbe_to_dto(row),
-        is_channel=bool(row.is_channel),
+        is_channel=row.channel_binding_id is not None,
+        channel_binding_id=row.channel_binding_id,
         references_agent=bool(row.references_agent),
     )
 

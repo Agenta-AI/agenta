@@ -239,14 +239,15 @@ class SharingService(ResourcePolicyInterface):
         policy = access.policy
         owner = policy.owner_user_id
         if (
-            access.is_channel
-            and policy.visibility == Visibility.PRIVATE
+            policy.visibility == Visibility.PRIVATE
             and principal.kind == PrincipalKind.INSTALLATION
+            and access.channel_binding_id == principal.id
             and _binding_creator(principal) == owner
         ):
             # S3: the channel session of a private agent belongs to the agent's owner;
-            # the owner's own channel bindings read, run and edit it. (A project-visible
-            # channel session is ownerless: S1, S2 and S4 let any binding act there.)
+            # the session's own channel binding, created by that owner, reads, runs and
+            # edits it. (A project-visible channel session is ownerless: S1, S2 and S4
+            # let any binding act there.)
             return None
         is_owner = _is_human(principal, owner)
         grant_role = next(
@@ -493,6 +494,7 @@ class SharingService(ResourcePolicyInterface):
             stream_id=state.stream_id,
             policy=state.policy,
             is_channel=state.is_channel,
+            channel_binding_id=state.channel_binding_id,
             grants=await self._dao.list_session_grants(
                 project_id=project_id, stream_id=state.stream_id
             ),
@@ -715,7 +717,12 @@ class SharingService(ResourcePolicyInterface):
                 namespace=SESSION_ACCESS_NAMESPACE,
                 project_id=project_id,
                 key={"s": session_id},
-                value=access.model_copy(update={"is_channel": is_channel}),
+                value=access.model_copy(
+                    update={
+                        "is_channel": is_channel,
+                        "channel_binding_id": state.channel_binding_id,
+                    }
+                ),
             )
         state = SessionPolicyState(
             stream_id=access.stream_id,
@@ -1224,18 +1231,18 @@ async def channel_session_policy(
 
 
 def created_session_access(
-    created: Any, *, requested: AccessPolicy, by_installation: bool
-) -> Tuple[AccessPolicy, Optional[bool]]:
-    """The policy and the channel flag of a row the insert just created, with the
-    requested policy. A session created by a channel installation's run is a channel
-    session (`channel_session_policy`); no other creator inserts a row a channel thread
-    names. The flag is None when the insert did not say (the entry then reads the row
-    once)."""
+    created: Any, *, requested: AccessPolicy, channel_binding_id: Optional[UUID]
+) -> Tuple[AccessPolicy, Optional[bool], Optional[UUID]]:
+    """The policy, the channel flag and the channel binding of a row the insert just
+    created, with the requested policy. Only the channel's own run (`channel_binding_id`)
+    inserts a row a channel thread names, and only a thread of its own binding; any other
+    creator's row is no channel session. The flag is None when the insert did not say
+    (the entry then reads the row once)."""
 
-    if by_installation:
-        return requested, True
     has_thread = getattr(created, "has_channel_thread", None)
-    return requested, has_thread if isinstance(has_thread, bool) else None
+    if not isinstance(has_thread, bool):
+        return requested, None, None
+    return requested, has_thread, channel_binding_id if has_thread else None
 
 
 async def cache_created_session_access(
@@ -1245,6 +1252,7 @@ async def cache_created_session_access(
     stream_id: Optional[UUID],
     policy: AccessPolicy,
     is_channel: Optional[bool] = None,
+    channel_binding_id: Optional[UUID] = None,
 ) -> None:
     """After the commit of the insert that created a session row: write its entry with a
     plain SET, over a cached "no row" (a new row has no grants). A failure is logged and
@@ -1265,6 +1273,7 @@ async def cache_created_session_access(
                 if is_channel is not None
                 else (False if policy.owner_user_id is not None else None)
             ),
+            channel_binding_id=channel_binding_id,
         )
     except Exception:  # pylint: disable=broad-exception-caught
         log.warning("[sharing] created session entry not built", session_id=session_id)

@@ -362,10 +362,10 @@ return AccessPolicy(visibility=requested or Visibility.PRIVATE, owner_user_id=ow
 | Id | Resource | Action | Allow when |
 | --- | --- | --- | --- |
 | A1 | agent | any | no row, or `visibility = project` |
-| A2 | agent | any | `private`, principal is `human`, `principal.id = owner_user_id`; or principal is `installation` on its own channel turn (the decision's run context has origin `installation`; a child run of the turn does not) and the binding's creator (its principal record's acting user, from the request memo) is the agent's owner |
+| A2 | agent | any | `private`, principal is `human`, `principal.id = owner_user_id`; or, for `RUN_WORKFLOWS` only, principal is `installation` on its own channel turn (the decision's run context has origin `installation`; a child run of the turn does not) and the binding's creator (its principal record's acting user, from the request memo) is the agent's owner |
 | S1 | session | `VIEW_SESSIONS`, `USE_MOUNTS`, `VIEW_MOUNTS` | `project`; or `private`, owner active, and principal is the human owner or has a grant |
 | S2 | session | `RUN_SESSIONS` (send, steer, cancel, answer an approval) | `project`, a channel session included: any principal (the project capability is step 3; a send also checks the agent); `private`: owner active and principal is the human owner or a `participant` |
-| S3 | session | any of S1, S2, S4 | a private channel session (`is_channel` true) and principal is `installation` whose binding's creator is the session's owner: allow (the owner's binding acts in its private agent's channel sessions). A project-visible channel session needs no rule: S1, S2 and S4 let any binding act there. Changed 2026-10-26: S3 no longer makes people read-only in channel sessions |
+| S3 | session | any of S1, S2, S4 | a private channel session and principal is the session's own channel binding (`channel_binding_id`, the binding of its newest thread, read in the same policy statement) whose creator is the session's owner: allow (the owner's binding acts in its private agent's channel sessions). A project-visible channel session needs no rule: S1, S2 and S4 let any binding act there. Changed 2026-10-26: S3 no longer makes people read-only in channel sessions |
 | S4 | session | `EDIT_SESSIONS` (rename, archive, unarchive, delete) | owner set: principal is the active human owner; owner NULL: any principal (today's behavior) |
 
 `fetch_session_policy` assigns the policy of a legacy row (`visibility IS NULL`) before `evaluate` reads it, so the rules never see `NULL`.

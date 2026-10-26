@@ -193,10 +193,11 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         values.setdefault("owner_user_id", None)
         names = list(values)
         # A channel thread that names the session id makes it a channel session, and
-        # only that channel's own run creates it, with the channel policy it computed
-        # (private to the agent's owner for a private agent). Any other creator inserts
-        # nothing: the id is reserved, like a tombstone's. The same statement says
-        # whether a thread names the id, so the row's cache entry needs no extra read.
+        # only that thread's own binding creates it (its run), with the channel policy it
+        # computed (private to the agent's owner for a private agent). Any other creator,
+        # another binding included, inserts nothing: the id is reserved, like a
+        # tombstone's. The same statement says whether a thread names the id, so the
+        # row's cache entry needs no extra read.
         threads = sa_table(
             "channel_threads",
             sa_column("project_id", PG_UUID(as_uuid=True)),
@@ -216,8 +217,23 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                 tombstone.c.session_id == stream.session_id,
             )
         )
-        if not stream.by_channel_run:
+        if stream.channel_binding_id is None:
             source = source.where(~in_channel)
+        else:
+            threads_agent = sa_column("agent_id", PG_UUID(as_uuid=True))
+            foreign = sa_table(
+                "channel_threads",
+                sa_column("project_id", PG_UUID(as_uuid=True)),
+                sa_column("session_id", table.c.session_id.type),
+                threads_agent,
+            )
+            source = source.where(
+                ~exists().where(
+                    foreign.c.project_id == project_id,
+                    foreign.c.session_id == stream.session_id,
+                    foreign.c.agent_id != stream.channel_binding_id,
+                )
+            )
         has_channel_thread = in_channel.label("has_channel_thread")
         statement = (
             insert(table)

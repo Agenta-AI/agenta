@@ -61,16 +61,20 @@ async def test_a_project_agent_keeps_the_ownerless_project_policy(world):
 
 
 def test_the_channel_run_creates_its_session_with_its_policy():
-    """The installation's own insert names a channel thread: its requested policy (the
-    agent owner's private one) stays, and the entry says it is a channel session. No
-    other creator inserts a row a thread names, so their row is no channel session."""
+    """The binding's own insert names its channel thread: its requested policy (the
+    agent owner's private one) stays, and the entry records the channel session and its
+    binding. Another creator's row names no thread, so it is no channel session."""
 
-    owner = uuid4()
+    owner, binding = uuid4(), uuid4()
     created = SimpleNamespace(has_channel_thread=True)
     assert created_session_access(
-        created, requested=_private(owner), by_installation=True
-    ) == (_private(owner), True)
+        created, requested=_private(owner), channel_binding_id=binding
+    ) == (_private(owner), True, binding)
     plain = SimpleNamespace(has_channel_thread=False)
     assert created_session_access(
-        plain, requested=_private(owner), by_installation=False
-    ) == (_private(owner), False)
+        plain, requested=_private(owner), channel_binding_id=None
+    ) == (_private(owner), False, None)
+    # A binding's run that names no thread creates no channel session.
+    assert created_session_access(
+        plain, requested=_private(owner), channel_binding_id=binding
+    ) == (_private(owner), False, None)

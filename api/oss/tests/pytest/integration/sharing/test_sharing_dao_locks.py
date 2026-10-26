@@ -439,9 +439,10 @@ async def test_legacy_row_is_assigned_on_first_read():
 
 
 async def test_only_the_channel_run_creates_a_channel_thread_s_session():
-    """A channel thread names the session id. Any other creator inserts nothing (the id
-    is reserved, answered as a hidden session); the channel's own run inserts the row
-    with the policy it asks for (private to the agent's owner for a private agent)."""
+    """A channel thread names the session id. Any other creator, another binding's run
+    included, inserts nothing (the id is reserved, answered as a hidden session); the
+    thread's own binding's run inserts the row with the policy it asks for (private to
+    the agent's owner for a private agent)."""
 
     from oss.src.core.sessions.streams.dtos import SessionStreamCreate
     from oss.src.core.sessions.streams.types import SessionIdTombstoned
@@ -449,7 +450,7 @@ async def test_only_the_channel_run_creates_a_channel_thread_s_session():
     async with seeded("alice") as org:
         project_id, alice = _project(org), org.user_ids["alice"]
         streams = SessionStreamsDAO(engine=get_transactions_engine())
-        session_id = f"s-{uuid4().hex}"
+        session_id, binding_id = f"s-{uuid4().hex}", uuid4()
         await execute(
             "INSERT INTO channel_threads (project_id, id, space_id, agent_id, "
             "session_id) VALUES (:p, :id, :space, :agent, :s)",
@@ -457,7 +458,7 @@ async def test_only_the_channel_run_creates_a_channel_thread_s_session():
                 "p": project_id,
                 "id": uuid4(),
                 "space": uuid4(),
-                "agent": uuid4(),
+                "agent": binding_id,
                 "s": session_id,
             },
         )
@@ -476,11 +477,26 @@ async def test_only_the_channel_run_creates_a_channel_thread_s_session():
             )
         assert await fetch_all(row_of, {"p": project_id, "s": session_id}) == []
 
+        # Another binding's run refuses too.
+        with pytest.raises(SessionIdTombstoned):
+            await streams.create(
+                project_id=project_id,
+                user_id=None,
+                stream=SessionStreamCreate(
+                    session_id=session_id,
+                    access=_project_policy(None),
+                    channel_binding_id=uuid4(),
+                ),
+            )
+        assert await fetch_all(row_of, {"p": project_id, "s": session_id}) == []
+
         created = await streams.create(
             project_id=project_id,
             user_id=None,
             stream=SessionStreamCreate(
-                session_id=session_id, access=_private(alice), by_channel_run=True
+                session_id=session_id,
+                access=_private(alice),
+                channel_binding_id=binding_id,
             ),
         )
         assert created.has_channel_thread is True

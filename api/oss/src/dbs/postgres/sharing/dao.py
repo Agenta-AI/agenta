@@ -93,10 +93,12 @@ _SESSION_STATE_COLUMNS = """
     s.session_id,
     s.visibility,
     s.owner_user_id,
-    EXISTS (
-        SELECT 1 FROM channel_threads c
+    (
+        SELECT c.agent_id FROM channel_threads c
         WHERE c.project_id = s.project_id AND c.session_id = s.session_id
-    ) AS is_channel,
+        ORDER BY c.created_at DESC
+        LIMIT 1
+    ) AS channel_binding_id,
     EXISTS (
         SELECT 1
         FROM jsonb_array_elements(
