@@ -62,6 +62,7 @@ from oss.src.core.channels.dtos import (
     ChannelTriggerState,
 )
 from oss.src.core.channels.interfaces import ChannelsDAOInterface
+from oss.src.core.channels.types import ChannelConnectionRestoreStale
 from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.dbs.postgres.channels.dbes import (
     ChannelAgentDBE,
@@ -246,13 +247,20 @@ class ChannelsDAO(ChannelsDAOInterface):
         #
         connection_id: UUID,
         #
+        expected_archived_at: Optional[datetime] = None,
         guard_artifact_ids: Optional[Dict[UUID, UUID]] = None,
         guard_user_id: Optional[UUID] = None,
     ) -> Optional[ChannelConnection]:
         async with self.engine.session() as session:
-            stmt = select(ChannelConnectionDBE).where(
-                ChannelConnectionDBE.project_id == project_id,
-                ChannelConnectionDBE.id == connection_id,
+            # Locked: the archive the caller read the restored bindings of is the one
+            # this restore undoes, or nothing is written.
+            stmt = (
+                select(ChannelConnectionDBE)
+                .where(
+                    ChannelConnectionDBE.project_id == project_id,
+                    ChannelConnectionDBE.id == connection_id,
+                )
+                .with_for_update()
             )
 
             result = await session.execute(stmt)
@@ -262,6 +270,8 @@ class ChannelsDAO(ChannelsDAOInterface):
                 return None
 
             archived_at = connection_dbe.deleted_at
+            if archived_at != expected_archived_at:
+                raise ChannelConnectionRestoreStale(connection_id=connection_id)
 
             # The artifact locks come first (the lock order of `set_agent_policy`).
             # A restored binding of a private agent its owner is not restoring comes

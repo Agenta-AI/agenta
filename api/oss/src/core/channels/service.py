@@ -1,6 +1,7 @@
 import json
 import re
 import secrets as token_secrets
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
@@ -63,6 +64,7 @@ from oss.src.core.channels.types import (
     ChannelAgentNotFound,
     ChannelConnectionIdentityConflict,
     ChannelConnectionNotFound,
+    ChannelConnectionRestoreStale,
     ChannelConnectionVerificationFailed,
     ChannelGrantRuleInvalid,
     ChannelLocatorIncomplete,
@@ -975,17 +977,27 @@ class ChannelsService:
         binding_ids = await self._connection_binding_ids(
             project_id=project_id, connection_id=connection_id
         )
-        restored = await self.channels_dao.unarchive_connection(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            connection_id=connection_id,
-            #
-            guard_artifact_ids=await self._restored_binding_agents(
+        restored = None
+        for attempt in range(2):
+            archived_at, guarded = await self._restored_binding_agents(
                 project_id=project_id, connection_id=connection_id
-            ),
-            guard_user_id=_guard_user_id(),
-        )
+            )
+            try:
+                restored = await self.channels_dao.unarchive_connection(
+                    project_id=project_id,
+                    user_id=user_id,
+                    #
+                    connection_id=connection_id,
+                    #
+                    expected_archived_at=archived_at,
+                    guard_artifact_ids=guarded,
+                    guard_user_id=_guard_user_id(),
+                )
+                break
+            except ChannelConnectionRestoreStale:
+                # Archived or restored again since the read: read the bindings again.
+                if attempt == 1:
+                    raise
         await self._invalidate_bindings(
             binding_ids=binding_ids, source="channels.unarchive_connection"
         )
@@ -993,16 +1005,17 @@ class ChannelsService:
 
     async def _restored_binding_agents(
         self, *, project_id: UUID, connection_id: UUID
-    ) -> Dict[UUID, UUID]:
-        """The agent of each active binding an unarchive of this connection restores
-        (archived with it), for the owner guard of the restore. A binding whose agent
-        no longer resolves is left out: it answers nothing."""
+    ) -> Tuple[Optional[datetime], Dict[UUID, UUID]]:
+        """The archive instant of this connection, and the agent of each active binding
+        an unarchive restores (archived with it), for the owner guard of the restore.
+        The restore writes only when the connection still has that archive instant. A
+        binding whose agent no longer resolves is left out: it answers nothing."""
 
         connection = await self.channels_dao.fetch_connection(
             project_id=project_id, connection_id=connection_id
         )
         if connection is None or connection.deleted_at is None:
-            return {}
+            return None, {}
         agents = await self.channels_dao.query_agents(
             project_id=project_id,
             agent=ChannelAgentQuery(connection_id=connection_id, include_archived=True),
@@ -1021,7 +1034,7 @@ class ChannelsService:
                 continue
             if artifact_id is not None:
                 guarded[agent.id] = artifact_id
-        return guarded
+        return connection.deleted_at, guarded
 
     async def describe_connection_restore(
         self,

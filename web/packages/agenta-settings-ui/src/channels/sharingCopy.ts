@@ -8,7 +8,7 @@ import {joinNames} from "@agenta/entity-ui/sharing"
 export const channelSharingCopy = {
     // Settings > Channels, the agent step.
     audienceNote: (project: string, platform: string) =>
-        `For a shared agent, everyone in ${project} can read its ${platform} conversations in Agenta, including direct messages. For a private agent, only its owner can read them.`,
+        `For a shared agent, everyone in ${project} can read its ${platform} conversations in Agenta, including direct messages. For a private agent, new conversations are private to its owner.`,
 
     // The manage panel of a connection whose binding is off.
     connectionRow: (platform: string, place: string) => `${platform} · ${place}`,

@@ -402,6 +402,7 @@ async def test_custom_telegram_reconnect_reuses_an_archived_bot_connection():
         project_id=project_id,
         user_id=user_id,
         connection_id=existing.id,
+        expected_archived_at=existing.deleted_at,
         guard_artifact_ids={},
         guard_user_id=None,
     )

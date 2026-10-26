@@ -880,10 +880,25 @@ async def test_unarchive_restores_someone_else_s_private_agent_binding_off():
                     "at": archived_at,
                 },
             )
+            # A restore that read another archive (an archive committed since) writes
+            # nothing.
+            from oss.src.core.channels.types import ChannelConnectionRestoreStale
+
+            with pytest.raises(ChannelConnectionRestoreStale):
+                await _channels_dao().unarchive_connection(
+                    project_id=project_id,
+                    user_id=user_id,
+                    connection_id=connection_id,
+                    expected_archived_at=None,
+                    guard_artifact_ids={},
+                    guard_user_id=user_id,
+                )
+            assert (await _channel_agent_flags(project_id, binding_id))["is_active"]
             restored = await _channels_dao().unarchive_connection(
                 project_id=project_id,
                 user_id=user_id,
                 connection_id=connection_id,
+                expected_archived_at=archived_at,
                 guard_artifact_ids={binding_id: private},
                 guard_user_id=user_id,
             )

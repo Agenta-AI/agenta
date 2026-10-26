@@ -99,14 +99,17 @@ class ChannelsDAOInterface(ABC):
         #
         connection_id: UUID,
         #
+        expected_archived_at: Optional[datetime] = None,
         guard_artifact_ids: Optional[Dict[UUID, UUID]] = None,
         guard_user_id: Optional[UUID] = None,
     ) -> Optional[ChannelConnection]:
         """Clear `deleted_at`/`deleted_by_id` on this row and restore the bindings
-        archived with it. `guard_artifact_ids` maps a restored binding to its agent: in
-        the same transaction each agent is locked and read as in `create_agent`, and a
-        binding of a private agent whose owner is not `guard_user_id` comes back
-        inactive."""
+        archived with it. The row is locked; when its `deleted_at` is not
+        `expected_archived_at` (the archive the caller read the bindings of), raises
+        `ChannelConnectionRestoreStale`. `guard_artifact_ids` maps a restored binding to
+        its agent: in the same transaction each agent is locked and read as in
+        `create_agent`, and a binding of a private agent whose owner is not
+        `guard_user_id` comes back inactive."""
         ...
 
     @abstractmethod
