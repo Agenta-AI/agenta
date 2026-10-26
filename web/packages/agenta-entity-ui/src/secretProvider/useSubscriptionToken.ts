@@ -1,6 +1,7 @@
 import {useCallback, useState} from "react"
 
 import {
+    type OrganizationSecretProjects,
     createOrganizationSubscriptionConnectionAtom,
     createSubscriptionConnectionAtom,
     refreshVaultSecretsAtom,
@@ -22,11 +23,14 @@ export const useSubscriptionToken = ({
     provider,
     connection = null,
     scope = "project",
+    projects,
 }: {
     provider: string
     connection?: ProviderConnection | null
-    /** `organization` creates and stores an organization connection (for every project). */
+    /** `organization` creates and stores an organization connection. */
     scope?: "project" | "organization"
+    /** Who may use a new organization connection; every project when absent (Q1). */
+    projects?: OrganizationSecretProjects
 }) => {
     const createProjectConnection = useSetAtom(createSubscriptionConnectionAtom)
     const createOrganizationConnection = useSetAtom(createOrganizationSubscriptionConnectionAtom)
@@ -38,11 +42,10 @@ export const useSubscriptionToken = ({
             organization
                 ? createOrganizationConnection({
                       ...args,
-                      // A new organization connection starts with every project (Q1).
-                      projects: {availability: "all_projects", projectIds: []},
+                      projects: projects ?? {availability: "all_projects", projectIds: []},
                   })
                 : createProjectConnection(args),
-        [createOrganizationConnection, createProjectConnection, organization],
+        [createOrganizationConnection, createProjectConnection, organization, projects],
     )
     const setToken = organization ? setOrganizationToken : setProjectToken
     const refreshVault = useSetAtom(refreshVaultSecretsAtom)

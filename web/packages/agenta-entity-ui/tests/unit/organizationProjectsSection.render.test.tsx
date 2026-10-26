@@ -112,4 +112,11 @@ describe("OrganizationProjectsSection", () => {
         )
         expect(text()).not.toContain("Support can no longer")
     })
+
+    it("waits on the plan without a plan line while entitlements load", async () => {
+        await render("pending", {availability: "all_projects", projectIds: []})
+        const [, selected] = radios()
+        expect(selected.disabled).toBe(true)
+        expect(text()).not.toContain("Business and Enterprise")
+    })
 })

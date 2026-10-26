@@ -50,12 +50,14 @@ const useOrganizationTabs = (
             })),
             projectChoice: !enterprise
                 ? "all"
-                : entitlements.hasRBAC || entitlements.isLoading
+                : entitlements.hasRBAC
                   ? "choose"
-                  : "plan",
+                  : entitlements.isLoading || !manage
+                    ? "pending"
+                    : "plan",
             plansHref: `/w/${workspaceId}/p/${projectId}/settings?tab=billing`,
         }
-    }, [query.data, workspaceId, projectId, enterprise, entitlements])
+    }, [query.data, workspaceId, projectId, enterprise, entitlements, manage])
 }
 
 /**

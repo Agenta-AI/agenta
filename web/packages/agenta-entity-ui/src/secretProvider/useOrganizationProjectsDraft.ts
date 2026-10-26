@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     setOrganizationConnectionProjectsAtom,
@@ -50,11 +50,20 @@ export const useOrganizationProjectsDraft = ({
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
+    // Seeded when the dialog opens or names another connection, never on a refetch of the same
+    // one: a sign-in that lands must not undo projects picked while it ran.
+    const seededFor = useRef<string | null>(null)
     useEffect(() => {
-        if (!open) return
+        if (!open) {
+            seededFor.current = null
+            return
+        }
+        const identity = connection?.id ?? ""
+        if (seededFor.current === identity) return
+        seededFor.current = identity
         setDraft(saved)
         setError(null)
-    }, [open, saved])
+    }, [open, connection?.id, saved])
 
     /** Write the draft if it changed, then close. A failure keeps the dialog open on its line. */
     const apply = useCallback(

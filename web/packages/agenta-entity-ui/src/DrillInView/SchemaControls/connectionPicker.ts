@@ -262,13 +262,15 @@ export const selectedModelRowKey = (
         ? sameModel.filter((entry) => entry.model.harness === current.harness)
         : sameModel
     const pool = sameHarness.length ? sameHarness : sameModel
-    const match =
-        pool.find(
-            (entry) =>
-                entry.model.mode === current.mode &&
-                (entry.model.slug ?? null) === (current.slug ?? null) &&
-                entry.model.namespace === (current.namespace ?? null),
-        ) ?? pool[0]
+    const exact = pool.find(
+        (entry) =>
+            entry.model.mode === current.mode &&
+            (entry.model.slug ?? null) === (current.slug ?? null) &&
+            entry.model.namespace === (current.namespace ?? null),
+    )
+    // An organization connection the agent can no longer use is not stood in for by another
+    // connection that offers the same model: the agent uses exactly the one it named.
+    const match = exact ?? (current.namespace === "organization" ? undefined : pool[0])
     return match ? modelRowKey(match.key, match.model) : undefined
 }
 

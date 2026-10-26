@@ -90,7 +90,10 @@ export const organizationProviderConnectionsAtom = atom<ProviderConnection[]>((g
     ),
 )
 
-/** Refetch both reads, so a change shows on the tab and in every picker in one step. */
+/**
+ * Refetch both reads, so a change shows on the tab and in every picker. Not awaited by a save:
+ * the write has answered, and the user does not wait on the reads that follow it.
+ */
 export const refreshOrganizationConnectionsAtom = atom(null, async () => {
     await getHostQueryClient().invalidateQueries({queryKey: ["vault"]})
 })
@@ -112,12 +115,15 @@ export const saveOrganizationConnectionAtom = atom(
             connectionId,
             projects,
             projectsChanged,
+            connectionChanged = true,
         }: {
             draft: ConnectionDraft
             fallbackName: string
             connectionId?: string
             projects: OrganizationSecretProjects
             projectsChanged: boolean
+            /** False when only the projects changed: the credential write is skipped. */
+            connectionChanged?: boolean
         },
     ): Promise<string | null> => {
         const projectId = get(projectIdAtom)
@@ -126,23 +132,25 @@ export const saveOrganizationConnectionAtom = atom(
         const payload = buildConnectionPayload(draft, fallbackName)
 
         if (connectionId) {
-            await editOrganizationSecret({
-                projectId,
-                secretId: connectionId,
-                payload: {
-                    ...(payload.header?.name ? {header: payload.header} : {}),
-                    secret: payload.secret,
-                },
-            })
+            if (connectionChanged) {
+                await editOrganizationSecret({
+                    projectId,
+                    secretId: connectionId,
+                    payload: {
+                        ...(payload.header?.name ? {header: payload.header} : {}),
+                        secret: payload.secret,
+                    },
+                })
+            }
             if (projectsChanged) {
                 await setOrganizationSecretProjects({projectId, secretId: connectionId, projects})
             }
-            await set(refreshOrganizationConnectionsAtom)
+            void set(refreshOrganizationConnectionsAtom)
             return connectionId
         }
 
         const created = await createOrganizationSecret({projectId, payload, projects})
-        await set(refreshOrganizationConnectionsAtom)
+        void set(refreshOrganizationConnectionsAtom)
         return created.id ?? null
     },
 )
@@ -158,7 +166,7 @@ export const setOrganizationConnectionProjectsAtom = atom(
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("[vault] Missing projectId for organization connection")
         await setOrganizationSecretProjects({projectId, secretId: connectionId, projects})
-        await set(refreshOrganizationConnectionsAtom)
+        void set(refreshOrganizationConnectionsAtom)
     },
 )
 
@@ -168,7 +176,7 @@ export const deleteOrganizationConnectionAtom = atom(
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("[vault] Missing projectId for organization connection")
         await deleteOrganizationSecret({projectId, secretId: connection.id})
-        await set(refreshOrganizationConnectionsAtom)
+        void set(refreshOrganizationConnectionsAtom)
     },
 )
 

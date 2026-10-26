@@ -26,15 +26,17 @@ export const SubscriptionTokenDialog = ({
     onRemove,
     organization,
 }: SubscriptionSignInDialogProps) => {
-    const token = useSubscriptionToken({
-        provider,
-        connection,
-        scope: organization ? "organization" : "project",
-    })
     const draft = useOrganizationProjectsDraft({
         open,
         connection,
         enabled: !!organization && !organization.readOnly,
+    })
+    // A pasted token creates the connection, so the projects chosen before Connect go with it.
+    const token = useSubscriptionToken({
+        provider,
+        connection,
+        scope: organization ? "organization" : "project",
+        projects: organization ? draft.projects : undefined,
     })
     const {name, connected} = token
 
@@ -75,7 +77,7 @@ export const SubscriptionTokenDialog = ({
                     <SubscriptionTokenSteps token={token} />
                 )}
 
-                {organization && !organization.readOnly && connection ? (
+                {organization && !organization.readOnly ? (
                     <div className="text-xs">
                         <OrganizationProjectsSection
                             scope={organization}

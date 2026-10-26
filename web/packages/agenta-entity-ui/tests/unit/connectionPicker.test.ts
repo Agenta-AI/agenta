@@ -1399,3 +1399,33 @@ describe("organization connections in the picker", () => {
         ).toBeNull()
     })
 })
+
+describe("a stored organization connection that is gone", () => {
+    it("marks no other connection that offers the same model", () => {
+        const rows = buildConnectionPickerRows({
+            connections: [standard("project-openai", "openai", {slug: "openai-project"})],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+        const model = rows[0].models[0]
+        expect(
+            selectedModelRowKey(rows, {
+                modelId: model.modelId,
+                slug: "openai-org-gone",
+                namespace: "organization",
+                mode: "agenta",
+                harness: model.harness,
+            }),
+        ).toBeUndefined()
+        // A project slug that is gone still falls back as before.
+        expect(
+            selectedModelRowKey(rows, {
+                modelId: model.modelId,
+                slug: "gone",
+                namespace: null,
+                mode: "agenta",
+                harness: model.harness,
+            }),
+        ).toBe(modelRowKey(rows[0].key, model))
+    })
+})

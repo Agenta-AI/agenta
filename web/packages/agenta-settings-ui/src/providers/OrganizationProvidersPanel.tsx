@@ -23,6 +23,7 @@ import {
     subscriptionIsReady,
     subscriptionProviderName,
     subscriptionStatusLine,
+    vaultSecretsWithOrganizationQueryAtom,
     type ProviderCatalogEntry,
     type ProviderConnection,
 } from "@agenta/entities/secret"
@@ -128,6 +129,8 @@ export const OrganizationProvidersPanel = ({
 }: OrganizationProvidersPanelProps) => {
     const access = useAtomValue(organizationConnectionsAccessAtom)
     const query = useAtomValue(organizationSecretsQueryAtom)
+    // A member's rows come from the project's vault read, so its state is theirs to show.
+    const vault = useAtomValue(vaultSecretsWithOrganizationQueryAtom)
     const managed = useAtomValue(managedOrganizationConnectionsAtom)
     const available = useAtomValue(organizationProviderConnectionsAtom)
     const deleteConnection = useSetAtom(deleteOrganizationConnectionAtom)
@@ -226,11 +229,13 @@ export const OrganizationProvidersPanel = ({
             },
         )
 
+        // Empty only when the organization holds nothing at all: a subscription lives in the
+        // banner above, not in this list.
         const connected: SettingsCatalogGroup = {
             key: "connected",
             label: "Connected",
             items: connectedRows,
-            ...(connectedRows.length ? {} : {count: 0, footer: <EmptyNote manage={manage} />}),
+            ...(connections.length ? {} : {count: 0, footer: <EmptyNote manage={manage} />}),
         }
         if (!manage) return [connected]
 
@@ -302,15 +307,20 @@ export const OrganizationProvidersPanel = ({
         ]
     }, [chatgpt, claude])
 
-    if (access === "error") {
-        return <LoadFailed onRetry={() => void query.refetch()} />
+    const memberVaultFailed = access === "view" && vault.isError && !vault.data
+    if (access === "error" || memberVaultFailed) {
+        return (
+            <LoadFailed
+                onRetry={() => void (memberVaultFailed ? vault.refetch() : query.refetch())}
+            />
+        )
     }
 
     return (
         <>
             <SettingsCatalog
                 groups={groups}
-                loading={access === "loading"}
+                loading={access === "loading" || (access === "view" && vault.isPending)}
                 notice={
                     <>
                         {removeError ? (

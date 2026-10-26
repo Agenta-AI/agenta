@@ -26,8 +26,11 @@ import {
 } from "@agenta/ui/ui"
 import {ArrowSquareOut, CaretUpDown, Check, WarningCircle, X} from "@phosphor-icons/react"
 
-/** What the admin may do about projects in this deployment. */
-export type OrganizationProjectChoice = "choose" | "plan" | "all"
+/**
+ * What the admin may do about projects in this deployment. `pending` is EE while the plan's
+ * entitlements load: the choice shows, and Selected projects waits, with no plan line yet.
+ */
+export type OrganizationProjectChoice = "choose" | "plan" | "all" | "pending"
 
 export interface OrganizationProjectOption {
     id: string

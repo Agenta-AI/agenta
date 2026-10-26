@@ -378,7 +378,12 @@ const ProviderConnectionCard = ({
         if (!projectId) return
         setProbeFailure(null)
         setSaveError(null)
-        const request = probeRequestFor(kind, credential, connection)
+        // A member tests the organization connection exactly as saved: any field sent would be
+        // an edit, which only an owner or admin may make.
+        const request =
+            readOnly && connection
+                ? {kind: undefined, provider: {}, secret_id: connection.id}
+                : probeRequestFor(kind, credential, connection)
         try {
             const result = await probeMutation.mutateAsync({
                 projectId,
@@ -394,7 +399,7 @@ const ProviderConnectionCard = ({
             setProbe(null)
             setProbeFailure(probeFailureMessage(error, title))
         }
-    }, [projectId, probeMutation, kind, credential, connection, title, organization])
+    }, [projectId, probeMutation, kind, credential, connection, title, organization, readOnly])
 
     const setField = (key: string, value: string) => {
         setCredential((previous) => ({...previous, [key]: value}))
@@ -457,6 +462,14 @@ const ProviderConnectionCard = ({
                       connectionId: connection?.id,
                       projects,
                       projectsChanged: !savedProjects || !sameProjects(savedProjects, projects),
+                      // Only the projects changed: no credential write.
+                      connectionChanged:
+                          !connection ||
+                          !storedCredentialUnchanged ||
+                          name !== (connection.name ?? "") ||
+                          checkedModels !== (connection.models ?? null) ||
+                          harnesses !== (connection.harnesses ?? null) ||
+                          protocol !== initialEndpointProtocol(connection),
                   })
                 : await saveConnection({
                       draft,
