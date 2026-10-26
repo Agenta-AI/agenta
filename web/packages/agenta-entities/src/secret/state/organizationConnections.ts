@@ -221,8 +221,9 @@ export const setOrganizationSubscriptionTokenAtom = atom(
         const [row] = transformSecret([saved as SecretResponseDto])
         const queryClient = getHostQueryClient()
         if (row) {
-            queryClient.setQueriesData<ProviderVaultRow[]>(
-                {queryKey: ["vault", "organization-secrets"]},
+            // Only this user's list for this project: another organization's list never gets it.
+            queryClient.setQueryData<ProviderVaultRow[]>(
+                ["vault", "organization-secrets", get(userAtom)?.id, projectId],
                 (rows) =>
                     rows?.some((item) => item.id === row.id)
                         ? rows.map((item) => (item.id === row.id ? row : item))
