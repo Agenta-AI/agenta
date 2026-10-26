@@ -71,9 +71,10 @@ terminal error and close accepted message prefixes.
   The wait between attempts doubles from 100 ms up to 5 s. Any other 4xx is not retried.
 
 A running tool resends its whole output so far on every progress update, and the runner keeps
-only the final result. So a tool update is charged only for the bytes it adds over the largest
-earlier update for the same tool call. Model text and other updates are charged in full,
-including metadata. The budget bounds admitted output and its downstream backlog, not total
+only the final result. So a tool progress update is charged only for the bytes it adds over
+the largest earlier update for the same tool call. The update that completes or fails the call,
+an update with tool arguments, model text and other updates are charged in full, including
+metadata. The budget bounds admitted output and its downstream backlog, not total
 heap use or concurrency. A single transport frame has already been decoded before admission.
 Container memory limits and restart monitoring remain separate operational safeguards.
 

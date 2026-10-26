@@ -52,6 +52,7 @@ export function createOutputBudget(
             sessionUpdate?: unknown;
             toolCallId?: unknown;
             rawInput?: unknown;
+            status?: unknown;
             type?: unknown;
             id?: unknown;
           }
@@ -69,12 +70,17 @@ export function createOutputBudget(
       const toolId = acpToolId ?? eventToolId;
       const key = toolId != null ? `tool:${String(toolId)}` : MODEL_STEP;
       const step = steps.get(key) ?? { bytes: 0, events: 0, snapshot: 0 };
+      // The update that completes or fails a call is kept as its result, so it is charged in full.
       const progress =
         v?.sessionUpdate === "tool_call_update" &&
         acpToolId != null &&
+        v.status !== "completed" &&
+        v.status !== "failed" &&
         !hasToolArgs(v.rawInput);
       const charge = progress ? Math.max(0, size - step.snapshot) : size;
 
+      const stepBreach =
+        step.bytes + charge > maxStepBytes || step.events >= maxStepEvents;
       const breach =
         step.bytes + charge > maxStepBytes
           ? `step bytes > ${maxStepBytes}`
@@ -93,7 +99,8 @@ export function createOutputBudget(
             `turnBytes=${turnBytes} turnUpdates=${turnEvents} rejectedBytes=${size}\n`,
         );
         onExceeded?.(
-          `Agent output exceeded the turn limit (${maxStepBytes} bytes or ${maxStepEvents} updates). ` +
+          `Agent output exceeded the turn limit (${stepBreach ? maxStepBytes : maxTurnBytes} bytes or ` +
+            `${stepBreach ? maxStepEvents : maxTurnEvents} updates). ` +
             "The turn was stopped to protect the runner. Check the model or provider before retrying.",
         );
         return false;

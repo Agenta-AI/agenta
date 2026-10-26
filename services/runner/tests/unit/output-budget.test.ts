@@ -171,6 +171,21 @@ describe("per-step output budget", () => {
     expect(exceeded).toHaveBeenCalledTimes(1);
   });
 
+  it("charges every completed result in full, also when a call id is announced again", () => {
+    vi.stubEnv("AGENTA_RUNNER_OUTPUT_MAX_BYTES", "16384");
+    const exceeded = vi.fn();
+    const budget = createOutputBudget(exceeded, () => {});
+    // The tracer keeps each completion as a result, so reusing one id must not discount them.
+    let accepted = 0;
+    while (
+      budget.accept(toolCall("reused")) &&
+      budget.accept({ ...progress("reused", "r".repeat(1000)), status: "completed" })
+    )
+      accepted++;
+    expect(accepted).toBeLessThan(17);
+    expect(exceeded).toHaveBeenCalledTimes(1);
+  });
+
   it("lets a long turn of normal steps finish", () => {
     vi.stubEnv("AGENTA_RUNNER_OUTPUT_MAX_BYTES", "4096");
     const exceeded = vi.fn();
@@ -218,6 +233,7 @@ describe("per-step output budget", () => {
     }
     expect(accepted).toBeLessThan(10);
     expect(exceeded).toHaveBeenCalledTimes(1);
+    expect(exceeded.mock.calls[0]![0]).toMatch(/\(8192 bytes or 500000 updates\)/);
   });
 
   it("logs which limit tripped and keeps the user message unchanged", () => {
