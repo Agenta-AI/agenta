@@ -175,6 +175,7 @@ async def test_resolve_uses_the_core_gateway_resolver(fake_http, connection):
         "provider_key": "openai",
         "connection_slug": "openai",
         "connection_namespace": None,
+        "connection_scope": None,
     }
 
 
@@ -255,6 +256,86 @@ async def test_a_builtin_gemini_pick_routes_as_an_openai_compatible_custom_route
 def test_a_connection_namespace_only_qualifies_an_agenta_slug(connection):
     with pytest.raises(ValueError):
         ModelRef(provider="openai", model="gpt-5.5", connection=connection)
+
+
+async def test_an_organization_pick_sends_its_scope_and_routes_in_its_namespace(
+    fake_http, connection
+):
+    capture = fake_http(
+        connections,
+        payload={
+            "connection": {
+                "namespace": "organization",
+                "name": "azure-company",
+                "provider_key": "openai",
+                "deployment_kind": "azure",
+                "model": "gpt-5.5",
+                "custom_provider": True,
+            }
+        },
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model="gpt-5.5",
+            connection={
+                "mode": "agenta",
+                "slug": "azure-company",
+                "scope": "organization",
+            },
+        ),
+        context=_context(),
+    )
+
+    assert capture["json"]["connection_scope"] == "organization"
+    # The namespace is filled in, so an older runtime refuses the connection.
+    assert capture["json"]["connection_namespace"] == "organization"
+    _assert_routed_through_gateway(
+        resolved, namespace="organization", name="azure-company"
+    )
+    assert resolved.custom_connection is True
+
+
+@pytest.mark.parametrize(
+    "connection",
+    [
+        {"mode": "agenta", "scope": "organization"},
+        {"mode": "self_managed", "slug": "x", "scope": "organization"},
+        {"mode": "agenta", "slug": "x", "namespace": "organization"},
+        {
+            "mode": "agenta",
+            "slug": "x",
+            "scope": "organization",
+            "namespace": "custom",
+        },
+    ],
+    ids=["no-slug", "self-managed", "namespace-without-scope", "other-namespace"],
+)
+def test_an_organization_connection_needs_scope_slug_and_its_namespace(connection):
+    with pytest.raises(ValueError):
+        ModelRef(provider="openai", model="gpt-5.5", connection=connection)
+
+
+def test_an_organization_connection_never_resolves_from_plaintext_rows():
+    """The vault path holds the project's rows in plaintext; a project row with the same
+    slug never stands in for the organization connection."""
+    from agenta.sdk.agents.connections import OrganizationConnectionUnavailableError
+
+    rows = [_provider_key("OpenAI", "openai", "sk-project-0123", slug="openai-company")]
+    with pytest.raises(OrganizationConnectionUnavailableError):
+        connections._resolve_from_secrets(
+            secrets=rows,
+            model=ModelRef(
+                provider="openai",
+                model="gpt-5.5",
+                connection={
+                    "mode": "agenta",
+                    "slug": "openai-company",
+                    "scope": "organization",
+                },
+            ),
+        )
 
 
 async def test_gateway_credentials_carry_the_session_and_agent_labels(

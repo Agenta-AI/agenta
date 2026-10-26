@@ -91,6 +91,9 @@ class WireConnection(_WireModel):
 
     mode: Literal["agenta", "self_managed"] = "agenta"
     slug: Optional[str] = None
+    # Whose connection `slug` names (M5); omitted for the project's. Routing does not
+    # depend on it: the resolved route already points at the organization namespace.
+    scope: Optional[Literal["project", "organization"]] = None
 
 
 class WireCredentialBinding(_WireModel):

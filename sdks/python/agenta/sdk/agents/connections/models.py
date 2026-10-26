@@ -29,7 +29,13 @@ from pydantic import BaseModel, Field, field_serializer, model_validator
 # subscription connection whose stored OAuth login Agenta delivers to the run). "The project
 # default" is just ``agenta`` with no slug; there is no separate ``default`` mode.
 ConnectionMode = Literal["agenta", "self_managed"]
-ConnectionNamespace = Literal["standard", "custom", "builtin"]
+# ``organization`` is the namespace of an organization connection (M5). An older runtime
+# whose namespace list lacks it refuses the connection instead of reading its slug as a
+# project connection.
+ConnectionNamespace = Literal["standard", "custom", "builtin", "organization"]
+# Whose connection ``slug`` names: the project's (the default, also when omitted) or the
+# organization's. An organization connection is used only when an agent names it.
+ConnectionScope = Literal["project", "organization"]
 
 # Where a resolved credential comes from, as seen by the harness adapter. ``env`` ships one
 # provider's vars; ``runtime_provided`` injects nothing (the harness owns auth, e.g. an OAuth
@@ -132,12 +138,32 @@ class Connection(BaseModel):
     # slug; set, it is taken as given, because a custom endpoint may share a builtin endpoint's
     # name and the two differ in who pays for the call.
     namespace: Optional[ConnectionNamespace] = None
+    # Whose connection ``slug`` names (M5). Omitted means the project's. ``organization``
+    # needs mode ``agenta``, a slug and namespace ``organization`` (filled in when omitted).
+    scope: Optional[ConnectionScope] = None
 
     @model_validator(mode="after")
     def _namespace_names_a_slug(self) -> "Connection":
+        if self.scope == "organization" or self.namespace == "organization":
+            if self.scope != "organization" or self.mode != "agenta" or not self.slug:
+                raise ValueError(
+                    "an organization connection requires scope 'organization', mode "
+                    "'agenta' and a slug"
+                )
+            if self.namespace is None:
+                self.namespace = "organization"
+            if self.namespace != "organization":
+                raise ValueError(
+                    "an organization connection uses namespace 'organization'"
+                )
+            return self
         if self.namespace is not None and (self.mode != "agenta" or not self.slug):
             raise ValueError("a connection namespace requires mode 'agenta' and a slug")
         return self
+
+    @property
+    def is_organization(self) -> bool:
+        return self.scope == "organization"
 
 
 class Endpoint(BaseModel):

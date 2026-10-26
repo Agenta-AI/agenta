@@ -43,6 +43,7 @@ from ..connections import (
     InvalidConnectionConfigurationError,
     MissingCredentialError,
     MissingProviderError,
+    OrganizationConnectionUnavailableError,
     ModelRef,
     ProviderMismatchError,
     ResolvedConnection,
@@ -895,6 +896,11 @@ def _resolve_from_secrets(
         )
     if connection.mode != "agenta":
         raise UnsupportedConnectionModeError(mode=str(connection.mode))
+    if connection.is_organization:
+        # The vault rows here are the project's, in plaintext. An organization connection
+        # is served only through the LLM gateway, and a project row with the same slug
+        # never stands in for it.
+        raise OrganizationConnectionUnavailableError(slug=connection.slug or "")
 
     candidates = _catalog(secrets)
     slug = _stripped(connection.slug)
@@ -1150,6 +1156,7 @@ class VaultConnectionResolver:
                         "provider_key": model.provider,
                         "connection_slug": model.connection.slug,
                         "connection_namespace": model.connection.namespace,
+                        "connection_scope": model.connection.scope,
                     },
                 )
         except Exception as exc:  # pylint: disable=broad-except
@@ -1188,6 +1195,11 @@ class VaultConnectionResolver:
                 # connection of the same slug that the customer pays for instead.
                 if model.connection.namespace == "builtin":
                     raise refusal
+                # An organization connection has no plaintext path at all (M5).
+                if model.connection.is_organization:
+                    raise OrganizationConnectionUnavailableError(
+                        slug=model.connection.slug or ""
+                    )
                 return await self._resolve_from_vault(
                     api_base=api_base,
                     authorization=authorization,
@@ -1251,7 +1263,11 @@ class VaultConnectionResolver:
             # The gateway names the namespace from the record kind (`gateway_target`):
             # `custom` is a custom-provider record, `standard` a provider key. The response
             # carries no management flag, so the Agenta-funded record is known by its slug.
-            custom_connection=namespace == "custom" and name != STARTER_CREDITS_SLUG,
+            custom_connection=(
+                resolved.get("custom_provider") is True
+                if namespace == "organization"
+                else namespace == "custom" and name != STARTER_CREDITS_SLUG
+            ),
             # An older API sends no `protocol`; any other value is passed on for the runner
             # to judge, which ignores one it does not know.
             protocol=resolved.get("protocol")

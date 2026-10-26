@@ -20,7 +20,11 @@ from typing import Any, Dict, Optional
 from ..capabilities import PROVIDER_ENV_VARS
 from ..model_catalog import model_input_modalities
 from .endpoints import build_resolved_connection
-from .errors import MissingCredentialError, UnsupportedProviderError
+from .errors import (
+    MissingCredentialError,
+    OrganizationConnectionUnavailableError,
+    UnsupportedProviderError,
+)
 from .models import (
     Endpoint,
     ModelRef,
@@ -73,6 +77,12 @@ class EnvConnectionResolver:
                 input_modalities=_input_modalities(
                     context, provider=provider, model=model.model
                 ),
+            )
+
+        if model.connection.is_organization:
+            # An organization connection never resolves to a key from this process.
+            raise OrganizationConnectionUnavailableError(
+                slug=model.connection.slug or ""
             )
 
         provider = model.provider
