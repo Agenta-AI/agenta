@@ -175,7 +175,6 @@ async def test_resolve_uses_the_core_gateway_resolver(fake_http, connection):
         "provider_key": "openai",
         "connection_slug": "openai",
         "connection_namespace": None,
-        "connection_scope": None,
     }
 
 

@@ -154,24 +154,42 @@ def test_duplicate_slug_answers_409_and_one_row_exists(org):
                 "data": {"secret": {"format": "text", "content": KEY}},
             },
         },
-        {
-            "header": {"name": "ChatGPT"},
-            "secret": {
-                "kind": "subscription_provider",
-                "data": {"provider": "chatgpt"},
-            },
-        },
         custom_provider(slug="bedrock-co", key=KEY, family="bedrock"),
         custom_provider(slug="sagemaker-co", key=KEY, family="sagemaker"),
         provider_key(slug="short-co", key="m5key12"),
         provider_key(slug="padded-co", key="   m5key12   "),
     ],
-    ids=["custom_secret", "subscription", "bedrock", "sagemaker", "short", "padded"],
+    ids=["custom_secret", "bedrock", "sagemaker", "short", "padded"],
 )
 def test_refused_kinds_and_values_answer_422(org, body):
     response = org.call("POST", "/organization-secrets/", json=body)
     assert response.status_code == 422, response.text
     assert KEY not in response.text
+
+
+def test_an_owner_creates_an_organization_subscription_login_no_editor_does(org):
+    """Organization subscription logins (M5): an owner creates one, pending, named with its
+    owner and available to all projects; an editor cannot; a browser never reads its login."""
+    body = {
+        "header": {"description": "company login"},
+        "secret": {"kind": "subscription_provider", "data": {"provider": "chatgpt"}},
+    }
+    refused = org.call("POST", "/organization-secrets/", as_="editor", json=body)
+    assert refused.status_code == 403, refused.text
+
+    created = org.call("POST", "/organization-secrets/", json=body)
+    assert created.status_code == 200, created.text
+    row = created.json()
+    try:
+        assert row["owner"]["kind"] == "organization"
+        assert row["header"]["name"] == "ChatGPT (Organization)"
+        assert row["availability"] == "all_projects"
+        assert row["data"]["login_state"] == "pending_login"
+        # Only the run credential reads the login; a browser session gets 403.
+        read = org.call("GET", "/secrets/organization-subscriptions/chatgpt")
+        assert read.status_code == 403, read.text
+    finally:
+        org.call("DELETE", f"/organization-secrets/{row['id']}")
 
 
 def test_projects_route_limits(org):

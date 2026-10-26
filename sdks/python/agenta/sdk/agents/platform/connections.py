@@ -1218,19 +1218,23 @@ class VaultConnectionResolver:
         # field, so they cannot diverge across the two reads (the same precedent as the
         # gateway tool resolver's ToolCallback).
         authorization = self._connection.authorization()
+        body = {
+            "model": model.model,
+            "provider_key": model.provider,
+            "connection_slug": model.connection.slug,
+            "connection_namespace": model.connection.namespace,
+        }
+        # Sent only when the agent names a scope, so the request of an agent saved before M5
+        # is byte for byte what it was.
+        if model.connection.scope is not None:
+            body["connection_scope"] = model.connection.scope
 
         try:
             async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
                 response = await client.post(
                     f"{api_base}/gateways/llms/resolve",
                     headers=self._connection.headers(authorization=authorization),
-                    json={
-                        "model": model.model,
-                        "provider_key": model.provider,
-                        "connection_slug": model.connection.slug,
-                        "connection_namespace": model.connection.namespace,
-                        "connection_scope": model.connection.scope,
-                    },
+                    json=body,
                 )
         except Exception as exc:  # pylint: disable=broad-except
             log.warning(
