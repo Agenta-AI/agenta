@@ -78,3 +78,37 @@ def test_the_channel_run_creates_its_session_with_its_policy():
     assert created_session_access(
         plain, requested=_private(owner), channel_binding_id=binding
     ) == (_private(owner), False, None)
+
+
+async def test_a_failed_cache_write_adds_no_read(world, monkeypatch):
+    """The admission read the agent's policy and the cache write failed: the channel
+    session policy in the same request still makes no Postgres read and no Redis call."""
+    from oss.src.core.access.prefetch import request_memo_scope
+
+    alice = world.add_member(uuid4())
+    artifact_id = world.dao.add_agent(
+        project_id=world.project_id, policy=_private(alice)
+    )
+    redis_calls = []
+
+    async def _get_cache(**kwargs):
+        redis_calls.append("get")
+        return None
+
+    async def _set_cache(**kwargs):
+        redis_calls.append("set")
+        raise ConnectionError("redis is down")
+
+    monkeypatch.setattr(service_module, "get_cache", _get_cache)
+    monkeypatch.setattr(service_module, "set_cache", _set_cache)
+    with request_memo_scope():
+        await world.service.fetch_agent_policy_cached(
+            project_id=world.project_id, artifact_id=artifact_id
+        )
+        reads, calls = list(world.dao.reads), list(redis_calls)
+        policy = await channel_session_policy(
+            project_id=world.project_id, agent_artifact_id=artifact_id
+        )
+    assert policy == _private(alice)
+    assert world.dao.reads == reads
+    assert redis_calls == calls

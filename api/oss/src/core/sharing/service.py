@@ -423,6 +423,14 @@ class SharingService(ResourcePolicyInterface):
         """The agent's policy through `sharing_agent_access`. "No row"
         (`policy=None`) is cached too."""
 
+        # Kept in the request memo whatever the cache answers, so a later read in this
+        # request (the channel session policy after the admission) makes no round trip
+        # even when the cache write failed.
+        memo = get_request_memo()
+        memo_key = (AGENT_ACCESS_NAMESPACE, str(project_id), str(artifact_id))
+        if memo is not None and memo_key in memo:
+            return memo[memo_key]
+
         key = {"a": str(artifact_id)}
         cached = await _get(
             namespace=AGENT_ACCESS_NAMESPACE,
@@ -430,21 +438,21 @@ class SharingService(ResourcePolicyInterface):
             key=key,
             model=CachedAgentAccess,
         )
-        if cached is not None:
-            return cached
-
-        entry = CachedAgentAccess(
-            policy=await self._dao.fetch_agent_policy(
-                project_id=project_id, artifact_id=artifact_id
+        if cached is None:
+            cached = CachedAgentAccess(
+                policy=await self._dao.fetch_agent_policy(
+                    project_id=project_id, artifact_id=artifact_id
+                )
             )
-        )
-        await _set(
-            namespace=AGENT_ACCESS_NAMESPACE,
-            project_id=project_id,
-            key=key,
-            value=entry,
-        )
-        return entry
+            await _set(
+                namespace=AGENT_ACCESS_NAMESPACE,
+                project_id=project_id,
+                key=key,
+                value=cached,
+            )
+        if memo is not None:
+            memo[memo_key] = cached
+        return cached
 
     async def _session_access(
         self,

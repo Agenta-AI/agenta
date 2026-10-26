@@ -478,3 +478,51 @@ async def test_reconnect_after_disconnect_reuses_the_restored_agent():
     written = dao.edit_agent.await_args.kwargs["agent"]
     assert written.id == archived_agent.id
     assert str(written.data.references["application"].id) == str(app_b)
+
+
+async def test_a_stale_restore_reads_and_guards_the_bindings_again():
+    """The connection was archived again after the restore read its bindings: the DAO
+    refuses (stale), and the service reads the new archive instant and the agents of
+    the bindings archived with it, then restores once more with those."""
+    from datetime import datetime, timedelta, timezone
+
+    from oss.src.core.channels.types import ChannelConnectionRestoreStale
+
+    first_at = datetime.now(timezone.utc)
+    second_at = first_at + timedelta(seconds=1)
+    conn = _hosted_conn()
+    app = uuid4()
+    first = _agent_with_ref(conn.id, str(app)).model_copy(
+        update={"deleted_at": first_at}
+    )
+    second = _agent_with_ref(conn.id, str(app)).model_copy(
+        update={"deleted_at": second_at}
+    )
+    dao = MagicMock()
+    dao.query_agents = AsyncMock(side_effect=[[first], [first], [second]])
+    dao.fetch_connection = AsyncMock(
+        side_effect=[
+            conn.model_copy(update={"deleted_at": first_at}),
+            conn.model_copy(update={"deleted_at": second_at}),
+        ]
+    )
+    restored = conn.model_copy(update={"deleted_at": None})
+    dao.unarchive_connection = AsyncMock(
+        side_effect=[ChannelConnectionRestoreStale(connection_id=conn.id), restored]
+    )
+    resolver = ProjectAgentResolver()
+    service = ChannelsService(
+        channels_dao=dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={}),
+        workflows_service=resolver,
+    )
+
+    result = await service.unarchive_connection(
+        project_id=uuid4(), user_id=uuid4(), connection_id=conn.id
+    )
+
+    assert result == restored
+    calls = [c.kwargs for c in dao.unarchive_connection.await_args_list]
+    assert [c["expected_archived_at"] for c in calls] == [first_at, second_at]
+    assert list(calls[0]["guard_artifact_ids"]) == [first.id]
+    assert list(calls[1]["guard_artifact_ids"]) == [second.id]
