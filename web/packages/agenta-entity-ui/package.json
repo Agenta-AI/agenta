@@ -30,6 +30,7 @@
         "./secret": "./src/secret/index.ts",
         "./secretProvider": "./src/secretProvider/index.ts",
         "./selection": "./src/selection/index.ts",
+        "./sharing": "./src/sharing/index.ts",
         "./template-format": "./src/template-format/index.ts",
         "./testcase": "./src/testcase/index.ts",
         "./tool-utils": "./src/DrillInView/SchemaControls/toolUtils.ts",

@@ -33,6 +33,7 @@ from agenta.sdk.models.workflows import WorkflowServiceStatus
 
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY, RunAdmission
 from oss.src.core.apps.handlers import (
     CREATE_APP_CALL_REF,
     CREATE_APP_DEFAULT_TIMEOUT_MS,
@@ -118,6 +119,7 @@ async def handle_test_run(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService],
     envelope: RunEnvelope,
+    run_admission: RunAdmission,
     timeout_ms: int = TEST_RUN_DEFAULT_TIMEOUT_MS,
 ) -> PlatformHandlerResult:
     if _header_value(headers, TEST_RUN_RECURSION_HEADER) == TEST_RUN_RECURSION_VALUE:
@@ -134,6 +136,8 @@ async def handle_test_run(
         workflows_service=workflows_service,
         project_id=project_id,
         request=request,
+        envelope=envelope,
+        run_admission=run_admission,
     )
 
     meta = dict(workflow_request.meta or {})
@@ -219,6 +223,8 @@ async def _build_test_workflow_request(
     workflows_service: WorkflowsService,
     project_id: UUID,
     request: TestRunRequest,
+    envelope: RunEnvelope,
+    run_admission: RunAdmission,
 ) -> WorkflowServiceRequest:
     workflow_request = WorkflowServiceRequest(
         references={
@@ -229,6 +235,16 @@ async def _build_test_workflow_request(
 
     # Resolving the committed revision first (even with a delta) is the target validation:
     # a delta can only ever be applied on top of a variant that exists in THIS project.
+    # The admission resolves it (once, left on the request) and refuses an agent the
+    # parent's principal may not run (`AdmissionDenied`), before any delta is applied.
+    await run_admission.admit_request(
+        envelope=envelope,
+        session_id=None,
+        project_id=project_id,
+        request=workflow_request,
+        boundary=CHILD_RUN_BOUNDARY,
+    )
+    # A no-op once the admission resolved the request (it carries the revision).
     await workflows_service._ensure_request_revision(
         project_id=project_id,
         request=workflow_request,
@@ -808,8 +824,13 @@ async def handle_commit_revision(
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService] = None,
     timeout_ms: int = COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
+    first_agent_owner_user_id: Optional[UUID] = None,
 ) -> PlatformHandlerResult:
     """The agent's commit. Confined to `parameters.agent`, minus the platform-owned paths.
+
+    `first_agent_owner_user_id` is the owner the ownership rule gives the calling run
+    (CONTRACT section 7): it owns the artifact when this commit writes its first agent
+    revision.
 
     The confinement is a property of THIS ENTRY POINT, not of anything in the request, and
     that is what makes it unforgeable: the agent never picks the call_ref (it comes from the
@@ -840,7 +861,25 @@ async def handle_commit_revision(
         return PlatformHandlerResult.failure(e.error)
     variant_id = _bound_variant_id(parsed, key="workflow_revision")
     payload = dict(parsed.get("workflow_revision") or {})
+    # The bound variant is the ONLY variant of the commit: its alias is set to the same id,
+    # so a caller cannot have one variant checked and another written.
     payload["workflow_variant_id"] = str(variant_id)
+    payload["variant_id"] = str(variant_id)
+    # The agent is the variant's own, never one the arguments name.
+    payload.pop("workflow_id", None)
+    payload.pop("artifact_id", None)
+    variant = await workflows_service.fetch_workflow_variant(
+        project_id=project_id,
+        workflow_variant_ref=Reference(id=variant_id),
+    )
+    variant_artifact_id = (
+        getattr(variant, "workflow_id", None) or getattr(variant, "artifact_id", None)
+        if variant is not None
+        else None
+    )
+    if variant_artifact_id is not None:
+        payload["workflow_id"] = str(variant_artifact_id)
+        payload["artifact_id"] = str(variant_artifact_id)
 
     # A whole configuration carries every field the scope exists to protect, so the shape
     # is refused rather than filtered. The agent's tool only ever sends a delta.
@@ -886,6 +925,7 @@ async def handle_commit_revision(
             # The agent's own commit: selector normalization, the build-kit rejection and
             # the derived message all apply here and nowhere else.
             agent_context=True,
+            first_agent_owner_user_id=first_agent_owner_user_id,
         )
     except ChangeSetError as e:
         return PlatformHandlerResult.failure(AgentError(**e.to_detail()))
@@ -1001,6 +1041,9 @@ class PlatformToolHandlerRegistration:
     needs_mounts: bool = False
     # Handlers that start a child run take its run envelope as `envelope`.
     needs_envelope: bool = False
+    # Handlers that commit a revision take the calling run's agent owner as
+    # `first_agent_owner_user_id`.
+    needs_agent_owner: bool = False
 
 
 PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
@@ -1031,6 +1074,7 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         timeout_ms=COMMIT_REVISION_DEFAULT_TIMEOUT_MS,
         handler=handle_commit_revision,
         elevated_permission=Permission.EDIT_WORKFLOWS,
+        needs_agent_owner=True,
     ),
     # Agent HTML apps. Both touch the session's drive, so they demand what the mount routes
     # demand for the same act: writing a file needs EDIT_MOUNTS, reading one VIEW_MOUNTS.
@@ -1067,6 +1111,13 @@ def required_envelope(*, call_ref: str) -> bool:
     return bool(registration and registration.needs_envelope)
 
 
+def required_agent_owner(*, call_ref: str) -> bool:
+    """Whether this handler commits a revision (and so takes the calling run's agent
+    owner)."""
+    registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
+    return bool(registration and registration.needs_agent_owner)
+
+
 def required_elevated_permission(
     *,
     call_ref: str,
@@ -1094,8 +1145,10 @@ async def dispatch_platform_tool_handler(
     user_id: UUID,
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService],
+    run_admission: RunAdmission,
     mounts_service: Any = None,
     envelope: Optional[RunEnvelope] = None,
+    agent_owner_user_id: Optional[UUID] = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:
@@ -1106,12 +1159,16 @@ async def dispatch_platform_tool_handler(
     extra: Dict[str, Any] = (
         {"mounts_service": mounts_service} if registration.needs_mounts else {}
     )
+    if registration.needs_agent_owner:
+        extra["first_agent_owner_user_id"] = agent_owner_user_id
     if registration.needs_envelope:
         if envelope is None:
             raise PlatformToolHandlerRefused(
                 "This tool starts a run and needs a run credential."
             )
         extra["envelope"] = envelope
+        # A handler that starts a run admits it.
+        extra["run_admission"] = run_admission
     return await registration.handler(
         arguments=arguments,
         headers=headers,

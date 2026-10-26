@@ -17,6 +17,8 @@ import {
     useFilesPaneLayout,
 } from "@agenta/chat/state"
 import {useDriveDirtyGuard} from "@agenta/entities/drive"
+import type {SessionStream} from "@agenta/entities/session"
+import {sharingKeys, type SessionSharingResponse} from "@agenta/entities/sharing"
 import {
     DriveLinkContext,
     DriveSessionProvider,
@@ -28,6 +30,7 @@ import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {renderedSessionTabsAtomFamily, sessionTabScope} from "@agenta/sessions/state"
 import {useRequestSessionTabRename, useSessionActions} from "@agenta/sessions-ui"
+import {getHostQueryClient} from "@agenta/shared/api"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {useSessionShortcuts} from "@agenta/ui/shortcuts"
@@ -47,6 +50,7 @@ import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
 import {useDriveUrlSync} from "./useDriveUrlSync"
 import {useLeaveSession} from "./useLeaveSession"
+import {sessionHeaderKey} from "./useSessionHeader"
 import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTriggerTestRun} from "./useTriggerTestRun"
@@ -100,6 +104,8 @@ export const SessionWorkspace = ({
     agentResolving = false,
     linkEntityId = entityId,
     linkAgentId = agentId,
+    agentHidden = false,
+    canSend = true,
     sessionId,
     workspaceId,
     projectId,
@@ -120,6 +126,10 @@ export const SessionWorkspace = ({
      */
     linkEntityId?: string | null
     linkAgentId?: string | null
+    /** The session's agent is one the reader cannot see (a private agent). */
+    agentHidden?: boolean
+    /** False when the reader may not send here: the top bar drops what only a sender uses. */
+    canSend?: boolean
     sessionId: string
     workspaceId: string
     projectId: string
@@ -217,13 +227,16 @@ export const SessionWorkspace = ({
         filesOpen,
     )
     const filesExpanded = filesLayout.expanded
+    // Never a config pane for a hidden agent: its configuration is exactly what the reader may not
+    // see, and a pane mounted while it was visible is dropped below, not kept hidden.
+    const configEntityId = agentHidden ? null : entityId
     // Which half is on screen. The rule is in `sessionPanes.ts`, with its tests: on a phone the
     // pane replaces the conversation, so getting it wrong puts the composer out of reach.
     const {showConfig, showPane, showFiles} = resolveSessionPanes({
         chatMaximized,
         configCollapsed,
         twoPane,
-        hasEntity: Boolean(entityId),
+        hasEntity: Boolean(configEntityId),
         filesOpen,
         filesExpanded,
     })
@@ -286,6 +299,20 @@ export const SessionWorkspace = ({
     const closeTabs = useSessionTabClose({agentId, sessionId, base})
     // Archiving the session you are on has to move you off it.
     const sessionActions = useSessionActions({onRemoved: useLeaveSession(base)})
+    // Read from the session row the screen already caches (it carries the reader's sharing
+    // state), or from the Share dialog's read; not fetched here: the first-run draft has no row.
+    const isNotOwner = useCallback(
+        (id: string) => {
+            const client = getHostQueryClient()
+            const cached =
+                client.getQueryData<SessionStream | null>(sessionHeaderKey(projectId, id))
+                    ?.sharing ??
+                client.getQueryData<SessionSharingResponse>(sharingKeys.session(id, projectId))
+                    ?.sharing
+            return Boolean(cached?.policy.owner_user_id) && cached?.my_role !== "owner"
+        },
+        [projectId],
+    )
     // Alt+R opens the active TAB's inline editor — the rail listens for this request.
     const requestTabRename = useRequestSessionTabRename()
     const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
@@ -300,13 +327,16 @@ export const SessionWorkspace = ({
         ),
         onRename: requestTabRename,
         onArchive: useCallback(
-            (id: string) =>
+            (id: string) => {
+                // Archiving an owned chat is its owner's verb; the shortcut follows the menu.
+                if (isNotOwner(id)) return
                 void sessionActions.setArchived({
                     sessionId: id,
                     appId: agentId ?? null,
                     archived: false,
-                }),
-            [agentId, sessionActions],
+                })
+            },
+            [agentId, isNotOwner, sessionActions],
         ),
         onNewSession: useCallback(() => {
             if (agentId) startBlank(agentId)
@@ -333,9 +363,10 @@ export const SessionWorkspace = ({
     // the shared panels render flat — identical components, missing surface ladder.
     // Kept mounted and `display:none` after first use: unmounting this schema form put ~100ms
     // of main thread behind every toggle.
-    const wantsConfig = showConfig && Boolean(entityId)
+    const wantsConfig = showConfig && Boolean(configEntityId)
     const configMountedRef = useRef(false)
     if (wantsConfig) configMountedRef.current = true
+    if (agentHidden) configMountedRef.current = false
     // The pane stays on screen for its closing slide, so it keeps the half it was already showing
     // rather than swapping content mid-motion.
     const lastPaneKindRef = useRef<"config" | "sessions">("sessions")
@@ -343,7 +374,7 @@ export const SessionWorkspace = ({
     const paneKind = showPane ? (wantsConfig ? "config" : "sessions") : lastPaneKindRef.current
     const pane = (
         <>
-            {configMountedRef.current && entityId ? (
+            {configMountedRef.current && configEntityId ? (
                 <div
                     className={
                         configSlide.keepMounted && paneKind === "config"
@@ -352,7 +383,7 @@ export const SessionWorkspace = ({
                     }
                 >
                     <ConfigPane
-                        entityId={entityId}
+                        entityId={configEntityId}
                         sessionId={sessionId}
                         filesScope={filesScope}
                         projectId={projectId}
@@ -384,6 +415,8 @@ export const SessionWorkspace = ({
                         sessionId={sessionId}
                         onUpdate={pinRevision}
                         agentId={agentId}
+                        agentHidden={agentHidden}
+                        canSend={canSend}
                         workspaceId={workspaceId}
                         projectId={projectId}
                     />

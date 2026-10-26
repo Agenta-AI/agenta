@@ -2685,6 +2685,9 @@ importers:
       '@agenta/playground-ui':
         specifier: workspace:*
         version: link:../packages/agenta-playground-ui
+      '@agenta/sessions-ui':
+        specifier: workspace:*
+        version: link:../packages/agenta-sessions-ui
       '@agenta/settings-ui':
         specifier: workspace:*
         version: link:../packages/agenta-settings-ui

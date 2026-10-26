@@ -24,6 +24,7 @@ from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE  # noqa: F401
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.dbs.postgres.triggers.dao import TriggersDAO
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
@@ -321,6 +322,7 @@ async def test_soft_delete_retains_subscription_and_delivery_until_explicit_purg
                 kind=SessionTriggerKind.subscription,
                 delivery_id=blocked_delivery_id,
             ),
+            access=OWNERLESS_PROJECT_POLICY,
         )
         is False
     )
@@ -405,6 +407,7 @@ async def test_atomic_claim_rejects_disabled_or_deleted_schedule(
             kind=SessionTriggerKind.schedule,
             delivery_id=delivery_id,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert claimed is False

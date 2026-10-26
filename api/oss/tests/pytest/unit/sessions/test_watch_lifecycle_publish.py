@@ -26,6 +26,8 @@ from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -112,6 +114,7 @@ async def test_send_publishes_lifecycle_running(lock_engine):
             data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
             force=False,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "running")]
@@ -130,6 +133,7 @@ async def test_steer_publishes_lifecycle_running(lock_engine):
             data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
             force=True,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert (str(_PROJECT), session_id, "running") in publisher.lifecycle_calls
@@ -147,6 +151,7 @@ async def test_cancel_publishes_lifecycle_ended(lock_engine):
             session_id=session_id,
             data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     publisher.lifecycle_calls.clear()
 
@@ -154,6 +159,7 @@ async def test_cancel_publishes_lifecycle_ended(lock_engine):
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(session_id=session_id, force=False),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "ended")]
@@ -187,6 +193,7 @@ async def test_turn_end_heartbeat_publishes_ended_once(lock_engine):
             data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
             force=False,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     publisher.lifecycle_calls.clear()
 
@@ -199,6 +206,9 @@ async def test_turn_end_heartbeat_publishes_ended_once(lock_engine):
             is_running=False,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "ended")]
 
@@ -213,6 +223,9 @@ async def test_turn_end_heartbeat_publishes_ended_once(lock_engine):
             is_running=False,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == []
 
@@ -234,6 +247,9 @@ async def test_first_beat_of_a_runner_minted_turn_publishes_running(lock_engine)
             is_running=True,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "running")]
 
@@ -248,6 +264,9 @@ async def test_first_beat_of_a_runner_minted_turn_publishes_running(lock_engine)
             is_running=True,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == []
 
@@ -261,6 +280,9 @@ async def test_first_beat_of_a_runner_minted_turn_publishes_running(lock_engine)
             is_running=True,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "running")]
 
@@ -311,6 +333,9 @@ async def test_beat_on_a_killed_tombstone_publishes_nothing(lock_engine):
             is_running=True,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert (dao.creates, dao.updates) == (1, 1), "both row paths must have been tried"
@@ -335,6 +360,7 @@ async def test_send_does_not_double_publish_running_on_its_first_beat(lock_engin
             data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
             force=False,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     publisher.lifecycle_calls.clear()
 
@@ -347,5 +373,8 @@ async def test_send_does_not_double_publish_running_on_its_first_beat(lock_engin
             is_running=True,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == []

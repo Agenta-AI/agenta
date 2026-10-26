@@ -63,7 +63,11 @@ async def _check_scope_access(
     if scope_type == "project":
         allow_scope = str(auth_scope.project_id) == str(scope_id)
     elif scope_type == "workspace":
-        allow_scope = str(auth_scope.workspace_id) == str(scope_id)
+        # A workspace id, or the organization id where a workspace id is expected.
+        allow_scope = str(scope_id) in {
+            str(auth_scope.workspace_id),
+            str(auth_scope.organization_id),
+        }
     elif not scope_type and not scope_id:
         allow_scope = True
 

@@ -4,6 +4,8 @@ import type {ReactNode} from "react"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn, type ListTableView} from "@agenta/ui/list-table"
 
+import {sharingCopy} from "@/lib/sharingCopy"
+
 import {AgentCardBody} from "./AgentCardBody"
 import type {AgentListGroup, AgentListRow} from "./agentListView"
 import {AgentRowCells} from "./AgentRowCells"
@@ -28,7 +30,7 @@ const AGENT_COLUMN: ListTableColumn = {
 }
 const OWNER_COLUMN: ListTableColumn = {
     key: "owner",
-    label: "Created by",
+    label: sharingCopy.ownerColumn,
     width: "minmax(96px,1fr)",
 }
 const lastActiveColumn = (width: string): ListTableColumn => ({

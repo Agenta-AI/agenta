@@ -30,7 +30,11 @@ export {
     summarizeConnection,
     type ChannelRowSummary,
 } from "./helpers"
+export {channelSharingCopy} from "./sharingCopy"
+export {ChannelAgentPicker, type ChannelAgentPickerProps} from "./ChannelAgentPicker"
 export {
+    ChannelAgentPrivateError,
+    isPrivateAgentRefusal,
     buildAgentChannelsActions,
     channelKey,
     connectionsForAgent,

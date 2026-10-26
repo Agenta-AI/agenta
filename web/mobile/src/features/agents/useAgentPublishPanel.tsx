@@ -27,6 +27,8 @@ export const useAgentPublishPanel = ({
     projectId,
     workspaceId,
     side,
+    agentPrivate = false,
+    onShareAgent,
 }: {
     agentId: string
     agentName?: string
@@ -38,6 +40,10 @@ export const useAgentPublishPanel = ({
     workspaceId: string
     /** Where the panel opens on a phone; the playground passes `right`. */
     side?: "responsive" | "right"
+    /** The agent is the reader's private agent: it cannot answer a channel. */
+    agentPrivate?: boolean
+    /** Opens "Privacy and owner" for this agent; the panel's share links call it. */
+    onShareAgent?: () => void
 }) => {
     const {basePath} = useRouter()
     const {connections, loading, loadError, actions} = useAgentChannels(agentId, {
@@ -51,6 +57,8 @@ export const useAgentPublishPanel = ({
         loading,
         loadError,
         actions,
+        agentPrivate,
+        onShareAgent: onShareAgent ? () => onShareAgent() : undefined,
         renderPanel: (props: ChannelsPanelRenderProps) => (
             <ChannelsPanelSheet {...props} side={side} />
         ),

@@ -83,6 +83,8 @@ from oss.src.core.gateway.connections.utils import decode_oauth_state, make_oaut
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.sharing.utils import not_found_exception
+from oss.src.core.sharing.types import SharedItemNotFound
 
 if TYPE_CHECKING:
     from oss.src.core.channels.service import ChannelsService
@@ -552,11 +554,15 @@ class ChannelsRouter:
         project_id = UUID(request.state.project_id)
         user_id = UUID(str(request.state.user_id))
 
-        connection = await self.channels_service.ensure_hosted_telegram_connection(
-            project_id=project_id,
-            user_id=user_id,
-            references=body.references,
-        )
+        try:
+            connection = await self.channels_service.ensure_hosted_telegram_connection(
+                project_id=project_id,
+                user_id=user_id,
+                references=body.references,
+            )
+        except SharedItemNotFound as e:
+            # A private, unknown or unresolvable agent cannot answer a channel.
+            raise not_found_exception() from e
         url = await self.telegram_binding_service.issue_bind_link(
             project_id=project_id,
             user_id=user_id,
@@ -1060,6 +1066,9 @@ class ChannelsRouter:
             )
         except ChannelConnectionNotFound as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except SharedItemNotFound as e:
+            # A private, unknown or unresolvable agent cannot answer a channel.
+            raise not_found_exception() from e
 
         return ChannelAgentResponse(count=1 if agent else 0, agent=agent)
 
@@ -1128,12 +1137,15 @@ class ChannelsRouter:
                 detail="Path agent_id does not match body id",
             )
 
-        agent = await self.channels_service.edit_agent(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(str(request.state.user_id)),
-            #
-            agent=body.agent,
-        )
+        try:
+            agent = await self.channels_service.edit_agent(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                #
+                agent=body.agent,
+            )
+        except SharedItemNotFound as e:
+            raise not_found_exception() from e
         if agent is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1180,6 +1192,8 @@ class ChannelsRouter:
             )
         except ChannelAgentNotFound as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except SharedItemNotFound as e:
+            raise not_found_exception() from e
 
         return ChannelAgentResponse(count=1, agent=agent)
 

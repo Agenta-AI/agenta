@@ -1,3 +1,4 @@
+import {channelSharingCopy} from "./sharingCopy"
 import type {
     ChannelConnection,
     ChannelConnections,
@@ -239,6 +240,18 @@ export const summarizeConnection = (
         }
     }
 
+    // Its binding is off (the agent was made private): connected, but nothing answers.
+    if (connection.agentOff) {
+        return {
+            sub: channelSharingCopy.off,
+            subClass: "text-colorTextTertiary",
+            dotClass: "bg-colorTextQuaternary",
+            connected: true,
+            needsAttention: false,
+            action: "manage",
+        }
+    }
+
     const removed = connection.chats.filter((chat) => chat.removed).length
     if (removed > 0) {
         return {
@@ -278,7 +291,7 @@ export const hasAnyIssue = (connections: ChannelConnections): boolean =>
 /** How many connections answer as an agent and are live. */
 export const liveCountOf = (connections: ChannelConnections, agentId: string): number =>
     (connections.allConnections ?? []).filter(
-        (c) => c.agent?.id === agentId && c.status === "connected",
+        (c) => c.agent?.id === agentId && c.status === "connected" && !c.agentOff,
     ).length
 
 /** The channel tool settings of a bot that never saved any. */
@@ -337,6 +350,7 @@ export const NOOP_ACTIONS: ChannelsActions = {
     connectCustom: async () => null,
     connectHere: async () => {},
     disconnect: async () => {},
+    turnOn: async () => {},
     listSpaces: async () => [],
     discoverSpaces: async () => [],
     addSpace: async () => {},
@@ -372,7 +386,7 @@ export const isLiveForAgent = (
     connection: ChannelConnection | null | undefined,
     agentId: string | undefined,
 ): boolean => {
-    if (!connection || connection.status !== "connected") return false
+    if (!connection || connection.status !== "connected" || connection.agentOff) return false
     const scope = connectionScope(connection, agentId)
     return scope === "here" || scope === "unknown"
 }

@@ -18,8 +18,12 @@ You set this up in two places: Agenta, where you name the assistant and get its 
 
 You need:
 
-- **An agent in Agenta** that you want your team to use in Slack.
+- **An agent in Agenta** that you want your team to use in Slack. The agent must be shared with the project. A private agent cannot answer in Slack: its **Publish** panel shows "Private agents cannot answer in Slack. Share this agent with the project to connect it." in place of the connect buttons. See [Share agents and chats](/guides/share-agents-and-chats).
 - **Permission to create and install apps** in your Slack workspace.
+
+:::info[Who can read Slack conversations]
+Slack conversations with the agent are chats in Agenta that everyone in the project can read, including direct messages. When you pick the agent, Agenta shows this notice with your project's name. For a project named Acme support: "Everyone in Acme support can read the agent's Slack conversations in Agenta, including direct messages." These chats have no owner, and no one can send to them from Agenta. Reply in the Slack thread to continue a conversation.
+:::
 
 ## 1. Name the assistant in Agenta
 
@@ -81,6 +85,10 @@ Open the agent's **Publish** panel and click **Slack** to come back to the conne
 - **Disconnect** the app.
 
 Changes save automatically.
+
+## If the agent becomes private
+
+When the owner makes a connected agent private, Agenta turns its Slack connection off. Messages in Slack then get no answer. The connection stays off when the agent is shared again: open the agent's connection in **Channels** and click **Turn on**. **Turn on** is not available while the agent is private.
 
 ## Other channels
 

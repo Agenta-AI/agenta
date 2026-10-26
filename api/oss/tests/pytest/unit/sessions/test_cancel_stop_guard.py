@@ -44,6 +44,8 @@ from oss.src.dbs.redis.sessions.locks import (
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -149,7 +151,10 @@ async def test_cancel_with_matching_expected_id_cancels_that_turn(lock_engine):
     await _seat_turn(lock_engine, "turn-1", started_at_ms=1_000)
 
     result = await svc.command(
-        project_id=_PROJECT, user_id=_USER, request=_cancel("turn-1")
+        project_id=_PROJECT,
+        user_id=_USER,
+        request=_cancel("turn-1"),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert result.mode == CommandMode.cancel
@@ -175,7 +180,12 @@ async def test_cancel_with_stale_expected_id_is_refused_and_touches_nothing(
     await _seat_turn(lock_engine, "turn-2", started_at_ms=2_000)
 
     with pytest.raises(SessionTurnMismatch) as excinfo:
-        await svc.command(project_id=_PROJECT, user_id=_USER, request=_cancel("turn-1"))
+        await svc.command(
+            project_id=_PROJECT,
+            user_id=_USER,
+            request=_cancel("turn-1"),
+            access=OWNERLESS_PROJECT_POLICY,
+        )
 
     assert excinfo.value.expected_turn_id == "turn-1"
     assert excinfo.value.actual_turn_id == "turn-2"
@@ -216,7 +226,12 @@ async def test_cancel_refuses_owner_replaced_immediately_before_atomic_displacem
     monkeypatch.setattr(redis, "eval", replace_owner_then_eval)
 
     with pytest.raises(SessionTurnMismatch) as excinfo:
-        await svc.command(project_id=_PROJECT, user_id=_USER, request=_cancel("turn-1"))
+        await svc.command(
+            project_id=_PROJECT,
+            user_id=_USER,
+            request=_cancel("turn-1"),
+            access=OWNERLESS_PROJECT_POLICY,
+        )
 
     assert excinfo.value.actual_turn_id == "turn-2"
     assert (
@@ -244,7 +259,10 @@ async def test_cancel_with_expected_id_tombstones_a_turn_that_holds_nothing(
     svc = _service(lock_engine)
 
     result = await svc.command(
-        project_id=_PROJECT, user_id=_USER, request=_cancel("turn-1")
+        project_id=_PROJECT,
+        user_id=_USER,
+        request=_cancel("turn-1"),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert result.cancelled_turn_ids == ["turn-1"]
@@ -276,7 +294,12 @@ async def test_cancel_without_id_refuses_a_turn_that_started_after_it_arrived(
     await _seat_turn(lock_engine, "turn-2", started_at_ms=4_000_000_000_000)
 
     with pytest.raises(SessionTurnMismatch) as excinfo:
-        await svc.command(project_id=_PROJECT, user_id=_USER, request=_cancel())
+        await svc.command(
+            project_id=_PROJECT,
+            user_id=_USER,
+            request=_cancel(),
+            access=OWNERLESS_PROJECT_POLICY,
+        )
 
     assert excinfo.value.expected_turn_id is None
     assert excinfo.value.actual_turn_id == "turn-2"
@@ -296,7 +319,12 @@ async def test_cancel_without_id_still_cancels_a_turn_that_started_earlier(lock_
     svc = _service(lock_engine)
     await _seat_turn(lock_engine, "turn-1", started_at_ms=1_000)
 
-    result = await svc.command(project_id=_PROJECT, user_id=_USER, request=_cancel())
+    result = await svc.command(
+        project_id=_PROJECT,
+        user_id=_USER,
+        request=_cancel(),
+        access=OWNERLESS_PROJECT_POLICY,
+    )
 
     assert result.cancelled_turn_ids == ["turn-1"]
     assert await is_turn_superseded(
@@ -317,7 +345,12 @@ async def test_cancel_without_id_still_cancels_a_turn_with_no_recorded_start(
         lock_engine, project_id=str(_PROJECT), session_id=_SESSION, turn_id="turn-old"
     )
 
-    result = await svc.command(project_id=_PROJECT, user_id=_USER, request=_cancel())
+    result = await svc.command(
+        project_id=_PROJECT,
+        user_id=_USER,
+        request=_cancel(),
+        access=OWNERLESS_PROJECT_POLICY,
+    )
 
     assert result.cancelled_turn_ids == ["turn-old"]
 
@@ -337,6 +370,7 @@ async def test_cancel_ordering_uses_the_shared_redis_clock(lock_engine):
             user_id=_USER,
             request=_cancel(),
             arrived_at_ms=arrived_at_ms,
+            access=OWNERLESS_PROJECT_POLICY,
         )
 
     assert (
@@ -358,7 +392,10 @@ async def test_start_turn_records_a_start_time(lock_engine):
 
     svc = _service(lock_engine)
     turn_id = await svc._start_turn(
-        project_id=_PROJECT, user_id=_USER, session_id=_SESSION
+        project_id=_PROJECT,
+        user_id=_USER,
+        session_id=_SESSION,
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert (
@@ -384,6 +421,9 @@ async def test_heartbeat_records_a_start_time_for_a_runner_minted_turn(lock_engi
             session_id=_SESSION, replica_id="replica-a", turn_id="turn-runner"
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert (
@@ -448,6 +488,7 @@ async def test_steer_is_not_subject_to_the_guard(lock_engine):
             force=True,
             data={"inputs": {"messages": [{"role": "user", "content": "again"}]}},
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert result.mode == CommandMode.steer

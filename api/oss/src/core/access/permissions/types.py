@@ -170,6 +170,9 @@ class Permission(str, Enum):
     EDIT_SESSIONS = "edit_sessions"
     RUN_SESSIONS = "run_sessions"
 
+    # Sharing: take the ownership of an agent that has no active owner
+    MANAGE_AGENT_OWNERSHIP = "manage_agent_ownership"
+
     # Mounts
     VIEW_MOUNTS = "view_mounts"
     EDIT_MOUNTS = "edit_mounts"
@@ -269,6 +272,7 @@ class Permission(str, Enum):
             cls.ADD_USER_TO_WORKSPACE,
             cls.RESET_PASSWORD,
             cls.VIEW_WORKSPACE,
+            cls.MANAGE_AGENT_OWNERSHIP,
         ]
         defaults = {
             DefaultRole.OWNER: [p for p in cls],

@@ -6,9 +6,12 @@ from oss.src.core.memberships.dtos import (
     CreatedProject,
     MembershipRow,
     MembershipWriteResult,
+    MembershipPolicy,
     OrganizationMember,
+    ProjectMemberProfile,
     ProjectScope,
 )
+from oss.src.core.shared.dtos import Windowing
 
 
 class MembershipsDAOInterface(ABC):
@@ -48,6 +51,24 @@ class MembershipsDAOInterface(ABC):
         organization_ids: Sequence[UUID],
     ) -> List[ProjectScope]:
         """Project ids for invalidation after a write."""
+
+    @abstractmethod
+    async def query_project_member_profiles(
+        self,
+        *,
+        project_id: UUID,
+        policy: MembershipPolicy,
+        #
+        search: Optional[str] = None,
+        windowing: Optional[Windowing] = None,
+    ) -> List[ProjectMemberProfile]:
+        """The members of a project with their profile, for the share picker. The
+        policy decides who is a member: `ORGANIZATION_WIDE` lists the organization
+        members with the organization role, `PROJECT_ROWS` lists the project rows
+        whose user has an organization row, with the project role. Workspace rows are
+        never read. `search` is a case-insensitive prefix of the email or the name.
+        Ordered by email; `windowing.next` is the last `user_id` of the previous page,
+        `windowing.limit` defaults to 50. One statement."""
 
     # writers: one transaction each, under the organization lock
 

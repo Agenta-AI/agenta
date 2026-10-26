@@ -55,6 +55,8 @@ from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.sessions.turns.service import SessionTurnsService
+from oss.src.core.sharing.admission import APPROVAL_RESUME_BOUNDARY, RunAdmission
+from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceRequestData,
@@ -359,6 +361,7 @@ class InteractionsDispatcher:
         *,
         workflows_service: WorkflowsService,
         interactions_service: SessionInteractionsService,
+        run_admission: RunAdmission,
         records_service: Optional[RecordsService] = None,
         turns_service: Optional[SessionTurnsService] = None,
         streams_service: Optional[SessionStreamsService] = None,
@@ -366,6 +369,9 @@ class InteractionsDispatcher:
     ) -> None:
         self.workflows_service = workflows_service
         self.interactions_service = interactions_service
+        # Every resume is admitted (the session and the agent of the resumed turn)
+        # right before it is invoked.
+        self.run_admission = run_admission
         self.records_service = records_service
         # Read-only, for the resume's reference fallback: the identity a session recorded on its
         # turn and stream rows when the gate row carries none.
@@ -443,14 +449,23 @@ class InteractionsDispatcher:
                 ),
             )
             return
-        await self.respond_many(
-            project_id=project_id,
-            user_id=user_id,
-            interaction_answers=[(interaction_id, answer)],
-            envelope=envelope,
-            control_command_id=control_command_id,
-            continuation_execution_id=continuation_execution_id,
-        )
+        try:
+            await self.respond_many(
+                project_id=project_id,
+                user_id=user_id,
+                interaction_answers=[(interaction_id, answer)],
+                envelope=envelope,
+                control_command_id=control_command_id,
+                continuation_execution_id=continuation_execution_id,
+            )
+        except AdmissionDenied:
+            # The principal may no longer run the session or the agent: terminal, as
+            # a refused recheck above.
+            await self._refuse_response(
+                project_id=project_id,
+                interaction=interaction,
+                code="access_denied",
+            )
 
     async def _refuse_response(
         self,
@@ -559,6 +574,17 @@ class InteractionsDispatcher:
                 **(invoke_request.meta or {}),
                 "control_command_id": str(control_command_id),
             }
+
+        # Raises `AdmissionDenied` (an `AccessDenied`): a command's delivery settles it
+        # terminally, `respond` cancels the turn's interactions. Resolves the target
+        # once and leaves it on the request, so the invoke runs what was checked.
+        await self.run_admission.admit_request(
+            envelope=envelope,
+            session_id=interaction.session_id,
+            project_id=project_id,
+            request=invoke_request,
+            boundary=APPROVAL_RESUME_BOUNDARY,
+        )
 
         if self._dispatch_fn is not None:
             # Detached path: hand off to the runner, return immediately.

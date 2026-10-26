@@ -6,12 +6,16 @@ import type {SessionRowStatusMeta, SessionRowVm} from "@agenta/sessions/row"
 import {
     InlineRenameInput,
     SessionAgentName,
+    sessionMenuAccess,
     useInlineRename,
     type SessionMenuEntry,
 } from "@agenta/sessions-ui"
+import {SessionPrivacyMarker} from "@agenta/sessions-ui/sharing"
+import {userAtom} from "@agenta/shared/state"
 import {timeAgo} from "@agenta/shared/utils"
 import {Button} from "@agenta/ui/ui"
 import {ChatCircle, Lightning, PencilSimple, PushPin} from "@phosphor-icons/react"
+import {useAtomValue} from "jotai"
 
 import {cn} from "@/lib/utils"
 
@@ -123,6 +127,9 @@ export const SessionRowCells = ({
 
     // `useSessionActions` drops rename and pin for an archived row; the inline pair follows it.
     const archived = Boolean(vm.stream.archived_at)
+    const me = useAtomValue(userAtom)
+    const notOwner =
+        sessionMenuAccess({ownerUserId: vm.stream.owner_user_id ?? null}, me?.id) === "member"
     const updated = useMemo(
         () => (vm.activityAt ? timeAgo(Date.parse(vm.activityAt)) : "—"),
         [vm.activityAt],
@@ -149,6 +156,11 @@ export const SessionRowCells = ({
                         >
                             {vm.title}
                         </span>
+                        <SessionPrivacyMarker
+                            visibility={vm.stream.visibility}
+                            ownerUserId={vm.stream.owner_user_id}
+                            showSharedBy
+                        />
                         {archived ? null : (
                             <span
                                 // Revealed on the ROW's hover, and gone below `sm` where the pair
@@ -165,9 +177,12 @@ export const SessionRowCells = ({
                                     {/* One control: a pinned row keeps the same pin, filled. */}
                                     <PushPin size={14} weight={vm.isPinned ? "fill" : "regular"} />
                                 </RowActionButton>
-                                <RowActionButton label="Rename session" onClick={rename.start}>
-                                    <PencilSimple size={14} />
-                                </RowActionButton>
+                                {/* Renaming an owned chat is its owner's verb. */}
+                                {notOwner ? null : (
+                                    <RowActionButton label="Rename session" onClick={rename.start}>
+                                        <PencilSimple size={14} />
+                                    </RowActionButton>
+                                )}
                             </span>
                         )}
                     </>

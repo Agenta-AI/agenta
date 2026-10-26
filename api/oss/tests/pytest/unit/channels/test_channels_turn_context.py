@@ -31,6 +31,7 @@ from oss.src.core.workflows.types import (
 from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher, TurnRefused
 
 from .turn_harness import InMemoryChannels, texts
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 class _Runner:
@@ -75,7 +76,10 @@ class _Queue:
 
 def _dispatcher(channels, runner, **kwargs):
     return InboxDispatcher(
-        channels_service=channels.service, invoke_fn=runner.invoke, **kwargs
+        run_admission=NoopRunAdmission(),
+        channels_service=channels.service,
+        invoke_fn=runner.invoke,
+        **kwargs,
     )
 
 
@@ -638,7 +642,9 @@ class TestHostContextAndDisplay:
             return turn_id
 
         dispatcher = InboxDispatcher(
-            channels_service=channels.service, invoke_fn=invoke
+            run_admission=NoopRunAdmission(),
+            channels_service=channels.service,
+            invoke_fn=invoke,
         )
         await _dispatch(channels, dispatcher, event)
 

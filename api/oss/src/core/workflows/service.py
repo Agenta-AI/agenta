@@ -10,13 +10,16 @@ from typing import (
     Dict,
     Optional,
     List,
+    Mapping,
     Protocol,
+    Tuple,
     Union,
     TYPE_CHECKING,
 )
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import MissingPrincipal
+from oss.src.core.memberships.workspaces import legacy_workspace_id
 from oss.src.core.git.dtos import RevisionGrouping
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
@@ -52,7 +55,6 @@ from agenta.sdk.agents import (
     validate_agent_instructions,
 )
 
-from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.shared.exceptions import (
@@ -85,6 +87,7 @@ from oss.src.core.git.dtos import (
 )
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.workflows.dtos import (
+    AGENT_REFERENCE_KEYS,
     JsonSchemas,
     ResolvedTarget,
     WorkflowArtifactFlags,
@@ -158,10 +161,22 @@ from oss.src.core.workflows.commit_support import (
     normalize_operations,
 )
 from oss.src.core.workflows.build_kit import BUILD_KIT_WORKFLOW_SLUG
-from oss.src.core.workflows.interfaces import StaticWorkflowProvider
+from oss.src.core.workflows.interfaces import (
+    StaticWorkflowProvider,
+    WorkflowsDAOInterface,
+)
+from oss.src.core.sessions.types import SessionReference
+from oss.src.core.sharing.dtos import (
+    OWNERLESS_PROJECT_POLICY,
+    AccessPolicy,
+    AgentReadScope,
+    Visibility,
+)
+from oss.src.core.sharing.service import invalidate_sharing_caches
 from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
+    AgentReferenceUnresolved,
     InvalidAgentHarnessError,
     InvalidAgentInstructionsError,
     StaticWorkflowSlug,
@@ -329,6 +344,18 @@ def _effective_port(parsed) -> Optional[int]:
     return {"http": 80, "https": 443}.get((parsed.scheme or "").lower())
 
 
+# `resolve_agent_artifact_id`: the most specific reference wins, revision before variant
+# before artifact; `environment` comes after every workflow and application key.
+_AGENT_REFERENCE_ORDER = (
+    ("workflow_revision", "revision"),
+    ("application_revision", "revision"),
+    ("workflow_variant", "variant"),
+    ("application_variant", "variant"),
+    ("workflow", "artifact"),
+    ("application", "artifact"),
+)
+
+
 class WorkflowsService:
     WORKFLOW_ARTIFACT_CACHE_TTL = 60
     WORKFLOW_ARTIFACT_FLAG_KEYS = frozenset(
@@ -345,7 +372,7 @@ class WorkflowsService:
     def __init__(
         self,
         *,
-        workflows_dao: GitDAOInterface,
+        workflows_dao: WorkflowsDAOInterface,
         #
         environments_service: Optional["EnvironmentsService"] = None,  # type: ignore
         embeds_service: Optional["EmbedsService"] = None,  # type: ignore
@@ -487,11 +514,14 @@ class WorkflowsService:
             project_id=str(project_id),
             key=cache_key,
         )
+        # Never cache the access policy: a sharing write does not clear this
+        # namespace, so a cached policy would go stale. Lists read it in their own
+        # statement; direct reads leave it unset.
         await set_cache(
             namespace="artifact",
             project_id=str(project_id),
             key=cache_key,
-            value=workflow,
+            value=workflow.model_copy(update={"access": None}),
             ttl=self.WORKFLOW_ARTIFACT_CACHE_TTL,
         )
 
@@ -1154,6 +1184,183 @@ class WorkflowsService:
             archived=workflow is None or workflow.deleted_at is not None,
         )
 
+    async def is_agent_artifact(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+    ) -> bool:
+        """True when the artifact exists in the project and is an agent (one of its
+        revisions carries `flags.is_agent`). A prompt or an evaluator is no agent: it
+        has no sharing. One read, never cached."""
+
+        return await self.workflows_dao.is_agent_artifact(
+            project_id=project_id, artifact_id=artifact_id
+        )
+
+    async def resolve_agent_artifact_id(
+        self,
+        *,
+        project_id: UUID,
+        references: Optional[List[SessionReference]],
+    ) -> Optional[UUID]:
+        """The artifact id of the agent `references` name: the most specific key of
+        `AGENT_REFERENCE_KEYS` (revision, then variant, then artifact, in the
+        `workflow` and `application` families; `environment` last, resolved to its
+        current revision), by id or slug. One indexed read for a workflow or
+        application key, no read scope, never cached (an archived or deleted target
+        is denied at once).
+
+        `None` only when no key of `AGENT_REFERENCE_KEYS` is present (a draft run).
+        Raises `AgentReferenceUnresolved` when such a key is present and nothing
+        resolves (unknown, deleted, archived, or in another project)."""
+
+        by_key: Dict[str, SessionReference] = {}
+        for reference in references or []:
+            if reference.key in AGENT_REFERENCE_KEYS and reference.key not in by_key:
+                by_key[reference.key] = reference
+        if not by_key:
+            return None
+
+        specific = self._most_specific_agent_reference(by_key)
+        if specific is not None:
+            level, reference = specific
+            static_id = self._static_artifact_id(reference)
+            if static_id is not None:
+                return static_id
+            return await self._fetch_agent_artifact_id(
+                project_id=project_id, level=level, reference=reference
+            )
+
+        environment = by_key["environment"]
+        if not (environment.id or environment.slug):
+            raise AgentReferenceUnresolved()
+        return await self._resolve_environment_agent(
+            project_id=project_id,
+            environment=Reference(id=environment.id, slug=environment.slug),
+        )
+
+    @staticmethod
+    def _most_specific_agent_reference(
+        by_key: Mapping[str, Any],
+    ) -> Optional[Tuple[str, Reference]]:
+        """The most specific present key of `_AGENT_REFERENCE_ORDER` in `by_key`, with
+        its level. `None` when no such key is present. Raises
+        `AgentReferenceUnresolved` when that key has neither id nor slug: a less
+        specific key never stands in for it."""
+
+        for key, level in _AGENT_REFERENCE_ORDER:
+            reference = by_key.get(key)
+            if reference is None:
+                continue
+            if not (reference.id or reference.slug):
+                raise AgentReferenceUnresolved()
+            return level, Reference(id=reference.id, slug=reference.slug)
+        return None
+
+    async def _fetch_agent_artifact_id(
+        self,
+        *,
+        project_id: UUID,
+        level: str,
+        reference: Reference,
+    ) -> UUID:
+        artifact_id = await self.workflows_dao.fetch_agent_artifact_id(
+            project_id=project_id,
+            level=level,
+            reference=reference,
+        )
+        if artifact_id is None:
+            raise AgentReferenceUnresolved()
+        return artifact_id
+
+    def _static_artifact_id(self, reference: SessionReference) -> Optional[UUID]:
+        """A static (code-defined) workflow has no row; its synthetic artifact id."""
+
+        if self.static_catalog is None:
+            return None
+        if not (
+            self.static_catalog.is_static_slug(reference.slug)
+            or self.static_catalog.is_static_id(reference.id)
+        ):
+            return None
+        revision = self.static_catalog.retrieve_revision(
+            id=reference.id, slug=reference.slug
+        )
+        artifact_id = (
+            (revision.artifact_id or revision.workflow_id) if revision else None
+        )
+        if artifact_id is None:
+            raise AgentReferenceUnresolved()
+        return artifact_id
+
+    async def _resolve_environment_agent(
+        self,
+        *,
+        project_id: UUID,
+        environment: Reference,
+    ) -> UUID:
+        """An environment reference with no workflow key: the one agent the current
+        revision of the (not archived) environment deploys. Each deployed entry
+        resolves by its most specific reference (revision, then variant, then
+        artifact), which must exist in this project, not be deleted or archived, and
+        belong to the entry's artifact. Zero or several deployed agents, or any
+        mismatch, are unresolved (fail closed)."""
+
+        if self.environments_service is None:
+            raise AgentReferenceUnresolved()
+        environment_revision = (
+            await self.environments_service.fetch_environment_revision(
+                project_id=project_id,
+                environment_ref=environment,
+                include_archived=False,
+            )
+        )
+        deployed = (
+            environment_revision.data.references
+            if environment_revision and environment_revision.data
+            else None
+        ) or {}
+        entries = [
+            entry
+            for entry in deployed.values()
+            if isinstance(entry, dict)
+            and any(key in entry for key, _ in _AGENT_REFERENCE_ORDER)
+        ]
+        # Several deployed artifacts cannot name the run's agent: fail before any read.
+        named = {
+            (ref.id, None if ref.id else ref.slug)
+            for entry in entries
+            for ref in [entry.get("workflow") or entry.get("application")]
+            if ref is not None
+        }
+        if not entries or len(named) > 1:
+            raise AgentReferenceUnresolved()
+
+        artifact_ids = set()
+        for entry in entries:
+            level, reference = self._most_specific_agent_reference(entry)
+            artifact_id = await self._fetch_agent_artifact_id(
+                project_id=project_id, level=level, reference=reference
+            )
+            if level != "artifact":
+                artifact_ref = entry.get("workflow") or entry.get("application")
+                if artifact_ref is not None and artifact_ref.id:
+                    if artifact_ref.id != artifact_id:
+                        raise AgentReferenceUnresolved()
+                elif artifact_ref is not None and artifact_ref.slug:
+                    if artifact_id != await self._fetch_agent_artifact_id(
+                        project_id=project_id,
+                        level="artifact",
+                        reference=Reference(slug=artifact_ref.slug),
+                    ):
+                        raise AgentReferenceUnresolved()
+            artifact_ids.add(artifact_id)
+
+        if len(artifact_ids) != 1:
+            raise AgentReferenceUnresolved()
+        return artifact_ids.pop()
+
     async def _ensure_request_revision(
         self,
         *,
@@ -1312,7 +1519,13 @@ class WorkflowsService:
         workflow_id: Optional[UUID] = None,
         #
         platform_meta: bool = False,
+        #
+        access: Optional[AccessPolicy] = None,
     ) -> Optional[Workflow]:
+        """`access` is the policy the ownership rule gave the request. A declared
+        agent (`flags.is_agent`) with an owner gets its `agent_access` row in the
+        artifact's own transaction; anything else gets no row (project-visible,
+        ownerless). `Workflow.access` is the applied policy."""
         self._reject_static_slug(workflow_create.slug)
 
         artifact_flags = self._artifact_flags_from_any(workflow_create.flags)
@@ -1320,21 +1533,48 @@ class WorkflowsService:
             **workflow_create.model_dump(
                 mode="json",
                 exclude_none=True,
-                exclude={"flags"},
+                exclude={"flags", "visibility"},
             ),
             flags=self._dump_stored_flags(artifact_flags) or None,
         )
 
-        artifact = await self.workflows_dao.create_artifact(
-            project_id=project_id,
-            user_id=user_id,
-            #
-            artifact_create=artifact_create,
-            #
-            artifact_id=workflow_id,
-            #
-            platform_meta=platform_meta,
+        is_agent = bool(workflow_create.flags and workflow_create.flags.is_agent)
+        owned = access is not None and access.owner_user_id is not None
+        # A person who asks for a private agent when creating the artifact gets it, also
+        # before its first agent revision marks it as one (QA D4): the row is written now,
+        # and that first commit keeps it. Evaluators and snippets are never agents.
+        flags = workflow_create.flags
+        asked_private = (
+            workflow_create.visibility == Visibility.PRIVATE
+            and access is not None
+            and access.visibility == Visibility.PRIVATE
+            and not (flags and (flags.is_evaluator or flags.is_snippet))
         )
+        if (is_agent or asked_private) and owned:
+            artifact = await self.workflows_dao.create_agent_artifact(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                artifact_create=artifact_create,
+                access=access,
+                #
+                artifact_id=workflow_id,
+                #
+                platform_meta=platform_meta,
+            )
+            applied = access
+        else:
+            artifact = await self.workflows_dao.create_artifact(
+                project_id=project_id,
+                user_id=user_id,
+                #
+                artifact_create=artifact_create,
+                #
+                artifact_id=workflow_id,
+                #
+                platform_meta=platform_meta,
+            )
+            applied = OWNERLESS_PROJECT_POLICY
 
         if not artifact:
             return None
@@ -1346,7 +1586,14 @@ class WorkflowsService:
             workflow=workflow,
         )
 
-        return workflow
+        if applied.owner_user_id is not None:
+            # A decision made before the create (an id known in advance) can have
+            # cached "no row" for this artifact.
+            await invalidate_sharing_caches(
+                project_id=project_id, artifact_ids=[workflow.id]
+            )
+
+        return workflow.model_copy(update={"access": applied})
 
     async def fetch_workflow(
         self,
@@ -1459,6 +1706,7 @@ class WorkflowsService:
         self,
         *,
         project_id: UUID,
+        read_scope: AgentReadScope,
         #
         workflow_query: Optional[WorkflowQuery] = None,
         #
@@ -1504,6 +1752,8 @@ class WorkflowsService:
             include_archived=include_archived,
             #
             windowing=windowing,
+            #
+            read_scope=read_scope,
         )
 
         workflows = []
@@ -1716,6 +1966,7 @@ class WorkflowsService:
         self,
         *,
         project_id: UUID,
+        read_scope: AgentReadScope,
         #
         workflow_variant_query: Optional[WorkflowVariantQuery] = None,
         #
@@ -1749,6 +2000,8 @@ class WorkflowsService:
             include_archived=include_archived,
             #
             windowing=windowing,
+            #
+            read_scope=read_scope,
         )
 
         _workflow_variants = []
@@ -2377,6 +2630,7 @@ class WorkflowsService:
         self,
         *,
         project_id: UUID,
+        read_scope: AgentReadScope,
         #
         workflow_revision_query: Optional[WorkflowRevisionQuery] = None,
         #
@@ -2424,6 +2678,8 @@ class WorkflowsService:
             grouping=grouping,
             #
             windowing=windowing,
+            #
+            read_scope=read_scope,
         )
 
         _workflow_revisions = []
@@ -2465,6 +2721,7 @@ class WorkflowsService:
         self,
         *,
         project_id: UUID,
+        read_scope: AgentReadScope,
         #
         workflow_revision_query: Optional[WorkflowRevisionQuery] = None,
         #
@@ -2506,6 +2763,8 @@ class WorkflowsService:
             include_archived=include_archived,
             #
             windowing=windowing,
+            #
+            read_scope=read_scope,
         )
 
         _workflow_revisions = []
@@ -2590,6 +2849,8 @@ class WorkflowsService:
         #
         scope_policy=None,
         agent_context: bool = False,
+        #
+        first_agent_owner_user_id: Optional[UUID] = None,
     ) -> "CommitOutcome":
         """Commit with the base check, the no-change answer, and the warning list.
 
@@ -2657,6 +2918,7 @@ class WorkflowsService:
                 expected_head_revision_id=workflow_revision_commit.base_revision_id,
                 no_change_check=self._no_change_check(candidate=candidate),
                 platform_meta=platform_meta,
+                first_agent_owner_user_id=first_agent_owner_user_id,
             )
         except RevisionConflict as e:
             raise RevisionConflictError(
@@ -2819,7 +3081,13 @@ class WorkflowsService:
         no_change_check=None,
         #
         platform_meta: bool = False,
+        #
+        first_agent_owner_user_id: Optional[UUID] = None,
     ) -> Optional[WorkflowRevision]:
+        """`first_agent_owner_user_id` is the owner the ownership rule gives the
+        request. When it is set and the committed revision is an agent revision, an
+        artifact that never had an agent revision before gets a project-visible
+        access row owned by that user (multi-step creation)."""
         self._reject_static_slug(workflow_revision_commit.slug)
 
         if workflow_revision_commit.delta is not None:
@@ -2869,6 +3137,12 @@ class WorkflowsService:
             **revision.model_dump(mode="json"),
         )
 
+        await self._ensure_first_agent_access(
+            project_id=project_id,
+            revision=_workflow_revision,
+            owner_user_id=first_agent_owner_user_id,
+        )
+
         if emit:
             await publish_revision_event(
                 domain="workflow",
@@ -2883,6 +3157,30 @@ class WorkflowsService:
             project_id=project_id,
             revision=_workflow_revision,
         )
+
+    async def _ensure_first_agent_access(
+        self,
+        *,
+        project_id: UUID,
+        revision: WorkflowRevision,
+        owner_user_id: Optional[UUID],
+    ) -> None:
+        if owner_user_id is None or revision.id is None:
+            return
+        if not (revision.flags and revision.flags.is_agent):
+            return
+        artifact_id = revision.artifact_id or revision.workflow_id
+        if artifact_id is None:
+            return
+        if await self.workflows_dao.ensure_first_agent_access(
+            project_id=project_id,
+            artifact_id=artifact_id,
+            revision_id=revision.id,
+            owner_user_id=owner_user_id,
+        ):
+            await invalidate_sharing_caches(
+                project_id=project_id, artifact_ids=[artifact_id]
+            )
 
     def _build_revision_commit(
         self,
@@ -3308,7 +3606,12 @@ class WorkflowsService:
         secret_token = await sign_secret_token(
             user_id=str(acting_user_id),
             project_id=str(project_id),
-            workspace_id=str(project.workspace_id),
+            workspace_id=str(
+                legacy_workspace_id(
+                    workspace_id=project.workspace_id,
+                    organization_id=project.organization_id,
+                )
+            ),
             organization_id=str(project.organization_id),
             gateway_run_id=gateway_run_id,
             grants=self._service_grants(service_url),
@@ -3664,6 +3967,19 @@ class WorkflowsService:
 # apart, and a second copy here is exactly how they would (contract change-set.md, O12).
 
 
+def _commit_owner(
+    *,
+    workflow: Workflow,
+    first_agent_owner_user_id: Optional[UUID],
+) -> Optional[UUID]:
+    """The owner the create's commits pass on. None when the create already wrote the
+    agent's access row, so the commits add no statement."""
+
+    if workflow.access is not None and workflow.access.owner_user_id is not None:
+        return None
+    return first_agent_owner_user_id
+
+
 def _build_simple_workflow_data(
     revision_data: Optional[WorkflowRevisionData],
 ) -> SimpleWorkflowData:
@@ -3890,6 +4206,9 @@ class SimpleWorkflowsService:
         component: str,
         simple_workflow_create: SimpleWorkflowCreate,
         trusted_meta: Optional[dict] = None,
+        #
+        access: Optional[AccessPolicy] = None,
+        first_agent_owner_user_id: Optional[UUID] = None,
     ) -> SimpleWorkflowCreateResult:
         if not namespace.strip() or not request_key.strip() or not component.strip():
             raise ValueError("namespace, request_key, and component must not be empty")
@@ -3954,6 +4273,7 @@ class SimpleWorkflowsService:
                         ),
                         workflow_id=workflow_id,
                         platform_meta=True,
+                        access=access,
                     )
                 except EntityCreationConflict:
                     replayed = True
@@ -3963,6 +4283,9 @@ class SimpleWorkflowsService:
                     )
             if workflow is None:
                 raise EntityCreationConflict("Workflow")
+            commit_owner = _commit_owner(
+                workflow=workflow, first_agent_owner_user_id=first_agent_owner_user_id
+            )
             self._validate_idempotent_replay(
                 workflow=workflow,
                 namespace=namespace,
@@ -4028,6 +4351,7 @@ class SimpleWorkflowsService:
                             workflow_variant_id=variant.id,
                         ),
                         platform_meta=True,
+                        first_agent_owner_user_id=commit_owner,
                     )
                 except EntityCreationConflict:
                     replayed = True
@@ -4063,6 +4387,7 @@ class SimpleWorkflowsService:
                             workflow_variant_id=variant.id,
                         ),
                         platform_meta=True,
+                        first_agent_owner_user_id=commit_owner,
                     )
                 except EntityCreationConflict:
                     replayed = True
@@ -4077,13 +4402,14 @@ class SimpleWorkflowsService:
                 raise EntityCreationConflict("Workflow content revision")
 
             complete = SimpleWorkflow(
-                **workflow.model_dump(exclude={"flags"}),
+                **workflow.model_dump(exclude={"flags", "access"}),
                 flags=SimpleWorkflowFlags(
                     **WorkflowsService._dump_flags(content.flags)
                 ),
                 variant_id=variant.id,
                 revision_id=content.id,
                 data=_build_simple_workflow_data(content.data),
+                access=workflow.access,
             )
             return SimpleWorkflowCreateResult(
                 workflow=complete,
@@ -4121,6 +4447,9 @@ class SimpleWorkflowsService:
         platform_meta: bool = False,
         #
         workflow_id: Optional[UUID] = None,
+        #
+        access: Optional[AccessPolicy] = None,
+        first_agent_owner_user_id: Optional[UUID] = None,
     ) -> Optional[SimpleWorkflow]:
         # Before the artifact exists: refusing only at the final commit would leave the
         # artifact, variant, and blank revision behind.
@@ -4153,10 +4482,15 @@ class SimpleWorkflowsService:
             #
             workflow_id=workflow_id,
             platform_meta=platform_meta,
+            access=access,
         )
 
         if workflow is None:
             return None
+
+        commit_owner = _commit_owner(
+            workflow=workflow, first_agent_owner_user_id=first_agent_owner_user_id
+        )
 
         workflow_variant_slug = uuid4().hex[-12:]
 
@@ -4212,6 +4546,7 @@ class SimpleWorkflowsService:
             user_id=user_id,
             workflow_revision_commit=workflow_revision_commit,
             platform_meta=platform_meta,
+            first_agent_owner_user_id=commit_owner,
         )
 
         if workflow_revision is None:
@@ -4240,6 +4575,7 @@ class SimpleWorkflowsService:
             user_id=user_id,
             workflow_revision_commit=workflow_revision_commit,
             platform_meta=platform_meta,
+            first_agent_owner_user_id=commit_owner,
         )
 
         if workflow_revision is None:
@@ -4269,6 +4605,8 @@ class SimpleWorkflowsService:
             revision_id=workflow_revision.id,
             #
             data=_build_simple_workflow_data(workflow_revision.data),
+            #
+            access=workflow.access,
         )
 
         return simple_workflow
@@ -4348,6 +4686,8 @@ class SimpleWorkflowsService:
         user_id: UUID,
         #
         simple_workflow_edit: SimpleWorkflowEdit,
+        #
+        first_agent_owner_user_id: Optional[UUID] = None,
     ) -> Optional[SimpleWorkflow]:
         # Before any write: a refusal at the final commit would leave earlier writes behind.
         _reject_unreadable_agent_instructions(simple_workflow_edit.data)
@@ -4454,6 +4794,7 @@ class SimpleWorkflowsService:
                 project_id=project_id,
                 user_id=user_id,
                 workflow_revision_commit=workflow_revision_commit,
+                first_agent_owner_user_id=first_agent_owner_user_id,
             )
         else:
             workflow_revision = await self.workflows_service.fetch_workflow_revision(
@@ -4553,6 +4894,7 @@ class SimpleWorkflowsService:
         self,
         *,
         project_id: UUID,
+        read_scope: AgentReadScope,
         #
         simple_workflow_query: Optional[SimpleWorkflowQuery] = None,
         #
@@ -4577,6 +4919,7 @@ class SimpleWorkflowsService:
 
         workflows = await self.workflows_service.query_workflows(
             project_id=project_id,
+            read_scope=read_scope,
             #
             workflow_query=workflow_query,
             #
@@ -4602,7 +4945,10 @@ class SimpleWorkflowsService:
                 ):
                     continue
 
-                simple_workflows.append(simple_workflow)
+                # The policy read by the list statement (`fetch` leaves it unset).
+                simple_workflows.append(
+                    simple_workflow.model_copy(update={"access": workflow.access})
+                )
 
         return simple_workflows
 

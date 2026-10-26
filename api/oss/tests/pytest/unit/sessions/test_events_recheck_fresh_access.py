@@ -13,6 +13,7 @@ from fastapi import FastAPI, Request
 
 from oss.src.apis.fastapi.sessions import router as router_module
 from oss.src.apis.fastapi.sessions.router import SessionStreamsRouter
+import oss.src.apis.fastapi.sharing.utils as sharing_utils
 from oss.src.core.access.context import (
     fresh_request_memo,
     get_request_memo,
@@ -29,11 +30,16 @@ from oss.tests.pytest.utils.memberships import (
     RecordingRbac,
     make_summary,
 )
+from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy, NoopRunAdmission
 from oss.tests.pytest.utils.principals import (
     InMemoryPrincipalsDAO,
     make_envelope,
     make_request_access,
 )
+
+
+# The recheck is the real session resource check (no allow-all stub).
+pytestmark = pytest.mark.real_resource_checks
 
 
 class _World:
@@ -51,6 +57,7 @@ class _World:
             ),
             rbac=RecordingRbac(enforced=True),
             principals=self.principals,
+            resource_policy=AllowAllResourcePolicy(),
         )
 
     @property
@@ -89,13 +96,17 @@ def _request(project_id, user_id) -> Request:
     return request
 
 
-async def _open_stream(world: _World, access, user_id):
+async def _open_stream(world: _World, access, user_id, monkeypatch):
     """Opens the stream inside the request context and returns its recheck. The
-    caller keeps the context set, as the streaming generator does."""
+    caller keeps the context set, as the streaming generator does. The recheck reads
+    the access service when it runs, so the world's service stays registered."""
+
+    monkeypatch.setattr(sharing_utils, "get_access_service", lambda: world.service)
 
     router = SessionStreamsRouter(
         service=AsyncMock(),
         interactions_service=AsyncMock(),
+        run_admission=NoopRunAdmission(),
         records_service=AsyncMock(),
     )
     captured = {}
@@ -112,7 +123,6 @@ async def _open_stream(world: _World, access, user_id):
     with (
         patch.object(env.sessions, "shared_reader", True),
         patch.object(router_module, "live_event_stream", _stream),
-        patch.object(router_module, "get_access_service", lambda: world.service),
     ):
         await router.session_events(
             request=_request(world.project_id, user_id), session_id="session-1"
@@ -120,7 +130,7 @@ async def _open_stream(world: _World, access, user_id):
     return captured["authorization_check"]
 
 
-async def test_recheck_refuses_a_member_removed_after_connect():
+async def test_recheck_refuses_a_member_removed_after_connect(monkeypatch):
     world = _World()
     user = uuid4()
     world.member(user)
@@ -132,7 +142,7 @@ async def test_recheck_refuses_a_member_removed_after_connect():
 
     token = set_request_access(access)
     try:
-        check = await _open_stream(world, access, user)
+        check = await _open_stream(world, access, user, monkeypatch)
 
         assert await check() is True
         world.drop(user)
@@ -141,7 +151,7 @@ async def test_recheck_refuses_a_member_removed_after_connect():
         reset_request_access(token)
 
 
-async def test_recheck_refuses_an_api_key_deleted_after_connect():
+async def test_recheck_refuses_an_api_key_deleted_after_connect(monkeypatch):
     world = _World()
     creator = uuid4()
     world.member(creator)
@@ -159,7 +169,7 @@ async def test_recheck_refuses_an_api_key_deleted_after_connect():
 
     token = set_request_access(access)
     try:
-        check = await _open_stream(world, access, creator)
+        check = await _open_stream(world, access, creator, monkeypatch)
 
         assert await check() is True
         del world.principals.records[key]
@@ -168,7 +178,9 @@ async def test_recheck_refuses_an_api_key_deleted_after_connect():
         reset_request_access(token)
 
 
-async def test_recheck_in_a_copied_context_reads_fresh_state_and_keeps_the_memo():
+async def test_recheck_in_a_copied_context_reads_fresh_state_and_keeps_the_memo(
+    monkeypatch,
+):
     """The streaming generator runs in a COPY of the request context: it shares the
     memo dict the connect-time check filled. A recheck there must ignore that dict,
     and leave it in place afterwards, also when the check raises or is cancelled."""
@@ -184,7 +196,7 @@ async def test_recheck_in_a_copied_context_reads_fresh_state_and_keeps_the_memo(
 
     token = set_request_access(access)
     try:
-        check = await _open_stream(world, access, user)
+        check = await _open_stream(world, access, user, monkeypatch)
         memo = get_request_memo()
         # A connect-time answer in the shared memo, as a decision outside the fresh
         # memo would have left it.

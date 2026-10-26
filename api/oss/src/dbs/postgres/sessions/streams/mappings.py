@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import ValidationError
 
+from oss.src.core.sharing.dtos import Visibility
 from oss.src.core.sessions.types import (
     SessionDelivery,
     SessionOrigin,
@@ -222,6 +223,8 @@ def map_stream_dto_to_dbe_create(
         # very first turn of a session.
         turn_started_at=datetime.now(timezone.utc) if stream.turn_id else None,
         references=references_to_json(stream.references),
+        visibility=stream.access.visibility.value,
+        owner_user_id=stream.access.owner_user_id,
     )
 
 
@@ -255,6 +258,11 @@ def map_stream_dbe_to_dto(
         origin=origin,
         trigger=trigger,
         delivery=delivery,
+        # NULL is a row written by pre-sharing code: project-visible until assigned.
+        visibility=Visibility(stream_dbe.visibility)
+        if stream_dbe.visibility
+        else Visibility.PROJECT,
+        owner_user_id=stream_dbe.owner_user_id,
     )
 
 

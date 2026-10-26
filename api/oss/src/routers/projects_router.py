@@ -245,7 +245,11 @@ async def delete_project(
 
     project = await db_manager.fetch_project_by_id(project_id=str(project_id))
 
-    if not project or str(project.workspace_id) != str(workspace_id):
+    # The context is the project's workspace, or its organization id when it has none.
+    if not project or str(workspace_id) not in {
+        str(project.workspace_id),
+        str(project.organization_id),
+    }:
         raise HTTPException(status_code=404, detail="Project not found")
 
     if await _fetch_listing(request, project_id) is None:

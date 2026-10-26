@@ -1,7 +1,15 @@
 import {useState} from "react"
 
-import {Button, SkeletonBlock} from "@agenta/ui/ui"
-import {CaretDown, CaretRight, CaretUp, ChatCircleText, Code, Plus} from "@phosphor-icons/react"
+import {Alert, Button, SkeletonBlock} from "@agenta/ui/ui"
+import {
+    CaretDown,
+    CaretRight,
+    CaretUp,
+    ChatCircleText,
+    Code,
+    LockSimple,
+    Plus,
+} from "@phosphor-icons/react"
 
 import {ChannelsHubDiagram, type ChannelsHubDiagramTarget} from "./ChannelsHubDiagram"
 import {
@@ -14,6 +22,7 @@ import {
     summarizeConnection,
 } from "./helpers"
 import {platformLogo} from "./icons"
+import {channelSharingCopy} from "./sharingCopy"
 import type {ChannelConnections, ChannelPlatform} from "./types"
 
 export interface ChannelsHubViewProps {
@@ -35,6 +44,10 @@ export interface ChannelsHubViewProps {
     /** Lists the Embed row. */
     showEmbed?: boolean
     onOpenEmbed?: () => void
+    /** The agent is the reader's private agent: a note takes the place of the connect buttons. */
+    agentPrivate?: boolean
+    /** Opens "Privacy and owner" for this agent; the private note links to it. */
+    onShareAgent?: () => void
 }
 
 /** The Publish panel's first view: where this agent answers, one card per platform, and API. */
@@ -53,6 +66,8 @@ export const ChannelsHubView = ({
     onOpenApi,
     showEmbed = false,
     onOpenEmbed,
+    agentPrivate = false,
+    onShareAgent,
 }: ChannelsHubViewProps) => {
     const [expanded, setExpanded] = useState<Partial<Record<ChannelPlatform, boolean>>>({})
     const [retrying, setRetrying] = useState(false)
@@ -104,6 +119,31 @@ export const ChannelsHubView = ({
                 </div>
             ) : null}
 
+            {agentPrivate && !loading ? (
+                <Alert
+                    type="info"
+                    showIcon
+                    role="note"
+                    icon={<LockSimple />}
+                    message={channelSharingCopy.publishPrivate(
+                        CHANNEL_PLATFORMS.map(platformLabel),
+                    )}
+                    action={
+                        onShareAgent ? (
+                            <Button
+                                variant="link"
+                                size="xs"
+                                onClick={onShareAgent}
+                                data-testid="channels-hub-share-agent"
+                            >
+                                {channelSharingCopy.share}
+                            </Button>
+                        ) : undefined
+                    }
+                    data-testid="channels-hub-private"
+                />
+            ) : null}
+
             <div className="flex flex-col gap-2.5">
                 {CHANNEL_PLATFORMS.map((platform) => {
                     if (loading) {
@@ -129,6 +169,8 @@ export const ChannelsHubView = ({
                               ? "number"
                               : "bot"
                     const canExpand = mine.length > 0 && !unavailable
+                    // A private agent cannot start a connection; its existing ones still open.
+                    const blocked = agentPrivate && !canExpand
                     // Answering as another agent is a choice to make here, so it reads as a warning.
                     const dotClass =
                         summary.action === "connect-here" ? "bg-colorWarning" : summary.dotClass
@@ -158,7 +200,7 @@ export const ChannelsHubView = ({
                             >
                                 <Button
                                     variant="ghost"
-                                    disabled={unavailable}
+                                    disabled={unavailable || blocked}
                                     aria-expanded={canExpand ? open : undefined}
                                     onClick={toggle}
                                     className={`${ROW_BUTTON} min-w-0 flex-1 gap-3 rounded-none py-2.5 pl-3 pr-1 hover:bg-transparent disabled:opacity-100`}
@@ -187,7 +229,7 @@ export const ChannelsHubView = ({
                                         </span>
                                     </span>
                                 </Button>
-                                {unavailable ? null : (
+                                {unavailable || agentPrivate ? null : (
                                     <Button
                                         variant="outline"
                                         size="xs"
@@ -204,7 +246,7 @@ export const ChannelsHubView = ({
                                 <Button
                                     variant="ghost"
                                     size="icon-sm"
-                                    disabled={unavailable}
+                                    disabled={unavailable || blocked}
                                     aria-label={canExpand ? (open ? "Collapse" : "Expand") : "Open"}
                                     onClick={toggle}
                                     className={`rounded-full text-muted-foreground ${open ? "bg-muted" : ""}`}
@@ -253,7 +295,9 @@ export const ChannelsHubView = ({
                                                     className={`size-1.5 flex-none rounded-full ${
                                                         connection.status === "revoked"
                                                             ? "bg-colorError"
-                                                            : "bg-colorSuccess"
+                                                            : connection.agentOff
+                                                              ? "bg-colorTextQuaternary"
+                                                              : "bg-colorSuccess"
                                                     }`}
                                                 />
                                                 <CaretRight

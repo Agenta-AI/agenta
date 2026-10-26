@@ -514,6 +514,13 @@ def invitation(monkeypatch):
         db, "get_project_invitation_by_organization_token_and_email", _invite
     )
     monkeypatch.setattr(db, "get_project_by_id", _project)
+
+    async def _scoped(*, project_id):
+        return db.ProjectWithWorkspaceOrganization(
+            project=project, workspace_organization_id=project.organization_id
+        )
+
+    monkeypatch.setattr(db, "fetch_project_with_workspace_organization", _scoped)
     monkeypatch.setattr(db, "get_workspace", _workspace)
     monkeypatch.setattr(db, "update_invitation", _update)
     monkeypatch.setattr(organization_service, "notify_org_admin_invitation", _notify)

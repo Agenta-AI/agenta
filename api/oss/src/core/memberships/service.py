@@ -23,11 +23,13 @@ from oss.src.core.memberships.dtos import (
     MembershipSource,
     OrganizationMember,
     ProjectListing,
+    ProjectMemberProfile,
     ProjectMembership,
     ProjectScope,
 )
 from oss.src.core.memberships.interfaces import MembershipsDAOInterface
 from oss.src.core.memberships.types import MembershipsServiceNotRegistered
+from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.caching import (
     get_cache,
     invalidate_cache,
@@ -249,6 +251,21 @@ class MembershipsService:
         )
         return membership
 
+    async def read_membership(
+        self,
+        *,
+        user_id: UUID,
+        project_id: UUID,
+    ) -> Optional[ProjectMembership]:
+        """The membership `resolve` answers, read without the `resolve_membership` cache.
+
+        Same edition policy and the same one-statement read. Only for a caller whose
+        outcome another cache already keeps (the Bearer workspace-only and no-parameter
+        branches cache their state), so it adds no Redis call.
+        """
+
+        return await self._read_membership(user_id=user_id, project_id=project_id)
+
     async def is_member(
         self,
         *,
@@ -298,6 +315,24 @@ class MembershipsService:
         return await self._dao.fetch_organization_member(
             organization_id=organization_id,
             user_id=user_id,
+        )
+
+    async def query_project_members(
+        self,
+        *,
+        project_id: UUID,
+        search: Optional[str] = None,
+        windowing: Optional[Windowing] = None,
+    ) -> List[ProjectMemberProfile]:
+        """The project's members for the share picker, under this edition's policy:
+        the organization members (OSS) or the project rows (EE). Never workspace
+        members."""
+
+        return await self._dao.query_project_member_profiles(
+            project_id=project_id,
+            policy=self._policy,
+            search=search,
+            windowing=windowing,
         )
 
     # -- writers: DAO write, then invalidation, then the audit event -------------------

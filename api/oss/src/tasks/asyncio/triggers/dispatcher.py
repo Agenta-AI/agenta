@@ -15,15 +15,13 @@ from uuid import UUID, uuid4
 
 import uuid_utils.compat as uuid_compat
 
-from oss.src.core.access.dtos import ResourceKind, ResourceRef, RunOrigin
-from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.dtos import RunOrigin
 from oss.src.core.access.principals import (
     access_denied_error,
     missing_principal_error,
     stored_work_envelope,
 )
 from oss.src.core.access.service import AccessService, get_access_service
-from oss.src.core.access.types import AccessDenied
 from oss.src.core.tools.dtos import AgentError
 from oss.src.core.shared.dtos import Status
 from oss.src.core.triggers.dtos import (
@@ -40,6 +38,10 @@ from oss.src.core.sessions.dtos import (
     SessionTriggerKind,
 )
 from oss.src.core.sessions.streams.interfaces import TriggerSessionClaimsDAOInterface
+from oss.src.core.sharing.admission import TRIGGER_DISPATCH_BOUNDARY, RunAdmission
+from oss.src.core.sharing.dtos import SharedItemKind
+from oss.src.core.sharing.service import SharingService, get_sharing_service
+from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.logging import get_module_logger
 
@@ -68,15 +70,21 @@ class TriggersDispatcher:
         triggers_dao: TriggersDAOInterface,
         session_claims_dao: TriggerSessionClaimsDAOInterface,
         workflows_service: WorkflowsService,
+        run_admission: RunAdmission,
         dispatch_fn: Optional[Callable] = None,
         access_service: Optional[AccessService] = None,
+        sharing_service: Optional[SharingService] = None,
     ):
         self.triggers_dao = triggers_dao
+        # Admits every fire (the principal and the resolved agent) before the claim.
+        self.run_admission = run_admission
         self.session_claims_dao = session_claims_dao
         self.workflows_service = workflows_service
         self._dispatch_fn = dispatch_fn
         # None: the process's registered service (bootstrap_access).
         self._access_service = access_service
+        # Every root builds the dispatcher after bootstrap_access().
+        self.sharing_service = sharing_service or get_sharing_service()
 
     @property
     def access_service(self) -> AccessService:
@@ -369,16 +377,17 @@ class TriggersDispatcher:
                 origin_id=str(entity.id),
                 created_by_id=entity.created_by_id,
             )
-            # `require` logs a denial with the run context (origin, trigger id).
+            # The target resolved above is the one checked and the one that runs
+            # (the stored `artifact_id` is a pause index, never read here). The
+            # admission logs a refusal with the run context (origin, trigger id).
             try:
-                await self.access_service.require(
+                await self.run_admission.admit(
                     envelope=envelope,
-                    action=Permission.RUN_WORKFLOWS,
-                    resource=ResourceRef(
-                        kind=ResourceKind.AGENT, id=str(target.artifact_id)
-                    ),
+                    session_id=None,
+                    agent_artifact_id=target.artifact_id,
+                    boundary=TRIGGER_DISPATCH_BOUNDARY,
                 )
-            except AccessDenied as denied:
+            except AdmissionDenied as denied:
                 decision = denied.decision
                 await self._refuse(
                     project_id=project_id,
@@ -402,6 +411,14 @@ class TriggersDispatcher:
                 configuration_id=entity.id,
                 kind=kind,
                 delivery_id=delivery_id,
+            ),
+            access=self.sharing_service.initial_policy(
+                principal=entity.principal,
+                origin=(
+                    RunOrigin.SUBSCRIPTION if is_subscription else RunOrigin.SCHEDULE
+                ),
+                sender_user_id=None,
+                kind=SharedItemKind.SESSION,
             ),
         )
         if not claimed:

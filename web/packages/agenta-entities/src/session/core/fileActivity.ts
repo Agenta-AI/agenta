@@ -144,8 +144,8 @@ function sandboxRootEnd(segments: readonly string[]): number {
  * The roots stripped here are the ones the runner builds (`services/runner`, `environment-setup.ts`
  * and `run-plan.ts`):
  *
- *     durable   local     /var/lib/agenta/mounts/<project_id>/<mount_id>
- *     durable   daytona   /home/sandbox/agenta/mounts/<project_id>/<mount_id>
+ *     durable   local     /var/lib/agenta/mounts/<scope_id>/<mount_id>
+ *     durable   daytona   /home/sandbox/agenta/mounts/<scope_id>/<mount_id>
  *
  * The local durable root was `/tmp/agenta/mounts/…` before 2026-09. Sessions recorded then keep
  * those paths in the database forever, so the match below stays leading-directory-agnostic on

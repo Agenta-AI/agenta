@@ -100,6 +100,7 @@ from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
 )
 from oss.src.dbs.postgres.shared.utils import apply_windowing
+from oss.src.dbs.postgres.sharing.dao import guard_agent_activation
 
 
 class ChannelsDAO(ChannelsDAOInterface):
@@ -357,6 +358,8 @@ class ChannelsDAO(ChannelsDAOInterface):
         user_id: UUID,
         #
         agent: ChannelAgentCreate,
+        #
+        guard_artifact_id: Optional[UUID] = None,
     ) -> ChannelAgent:
         agent_dbe = map_agent_dto_to_dbe_create(
             project_id=project_id,
@@ -366,6 +369,11 @@ class ChannelsDAO(ChannelsDAOInterface):
         )
 
         async with self.engine.session() as session:
+            if guard_artifact_id is not None:
+                await guard_agent_activation(
+                    session, project_id=project_id, artifact_id=guard_artifact_id
+                )
+
             session.add(agent_dbe)
 
             await session.commit()
@@ -453,8 +461,16 @@ class ChannelsDAO(ChannelsDAOInterface):
         user_id: UUID,
         #
         agent: ChannelAgentEdit,
+        #
+        guard_artifact_id: Optional[UUID] = None,
     ) -> Optional[ChannelAgent]:
         async with self.engine.session() as session:
+            if guard_artifact_id is not None:
+                # Before the binding row: the artifact lock comes first.
+                await guard_agent_activation(
+                    session, project_id=project_id, artifact_id=guard_artifact_id
+                )
+
             stmt = select(ChannelAgentDBE).where(
                 ChannelAgentDBE.project_id == project_id,
                 ChannelAgentDBE.id == agent.id,

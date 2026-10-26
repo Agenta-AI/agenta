@@ -105,6 +105,53 @@ export interface AgentChatSession {
 export const GLOBAL_APP_KEY = "__global__"
 
 /**
+ * The visibility every session this app creates asks for. This app has no sharing controls, so
+ * its chats stay visible to the whole project, as they were before sharing existed. A header
+ * call creates the session when it is the first write, so every header call sends it; the server
+ * ignores it on a session that already exists.
+ */
+export const W_SESSION_VISIBILITY = "project" as const
+
+/** Sessions this page already created through `precreateThenInvoke`. */
+const precreatedSessionIds = new Set<string>()
+
+/**
+ * Run `invoke` (the first run request of a chat) only after the session exists as a
+ * project-visible session. Without this, the run itself creates the session, and the server
+ * makes a session created by a person private to that person.
+ *
+ * A chat with an assistant message already has its session, so it skips the extra call. When the
+ * create fails, `invoke` does not run and the send fails with the existing send error (an empty
+ * message selects the generic wording of the error surfaces).
+ */
+export const precreateThenInvoke = async <T>(
+    {
+        sessionId,
+        projectId,
+        messages,
+    }: {
+        sessionId: string
+        projectId: string | null | undefined
+        messages: readonly {role: string}[]
+    },
+    invoke: () => Promise<T>,
+): Promise<T> => {
+    const isNewChat = !messages.some((message) => message.role === "assistant")
+    if (isNewChat && !precreatedSessionIds.has(sessionId)) {
+        const created = projectId
+            ? await setSessionHeader({
+                  sessionId,
+                  projectId,
+                  visibility: W_SESSION_VISIBILITY,
+              }).catch(() => false)
+            : false
+        if (!created) throw new Error()
+        precreatedSessionIds.add(sessionId)
+    }
+    return invoke()
+}
+
+/**
  * Default scope key when a surface provides no override: the current app (or `__global__` off an
  * app page). Kept as the bare app id (no prefix) so sessions persisted before scoping was
  * introduced still resolve under the same storage key.
@@ -836,6 +883,7 @@ export const renameSessionAtomFamily = atomFamily((key: string) =>
             projectId,
             name: title.trim(),
             nameSource: "manual",
+            visibility: W_SESSION_VISIBILITY,
         }).catch(() => false)
         if (ok) return true
         const current = get(sessionsByAppAtom)
@@ -887,6 +935,7 @@ export const autoTitleSessionAtomFamily = atomFamily((key: string) =>
                 projectId,
                 name: title,
                 nameSource: "automatic",
+                visibility: W_SESSION_VISIBILITY,
                 // Only a REFUSAL clears the optimistic title. A refusal means the server
                 // holds a name a person chose, so this one is wrong. A network failure
                 // means nobody knows yet, and dropping the title then would blank the row

@@ -31,6 +31,14 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
     }
 })
 
+// The privacy control reads the sharing API; this suite is about Templates and Publish.
+vi.mock("../../src/features/chat/AgentPrivacyHost", () => ({
+    AgentPrivacyHost: () => null,
+}))
+vi.mock("../../src/features/chat/AgentPrivacyDialogHost", () => ({
+    AgentPrivacyDialogHost: () => null,
+}))
+
 vi.mock("../../src/features/agents/useAgentPublishPanel", () => ({
     useAgentPublishPanel: () => ({openHub, panel: null}),
 }))

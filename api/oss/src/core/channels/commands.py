@@ -22,6 +22,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamCommandResponse,
 )
 from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 # The grammar's fixed vocabulary. Whether a given channel actually offers one
 # of these is a runtime fact (`capabilities.commands`), never assumed here.
@@ -182,6 +183,8 @@ async def dispatch_stop(
         project_id=project_id,
         user_id=user_id,
         request=SessionStreamCommandRequest(session_id=thread.session_id),
+        # A channel session is always ownerless.
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
 

@@ -87,6 +87,8 @@ AccessService.decide(*, authority: RunAuthority | None, principal: PrincipalRef,
 
 ## 7. Resource ownership (M3)
 
+M3 design, as built: [interfaces](interfaces/m3/interfaces.md), [technical design](interfaces/m3/technical-design.md), [entry points](interfaces/m3/entry-points.md).
+
 - One rule, applied in this order:
   1. A web or API run turn with a human sender: the sender owns what the turn creates. Channel turns (origin `installation`) never give an owner, even with a linked sender.
   2. A browser-session request by a human: that human owns what it creates.
@@ -94,7 +96,7 @@ AccessService.decide(*, authority: RunAuthority | None, principal: PrincipalRef,
   4. Anything else (any API key, including M6 personal keys, an installation, any subscription, a child run, an evaluation run): the resource is project-visible and has no owner.
 - This applies to direct requests and to runs, including agents created by tool calls.
 - Every point where a run starts or resumes (a heartbeat without verified continuity, queued dispatch, approval resume, trigger dispatch, channel turn, child invocation) checks the existing session and the execution target of the current turn through `decide`. The target is the revision that the turn runs, resolved at that point; a session's stored references and a trigger's stored `artifact_id` are never authorization targets. A reference that resolves to nothing is denied. A run with no agent reference checks only the session. Every heartbeat is authorized before it writes or answers; only a running steady beat of the admitted run (same turn id as the row, same principal as the Redis admission record of that turn) skips the check, with no Postgres read and no access decision. When the admission record cannot be read, the beat gets the full check.
-- Agent and session policy reads are cached per item for `AGENTA_CACHE_TTL` and invalidated after every sharing write, so a warm decision reads no Postgres row. Like the membership cache, a read that races a write can refill the old entry for at most `AGENTA_CACHE_TTL`.
+- Agent and session policy reads are cached per item for `AGENTA_CACHE_TTL` and invalidated after every sharing write, so a warm decision reads no Postgres row. A human's session grants are cached per (project, user) for `AGENTA_CACHE_TTL` (`sharing_user_grants`, also when empty) and invalidated for every user whose grant a sharing write or a session delete changed, so a warm session list reads no grant row. Like the membership cache, a read that races a write can refill the old entry for at most `AGENTA_CACHE_TTL`.
 - The backfill touches only legacy rows: agents that exist when the migration runs, and sessions whose `visibility` is null (written by pre-M3 code). A null owner is never a migration marker.
 - An ownerless agent has no `agent_access` row, at creation and in the backfill. `agent_access.owner_user_id` is never null.
 - Channel sessions are project-visible and ownerless. Channel policy takes precedence over the general rule.

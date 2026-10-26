@@ -173,9 +173,9 @@ def test_meter_scope_user_without_project_raises():
         MeterScope(organization_id=ORG, workspace_id=WS, user_id=USR)
 
 
-def test_meter_scope_project_without_workspace_raises():
-    with pytest.raises(ValueError, match="project_id requires workspace_id"):
-        MeterScope(organization_id=ORG, project_id=PRJ)
+def test_meter_scope_project_without_organization_raises():
+    with pytest.raises(ValueError, match="project_id requires organization_id"):
+        MeterScope(project_id=PRJ)
 
 
 def test_meter_scope_workspace_without_organization_raises():
