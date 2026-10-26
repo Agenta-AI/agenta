@@ -14,6 +14,7 @@ import {
     subscriptionStatusLine,
     providerConnectionsAtom,
     useVaultSecret,
+    organizationConnectionsAccessAtom,
     type ProviderCatalogEntry,
     type ProviderConnection,
 } from "@agenta/entities/secret"
@@ -22,7 +23,10 @@ import {
     ProviderDrawer,
     providerIconFor,
     SubscriptionSignInDialog,
+    type OrganizationProjectChoice,
+    type OrganizationProjectOption,
 } from "@agenta/entity-ui/secretProvider"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {PencilSimpleLine, Trash, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -33,6 +37,7 @@ import {
 } from "../shared/SettingsCatalog"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 
+import {OrganizationProvidersPanel} from "./OrganizationProvidersPanel"
 import {type SubscriptionPlan, SubscriptionsBanner} from "./SubscriptionsBanner"
 
 /** The capability map is global; the key only records which surface asked for it. */
@@ -50,11 +55,66 @@ export interface ProviderRemovalState {
     onClose: () => void
 }
 
+/** What the Project and Organization tabs need from the host (M5). */
+export interface AIProvidersOrganization {
+    /** The current project's name, for "Project · {project}". */
+    projectName: string
+    /** The organization's name, for "Organization · {org}" and the drawer's copy. */
+    name: string
+    /** The organization's projects, for the project picker and the names on a row. */
+    projects: OrganizationProjectOption[]
+    /** `choose` (EE with RBAC), `plan` (EE without it), `all` (OSS). */
+    projectChoice: OrganizationProjectChoice
+    /** Where "See plans" points. */
+    plansHref?: string
+}
+
 export interface AIProvidersPageProps {
     /** The host's confirm surface; the page runs the delete. Absent hides the Delete verb. */
     renderRemoveDialog?: (state: ProviderRemovalState) => ReactNode
     /** Where "configured in the deployment" points. */
     subscriptionDocsUrl?: string
+    /** Turns on the Project and Organization tabs. Absent keeps the project page alone. */
+    organization?: AIProvidersOrganization
+}
+
+/**
+ * Starts the organization read beside the project's, so the Organization tab (and the answer to
+ * "may this person change it") is in hand by the time it is opened.
+ */
+const OrganizationConnectionsPrefetch = () => {
+    useAtomValue(organizationConnectionsAccessAtom)
+    return null
+}
+
+/** Settings → AI providers, with one tab per owner when the host names the organization. */
+export const AIProvidersPage = ({organization, ...props}: AIProvidersPageProps) => {
+    const [tab, setTab] = useState<"project" | "organization">("project")
+    if (!organization) return <ProjectProvidersPanel {...props} />
+    return (
+        <Tabs value={tab} onValueChange={(next) => setTab(next as typeof tab)}>
+            <OrganizationConnectionsPrefetch />
+            <TabsList variant="line" className="mb-5">
+                <TabsTrigger value="project">Project · {organization.projectName}</TabsTrigger>
+                <TabsTrigger value="organization">Organization · {organization.name}</TabsTrigger>
+            </TabsList>
+            <TabsContent value="project">
+                <ProjectProvidersPanel {...props} />
+            </TabsContent>
+            <TabsContent value="organization">
+                <OrganizationProvidersPanel
+                    scope={{
+                        name: organization.name,
+                        projects: organization.projects,
+                        projectChoice: organization.projectChoice,
+                        plansHref: organization.plansHref,
+                    }}
+                    renderRemoveDialog={props.renderRemoveDialog}
+                    subscriptionDocsUrl={props.subscriptionDocsUrl ?? SUBSCRIPTION_DOCS_URL}
+                />
+            </TabsContent>
+        </Tabs>
+    )
 }
 
 type DrawerTarget = {connection: ProviderConnection} | {kind: string}
@@ -83,11 +143,11 @@ const ProviderLogo = ({kind}: {kind: string}) =>
 const CHATGPT_NAME = subscriptionProviderName("chatgpt")
 const CLAUDE_NAME = subscriptionProviderName("claude")
 
-/** Settings → AI providers: one row per connection, and every provider stays connectable again. */
-export const AIProvidersPage = ({
+/** The project's own AI providers: one row per connection, and every provider stays connectable. */
+const ProjectProvidersPanel = ({
     renderRemoveDialog,
     subscriptionDocsUrl = SUBSCRIPTION_DOCS_URL,
-}: AIProvidersPageProps) => {
+}: Omit<AIProvidersPageProps, "organization">) => {
     const {loading, mutate} = useVaultSecret()
     const connections = useAtomValue(providerConnectionsAtom)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))

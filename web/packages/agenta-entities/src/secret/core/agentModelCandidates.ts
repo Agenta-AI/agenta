@@ -311,6 +311,15 @@ export const agentVaultProviderFamily = (
 }
 
 /**
+ * What an organization connection's candidates carry: scope and namespace `organization`, so the
+ * agent names exactly that connection. A project connection carries neither.
+ */
+const organizationCandidateFacts = (
+    connection: ProviderConnection,
+): {scope?: AgentConnectionScope; namespace?: AgentConnectionNamespace} =>
+    connection.scope === "organization" ? {scope: "organization", namespace: "organization"} : {}
+
+/**
  * The routes one hosted subscription connection offers.
  *
  * A subscription is `self_managed` with a SLUG: the run carries no key, and the slug is what names
@@ -336,6 +345,7 @@ export const subscriptionConnectionCandidates = ({
     // stand-in would name no record and fail the run.
     const slug = connection.slug?.trim()
     if (!slug) return []
+    const owner = organizationCandidateFacts(connection)
 
     const allowed = subscriptionHarnesses(connection)
     const ids = (connection.models ?? []).filter(Boolean)
@@ -354,6 +364,7 @@ export const subscriptionConnectionCandidates = ({
                 provider: runProvider,
                 mode: "self_managed",
                 slug,
+                ...owner,
                 harness,
                 source: "subscription",
                 // The record id, so the row is distinct from the mounted plan's
@@ -390,7 +401,10 @@ const connectionCandidates = ({
         const ids = connectionModelIds(connection, capabilities)
         if (!harnesses.length || !ids.length) continue
 
-        const slug = connectionSlugFor(connection)
+        const owner = organizationCandidateFacts(connection)
+        // An organization connection is named by its stored slug and nothing else.
+        const slug = owner.scope ? (connection.slug ?? null) : connectionSlugFor(connection)
+        if (owner.scope && !slug) continue
         const standard = connection.secretKind === SecretKind.ProviderKey
         const customKind = (connection.kind ?? "").toLowerCase() === CUSTOM_KIND
         const savedPolicy = Array.isArray(connection.harnesses)
@@ -411,6 +425,7 @@ const connectionCandidates = ({
                         provider: connection.kind,
                         mode: "agenta",
                         slug,
+                        ...owner,
                         harness,
                         source: "connection",
                         connectionKey: connection.id,
@@ -443,6 +458,7 @@ const connectionCandidates = ({
                         : agentVaultProviderFamily(id, connection.kind, capabilities, harness),
                     mode: "agenta",
                     slug,
+                    ...owner,
                     harness,
                     source: "connection",
                     connectionKey: connection.id,

@@ -16,6 +16,7 @@ import {
     isTerminalLoginAttemptState,
     startLoginAttempt,
     type LoginAttemptResponse,
+    type LoginAttemptScope,
 } from "../api/loginAttempts"
 import {SUBSCRIPTION_PROVIDER_KIND} from "../core/subscriptionConnections"
 import type {CreateSecretDto} from "../core/types"
@@ -28,16 +29,30 @@ export interface LoginAttemptKey {
     attemptId: string
     /** When the poll started, so the backstop can stop a server that answers `pending` forever. */
     startedAt: number
+    /** Whose connection it is; an organization connection is polled on its own routes. */
+    scope?: LoginAttemptScope
 }
 
 // A string, because `atomFamily` dedupes by value: an object would make a poll per render.
-export const loginAttemptKey = ({secretId, attemptId, startedAt}: LoginAttemptKey): string =>
-    `${secretId}|${attemptId}|${startedAt}`
+export const loginAttemptKey = ({
+    secretId,
+    attemptId,
+    startedAt,
+    scope,
+}: LoginAttemptKey): string =>
+    scope === "organization"
+        ? `${secretId}|${attemptId}|${startedAt}|organization`
+        : `${secretId}|${attemptId}|${startedAt}`
 
 const parseLoginAttemptKey = (serialized: string): LoginAttemptKey | null => {
-    const [secretId, attemptId, startedAt] = serialized.split("|")
+    const [secretId, attemptId, startedAt, scope] = serialized.split("|")
     if (!secretId || !attemptId) return null
-    return {secretId, attemptId, startedAt: Number(startedAt) || 0}
+    return {
+        secretId,
+        attemptId,
+        startedAt: Number(startedAt) || 0,
+        ...(scope === "organization" ? {scope: "organization" as const} : {}),
+    }
 }
 
 /** The next interval, or `false` to stop. Outside the query options so it is testable. */
@@ -110,6 +125,7 @@ export const loginAttemptQueryAtomFamily = atomFamily((serialized: string) =>
                     projectId,
                     secretId: key.secretId,
                     attemptId: key.attemptId,
+                    scope: key.scope,
                 })
             },
         }
@@ -149,11 +165,15 @@ export const createSubscriptionConnectionAtom = atom(
 /** Start a device login on a connection, and return the attempt the card renders. */
 export const startSubscriptionLoginAtom = atom(
     null,
-    async (get, _set, {secretId}: {secretId: string}): Promise<LoginAttemptResponse> => {
+    async (
+        get,
+        _set,
+        {secretId, scope}: {secretId: string; scope?: LoginAttemptScope},
+    ): Promise<LoginAttemptResponse> => {
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("[vault] Missing projectId for startSubscriptionLogin")
 
-        const attempt = await startLoginAttempt({projectId, secretId})
+        const attempt = await startLoginAttempt({projectId, secretId, scope})
         if (!attempt) throw new Error("[vault] The sign-in did not start. Try again.")
         return attempt
     },
@@ -174,11 +194,19 @@ export const setSubscriptionTokenAtom = atom(
 /** Abandon a device login. A failure here is not the user's problem: the attempt expires anyway. */
 export const cancelSubscriptionLoginAtom = atom(
     null,
-    async (get, _set, {secretId, attemptId}: {secretId: string; attemptId: string}) => {
+    async (
+        get,
+        _set,
+        {
+            secretId,
+            attemptId,
+            scope,
+        }: {secretId: string; attemptId: string; scope?: LoginAttemptScope},
+    ) => {
         const projectId = get(projectIdAtom)
         if (!projectId) return
         try {
-            await cancelLoginAttempt({projectId, secretId, attemptId})
+            await cancelLoginAttempt({projectId, secretId, attemptId, scope})
         } catch (error) {
             console.warn("[vault] Could not cancel the subscription sign-in:", error)
         }
@@ -187,5 +215,10 @@ export const cancelSubscriptionLoginAtom = atom(
 
 /** Refetch the vault so a finished sign-in flips the card and the pickers in one step. */
 export const refreshVaultSecretsAtom = atom(null, async () => {
-    await getHostQueryClient().invalidateQueries({queryKey: ["vault", "secrets"]})
+    const queryClient = getHostQueryClient()
+    // The organization list too: an organization sign-in lands there (only refetched if shown).
+    await Promise.all([
+        queryClient.invalidateQueries({queryKey: ["vault", "secrets"]}),
+        queryClient.invalidateQueries({queryKey: ["vault", "organization-secrets"]}),
+    ])
 })

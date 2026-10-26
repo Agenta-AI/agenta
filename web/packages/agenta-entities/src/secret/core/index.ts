@@ -126,6 +126,7 @@ export {
     hasRequiredCredential,
     hostedSubscriptionFamilies,
     isSubscriptionConnection,
+    isOrganizationConnection,
     probeFailureMessage,
     probeRequestFor,
     storedCredentialFields,

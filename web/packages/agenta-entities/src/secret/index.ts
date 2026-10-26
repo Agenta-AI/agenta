@@ -168,6 +168,7 @@ export {
     hasRequiredCredential,
     hostedSubscriptionFamilies,
     isSubscriptionConnection,
+    isOrganizationConnection,
     probeFailureMessage,
     probeRequestFor,
     storedCredentialFields,
@@ -194,6 +195,7 @@ export {
     isTerminalLoginAttemptState,
     startLoginAttempt,
     type LoginAttemptResponse,
+    type LoginAttemptScope,
     type LoginAttemptState,
 } from "./api"
 export {
@@ -212,6 +214,7 @@ export {
 export {
     vaultMigrationAtom,
     vaultSecretsQueryAtom,
+    vaultSecretsWithOrganizationQueryAtom,
     standardSecretsAtom,
     customSecretsAtom,
     createVaultSecretMutationAtom,
@@ -240,8 +243,20 @@ export {
     setSubscriptionTokenAtom,
     startSubscriptionLoginAtom,
     useVaultSecret,
+    createOrganizationSubscriptionConnectionAtom,
+    deleteOrganizationConnectionAtom,
+    managedOrganizationConnectionsAtom,
+    organizationConnectionsAccessAtom,
+    organizationProviderConnectionsAtom,
+    organizationSecretsQueryAtom,
+    refreshOrganizationConnectionsAtom,
+    saveOrganizationConnectionAtom,
+    setOrganizationConnectionProjectsAtom,
+    setOrganizationSubscriptionTokenAtom,
     type LoginAttemptKey,
     type LoginAttemptOutcome,
+    type OrganizationConnectionsAccess,
+    type OrganizationSecretProjects,
 } from "./state"
 
 // ============================================================================

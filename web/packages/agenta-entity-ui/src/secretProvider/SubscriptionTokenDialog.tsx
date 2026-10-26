@@ -8,10 +8,12 @@ import {
     DialogTitle,
     Spinner,
 } from "@agenta/ui/ui"
-import {CheckCircle} from "@phosphor-icons/react"
+import {CheckCircle, WarningCircle} from "@phosphor-icons/react"
 
+import OrganizationProjectsSection from "./OrganizationProjectsSection"
 import type {SubscriptionSignInDialogProps} from "./SubscriptionSignInDialog"
 import {SubscriptionTokenSteps} from "./SubscriptionTokenSteps"
+import {useOrganizationProjectsDraft} from "./useOrganizationProjectsDraft"
 import {useSubscriptionToken} from "./useSubscriptionToken"
 
 /** A subscription connected by a pasted token. Opening it starts nothing. */
@@ -22,8 +24,18 @@ export const SubscriptionTokenDialog = ({
     connection = null,
     logo,
     onRemove,
+    organization,
 }: SubscriptionSignInDialogProps) => {
-    const token = useSubscriptionToken({provider, connection})
+    const token = useSubscriptionToken({
+        provider,
+        connection,
+        scope: organization ? "organization" : "project",
+    })
+    const draft = useOrganizationProjectsDraft({
+        open,
+        connection,
+        enabled: !!organization && !organization.readOnly,
+    })
     const {name, connected} = token
 
     // A check in flight cannot be stopped, so the dialog stays until it answers.
@@ -63,6 +75,26 @@ export const SubscriptionTokenDialog = ({
                     <SubscriptionTokenSteps token={token} />
                 )}
 
+                {organization && !organization.readOnly && connection ? (
+                    <div className="text-xs">
+                        <OrganizationProjectsSection
+                            scope={organization}
+                            value={draft.projects}
+                            onChange={draft.setProjects}
+                            saved={draft.saved}
+                        />
+                    </div>
+                ) : null}
+                {draft.error ? (
+                    <p
+                        role="alert"
+                        className="m-0 flex items-center gap-1.5 text-xs text-destructive"
+                    >
+                        <WarningCircle size={14} />
+                        {draft.error}
+                    </p>
+                ) : null}
+
                 <DialogFooter>
                     {connected ? (
                         <>
@@ -81,7 +113,9 @@ export const SubscriptionTokenDialog = ({
                             <Button variant="outline" onClick={token.replace}>
                                 Replace token
                             </Button>
-                            <Button onClick={close}>Done</Button>
+                            <Button disabled={draft.saving} onClick={() => void draft.apply(close)}>
+                                Done
+                            </Button>
                         </>
                     ) : (
                         <>

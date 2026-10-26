@@ -13,8 +13,12 @@ import {
 } from "@agenta/ui/ui"
 import {ArrowSquareOut, Check, CheckCircle, Copy, WarningCircle} from "@phosphor-icons/react"
 
+import OrganizationProjectsSection, {
+    type OrganizationConnectionScope,
+} from "./OrganizationProjectsSection"
 import {SignInStep} from "./SignInStep"
 import {SubscriptionTokenDialog} from "./SubscriptionTokenDialog"
+import {useOrganizationProjectsDraft} from "./useOrganizationProjectsDraft"
 import {countdownLabel, useSubscriptionSignIn} from "./useSubscriptionSignIn"
 
 export interface SubscriptionSignInDialogProps {
@@ -26,6 +30,11 @@ export interface SubscriptionSignInDialogProps {
     logo?: ReactNode
     /** Remove the connection. Absent hides the verb. */
     onRemove?: (connection: ProviderConnection) => void
+    /**
+     * An organization subscription (M5): it signs in on the organization's routes, and the dialog
+     * ends with "Projects that can use it", applied on Done.
+     */
+    organization?: OrganizationConnectionScope
 }
 
 const CopyCode = ({code}: {code: string}) => {
@@ -61,9 +70,19 @@ const DeviceSignInDialog = ({
     connection = null,
     logo,
     onRemove,
+    organization,
 }: SubscriptionSignInDialogProps) => {
-    const signIn = useSubscriptionSignIn({provider, connection})
+    const signIn = useSubscriptionSignIn({
+        provider,
+        connection,
+        scope: organization ? "organization" : "project",
+    })
     const {name, isReady, pending, starting, error, lostPoll, now, statusLine, connect} = signIn
+    const draft = useOrganizationProjectsDraft({
+        open,
+        connection,
+        enabled: !!organization && !organization.readOnly,
+    })
 
     // Opening is the Connect click; a ready connection opens to its status instead.
     const startedRef = useRef(false)
@@ -151,6 +170,27 @@ const DeviceSignInDialog = ({
                     </div>
                 ) : null}
 
+                {organization && !organization.readOnly && connection ? (
+                    <div className="text-xs">
+                        <OrganizationProjectsSection
+                            scope={organization}
+                            value={draft.projects}
+                            onChange={draft.setProjects}
+                            saved={draft.saved}
+                        />
+                    </div>
+                ) : null}
+
+                {draft.error ? (
+                    <p
+                        role="alert"
+                        className="m-0 flex items-center gap-1.5 text-xs text-destructive"
+                    >
+                        <WarningCircle size={14} />
+                        {draft.error}
+                    </p>
+                ) : null}
+
                 {lostPoll && !isReady ? (
                     <p className="m-0 flex items-center gap-1.5 text-xs text-colorWarning">
                         <WarningCircle size={14} />
@@ -197,7 +237,12 @@ const DeviceSignInDialog = ({
                             <Button variant="outline" onClick={() => void connect()}>
                                 Sign in again
                             </Button>
-                            <Button onClick={onClose}>Done</Button>
+                            <Button
+                                disabled={draft.saving}
+                                onClick={() => void draft.apply(onClose)}
+                            >
+                                Done
+                            </Button>
                         </>
                     ) : (
                         <>

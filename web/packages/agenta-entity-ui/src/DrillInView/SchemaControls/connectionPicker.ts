@@ -59,6 +59,8 @@ export interface PickerConnectionRow {
      * sets it, and only when a hosted subscription to the same plan is in the same picker.
      */
     source?: string
+    /** An organization connection: listed after the project's, and tagged as the organization's. */
+    organization?: boolean
     models: PickerModelRow[]
 }
 
@@ -129,6 +131,7 @@ const rowFromCandidate = (
             : (connection?.kind ?? candidate.provider ?? ""),
     kind: candidate.source,
     managed: candidate.managed || undefined,
+    ...(connection?.scope === "organization" ? {organization: true} : {}),
     models: [],
 })
 
@@ -172,6 +175,7 @@ const disabledSubscriptionRow = (connection: ProviderConnection): PickerConnecti
     kind: "subscription",
     disabled: true,
     hint: SUBSCRIPTION_SIGN_IN_HINT,
+    ...(connection.scope === "organization" ? {organization: true} : {}),
     models: [],
 })
 
@@ -221,7 +225,9 @@ export const buildConnectionPickerRows = (args: BuildPickerRowsArgs): PickerConn
         rows.push(disabledSubscriptionRow(connection))
     }
 
-    return rows
+    // The organization connections this project may use come after the project's own rows, in
+    // their own order (a stable partition).
+    return [...rows.filter((row) => !row.organization), ...rows.filter((row) => row.organization)]
 }
 
 export interface PickerOptionMetadata extends Record<string, unknown> {
@@ -439,7 +445,12 @@ export const pickerSelectionFrom = (
         // A slug survives in either mode. Under `self_managed` it names a hosted subscription's
         // stored sign-in; dropping it there sent the run to whatever login the deployment mounted.
         slug: read("connectionSlug"),
-        namespace: mode === "agenta" ? connectionNamespaceFrom(read("connectionNamespace")) : null,
+        // An organization connection keeps its namespace in either mode: it is what names the
+        // organization's connection rather than the project's.
+        namespace:
+            mode === "agenta" || read("connectionNamespace") === "organization"
+                ? connectionNamespaceFrom(read("connectionNamespace"))
+                : null,
         harness: read("harness"),
     }
 }

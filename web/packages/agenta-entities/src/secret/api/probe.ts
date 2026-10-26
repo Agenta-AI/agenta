@@ -69,18 +69,22 @@ export const probeProvider = async ({
     kind,
     provider,
     secretId,
+    secretScope,
 }: {
     projectId: string
     /** Omitted when `secretId` is given: the stored row names its own kind. */
     kind?: string
     provider: ProbeProviderCredentials
     secretId?: string
+    /** `organization` tests a stored organization connection this project may use. */
+    secretScope?: "organization"
 }): Promise<ProbeProviderResponse | null> => {
     const response = await getSecretsClient().probeProvider(
         {
             ...(kind ? {kind} : {}),
             provider,
             ...(secretId ? {secret_id: secretId} : {}),
+            ...(secretId && secretScope ? {secret_scope: secretScope} : {}),
         },
         projectScopedRequest(projectId),
     )

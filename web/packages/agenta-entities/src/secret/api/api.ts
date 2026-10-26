@@ -31,7 +31,12 @@ export const fetchVaultSecret = async ({
 }: {
     projectId: string
 }): Promise<LlmProvider[]> => {
-    const result = await getSecretsClient().listSecrets({}, projectScopedRequest(projectId))
+    // The organization connections this project may use ride along (no values, no previews):
+    // agent surfaces name them, and every other reader keeps the project's rows only.
+    const result = await getSecretsClient().listSecrets(
+        {include_organization: true},
+        projectScopedRequest(projectId),
+    )
     return transformSecret(result)
 }
 

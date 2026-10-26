@@ -80,9 +80,33 @@ export interface ProviderConnection {
      * absence is what tells every other surface this is an ordinary key connection.
      */
     subscription?: SubscriptionLoginFacts
+    /**
+     * Whose connection this is. `organization` is an organization connection: an agent names it
+     * by scope and slug, and only an organization owner or admin may change it. Absent is the
+     * project's own connection.
+     */
+    scope?: "organization"
+    /** An organization connection read by its admin: who may use it. */
+    availability?: "all_projects" | "selected_projects"
+    /** An organization connection limited to selected projects: their ids. */
+    selectedProjectIds?: string[]
     /** The row this was derived from — the mutations round-trip it. */
     source: LlmProvider
 }
+
+/** Whether a connection belongs to the organization rather than to the project. */
+export const isOrganizationConnection = (connection: ProviderConnection): boolean =>
+    connection.scope === "organization"
+
+/** The owner facts a connection carries over from its row. */
+const ownerFacts = (row: ProviderVaultRow) =>
+    row.ownerKind === "organization"
+        ? {
+              scope: "organization" as const,
+              ...(row.availability ? {availability: row.availability} : {}),
+              ...(row.selectedProjectIds ? {selectedProjectIds: row.selectedProjectIds} : {}),
+          }
+        : {}
 
 /** Whether a connection is a hosted subscription rather than a stored key. */
 export const isSubscriptionConnection = (connection: ProviderConnection): boolean =>
@@ -137,6 +161,7 @@ export const toProviderConnections = (rows: ProviderVaultRow[]): ProviderConnect
                 hasStoredCredential: row.subscription.loginState !== "pending_login",
                 managementPolicy: row.managementPolicy as SecretManagementPolicy | undefined,
                 subscription: row.subscription,
+                ...ownerFacts(row),
                 source: row,
             })
             return acc
@@ -176,6 +201,7 @@ export const toProviderConnections = (rows: ProviderVaultRow[]): ProviderConnect
                 row.hasKey ?? SECRET_VALUE_FIELDS.some((field) => !!(row[field] ?? "").trim()),
             keyPreview: row.keyPreview,
             managementPolicy: row.managementPolicy as SecretManagementPolicy | undefined,
+            ...ownerFacts(row),
             source: row,
         })
         return acc

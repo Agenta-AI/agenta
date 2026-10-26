@@ -1,6 +1,7 @@
 export {
     vaultMigrationAtom,
     vaultSecretsQueryAtom,
+    vaultSecretsWithOrganizationQueryAtom,
     standardSecretsAtom,
     customSecretsAtom,
     createVaultSecretMutationAtom,
@@ -40,3 +41,18 @@ export {
 } from "./subscriptionLogin"
 
 export {useVaultSecret} from "./useVaultSecret"
+
+export {
+    createOrganizationSubscriptionConnectionAtom,
+    deleteOrganizationConnectionAtom,
+    managedOrganizationConnectionsAtom,
+    organizationConnectionsAccessAtom,
+    organizationProviderConnectionsAtom,
+    organizationSecretsQueryAtom,
+    refreshOrganizationConnectionsAtom,
+    saveOrganizationConnectionAtom,
+    setOrganizationConnectionProjectsAtom,
+    setOrganizationSubscriptionTokenAtom,
+    type OrganizationConnectionsAccess,
+    type OrganizationSecretProjects,
+} from "./organizationConnections"

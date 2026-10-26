@@ -51,6 +51,13 @@ export {
     type SubscriptionTokenCardProps,
 } from "./SubscriptionTokenCard"
 export {default as ScrollScrim, type ScrollScrimProps} from "./ScrollScrim"
+export {
+    default as OrganizationProjectsSection,
+    type OrganizationConnectionScope,
+    type OrganizationProjectChoice,
+    type OrganizationProjectOption,
+    type OrganizationProjectsSectionProps,
+} from "./OrganizationProjectsSection"
 
 /**
  * The "Configure provider" drawer and the drill-in `llmProviderConfig` bridge that opens it —

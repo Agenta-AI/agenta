@@ -23,5 +23,16 @@ export {
     isTerminalLoginAttemptState,
     startLoginAttempt,
     type LoginAttemptResponse,
+    type LoginAttemptScope,
     type LoginAttemptState,
 } from "./loginAttempts"
+export {
+    createOrganizationSecret,
+    deleteOrganizationSecret,
+    editOrganizationSecret,
+    fetchOrganizationSecrets,
+    setOrganizationSecretProjects,
+    setOrganizationSubscriptionToken,
+    type OrganizationSecretAvailability,
+    type OrganizationSecretProjects,
+} from "./organizationSecrets"

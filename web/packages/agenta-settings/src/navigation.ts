@@ -19,7 +19,7 @@ export type SettingsTabKey =
     | "account"
     | "preferences"
 
-export type SettingsScopeKey = "project" | "organization" | "personal"
+export type SettingsScopeKey = "connections" | "project" | "organization" | "personal"
 
 export interface SettingsAccess {
     billingEnabled: boolean
@@ -63,7 +63,7 @@ const DOCS_BASE = "https://docs.agenta.ai"
 export const SETTINGS_TABS: SettingsTabDefinition[] = [
     {
         key: "llms",
-        scope: "project",
+        scope: "connections",
         description: "Connect the AI providers your agents, prompts, and evaluations run on.",
         docs: {
             label: "Learn more about AI providers",
@@ -72,7 +72,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     },
     {
         key: "tools",
-        scope: "project",
+        scope: "connections",
         description: "Configure integrations your agents can use.",
         docs: {
             label: "Learn more about tools",
@@ -81,18 +81,18 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     },
     {
         key: "secrets",
-        scope: "project",
+        scope: "connections",
         description: "Store credentials your agents use at runtime.",
     },
     {
         key: "mcpEndpoints",
-        scope: "project",
+        scope: "connections",
         description:
             "MCP servers connected to this project. Each agent chooses which of these to use and what it may run.",
     },
     {
         key: "channels",
-        scope: "project",
+        scope: "connections",
         description:
             "Chat platforms connected to this project. Each connection answers as one agent.",
     },
@@ -188,6 +188,8 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
 ]
 
 export const SETTINGS_SCOPES: {key: SettingsScopeKey; title: string}[] = [
+    // What agents connect to, whoever owns it; the `?tab=` links are the same as before.
+    {key: "connections", title: "Connections"},
     {key: "project", title: "Project"},
     {key: "organization", title: "Organization"},
     {key: "personal", title: "Personal"},

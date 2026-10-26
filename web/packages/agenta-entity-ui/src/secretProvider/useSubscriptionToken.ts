@@ -1,8 +1,10 @@
 import {useCallback, useState} from "react"
 
 import {
+    createOrganizationSubscriptionConnectionAtom,
     createSubscriptionConnectionAtom,
     refreshVaultSecretsAtom,
+    setOrganizationSubscriptionTokenAtom,
     setSubscriptionTokenAtom,
     subscriptionIsReady,
     subscriptionProviderName,
@@ -19,12 +21,30 @@ const SETUP_TOKEN_PREFIX = "sk-ant-oat"
 export const useSubscriptionToken = ({
     provider,
     connection = null,
+    scope = "project",
 }: {
     provider: string
     connection?: ProviderConnection | null
+    /** `organization` creates and stores an organization connection (for every project). */
+    scope?: "project" | "organization"
 }) => {
-    const createConnection = useSetAtom(createSubscriptionConnectionAtom)
-    const setToken = useSetAtom(setSubscriptionTokenAtom)
+    const createProjectConnection = useSetAtom(createSubscriptionConnectionAtom)
+    const createOrganizationConnection = useSetAtom(createOrganizationSubscriptionConnectionAtom)
+    const setProjectToken = useSetAtom(setSubscriptionTokenAtom)
+    const setOrganizationToken = useSetAtom(setOrganizationSubscriptionTokenAtom)
+    const organization = scope === "organization"
+    const createConnection = useCallback(
+        (args: {provider: string; name: string}) =>
+            organization
+                ? createOrganizationConnection({
+                      ...args,
+                      // A new organization connection starts with every project (Q1).
+                      projects: {availability: "all_projects", projectIds: []},
+                  })
+                : createProjectConnection(args),
+        [createOrganizationConnection, createProjectConnection, organization],
+    )
+    const setToken = organization ? setOrganizationToken : setProjectToken
     const refreshVault = useSetAtom(refreshVaultSecretsAtom)
 
     const [value, setValue] = useState("")

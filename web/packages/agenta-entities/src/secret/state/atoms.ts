@@ -36,7 +36,7 @@ import {
     removeEmptyFromObjects,
 } from "@agenta/shared/utils"
 import type {QueryKey} from "@tanstack/react-query"
-import {atom} from "jotai"
+import {atom, type Getter} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
 import {z} from "zod"
@@ -45,6 +45,7 @@ import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {createVaultSecret, deleteVaultSecret, fetchVaultSecret, updateVaultSecret} from "../api/api"
 import {
     getEnvNameMap,
+    projectRowsOnly,
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
     transformStandardProviderPayloadData,
@@ -103,7 +104,7 @@ export const providerKeySetupDoneAtom = atomWithStorage<boolean>(
  * fires one background refetch on restore, so real values only ever live in
  * memory.
  */
-export const vaultSecretsQueryAtom = atomWithQuery<LlmProvider[]>((get) => {
+const vaultSecretsQueryOptions = (get: Getter) => {
     const user = get(userAtom)
     // Read migration status to keep this atom subscribed to migration changes
     // (matches OSS behavior — migration completion can trigger a refetch).
@@ -126,7 +127,27 @@ export const vaultSecretsQueryAtom = atomWithQuery<LlmProvider[]>((get) => {
         enabled: !!user && !!projectId,
         persister: vaultSecretsPersister.persisterFn<LlmProvider[], QueryKey>,
     }
-})
+}
+
+/**
+ * The project's vault rows: everything a prompt, an evaluator, or the project's settings may use.
+ * The response also carries the organization connections an agent of the project may name; they
+ * share this one request (`vaultSecretsWithOrganizationQueryAtom`) and are left out here, so no
+ * surface that cannot use them sees them by accident.
+ */
+export const vaultSecretsQueryAtom = atomWithQuery<LlmProvider[]>((get) => ({
+    ...vaultSecretsQueryOptions(get),
+    select: projectRowsOnly,
+}))
+
+/**
+ * The same request as `vaultSecretsQueryAtom`, with the organization connections the project may
+ * use after the project's own rows. Only agent surfaces read it: an agent names an organization
+ * connection by scope and slug, and nothing else can use one.
+ */
+export const vaultSecretsWithOrganizationQueryAtom = atomWithQuery<LlmProvider[]>((get) =>
+    vaultSecretsQueryOptions(get),
+)
 
 /**
  * Derived atom for standard provider secrets.
