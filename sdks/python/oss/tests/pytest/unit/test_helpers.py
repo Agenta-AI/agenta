@@ -33,8 +33,7 @@ def test_parse_url_http_localhost_bridge_mode(monkeypatch):
     """Verify http localhost in bridge mode rewrites to host.docker.internal."""
     monkeypatch.setenv("DOCKER_NETWORK_MODE", "bridge")
     assert (
-        parse_url("http://localhost:8080/api")
-        == "http://host.docker.internal:8080/api"
+        parse_url("http://localhost:8080/api") == "http://host.docker.internal:8080/api"
     )
 
 
