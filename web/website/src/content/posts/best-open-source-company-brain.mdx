@@ -1,0 +1,336 @@
+---
+title: "Best Open-Source Company Brain Projects & Platforms in 2026"
+description: "Compare the 9 best open-source company brain projects and platforms in 2026 across AI coworker workspaces, Markdown/Postgres brains, enterprise search, and memory SDKs: Agenta, GBrain, Onyx, RAGFlow, AnythingLLM, Khoj, Mem0, Letta, and Cognee."
+pubDate: 2026-10-26
+author: "Mahmoud Mabrouk"
+authorUrl: "https://www.linkedin.com/in/mahmoud-mabrouk-935344100/"
+categories: ["AI Agents"]
+tags:
+  [
+    "company brain",
+    "open-source company brain",
+    "self-hosted ai",
+    "knowledge management",
+    "ai coworkers",
+    "enterprise search",
+  ]
+image: "/blog/best-open-source-company-brain/hero.webp"
+featured: false
+---
+
+Every engineering leader who sets out to self-host a [company brain](/blog/what-is-a-company-brain) hits the same wall in week two: there is no single "RAG repository" you can clone on Friday that turns into a working organizational brain on Monday.
+
+As Tulina documented in its [August 2026 taxonomy of open-source company brains](https://tulina.ai/articles/open-source-company-brain), the open-source ecosystem is split into distinct layers: opinionated personal-to-team Markdown vaults, self-hosted document search engines, and developer memory SDKs. Meanwhile, Slite's [2026 benchmark of 149 teams](https://slite.com/learn/company-brain-solutions) found that while **63%** of organizations rank data privacy and permission control as a top concern, **27%** of teams that tried to build their own company brain eventually abandoned it because of ongoing maintenance and glue code.
+
+When you stitch raw open-source libraries together yourself, your engineering team inherits the missing operational layers: role-based access control, an OAuth credential vault, isolated code sandboxes, scheduled consolidation loops that keep pages from rotting, and a plain-language interface so non-technical teammates can actually use the system without opening a terminal.
+
+Below, we compare the **9 best open-source company brain projects and platforms in 2026** across four architectural categories, examining their [Open Source Initiative (OSI)](https://opensource.org/licenses) licenses, self-hosting stacks, memory models, and how much glue your team has to write after `git clone`.
+
+![The 4 Categories of Open-Source Company Brain Projects in 2026](/blog/best-open-source-company-brain/open-source-company-brain-categories.webp)
+
+---
+
+## Quick Comparison: Top 9 Open-Source Company Brain Projects (2026)
+
+| Project                                          | Category                                             | Open-Source License                                     | Primary Storage & Memory Model                                                                                                                  | Self-Hosting Stack                                                                                                                       | Non-Technical Team UI                                         | Best For                                                                        |
+| :----------------------------------------------- | :--------------------------------------------------- | :------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------ | :------------------------------------------------------------------------------ |
+| **[Agenta](https://agenta.ai)**                  | Open-Source AI Coworker & Operational Brain Platform | [MIT License](https://opensource.org/license/mit)       | Shared **AI Drive** (`AGENT.md`, `MEMORY.md`, `SKILL.md` folders) + execution traces                                                            | [Docker Compose](https://docs.docker.com/compose/) or [Kubernetes Helm](https://helm.sh/) + [Daytona](https://www.daytona.io/) sandboxes | Full web workspace, Slack, Telegram, WhatsApp, embed widget   | Whole-company AI coworkers, shared skills, and governed execution               |
+| **[GBrain](https://github.com/garrytan/gbrain)** | Opinionated Markdown + Postgres Agent Brain          | [MIT License](https://opensource.org/license/mit)       | [PostgreSQL](https://www.postgresql.org/) + [`pgvector`](https://github.com/pgvector/pgvector) + structured Markdown pages & regex entity graph | Local CLI / [Bun](https://bun.sh/) / Docker + [Tailscale](https://tailscale.com/) MCP server                                             | CLI + MCP client (`Claude Code`, `Cursor`, `ChatGPT`)         | Technical founders and coding-agent power users building a cited knowledge moat |
+| **[Onyx](https://www.onyx.app)**                 | Self-Hosted Enterprise Search & AI Assistant         | MIT (Community) / Proprietary EE                        | Hybrid vector (`Vespa`) + keyword index across 50+ SaaS connectors                                                                              | Docker Compose, Kubernetes Helm, or Terraform                                                                                            | Web app, Slack/Discord bot, Chrome extension, MCP             | Self-hosted Glean alternative for cross-app document search and Q&A             |
+| **[RAGFlow](https://ragflow.io)**                | Deep Document RAG & Knowledge Compilation Engine     | [Apache-2.0](https://opensource.org/license/apache-2-0) | `DeepDoc` layout parser + Elasticsearch/Infinity + compiled Wikis/Graphs                                                                        | Docker Compose (`ragflow-server`, ES/Infinity, MySQL, MinIO, Redis)                                                                      | Web studio for dataset chunking and agentic retrieval         | Complex PDFs, scanned tables, financial filings, and citation-grade RAG         |
+| **[AnythingLLM](https://anythingllm.com)**       | All-in-One Local & Docker Document Workspace         | [MIT License](https://opensource.org/license/mit)       | Workspace vector DB (`LanceDB`, `PGVector`, `Qdrant`, `Milvus`) + user memories                                                                 | Desktop app (Mac/Win/Linux) or single-container Docker                                                                                   | Drag-and-drop chat UI, no-code `@agent` builder, embed widget | Fast single-container private ChatGPT over local or cloud models                |
+| **[Khoj](https://khoj.dev)**                     | Open-Source AI Second Brain & Research Assistant     | [AGPL-3.0](https://opensource.org/license/agpl-v3)      | Postgres + `pgvector` semantic index over Markdown, PDFs, Notion, Org-mode                                                                      | Docker Compose or PyPI (`pip`) + optional local LLMs                                                                                     | Web app, Obsidian & Emacs plugins, Desktop, WhatsApp          | Personal-to-team research, Obsidian vaults, and scheduled email digests         |
+| **[Mem0](https://mem0.ai)**                      | Developer Memory Layer SDK & MCP Server              | [Apache-2.0](https://opensource.org/license/apache-2-0) | Hybrid vector + BM25 + entity graph (`user_id`, `agent_id`, `session_id`)                                                                       | Python/TS SDK (`pip install mem0ai`) or Docker (`OpenMemory`)                                                                            | Developer dashboard only (requires custom app UI)             | Adding persistent user and session memory into custom agent codebases           |
+| **[Letta](https://www.letta.com)**               | Stateful Agent Runtime & Self-Editing Memory         | [Apache-2.0](https://opensource.org/license/apache-2-0) | Editable in-context memory blocks (`core_memory`) + archival Postgres store                                                                     | `npm install -g @letta-ai/letta-code` or Docker (`letta server`)                                                                         | Letta ADE (developer studio) + Slack/Telegram/Discord         | Engineers building long-running agents that actively rewrite their own memory   |
+| **[Cognee](https://www.cognee.ai)**              | Open-Source Knowledge Graph & Memory Engine          | [Apache-2.0](https://opensource.org/license/apache-2-0) | `ECL` pipeline (Extract, Cognify, Load) into Graph (`Kuzu`/`Neo4j`) + Vector DB                                                                 | Python package (`uv pip install cognee`) or Docker MCP server                                                                            | Developer CLI/API (requires external chat or agent UI)        | Turning unstructured docs and conversations into ontology-backed graphs         |
+
+---
+
+## Why Most DIY Open-Source Company Brains Stall After `git clone`
+
+Before picking a repository, it helps to separate the **storage mechanism** from the **operating loop**.
+
+When you clone a standalone vector search repo or a Python memory SDK, you get a way to index text and retrieve passages. What you do not get are the five operational layers that turn a database into a [company brain](/blog/how-to-build-a-company-ai-brain) the rest of your organization can trust:
+
+1. **Non-technical authorship and skill creation:** If updating your company brain requires a pull request, local `npm` scripts, or raw JSON edits, 80% of your company (marketing, sales, support, finance, operations) will never contribute their domain expertise.
+2. **An execution harness with isolated sandboxes:** A company brain should not stop at summarizing a runbook. It needs an agent harness that can run Python or Bash scripts, inspect spreadsheets, query live APIs, and draft deliverables inside an isolated container.
+3. **A centralized credential vault and approval gates:** Storing API keys in developer `.env` files or passing un-scoped tokens into an LLM prompt is a security incident waiting to happen. Agents need pre-wired OAuth connections where read actions run automatically and write actions (like sending an email, posting to Slack, or opening a PR) pause for human approval.
+4. **Scheduled consolidation and drift prevention:** Company policies change in Slack and customer calls every week. Without cron-scheduled jobs and event subscriptions that reconcile new decisions into durable files, your wiki becomes a stale snapshot within 30 days.
+5. **Multiplayer channels where teams already work:** If employees have to log into a separate developer dashboard to query the brain, adoption drops off. The brain has to live inside Slack threads, Telegram groups, WhatsApp, and shared web sessions.
+
+![Assembling DIY Open-Source Parts vs Running a Unified Coworker Platform](/blog/best-open-source-company-brain/diy-company-brain-glue-vs-agenta.webp)
+
+The projects below fall into four clear groups depending on whether you want a **complete open-source AI coworker platform** (`Agenta`), an **opinionated Markdown + Postgres brain for coding harnesses** (`GBrain`), a **self-hosted document search and RAG workspace** (`Onyx`, `RAGFlow`, `AnythingLLM`, `Khoj`), or a **developer memory and graph layer** (`Mem0`, `Letta`, `Cognee`).
+
+---
+
+## 1. Agenta: Best Open-Source AI Coworker Platform & Operational Company Brain
+
+**[Agenta](https://agenta.ai)** ([`Agenta-AI/agenta`](https://github.com/Agenta-AI/agenta), **MIT License**) is an [open-source AI coworker platform](https://agenta.ai) where teams build, share, and automate specialized agents grounded in a shared organizational brain.
+
+Instead of treating the company brain as a passive search bar or a developer-only Python library, Agenta pairs a persistent shared filesystem (**AI Drive**) and versioned plain-language skills with a full execution runtime. Engineers can self-host the entire stack in their own VPC, connect any model provider, and govern credentials and sandboxes, while non-technical teammates across marketing, operations, customer support, sales, finance, product, and agencies build customized coworkers and automate recurring work simply by chatting.
+
+![Agenta open-source AI coworker platform and shared company brain workspace](/blog/best-open-source-company-brain/agenta.webp)
+
+### How Agenta's Company Brain Architecture Works
+
+Agenta structures organizational intelligence around durable, inspectable Markdown files and real execution harnesses rather than opaque vector chunks:
+
+- **Shared AI Drive (`agent-files/`):** Every agent has access to a persistent durable folder that survives across sessions. Teams store canonical business context (`00-context/`), research syntheses (`01-research/`), active pipelines (`02-pipeline/`), owner decisions (`decisions.md`), and living instructions (`AGENT.md`, `SOUL.md`, `MEMORY.md`). Because the brain is stored as readable Markdown with explicit version history, anyone on the team can inspect what the agent knows and correct a fact in plain English.
+- **Reusable Plain-Language Skills (`SKILL.md`):** Procedural know-how is captured as modular skills (such as `market-competitor-research`, `technical-seo-audit`, or `inbound-lead-enrichment`). When a teammate corrects an agent in chat ("Always check our enterprise pricing tier table before drafting a quote"), the agent updates its memory or proposes a revision to its skill configuration so the whole company benefits on the next run.
+- **Three Production Agent Harnesses:** Under the hood, Agenta runs agents on battle-tested execution harnesses including [Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://openai.com/codex/), and [Pi](https://github.com/badlogic/pi-mono). Each session executes inside its own isolated [Daytona](https://www.daytona.io/) sandbox with a full Linux filesystem, Python/Node runtimes, headless Chromium, and CLI tools (`git`, `gh`, `jq`, `sqlite3`).
+- **Pre-Wired Integrations, MCP Gateway, and Credential Vault:** Agenta connects to 1,000+ SaaS tools and [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers (GitHub, Linear, Slack, Notion, Google Workspace, HubSpot, Postgres, Search Console). Model API keys and OAuth tokens stay locked in the platform vault and are never exposed in plain text to the agent. Per-tool permissions let you allow reads automatically while gating writes or outbound messages behind an interactive approval card.
+- **Cron Schedules and Event Subscriptions:** Teammates can turn any coworker into a recurring automation using five-field UTC cron schedules (`create_schedule`) or real-time webhook subscriptions (`create_subscription`) that wake the agent when a GitHub issue opens, a HubSpot deal changes stage, or a Slack message arrives.
+- **Multiplayer Channels Across Slack, Telegram, WhatsApp, and Web:** Teams collaborate in shared web sessions or talk to their coworkers directly in **Slack**, **Telegram**, **WhatsApp Business**, or an embeddable web chat widget (`Publish > Embed`).
+
+### Open-Source License, Self-Hosting & Pricing
+
+- **License:** Permissive **[MIT License](https://github.com/Agenta-AI/agenta/blob/main/LICENSE.txt)** with no `EE`-only directory lock-in on the core workspace.
+- **Self-Hosting Stack:** Deploys via [Docker Compose](https://docs.docker.com/compose/) for single-node setups or [Kubernetes Helm charts](https://helm.sh/) for enterprise VPCs. Supports Bring-Your-Own-Key (BYOK) across Anthropic, OpenAI, Gemini, OpenRouter, AWS Bedrock, Azure, and local models via [Ollama](https://ollama.com/), or reusing existing Claude Max and ChatGPT subscriptions.
+- **Cloud Pricing:** Free self-hosted MIT edition; Agenta Cloud offers a **Free tier** ($0 with $5 starter credits), **Plus** ($20/month), **Pro** ($200/month), and custom Enterprise VPC plans.
+
+### Pros & Cons
+
+- **Pros:**
+  - Unifies the knowledge layer (`AI Drive` + `MEMORY.md` + `SKILL.md`) and the execution layer (`Claude Code`, `Codex`, `Pi` in isolated Daytona sandboxes) in one MIT-licensed platform.
+  - Designed for the entire company: non-technical teammates build and refine agents by chatting, without touching terminal configs or JSON files.
+  - Native Slack, Telegram, WhatsApp, and embeddable widget deployment plus built-in cron schedules, event triggers, and trace/cost observability.
+- **Cons:**
+  - Focused on operational AI coworkers, living Markdown context, and multi-step execution rather than acting as a passive 10-million-PDF enterprise search appliance like Glean.
+
+---
+
+## 2. GBrain: Best Opinionated Postgres + Markdown Brain for Coding Harnesses
+
+**[GBrain](https://github.com/garrytan/gbrain)** ([`garrytan/gbrain`](https://github.com/garrytan/gbrain), **MIT License**) is the open-source agent brain created by Y Combinator President Garry Tan to power his own [OpenClaw](https://openclaw.ai/) and Hermes agent deployments, and subsequently extended with a multi-user team mode.
+
+GBrain is the closest public blueprint for what a personal-to-team Markdown and Postgres brain looks like when pushed to production scale: Tan's own instance indexes **155,795 pages, 24,589 people, and 5,340 companies** maintained by **66 autonomous cron jobs** that ingest meetings, emails, tweets, and voice calls overnight.
+
+![GBrain open-source Postgres and Markdown agent brain repository by Garry Tan](/blog/best-open-source-company-brain/gbrain.webp)
+
+### Architectural Strengths
+
+- **Structured Markdown Pages with Truth Over Time:** Every entity (person, company, deal, concept, meeting) lives as a Markdown page divided into a **Compiled Truth** section at the top and an append-only **Chronological Timeline** below. When a fact changes, the agent rewrites the compiled truth while preserving the historical evidence trail below.
+- **Zero-LLM-Call Entity Graph Wiring:** Whenever a trusted local page is written, GBrain's regex link extractor automatically wires typed graph edges (`works_at`, `invested_in`, `mentioned_in`) in milliseconds without spending LLM tokens. On relationship queries (`"Who works at Acme?"`), breadth-first graph walks achieve **0.9791 Recall@5** on BrainBench compared to 0.6874 for plain hybrid search.
+- **Hybrid Search + Cited Synthesis with Gap Analysis:** Combines [PostgreSQL](https://www.postgresql.org/) + [`pgvector`](https://github.com/pgvector/pgvector) semantic embeddings with BM25 keyword search and Reciprocal Rank Fusion (RRF). Instead of dumping 10 raw chunks, its synthesis layer returns cited prose and explicitly states what the brain _does not know yet_.
+- **`RESOLVER.md` Skill Routing & Overnight Dream Cycles:** Stores memory skills alongside knowledge in the content root and uses `check-resolvable` audits to prevent "dark capability" sprawl as skill counts grow. Exposed anywhere over [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) via a single command (`gbrain mcp expose` over [Tailscale](https://tailscale.com/)).
+
+### License, Self-Hosting & Limitations
+
+- **License:** **[MIT License](https://github.com/garrytan/gbrain/blob/master/LICENSE)** (hosted version available at `gbrain.io`).
+- **Self-Hosting Stack:** TypeScript / [Bun](https://bun.sh/) CLI backed by PostgreSQL + `pgvector` (or local PGLite for starter setups) and exposed as an MCP server to `Claude Code`, `Codex`, `Cursor`, or `ChatGPT`.
+- **Where Teams Hit Limits:** GBrain is built first for technical founders and developers who live inside coding harnesses and terminals. While it added per-login visibility scoping for remote MCP clients, its README explicitly notes that local file access and shared database credentials remain a developer trust boundary, and non-technical teammates do not get a self-service web workspace, visual approval cards, or managed Daytona execution sandboxes out of the box.
+
+---
+
+## 3. Onyx (formerly Danswer): Best Self-Hosted Enterprise Search & Q&A Assistant
+
+**[Onyx](https://www.onyx.app)** ([`onyx-dot-app/onyx`](https://github.com/onyx-dot-app/onyx), formerly Danswer) is the most mature open-source alternative to Glean for teams whose primary goal is **cross-application enterprise search and permission-aware document Q&A**.
+
+Where coding-agent brains focus on curated Markdown files, Onyx connects to **50+ enterprise SaaS tools** (Google Drive, Slack, Confluence, Jira, Notion, SharePoint, Linear, GitHub, Salesforce, Zendesk) and continuously indexes their documents, metadata, and access control lists (ACLs).
+
+![Onyx open-source enterprise search and AI assistant platform](/blog/best-open-source-company-brain/onyx.webp)
+
+### Architectural Strengths
+
+- **50+ Connectors with Document-Level Permission Sync:** Onyx ingests source permissions alongside documents so that when a salesperson queries Onyx via web chat, the Slack bot, or the Onyx MCP server, the hybrid index only surfaces documents that user is authorized to read in the upstream SaaS app.
+- **Hybrid Vespa Index + Agentic RAG & Deep Research:** Uses a hybrid vector + keyword index paired with a custom retrieval harness, multi-step Deep Research flows, live web search (Exa, Firecrawl, SearXNG, Brave), and custom AI assistants scoped to specific knowledge sets.
+- **Multi-Surface Access:** Includes a full Next.js web app, Slack and Discord bots, a Chrome side-panel extension, an embeddable widget, and an MCP server so external clients (`Claude Code`, `Codex`) can query Onyx's index with low latency.
+
+### License, Self-Hosting & Limitations
+
+- **License:** **Dual-licensed (MIT Community Edition / Source-Available Enterprise Edition)**. Core connectors, hybrid search, and chat are MIT-licensed, while enterprise governance features such as document-level ACL syncing, OIDC/SAML SSO, RBAC, and multi-tenant analytics require the paid Enterprise Edition license.
+- **Self-Hosting Stack:** Deploys via a single install script (`curl -fsSL https://onyx.app/install_onyx.sh | bash`), Docker Compose, Kubernetes Helm charts, or Terraform, running Python backend services, Postgres, Redis, and Vespa.
+- **Where Teams Hit Limits:** Onyx is fundamentally an **information retrieval engine**. It excels at finding existing pages and answering questions from static docs, but it does not automatically reconcile contradictory policies across tools, rewrite outdated wiki pages during an overnight consolidation cycle, or give non-technical teams a conversational coworker builder with isolated code sandboxes.
+
+---
+
+## 4. RAGFlow: Best for Deep Document Understanding & Complex PDF Parsing
+
+**[RAGFlow](https://ragflow.io)** ([`infiniflow/ragflow`](https://github.com/infiniflow/ragflow), **Apache-2.0 License**, 92k+ GitHub stars) is an open-source RAG and context engine engineered by InfiniFlow around a simple premise: _"Quality in, quality out."_
+
+If your company's institutional knowledge is locked inside scanned contracts, multi-column engineering specifications, financial spreadsheets, and slide decks rather than clean Markdown files, standard fixed-token chunkers destroy the table structure before the vector database ever sees it. RAGFlow solves the document-parsing layer better than almost any other open-source project.
+
+![RAGFlow open-source deep document understanding and agentic RAG engine](/blog/best-open-source-company-brain/ragflow.webp)
+
+### Architectural Strengths
+
+- **`DeepDoc` Visual Layout & Table Parser:** Uses vision and OCR models to recognize document layouts, multi-page tables, headers, figures, and reading order across PDFs, Word docs, Excel spreadsheets, PowerPoint decks, and scanned images.
+- **Explainable Template-Based Chunking:** Instead of blind 500-token slices, admins choose domain-specific chunking templates (Q&A pairs, legal clauses, resumes, manuals, tables, books) and can visually inspect and edit every chunk with traceable bounding-box citations back to the original PDF page.
+- **Knowledge Compilation & Multi-Depth Agentic Retrieval:** RAGFlow 1.0 introduced **Knowledge Compilation**, which compiles raw datasets into structured Wikis, Knowledge Graphs, Trees, Mind Maps, Timelines, and Skills, alongside an Agentic RAG loop with configurable thinking depths (`Low`, `Medium`, `High`, `Ultra`).
+
+### License, Self-Hosting & Limitations
+
+- **License:** Permissive **[Apache License 2.0](https://github.com/infiniflow/ragflow/blob/main/LICENSE)**.
+- **Self-Hosting Stack:** Heavyweight Docker Compose or Kubernetes stack requiring `ragflow-server`, Elasticsearch or Infinity (vector/full-text engine), MySQL, Redis, and MinIO object storage (minimum 4 CPU cores and 16 GB RAM recommended).
+- **Where Teams Hit Limits:** RAGFlow is a heavyweight document ingestion and retrieval studio for data engineers. It is not a lightweight Slack coworker platform where a marketing or operations lead chats with an agent to schedule recurring cross-app workflows.
+
+---
+
+## 5. AnythingLLM: Best All-in-One Local & Single-Container Document Workspace
+
+**[AnythingLLM](https://anythingllm.com)** ([`Mintplex-Labs/anything-llm`](https://github.com/Mintplex-Labs/anything-llm), **MIT License**, 67k+ GitHub stars) is the fastest way to spin up a private, self-hosted ChatGPT-style workspace over your own documents with zero infrastructure friction.
+
+Built by Mintplex Labs, AnythingLLM packages document ingestion, an embedded vector database, local model execution, custom `@agent` skills, and multi-user workspace permissions into either a native desktop app or a single Docker container.
+
+![AnythingLLM open-source local-first document workspace and AI agent app](/blog/best-open-source-company-brain/anythingllm.webp)
+
+### Architectural Strengths
+
+- **Zero-Config Single-Container or Desktop Setup:** Runs on macOS, Windows, and Linux as a local desktop app (with built-in `llama.cpp` and AMD Lemonade local LLM engines) or deploys on a server via a single Docker image with multi-user roles (`Admin`, `Manager`, `Default`), white-labeling, and an embeddable chat widget.
+- **Broad Model and Vector DB Compatibility:** Connects to 30+ LLM providers (OpenAI, Anthropic, Gemini, Bedrock, Ollama, LM Studio, vLLM, OpenRouter) and 10+ vector databases (`LanceDB` embedded by default, `PGVector`, `Qdrant`, `Milvus`, `Chroma`, `Weaviate`, `Pinecone`).
+- **Workspace Memories, Scheduled Tasks & No-Code Agent Skills:** Includes user- and workspace-managed memories, cron-scheduled prompts, MCP tool compatibility, and an intelligent skill selector that filters active tools per query to cut token usage.
+
+### License, Self-Hosting & Limitations
+
+- **License:** **[MIT License](https://github.com/Mintplex-Labs/anything-llm/blob/master/LICENSE)**.
+- **Self-Hosting Stack:** Single Docker container (`mintplexlabs/anythingllm`) with SQLite and embedded `LanceDB` out of the box.
+- **Where Teams Hit Limits:** AnythingLLM is structured around isolated chat workspaces where users manually upload files or point at basic collectors. It lacks an organizational entity graph, automated cross-app permission mirroring, and isolated Linux coding sandboxes (`Claude Code` / `Codex` / `Pi`) for deep multi-step engineering or operations tasks.
+
+---
+
+## 6. Khoj: Best Open-Source AI Second Brain for Research & Obsidian Teams
+
+**[Khoj](https://khoj.dev)** ([`khoj-ai/khoj`](https://github.com/khoj-ai/khoj), **AGPL-3.0 License**, 37k+ GitHub stars) started as an open-source "AI second brain" for personal Emacs and Obsidian vaults and evolved into a self-hostable research assistant for individuals and small teams.
+
+If your team's knowledge lives in Markdown vaults, Org-mode files, Notion pages, PDFs, and GitHub repositories, and you want an assistant that blends internal notes with live web research and scheduled digests, Khoj is purpose-built for that workflow.
+
+![Khoj open-source AI second brain and research assistant interface](/blog/best-open-source-company-brain/khoj.webp)
+
+### Architectural Strengths
+
+- **Native Obsidian, Emacs, Desktop, Web, and WhatsApp Clients:** Unlike server-only RAG tools, Khoj meets note-takers directly inside their Obsidian vault or Emacs buffer while also offering browser, desktop (including their new local coworker `Pipali`), and WhatsApp interfaces.
+- **Scheduled Automations & Smart Digests:** Users can create custom agents with specific personas and knowledge scopes, and schedule recurring research tasks (such as daily competitor monitoring or morning arXiv/news digests) delivered straight to their email inbox.
+- **Hybrid Document + Web Research:** Seamlessly combines semantic search (`pgvector`) over your synced Markdown/PDF/Notion corpus with live internet search and Python code execution inside a sandbox.
+
+### License, Self-Hosting & Limitations
+
+- **License:** **[GNU Affero General Public License v3.0 (AGPL-3.0)](https://github.com/khoj-ai/khoj/blob/master/LICENSE)**. For CTOs with strict corporate open-source compliance rules, note that `AGPL-3.0` is a strong network copyleft license (unlike `MIT` or `Apache-2.0`), meaning modifications served over a network must be released under AGPLv3 unless you purchase a commercial enterprise license from Khoj.
+- **Self-Hosting Stack:** Docker Compose (`postgres` with `pgvector` + `khoj` server + optional `terrarium` code sandbox).
+- **Where Teams Hit Limits:** Khoj feels like a personal second brain scaled up to a small research group rather than a governed multiplayer platform for 100+ employees across Slack, CRM, and enterprise ticketing systems.
+
+---
+
+## 7. Mem0: Best Developer Memory Layer SDK for Custom Agent Codebases
+
+**[Mem0](https://mem0.ai)** ([`mem0ai/mem0`](https://github.com/mem0ai/mem0), **Apache-2.0 License**, 67k+ GitHub stars) is the most widely adopted open-source **developer memory layer** for AI applications. Selected by AWS as the memory provider for its Agent SDK, Mem0 solves a specific problem for software engineers: giving custom-coded agents persistent memory across conversations (`user_id`, `agent_id`, `session_id`).
+
+![Mem0 open-source memory layer SDK and OpenMemory architecture](/blog/best-open-source-company-brain/mem0.webp)
+
+### Architectural Strengths
+
+- **Multi-Level Memory Scoping (`user_id`, `agent_id`, `run_id`):** In four lines of Python (`pip install mem0ai`) or TypeScript (`npm install mem0ai`), developers can call `memory.add()` and `memory.search()` to persist facts learned during customer support or assistant conversations.
+- **April 2026 Single-Pass Extraction & Multi-Signal Retrieval:** Mem0's updated memory algorithm uses single-pass ADD-only fact extraction, entity linking, temporal reasoning, and parallel semantic + BM25 + entity scoring, achieving **94.4 on LongMemEval** and **92.5 on LoCoMo** (on Mem0's managed stack).
+- **OpenMemory MCP Server & Agent CLI (`@mem0/cli`):** Includes a self-hostable Docker server and CLI (`mem0 init --agent`) so coding agents like `Claude Code` or `Cursor` can read and write shared developer memories over MCP.
+
+### License, Self-Hosting & Limitations
+
+- **License:** **[Apache License 2.0](https://github.com/mem0ai/mem0/blob/main/LICENSE)** for the open-source SDK and self-hosted server (with proprietary ranking optimizations reserved for Mem0 Cloud).
+- **Self-Hosting Stack:** Python/Node library or Docker Compose (`mem0` API + Postgres/`pgvector` or Qdrant + Neo4j for `Mem0g` graph memory).
+- **Where Teams Hit Limits:** Mem0 is a **developer primitive, not a company brain application**. It stores atomic conversational facts (`"User prefers concise Python examples"`), not 50-page product specs, SOP playbooks, or Slack approval workflows. If you choose Mem0 as your company brain foundation, your engineers still have to build the ingestion connectors, permission model, agent execution harness, and team UI from scratch.
+
+---
+
+## 8. Letta (formerly MemGPT): Best Stateful Agent Runtime with Self-Editing Memory Blocks
+
+**[Letta](https://www.letta.com)** ([`letta-ai/letta`](https://github.com/letta-ai/letta) and [`letta-ai/letta-code`](https://github.com/letta-ai/letta-code), **Apache-2.0 License**, 25k+ GitHub stars) grew out of the UC Berkeley **MemGPT** research paper, which pioneered treating an LLM like an operating system that pages memory in and out of its context window.
+
+Where standard RAG systems passively inject retrieved chunks into a stateless prompt, a Letta agent is a **stateful entity** that actively decides when to edit its own in-context memory blocks using built-in tool calls (`memory_replace`, `memory_insert`, `archival_memory_search`).
+
+![Letta open-source stateful agent platform and Agent Development Environment](/blog/best-open-source-company-brain/letta.webp)
+
+### Architectural Strengths
+
+- **Self-Editing In-Context Memory Blocks (`Core Memory`):** Every Letta agent maintains structured, pinned memory blocks (such as `persona`, `human`, `company_context`, or `shared_team_state`) directly inside its system prompt, alongside an unbounded archival memory backed by Postgres/`pgvector`.
+- **Shared Memory Blocks Across Multi-Agent Teams:** Multiple Letta agents can attach to the same read/write shared memory block. When a triage agent updates the `incident_status` block, every other agent attached to that block sees the updated state on its very next turn.
+- **Letta Code & Agent Development Environment (ADE):** Ships with an interactive terminal harness (`npm install -g @letta-ai/letta-code`), an App Server (`letta server`), a visual browser studio (Letta ADE) for inspecting context window state in real time, and channel adapters for Slack, Telegram, and Discord.
+
+### License, Self-Hosting & Limitations
+
+- **License:** **[Apache License 2.0](https://github.com/letta-ai/letta/blob/main/LICENSE)**.
+- **Self-Hosting Stack:** Node/TypeScript CLI (`@letta-ai/letta-code`) or Docker container backed by PostgreSQL.
+- **Where Teams Hit Limits:** Letta is an engineering-first runtime for designing stateful agent architectures. Because agents mutate their own memory blocks via LLM tool calls, non-technical teammates cannot easily browse a clean folder of Markdown SOPs, and teams still need to wire up enterprise document connectors, credential vaults, and business-user onboarding.
+
+---
+
+## 9. Cognee: Best Open-Source Knowledge Graph & Ontology Engine for Agents
+
+**[Cognee](https://www.cognee.ai)** ([`topoteretes/cognee`](https://github.com/topoteretes/cognee), **Apache-2.0 License**, 32k+ GitHub stars) is an open-source AI memory engine built around a clear architectural bet: flat vector chunks lose the relationships between people, tickets, code changes, and business decisions, so agent memory should be backed by a **combined knowledge graph and vector store**.
+
+Along with **[Graphiti](https://github.com/getzep/graphiti)** (`getzep/graphiti`, Apache-2.0, which adds temporal validity windows `[t_valid, t_invalid]` to graph edges), Cognee is the leading open-source graph memory engine for engineering teams assembling custom context pipelines.
+
+![Cognee open-source knowledge graph and AI agent memory engine](/blog/best-open-source-company-brain/cognee.webp)
+
+### Architectural Strengths
+
+- **`ECL` Pipeline (Extract, Cognify, Load):** Replaces brittle RAG chunking with a programmable three-step pipeline (`cognee.add()`, `cognee.cognify()`, `cognee.search()`) that extracts entities and relationships using Pydantic ontologies or local small models (`GLiNER`) and loads them into a graph database (`Kuzu` embedded by default, `Neo4j`, `Memgraph`) plus a vector store (`LanceDB`, `PGVector`, `Qdrant`).
+- **Runs Locally Without an API Key:** With `uv pip install "cognee[gliner]"`, developers can extract entity graphs and embed text locally on CPU using free small models before layering on an LLM for synthesis.
+- **Coding Agent Plugins & MCP Support:** Plugs into `Claude Code`, `Codex`, `OpenClaw`, and `n8n` via MCP so coding agents can distill session fixes and architectural decisions into a queryable graph.
+
+### License, Self-Hosting & Limitations
+
+- **License:** **[Apache License 2.0](https://github.com/topoteretes/cognee/blob/main/LICENSE)**.
+- **Self-Hosting Stack:** Python library (`Python 3.10–3.14`), CLI (`cognee-cli`), or Docker container.
+- **Where Teams Hit Limits:** Like `Mem0` and `Graphiti`, Cognee is a **backend graph memory engine**, not an end-to-end team workspace. It gives your Python developers a clean way to build a knowledge graph, but it does not provide a Slack coworker harness, non-technical skill authoring, or sandboxed task execution.
+
+---
+
+## Honorable Mention: Supermemory's Open-Source Multiplayer Slack Harness
+
+Two additional open-source repositories deserve a spot on every CTO's reading list when designing a company brain:
+
+- **[Supermemory](https://github.com/supermemoryai/supermemory) (`supermemoryai/supermemory`, MIT License, 31k+ stars) & `CompanyBrainAgent`:** In September 2026, Supermemory [open-sourced its multiplayer Slack Company Brain harness](https://supermemory.ai/blog/open-sourcing-company-brain/) built on the Cloudflare Agents SDK and Durable Objects. Its architecture write-up is a masterclass in why a company brain needs a **multiplayer harness**: a fast triage model scores every passive Slack message from 0 to 100 across usefulness, confidence, urgency, and interruption cost before a deterministic evaluator chooses `ANSWER`, `INVESTIGATE`, `ACKNOWLEDGE` (emoji reaction only), or `PASS` (stay quiet).
+- **[Graphiti](https://github.com/getzep/graphiti) (`getzep/graphiti`, Apache-2.0 License, 32k+ stars):** Built by the team at Zep, Graphiti models company knowledge as a **temporal context graph** where every relationship edge carries a validity window (`valid_at`, `invalid_at`). When your pricing or on-call rotation changes in Q4, Graphiti marks the Q3 edge as superseded rather than deleting it, allowing agents to answer both _"What is our enterprise SLA today?"_ and _"What did we promise customers signed in March?"_
+
+---
+
+## How to Choose the Right Open-Source Company Brain for Your Team
+
+When evaluating these repositories for a production rollout, use four architectural questions to avoid the 27% abandonment trap:
+
+### 1. Who will maintain and use the brain on Tuesday morning?
+
+If the only people touching the system are backend engineers writing Python scripts or living inside a terminal, **GBrain** (for Markdown + Postgres + MCP) or **Cognee / Mem0** (for embedded SDK memory) are strong building blocks.
+
+If you want your **entire organization** (marketing, operations, customer support, sales, product, finance, and leadership) to build AI coworkers, edit shared playbooks (`SKILL.md`), and run scheduled automations in Slack, Telegram, or the browser without filing engineering tickets, start with **[Agenta](https://agenta.ai)**.
+
+### 2. Do you need passive document lookup or active task execution?
+
+- **Passive lookup across 50+ existing SaaS silos:** Choose **Onyx** (if you want a self-hosted Glean-style search bar) or **RAGFlow** (if your corpus is heavy on complex PDFs and scanned financial tables).
+- **Active execution with real harnesses and sandboxes:** Choose **[Agenta](https://agenta.ai)**, which pairs shared organizational context (**AI Drive**) with [Claude Code](https://code.claude.com/docs/en/overview), [Codex](https://openai.com/codex/), and [Pi](https://github.com/badlogic/pi-mono) running inside isolated [Daytona](https://www.daytona.io/) sandboxes.
+
+### 3. Does the open-source license match your compliance posture?
+
+Check the repository's `LICENSE` file before deploying into a corporate VPC:
+
+- **Permissive OSI licenses (`MIT` / `Apache-2.0`):** **Agenta** (`MIT`), **GBrain** (`MIT`), **AnythingLLM** (`MIT`), **RAGFlow** (`Apache-2.0`), **Mem0** (`Apache-2.0`), **Letta** (`Apache-2.0`), **Cognee** (`Apache-2.0`), and **Graphiti** (`Apache-2.0`) allow internal modification and deployment without copyleft disclosure requirements.
+- **Network copyleft (`AGPL-3.0`):** **Khoj** uses `AGPL-3.0`, which triggers source-code disclosure obligations if you modify the software and serve it over a network.
+- **Open-core / Enterprise Edition (`EE`) splits:** **Onyx** ships an MIT Community core, but gates enterprise SSO (OIDC/SAML), RBAC, and document-level permission syncing behind a commercial Enterprise license.
+
+---
+
+## Conclusion: Don't Just Clone a Database, Deploy a Coworker Platform
+
+A vector database or a Markdown folder on its own is a snapshot. A real [company brain](/blog/best-company-brain-software) is a living loop: it ingests context from the tools your team uses, organizes knowledge into readable files and skills, executes real work inside governed sandboxes, and learns whenever a teammate corrects it in Slack or chat.
+
+If you want to skip months of writing custom glue code between vector stores, OAuth vaults, sandboxes, and Slack bots, you can self-host **[Agenta](https://github.com/Agenta-AI/agenta)** under the MIT license or try **[Agenta Cloud](https://agenta.ai)** for free to give your engineering and business teams a shared company brain and AI coworker workspace in minutes.
+
+---
+
+## Frequently Asked Questions (FAQ)
+
+### What is an open-source company brain?
+
+An open-source company brain is a self-hostable software system that captures, organizes, and serves an organization's shared knowledge, decisions, and reusable playbooks (`SKILL.md`) so employees and AI agents work from a single source of truth. Depending on the project, it may cover document search (`Onyx`, `RAGFlow`), agent memory (`Mem0`, `Letta`, `Cognee`), structured Markdown + Postgres vaults (`GBrain`), or a full [open-source AI coworker platform](https://agenta.ai) (`Agenta`) that combines shared files (`AI Drive`) with sandboxed task execution.
+
+### Is there a single open-source project that replaces Glean, Dust, and Notion AI?
+
+No single retrieval library replaces all three, because search, memory, and execution are distinct layers. **Onyx** is the closest open-source alternative to Glean for cross-app enterprise search. **GBrain** is the closest opinionated Markdown + Postgres brain for coding agents (`Claude Code`, `Codex`, `Cursor`). **[Agenta](https://agenta.ai)** (`MIT`) is the closest open-source alternative to closed AI coworker platforms like Dust, combining a shared organizational brain (**AI Drive** and `SKILL.md` playbooks) with multi-harness execution (`Claude Code`, `Codex`, `Pi`), isolated Daytona sandboxes, 1,000+ integrations, and Slack/Telegram/web collaboration.
+
+### How does GBrain compare to Agenta for a company brain?
+
+Garry Tan's **GBrain** (`garrytan/gbrain`, MIT) is an opinionated Postgres + `pgvector` + Markdown brain designed primarily for technical founders and developers querying their corpus from terminal harnesses (`Claude Code`, `Codex`, `OpenClaw`) over MCP and Tailscale. **Agenta** (`Agenta-AI/agenta`, MIT) is a full multiplayer AI coworker workspace: it includes persistent Markdown files and skills (`AI Drive`), runs `Claude Code`, `Codex`, and `Pi` inside isolated Daytona sandboxes, manages OAuth credentials and tool approval gates, and gives non-technical teammates in marketing, ops, support, and sales a conversational web, Slack, and Telegram interface. Can you use both? Yes: you can even connect a GBrain MCP server directly into an Agenta coworker.
+
+### Which open-source company brain is best for complex PDFs and financial tables?
+
+**RAGFlow** (`infiniflow/ragflow`, Apache-2.0) is purpose-built for layout-heavy documents. Its `DeepDoc` engine uses visual layout recognition and OCR to parse multi-column PDFs, scanned contracts, and spreadsheets into traceable, template-chunked citations and compiled knowledge artifacts.
