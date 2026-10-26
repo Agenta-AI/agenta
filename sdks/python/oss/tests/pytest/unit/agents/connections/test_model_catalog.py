@@ -546,3 +546,29 @@ def test_gemini_4_argon_is_published_with_its_display_name():
     )
     assert entry["name"] == "Gemini 4 Argon"
     assert entry["provider"] == "openrouter"
+
+
+def test_kimi_k3_1_pro_is_published_with_a_clean_label():
+    entries = harness_catalog_document()["pi_core"]["capabilities"]["model_catalog"]
+    entry = next(
+        (
+            item
+            for item in entries
+            if item["id"] == "openrouter/moonshotai/kimi-k3.1-pro"
+        ),
+        None,
+    )
+    assert entry is not None, (
+        "openrouter/moonshotai/kimi-k3.1-pro missing from the pi catalog"
+    )
+    assert entry["provider"] == "openrouter"
+    assert entry["source"] == "curated"
+    assert entry["name"] == "MoonshotAI: Kimi K3.1 Pro"
+    assert entry["label"] == "Kimi K3.1 Pro"
+    assert entry["context_window"] == 1048576
+    assert entry["modalities"] == ["text", "image", "video"]
+    assert entry["pricing"]["input_per_mtok"] == 2
+    assert entry["pricing"]["output_per_mtok"] == 10
+    assert entry["pricing"]["cache_read_per_mtok"] == 0.2
+    assert entry["pricing"]["cache_write_per_mtok"] is None
+    assert entry["pricing"]["currency"] == "USD"
