@@ -333,6 +333,8 @@ export async function runTurn(
   let turnLedgerForFailure:
     | { sessionId: string; turnIndex: number }
     | undefined;
+  // Set once the harness answered the cancel a tripped time limit sent (`stopHarnessAfterLimit`).
+  let limitStopSettled = false;
   /**
    * After a failed turn: keep the harness's native session when it can take the failed turn back
    * out of its transcript, otherwise drop the resume point (the next turn replays).
@@ -345,9 +347,13 @@ export async function runTurn(
    */
   const settleFailedTurnContinuity = async (): Promise<boolean> => {
     let rolledBack = false;
-    // Only a harness in this runner can roll its own transcript back.
     const session = env.session as Partial<InRunnerSessionHandle> | undefined;
-    if (session?.rollbackFailedTurn) {
+    // A time limit is no refusal: the turn's work is sound, and the person is told to continue it.
+    // A harness that answered the limit's cancel holds a short but finished turn, as after a Stop,
+    // so its transcript stays the resume point with that work in it.
+    const keepsWork = limitStopSettled && session?.nativeHistorySaved?.() !== false;
+    // Only a harness in this runner can roll its own transcript back.
+    if (!keepsWork && session?.rollbackFailedTurn) {
       try {
         rolledBack = await session.rollbackFailedTurn();
       } catch (err) {
@@ -358,7 +364,7 @@ export async function runTurn(
     }
     const agentSessionId = env.session?.agentSessionId as string | undefined;
     if (
-      !rolledBack ||
+      !(rolledBack || keepsWork) ||
       !sessionId ||
       !agentSessionId ||
       env.continuityTurnIndex === undefined
@@ -475,6 +481,22 @@ export async function runTurn(
   const runLimitTripped = new Promise<void>((resolve) => {
     runLimitTrip = resolve;
   });
+  /**
+   * After a time limit trips mid-turn, stop the harness the way a Stop does (`cancel-turn.ts`)
+   * before the failure path destroys its session. A harness that answers has saved a finished
+   * turn, which `settleFailedTurnContinuity` keeps as the resume point, so a "continue" picks the
+   * work up natively. One that does not answer is handled as before. The first-response limit is
+   * left out: that turn did nothing, and the dispatch retries it.
+   */
+  const stopHarnessAfterLimit = async (promptPromise: Promise<unknown>): Promise<void> => {
+    const cancel = await cancelHarnessTurn({
+      sandbox: env.sandbox,
+      sessionId: env.session?.id,
+      promptPromise,
+      log: logger,
+    });
+    limitStopSettled = cancel.settled;
+  };
   runLimits.onTrip((reason, kind) => {
     runLimitReason = reason;
     runLimitKind = kind;
@@ -1654,6 +1676,8 @@ export async function runTurn(
     // A tripped run-limit ends the turn as an error: throw into the shared catch below so the
     // trace is flushed and the caller's teardown reclaims the (wedged) sandbox.
     if (raced === RUN_LIMIT_TRIPPED || outputLimitReason) {
+      if (!outputLimitReason && runLimitKind && runLimitKind !== "ttfb")
+        await stopHarnessAfterLimit(promptPromise);
       throw runLimitPublicError ?? new Error(runLimitReason ?? "run limit tripped");
     }
     let stopReason =
