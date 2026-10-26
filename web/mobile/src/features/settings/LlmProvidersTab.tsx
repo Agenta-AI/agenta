@@ -27,9 +27,11 @@ const useOrganizationTabs = (
         staleTime: 30_000,
     })
     const enterprise = isEE()
-    // Only an owner or admin chooses projects, so only they need the plan's entitlements.
-    const manage = useAtomValue(organizationConnectionsAccessAtom) === "manage"
-    const entitlements = useEntitlements({projectId, enabled: enterprise && manage})
+    const access = useAtomValue(organizationConnectionsAccessAtom)
+    const manage = access === "manage"
+    // In parallel with the organization read (cached for minutes), so Selected projects is
+    // ready by the time an owner or admin opens a drawer. A member never reads them.
+    const entitlements = useEntitlements({projectId, enabled: enterprise && access !== "view"})
 
     return useMemo(() => {
         if (query.data?.kind !== "ok") return null

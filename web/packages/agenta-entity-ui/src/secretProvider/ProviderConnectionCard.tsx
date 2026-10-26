@@ -75,7 +75,11 @@ import HarnessesSection, {type HarnessChoice} from "./HarnessesSection"
 import OrganizationProjectsSection, {
     type OrganizationConnectionScope,
 } from "./OrganizationProjectsSection"
-import {organizationSavedToast, sameProjects} from "./useOrganizationProjectsDraft"
+import {
+    organizationSavedToast,
+    organizationSaveError,
+    sameProjects,
+} from "./useOrganizationProjectsDraft"
 import {DEFAULT_KEY_HARNESS as DEFAULT_HARNESS} from "./useSaveProviderKey"
 
 /** The capability map is global; the key only records which surface asked for it. */
@@ -130,30 +134,6 @@ export interface ProviderConnectionCardProps {
      * member, who can still Test it.
      */
     organization?: OrganizationConnectionScope
-}
-
-/** The HTTP status of a failed save, when it carried one. */
-const failedStatus = (error: unknown): number | null => {
-    const statusCode = (error as {statusCode?: unknown} | null)?.statusCode
-    if (typeof statusCode === "number") return statusCode
-    const status = (error as {response?: {status?: unknown}} | null)?.response?.status
-    return typeof status === "number" ? status : null
-}
-
-/** What a refused organization save says, in the design's words; null for any other failure. */
-const organizationSaveError = (error: unknown, org: string, name: string): string | null => {
-    const status = failedStatus(error)
-    if (status === 409) return `${org} already has a connection named ${name}. Pick another name.`
-    if (status === 403) {
-        return `You are no longer an owner or admin of ${org}, so you can't change organization connections.`
-    }
-    if (status === 422) {
-        const body = (error as {body?: {detail?: unknown}} | null)?.body
-        if (typeof body?.detail === "string" && body.detail.startsWith("Every project must")) {
-            return `One of the selected projects is no longer in ${org}. Reload the page and pick again.`
-        }
-    }
-    return null
 }
 
 /** Who a saved organization connection reaches, or null for a project connection. */

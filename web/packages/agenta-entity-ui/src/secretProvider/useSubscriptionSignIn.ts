@@ -61,7 +61,8 @@ export const useSubscriptionSignIn = ({
             scope === "organization"
                 ? createOrganizationConnection({
                       provider: kind,
-                      name: label,
+                      // The API's default name says whose it is: "ChatGPT (Organization)".
+                      name: "",
                       // A new organization connection starts with every project (Q1); the
                       // dialog's projects section can narrow it before Done.
                       projects: {availability: "all_projects", projectIds: []},

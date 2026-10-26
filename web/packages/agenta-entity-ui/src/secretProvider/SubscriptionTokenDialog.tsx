@@ -30,6 +30,7 @@ export const SubscriptionTokenDialog = ({
         open,
         connection,
         enabled: !!organization && !organization.readOnly,
+        organizationName: organization?.name,
     })
     // A pasted token creates the connection, so the projects chosen before Connect go with it.
     const token = useSubscriptionToken({

@@ -85,11 +85,16 @@ const projectsSummary = (
 ): string | null => {
     if (connection.availability === "all_projects") return "All projects"
     if (connection.availability !== "selected_projects") return null
-    const picked = (connection.selectedProjectIds ?? []).flatMap((id) => {
+    const ids = connection.selectedProjectIds ?? []
+    if (!ids.length) return "No projects"
+    const picked = ids.flatMap((id) => {
         const name = names.get(id)
         return name ? [name] : []
     })
-    return picked.length ? picked.join(", ") : "No projects"
+    // A project this admin does not see in their own list still counts.
+    return picked.length === ids.length
+        ? picked.join(", ")
+        : `${ids.length} ${ids.length === 1 ? "project" : "projects"}`
 }
 
 const rowDescription = (connection: ProviderConnection, projects: string | null): string =>

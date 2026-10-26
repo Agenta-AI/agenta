@@ -82,6 +82,7 @@ const DeviceSignInDialog = ({
         open,
         connection,
         enabled: !!organization && !organization.readOnly,
+        organizationName: organization?.name,
     })
 
     // Opening is the Connect click; a ready connection opens to its status instead.

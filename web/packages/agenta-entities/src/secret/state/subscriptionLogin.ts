@@ -140,7 +140,8 @@ export const forgetLoginAttemptAtom = atom(null, (_get, _set, serialized: string
 // Name and provider only: a browser must not get to state which harnesses may run it.
 export const buildSubscriptionSecretPayload = (provider: string, name: string): CreateSecretDto =>
     ({
-        header: {name},
+        // An empty name is left to the API, which names the row after its owner.
+        header: name ? {name} : {},
         secret: {kind: SUBSCRIPTION_PROVIDER_KIND, data: {provider}},
     }) as unknown as CreateSecretDto
 
@@ -216,9 +217,8 @@ export const cancelSubscriptionLoginAtom = atom(
 /** Refetch the vault so a finished sign-in flips the card and the pickers in one step. */
 export const refreshVaultSecretsAtom = atom(null, async () => {
     const queryClient = getHostQueryClient()
-    // The organization list too: an organization sign-in lands there (only refetched if shown).
-    await Promise.all([
-        queryClient.invalidateQueries({queryKey: ["vault", "secrets"]}),
-        queryClient.invalidateQueries({queryKey: ["vault", "organization-secrets"]}),
-    ])
+    // The organization list too (an organization sign-in lands there), in the background: a
+    // project sign-in waits on the project's read only, as before.
+    void queryClient.invalidateQueries({queryKey: ["vault", "organization-secrets"]})
+    await queryClient.invalidateQueries({queryKey: ["vault", "secrets"]})
 })

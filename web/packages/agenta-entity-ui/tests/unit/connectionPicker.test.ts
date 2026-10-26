@@ -1428,4 +1428,26 @@ describe("a stored organization connection that is gone", () => {
             }),
         ).toBe(modelRowKey(rows[0].key, model))
     })
+
+    it("shows no row and no model for it in the menu", () => {
+        const rows = buildConnectionPickerRows({
+            connections: [standard("project-openai", "openai", {slug: "openai-project"})],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+        const model = rows[0].models[0]
+        expect(
+            displayedModelRow(
+                rows,
+                {
+                    modelId: model.modelId,
+                    slug: "openai-org-gone",
+                    namespace: "organization",
+                    mode: "agenta",
+                    harness: model.harness,
+                },
+                ["openai-project"],
+            ),
+        ).toEqual({key: undefined, modelId: null})
+    })
 })

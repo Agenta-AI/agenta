@@ -16,6 +16,30 @@ export const organizationSavedToast = (name: string, projects: OrganizationSecre
         : `${name} saved. ${count} ${count === 1 ? "project" : "projects"} can use it.`
 }
 
+/** The HTTP status of a failed save, when it carried one. */
+const failedStatus = (error: unknown): number | null => {
+    const statusCode = (error as {statusCode?: unknown} | null)?.statusCode
+    if (typeof statusCode === "number") return statusCode
+    const status = (error as {response?: {status?: unknown}} | null)?.response?.status
+    return typeof status === "number" ? status : null
+}
+
+/** What a refused organization save says, in the design's words; null for any other failure. */
+export const organizationSaveError = (error: unknown, org: string, name: string): string | null => {
+    const status = failedStatus(error)
+    if (status === 409) return `${org} already has a connection named ${name}. Pick another name.`
+    if (status === 403) {
+        return `You are no longer an owner or admin of ${org}, so you can't change organization connections.`
+    }
+    if (status === 422) {
+        const body = (error as {body?: {detail?: unknown}} | null)?.body
+        if (typeof body?.detail === "string" && body.detail.startsWith("Every project must")) {
+            return `One of the selected projects is no longer in ${org}. Reload the page and pick again.`
+        }
+    }
+    return null
+}
+
 export const sameProjects = (
     a: OrganizationSecretProjects,
     b: OrganizationSecretProjects,
@@ -33,10 +57,13 @@ export const useOrganizationProjectsDraft = ({
     open,
     connection,
     enabled,
+    organizationName = "",
 }: {
     open: boolean
     connection: ProviderConnection | null | undefined
     enabled: boolean
+    /** For the refusal messages that name the organization. */
+    organizationName?: string
 }) => {
     const setProjects = useSetAtom(setOrganizationConnectionProjectsAtom)
     const saved = useMemo<OrganizationSecretProjects>(
@@ -78,13 +105,16 @@ export const useOrganizationProjectsDraft = ({
                 await setProjects({connectionId: connection.id, projects})
                 message.success(organizationSavedToast(connection.name, projects))
                 close()
-            } catch {
-                setError(`Agenta could not save this ${connection.name} connection. Try again.`)
+            } catch (failure) {
+                setError(
+                    organizationSaveError(failure, organizationName, connection.name) ||
+                        `Agenta could not save this ${connection.name} connection. Try again.`,
+                )
             } finally {
                 setSaving(false)
             }
         },
-        [connection, enabled, projects, saved, setProjects],
+        [connection, enabled, organizationName, projects, saved, setProjects],
     )
 
     return {projects, setProjects: setDraft, saved, saving, error, apply}

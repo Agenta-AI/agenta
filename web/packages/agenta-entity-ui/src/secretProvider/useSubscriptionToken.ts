@@ -42,6 +42,8 @@ export const useSubscriptionToken = ({
             organization
                 ? createOrganizationConnection({
                       ...args,
+                      // The API's default name says whose it is: "Claude (Organization)".
+                      name: "",
                       projects: projects ?? {availability: "all_projects", projectIds: []},
                   })
                 : createProjectConnection(args),

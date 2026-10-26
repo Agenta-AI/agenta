@@ -73,8 +73,11 @@ export type OrganizationConnectionsAccess = "loading" | "manage" | "view" | "err
 
 export const organizationConnectionsAccessAtom = atom<OrganizationConnectionsAccess>((get) => {
     const query = get(organizationSecretsQueryAtom)
+    // A 403 wins over cached rows: someone who stopped being an owner or admin sees the
+    // read-only view at once, not the list they could manage before.
+    if (query.isError && statusOf(query.error) === 403) return "view"
     if (query.data) return "manage"
-    if (query.isError) return statusOf(query.error) === 403 ? "view" : "error"
+    if (query.isError) return "error"
     return "loading"
 })
 
@@ -194,6 +197,7 @@ export const createOrganizationSubscriptionConnectionAtom = atom(
     ): Promise<string> => {
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("[vault] Missing projectId for organization connection")
+        // No name unless one was typed: the API names it "ChatGPT (Organization)".
         const created = await createOrganizationSecret({
             projectId,
             payload: buildSubscriptionSecretPayload(provider, name),
@@ -211,6 +215,9 @@ export const setOrganizationSubscriptionTokenAtom = atom(
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("[vault] Missing projectId for organization connection")
         await setOrganizationSubscriptionToken({projectId, secretId, token})
-        await set(refreshOrganizationConnectionsAtom)
+        // The dialog reads the organization list, so only that read is awaited.
+        const queryClient = getHostQueryClient()
+        void queryClient.invalidateQueries({queryKey: ["vault", "secrets"]})
+        await queryClient.invalidateQueries({queryKey: ["vault", "organization-secrets"]})
     },
 )

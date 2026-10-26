@@ -270,7 +270,11 @@ export const selectedModelRowKey = (
     )
     // An organization connection the agent can no longer use is not stood in for by another
     // connection that offers the same model: the agent uses exactly the one it named.
-    const match = exact ?? (current.namespace === "organization" ? undefined : pool[0])
+    const match =
+        exact ??
+        (current.namespace === "organization"
+            ? undefined
+            : pool.find((entry) => entry.model.namespace !== "organization"))
     return match ? modelRowKey(match.key, match.model) : undefined
 }
 
@@ -298,6 +302,9 @@ export const displayedModelRow = (
     vaultSlugs: readonly (string | undefined)[],
 ): {key: string | undefined; modelId: string | null} => {
     const key = selectedModelRowKey(rows, current)
+    // A named organization connection that is gone selects nothing: the menu must not light up
+    // another connection's row for the same model id.
+    if (!key && current.namespace === "organization") return {key: undefined, modelId: null}
     const builtinModelId =
         current.slug === RETIRED_STARTER_CREDITS_SLUG &&
         current.mode === "agenta" &&
