@@ -140,6 +140,10 @@ async def relay_upstream_errors(
                 yield _connection_lost_event(protocol)
             return
         if relayed := relay.flush():
+            # Google's client also refuses a whole last event that has no blank line after
+            # it, so the native door ends that event before relaying it.
+            if protocol == LLMProtocol.GEMINI and relayed.strip():
+                relayed += b"\n\n"
             yield relayed
     except httpx.TransportError:
         # The upstream broke off after it started answering. The half event it was in the

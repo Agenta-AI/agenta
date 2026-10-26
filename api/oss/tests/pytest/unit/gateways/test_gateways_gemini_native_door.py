@@ -748,7 +748,7 @@ async def test_a_stream_cut_inside_an_event_ends_with_an_error_event_not_a_half_
 
 
 @pytest.mark.asyncio
-async def test_a_last_event_without_its_blank_line_is_relayed_as_it_came():
+async def test_a_last_event_without_its_blank_line_is_ended_before_it_is_relayed():
     last = (
         "data: " + json.dumps(_event([{"text": "!"}], finish="STOP", usage=_USAGE))
     ).encode()
@@ -757,7 +757,10 @@ async def test_a_last_event_without_its_blank_line_is_relayed_as_it_came():
 
     _result, received = await _native(_service(transport))
 
-    assert received == stream
+    # `@google/genai` throws "Incomplete JSON segment" on any bytes left after the last
+    # blank line, a whole event included, so the door ends the event.
+    assert received == stream + b"\n\n"
+    assert received.rstrip(b"\r\n").endswith(last)
 
 
 @pytest.mark.asyncio
