@@ -3,6 +3,7 @@ import {describe, expect, it} from "vitest"
 import {
     buildAgentModelCandidates,
     explicitAgentConnection,
+    resolveAgentModelSelection,
 } from "../../src/secret/core/agentModelCandidates"
 import {isOrganizationConnection, toProviderConnections} from "../../src/secret/core/connections"
 import {projectRowsOnly, transformSecret} from "../../src/secret/core/transforms"
@@ -150,6 +151,34 @@ describe("agent model candidates from an organization connection", () => {
             namespace: "organization",
             mode: "agenta",
         })
+    })
+
+    it("lists organization routes last and never picks one by default", () => {
+        const onlyOrganization = toProviderConnections(transformSecret([organizationSecret()]))
+        const candidates = buildAgentModelCandidates({
+            connections: onlyOrganization,
+            capabilities,
+            harnessIds: ["pi_core"],
+            showSubscriptions: false,
+        })
+        expect(candidates.length).toBeGreaterThan(0)
+        expect(resolveAgentModelSelection({candidates})).toBeNull()
+        // A pick the builder made is kept.
+        expect(resolveAgentModelSelection({candidates, explicit: candidates[0]})).toBe(
+            candidates[0],
+        )
+
+        const both = buildAgentModelCandidates({
+            connections: toProviderConnections(
+                transformSecret([organizationSecret(), openaiSecret()]),
+            ),
+            capabilities,
+            harnessIds: ["pi_core"],
+            showSubscriptions: false,
+        })
+        expect(both[0].connectionKey).toBe("project-row")
+        expect(both[both.length - 1].connectionKey).toBe("org-row")
+        expect(resolveAgentModelSelection({candidates: both})?.connectionKey).toBe("project-row")
     })
 
     it("offers no route for an organization row without a slug", () => {

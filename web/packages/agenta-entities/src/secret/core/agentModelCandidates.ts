@@ -565,12 +565,22 @@ const builtinCandidates = ({
     return candidates
 }
 
+const isOrganizationCandidate = (candidate: AgentModelSelection): boolean =>
+    candidate.scope === "organization"
+
+/**
+ * Every runnable route: the project's connections, built-in models and mounted subscriptions,
+ * then the organization connections this project may use. An organization connection is used only
+ * when the builder picks it, so it comes last and is never an automatic default.
+ */
 export const buildAgentModelCandidates = (
     args: BuildAgentModelCandidatesArgs,
 ): AgentModelCandidate[] => {
-    const connections = [...connectionCandidates(args), ...builtinCandidates(args)]
-    if (args.showSubscriptions === false) return connections
-    return [...connections, ...liveSubscriptionCandidates(args)]
+    const stored = connectionCandidates(args)
+    const own = [...stored.filter((c) => !isOrganizationCandidate(c)), ...builtinCandidates(args)]
+    const organization = stored.filter(isOrganizationCandidate)
+    if (args.showSubscriptions === false) return [...own, ...organization]
+    return [...own, ...liveSubscriptionCandidates(args), ...organization]
 }
 
 const findRunnableAgentModel = <T extends AgentModelSelection>(
@@ -607,7 +617,13 @@ export const resolveAgentModelSelection = ({
         const match = findRunnableAgentModel(candidates, selection)
         if (match) return match
     }
-    return candidates.find((candidate) => candidate.managed) ?? candidates[0] ?? null
+    // The automatic default never lands on an organization connection (no automatic use, M5):
+    // only an explicit or remembered pick names one.
+    return (
+        candidates.find((candidate) => candidate.managed && !isOrganizationCandidate(candidate)) ??
+        candidates.find((candidate) => !isOrganizationCandidate(candidate)) ??
+        null
+    )
 }
 
 /** The first model of one stored connection, a hosted subscription included, by record id. */
