@@ -167,6 +167,12 @@ async def test_a2_a_private_agent_answers_its_channel(people, origin, allowed):
     assert (answer is None) is allowed
 
     channel_turn = RunContext(origin=RunOrigin.INSTALLATION)
+    # Only the run: the owner's binding does not read or edit the private agent.
+    with _bound_by(binding, people.alice):
+        for action in (Permission.VIEW_WORKFLOWS, Permission.EDIT_WORKFLOWS):
+            assert (
+                await people.agent(binding, artifact_id, action, channel_turn) == DENIED
+            )
     with _bound_by(binding, people.bob):
         assert (
             await people.agent(

@@ -154,6 +154,7 @@ class SharingService(ResourcePolicyInterface):
         if resource.kind == ResourceKind.AGENT:
             return await self._evaluate_agent(
                 principal=principal,
+                action=action,
                 project_id=project_id,
                 resource_id=resource.id,
                 context=context,
@@ -174,6 +175,7 @@ class SharingService(ResourcePolicyInterface):
         principal: PrincipalRef,
         project_id: UUID,
         resource_id: str,
+        action: Optional[Action] = None,
         context: Optional[RunContext] = None,
     ) -> Optional[DecisionReason]:
         try:
@@ -190,11 +192,13 @@ class SharingService(ResourcePolicyInterface):
         # A1: no row, or project-visible.
         if policy is None or policy.visibility == Visibility.PROJECT:
             return None
-        # A2: private, only the human owner, and the owner's channel bindings on their
-        # own channel turns: a private agent may answer a channel. A child run of a
-        # channel turn is no channel turn.
+        # A2: private, only the human owner, and the owner's channel bindings running it
+        # on their own channel turns: a private agent may answer a channel. Only the run
+        # itself: the binding does not read, list or edit the private agent. A child run
+        # of a channel turn is no channel turn.
         if _is_human(principal, policy.owner_user_id) or (
-            _is_channel_turn(principal, context)
+            action == Permission.RUN_WORKFLOWS
+            and _is_channel_turn(principal, context)
             and _binding_creator(principal) == policy.owner_user_id
         ):
             return None
