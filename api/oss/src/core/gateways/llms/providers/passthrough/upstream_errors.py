@@ -131,23 +131,36 @@ async def relay_upstream_errors(
         async for chunk in body:
             if relayed := relay.feed(chunk):
                 yield relayed
+        if protocol == LLMProtocol.GEMINI and relay.holds_partial_event():
+            # The upstream closed inside an event. Google's client fails on the half event
+            # ("Incomplete JSON segment") with words Pi does not retry, so the half event is
+            # dropped and the caller gets the error event a broken connection gets.
+            relay.drop()
+            if not relay.finished:
+                yield _connection_lost_event(protocol)
+            return
         if relayed := relay.flush():
             yield relayed
     except httpx.TransportError:
         # The upstream broke off after it started answering. The half event it was in the
         # middle of is dropped, and the caller gets one error event instead.
         if not relay.finished:
-            if protocol == LLMProtocol.GEMINI:
-                error = google_error(status=None, message=connection_lost_message())
-            else:
-                error = _error_payload(protocol, code=UPSTREAM_ERROR, event=True)
-                _error_holder(error)["message"] = connection_lost_message()
-            name = (
-                b""
-                if protocol in (LLMProtocol.CHAT_COMPLETIONS, LLMProtocol.GEMINI)
-                else b"event: error\n"
-            )
-            yield name + b"data: " + _dumps(error) + b"\n\n"
+            yield _connection_lost_event(protocol)
+
+
+def _connection_lost_event(protocol: LLMProtocol) -> bytes:
+    """The one error event a stream that broke off before its end closes with."""
+    if protocol == LLMProtocol.GEMINI:
+        error = google_error(status=None, message=connection_lost_message())
+    else:
+        error = _error_payload(protocol, code=UPSTREAM_ERROR, event=True)
+        _error_holder(error)["message"] = connection_lost_message()
+    name = (
+        b""
+        if protocol in (LLMProtocol.CHAT_COMPLETIONS, LLMProtocol.GEMINI)
+        else b"event: error\n"
+    )
+    return name + b"data: " + _dumps(error) + b"\n\n"
 
 
 class _SseRelay:
@@ -187,6 +200,15 @@ class _SseRelay:
     def flush(self) -> bytes:
         rest, self._buffer = self._buffer, b""
         return self._event(rest) if rest else b""
+
+    def holds_partial_event(self) -> bool:
+        """Whether the held bytes are an event cut short: some text, but no data that parses."""
+        if not self._buffer.strip():
+            return False
+        return not isinstance(_event_data(self._buffer), (dict, list))
+
+    def drop(self) -> None:
+        self._buffer = b""
 
     def _event(self, event: bytes) -> bytes:
         self.finished = self.finished or self._finished(event)

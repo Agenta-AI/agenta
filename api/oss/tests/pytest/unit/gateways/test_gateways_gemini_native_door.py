@@ -720,3 +720,74 @@ async def test_opaque_arguments_responses_and_schemas_pass_unchecked():
     await _native(_service(transport), body)
 
     assert json.loads(transport.requests[0].content)["contents"] == body["contents"]
+
+
+# --- recovery: what Pi's Google client can retry ---------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_a_stream_cut_inside_an_event_ends_with_an_error_event_not_a_half_event():
+    first = _sse(_event([{"text": "Hi"}]))
+    half = (
+        b'data: {"candidates": [{"content": {"role": "model", "parts": [{"text": "Wor'
+    )
+    transport = _Scripted(first + half)
+
+    result, received = await _native(_service(transport))
+
+    # `@google/genai` fails on a half event with "Incomplete JSON segment", which Pi does
+    # not retry. The caller gets the complete events, then one error event that parses.
+    assert result.status_code == 200
+    assert received.startswith(first)
+    assert half not in received
+    events = [e for e in received[len(first) :].split(b"\n\n") if e.strip()]
+    (error,) = [json.loads(e.split(b"data: ", 1)[1]) for e in events]
+    assert error["error"]["code"] == 502
+    assert error["error"]["status"] == "UNAVAILABLE"
+    assert "agenta_code:upstream_error" in error["error"]["message"]
+
+
+@pytest.mark.asyncio
+async def test_a_last_event_without_its_blank_line_is_relayed_as_it_came():
+    last = (
+        "data: " + json.dumps(_event([{"text": "!"}], finish="STOP", usage=_USAGE))
+    ).encode()
+    stream = _sse(_event([{"text": "Hi"}])) + last
+    transport = _Scripted(stream)
+
+    _result, received = await _native(_service(transport))
+
+    assert received == stream
+
+
+@pytest.mark.asyncio
+async def test_a_gateway_timeout_is_answered_as_a_marked_504_that_pi_retries():
+    from oss.src.core.gateways.llms.types import LLMUpstreamTimeoutError
+
+    service = _MockLlmGatewayService(
+        relay_exception=LLMUpstreamTimeoutError(provider_key="openai")
+    )
+    original = service.relay_chat_completion
+
+    async def relay(**kwargs):
+        kwargs.pop("context")
+        return await original(**kwargs)
+
+    service.relay_chat_completion = relay
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+
+    with _auth_scope():
+        response = await proxy.gemini_stream_builtin(
+            _platform_run(_native_request(json.dumps(_REQUEST).encode())),
+            "agenta",
+            "gemini-3.8-flash",
+        )
+
+    # Google's client keeps only this body's text; Pi retries on "504", and the runner reads
+    # the marker as an upstream error.
+    assert response.status_code == 504
+    error = json.loads(response.body)["error"]
+    assert error["code"] == 504
+    assert error["status"] == "DEADLINE_EXCEEDED"
+    assert "did not answer in time" in error["message"]
+    assert "agenta_code:upstream_error" in error["message"]

@@ -167,15 +167,24 @@ def _as_google_error(response: Response) -> Response:
         payload = None
     error = payload.get("error") if isinstance(payload, dict) else None
     message = error.get("message") if isinstance(error, dict) else None
+    status_code = response.status_code
+    if isinstance(error, dict) and error.get("code") == "upstream_timeout":
+        # The gateway gave up waiting. Google's client drops the string code, so the native
+        # caller gets what a timeout mid-stream says: 504 and the marked upstream sentence,
+        # which Pi retries and the runner reads as an upstream error.
+        status_code = 504
+        message = with_code_marker(
+            "The model provider did not answer in time.", UPSTREAM_ERROR
+        )
     headers = {
         key: value
         for key, value in response.headers.items()
         if key.lower() not in ("content-length", "content-type")
     }
     return JSONResponse(
-        status_code=response.status_code,
+        status_code=status_code,
         content=google_error(
-            status=response.status_code,
+            status=status_code,
             message=message if isinstance(message, str) else "request refused",
         ),
         headers=headers,
