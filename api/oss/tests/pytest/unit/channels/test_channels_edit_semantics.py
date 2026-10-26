@@ -424,6 +424,19 @@ async def test_connect_here_is_guarded_when_this_agent_already_answers():
         reset_request_access(token)
     assert dao.edit_agent.await_args.kwargs["guard_user_id"] == alice
 
+    # An inactive answering binding is guarded too: a link issued now would reach
+    # the private agent once the binding is on again.
+    off = agent.model_copy(
+        update={"flags": agent.flags.model_copy(update={"is_active": False})}
+    )
+    service, dao = _ensure_service(conn, off)
+    await service.ensure_hosted_telegram_connection(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        references={"application": {"id": str(app_a)}},
+    )
+    assert dao.edit_agent.await_args.kwargs["guard_artifact_id"] is not None
+
 
 async def test_reconnect_after_disconnect_reuses_the_restored_agent():
     # disconnect archives the connection AND its agents; the unarchive on
@@ -441,6 +454,7 @@ async def test_reconnect_after_disconnect_reuses_the_restored_agent():
     dao = MagicMock()
     dao.query_connections = AsyncMock(return_value=[conn])
     dao.unarchive_connection = AsyncMock(return_value=restored_conn)
+    dao.fetch_connection = AsyncMock(return_value=conn)
     # before the unarchive the agent is archived; after it, active
     dao.query_agents = AsyncMock(return_value=[restored_agent])
     dao.fetch_agent = AsyncMock(return_value=restored_agent)

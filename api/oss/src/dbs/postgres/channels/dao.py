@@ -100,6 +100,7 @@ from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
 )
 from oss.src.dbs.postgres.shared.utils import apply_windowing
+from oss.src.core.sharing.types import SharedItemNotFound
 from oss.src.dbs.postgres.sharing.dao import guard_agent_activation
 
 
@@ -244,6 +245,9 @@ class ChannelsDAO(ChannelsDAOInterface):
         user_id: UUID,
         #
         connection_id: UUID,
+        #
+        guard_artifact_ids: Optional[Dict[UUID, UUID]] = None,
+        guard_user_id: Optional[UUID] = None,
     ) -> Optional[ChannelConnection]:
         async with self.engine.session() as session:
             stmt = select(ChannelConnectionDBE).where(
@@ -259,6 +263,20 @@ class ChannelsDAO(ChannelsDAOInterface):
 
             archived_at = connection_dbe.deleted_at
 
+            # The artifact locks come first (the lock order of `set_agent_policy`).
+            # A restored binding of a private agent its owner is not restoring comes
+            # back off: the restore never activates what the owner guard refuses.
+            refused = []
+            for binding_id, artifact_id in (guard_artifact_ids or {}).items():
+                try:
+                    await guard_agent_activation(
+                        session,
+                        project_id=project_id,
+                        artifact_id=artifact_id,
+                        user_id=guard_user_id,
+                    )
+                except SharedItemNotFound:
+                    refused.append(binding_id)
             connection_dbe.deleted_at = None
             connection_dbe.deleted_by_id = None
             connection_dbe.updated_by_id = user_id
@@ -277,6 +295,22 @@ class ChannelsDAO(ChannelsDAOInterface):
                         ChannelAgentDBE.deleted_at == archived_at,
                     )
                     .values(deleted_at=None, deleted_by_id=None, updated_by_id=user_id)
+                )
+
+            if refused:
+                flags = cast(ChannelAgentDBE.flags, JSONB)
+                await session.execute(
+                    update(ChannelAgentDBE)
+                    .where(
+                        ChannelAgentDBE.project_id == project_id,
+                        ChannelAgentDBE.id.in_(refused),
+                    )
+                    .values(
+                        flags=func.coalesce(flags, cast(literal("{}"), JSONB)).op("||")(
+                            cast(literal(json.dumps({"is_active": False})), JSONB)
+                        ),
+                        updated_by_id=user_id,
+                    )
                 )
 
             await session.commit()

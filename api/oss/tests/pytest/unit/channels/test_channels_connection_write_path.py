@@ -377,6 +377,7 @@ async def test_custom_telegram_reconnect_reuses_an_archived_bot_connection():
     )
     restored = existing.model_copy(update={"deleted_at": None})
     dao.unarchive_connection = AsyncMock(return_value=restored)
+    dao.query_agents = AsyncMock(return_value=[])
     vault = _FakeVaultService()
     vault._store[secret_id] = _FakeSecret(id=secret_id, data=None)
     service = _service(
@@ -398,7 +399,11 @@ async def test_custom_telegram_reconnect_reuses_an_archived_bot_connection():
     dao.create_connection.assert_not_awaited()
     dao.edit_connection.assert_awaited_once()
     dao.unarchive_connection.assert_awaited_once_with(
-        project_id=project_id, user_id=user_id, connection_id=existing.id
+        project_id=project_id,
+        user_id=user_id,
+        connection_id=existing.id,
+        guard_artifact_ids={},
+        guard_user_id=None,
     )
     assert len(vault.update_calls) == 1
 

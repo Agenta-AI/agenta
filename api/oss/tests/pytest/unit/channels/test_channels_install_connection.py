@@ -258,6 +258,7 @@ async def test_reinstall_restores_an_archived_connection_and_its_agents():
     dao = _fake_dao(existing=existing, existing_project_id=project_id)
     restored = existing.model_copy(update={"deleted_at": None})
     dao.unarchive_connection = AsyncMock(return_value=restored)
+    dao.query_agents = AsyncMock(return_value=[])
     service = _service(
         dao=dao,
         adapter=_FakeAdapter(discovered={"team_id": "T1"}),
@@ -271,7 +272,11 @@ async def test_reinstall_restores_an_archived_connection_and_its_agents():
     assert result.deleted_at is None
     assert result.id == existing.id
     dao.unarchive_connection.assert_awaited_once_with(
-        project_id=project_id, user_id=user_id, connection_id=existing.id
+        project_id=project_id,
+        user_id=user_id,
+        connection_id=existing.id,
+        guard_artifact_ids={},
+        guard_user_id=None,
     )
     dao.create_connection.assert_not_awaited()
 

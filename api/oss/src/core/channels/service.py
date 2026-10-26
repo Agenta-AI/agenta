@@ -922,7 +922,8 @@ class ChannelsService:
             # connect here"). One shared connection, one answering agent. The write
             # runs also when the answering agent already matches: it is the guarded
             # write, so a bind link for a private agent's connection is issued only to
-            # its owner (no write would let another caller reuse that binding).
+            # its owner (no write would let another caller reuse that binding), also
+            # while the binding is off.
             answering = next((a for a in active if a.flags.is_default), active[0])
             await self.edit_agent(
                 project_id=project_id,
@@ -931,6 +932,7 @@ class ChannelsService:
                     id=answering.id,
                     data=ChannelAgentDataEdit(references=references),
                 ),
+                guard_inactive=True,
             )
 
         return connection
@@ -978,11 +980,48 @@ class ChannelsService:
             user_id=user_id,
             #
             connection_id=connection_id,
+            #
+            guard_artifact_ids=await self._restored_binding_agents(
+                project_id=project_id, connection_id=connection_id
+            ),
+            guard_user_id=_guard_user_id(),
         )
         await self._invalidate_bindings(
             binding_ids=binding_ids, source="channels.unarchive_connection"
         )
         return restored
+
+    async def _restored_binding_agents(
+        self, *, project_id: UUID, connection_id: UUID
+    ) -> Dict[UUID, UUID]:
+        """The agent of each active binding an unarchive of this connection restores
+        (archived with it), for the owner guard of the restore. A binding whose agent
+        no longer resolves is left out: it answers nothing."""
+
+        connection = await self.channels_dao.fetch_connection(
+            project_id=project_id, connection_id=connection_id
+        )
+        if connection is None or connection.deleted_at is None:
+            return {}
+        agents = await self.channels_dao.query_agents(
+            project_id=project_id,
+            agent=ChannelAgentQuery(connection_id=connection_id, include_archived=True),
+        )
+        guarded: Dict[UUID, UUID] = {}
+        for agent in agents:
+            if agent.deleted_at != connection.deleted_at or not agent.flags.is_active:
+                continue
+            try:
+                artifact_id = await self._activation_guard(
+                    project_id=project_id,
+                    references=agent.data.references,
+                    is_active=True,
+                )
+            except SharedItemNotFound:
+                continue
+            if artifact_id is not None:
+                guarded[agent.id] = artifact_id
+        return guarded
 
     async def describe_connection_restore(
         self,
@@ -1284,12 +1323,15 @@ class ChannelsService:
         user_id: UUID,
         #
         agent: ChannelAgentEdit,
+        guard_inactive: bool = False,
     ) -> Optional[ChannelAgent]:
         """Every binding write. The write names its references and its whole flags,
         taken from the stored row when the edit sends none, and it is guarded when
         those flags leave the binding active. The references the guard checks are
         the references the write stores, so a write that sends only flags (or
-        nothing) cannot activate a binding of someone else's private agent."""
+        nothing) cannot activate a binding of someone else's private agent.
+        `guard_inactive` guards a write that leaves the binding inactive too (a bind
+        link for a connection must not reach someone else's private agent later)."""
 
         if agent.data is None or agent.data.references is None or agent.flags is None:
             stored = await self.channels_dao.fetch_agent(
@@ -1310,7 +1352,7 @@ class ChannelsService:
         guard_artifact_id = await self._activation_guard(
             project_id=project_id,
             references=agent.data.references,
-            is_active=agent.flags.is_active,
+            is_active=agent.flags.is_active or guard_inactive,
         )
         return await self.channels_dao.edit_agent(
             project_id=project_id,
@@ -1372,6 +1414,7 @@ class ChannelsService:
         user_id: UUID,
         #
         agent: ChannelAgentEdit,
+        guard_inactive: bool = False,
     ) -> Optional[ChannelAgent]:
         existing = await self.channels_dao.fetch_agent(
             project_id=project_id,
@@ -1385,6 +1428,7 @@ class ChannelsService:
             user_id=user_id,
             #
             agent=_layer_agent_edit(existing=existing, edit=agent),
+            guard_inactive=guard_inactive,
         )
         await self._invalidate_bindings(
             binding_ids=[existing.id], source="channels.edit_agent"

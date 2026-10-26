@@ -195,7 +195,12 @@ class _ConstrainedDAO:
         )
         return self.rows[connection_id]
 
-    async def unarchive_connection(self, *, project_id, user_id, connection_id):
+    async def query_agents(self, **kwargs):
+        return []
+
+    async def unarchive_connection(
+        self, *, project_id, user_id, connection_id, **_guard
+    ):
         row = await self.fetch_connection(
             project_id=project_id, connection_id=connection_id
         )

@@ -832,6 +832,66 @@ async def test_activation_guard_refuses_a_private_agent_of_someone_else():
         assert len(await _active_bindings(project_id, private)) == 1
 
 
+async def test_unarchive_restores_someone_else_s_private_agent_binding_off():
+    """Restoring a connection restores the bindings archived with it. A binding of a
+    private agent comes back on only for its owner; for anyone else it comes back
+    off, under the same artifact lock as an activation."""
+
+    from datetime import datetime, timezone
+
+    async with seeded("alice", "bob") as org:
+        project_id, alice = _project(org), org.user_ids["alice"]
+        bob = org.user_ids["bob"]
+        private, *_ = await _artifact(project_id, owner=alice)
+        await execute(
+            "UPDATE agent_access SET visibility = 'private' "
+            "WHERE project_id = :p AND artifact_id = :a",
+            {"p": project_id, "a": private},
+        )
+
+        for user_id, expected in ((bob, False), (alice, True)):
+            archived_at = datetime.now(timezone.utc)
+            connection_id, binding_id = uuid4(), uuid4()
+            await execute(
+                "INSERT INTO channel_connections (id, project_id, channel, "
+                "external_key, slug, deleted_at) VALUES (:id, :p, 'agenta', :ek, "
+                ":slug, :at)",
+                {
+                    "id": connection_id,
+                    "p": project_id,
+                    "ek": str(uuid4()),
+                    "slug": f"c-{connection_id.hex[:8]}",
+                    "at": archived_at,
+                },
+            )
+            await execute(
+                "INSERT INTO channel_agents (project_id, id, connection_id, slug, "
+                "data, flags, deleted_at) VALUES (:p, :id, :c, :s, "
+                "CAST(:data AS json), CAST(:flags AS jsonb), :at)",
+                {
+                    "p": project_id,
+                    "id": binding_id,
+                    "c": connection_id,
+                    "s": f"bot-{binding_id.hex[:12]}",
+                    "data": json.dumps(
+                        {"references": {"workflow": {"id": str(private)}}}
+                    ),
+                    "flags": json.dumps({"is_active": True}),
+                    "at": archived_at,
+                },
+            )
+            restored = await _channels_dao().unarchive_connection(
+                project_id=project_id,
+                user_id=user_id,
+                connection_id=connection_id,
+                guard_artifact_ids={binding_id: private},
+                guard_user_id=user_id,
+            )
+            assert restored is not None and restored.deleted_at is None
+            flags = await _channel_agent_flags(project_id, binding_id)
+            assert flags["is_active"] is expected, user_id
+
+
 class _ResolvedWorkflows:
     """`resolve_agent_artifact_id` that names one artifact (the binding's agent)."""
 
