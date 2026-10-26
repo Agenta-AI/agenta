@@ -115,18 +115,23 @@ describe("withModel", () => {
         expect((next as any).agent.llm).toEqual({
             model: "claude-sonnet-4-5",
             provider: "anthropic",
+            connection: {mode: "agenta", scope: "project"},
         })
     })
 
     it("writes a bare template in place", () => {
         const next = withModel(template(), {modelId: "gpt-5", provider: "openai"})
-        expect((next as any).llm).toEqual({model: "gpt-5", provider: "openai"})
+        expect((next as any).llm).toEqual({
+            model: "gpt-5",
+            provider: "openai",
+            connection: {mode: "agenta", scope: "project"},
+        })
         expect((next as any).agent).toBeUndefined()
     })
 
     // The slug names a connection belonging to the OLD provider and the backend rejects a
     // provider/slug mismatch, so an unqualified pick must drop it — the drawer's writer nulls it
-    // the same way. `agenta` with no slug IS the default connection, so the key collapses away.
+    // the same way. `agenta` with no slug IS the project default, written explicitly (M5).
     it("drops the stored connection slug when the patch does not name one", () => {
         const params = nested({
             llm: {
@@ -136,7 +141,7 @@ describe("withModel", () => {
             },
         })
         const next = withModel(params, {modelId: "gpt-5", provider: "openai"})
-        expect((next as any).agent.llm.connection).toBeUndefined()
+        expect((next as any).agent.llm.connection).toEqual({mode: "agenta", scope: "project"})
     })
 
     it("keeps a non-default mode while still dropping the slug", () => {
@@ -169,7 +174,11 @@ describe("withModel", () => {
             llm: {model: "gpt-4o", provider: "openai", connection: {mode: "agenta", slug: "old"}},
         })
         const next = withModel(params, {modelId: "gpt-5", provider: "openai", slug: "prod-key"})
-        expect((next as any).agent.llm.connection).toEqual({mode: "agenta", slug: "prod-key"})
+        expect((next as any).agent.llm.connection).toEqual({
+            mode: "agenta",
+            slug: "prod-key",
+            scope: "project",
+        })
     })
 
     it("carries extra keys on the prior ref through", () => {
