@@ -15,6 +15,8 @@ import {
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useSetAtom} from "jotai"
 
+import {organizationSaveError} from "./useOrganizationProjectsDraft"
+
 /** Every `claude setup-token` value starts with this. */
 const SETUP_TOKEN_PREFIX = "sk-ant-oat"
 
@@ -24,6 +26,7 @@ export const useSubscriptionToken = ({
     connection = null,
     scope = "project",
     projects,
+    organizationName = "",
 }: {
     provider: string
     connection?: ProviderConnection | null
@@ -31,6 +34,8 @@ export const useSubscriptionToken = ({
     scope?: "project" | "organization"
     /** Who may use a new organization connection; every project when absent (Q1). */
     projects?: OrganizationSecretProjects
+    /** For the organization refusal messages. */
+    organizationName?: string
 }) => {
     const createProjectConnection = useSetAtom(createSubscriptionConnectionAtom)
     const createOrganizationConnection = useSetAtom(createOrganizationSubscriptionConnectionAtom)
@@ -86,7 +91,8 @@ export const useSubscriptionToken = ({
             // So a refused token still leaves the row where the next surface finds it.
             if (created) void refreshVault()
             setError(
-                subscriptionTokenErrorText(caught) ||
+                (organization && organizationSaveError(caught, organizationName, name)) ||
+                    subscriptionTokenErrorText(caught) ||
                     extractApiErrorMessage(caught) ||
                     "Agenta could not store this token. Try again.",
             )
@@ -103,6 +109,8 @@ export const useSubscriptionToken = ({
         refreshVault,
         setToken,
         token,
+        organization,
+        organizationName,
     ])
 
     const onChange = useCallback((next: string) => {

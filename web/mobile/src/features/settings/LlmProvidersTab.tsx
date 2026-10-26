@@ -5,6 +5,7 @@ import {AIProvidersPage, useEntitlements, type AIProvidersOrganization} from "@a
 import {isEE} from "@agenta/shared/api"
 import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
+import {useRouter} from "next/router"
 
 import {groupByOrganization} from "@/features/context/workspaceGroups"
 import {fetchProjects} from "@/lib/context"
@@ -27,6 +28,7 @@ const useOrganizationTabs = (
         staleTime: 30_000,
     })
     const enterprise = isEE()
+    const {basePath} = useRouter()
     const access = useAtomValue(organizationConnectionsAccessAtom)
     const manage = access === "manage"
     // In parallel with the organization read (cached for minutes), so Selected projects is
@@ -57,9 +59,10 @@ const useOrganizationTabs = (
                   : entitlements.isLoading || !manage
                     ? "pending"
                     : "plan",
-            plansHref: `/w/${workspaceId}/p/${projectId}/settings?tab=billing`,
+            // A plain link, so it carries this app's base path itself.
+            plansHref: `${basePath}/w/${workspaceId}/p/${projectId}/settings?tab=billing`,
         }
-    }, [query.data, workspaceId, projectId, enterprise, entitlements, manage])
+    }, [query.data, workspaceId, projectId, enterprise, entitlements, manage, basePath])
 }
 
 /**

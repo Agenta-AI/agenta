@@ -38,6 +38,7 @@ export const SubscriptionTokenDialog = ({
         connection,
         scope: organization ? "organization" : "project",
         projects: organization ? draft.projects : undefined,
+        organizationName: organization?.name,
     })
     const {name, connected} = token
 

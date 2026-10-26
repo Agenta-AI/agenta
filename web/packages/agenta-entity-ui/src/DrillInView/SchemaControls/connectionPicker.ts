@@ -304,7 +304,18 @@ export const displayedModelRow = (
     const key = selectedModelRowKey(rows, current)
     // A named organization connection that is gone selects nothing: the menu must not light up
     // another connection's row for the same model id.
-    if (!key && current.namespace === "organization") return {key: undefined, modelId: null}
+    // Nor does a project connection that is gone stand in for an organization row by model id.
+    if (
+        !key &&
+        (current.namespace === "organization" ||
+            rows.some((row) =>
+                row.models.some(
+                    (m) => m.namespace === "organization" && m.modelId === current.modelId,
+                ),
+            ))
+    ) {
+        return {key: undefined, modelId: null}
+    }
     const builtinModelId =
         current.slug === RETIRED_STARTER_CREDITS_SLUG &&
         current.mode === "agenta" &&

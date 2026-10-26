@@ -32,7 +32,8 @@ import {
     type ConnectionDraft,
     type ProviderConnection,
 } from "../core/connections"
-import type {ProviderVaultRow} from "../core/types"
+import {transformSecret} from "../core/transforms"
+import type {ProviderVaultRow, SecretResponseDto} from "../core/types"
 
 import {vaultSecretsWithOrganizationQueryAtom} from "./atoms"
 import {buildSubscriptionSecretPayload} from "./subscriptionLogin"
@@ -214,10 +215,17 @@ export const setOrganizationSubscriptionTokenAtom = atom(
     async (get, set, {secretId, token}: {secretId: string; token: string}): Promise<void> => {
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("[vault] Missing projectId for organization connection")
-        await setOrganizationSubscriptionToken({projectId, secretId, token})
-        // The dialog reads the organization list, so only that read is awaited.
+        const saved = await setOrganizationSubscriptionToken({projectId, secretId, token})
+        // The answer is the saved row: it replaces the cached one at once, and both lists
+        // refetch in the background.
+        const [row] = transformSecret([saved as SecretResponseDto])
         const queryClient = getHostQueryClient()
-        void queryClient.invalidateQueries({queryKey: ["vault", "secrets"]})
-        await queryClient.invalidateQueries({queryKey: ["vault", "organization-secrets"]})
+        if (row) {
+            queryClient.setQueriesData<ProviderVaultRow[]>(
+                {queryKey: ["vault", "organization-secrets"]},
+                (rows) => rows?.map((item) => (item.id === row.id ? row : item)),
+            )
+        }
+        void queryClient.invalidateQueries({queryKey: ["vault"]})
     },
 )
