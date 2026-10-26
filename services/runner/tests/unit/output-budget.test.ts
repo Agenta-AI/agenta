@@ -152,6 +152,25 @@ describe("per-step output budget", () => {
     expect(exceeded).not.toHaveBeenCalled();
   });
 
+  it("charges every update that carries new tool arguments in full", () => {
+    vi.stubEnv("AGENTA_RUNNER_OUTPUT_MAX_BYTES", "16384");
+    const exceeded = vi.fn();
+    const budget = createOutputBudget(exceeded, () => {});
+    expect(budget.accept(toolCall("args"))).toBe(true);
+    // Same-size, distinct arguments: the tracer records each one, so each is charged.
+    let accepted = 0;
+    while (
+      budget.accept({
+        sessionUpdate: "tool_call_update",
+        toolCallId: "args",
+        rawInput: { text: String(accepted % 10).repeat(1000) },
+      })
+    )
+      accepted++;
+    expect(accepted).toBeLessThan(17);
+    expect(exceeded).toHaveBeenCalledTimes(1);
+  });
+
   it("lets a long turn of normal steps finish", () => {
     vi.stubEnv("AGENTA_RUNNER_OUTPUT_MAX_BYTES", "4096");
     const exceeded = vi.fn();

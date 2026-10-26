@@ -8,7 +8,9 @@ type Step = { bytes: number; events: number; snapshot: number };
  * The limit applies to each step (one model reply or one tool call), with a looser backstop for
  * the whole turn, so a long turn of normal steps finishes while one runaway step is still stopped.
  * A running tool resends its whole output so far on every progress update and only the last copy
- * is kept, so a tool update is charged only for the bytes it adds over its largest earlier copy.
+ * is kept, so a progress update is charged only for the bytes it adds over its largest earlier
+ * copy. An update that carries tool arguments is charged in full: the tracer records each new
+ * set of arguments as its own event.
  * Counts wire bytes rather than claiming to measure heap use.
  * The transport has already decoded a single frame here; this is not a frame-size firewall.
  */
@@ -49,6 +51,7 @@ export function createOutputBudget(
         | {
             sessionUpdate?: unknown;
             toolCallId?: unknown;
+            rawInput?: unknown;
             type?: unknown;
             id?: unknown;
           }
@@ -66,8 +69,11 @@ export function createOutputBudget(
       const toolId = acpToolId ?? eventToolId;
       const key = toolId != null ? `tool:${String(toolId)}` : MODEL_STEP;
       const step = steps.get(key) ?? { bytes: 0, events: 0, snapshot: 0 };
-      const charge =
-        acpToolId != null ? Math.max(0, size - step.snapshot) : size;
+      const progress =
+        v?.sessionUpdate === "tool_call_update" &&
+        acpToolId != null &&
+        !hasToolArgs(v.rawInput);
+      const charge = progress ? Math.max(0, size - step.snapshot) : size;
 
       const breach =
         step.bytes + charge > maxStepBytes
@@ -94,11 +100,21 @@ export function createOutputBudget(
       }
       step.bytes += charge;
       step.events += 1;
-      if (acpToolId != null) step.snapshot = Math.max(step.snapshot, size);
+      if (progress) step.snapshot = Math.max(step.snapshot, size);
       steps.set(key, step);
       turnBytes += charge;
       turnEvents += 1;
       return true;
     },
   };
+}
+
+/** Mirrors `hasToolArgs` in otel.ts: `{}` and absent input carry no arguments. */
+function hasToolArgs(input: unknown): boolean {
+  if (input == null) return false;
+  return !(
+    typeof input === "object" &&
+    !Array.isArray(input) &&
+    Object.keys(input).length === 0
+  );
 }
