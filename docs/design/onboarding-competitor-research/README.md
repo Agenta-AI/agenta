@@ -1,6 +1,6 @@
 # Onboarding questions: competitor research and proposed question set
 
-Date: 2026-10-25. Scope: AI agent builders and adjacent products. LLMOps tools are out of
+Date: 2026-10-25, updated 2026-10-26. Scope: AI agent builders and adjacent products. LLMOps tools are out of
 scope (legacy category for Agenta).
 
 This document has three parts:
@@ -28,8 +28,13 @@ This document has three parts:
   task ("what do you usually do in Gmail?").
 - **Company size goes to the sales form or to enrichment.** Sim, Cassidy and Relevance keep
   firmographics out of signup; Activepieces and Relevance enrich from the email domain.
-- **Referral source is rare.** Only n8n and Airtable (older flow) ask it among the products
-  we could verify. n8n added "ChatGPT / LLM" as a channel.
+- **Referral source is rare and comes last.** n8n, Airtable (older flow), Relevance AI,
+  Clay and Make (one tutorial) ask it. n8n added "ChatGPT / LLM" as a channel.
+- **Today's `/m` flow** (behind `NEXT_PUBLIC_AGENTA_ONBOARDING_FLOW_ENABLED`) asks role
+  and referral, both required in practice, and does not record two free signals it already
+  sees: how the user runs models and template vs scratch. Review in
+  [section 1.1](#11-review-of-the-m-questions-against-the-research), short list of changes
+  in [section 4.0](#40-short-list-what-to-change-in-m).
 - **Recommendation for Agenta:** replace the role question with a team question, add a
   per-team "first agent" question and a team-aware apps question, keep referral last and
   skippable, and move company size, current tools and team scope to progressive or implicit
@@ -48,15 +53,54 @@ levels:
 | **[S]** | Reported secondhand: a teardown, review, or tutorial seen through search |
 | **[NF]** | Not found. We do not guess. |
 
+| **[C]** | Matched across independent public UI clones (repos that copy the product's screens), or a public transcription of the settings page. Medium confidence. |
+
 The open-source products (n8n, Activepieces, Dify, Langflow, Flowise, Sim, Vellum
 Assistant, Mastra) are **[V]**: their exact strings come from the repos. Closed-source
-products are mostly **[S]**. Exact option labels for Lovable, Manus, Beam, Make and Zapier
-were not available; a manual walkthrough with fresh accounts closes that gap (see
-[section 6](#6-open-gaps-and-next-steps)).
+products are **[S]** or **[C]**.
 
-## 1. What Agenta asks today
+### How we got data on closed-source products
 
-`web/mobile/src/features/onboarding/onboardingQuestions.ts`, two one-tap chip questions:
+The research container cannot open vendor sites, teardown sites, or the Wayback Machine.
+A second pass used the routes that were open:
+
+1. **Extended web search with quoted labels.** Searching for known labels ("Founder"
+   "Designer" "Engineer" lovable) finds pages that list the rest.
+2. **Non-English tutorials.** Japanese, French and Spanish tutorials often transcribe every
+   signup screen. They gave the Zapier, Make and Relay field lists.
+3. **GitHub code search for UI clones.** Public repos that copy a product's onboarding
+   carry its strings. When three clones agree (Lovable roles) or two do (Notion work
+   types), the labels are likely right. Public transcriptions of settings pages gave
+   Claude's work-function list.
+4. **Published npm packages** (Voiceflow SDKs): checked, no onboarding strings.
+
+Routes that need access we do not have, in order of value:
+
+1. **Network allowlist + JS bundle analysis.** Allow the product domains in the cloud
+   environment network policy. The single-page apps ship their onboarding strings in the
+   client JavaScript, so we can extract the exact questions without an account. The
+   Wayback Machine (`web.archive.org`) gives older versions of the same bundles.
+2. **Browser walkthroughs.** Sign up with test accounts through a real browser (Claude in
+   Chrome or computer use on a team machine) and save screenshots.
+3. **Manual walkthroughs** by the team, with the screenshot list in
+   [section 6](#6-open-gaps-and-next-steps).
+
+## 1. What Agenta asks today (`/m` onboarding)
+
+The flow lives in `web/mobile/src/features/onboarding/` and runs at
+`/m/w/<workspace>/p/<project>/onboarding`. It is behind the flag
+`NEXT_PUBLIC_AGENTA_ONBOARDING_FLOW_ENABLED` (container env `AGENTA_ONBOARDING_FLOW_ENABLED`,
+default `false`). With the flag on, a new SuperTokens user gets a pending mark and Home
+sends them to the flow. Steps, in order (`onboardingRoute.ts`):
+
+1. `persona`: a question (below).
+2. `source`: a question (below).
+3. `credits`: "How your agents run". Agenta credits, ChatGPT subscription, Claude
+   subscription, or an API key.
+4. `templates`: "Create your first agent". The template gallery (Recommended ordered by
+   the persona answer), or "New agent" from scratch (name, icon and color, first message).
+
+The two questions in `onboardingQuestions.ts` are one-tap chips:
 
 | Step | Question | Options | Drives |
 |---|---|---|---|
@@ -69,15 +113,40 @@ The older EE PostHog survey ("Signup 3 - Agents", desktop app) also asked compan
 question (Build AI agents / Automate workflows for my team / Evaluate and test LLM apps /
 Manage prompts / Monitor in production).
 
-Gaps in today's set:
+### 1.1 Review of the `/m` questions against the research
 
-- The role answer maps to only five template categories, and several roles (Founder,
-  Designer, Student, Other) map to none or to a weak guess.
-- Nothing tells us **what the user wants the agent to do**, which is the signal we need to
-  pick a product category.
-- Nothing tells us **which apps** the user works in, although the flow already has a
-  connect-apps step (`useSeedToolConnections`, `OnboardingTemplateApps`).
-- Answers are stored as display labels. A reworded label breaks analytics continuity.
+**`persona`, "What best describes you?"**
+
+| Check | Finding |
+|---|---|
+| Question type | Job title. Newer competitor flows ask the **team** ("What team are you on?": n8n, Airtable, Beam) or the **outcome** (Manus), and Airtable measured that goal or build style beats job function for activation. |
+| Mapping to templates | The catalog has 31 templates: engineering 10, sales 6, knowledge 5, support 4, ops 4, career 1, seo 1. The persona map is loose: Founder → Ops, Product manager and Designer → Engineering, Marketing → Sales (no marketing template is in the sales set; the content templates sit in knowledge and seo). Student and Other map to nothing. |
+| Options | 11 options. Close to Lovable's 8 cards (Founder, Product, Designer, Engineer, Consultant, Marketing / Sales, Operations, Other). Missing compared with peers: Consultant or agency (Lovable, n8n, Make), IT or security (n8n), Executive (Notion, n8n), and a "not for work" choice (n8n, Notion, Replit). |
+| Signal for the category decision | Weak. It says who the user is, not what the agent should do. |
+
+**`source`, "How did you hear about Agenta?"**
+
+| Check | Finding |
+|---|---|
+| Options | Good. It already has "ChatGPT or Claude", the channel n8n added ("ChatGPT / LLM"). Missing: "Event or meetup" (n8n). "Other" has no text field. |
+| Position | Step 2, before the user sees any value. Few agent products ask it at all (n8n, Airtable, Relevance AI, Make in one tutorial, Clay). Where they ask, it is last. |
+
+**Flow-level findings**
+
+- **The questions are required in practice.** A later step opens only when every earlier
+  question is answered (`isStepOpen`). The only way out is "Skip for now", which skips
+  the whole flow. Competitors that ask more questions make each one skippable (Zapier,
+  Make, n8n's card has "Something else").
+- **Answers are stored as display labels.** `knownAnswers` keeps an answer only if a chip
+  with that exact label still exists, so a reworded chip drops old answers.
+- **Two strong signals are not captured as properties.** The `credits` step shows how the
+  user pays for models (Agenta credits, ChatGPT plan, Claude plan, own key). The
+  `templates` step shows the build style (template vs scratch) and which template. Neither
+  is set as a person property today; `onboarding_create_clicked` carries no template key.
+  These answer two questions we would otherwise have to ask.
+- **Nothing tells us what the agent should do or which apps the user works in.** The
+  connect-apps logic exists (`onboardingConfiguration`, `OnboardingTemplateApps`) but no
+  question feeds it.
 
 ## 2. What competitors ask
 
@@ -135,20 +204,34 @@ says "Who am I teaming up with?" and asks one fill-in-the-blank sentence: **"I'm
 guessed through Apollo. A background job reads the company website and writes 12-20
 use-case cards for the chat empty state. Skippable.
 
-**Zapier [S].** 2-3 skippable steps: role, "how many people work in your company", then
-"What apps do you use?" (search over 6,000+ apps, at least five suggested). Apps drive
-recommended Zap templates. Zapier Agents asks nothing; the user describes the agent and
-connects the apps it mentions.
+**Zapier [S].** "About you" (job, "how many people work in your company"), then "What apps
+do you use?" (search over 6,000+ apps, at least five suggested). All skippable; Japanese
+2026 tutorials confirm the same three fields. Apps drive recommended Zap templates. Option
+lists: not found. Zapier Agents asks nothing: new agent → instructions or template →
+"Connect your apps" (the apps named in the instructions, skippable) → trigger → test →
+publish.
 
-**Make [S].** Welcome page asks role, industry, organization size, experience with
-automation, and which part of the work the user wants to automate.
+**Make [S].** Signup sets an organization name and a data region (EU / US). The welcome
+page asks role, industry, organization size, automation experience, and what the user
+wants to automate (French guide). A Spanish guide adds "What will you use Make for?
+Personal / Business / Agency" and team size; another adds how you found Make. Option
+lists: not found.
 
 **Airtable [S].** The older wizard asked name, role, "What team are you on?", what you want
 to build, and where you heard about Airtable. The current Omni chat asks company, industry
 and team (one source adds "preferred AI tool"). An "I'm not sure" path makes Omni ask what
 the company does, then it generates a starting base.
 
-**Pipedream [S]** goes straight to the AI builder. **Workato, Tines, Clay**: not researched.
+**Clay [S].** Workspace name, team type, CRM, tools used, and attribution. Then "How
+would you like to get started?": find and enrich people, find and enrich accounts,
+generate pre-meeting notes, AI outbound messaging, automate account research (Supademo
+teardown). This is a "first job" question like n8n's.
+
+**Tines [S].** After signup, "a few setup steps to personalize your experience, such as
+selecting the tools you use and your goals". Options not found.
+
+**Pipedream [S]** goes straight to the AI builder. **Workato [V docs]** asks name, work
+email and password only.
 
 ### 2.2 No-code and business-user agent builders
 
@@ -156,7 +239,7 @@ the company does, then it generates a starting base.
 |---|---|---|---|
 | **Beam AI** | Stepper: workspace name, industry, team size, role. Then a guided chat where the agent speaks first, the user connects integrations in the chat, and Beam proposes the first agent from the role and test-runs it on sample data. | First agent from role | [S], from Beam changelog (Sep 2026) |
 | **Relay.app** (shut down Sep 2026) | Google/Microsoft SSO only, domain auto-join. "How experienced are you with AI and automation tools?" LinkedIn profile URL (an agent enriches it). Team size, apps used. Agent in about 60 s. | Experience sets guidance depth; LinkedIn sets role templates | [S] |
-| **Relevance AI** | Data region (US / EU / AU), fixed after creation. Account and company details. Intent: build from scratch / pre-built agents / presentations. Backend agent enriches the profile and classifies the role for lifecycle email. | Region; lifecycle email | Region [V docs], rest [S] |
+| **Relevance AI** | Data region (US / EU / AU), fixed after creation. A review (Sep 2026) lists "company name, size, department, role, goals (mine was 'I want to build agents'), technical skill level, and how I found the platform". Intent: build from scratch / pre-built agents / presentations. Backend agent enriches the profile and classifies the role for lifecycle email. | Region; lifecycle email | Region [V docs], rest [S] |
 | **Lindy** | Now a personal assistant. Google/Microsoft sign-in connects mail and calendar, then phone, Slack, invite, tools, first task. "Bring your context" imports what the user told ChatGPT or Claude. Older builder flow had a role pick. | Connected data replaces questions | [V docs] / [S] |
 | **Gumloop** | Mandatory Pro trial. Onboarding agent asks name and LinkedIn URL (one source). Goals. 1,000 credits for finishing onboarding. | Tailored onboarding | [S], conflicting |
 | **Bardeen** | Use cases and integrations chosen during onboarding (2023 release notes). | Recommended automations | [S] |
@@ -174,26 +257,29 @@ the company does, then it generates a starting base.
 | **Sim** | No survey. Lands in a provisioned workspace with a starter workflow. Checklist: connect an integration. **Day-5 email: "what did you expect when you signed up vs. what did you get?"** Demo form only: company size (1-10 … 10,000+), work email required. | [V] |
 | **Vellum Assistant** (OSS) | Privacy toggles; hosting (cloud / local); model provider and key; "What should I call you?" (the only required field), last name, role (free text), hobbies (chips). Web research on the user: **"This is what I found about you"**, user removes wrong claims. Five personality sliders. Avatar and name. "Here's what we could do first" suggestions. Connect Google Calendar for a "Day 2 check-in". Data model also has tasks (builds code / writes docs / research / plans work / meetings / life admin), daily tools, **prior assistants used** (ChatGPT, Claude, Manus, Gemini, Copilot, …), tone, GTM cohort. | [V] |
 | **Vellum builder** | Describe the goal; the builder asks follow-up questions and builds a draft. | [S] |
-| **Voiceflow** | "Hi, what do you want to build?" Older flow: personal or work, design & prototype vs build & publish, coding experience. | [S], low |
-| **Botpress** | Scratch or template; objective (e.g. customer support); free-text business description. | [S] |
+| **Voiceflow** | "What do you want to build?" on the signup page; templates such as customer support, lead qualification, voice assistant. Older flow: personal or work, design & prototype vs build & publish, coding experience (none / a little / a lot). | [S] |
+| **Botpress** | Scratch or template; what kind of bot (objective, e.g. customer support); describe the project **or paste your website URL**, and Botpress builds the bot from it. | [S] |
+| **Stack AI** | Name, email, password; then "quick start" vs "custom builder". | [S] |
+| **Retool** | "Tell us about yourself": name, company name, one onboarding question (wording not found), invite collaborators. | [S] |
 | **Mastra** | CLI `create-mastra`: model provider, API key, coding-assistant tooling, observability, template. | [V] |
 | **LangSmith Fleet** | An onboarding flow exists (`skipOnboarding`, `get_company_info`). Each new agent asks preference questions in chat. | [V] exists, questions [NF] |
-| **Stack AI, CrewAI AMP, Retool Agents** | Not found. | [NF] |
+| **CrewAI AMP** | Not found. | [NF] |
 
 ### 2.4 General agents, big-tech builders, prompt-to-app builders
 
 | Product | What it asks | Conf. |
 |---|---|---|
-| **Lovable** | Four-screen wizard, no skip: theme (light/dark with preview), name, "Which role fits you best?" (eight icon cards: Founder, Product, Designer, Engineer, +4), company size (Solo / 2-20 / 21-200 / 200+). Connectors modal before the first build. Then an empty prompt box. | [S], several sources |
+| **Lovable** | Four screens with progress dots, no skip: "Pick your style" (Light / Dark with preview), "What's your name?", **"Which role fits you best?"** (Founder, Product, Designer, Engineer, Consultant, Marketing / Sales, Operations, Other; auto-advance), **"How many people work at your company?"** (Solo / 2 - 20 / 21 - 200 / 200+). End screen "Ready to build, <Name>?". Connectors modal before the first build. No use-case or referral question. | Structure [S]; role labels [C] (three clones agree); size [S] confirmed |
 | **Manus** | Nine outcome-oriented role cards (what you want done, not job titles), skip present but hidden. Pro trial screen in the middle of the funnel to teach credits. | [S] |
 | **Dust** | Email-domain workspace join. Onboarding is a **conversation with the Dust agent** with quick-reply chips; job-type chips; answers saved as `onboarding:*` metadata; the onboarding agent can set up triggers. | [S], from PRs |
-| **Notion** | For my team / personal use / school; team size; "What kind of work do you do?"; role; primary use case (multi); import; invite. Answers pick templates and the starter checklist. | [S], consistent |
+| **Notion** | "How are you planning to use Notion?" (For work / For personal life / For school; older: For my team / For personal use / For school). **"What kind of work do you do?"** (18 options: Engineering, Educator, Product Management, Operations, Customer Service, Founder / CEO, Internal Communication, Creative, Product Design, Sales, Finance, Project / Program Management, Marketing, Human Resources, Student, IT Admin, Knowledge Management, Other). **"What's your role?"** (Executive (C-level / VP), Department lead, Team manager, Team member, Solo-preneur / Freelancer, Using Notion just for myself). Company size (buckets changed over time, e.g. 1-49 / 50-99 / 100-299 / 300-999 / 1000-5000 / 5000+). Use case, import, invite. Answers pick templates and the starter checklist. Notion AI has no wizard. | Structure [S]; option lists [C] (two clones agree on work types) |
 | **Copilot Studio** | Work email, country/region. "Describe what your agent needs to do", then a guided conversation (tone, knowledge sites, triggers, channels). No persona survey. | [V docs] |
 | **Gemini Enterprise** | Company name, seats, region at trial. Personalization: preferred name, role or job title, industry. App toggles. | [V docs] |
-| **Claude** | Name, "what should Claude call you", personal vs team. "What best describes your work" in settings. | [S] |
-| **Replit** | Name; personal / school / work. "What can Replit help you do?" | [S] |
+| **Claude** | Name, "What should Claude call you?", personal vs team. **"What best describes your work?"** in settings (Sep 2026: Product management, Engineering, Human resources, Finance, Marketing, Sales, Operations, Data science, Design, Legal, Scientist, Student, Founder, Healthcare, Writer, Educator, Consultant, Researcher, Software engineer, Other). | [S]; work list [C] |
+| **Replit** | Name; personal, school, or work. ("What can Replit help you do?" is a docs heading, not a question.) | [S] |
 | **ChatGPT** | Name and birthday. | [S] |
-| **Genspark, Bolt, v0, Cursor** | No survey found. | [NF] |
+| **Bolt** | No survey; straight to "What should we build today?" | [S] |
+| **Genspark, v0, Cursor** | No survey found. | [NF] |
 
 ## 3. Cross-product analysis
 
@@ -204,9 +290,9 @@ onboarding.
 
 | Theme | Products that ask it | Notes |
 |---|---|---|
-| Team / function | n8n (×2), Airtable, Beam, Notion, Zapier, Make, Dust, Gemini | Replacing job title in the newer flows |
-| Role / job title | Lovable, Manus (as outcomes), Notion, Activepieces (free text), Vellum (free text), Agenta | |
-| Use case / first job, per team | n8n (per team), Make, Bardeen, Notion, Relevance, Botpress | Best category signal |
+| Team / function | n8n (×2), Airtable, Beam, Notion, Make, Dust, Gemini, Clay, Relevance (department) | Replacing job title in the newer flows |
+| Role / job title | Lovable, Manus (as outcomes), Notion, Zapier, Claude, Activepieces (free text), Vellum (free text), Agenta | |
+| Use case / first job, per team | n8n (per team), Clay, Make, Bardeen, Notion, Relevance, Tines, Botpress | Best category signal |
 | "Describe what you want to build" (free text) | Langflow, Voiceflow, Copilot Studio, Botpress, Vellum, MindStudio, Zapier Agents, Agenta (composer) | Doubles as the first action |
 | Apps used | Zapier, n8n (team-aware), Bardeen, Relay, Vellum (data model) | Feeds the connect step |
 | Company size | n8n, Lovable, Notion, Zapier, Make, Beam, Relay | Sales and plan fit |
@@ -214,7 +300,7 @@ onboarding.
 | Experience / skill | Relay, Make, n8n (coding score), Voiceflow | Sets guidance depth |
 | Work vs personal vs school | Notion, Replit, Voiceflow, Claude, n8n ("not for work") | Cheapest fork |
 | Who the automation is for | n8n (Myself / My team / Other teams) | Team-expansion signal |
-| Referral source | n8n, Airtable (older), Agenta | Rare among agent products |
+| Referral source | n8n, Airtable (older), Relevance, Make (one tutorial), Clay, Agenta | Rare among agent products; asked last |
 | Prior / current AI tools | Vellum (data model), Airtable Omni (one source) | Competitive intel |
 | Identity enrichment (LinkedIn, domain, web) | Relay, Gumloop, Activepieces, Relevance, Vellum | Replaces questions |
 | Setup choices (region, model key, hosting) | Relevance, Vellum, Mastra, Langflow, Dify | |
@@ -263,6 +349,24 @@ onboarding.
 
 ## 4. Proposed question set for Agenta
 
+### 4.0 Short list: what to change in `/m`
+
+Three new questions, one rework, and three free signals. The rest of section 4 gives the
+full options and the reasons.
+
+| # | Change | Question | Type | Why (evidence) |
+|---|---|---|---|---|
+| 1 | **Add** after `persona` | **"What should your first agent do?"** Options depend on the team (4-5 jobs + "Something else" + "Just exploring") | Single, skippable | The category signal we need. n8n (per-team use case), Clay ("How would you like to get started?"), Make, Relevance ("goals") ask it. Opens the gallery on the matching template. |
+| 2 | **Add** | **"Which apps do you use most in your work?"** Options depend on the team | Multi, skippable | Zapier, n8n, Tines, Clay, Bardeen ask it. Feeds the connect-apps logic we already have, and ranks the integrations to invest in. |
+| 3 | **Add** (A/B) | **"Who will your agent work for?"** Just me / My team / Our customers | Single, skippable | n8n asks it ("Myself / My team / Other teams"). It splits internal assistants from customer-facing agents, the main product-category fork. |
+| 4 | **Rework** `persona` | **"What team are you on?"** instead of "What best describes you?" | Single | n8n, Airtable, Beam, Clay key on the team. Add Consultant or agency and IT; fold Student into "Not for work". |
+| 5 | **Keep** `source`, move it after the first agent is created | "How did you hear about Agenta?" + "Event or meetup", "Other" opens a text field | Single, skippable | Rare in agent products; where asked, it is last. |
+| 6 | **Capture, do not ask** | `model_access` (credits / ChatGPT plan / Claude plan / own key) from the `credits` step; `build_path` (template / scratch) and `template_key` from the `templates` step; classified first message from the composer | Event properties | Free data that answers "how do they run models" and "how do they want to build". |
+
+Optional, if experiments show room for one more tap: **"Have you built AI agents
+before?"** (Not yet / prototypes / in production / I write agent code). Relevance, Make,
+Relay and Voiceflow ask a skill question; it sets guidance depth.
+
 ### 4.1 Design principles
 
 - Every question changes something the user sees **in this session**: the templates, the
@@ -290,12 +394,14 @@ Subtitle: "We'll suggest agents built for your work." Single select.
 | `support` | Customer support | Support |
 | `ops` | Operations (RevOps, BizOps, finance, HR) | Ops |
 | `it` | IT or security | Ops |
-| `personal` | Not for work: personal projects | (personal list) |
-| `student` | Student or researcher | (personal list) |
+| `consultant` | Consultant or agency | (cross-team list, as founder) |
+| `personal` | Not for work: personal projects or school | (personal list) |
 | `other` | Something else | (top templates) |
 
-Why: team maps to the catalog better than job title (n8n, Airtable, Beam), and the
-"Not for work" option replaces a separate work/personal question (n8n). Map the old
+Why: team maps to the catalog better than job title (n8n, Airtable, Beam, Clay), and the
+"Not for work" option replaces a separate work/personal question (n8n, Notion, Replit).
+"Consultant or agency" is on Lovable, n8n, Make and Claude; agencies build agents for
+clients and are a distinct segment. Map the old
 `user_persona_v1` labels to these ids for cohort continuity (Engineer → engineering,
 Product manager and Designer → product, Data or ML → data, …).
 
@@ -316,7 +422,8 @@ and "Just exploring". Each job maps to one or more templates in
 | Operations | Write weekly reports → `weekly-report`; Sync data between tools → `cross-tool-sync`; Follow up after meetings → `meeting-followup`; Onboard new hires → `onboarding-buddy` |
 | IT or security | Monitor uptime and report → `uptime-reporter`; Handle incidents → `incident-responder`; Answer internal IT questions → `knowledge-chatbot` |
 | Founder or executive | One job from each team: Qualify leads, Answer customer questions, Write weekly reports, Review code, Research a market |
-| Personal / Student | Research a topic → (gap); Job hunting → `job-hunt-research`; Summarize my email and calendar → (gap); Build a personal assistant → (gap) |
+| Consultant or agency | Same cross-team list as Founder, plus "Build agents for my clients" |
+| Personal / school | Research a topic → (gap); Job hunting → `job-hunt-research`; Summarize my email and calendar → (gap); Build a personal assistant → (gap) |
 
 Why: this is the per-team use-case question that n8n uses to pick starter prompts. It
 gives the **category distribution** we want (support vs sales vs engineering vs internal
@@ -431,11 +538,12 @@ recommendation.
 
 ## 6. Open gaps and next steps
 
-- **Manual walkthroughs** with fresh accounts to get exact labels: Lovable (four missing
-  role cards), Manus (nine cards), Beam (industry, team size, role options), Zapier, Make,
-  Gumloop, Relevance AI, Voiceflow, Botpress, Stack AI, Retool Agents, CrewAI AMP. Save
-  screenshots next to this file.
-- **Not researched:** Workato, Tines, Clay.
+- **Still missing exact option lists** (needs bundle analysis or a walkthrough, see
+  [How we got data](#how-we-got-data-on-closed-source-products)): Manus (nine role cards),
+  Beam (industry, team size, role), Zapier (role, company size), Make (all five fields),
+  Relevance AI (size, department, role, skill), Retool (the onboarding question), Tines,
+  Clay (team type, CRM), CrewAI AMP. Confirm the clone-based Lovable and Notion lists with
+  one fresh signup each. Save screenshots next to this file.
 - **Template gaps** surfaced by Q2: competitor and market research, personal email and
   calendar assistant, general research agent. Decide whether to add templates before or
   after the first data comes in.
@@ -469,7 +577,24 @@ Official docs and changelogs:
 - Bardeen: https://www.bardeen.ai/release-notes
 - Dust PRs: https://github.com/dust-tt/dust/pull/34940, /34000, /34949
 
-Secondhand (teardowns, reviews):
+Public UI clones and transcriptions ([C]):
+
+- Lovable roles and sizes: `Forgeweb-ai/Forgeweb` `forge-ui/src/pages/onboarding.tsx`,
+  `YashjitPal/Willow` `features/onboarding/src/Onboarding.tsx`,
+  `digit2ai/RinglyPro-CRM` `v2ai-start.html`, `kenken64/2ndBrain.ceo` `design.md`
+- Notion: `Hacault14/limenote` `app/onboarding/page.tsx`, `tarun-hexon/folder-chat`
+  `config/constants.js`
+- Claude work functions: `siddharthanagula3/agiworkforce`
+  `docs/research/leader-settings-and-directory-reference-2026-09-07.md`
+
+Secondhand (teardowns, reviews, tutorials):
+
+- Clay: https://supademo.com/user-flow-examples/clay
+- Zapier (Japanese tutorial): https://techmania.jp/blog/zapier/
+- Make (Spanish manual): https://imacreste.com/manual-como-usar-make-com/
+- Botpress: https://cybernews.com/botpress-ai-review/
+- Retool: https://pageflows.com/post/desktop-web/onboarding/retool/
+- Tines: https://www.tines.com/university/tines-stories-foundations/core-ui-navigation/sign-into-tines-stories/
 
 - Lovable, Manus: https://aiuxplayground.com/teardowns/lovable/onboarding/, https://aiuxplayground.com/teardowns/compare/ai-onboarding-first-value/
 - Notion: https://pageflows.com/post/desktop-web/onboarding/notion/, https://theuxologist.com/case-studies/how-notion-encourages-onboarding-through-progressive-profiling
