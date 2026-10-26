@@ -7,9 +7,9 @@ Before the system releases a user-owned credential or calls its provider for a r
 - **WHEN** Bob is a Participant in Alice's session and his turn reaches a `caller_account` Gmail connection
 - **THEN** the system SHALL refuse the Gmail call with "This conversation is shared. Gmail is set to use each person's own account, which shared conversations cannot use." and SHALL use no Gmail account
 
-#### Scenario: Slack channel session with a project agent account
-- **WHEN** a Slack turn in a channel session reaches a `caller_account` connection whose agent account is a project connection
-- **THEN** the run SHALL use the project connection
+#### Scenario: Shared session with the project's shared account
+- **WHEN** Bob is a Participant in Alice's session and his turn reaches a `project_default` Gmail connection
+- **THEN** the run SHALL use the project's Gmail connection
 
 #### Scenario: Sharing races with first personal use
 - **WHEN** Alice invites Bob to her private session while a run of that session first selects her personal Gmail
@@ -22,11 +22,11 @@ The personal-use mark SHALL never clear. The sharing service SHALL refuse to mak
 - **WHEN** Alice's private session used her personal Gmail and she then invites Bob
 - **THEN** the system SHALL refuse the invitation and keep the session private
 
-### Requirement: Installations need an agent account
-The system SHALL refuse to bind an agent to a channel installation when a `caller_account` connection of the revision has no agent account, and SHALL list those connections. A run of a later revision with the same gap SHALL refuse that connection.
+### Requirement: Installations refuse each person's own account
+The system SHALL refuse to bind an agent to a channel installation when the revision has a `caller_account` connection, and SHALL list those connections. A channel turn runs as a service account, which has no person's own account. A run of a later revision with a `caller_account` connection SHALL refuse that connection.
 
 #### Scenario: Slack install refused
-- **WHEN** an admin binds an agent to Slack and its Gmail connection is `caller_account` without an agent account
+- **WHEN** an admin binds an agent to Slack and its Gmail connection is `caller_account`
 - **THEN** the system SHALL refuse the binding and name the Gmail connection
 
 ### Requirement: Each turn shows which account it used

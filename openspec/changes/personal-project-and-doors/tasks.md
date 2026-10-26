@@ -1,13 +1,22 @@
 # Tasks
 
-Prerequisites: M1 to M4; M9 enforcement before the run-an-agent door. One pull request per delivery. Parentheses name the spec requirement.
+Prerequisites, from CONTRACT.md section 14 (the contract wins). One pull request per delivery. Parentheses name the spec requirement.
+
+| Delivery | Needs the code of | Must be live before it ships |
+| --- | --- | --- |
+| D1 (M6a) | M2 | M2 |
+| D2 (M6b) | M1, M3 | M3 and M5 |
+| D3 (M6c) | M3, the M4b mount step, D2 | the M4b mount step and D2 |
+| D4 (M6d) | M2, D2 | D1 and D2; the run-an-agent door also needs M9b |
+
+M6 does not wait for the rest of M4.
 
 ## 1. D1 service identity
 
 - [ ] 1.1 Release A schema, `AuthSourceRef`, readers for both shapes, service accounts domain, resolver rule. (Service account principal)
 - [ ] 1.2 Key authentication: principal, source, origin; legacy routes make personal keys. (Personal and service API keys)
 - [ ] 1.3 Source liveness check on every stored authority. (Authentication source liveness)
-- [ ] 1.4 Installation turns as the connection's service account. (Installations owned by a service account)
+- [ ] 1.4 Installation turns carry the connection's service account as principal and keep today's role: the linked user's, else the binding creator's. (Installations owned by a service account)
 - [ ] 1.5 Preview report on a production copy and owner review; data migration; release B writers. (One-time account creation; Stored references rewritten)
 - [ ] 1.6 Release C after the drift check and the old Secret token lifetime. (Stored references rewritten)
 - [ ] 1.7 Management routes, `web/mobile` settings, Fern client. (Service account management)

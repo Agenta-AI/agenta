@@ -7,7 +7,7 @@ Give API keys and installations a non-human owner.
 ## ADDED Requirements
 
 ### Requirement: Service account principal
-`PrincipalKind` SHALL include `service_account`. A service account SHALL belong to one team project with one role. The resolver SHALL treat it as a member of that project only, with its stored role and no shortcut. A deleted service account SHALL have no access. Service accounts, service keys and installations SHALL NOT be created in a personal project.
+`PrincipalKind` SHALL include `service_account`. A service account SHALL belong to one team project with one role. The resolver SHALL treat it as a member of that project only, with its stored role and no shortcut, except for installation turns (see "Installations owned by a service account"). A deleted service account SHALL have no access. Service accounts, service keys and installations SHALL NOT be created in a personal project.
 
 #### Scenario: Own role
 - **WHEN** a service account with role `viewer` calls an edit route in its project
@@ -40,14 +40,18 @@ Every API key SHALL have an owner principal: its user (personal key) or a servic
 - **THEN** the schedule SHALL pause and no run SHALL start.
 
 ### Requirement: Installations owned by a service account
-Every channel connection SHALL reference a service account in its project. An installation turn SHALL run as that service account, with the binding as source and as `origin_id`, and with the M2 installation restrictions.
+Every channel connection SHALL reference a service account in its project. An installation turn SHALL carry that service account as its principal, with the binding as source and as `origin_id`. The turn SHALL keep today's authority (CONTRACT.md section 4, owner decisions 3 and 6 of 2026-10-22): the linked user's own role when the channel sender is a linked user, else the binding creator's role. The service account's stored role SHALL NOT be used for an installation turn, and M6 SHALL NOT add installation restrictions. The M3 channel rules (CONTRACT.md section 7) SHALL apply to the service account as they apply to the M2 installation principal.
 
-#### Scenario: Slack turn
-- **WHEN** a Slack user writes to an installed agent
-- **THEN** the turn SHALL run as the connection's service account, limited to the bound agent.
+#### Scenario: Slack turn from a linked user
+- **WHEN** a linked Slack user with the admin role writes to an installed agent
+- **THEN** the turn SHALL carry the connection's service account as principal and SHALL act with the admin role, as before M6
+
+#### Scenario: Slack turn from an unlinked user
+- **WHEN** an unlinked Slack user writes to an installed agent whose binding an editor created
+- **THEN** the turn SHALL carry the connection's service account as principal and SHALL act with the editor role, as before M6
 
 ### Requirement: One-time account creation
-The migration SHALL create one service account per (project, creator of a non-hidden key) with the creator's effective role, and one installation service account per project with installations. It SHALL revoke and report keys whose creator has no access, and SHALL write the report before it changes access.
+The migration SHALL create one service account per (project, creator of a non-hidden key) with the creator's effective role, and one installation service account per project with installations. The installation service account's stored role SHALL NOT grant anything to installation turns. It SHALL revoke and report keys whose creator has no access, and SHALL write the report before it changes access.
 
 #### Scenario: CI key after migration
 - **WHEN** a CI key created by an editor is used after the migration

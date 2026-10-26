@@ -1,6 +1,6 @@
 # Tasks
 
-Prerequisites: M3 in production; M6 merged. Parentheses name the spec requirement.
+Prerequisites, from CONTRACT.md section 14 (the contract wins): M9a (section 1, per-turn usage) needs nothing and can start now. M9b (sections 2 to 4, trace filtering) needs M3 live and runs in parallel with M6. Parentheses name the spec requirement.
 
 ## 1. Per-turn usage and tombstone writes (first release)
 
