@@ -53,7 +53,7 @@ All schema changes go in one `core_oss` revision. EE runs the same chain. Nothin
 
 **`oss000000054_add_organization_credentials.py`** (NEW)
 
-- `revision = "oss000000054"`. While the lane is built on `origin/main`, `down_revision = "oss000000050"` (the head of main at v0.124.1). The rebase onto the release branch that M5 lands in sets `down_revision` to that branch's head. Expected final chain: `... 047 -> 050 -> 048 -> 049 -> 051 -> 052 -> 053 -> 054` (053 is M4b step 2). If step 2 is not in that branch, `down_revision = "oss000000052"`. There is one alembic head at every point.
+- `revision = "oss000000054"`, `down_revision = "oss000000052"` (the head of main at v0.125.0). Chain: `... 047 -> 050 -> 048 -> 049 -> 051 -> 052 -> 054`. If M4b step 2 (053) lands first, the later of the two re-points to the other, so there is one alembic head at every point.
 
 ```python
 def upgrade() -> None:
