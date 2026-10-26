@@ -67,6 +67,13 @@ class EnvConnectionResolver:
         model: ModelRef,
         context: RuntimeAuthContext,
     ) -> ResolvedConnection:
+        if model.connection.is_organization:
+            # An organization connection (key or subscription login) never resolves from
+            # this process, in any mode.
+            raise OrganizationConnectionUnavailableError(
+                slug=model.connection.slug or ""
+            )
+
         if model.connection.mode == "self_managed":
             provider = model.provider or ""
             return build_resolved_connection(
@@ -77,12 +84,6 @@ class EnvConnectionResolver:
                 input_modalities=_input_modalities(
                     context, provider=provider, model=model.model
                 ),
-            )
-
-        if model.connection.is_organization:
-            # An organization connection never resolves to a key from this process.
-            raise OrganizationConnectionUnavailableError(
-                slug=model.connection.slug or ""
             )
 
         provider = model.provider
@@ -150,6 +151,11 @@ class StaticConnectionResolver:
         model: ModelRef,
         context: RuntimeAuthContext,
     ) -> ResolvedConnection:
+        if model.connection.is_organization:
+            # A supplied key never stands in for a named organization connection.
+            raise OrganizationConnectionUnavailableError(
+                slug=model.connection.slug or ""
+            )
         provider = self._provider or model.provider or ""
         if model.connection.mode == "self_managed":
             return build_resolved_connection(

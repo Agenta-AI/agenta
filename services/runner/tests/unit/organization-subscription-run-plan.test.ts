@@ -15,7 +15,9 @@ import type {
 } from "../../src/protocol.ts";
 import {
   buildRunPlan,
+  isUsableSubscription,
   ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE,
+  SUBSCRIPTION_INVALID_MESSAGE,
 } from "../../src/engines/sandbox_agent/run-plan.ts";
 import { configFingerprint } from "../../src/engines/sandbox_agent/session-identity.ts";
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
@@ -35,6 +37,8 @@ const LOGIN: ModelConnectionSubscription = {
   },
 };
 
+const FENCE = { fence: "organization" } as unknown as ModelConnectionSubscription;
+
 function request(
   sandbox: string,
   extra: Partial<AgentRunRequest["modelConnection"]> = {},
@@ -49,6 +53,8 @@ function request(
       credentialMode: "runtime_provided",
       credentials: [],
       organizationSubscription: LOGIN,
+      // What the M5 SDK sends beside the login, so an older runner refuses the run.
+      subscription: FENCE,
       ...extra,
     },
   } as AgentRunRequest;
@@ -126,4 +132,46 @@ describe("an organization subscription login", () => {
     );
     assert.notEqual(first, other);
   });
+
+  it("runs without the fence too", () => {
+    const result = buildRunPlan(request("inprocess", { subscription: undefined }), {
+      sandboxProvider: "inprocess",
+      enabledProviders: ["inprocess"],
+    });
+    assert.equal(result.ok, true, result.ok ? "" : result.error);
+  });
+});
+
+/**
+ * A runner older than M5 ignores `organizationSubscription` and sees only the fence in
+ * `subscription`. It must refuse the run rather than use the operator's own login. The old
+ * runner's check is the same `isUsableSubscription` and the same branch this runner takes for a
+ * fence with no organization login.
+ */
+describe("the fence an older runner sees", () => {
+  it("is not a usable subscription", () => {
+    assert.equal(isUsableSubscription(FENCE), false);
+  });
+
+  for (const sandbox of ["local", "daytona", "inprocess"]) {
+    it(`refuses the run on the ${sandbox} engine instead of using the operator login`, () => {
+      process.env.PI_CODING_AGENT_DIR = "/tmp/agenta-operator-login";
+      try {
+        const result = buildRunPlan(
+          request(sandbox, { organizationSubscription: undefined }),
+          {
+            sandboxProvider: sandbox,
+            enabledProviders: ["local", "daytona", "inprocess"],
+            createLocalCwd: () => "/tmp/agenta-test-cwd",
+            createDaytonaCwd: () => "/home/sandbox/agenta-test",
+          },
+        );
+        assert.equal(result.ok, false);
+        if (result.ok) return;
+        assert.equal(result.error, SUBSCRIPTION_INVALID_MESSAGE);
+      } finally {
+        delete process.env.PI_CODING_AGENT_DIR;
+      }
+    });
+  }
 });

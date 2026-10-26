@@ -154,6 +154,16 @@ class WireSubscription(_WireModel):
     login: WireSubscriptionLogin
 
 
+class WireSubscriptionFence(_WireModel):
+    """The marker sent in ``subscription`` beside an organization subscription login (M5).
+
+    A runner older than M5 does not read ``organizationSubscription``; it reads this marker
+    as an unusable subscription and refuses the run instead of using an operator login.
+    """
+
+    fence: Literal["organization"]
+
+
 class WireModelConnection(_WireModel):
     """Resolved model routing, non-secret environment, and credentials for one run."""
 
@@ -165,7 +175,12 @@ class WireModelConnection(_WireModel):
     )
     environment: Optional[Dict[str, str]] = None
     credentials: List[WireCredential] = Field(default_factory=list)
-    subscription: Optional[WireSubscription] = None
+    subscription: Optional[Union[WireSubscription, WireSubscriptionFence]] = None
+    # An organization's subscription login (M5). The runner uses it only on the `inprocess`
+    # engine; `subscription` then holds the fence.
+    organization_subscription: Optional[WireSubscription] = Field(
+        default=None, alias="organizationSubscription"
+    )
     # "gemini" when the gateway route also serves Google's native protocol; omitted otherwise.
     protocol: Optional[str] = None
 

@@ -70,11 +70,11 @@ An organization connection SHALL be saved with namespace `organization`, so a ru
 - **THEN** the audit record SHALL name owner kind `organization`.
 
 ### Requirement: An organization subscription login never reaches a sandbox
-The SDK SHALL send an organization subscription login only in the wire field `organizationSubscription`, never in `subscription`. The runner SHALL accept it only on the `inprocess` engine, and SHALL refuse it on any other engine with a typed error before it starts the harness.
+The SDK SHALL send an organization subscription login only in the wire field `organizationSubscription`, with the marker `{"fence": "organization"}` in `subscription`. The runner SHALL accept it only on the `inprocess` engine, and SHALL refuse it on any other engine with a typed error before it starts the harness.
 
 #### Scenario: Runner older than M5
 - **WHEN** a runner that does not know `organizationSubscription` receives a run that names an organization subscription login
-- **THEN** the runner SHALL NOT use the organization login on any engine.
+- **THEN** the runner SHALL refuse the run, because it reads the marker as an unusable login, and SHALL NOT use an operator login.
 
 #### Scenario: Daytona engine
 - **WHEN** a runner of M5 receives the run on the `daytona` sandbox_agent engine

@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from typing import Optional, Tuple
 from uuid import UUID
 
@@ -14,6 +15,7 @@ from oss.src.core.access.context import get_request_access
 from oss.src.core.access.organizations import OrganizationAction, decide_organization
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.gateways.dtos import secret_credential_values
 from oss.src.core.providers.dtos import ProviderCredentials
 from oss.src.core.providers.exceptions import ProviderProbeError
 from oss.src.core.providers.service import ProviderProbeService
@@ -209,13 +211,54 @@ class ProvidersRouter:
                 organization_id=organization_id,
             )
 
+        # An organization value never reaches a project member (M5): a provider that echoes
+        # it back (in a model id, or in an error text) gets the same refusal as the gateway.
+        echo_forms = _credential_forms(credentials) if organization_scope else ()
+
         try:
-            return await self.service.probe(
+            result = await self.service.probe(
                 kind=kind,
                 credentials=credentials,
             )
         except ProviderProbeError as e:
+            if _echoes(e.message, echo_forms):
+                _refuse_echo(secret_id=body.secret_id)
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=e.message,
             ) from None
+        if _echoes(result.model_dump_json(), echo_forms):
+            _refuse_echo(secret_id=body.secret_id)
+        return result
+
+
+PROBE_CREDENTIAL_ECHO_MESSAGE = (
+    "The provider answered with the stored credential, so the test result is not shown."
+)
+
+
+def _credential_forms(credentials: ProviderCredentials) -> Tuple[bytes, ...]:
+    """Every spelling of the credential values a probe sends, for the echo scan."""
+    key = credentials.key.get_secret_value() if credentials.key else None
+    provider = SimpleNamespace(key=key, extras=credentials.extras)
+    return secret_credential_values(
+        SimpleNamespace(data=SimpleNamespace(provider=provider))
+    )
+
+
+def _echoes(text: Optional[str], forms: Tuple[bytes, ...]) -> bool:
+    if not forms or not text:
+        return False
+    data = text.encode()
+    return any(form in data for form in forms)
+
+
+def _refuse_echo(*, secret_id) -> None:
+    log.warning(
+        "[providers] probe answer held an organization credential; refused",
+        secret_id=str(secret_id),
+    )
+    raise HTTPException(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        detail=PROBE_CREDENTIAL_ECHO_MESSAGE,
+    )

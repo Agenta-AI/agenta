@@ -131,6 +131,24 @@ export const SUBSCRIPTION_SUPPORTED_PROVIDER = "chatgpt";
  * sandbox shell commands only. The `daytona` engine and the `local` engine would write the login
  * where agent code can read it, so they refuse the run instead.
  */
+/**
+ * The marker an M5 SDK sends in `subscription` beside an organization login. A runner older
+ * than M5 does not read `organizationSubscription`; it reads this marker as an unusable
+ * subscription and refuses the run (`SUBSCRIPTION_INVALID_MESSAGE`), so it never falls through
+ * to the operator's own login. This runner accepts the marker only beside
+ * `organizationSubscription`.
+ */
+export const ORGANIZATION_SUBSCRIPTION_FENCE = "organization";
+
+function isOrganizationSubscriptionFence(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { fence?: unknown }).fence === ORGANIZATION_SUBSCRIPTION_FENCE &&
+    !("login" in value)
+  );
+}
+
 export const ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE =
   "An organization subscription login can be used only by a Pi agent that runs in Agenta's own " +
   "process (the inprocess engine). Use a project subscription or an API key for this run.";
@@ -868,14 +886,16 @@ export function buildRunPlan(
   if (organizationSubscription) {
     // Checked before the project shapes, and terminal: an organization login never takes the
     // project or operator path, and never runs where agent code can read it.
+    const besideSubscription = request.modelConnection?.subscription;
     if (
-      request.modelConnection?.subscription ||
+      (besideSubscription &&
+        !isOrganizationSubscriptionFence(besideSubscription)) ||
       requestCredentialMode !== "runtime_provided"
     ) {
       return {
         ok: false,
         error:
-          "modelConnection.organizationSubscription requires credentialMode 'runtime_provided' and no subscription.",
+          "modelConnection.organizationSubscription requires credentialMode 'runtime_provided' and no project subscription.",
       };
     }
     if (!isUsableSubscription(organizationSubscription)) {

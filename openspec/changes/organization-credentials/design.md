@@ -88,7 +88,7 @@ A subscription login is the one organization value that leaves the API, because 
 Where each check runs, given runner and services version skew:
 
 - The API releases the login only to the run's own credential (`secret-resolve` grant) of a project it is available to, from `GET /secrets/organization-subscriptions/{slug}` (not in the OpenAPI schema). The plaintext vault list never carries it.
-- The SDK puts the login in its own wire field, `organizationSubscription`, never in `subscription`. A runner older than M5 does not read that field, so it never runs the login on any engine; the run then has no login and fails (a self-host runner with an operator login would use the operator login, never the organization's).
+- The SDK puts the login in its own wire field, `organizationSubscription`, and puts the marker `{"fence": "organization"}` in `subscription`. A runner older than M5 does not read `organizationSubscription`; it reads the marker as an unusable subscription and refuses the run (`SUBSCRIPTION_INVALID_MESSAGE`), so it never runs the login and never falls back to an operator login. An M5 runner accepts the marker only beside `organizationSubscription`.
 - The runner checks the engine when it builds the run plan (`sandboxId === "inprocess"`, Pi with a ChatGPT login, runtime-provided credentials, no project `subscription` on the same run) and refuses otherwise with `ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE`.
 - An organization Claude login is refused in the SDK (`organization_subscription_not_supported`), because its token travels as an environment value.
 

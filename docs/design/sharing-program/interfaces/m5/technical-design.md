@@ -88,13 +88,13 @@ Scope: backend first. OpenSpec `tasks.md` sections 1 (schema), 2 (core), 3 (acce
 
 ### 2.7 A member tests an organization connection (`POST /providers/probe` with `secret_scope = organization`)
 
-`VIEW_SECRET` check -> the organization row by id from the project's entry (never a project row) -> the probe with the stored value. Changed fields need `decide_organization`.
+`VIEW_SECRET` check -> the organization row by id from the project's entry (never a project row) -> the probe with the stored value -> the answer and any error text are scanned for the stored values (an echo answers 502 without the result). Changed fields need `decide_organization`.
 
 ### 2.8 An agent that names an organization subscription login
 
 1. The agent saves `{"mode": "self_managed", "scope": "organization", "namespace": "organization", "slug": "chatgpt"}`.
 2. The SDK reads `GET /secrets/organization-subscriptions/chatgpt` with the run credential (`secret-resolve` grant). The API answers the row with its login only when it is an organization `subscription_provider` available to the run's project (one entry read). The SDK refuses a Claude login (`organization_subscription_not_supported`).
-3. The SDK sends the login as `organizationSubscription`. A runner older than M5 ignores the field, so it never runs the login. An M5 runner accepts it only on the `inprocess` engine for Pi with a ChatGPT login, and keeps it in its `SubscriptionCredentialStore`; any other engine is refused when the plan is built (`ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE`).
+3. The SDK sends the login as `organizationSubscription`, with the fence marker in `subscription`. A runner older than M5 ignores `organizationSubscription` and refuses the fence as an unusable login, so it never runs the login and never uses an operator login. An M5 runner accepts it only on the `inprocess` engine for Pi with a ChatGPT login, and keeps it in its `SubscriptionCredentialStore`; any other engine is refused when the plan is built (`ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE`).
 4. Upkeep: refreshes and failures go to `/secrets/{id}/subscription-login[/failure]?scope=organization`, which writes the organization row after the availability check. A device login started from `/organization-secrets/{id}/login-attempts` carries `organizationId`, and its outcome names `organization_id`.
 
 ## 3. Request counts (every cache mode)
@@ -151,7 +151,7 @@ Every existing request is equal or lower in every cache mode. M5 adds no HTTP ca
 | P12 | A deployment the gateway does not serve is refused at create, at update and at resolve. | `LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS`, pinned against the passthrough auth table. | Bedrock and SageMaker create and update 422; a stored row answers not served. |
 | P13 | OSS refuses the project limit; EE needs the RBAC entitlement. | `ProjectLimitsInterface`. | OSS 403; EE hobby 403; EE business 200. |
 | P14 | An older runtime fails closed on an organization connection. | Namespace `organization` on every saved organization connection; the commit check. | `test_an_organization_connection_needs_scope_slug_and_its_namespace`; `test_an_incomplete_organization_connection_is_refused`. |
-| P15 | An organization subscription login never reaches a sandbox, and only the run credential receives it. | The release route needs the `secret-resolve` grant and the availability check; the separate wire field `organizationSubscription`; the runner's `inprocess`-only check at plan build; Claude refused in the SDK. | `test_only_the_runs_credential_reads_an_organization_subscription_login`; `test_the_release_route_refuses_a_project_the_login_is_not_available_to`; `organization-subscription-run-plan.test.ts`; `test_an_organization_claude_login_is_refused`. |
+| P15 | An organization subscription login never reaches a sandbox, and only the run credential receives it. | The release route needs the `secret-resolve` grant and the availability check; the separate wire field `organizationSubscription` with the fence in `subscription`; the runner's `inprocess`-only check at plan build; Claude refused in the SDK. | `test_only_the_runs_credential_reads_an_organization_subscription_login`; `test_the_release_route_refuses_a_project_the_login_is_not_available_to`; `organization-subscription-run-plan.test.ts` (including the older-runner fence); `test_an_organization_claude_login_is_refused`. |
 
 ## 6. Migration
 

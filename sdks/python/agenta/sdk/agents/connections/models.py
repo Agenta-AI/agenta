@@ -37,6 +37,10 @@ ConnectionNamespace = Literal["standard", "custom", "builtin", "organization"]
 # organization's. An organization connection is used only when an agent names it.
 ConnectionScope = Literal["project", "organization"]
 
+# Sent in `subscription` beside an organization subscription login (see
+# `ResolvedConnection.to_wire`). Mirrors `ORGANIZATION_SUBSCRIPTION_FENCE` in the runner.
+ORGANIZATION_SUBSCRIPTION_FENCE = {"fence": "organization"}
+
 # Where a resolved credential comes from, as seen by the harness adapter. ``env`` ships one
 # provider's vars; ``runtime_provided`` injects nothing (the harness owns auth, e.g. an OAuth
 # login or a self-managed sidecar); ``none`` injects nothing and asserts no credential.
@@ -505,12 +509,14 @@ class ResolvedConnection(BaseModel):
         if self.input_modalities is not None:
             wire["modelCapabilities"] = {"inputModalities": list(self.input_modalities)}
         if self.subscription is not None:
-            key = (
-                "organizationSubscription"
-                if self.subscription.owner == "organization"
-                else "subscription"
-            )
-            wire[key] = self.subscription.to_wire()
+            if self.subscription.owner == "organization":
+                wire["organizationSubscription"] = self.subscription.to_wire()
+                # A runner older than M5 does not read `organizationSubscription`. It reads
+                # this marker as an unusable subscription and refuses the run, so it never
+                # falls back to an operator login. An M5 runner accepts it beside the login.
+                wire["subscription"] = dict(ORGANIZATION_SUBSCRIPTION_FENCE)
+            else:
+                wire["subscription"] = self.subscription.to_wire()
         if self.gateway_credentials is not None:
             wire["gatewayCredentials"] = self.gateway_credentials.to_wire()
         if self.custom_connection is not None:

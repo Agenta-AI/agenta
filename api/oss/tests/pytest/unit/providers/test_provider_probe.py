@@ -1318,3 +1318,22 @@ def test_an_unavailable_organization_connection_is_not_found(monkeypatch):
         json={"secret_id": str(uuid4()), "secret_scope": "organization"},
     )
     assert response.status_code == 404
+
+
+def test_an_organization_probe_answer_that_echoes_the_key_is_refused(monkeypatch):
+    """A provider that puts the organization key in its model list (or anywhere in the
+    answer) gets the gateway's refusal: the member never sees the key (M5)."""
+    vault = _OrganizationVault()
+    secret_id = uuid4()
+    vault.organization[str(secret_id)] = _stored_provider_key()
+    recorder = Recorder(json_response({"data": [{"id": STORED_KEY}]}))
+    client, _ = _organization_client(monkeypatch, recorder, vault, manage=False)
+
+    response = client.post(
+        "/providers/probe",
+        json={"secret_id": str(secret_id), "secret_scope": "organization"},
+    )
+
+    assert response.status_code == 502, response.text
+    assert STORED_KEY not in response.text
+    assert response.json() == {"detail": router_module.PROBE_CREDENTIAL_ECHO_MESSAGE}

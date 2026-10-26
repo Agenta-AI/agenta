@@ -2036,8 +2036,9 @@ async def test_an_organization_subscription_reads_its_own_route_and_rides_its_ow
     assert resolved.subscription.owner == "organization"
     assert resolved.subscription.login == _READY_LOGIN
     wire = resolved.to_wire()
-    # A runner older than M5 does not read this key, so it never runs the login at all.
-    assert "subscription" not in wire
+    # A runner older than M5 does not read this key; it sees only the fence in
+    # `subscription`, an unusable subscription, and refuses the run.
+    assert wire["subscription"] == {"fence": "organization"}
     assert wire["organizationSubscription"]["slug"] == "chatgpt"
 
 
