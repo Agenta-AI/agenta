@@ -25,6 +25,7 @@ from oss.src.core.gateways.llms.providers.passthrough.validation import (
     validate_deployment_base_url,
 )
 from oss.src.core.gateways.llms.types import LLMEndpointNotFoundError
+from oss.src.core.secrets.enums import SecretOwnerKind
 from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
 from oss.src.utils.context import AuthScope, get_auth_scope
 from oss.src.utils.exceptions import intercept_exceptions
@@ -63,6 +64,9 @@ class LLMGatewayRouter:
             methods=["POST"],
             operation_id="resolve_llm_gateway_connection",
             response_model=LLMGatewayConnectionResolveResponse,
+            # `custom_provider` is set only for an organization connection (M5); a project
+            # route answers exactly as before.
+            response_model_exclude_none=True,
         )
         self.router.add_api_route(
             "/endpoints/",
@@ -141,6 +145,7 @@ class LLMGatewayRouter:
             provider_key=body.provider_key,
             connection_slug=body.connection_slug,
             connection_namespace=body.connection_namespace,
+            connection_scope=SecretOwnerKind(body.connection_scope or "project"),
         )
         return LLMGatewayConnectionResolveResponse(connection=connection)
 

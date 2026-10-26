@@ -1,8 +1,9 @@
-"""`/organization-secrets/`: organization credentials that projects inherit (M5).
+"""`/organization-secrets/`: organization credentials that agents of chosen projects can
+name (M5).
 
 Every route asks the one organization access decision first (`decide_organization`:
 a browser-session owner or admin of the request's organization) and answers 403 on a
-denial; no project RBAC shortcut applies. Every route addresses inheritable organization
+denial; no project RBAC shortcut applies. Every route addresses shareable organization
 rows of the request's organization only, so an SSO row or another organization's row
 answers 404. No response carries a credential value or a part of one.
 """
@@ -32,16 +33,14 @@ from oss.src.core.secrets.dtos import (
 from oss.src.core.secrets.redaction import organization_secret_response
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.types import (
-    OrganizationSecretKindNotInheritable,
+    OrganizationSecretKindNotShareable,
     OrganizationSecretNotFound,
     OrganizationSecretNotServed,
     OrganizationSecretValueNotScannable,
     OrganizationSecretValueTooShort,
     ProjectLimitNotAllowed,
     ProjectNotInOrganization,
-    SecretShadowConflict,
     SecretSlugConflict,
-    SecretWriteConflict,
     ServerOwnedFieldNotWritable,
 )
 from oss.src.utils.exceptions import intercept_exceptions
@@ -52,14 +51,14 @@ DENIED_MESSAGE = (
 )
 
 _UNPROCESSABLE = (
-    OrganizationSecretKindNotInheritable,
+    OrganizationSecretKindNotShareable,
     OrganizationSecretNotServed,
     OrganizationSecretValueNotScannable,
     OrganizationSecretValueTooShort,
     ProjectNotInOrganization,
     ServerOwnedFieldNotWritable,
 )
-_CONFLICTS = (SecretSlugConflict, SecretShadowConflict, SecretWriteConflict)
+_CONFLICTS = (SecretSlugConflict,)
 
 
 def handle_organization_secret_exceptions():

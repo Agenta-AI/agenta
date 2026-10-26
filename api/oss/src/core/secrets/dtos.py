@@ -825,11 +825,12 @@ class PublicSecretResponseDTO(_SecretResponseBaseDTO):
 
 
 class CachedEffectiveSecrets(BaseModel):
-    """The cache value of one project's effective credential set (`effective_secrets`).
+    """The cache value of one project's credentials (`effective_secrets`).
 
-    `project_id` is the FULL project id: a read whose id differs is a miss. The inherited
-    rows are the inheritable organization rows AVAILABLE to this project (availability is
-    applied in SQL), so the entry never names another project.
+    `project_id` is the FULL project id: a read whose id differs is a miss. `secrets` are
+    the project's own rows. `organization` are the shareable organization rows AVAILABLE to
+    this project (availability is applied in SQL), so the entry never names another
+    project. An agent uses an organization row only when it names it by scope and slug.
     """
 
     model_config = ConfigDict(hide_input_in_errors=True)
@@ -838,14 +839,7 @@ class CachedEffectiveSecrets(BaseModel):
     # The project row's organization; None when the project was not found.
     organization_id: Optional[UUID] = None
     secrets: List[SecretResponseDTO] = []
-    inherited: List[SecretResponseDTO] = []
-
-
-class PublicInheritedSecretResponseDTO(PublicSecretResponseDTO):
-    """An inherited organization row as a project member sees it: no value, no preview,
-    nothing about other projects, and the project row that overrides it, if any."""
-
-    overridden_by_secret_id: Optional[UUID] = None
+    organization: List[SecretResponseDTO] = []
 
 
 class OrganizationSecretDeleted(BaseModel):

@@ -328,7 +328,7 @@ def test_kind_family_bedrock_refusals_answer_422(world):
     assert world["dao"].records == {}
 
 
-def test_duplicate_slug_and_shadow_conflict_answer_409(world):
+def test_a_duplicate_organization_slug_answers_409_and_a_project_slug_does_not(world):
     client, vault = world["client"]()
     assert (
         client.post(
@@ -342,19 +342,19 @@ def test_duplicate_slug_and_shadow_conflict_answer_409(world):
         ).status_code
         == 409
     )
+    # A project row with the slug, of another family, is a separate connection.
     world["dao"]._store(
         world["dao"]._build(
             owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=world["marketing"]),
             dto=CreateSecretDTO.model_validate(
-                org_secret_payload(slug="shadow", family="anthropic")
+                org_secret_payload(slug="same-name", family="anthropic")
             ),
         )
     )
     response = client.post(
-        "/organization-secrets/", json=org_secret_payload(slug="shadow")
+        "/organization-secrets/", json=org_secret_payload(slug="same-name")
     )
-    assert response.status_code == 409
-    assert "another kind or provider" in response.json()["detail"]
+    assert response.status_code == 200, response.text
 
 
 def test_projects_route_oss_403_ee_without_rbac_403_foreign_422(world):

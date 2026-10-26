@@ -18,7 +18,6 @@ from typing import Any, Dict, Optional, Tuple
 from agenta.sdk.agents.connections.credentials import CREDENTIAL_EXTRAS_KEYS
 
 from oss.src.core.secrets.dtos import (
-    PublicInheritedSecretResponseDTO,
     PublicSecretResponseDTO,
     SecretResponseDTO,
     SecretValueStatus,
@@ -249,22 +248,13 @@ def organization_secret_response(secret: SecretResponseDTO) -> PublicSecretRespo
     return project_secret_response(secret, reveal_write_only=False)
 
 
-def inherited_secret_response(
+def organization_connection_response(
     secret: SecretResponseDTO,
-    *,
-    overridden_by_secret_id=None,
-) -> PublicInheritedSecretResponseDTO:
-    """An inherited row as a project member sees it: no value, no preview, and nothing
-    about other projects (`availability` and `selected_project_ids` dropped)."""
-    projected = project_secret_response(
+) -> PublicSecretResponseDTO:
+    """An organization row as a member of a project it is available to sees it: no value,
+    no preview, and nothing about other projects (`availability` and
+    `selected_project_ids` dropped)."""
+    return project_secret_response(
         secret.model_copy(update={"availability": None, "selected_project_ids": None}),
         reveal_write_only=False,
-    )
-    return PublicInheritedSecretResponseDTO.model_validate(
-        {
-            **projected.model_dump(mode="python"),
-            "availability": None,
-            "selected_project_ids": None,
-            "overridden_by_secret_id": overridden_by_secret_id,
-        }
     )

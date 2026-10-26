@@ -16,7 +16,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.secrets.enums import (
     STANDARD_PROVIDER_DISPLAY_NAMES,
     SUBSCRIPTION_PROVIDER_DISPLAY_NAMES,
-    INHERITABLE_KINDS,
+    ORGANIZATION_SECRET_KINDS,
     LLMCustomProviderKind,
     SecretAvailability,
     SecretKind,
@@ -41,7 +41,7 @@ from oss.src.core.secrets.redaction import (
     SECONDARY_CREDENTIAL_FIELDS,
 )
 from oss.src.core.secrets.types import (
-    OrganizationSecretKindNotInheritable,
+    OrganizationSecretKindNotShareable,
     OrganizationSecretNotFound,
     OrganizationSecretNotServed,
     OrganizationSecretValueNotScannable,
@@ -50,12 +50,10 @@ from oss.src.core.secrets.types import (
     ServerOwnedFieldNotWritable,
     SubscriptionProviderConflict,
 )
-from oss.src.core.secrets.inheritance import (
-    InheritedSecret,
-    effective_secrets,
-    inherited_secrets,
-    inherits,
+from oss.src.core.secrets.scopes import (
+    available_organization_secrets,
     is_llm_provider_family,
+    organization_matches,
 )
 from oss.src.core.secrets.dtos import (
     CachedEffectiveSecrets,
@@ -78,7 +76,7 @@ from oss.src.core.secrets.managed import (
 
 log = get_module_logger(__name__)
 
-# One cache entry per project: its rows, its row's organization, and the inheritable
+# One cache entry per project: its rows, its row's organization, and the shareable
 # organization rows available to it. Keyed on the FULL project id (`_pack` keeps only 12
 # characters of the project slot), in the project slot so project-wide invalidation clears
 # it, from old pods too.
@@ -118,13 +116,18 @@ def next_provider_key_name(
     *,
     kind: StandardProviderKind,
     taken_names: set[str],
+    owner_label: Optional[str] = None,
 ) -> str:
     """The first free display name for a new connection of ``kind``.
 
     The first connection of a provider family takes the plain display name ("OpenAI"), later
-    ones get a suffix ("OpenAI 2", "OpenAI 3"). The name is display only; the slug is identity.
+    ones get a suffix ("OpenAI 2", "OpenAI 3"). With an `owner_label` the name carries the
+    owner ("OpenAI (Organization)", then "OpenAI (Organization) 2"). The name is display
+    only; the slug is identity.
     """
     title = STANDARD_PROVIDER_DISPLAY_NAMES.get(kind, kind.value)
+    if owner_label:
+        title = f"{title} ({owner_label})"
 
     if title not in taken_names:
         return title
@@ -559,15 +562,10 @@ class VaultService:
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
-            # Every project row with a slug runs the shadow check, folded into its one
-            # insert: a caller's slug, a canonical subscription slug and a derived one
-            # alike (a derived slug only makes a collision unlikely, not impossible).
             secret_dto = await self.secrets_dao.create(
                 owner=owner,
                 create_secret_dto=create_secret_dto,
                 management=management,
-                check_shadow=owner.kind == SecretOwnerKind.PROJECT
-                and bool(create_secret_dto.slug),
             )
 
         if project_id is not None:
@@ -664,6 +662,10 @@ class VaultService:
 
             header.name = next_provider_key_name(
                 kind=create_secret_dto.secret.data.kind,
+                # An organization connection's default name says it is the organization's.
+                owner_label=(
+                    "Organization" if owner.kind == SecretOwnerKind.ORGANIZATION else None
+                ),
                 taken_names={
                     secret_dto.header.name
                     for secret_dto in secrets_dtos or []
@@ -759,8 +761,8 @@ class VaultService:
         (organization_id, uncached, EE SSO).
 
         A project read is the `effective_secrets` entry's project rows: the same one cache
-        read, filled by the same one statement, as before M5. It never carries inherited
-        rows, so every plaintext reader sees project rows only."""
+        read, filled by the same one statement, as before M5. It never carries
+        organization rows, so every plaintext reader sees project rows only."""
         if project_id is not None:
             entry = await self._effective_entry(project_id=project_id)
             return list(entry.secrets)
@@ -812,39 +814,41 @@ class VaultService:
             memo[memo_key] = entry
         return entry
 
-    def _inherits(
+    def _organization_rows(
         self, *, entry: CachedEffectiveSecrets, organization_id: Optional[UUID]
-    ) -> bool:
-        if inherits(entry=entry, organization_id=organization_id):
-            return True
-        if entry.inherited and entry.organization_id is not None:
-            log.warning(
-                "[secrets] organization mismatch",
-                project_id=str(entry.project_id),
-                project_organization_id=str(entry.organization_id),
-                request_organization_id=str(organization_id),
-            )
-        return False
-
-    async def list_effective_secrets(
-        self, *, organization_id: UUID, project_id: UUID
     ) -> List[SecretResponseDTO]:
-        """Project rows, then available inherited rows whose slug no project row uses.
-        In-process readers only (the LLM gateway); never an HTTP response."""
-        entry = await self._effective_entry(project_id=project_id)
-        if not self._inherits(entry=entry, organization_id=organization_id):
-            return list(entry.secrets)
-        return effective_secrets(entry=entry, organization_id=organization_id)
+        if not organization_matches(entry=entry, organization_id=organization_id):
+            if entry.organization and entry.organization_id is not None:
+                log.warning(
+                    "[secrets] organization mismatch",
+                    project_id=str(entry.project_id),
+                    project_organization_id=str(entry.organization_id),
+                    request_organization_id=str(organization_id),
+                )
+            return []
+        return available_organization_secrets(
+            entry=entry, organization_id=organization_id
+        )
 
-    async def get_effective_secret_by_slug(
+    async def get_organization_connection(
         self, *, organization_id: UUID, project_id: UUID, slug: str
     ) -> Optional[SecretResponseDTO]:
-        secrets = await self.list_effective_secrets(
-            organization_id=organization_id, project_id=project_id
+        """The organization row an agent of this project named by scope `organization`
+        and `slug`, when it is available to the project; else None. Never a project row.
+        In-process readers only (the LLM gateway); never an HTTP response."""
+        entry = await self._effective_entry(project_id=project_id)
+        return next(
+            (
+                secret
+                for secret in self._organization_rows(
+                    entry=entry, organization_id=organization_id
+                )
+                if secret.slug == slug
+            ),
+            None,
         )
-        return next((secret for secret in secrets if secret.slug == slug), None)
 
-    async def get_effective_secret_by_id(
+    async def get_connection_secret_by_id(
         self,
         *,
         organization_id: UUID,
@@ -853,37 +857,33 @@ class VaultService:
         owner_kind: SecretOwnerKind,
     ) -> Optional[SecretResponseDTO]:
         """A project reference: today's project-scoped read by id. An organization
-        reference: only an inherited row available to the project. Never a substitute."""
+        reference: only an organization row available to the project. Never a
+        substitute."""
         if owner_kind == SecretOwnerKind.PROJECT:
             return await self.get_secret_by_id(secret_id, project_id=project_id)
         if owner_kind != SecretOwnerKind.ORGANIZATION:
             return None
         entry = await self._effective_entry(project_id=project_id)
-        if not self._inherits(entry=entry, organization_id=organization_id):
-            return None
         return next(
-            (secret for secret in entry.inherited if secret.id == secret_id), None
+            (
+                secret
+                for secret in self._organization_rows(
+                    entry=entry, organization_id=organization_id
+                )
+                if secret.id == secret_id
+            ),
+            None,
         )
 
-    async def list_project_and_inherited_secrets(
+    async def list_project_and_organization_secrets(
         self, *, organization_id: UUID, project_id: UUID
-    ) -> Tuple[List[SecretResponseDTO], List[InheritedSecret]]:
-        """The project's rows and its inherited rows, from ONE entry read
-        (`GET /secrets/?include_inherited=true`)."""
+    ) -> Tuple[List[SecretResponseDTO], List[SecretResponseDTO]]:
+        """The project's rows and the organization rows its agents may name, from ONE
+        entry read (`GET /secrets/?include_organization=true`)."""
         entry = await self._effective_entry(project_id=project_id)
-        if not self._inherits(entry=entry, organization_id=organization_id):
-            return list(entry.secrets), []
-        return list(entry.secrets), inherited_secrets(
+        return list(entry.secrets), self._organization_rows(
             entry=entry, organization_id=organization_id
         )
-
-    async def list_inherited_secrets(
-        self, *, organization_id: UUID, project_id: UUID
-    ) -> List[InheritedSecret]:
-        entry = await self._effective_entry(project_id=project_id)
-        if not self._inherits(entry=entry, organization_id=organization_id):
-            return []
-        return inherited_secrets(entry=entry, organization_id=organization_id)
 
     async def _invalidate_project(self, project_id: UUID) -> None:
         """Every cache entry of the project (old pods' namespaces included), then the
@@ -959,9 +959,6 @@ class VaultService:
                 owner=_owner_of(project_id=project_id, organization_id=organization_id),
                 user_id=user_id,
                 resolve_update=resolve_update,
-                # A user update may change the kind or provider family; refuse one that an
-                # inherited row with the same slug would then conflict with.
-                check_shadow=project_id is not None,
             )
 
         if project_id is not None:
@@ -1057,9 +1054,6 @@ class VaultService:
                 update_secret_dto=update_secret_dto,
                 owner=_owner_of(project_id=project_id, organization_id=organization_id),
                 resolve_update=_resolve_managed_update(manager),
-                # The manager may re-point a row's provider; an inherited row with the
-                # same slug must not end up with another identity.
-                check_shadow=project_id is not None,
             )
 
         if project_id is not None:
@@ -1156,16 +1150,16 @@ class VaultService:
 
     def _check_organization_secret(self, *, secret: Any) -> None:
         """The product rules of a shareable credential, on the payload as it will be
-        stored: an inheritable kind, an LLM family for a key, a deployment the gateway
+        stored: a shareable kind, an LLM family for a key, a deployment the gateway
         serves, and values long enough for the gateway's echo scan.
 
         Normalizes the credential values in place first (surrounding whitespace removed),
         so the minimum applies to the value the gateway will send and scan."""
         kind = secret.kind
-        if kind not in INHERITABLE_KINDS:
-            raise OrganizationSecretKindNotInheritable(kind=str(kind.value))
+        if kind not in ORGANIZATION_SECRET_KINDS:
+            raise OrganizationSecretKindNotShareable(kind=str(kind.value))
         if kind == SecretKind.PROVIDER_KEY and not is_llm_provider_family(secret.data):
-            raise OrganizationSecretKindNotInheritable(kind=str(kind.value))
+            raise OrganizationSecretKindNotShareable(kind=str(kind.value))
         if kind == SecretKind.CUSTOM_PROVIDER:
             deployment = custom_provider_deployment_kind(
                 LLMCustomProviderKind(_provider_family(secret.data))

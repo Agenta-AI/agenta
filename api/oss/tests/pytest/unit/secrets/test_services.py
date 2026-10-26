@@ -171,6 +171,25 @@ def vault():
     return VaultService(_FakeSecretsDAO())
 
 
+def test_an_organization_default_name_carries_the_owner():
+    assert (
+        next_provider_key_name(
+            kind=StandardProviderKind.OPENAI,
+            taken_names=set(),
+            owner_label="Organization",
+        )
+        == "OpenAI (Organization)"
+    )
+    assert (
+        next_provider_key_name(
+            kind=StandardProviderKind.OPENAI,
+            taken_names={"OpenAI (Organization)"},
+            owner_label="Organization",
+        )
+        == "OpenAI (Organization) 2"
+    )
+
+
 def test_next_provider_key_name_numbers_later_connections():
     assert (
         next_provider_key_name(kind=StandardProviderKind.OPENAI, taken_names=set())

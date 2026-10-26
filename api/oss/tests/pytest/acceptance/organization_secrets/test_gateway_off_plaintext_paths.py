@@ -3,7 +3,7 @@
 Runs only against a deployment with `AGENTA_LLM_GATEWAY_ENABLED=false` (the product
 default); on a deployment with the gateway on, it skips. The run's own credential (a
 Secret token with the `secret-resolve` grant) reads the vault in plaintext: it never sees
-an inherited row, so an agent naming an organization slug fails "connection not found" in
+an organization row, so an agent naming an organization connection fails "connection not found" in
 the SDK, and the sandbox never receives the value.
 """
 
@@ -37,7 +37,7 @@ def _run_credential(org) -> str:
     return response.json()["credentials"]
 
 
-def test_the_run_credential_never_receives_an_inherited_row(org, gateway_off):
+def test_the_run_credential_never_receives_an_organization_row(org, gateway_off):
     company = org.call(
         "POST", "/organization-secrets/", json=provider_key(slug=unique("off"), key=KEY)
     )
@@ -48,10 +48,10 @@ def test_the_run_credential_never_receives_an_inherited_row(org, gateway_off):
     assert (
         company.json()["id"] not in plain.text
     )  # the plaintext read: project rows only
-    # With the parameter, a caller without the resolve grant may see the inherited row's
-    # name and status, never its value; a caller with the grant sees no inherited row.
+    # With the parameter, a caller without the resolve grant may see the organization row's
+    # name and status, never its value; a caller with the grant sees no organization row.
     listed = org.call(
-        "GET", "/secrets/", credentials=run, params={"include_inherited": "true"}
+        "GET", "/secrets/", credentials=run, params={"include_organization": "true"}
     )
     assert listed.status_code == 200, listed.text
     for text_ in (plain.text, listed.text):

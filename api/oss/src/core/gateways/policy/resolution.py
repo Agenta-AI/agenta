@@ -3,10 +3,10 @@
 Pure orchestration over `VaultService`; this module never talks to Postgres or the
 vault's encryption directly.
 
-The resolver is built per plane (M5). The LLM plane reads the project's effective set:
-its own rows, then the organization credentials it inherits. Every other plane (MCP) is
-project-only: it never reads, lists or answers an organization row, whatever a provider
-is called (an organization key of family `mock` exists in both catalogs).
+The resolver is built per plane (M5). Every plane reads the project's own rows for a
+provider scan and a project slug. Only the LLM plane also answers an organization
+connection, and only one an agent named by scope `organization` (by slug, or by id through
+a bound reference). The MCP plane never reads, lists or answers an organization row.
 """
 
 from typing import List, Optional, Set
@@ -31,7 +31,7 @@ from oss.src.core.gateways.policy.types import (
 )
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.enums import SecretKind
-from oss.src.core.secrets.inheritance import provider_candidates
+from oss.src.core.secrets.scopes import provider_candidates
 from oss.src.core.secrets.services import VaultService
 from oss.src.utils.context import AuthScope
 
@@ -55,16 +55,11 @@ class SecretsResolver(SecretsResolverInterface):
         self.plane = plane
 
     @property
-    def _inherits(self) -> bool:
+    def _serves_organization(self) -> bool:
         return self.plane == GatewayPlane.LLM
 
     async def _secrets(self, *, scope: AuthScope) -> List[SecretResponseDTO]:
-        """The rows this plane may use: the effective set (LLM) or the project's rows."""
-        if self._inherits:
-            return await self.vault_service.list_effective_secrets(
-                organization_id=scope.organization_id,
-                project_id=scope.project_id,
-            )
+        """The project's own rows: the provider scan and project slugs read only these."""
         return await self.vault_service.list_secrets(project_id=scope.project_id)
 
     def _owner(self, *, scope: AuthScope, secret: SecretResponseDTO) -> SecretOwner:
@@ -94,11 +89,23 @@ class SecretsResolver(SecretsResolverInterface):
             if secret.kind in (SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER)
         }
 
+    async def organization_connection(
+        self, *, scope: AuthScope, slug: str
+    ) -> Optional[SecretResponseDTO]:
+        """The organization row an agent named by scope `organization` and `slug`, when it
+        is available to the project. None on a plane that serves no organization row."""
+        if not self._serves_organization:
+            return None
+        return await self.vault_service.get_organization_connection(
+            organization_id=scope.organization_id,
+            project_id=scope.project_id,
+            slug=slug,
+        )
+
     async def provider_connection_by_slug(
         self, *, scope: AuthScope, slug: str
     ) -> Optional[NamedProviderConnection]:
-        # Project rows come first in the effective set, so a project row with the slug
-        # wins over the organization row it overrides.
+        # A project slug names a project row only.
         secrets = await self._secrets(scope=scope)
 
         for secret in secrets or []:
@@ -131,9 +138,9 @@ class SecretsResolver(SecretsResolverInterface):
             return await self.vault_service.get_secret_by_id(
                 ref.secret_id, project_id=scope.project_id
             )
-        if ref.owner_kind == SecretOwnerKind.ORGANIZATION and self._inherits:
-            # Only an inherited row available to this project; never a substitute.
-            return await self.vault_service.get_effective_secret_by_id(
+        if ref.owner_kind == SecretOwnerKind.ORGANIZATION and self._serves_organization:
+            # Only an organization row available to this project; never a substitute.
+            return await self.vault_service.get_connection_secret_by_id(
                 organization_id=scope.organization_id,
                 project_id=scope.project_id,
                 secret_id=ref.secret_id,
@@ -172,24 +179,13 @@ class SecretsResolver(SecretsResolverInterface):
     async def _match_provider_secret(
         self, *, scope: AuthScope, ref: ProviderKeyRef
     ) -> Optional[SecretResponseDTO]:
-        secrets = await self._secrets(scope=scope)
-        # The project's candidates first, with today's tie rule inside the group
-        # (`provider_key` before `custom_provider`); inherited ones only when the project
-        # has none. On the project-only plane every row is a project row.
-        own: List[SecretResponseDTO] = []
-        inherited: List[SecretResponseDTO] = []
-        for secret in secrets:
-            is_own = (
-                secret.owner is None or secret.owner.kind == SecretOwnerKind.PROJECT
-            )
-            (own if is_own else inherited).append(secret)
-        for group in (own, inherited):
-            candidates = provider_candidates(
-                secrets=group, provider_key=ref.provider_key
-            )
-            if candidates:
-                return candidates[0]
-        return None
+        # The project's own rows, with today's tie rule (`provider_key` before
+        # `custom_provider`). An organization row is never a candidate: an agent uses one
+        # only when it names it.
+        candidates = provider_candidates(
+            secrets=await self._secrets(scope=scope), provider_key=ref.provider_key
+        )
+        return candidates[0] if candidates else None
 
     async def _resolve_provider_key(
         self, *, scope: AuthScope, ref: ProviderKeyRef, mode: SecretMode

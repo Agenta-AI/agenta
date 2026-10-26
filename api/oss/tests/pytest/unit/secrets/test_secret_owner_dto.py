@@ -69,14 +69,14 @@ def test_cached_effective_secrets_round_trips_the_real_serializer():
         project_id=project_id,
         organization_id=organization_id,
         secrets=[project_row],
-        inherited=[organization_row],
+        organization=[organization_row],
     )
 
     restored = _deserialize(_serialize(entry), model=CachedEffectiveSecrets)
 
     assert restored == entry
-    assert restored.inherited[0].write_only is True
-    assert restored.inherited[0].selected_project_ids is None
+    assert restored.organization[0].write_only is True
+    assert restored.organization[0].selected_project_ids is None
 
 
 def test_cached_effective_secrets_with_none_fields_round_trips():
@@ -84,7 +84,7 @@ def test_cached_effective_secrets_with_none_fields_round_trips():
     restored = _deserialize(_serialize(entry), model=CachedEffectiveSecrets)
     assert restored == entry
     assert restored.organization_id is None
-    assert restored.secrets == [] and restored.inherited == []
+    assert restored.secrets == [] and restored.organization == []
 
 
 def test_bound_secret_ref_defaults_to_project_owner():

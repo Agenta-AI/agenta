@@ -1,4 +1,7 @@
-"""Gateway resolution over the effective credential set, per plane (M5, Task 9).
+"""Gateway resolution with explicit scope, per plane (M5).
+
+An agent uses an organization connection only when it names it. A provider scan, a project
+slug and the project default read the project's own rows only.
 
 A real `VaultService` over the in-memory owner-based DAO and the recording cache engine.
 """
@@ -89,35 +92,63 @@ async def _project_key(
     )
 
 
-async def test_new_project_sees_the_company_key(world):
+async def test_the_provider_scan_never_reads_an_organization_row(world):
+    """An agent with no connection keeps the project default: an organization key of the
+    family is never used for it, also in a project with no key of its own."""
     await _company(world)
-    new_project = uuid4()
-    world["dao"].projects[new_project] = world["organization_id"]
-    scope = make_auth_scope(
-        organization_id=world["organization_id"], project_id=new_project
+    assert "openai" not in await world["llm"].available_provider_keys(
+        scope=world["sales_scope"]
     )
-    assert "openai" in await world["llm"].available_provider_keys(scope=scope)
-    resolved = await world["llm"].resolve(
-        scope=scope, ref=ProviderKeyRef(provider_key="openai"), mode=MODE
-    )
-    assert resolved.owner.kind == SecretOwnerKind.ORGANIZATION
-    assert resolved.secret.data.provider.key == "sk-company-0123456789"
+    with pytest.raises(SecretNotFoundError):
+        await world["llm"].resolve(
+            scope=world["sales_scope"],
+            ref=ProviderKeyRef(provider_key="openai"),
+            mode=MODE,
+        )
 
 
-async def test_slug_resolves_project_then_organization(world):
+async def test_a_project_slug_never_names_an_organization_row(world):
     company = await _company(world)
-    override = await _project_key(world, world["sales"], slug="openai-company")
+    own = await _project_key(world, world["sales"], slug="openai-company")
     sales = await world["llm"].provider_connection_by_slug(
         scope=world["sales_scope"], slug="openai-company"
     )
     marketing = await world["llm"].provider_connection_by_slug(
         scope=world["marketing_scope"], slug="openai-company"
     )
-    assert (sales.secret_id, sales.owner_kind) == (override.id, SecretOwnerKind.PROJECT)
-    assert (marketing.secret_id, marketing.owner_kind) == (
-        company.id,
-        SecretOwnerKind.ORGANIZATION,
+    assert (sales.secret_id, sales.owner_kind) == (own.id, SecretOwnerKind.PROJECT)
+    assert marketing is None
+    assert not await world["llm"].has_connection(
+        scope=world["marketing_scope"], slug="openai-company"
     )
+    # Named with scope `organization`, the same slug answers the organization row only.
+    for scope in (world["sales_scope"], world["marketing_scope"]):
+        named = await world["llm"].organization_connection(
+            scope=scope, slug="openai-company"
+        )
+        assert named.id == company.id
+
+
+async def test_an_organization_connection_respects_the_allowed_projects(world):
+    company = await _company(world)
+    await world["vault"].set_organization_secret_availability(
+        organization_id=world["organization_id"],
+        secret_id=company.id,
+        availability=SecretAvailability.SELECTED_PROJECTS,
+        project_ids=[world["marketing"]],
+        user_id=uuid4(),
+    )
+    assert (
+        await world["llm"].organization_connection(
+            scope=world["sales_scope"], slug="openai-company"
+        )
+        is None
+    )
+    assert (
+        await world["llm"].organization_connection(
+            scope=world["marketing_scope"], slug="openai-company"
+        )
+    ).id == company.id
 
 
 async def test_named_connection_removed_does_not_fall_back(world):
@@ -138,7 +169,7 @@ async def test_named_connection_removed_does_not_fall_back(world):
         )
 
 
-async def test_default_prefers_the_project_key(world):
+async def test_the_default_is_the_project_key(world):
     await _company(world)
     own = await _project_key(world, world["sales"], slug="mine")
     resolved = await world["llm"].resolve(
@@ -197,10 +228,13 @@ async def test_project_bound_reference_never_reads_organization_rows(world):
     assert excinfo.value.missing == SecretOwnerKind.PROJECT
 
 
-async def test_mismatched_request_organization_inherits_nothing(world):
+async def test_a_mismatched_request_organization_gets_no_organization_row(world):
     await _company(world)
     scope = make_auth_scope(organization_id=uuid4(), project_id=world["sales"])
-    assert await world["llm"].available_provider_keys(scope=scope) == set()
+    assert (
+        await world["llm"].organization_connection(scope=scope, slug="openai-company")
+        is None
+    )
 
 
 async def test_mcp_never_resolves_organization_rows(world, monkeypatch):
@@ -227,8 +261,11 @@ async def test_mcp_never_resolves_organization_rows(world, monkeypatch):
         )
     assert excinfo.value.missing == SecretOwnerKind.ORGANIZATION
     assert world["dao"].calls == calls  # refused without a read
-    # The LLM plane does see it.
-    assert "mock" in await world["llm"].available_provider_keys(scope=scope)
+    assert await mcp.organization_connection(scope=scope, slug="mock-company") is None
+    # The LLM plane answers it, by name only.
+    assert (
+        await world["llm"].organization_connection(scope=scope, slug="mock-company")
+    ).id == company.id
 
 
 async def test_mcp_endpoint_list_ignores_organization_keys(world, monkeypatch):

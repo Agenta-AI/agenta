@@ -39,6 +39,7 @@ from oss.src.core.gateways.policy.dtos import (
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.secrets.dtos import CreateSecretDTO, UpdateSecretDTO
+from oss.src.core.secrets.enums import SecretOwnerKind
 from oss.src.core.secrets.limits import NoProjectLimits
 from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
@@ -50,10 +51,7 @@ from oss.tests.pytest.utils.membership_seed import (
     delete_seeded_organization,
     seed_organization,
 )
-from oss.tests.pytest.utils.organization_secrets import (
-    make_auth_scope,
-    retry_write_conflict,
-)
+from oss.tests.pytest.utils.organization_secrets import make_auth_scope
 from oss.tests.pytest.utils.principals import bearer_request_access
 from oss.tests.pytest.utils.redis_calls import count_redis_calls
 from oss.tests.pytest.utils.statements import count_statements
@@ -78,20 +76,20 @@ ENTRY = {
 AFTER = {
     "A": (0, 1),  # relay, standard by provider family
     "B": (1, 1),  # relay, standard by a project slug (+ the id read)
-    "C": (0, 1),  # relay, standard by an organization slug (the id read uses the memo)
+    "C": (0, 1),  # relay, organization key named by scope (the target carries the row)
     "D": (2, 0),  # relay, custom project endpoint row (lookup + bound secret)
-    "E": (1, 0),  # relay, inherited custom provider (the lookup carries the row)
+    "E": (0, 1),  # relay, organization custom provider named by scope
     "E2": (1, 0),  # relay, unknown custom slug
     "F": (0, 0),  # resolve, provider only
     "G": (1, 0),  # resolve, project custom slug
     "H": (1, 1),  # resolve, project standard slug
     "H2": (1, 0),  # resolve, provider-family slug, project with a key
     "H2_nokey": (1, 0),  # resolve, provider-family slug, project without a key
-    "I": (1, 1),  # resolve, organization provider_key slug
-    "I2": (1, 0),  # resolve, inherited custom slug
+    "I": (0, 1),  # resolve, organization provider_key named by scope
+    "I2": (0, 1),  # resolve, organization custom provider named by scope
     "I3": (1, 1),  # resolve, unknown slug
     "J": (0, 1),  # GET /secrets/
-    "K": (0, 1),  # GET /secrets/?include_inherited=true
+    "K": (0, 1),  # GET /secrets/?include_organization=true
     "L": (1, 1),  # GET /gateways/llms/endpoints
     "M1": (0, 1),  # MCP endpoint list (available_provider_keys)
     "M2": (0, 1),  # MCP relay, standard
@@ -264,6 +262,13 @@ BEFORE = {
 }
 
 
+# Request shapes that exist only with M5: an agent that names an organization connection
+# (relay in the `organization` namespace, resolve with scope `organization`) and the list
+# with organization rows. Their cost is pinned exactly; there is no main request to compare.
+NEW_PATHS = {"C", "E", "I", "I2", "K"}
+
+ORG_SCOPE = SecretOwnerKind.ORGANIZATION
+
 # Rows that answer "not found" (an unknown slug). Every other row succeeds.
 NOT_FOUND = {"E2", "I3"}
 
@@ -366,42 +371,30 @@ async def world(redis_reachable):
     org = seeded.organization_id
     user = seeded.owner_id
     tag = uuid4().hex[:8]
-    openai = await retry_write_conflict(
-        lambda: vault.create_secret(
-            project_id=p1,
-            create_secret_dto=_key(
-                "openai", f"openai-sales-{tag}", "sk-proj-openai-1234"
-            ),
-            user_id=user,
-        )
+    openai = await vault.create_secret(
+        project_id=p1,
+        create_secret_dto=_key("openai", f"openai-sales-{tag}", "sk-proj-openai-1234"),
+        user_id=user,
     )
-    await retry_write_conflict(
-        lambda: vault.create_secret(
-            project_id=p1,
-            create_secret_dto=_key("mock", f"mock-{tag}", "sk-proj-mock-1234"),
-            user_id=user,
-        )
+    await vault.create_secret(
+        project_id=p1,
+        create_secret_dto=_key("mock", f"mock-{tag}", "sk-proj-mock-1234"),
+        user_id=user,
     )
-    custom = await retry_write_conflict(
-        lambda: vault.create_secret(
-            project_id=p1, create_secret_dto=_custom("Project Azure"), user_id=user
-        )
+    custom = await vault.create_secret(
+        project_id=p1, create_secret_dto=_custom("Project Azure"), user_id=user
     )
     org_slug = f"openai-company-{tag}"
-    inherited_custom = f"azure-company-{tag}"
-    await retry_write_conflict(
-        lambda: vault.create_organization_secret(
-            organization_id=org,
-            create_secret_dto=_key("anthropic", org_slug, "sk-org-anthropic-1234"),
-            user_id=user,
-        )
+    org_custom = f"azure-company-{tag}"
+    await vault.create_organization_secret(
+        organization_id=org,
+        create_secret_dto=_key("anthropic", org_slug, "sk-org-anthropic-1234"),
+        user_id=user,
     )
-    await retry_write_conflict(
-        lambda: vault.create_organization_secret(
-            organization_id=org,
-            create_secret_dto=_custom("Company Azure", slug=inherited_custom),
-            user_id=user,
-        )
+    await vault.create_organization_secret(
+        organization_id=org,
+        create_secret_dto=_custom("Company Azure", slug=org_custom),
+        user_id=user,
     )
     yield dict(
         seeded=seeded,
@@ -414,7 +407,7 @@ async def world(redis_reachable):
         openai=openai,
         custom=custom,
         org_slug=org_slug,
-        inherited_custom=inherited_custom,
+        org_custom=org_custom,
         s1=make_auth_scope(organization_id=org, project_id=p1, user_id=user),
         s2=make_auth_scope(organization_id=org, project_id=p2, user_id=user),
     )
@@ -424,6 +417,7 @@ async def world(redis_reachable):
 def _rows(w) -> Dict[str, tuple]:
     llm, s1, s2 = w["llm"], w["s1"], w["s2"]
     STD, CUS = GatewayEndpointNamespace.STANDARD, GatewayEndpointNamespace.CUSTOM
+    ORG = GatewayEndpointNamespace.ORGANIZATION
 
     async def relay(scope, namespace, name):
         target = await llm._resolve_target(scope=scope, namespace=namespace, name=name)
@@ -441,30 +435,37 @@ def _rows(w) -> Dict[str, tuple]:
             model="gpt-4o-mini",
             provider_key=kw.get("provider_key"),
             connection_slug=kw.get("slug"),
+            connection_scope=kw.get("connection_scope", SecretOwnerKind.PROJECT),
         )
 
-    async def include_inherited():
-        await w["vault"].list_project_and_inherited_secrets(
+    async def include_organization():
+        await w["vault"].list_project_and_organization_secrets(
             organization_id=s1.organization_id, project_id=w["p1"]
         )
 
     return {
         "A": (lambda: relay(s1, STD, "openai"), [w["p1"]]),
         "B": (lambda: relay(s1, STD, w["openai"].slug), [w["p1"]]),
-        "C": (lambda: relay(s1, STD, w["org_slug"]), [w["p1"]]),
+        "C": (lambda: relay(s1, ORG, w["org_slug"]), [w["p1"]]),
         "D": (lambda: relay(s1, CUS, w["custom"].slug), [w["p1"]]),
-        "E": (lambda: relay(s1, CUS, w["inherited_custom"]), [w["p1"]]),
+        "E": (lambda: relay(s1, ORG, w["org_custom"]), [w["p1"]]),
         "E2": (lambda: relay(s2, CUS, "unknown-custom-slug"), [w["p2"]]),
         "F": (lambda: resolve(s1, provider_key="openai"), [w["p1"]]),
         "G": (lambda: resolve(s1, slug=w["custom"].slug), [w["p1"]]),
         "H": (lambda: resolve(s1, slug=w["openai"].slug), [w["p1"]]),
         "H2": (lambda: resolve(s1, slug="openai"), [w["p1"]]),
         "H2_nokey": (lambda: resolve(s2, slug="openai"), [w["p2"]]),
-        "I": (lambda: resolve(s1, slug=w["org_slug"]), [w["p1"]]),
-        "I2": (lambda: resolve(s1, slug=w["inherited_custom"]), [w["p1"]]),
+        "I": (
+            lambda: resolve(s1, slug=w["org_slug"], connection_scope=ORG_SCOPE),
+            [w["p1"]],
+        ),
+        "I2": (
+            lambda: resolve(s1, slug=w["org_custom"], connection_scope=ORG_SCOPE),
+            [w["p1"]],
+        ),
         "I3": (lambda: resolve(s2, slug="unknown-slug"), [w["p2"]]),
         "J": (lambda: w["vault"].list_secrets(project_id=w["p1"]), [w["p1"]]),
-        "K": (include_inherited, [w["p1"]]),
+        "K": (include_organization, [w["p1"]]),
         "L": (lambda: llm.list_endpoints(scope=s1), [w["p1"]]),
         "M1": (lambda: w["mcp"].available_provider_keys(scope=s1), [w["p1"]]),
         "M2": (
@@ -529,25 +530,8 @@ async def _mode(mode: str, project_ids, monkeypatch):
 
 
 async def _measure(call, mode, project_ids, user, monkeypatch):
-    """Count one call; measured again (up to three times) when a SERIALIZABLE write had
-    to retry because another test wrote at the same moment: a retry repeats the write's
-    statements, and the counts pin the cost without contention."""
-    import oss.src.dbs.postgres.secrets.dao as secrets_dao_module
-
-    retried = []
-    real_wait = secrets_dao_module._wait_before_retry
-
-    async def _counting_wait(attempt):
-        retried.append(attempt)
-        return await real_wait(attempt)
-
-    monkeypatch.setattr(secrets_dao_module, "_wait_before_retry", _counting_wait)
-    for _ in range(3):
-        retried.clear()
-        result = await _measure_once(call, mode, project_ids, user, monkeypatch)
-        if not retried:
-            return result
-    return result
+    """Count one call."""
+    return await _measure_once(call, mode, project_ids, user, monkeypatch)
 
 
 async def _measure_once(call, mode, project_ids, user, monkeypatch):
@@ -590,6 +574,8 @@ async def test_existing_and_new_paths_cost_no_more_than_before(
     # Every row answers as intended; any other error fails the test.
     assert outcome == ("not_found" if row in NOT_FOUND else "ok"), (row, mode)
     assert (statements, redis) == _expected(row, mode), (row, mode)
+    if row in NEW_PATHS:
+        return  # a request shape main has no answer for; pinned exactly above
     before = BEFORE[row][mode]
     assert statements <= before[0] and redis <= before[1], (row, mode, before)
 
@@ -654,7 +640,6 @@ async def test_project_writes_keep_their_statements(mode, world, monkeypatch):
         else:
             assert commands == [], (row, mode, commands, before)
         if row == "P2":
-            # The shadow check is folded into the one insert; SERIALIZABLE rides the BEGIN.
             assert len(sql) == 1 and sql[0].lstrip().upper().startswith(
                 "INSERT INTO SECRETS"
             )
@@ -665,37 +650,23 @@ async def test_organization_routes_cost_one_decision_and_their_own_statements(
 ):
     """Row O (new path): a write adds one statement (the organization's project list)
     and one batched DEL after the commit; a list is one statement."""
-    import oss.src.dbs.postgres.secrets.dao as secrets_dao_module
-
     vault = world["vault"]
     org = world["s1"].organization_id
     monkeypatch.setattr(env.agenta.api.caching, "enabled", True)
-    retried = []
-    real_wait = secrets_dao_module._wait_before_retry
-
-    async def _counting_wait(attempt):
-        retried.append(attempt)
-        return await real_wait(attempt)
-
-    monkeypatch.setattr(secrets_dao_module, "_wait_before_retry", _counting_wait)
 
     with count_statements(get_transactions_engine()) as statements:
         with count_redis_calls() as calls:
             await vault.list_organization_secrets(organization_id=org)
     assert len(statements) == 1 and len(calls) == 0
-    for _ in range(3):  # measured again when another test's write forced a retry
-        retried.clear()
-        with count_statements(get_transactions_engine()) as statements:
-            with count_redis_calls() as calls:
-                await vault.create_organization_secret(
-                    organization_id=org,
-                    create_secret_dto=_key(
-                        "openai", f"o-{uuid4().hex[:8]}", "sk-org-openai-12345"
-                    ),
-                    user_id=world["user"],
-                )
-        if not retried:
-            break
-    # conflict check + insert + project list
-    assert len(statements) == 3, statements
+    with count_statements(get_transactions_engine()) as statements:
+        with count_redis_calls() as calls:
+            await vault.create_organization_secret(
+                organization_id=org,
+                create_secret_dto=_key(
+                    "openai", f"o-{uuid4().hex[:8]}", "sk-org-openai-12345"
+                ),
+                user_id=world["user"],
+            )
+    # insert + project list
+    assert len(statements) == 2, statements
     assert [c.command for c in calls] == ["DEL"]

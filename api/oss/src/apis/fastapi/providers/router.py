@@ -10,11 +10,14 @@ from oss.src.apis.fastapi.providers.models import (
     ProbeProviderResponse,
 )
 from oss.src.apis.fastapi.vault.router import SecretSafeRoute
+from oss.src.core.access.context import get_request_access
+from oss.src.core.access.organizations import OrganizationAction, decide_organization
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.providers.dtos import ProviderCredentials
 from oss.src.core.providers.exceptions import ProviderProbeError
 from oss.src.core.providers.service import ProviderProbeService
+from oss.src.core.secrets.enums import SecretOwnerKind
 from oss.src.core.secrets.redaction import PRIMARY_CREDENTIAL_FIELDS
 from oss.src.core.secrets.services import VaultService
 from oss.src.utils.exceptions import intercept_exceptions
@@ -47,6 +50,14 @@ def _stored_credential(secret, settings, extras):
             return primary
 
     return (extras or {}).get("api_key") or None
+
+
+def _has_typed_fields(typed: ProviderCredentials) -> bool:
+    """Whether a probe request changes any stored field (a key, URL, version or extra)."""
+    for value in (typed.key, typed.url, typed.version):
+        if _typed_or_stored(value, None) is not None:
+            return True
+    return any(value not in (None, "") for value in (typed.extras or {}).values())
 
 
 def _merged_extras(typed, stored):
@@ -100,11 +111,21 @@ class ProvidersRouter:
         secret_id: UUID,
         kind: Optional[str],
         typed: ProviderCredentials,
+        organization_id: Optional[UUID] = None,
     ) -> Tuple[str, ProviderCredentials]:
-        secret = await self.vault_service.get_secret_by_id(
-            secret_id=secret_id,
-            project_id=project_id,
-        )
+        if organization_id is not None:
+            # An organization connection available to this project; never a project row.
+            secret = await self.vault_service.get_connection_secret_by_id(
+                organization_id=organization_id,
+                project_id=project_id,
+                secret_id=secret_id,
+                owner_kind=SecretOwnerKind.ORGANIZATION,
+            )
+        else:
+            secret = await self.vault_service.get_secret_by_id(
+                secret_id=secret_id,
+                project_id=project_id,
+            )
 
         if secret is None:
             raise HTTPException(
@@ -144,13 +165,32 @@ class ProvidersRouter:
 
     @intercept_exceptions()
     async def probe_provider(self, request: Request, body: ProbeProviderRequest):
+        organization_scope = body.secret_scope == "organization"
         # EDIT_SECRET, not VIEW_SECRET: a probe spends a caller-supplied credential on an
-        # outbound request, so it belongs to whoever may change the connection.
+        # outbound request, so it belongs to whoever may change the connection. Testing an
+        # organization connection as saved is open to every member of a project it is
+        # available to (VIEW_SECRET); testing it with changed fields is an edit, so it
+        # needs the organization decision (M5).
         has_permission = await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(request.state.project_id),
-            permission=Permission.EDIT_SECRET,
+            permission=(
+                Permission.VIEW_SECRET if organization_scope else Permission.EDIT_SECRET
+            ),
         )
+        organization_id = None
+        if has_permission and organization_scope:
+            raw = getattr(request.state, "organization_id", None)
+            organization_id = UUID(str(raw)) if raw else None
+            if organization_id is None or body.secret_id is None:
+                has_permission = False
+            elif _has_typed_fields(body.provider) or body.kind is not None:
+                decision = await decide_organization(
+                    access=get_request_access(),
+                    organization_id=organization_id,
+                    action=OrganizationAction.MANAGE_ORGANIZATION_SECRETS,
+                )
+                has_permission = decision.allowed
 
         if not has_permission:
             error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -166,6 +206,7 @@ class ProvidersRouter:
                 secret_id=body.secret_id,
                 kind=kind,
                 typed=credentials,
+                organization_id=organization_id,
             )
 
         try:

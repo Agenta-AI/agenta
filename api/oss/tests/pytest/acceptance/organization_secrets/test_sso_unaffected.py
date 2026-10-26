@@ -1,4 +1,4 @@
-"""EE SSO secrets are never inherited, never listed in a project and never addressed by the
+"""EE SSO secrets are never shared, never listed in a project and never addressed by the
 organization routes (M5, P10). The SSO row is written with SQL, the way the EE provider
 service stores one (an organization-owned `sso_provider` secret)."""
 
@@ -105,7 +105,7 @@ def test_an_sso_id_answers_404_on_every_organization_route_and_stays(org, sso_se
 
 def test_sso_secrets_never_appear_in_a_project_list(org, sso_secret):
     for who in ("owner", "admin", "editor", "viewer"):
-        for params in ({}, {"include_inherited": "true"}):
+        for params in ({}, {"include_organization": "true"}):
             response = org.call("GET", "/secrets/", as_=who, params=params)
             assert response.status_code == 200
             assert sso_secret not in response.text

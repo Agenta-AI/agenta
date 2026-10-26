@@ -1,6 +1,8 @@
-"""Inheritance end to end: project lists, project routes, overrides, the LLM gateway with
-the mock LLM, inherited custom providers, echo refusals, pinned references and the EE
-limit (M5, P1, P2, P4 to P7, P12, P13). Needs the LLM gateway on the deployment."""
+"""Organization connections end to end: project lists, project routes, the LLM gateway
+with the mock LLM when an agent names an organization connection by scope, custom
+providers, echo refusals, pinned references and the EE limit (M5). An agent that names no
+connection, or a project connection, never uses an organization row. Needs the LLM gateway
+on the deployment."""
 
 from uuid import uuid4
 
@@ -57,13 +59,13 @@ def _relay(
     )
 
 
-def _resolve(org, *, slug, project=None):
+def _resolve(org, *, slug, project=None, scope="organization"):
     return org.call(
         "POST",
         "/gateways/llms/resolve",
         credentials=org.api_key("editor", project or org.marketing),
         project=project or org.marketing,
-        json={"model": "mock/echo", "connection_slug": slug},
+        json={"model": "mock/echo", "connection_slug": slug, "connection_scope": scope},
     )
 
 
@@ -71,13 +73,13 @@ def _resolve(org, *, slug, project=None):
 
 
 @pytest.mark.parametrize("who", ROLES)
-def test_inherited_list_carries_names_and_status_never_the_value(org, company, who):
+def test_organization_list_carries_names_and_status_never_the_value(org, company, who):
     response = org.call(
         "GET",
         "/secrets/",
         as_=who,
         project=org.marketing,
-        params={"include_inherited": "true"},
+        params={"include_organization": "true"},
     )
     assert response.status_code == 200, response.text
     rows = {row["id"]: row for row in response.json()}
@@ -110,7 +112,7 @@ def test_no_route_returns_an_organization_value(org, company):
     ]
     paths = [
         ("GET", "/secrets/", {}),
-        ("GET", "/secrets/", {"include_inherited": "true"}),
+        ("GET", "/secrets/", {"include_organization": "true"}),
         ("GET", f"/secrets/{company['id']}", {}),
         ("GET", f"/secrets/{company['slug']}", {}),
         ("GET", "/organization-secrets/", {}),
@@ -148,24 +150,21 @@ def test_project_routes_do_not_touch_organization_rows(org, company):
     assert stored["header"]["name"] == company["header"]["name"]
 
 
-def test_a_mismatched_override_answers_409(org, company):
-    response = org.call(
-        "POST",
-        "/secrets/",
-        as_="editor",
-        json=custom_provider(slug=company["slug"], key=KEY),
-    )
-    assert response.status_code == 409, response.text
+def test_a_project_row_may_reuse_an_organization_slug(org, company):
+    """Two slug spaces: a project connection with an organization connection's slug, of
+    another kind or family, is created, and the organization row is unchanged."""
     response = org.call(
         "POST",
         "/secrets/",
         as_="editor",
         json=provider_key(slug=company["slug"], key=KEY, family="anthropic"),
     )
-    assert response.status_code == 409
-    assert company["slug"] not in {
-        row["slug"] for row in org.call("GET", "/secrets/", as_="editor").json()
-    }
+    assert response.status_code == 200, response.text
+    try:
+        stored = org.call("GET", f"/organization-secrets/{company['id']}").json()
+        assert stored["data"]["kind"] == "openai"
+    finally:
+        org.call("DELETE", f"/secrets/{response.json()['id']}", as_="editor")
 
 
 # -- the LLM gateway with the mock LLM ----------------------------------------------
@@ -183,16 +182,27 @@ def company_mock(org):
     return created.json()
 
 
-def test_the_gateway_uses_the_inherited_key(org, company_mock, gateway_on):
-    # Marketing has no key of its own: the unnamed call uses the company key.
-    response = _relay(org, "/gateways/llms/standard/mock/v1")
-    assert response.status_code == 200, response.text
-    # And by the organization slug.
+def test_the_gateway_uses_an_organization_key_only_when_named(
+    org, company_mock, gateway_on
+):
+    # Marketing has no key of its own: the unnamed call does NOT use the company key.
+    assert _relay(org, "/gateways/llms/standard/mock/v1").status_code != 200
+    # A project slug never reaches it either.
+    assert _resolve(org, slug=company_mock["slug"], scope="project").status_code == 404
+    # Named by scope `organization`, it routes in the organization namespace.
     resolved = _resolve(org, slug=company_mock["slug"])
     assert resolved.status_code == 200, resolved.text
-    assert resolved.json()["connection"]["namespace"] == "standard"
-    response = _relay(org, f"/gateways/llms/standard/{company_mock['slug']}/v1")
+    assert resolved.json()["connection"]["namespace"] == "organization"
+    response = _relay(org, f"/gateways/llms/organization/{company_mock['slug']}/v1")
     assert response.status_code == 200, response.text
+
+
+def test_a_missing_organization_connection_is_a_typed_404(org, gateway_on):
+    response = _resolve(org, slug=unique("no-such"))
+    assert response.status_code == 404, response.text
+    detail = response.json()["detail"]
+    assert detail["code"] == "connection_not_found"
+    assert detail["details"]["scope"] == "organization"
 
 
 def _company_custom(org, *, slug, echo=False):
@@ -238,18 +248,25 @@ def _refused_as_echo(response, value):
     assert value not in response.text
 
 
-def test_a_slug_override_wins_only_in_its_project(org, gateway_on):
-    slug = unique("override")
+def test_each_scope_answers_its_own_row_for_one_slug(org, gateway_on):
+    slug = unique("same-slug")
     _company_custom(org, slug=slug)
     own = _project_custom(org, slug=slug, project=org.sales, echo=True)
     try:
-        # Sales: its own row (the echo upstream) answers, and its echoed key is refused.
+        # Sales, project scope: its own row (the echo upstream), whose echo is refused.
         _refused_as_echo(
             _relay(org, f"/gateways/llms/custom/{slug}/v1", project=org.sales),
             "sk-project-mock-key-1234",
         )
-        # Marketing: the organization row answers normally.
-        assert _relay(org, f"/gateways/llms/custom/{slug}/v1").status_code == 200
+        # Sales, organization scope: the organization row answers normally.
+        assert (
+            _relay(
+                org, f"/gateways/llms/organization/{slug}/v1", project=org.sales
+            ).status_code
+            == 200
+        )
+        # Marketing has no project row: the project scope misses.
+        assert _relay(org, f"/gateways/llms/custom/{slug}/v1").status_code == 404
     finally:
         org.call("DELETE", f"/secrets/{own['id']}", as_="editor", project=org.sales)
 
@@ -258,16 +275,14 @@ def test_an_upstream_echoing_the_organization_key_is_refused(org, gateway_on):
     slug = unique("echo-company")
     _company_custom(org, slug=slug, echo=True)
     _refused_as_echo(
-        _relay(org, f"/gateways/llms/custom/{slug}/v1"), MOCK_UPSTREAM_TOKEN
+        _relay(org, f"/gateways/llms/organization/{slug}/v1"), MOCK_UPSTREAM_TOKEN
     )
 
 
-def test_an_inherited_custom_provider_serves_by_slug_with_no_endpoint_row(
-    org, gateway_on
-):
+def test_an_organization_custom_provider_serves_with_no_endpoint_row(org, gateway_on):
     slug = unique("custom-company")
     _company_custom(org, slug=slug)
-    response = _relay(org, f"/gateways/llms/custom/{slug}/v1")
+    response = _relay(org, f"/gateways/llms/organization/{slug}/v1")
     assert response.status_code == 200, response.text
     endpoints = org.call(
         "GET",
@@ -276,15 +291,6 @@ def test_an_inherited_custom_provider_serves_by_slug_with_no_endpoint_row(
         project=org.marketing,
     )
     assert slug not in {e.get("slug") for e in endpoints.json().get("endpoints", [])}
-
-    # A project endpoint row with that slug wins (here: the echo upstream, refused).
-    own = _project_custom(org, slug=slug, project=org.marketing, echo=True)
-    try:
-        _refused_as_echo(
-            _relay(org, f"/gateways/llms/custom/{slug}/v1"), "sk-project-mock-key-1234"
-        )
-    finally:
-        org.call("DELETE", f"/secrets/{own['id']}", as_="editor", project=org.marketing)
 
 
 def test_a_pinned_organization_credential_never_substitutes(org, gateway_on):
@@ -305,7 +311,7 @@ def test_a_pinned_organization_credential_never_substitutes(org, gateway_on):
         ),
     ).json()
     try:
-        assert _relay(org, f"/gateways/llms/standard/{slug}/v1").status_code == 200
+        assert _relay(org, f"/gateways/llms/organization/{slug}/v1").status_code == 200
         if is_ee():
             limited = org.call(
                 "PUT",
@@ -313,7 +319,9 @@ def test_a_pinned_organization_credential_never_substitutes(org, gateway_on):
                 json={"availability": "selected_projects", "project_ids": [org.sales]},
             )
             assert limited.status_code == 200
-            assert _relay(org, f"/gateways/llms/standard/{slug}/v1").status_code != 200
+            assert (
+                _relay(org, f"/gateways/llms/organization/{slug}/v1").status_code != 200
+            )
             org.call(
                 "PUT",
                 f"/organization-secrets/{created['id']}/projects",
@@ -323,7 +331,7 @@ def test_a_pinned_organization_credential_never_substitutes(org, gateway_on):
             org.call("DELETE", f"/organization-secrets/{created['id']}").status_code
             == 204
         )
-        assert _relay(org, f"/gateways/llms/standard/{slug}/v1").status_code != 200
+        assert _relay(org, f"/gateways/llms/organization/{slug}/v1").status_code != 200
     finally:
         org.call("DELETE", f"/secrets/{own['id']}", as_="editor", project=org.marketing)
 
@@ -347,21 +355,24 @@ def test_ee_limit_to_sales(org, admin_api):
         "/secrets/",
         as_="editor",
         project=org.marketing,
-        params={"include_inherited": "true"},
+        params={"include_organization": "true"},
     )
     assert created.json()["id"] not in {row["id"] for row in in_marketing.json()}
     assert _resolve(org, slug=slug).status_code == 404
+    assert _resolve(org, slug=slug, project=org.sales).status_code == 200
     in_sales = org.call(
         "GET",
         "/secrets/",
         as_="editor",
         project=org.sales,
-        params={"include_inherited": "true"},
+        params={"include_organization": "true"},
     )
     assert created.json()["id"] in {row["id"] for row in in_sales.json()}
 
 
-def test_deleting_the_only_selected_project_leaves_no_inheritor(org, admin_api):
+def test_deleting_the_only_selected_project_leaves_the_row_with_no_project(
+    org, admin_api
+):
     if not is_ee():
         pytest.skip("EE limit")
     project = org._project("Doomed")
@@ -388,12 +399,12 @@ def test_deleting_the_only_selected_project_leaves_no_inheritor(org, admin_api):
             "/secrets/",
             as_="editor",
             project=project_id,
-            params={"include_inherited": "true"},
+            params={"include_organization": "true"},
         )
         assert created["id"] not in {row["id"] for row in listed.json()}
 
 
-def test_a_new_project_inherits(org):
+def test_a_new_project_lists_an_all_projects_connection(org):
     project = org._project("New")
     try:
         created = org.call(
@@ -406,7 +417,7 @@ def test_a_new_project_inherits(org):
             "/secrets/",
             as_="owner",
             project=project,
-            params={"include_inherited": "true"},
+            params={"include_organization": "true"},
         )
         assert listed.status_code == 200, listed.text
         assert created["id"] in {row["id"] for row in listed.json()}

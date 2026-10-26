@@ -1,4 +1,4 @@
-"""The effective set on one cache entry per project (M5, Task 4).
+"""A project's credentials on one cache entry per project (M5).
 
 The REAL cache helpers run on a recording engine, so every Redis command of the entry
 read is counted, lock and fill included. The DAO is in memory and counts its calls.
@@ -178,7 +178,7 @@ async def test_project_wide_invalidation_still_clears_the_entry(world):
 
 async def test_empty_organization_costs_nothing_extra(world):
     entry = await world["vault"]._effective_entry(project_id=world["sales"])
-    assert entry.inherited == []
+    assert entry.organization == []
     assert world["engine"].commands == ["GET", "SET NX", "SET", "DEL"]
     assert _loads(world["dao"]) == 1
 
@@ -190,10 +190,10 @@ async def test_second_read_in_the_same_request_uses_the_memo(world, monkeypatch)
     with bearer_request_access(user):
         await vault.list_secrets(project_id=world["sales"])
         world["engine"].commands.clear()
-        await vault.list_effective_secrets(
+        await vault.list_project_and_organization_secrets(
             organization_id=world["organization_id"], project_id=world["sales"]
         )
-        await vault.get_effective_secret_by_slug(
+        await vault.get_organization_connection(
             organization_id=world["organization_id"],
             project_id=world["sales"],
             slug="openai-company",
@@ -249,7 +249,7 @@ async def test_failed_invalidation_logs_and_does_not_raise(world, caplog, monkey
     assert any("cache invalidation failed" in r.getMessage() for r in caplog.records)
 
 
-async def test_get_effective_by_id_project_kind_is_the_dao_read(world):
+async def test_get_connection_by_id_project_kind_is_the_dao_read(world):
     vault = world["vault"]
     own = await vault.create_secret(
         project_id=world["sales"],
@@ -258,7 +258,7 @@ async def test_get_effective_by_id_project_kind_is_the_dao_read(world):
         ),
     )
     world["dao"].calls.clear()
-    found = await vault.get_effective_secret_by_id(
+    found = await vault.get_connection_secret_by_id(
         organization_id=world["organization_id"],
         project_id=world["sales"],
         secret_id=own.id,
@@ -268,7 +268,7 @@ async def test_get_effective_by_id_project_kind_is_the_dao_read(world):
     assert world["dao"].calls == ["get_by_id"]
 
 
-async def test_get_effective_by_id_organization_kind_only_answers_available_inherited_ids(
+async def test_get_connection_by_id_organization_kind_only_answers_available_organization_ids(
     world,
 ):
     vault = world["vault"]
@@ -286,7 +286,7 @@ async def test_get_effective_by_id_organization_kind_only_answers_available_inhe
     )
 
     async def by_id(project_id, secret_id, organization_id=None):
-        return await vault.get_effective_secret_by_id(
+        return await vault.get_connection_secret_by_id(
             organization_id=organization_id or world["organization_id"],
             project_id=project_id,
             secret_id=secret_id,

@@ -12,7 +12,6 @@ from pydantic import BaseModel, ValidationError
 
 from oss.src.core.secrets import dtos as secret_dtos
 from oss.src.core.secrets.dtos import CachedEffectiveSecrets, SecretResponseDTO
-from oss.src.core.secrets.inheritance import InheritedSecret
 from oss.src.core.secrets.services import VaultService
 from oss.src.utils import caching
 from oss.tests.pytest.utils.organization_secrets import (
@@ -128,7 +127,6 @@ _VALUE_HOLDING = [
     secret_dtos.CustomSecretSettingsDTO,
     secret_dtos.OAuthProviderSettingsDTO,
     secret_dtos.OAuthGrantSettingsDTO,
-    InheritedSecret,
 ]
 
 

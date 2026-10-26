@@ -10,7 +10,7 @@ from oss.src.core.secrets.enums import SecretAvailability, SecretOwnerKind
 from oss.src.core.secrets.limits import NoProjectLimits
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.types import (
-    OrganizationSecretKindNotInheritable,
+    OrganizationSecretKindNotShareable,
     OrganizationSecretNotServed,
     OrganizationSecretValueTooShort,
     ProjectLimitNotAllowed,
@@ -146,7 +146,7 @@ async def test_refuses_custom_secret_subscription_and_sso_kinds(world):
             }
         ),
     ):
-        with pytest.raises(OrganizationSecretKindNotInheritable):
+        with pytest.raises(OrganizationSecretKindNotShareable):
             await vault.create_organization_secret(
                 organization_id=world["organization_id"],
                 create_secret_dto=dto,
@@ -156,7 +156,7 @@ async def test_refuses_custom_secret_subscription_and_sso_kinds(world):
 
 
 async def test_refuses_a_non_llm_provider_family(world):
-    with pytest.raises(OrganizationSecretKindNotInheritable):
+    with pytest.raises(OrganizationSecretKindNotShareable):
         await world["vault"]().create_organization_secret(
             organization_id=world["organization_id"],
             create_secret_dto=_dto(family="composio"),

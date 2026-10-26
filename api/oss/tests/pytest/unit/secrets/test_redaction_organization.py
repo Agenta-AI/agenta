@@ -7,7 +7,7 @@ import pytest
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.redaction import (
     CREDENTIAL_FIELDS,
-    inherited_secret_response,
+    organization_connection_response,
     organization_secret_response,
     project_secret_response,
 )
@@ -44,10 +44,10 @@ def _row(kind: str) -> SecretResponseDTO:
     )
 
 
-INHERITABLE = ["provider_key", "custom_provider"]
+SHAREABLE = ["provider_key", "custom_provider"]
 
 
-@pytest.mark.parametrize("kind", INHERITABLE)
+@pytest.mark.parametrize("kind", SHAREABLE)
 def test_project_secret_response_never_reveals_an_organization_row(kind):
     assert kind in CREDENTIAL_FIELDS
     projected = project_secret_response(_row(kind), reveal_write_only=True)
@@ -56,32 +56,30 @@ def test_project_secret_response_never_reveals_an_organization_row(kind):
     assert projected.write_only is True
 
 
-@pytest.mark.parametrize("kind", INHERITABLE)
+@pytest.mark.parametrize("kind", SHAREABLE)
 def test_no_preview_on_organization_rows(kind):
     for projected in (
         project_secret_response(_row(kind), reveal_write_only=False),
         organization_secret_response(_row(kind)),
-        inherited_secret_response(_row(kind)),
+        organization_connection_response(_row(kind)),
     ):
         assert projected.value_status.preview is None
         assert projected.value_status.configured is True
 
 
-@pytest.mark.parametrize("kind", INHERITABLE)
-def test_inherited_projection_drops_values_and_other_project_ids(kind):
-    override = uuid4()
-    projected = inherited_secret_response(_row(kind), overridden_by_secret_id=override)
+@pytest.mark.parametrize("kind", SHAREABLE)
+def test_member_projection_drops_values_and_other_project_ids(kind):
+    projected = organization_connection_response(_row(kind))
     dumped = projected.model_dump_json(exclude_none=True)
     assert SENTINEL_KEY not in dumped
     assert projected.availability is None and projected.selected_project_ids is None
-    assert projected.overridden_by_secret_id == override
     if kind == "custom_provider":
         # The non-credential fields stay (the base URL, the models, a region extra).
         assert projected.data.provider.url == "https://llm.example.com/v1"
         assert projected.data.provider.extras == {"region": "eu"}
 
 
-@pytest.mark.parametrize("kind", INHERITABLE)
+@pytest.mark.parametrize("kind", SHAREABLE)
 def test_organization_projection_keeps_availability_and_selected_projects(kind):
     row = _row(kind)
     projected = organization_secret_response(row)

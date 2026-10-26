@@ -1,8 +1,9 @@
-"""Inherited custom providers and the one-pass slug resolve (M5, Task 10).
+"""Organization connections in the LLM gateway, and the one-pass project slug resolve (M5).
 
 The LLM gateway service with a real LLM-plane `SecretsResolver` over a real
 `VaultService` (in-memory owner-based DAO, recording cache engine), and an in-memory
-endpoints DAO whose custom target lookup answers like the Postgres one.
+endpoints DAO. An agent names an organization connection with scope `organization`; it
+resolves in the `organization` namespace and nowhere else.
 """
 
 from typing import Dict, List, Optional
@@ -19,19 +20,20 @@ from oss.src.core.gateways.llms.dtos import (
     LLMEndpointRoute,
     LLMModelFilter,
 )
-from oss.src.core.gateways.llms.interfaces import (
-    CustomTargetLookup,
-    LLMEndpointsDAOInterface,
-)
+from oss.src.core.gateways.llms.interfaces import LLMEndpointsDAOInterface
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
-from oss.src.core.gateways.llms.types import LLMEndpointNotFoundError
-from oss.src.core.gateways.policy.dtos import GatewayPlane, SecretMode
+from oss.src.core.gateways.llms.types import (
+    LLMEndpointNotFoundError,
+    LLMNamedConnectionNotFoundError,
+    LLMOrganizationConnectionSlugRequiredError,
+)
+from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.types import LLMGatewayConnectionNotServedError
 from oss.src.core.secrets.dtos import CreateSecretDTO, SecretResponseDTO
 from oss.src.core.secrets.enums import (
-    INHERITABLE_KINDS,
+    ORGANIZATION_SECRET_KINDS,
     SecretAvailability,
     SecretKind,
     SecretOwnerKind,
@@ -49,37 +51,11 @@ from oss.tests.pytest.utils.principals import bearer_request_access
 
 
 class _Endpoints(LLMEndpointsDAOInterface):
-    """Endpoint rows by slug, plus the inherited lookup over the secrets DAO."""
+    """Project endpoint rows by slug."""
 
-    def __init__(self, secrets_dao: InMemorySecretsDAO):
+    def __init__(self):
         self.rows: Dict[str, LLMEndpoint] = {}
-        self.secrets_dao = secrets_dao
         self.calls: List[str] = []
-
-    async def fetch_custom_target_by_slug(self, *, project_id, organization_id, slug):
-        self.calls.append("fetch_custom_target_by_slug")
-        row = self.rows.get(slug)
-        if row is not None:
-            return CustomTargetLookup(endpoint=row)
-        dao = self.secrets_dao
-        if dao.projects.get(project_id) != organization_id:
-            return CustomTargetLookup()
-        if any(
-            r.slug == slug
-            for r in dao.records.values()
-            if r.owner
-            and r.owner.kind == SecretOwnerKind.PROJECT
-            and r.owner.id == project_id
-        ):
-            return CustomTargetLookup()  # shadowed by a project secret
-        for r in dao._org_rows(organization_id):
-            if (
-                r.slug == slug
-                and r.kind == SecretKind.CUSTOM_PROVIDER
-                and dao._available(r, project_id)
-            ):
-                return CustomTargetLookup(inherited=r)
-        return CustomTargetLookup()
 
     async def fetch_endpoint_by_slug(self, *, project_id, slug):
         self.calls.append("fetch_endpoint_by_slug")
@@ -130,7 +106,7 @@ def world(monkeypatch):
         projects={sales: organization_id, marketing: organization_id}
     )
     vault = VaultService(secrets_dao, project_limits=_AllowLimits())
-    endpoints = _Endpoints(secrets_dao)
+    endpoints = _Endpoints()
     resolver = _SpyResolver(vault_service=vault, plane=GatewayPlane.LLM)
     service = LLMGatewayService(
         llm_endpoints_dao=endpoints,
@@ -183,36 +159,113 @@ def _endpoint_row(slug: str) -> LLMEndpoint:
 
 async def _resolve(world, **kwargs):
     return await world["service"].resolve_agent_connection(
-        scope=world["scope"],
+        scope=kwargs.get("scope", world["scope"]),
         model="gpt-4o-mini",
         provider_key=kwargs.get("provider_key"),
         connection_slug=kwargs.get("slug"),
+        connection_namespace=kwargs.get("namespace"),
+        connection_scope=kwargs.get("connection_scope", SecretOwnerKind.PROJECT),
     )
 
 
-async def test_company_azure_resolves_by_slug_without_an_endpoint_row(world):
+ORG = SecretOwnerKind.ORGANIZATION
+
+
+async def test_a_named_company_azure_resolves_in_the_organization_namespace(world):
     await _company(world)
-    resolved = await _resolve(world, slug="azure-company")
-    assert resolved.namespace == GatewayEndpointNamespace.CUSTOM
+    resolved = await _resolve(world, slug="azure-company", connection_scope=ORG)
+    assert resolved.namespace == GatewayEndpointNamespace.ORGANIZATION
     assert resolved.name == "azure-company"
     assert resolved.deployment_kind == LLMDeploymentKind.AZURE
+    assert resolved.custom_provider is True
     assert "create_endpoint" not in world["endpoints"].calls
     assert "edit_endpoint" not in world["endpoints"].calls
 
 
-async def test_project_endpoint_row_with_the_slug_wins(world):
+async def test_a_named_company_key_resolves_like_a_standard_endpoint(world):
+    company = await _company(
+        world, kind="provider_key", family="openai", slug="openai-company"
+    )
+    resolved = await _resolve(world, slug="openai-company", connection_scope=ORG)
+    assert resolved.namespace == GatewayEndpointNamespace.ORGANIZATION
+    assert resolved.provider_key == "openai"
+    assert resolved.custom_provider is False
+    target = await world["service"]._resolve_target(
+        scope=world["scope"],
+        namespace=GatewayEndpointNamespace.ORGANIZATION,
+        name="openai-company",
+    )
+    assert target.secret_id == company.id
+    assert target.secret_owner_kind == ORG
+
+
+async def test_an_organization_slug_without_scope_is_never_used(world):
+    """No name joins the two scopes: a project slug miss stays a miss."""
     await _company(world)
+    with pytest.raises(LLMEndpointNotFoundError):
+        await _resolve(world, slug="azure-company")
+    with pytest.raises(LLMEndpointNotFoundError):
+        await world["service"]._resolve_target(
+            scope=world["scope"],
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name="azure-company",
+        )
+
+
+async def test_a_project_row_with_the_slug_never_stands_in_for_the_organization(world):
     world["endpoints"].rows["azure-company"] = _endpoint_row("azure-company")
+    with pytest.raises(LLMNamedConnectionNotFoundError) as excinfo:
+        await _resolve(world, slug="azure-company", connection_scope=ORG)
+    assert (excinfo.value.scope, excinfo.value.slug) == (ORG, "azure-company")
+    # And the project slug keeps naming the project row.
     target = await world["service"]._resolve_slug_target(
         scope=world["scope"], slug="azure-company"
     )
     assert target.endpoint_id is not None
     assert target.secret_owner_kind == SecretOwnerKind.PROJECT
-    assert target.resolved_secret is None
+
+
+async def test_a_missing_or_unavailable_organization_connection_is_typed(world):
+    company = await _company(world)
+    await world["vault"].set_organization_secret_availability(
+        organization_id=world["organization_id"],
+        secret_id=company.id,
+        availability=SecretAvailability.SELECTED_PROJECTS,
+        project_ids=[world["marketing"]],
+        user_id=uuid4(),
+    )
+    for slug in ("azure-company", "no-such-company"):
+        with pytest.raises(LLMNamedConnectionNotFoundError):
+            await _resolve(world, slug=slug, connection_scope=ORG)
+    marketing = make_auth_scope(
+        organization_id=world["organization_id"], project_id=world["marketing"]
+    )
+    resolved = await _resolve(
+        world, slug="azure-company", connection_scope=ORG, scope=marketing
+    )
+    assert resolved.namespace == GatewayEndpointNamespace.ORGANIZATION
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"connection_scope": ORG},  # no slug
+        {"slug": "azure-company", "namespace": GatewayEndpointNamespace.ORGANIZATION},
+        {
+            "slug": "azure-company",
+            "connection_scope": ORG,
+            "namespace": GatewayEndpointNamespace.CUSTOM,
+        },
+    ],
+)
+async def test_an_incomplete_organization_reference_is_refused(world, kwargs):
+    await _company(world)
+    with pytest.raises(LLMOrganizationConnectionSlugRequiredError):
+        await _resolve(world, provider_key="openai", **kwargs)
 
 
 @pytest.mark.parametrize("family", ["bedrock", "sagemaker"])
-async def test_inherited_bedrock_and_sagemaker_rows_are_not_served(world, family):
+async def test_organization_bedrock_and_sagemaker_rows_are_not_served(world, family):
     # Rows the write rule would refuse, put in storage directly (as SQL would).
     dto = CreateSecretDTO.model_validate(
         org_secret_payload(kind="custom_provider", family=family, slug="cloud-company")
@@ -225,11 +278,11 @@ async def test_inherited_bedrock_and_sagemaker_rows_are_not_served(world, family
         user_id=uuid4(),
     )
     with pytest.raises(LLMGatewayConnectionNotServedError):
-        await _resolve(world, slug="cloud-company")
+        await _resolve(world, slug="cloud-company", connection_scope=ORG)
     with pytest.raises(LLMGatewayConnectionNotServedError):
         await world["service"]._resolve_target(
             scope=world["scope"],
-            namespace=GatewayEndpointNamespace.CUSTOM,
+            namespace=GatewayEndpointNamespace.ORGANIZATION,
             name="cloud-company",
         )
 
@@ -248,49 +301,29 @@ async def test_provider_family_slug_resolves_with_no_secret_read(world, with_key
     world["endpoints"].calls.clear()
     resolved = await _resolve(world, slug="openai")
     assert resolved.namespace == GatewayEndpointNamespace.STANDARD
-    assert world["endpoints"].calls == ["fetch_custom_target_by_slug"]
+    assert world["endpoints"].calls == ["fetch_endpoint_by_slug"]
     assert world["engine"].commands == []
     assert world["secrets_dao"].calls == []
 
 
-async def test_relay_uses_the_carried_inherited_secret(world, monkeypatch):
+async def test_relay_uses_the_carried_organization_secret(world):
     company = await _company(world, family="custom")
     target = await world["service"]._resolve_target(
         scope=world["scope"],
-        namespace=GatewayEndpointNamespace.CUSTOM,
+        namespace=GatewayEndpointNamespace.ORGANIZATION,
         name="azure-company",
     )
     assert target.resolved_secret.secret.id == company.id
-    assert target.resolved_secret.owner.kind == SecretOwnerKind.ORGANIZATION
-    assert target.secret_owner_kind == SecretOwnerKind.ORGANIZATION
+    assert target.resolved_secret.owner.kind == ORG
+    assert target.secret_owner_kind == ORG
     assert target.endpoint_id is None
     ref = target.secret_ref()
-    assert ref.owner_kind == SecretOwnerKind.ORGANIZATION
+    assert ref.owner_kind == ORG
     # The relay takes `target.resolved_secret`; the resolver is never asked.
     assert world["resolver"].resolve_calls == 0
 
 
-async def test_an_inherited_custom_provider_shadowed_by_a_project_secret_is_not_used(
-    world,
-):
-    await _company(world, family="custom")
-    await world["vault"].create_secret(
-        project_id=world["sales"],
-        create_secret_dto=CreateSecretDTO.model_validate(
-            org_secret_payload(
-                kind="custom_provider", family="custom", slug="azure-company"
-            )
-        ),
-    )
-    lookup = await world["endpoints"].fetch_custom_target_by_slug(
-        project_id=world["sales"],
-        organization_id=world["organization_id"],
-        slug="azure-company",
-    )
-    assert lookup.inherited is None
-
-
-async def test_relay_with_an_organization_slug_reads_once(world):
+async def test_an_organization_target_reads_the_entry_once_per_request(world):
     company = await _company(
         world, kind="provider_key", family="openai", slug="openai-company"
     )
@@ -299,16 +332,13 @@ async def test_relay_with_an_organization_slug_reads_once(world):
         await world["vault"].list_secrets(project_id=world["sales"])  # warm
     world["engine"].commands.clear()
     with bearer_request_access(uuid4()):
+        await _resolve(world, slug="openai-company", connection_scope=ORG)
         target = await service._resolve_target(
             scope=world["scope"],
-            namespace=GatewayEndpointNamespace.STANDARD,
+            namespace=GatewayEndpointNamespace.ORGANIZATION,
             name="openai-company",
         )
-        secret = await world["resolver"].resolve(
-            scope=world["scope"], ref=target.secret_ref(), mode=SecretMode.PROJECT_ONLY
-        )
-    assert secret.secret.id == company.id
-    assert secret.owner.kind == SecretOwnerKind.ORGANIZATION
+    assert target.resolved_secret.secret.id == company.id
     assert world["engine"].commands == ["GET"]
 
 
@@ -383,8 +413,8 @@ async def test_resolve_slug_target_matches_the_old_two_step_code(
     assert new == old
 
 
-def test_inheritable_kinds_hold_the_custom_provider():
-    assert SecretKind.CUSTOM_PROVIDER in INHERITABLE_KINDS
+def test_shareable_kinds_hold_the_custom_provider():
+    assert SecretKind.CUSTOM_PROVIDER in ORGANIZATION_SECRET_KINDS
 
 
 def _unused(_: Optional[SecretResponseDTO]):

@@ -148,7 +148,7 @@ class SubscriptionTokenUnverified(SubscriptionTokenError):
 # -- organization credentials (M5) -----------------------------------------------------
 
 
-class OrganizationSecretKindNotInheritable(SecretsError):
+class OrganizationSecretKindNotShareable(SecretsError):
     """Only `provider_key` (of an LLM provider family) and `custom_provider` can be shared."""
 
     def __init__(self, *, kind: str):
@@ -192,28 +192,6 @@ class OrganizationSecretValueNotScannable(SecretsError):
         )
 
 
-class SecretShadowConflict(SecretsError):
-    """After this write one project would hold a project row and an available organization
-    row with the same slug and another kind or provider family."""
-
-    def __init__(self, *, slug: str):
-        self.slug = slug
-        super().__init__(
-            "A credential with this slug already exists with another kind or provider."
-        )
-
-
-class SecretWriteConflict(SecretsError):
-    """A conflict-checked write failed to serialize on every attempt (`_SERIALIZABLE_ATTEMPTS`)."""
-
-    retryable = True
-
-    def __init__(self):
-        super().__init__(
-            "Another change to these credentials happened at the same time. Try again."
-        )
-
-
 class ProjectLimitNotAllowed(SecretsError):
     """`selected_projects` in OSS, or in EE without the RBAC entitlement."""
 
@@ -233,7 +211,7 @@ class ProjectNotInOrganization(SecretsError):
 
 
 class OrganizationSecretNotFound(SecretsError):
-    """The id is not an inheritable organization row of this organization (an SSO id
+    """The id is not a shareable organization row of this organization (an SSO id
     answers this too)."""
 
     def __init__(self):

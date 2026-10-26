@@ -5,6 +5,7 @@ from typing import Optional
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.dtos import LLMDeploymentKind
 from oss.src.core.gateways.types import GatewaysError
+from oss.src.core.secrets.enums import SecretOwnerKind
 
 
 class LLMEndpointNotFoundError(GatewaysError):
@@ -173,3 +174,27 @@ LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS = frozenset(
         LLMDeploymentKind.MOCK,
     }
 )
+
+
+class LLMNamedConnectionNotFoundError(GatewaysError):
+    """The connection an agent named by scope and slug does not exist where it runs, or is
+    not available to the project (M5). Typed with the scope and slug, so a caller can ask
+    the user to configure the connection rather than show a generic failure."""
+
+    def __init__(self, *, scope: SecretOwnerKind, slug: str):
+        self.scope = scope
+        self.slug = slug
+        super().__init__(
+            f"The {scope.value} connection '{slug}' is not available to this project."
+        )
+
+
+class LLMOrganizationConnectionSlugRequiredError(GatewaysError):
+    """An organization connection is used only when the agent names it: scope
+    `organization` needs a slug, and the namespace (when sent) must be `organization`."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "An organization connection needs scope 'organization' and the connection's "
+            "slug."
+        )

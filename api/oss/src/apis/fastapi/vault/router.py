@@ -1,6 +1,6 @@
 from functools import wraps
 from uuid import UUID
-from typing import List, Union
+from typing import List
 
 from oss.src.utils.logging import get_module_logger
 
@@ -14,7 +14,6 @@ from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
-    PublicInheritedSecretResponseDTO,
     SecretValueRequiredError,
     UpdateSecretDTO,
     SecretResponseDTO,
@@ -22,7 +21,7 @@ from oss.src.core.secrets.dtos import (
 )
 from oss.src.core.secrets.managed import ManagedSecretReadOnlyError
 from oss.src.core.secrets.redaction import (
-    inherited_secret_response,
+    organization_connection_response,
     project_secret_response,
 )
 from oss.src.core.secrets.subscription_service import (
@@ -30,9 +29,7 @@ from oss.src.core.secrets.subscription_service import (
     SubscriptionLoginService,
 )
 from oss.src.core.secrets.types import (
-    SecretShadowConflict,
     SecretSlugConflict,
-    SecretWriteConflict,
     ServerOwnedFieldNotWritable,
     SubscriptionLoginAttemptNotFound,
     SubscriptionLoginRunnerNotConfigured,
@@ -188,9 +185,7 @@ class VaultRouter:
             methods=["GET"],
             operation_id="list_secrets",
             response_model_exclude_none=True,
-            response_model=List[
-                Union[PublicSecretResponseDTO, PublicInheritedSecretResponseDTO]
-            ],
+            response_model=List[PublicSecretResponseDTO],
         )
         self.router.add_api_route(
             "/secrets/{secret_id_or_slug}",
@@ -337,12 +332,6 @@ class VaultRouter:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=e.message
             ) from e
-        except (SecretShadowConflict, SecretWriteConflict) as e:
-            # The slug is an inherited organization credential's, with another kind or
-            # provider (M5); or a concurrent change won.
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail=e.message
-            ) from None
         except ServerOwnedFieldNotWritable as e:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.message
@@ -351,7 +340,9 @@ class VaultRouter:
         return self._for_caller(request, vault_secret)
 
     @intercept_exceptions()
-    async def list_secrets(self, request: Request, include_inherited: bool = False):
+    async def list_secrets(
+        self, request: Request, include_organization: bool = False
+    ):
         has_permission = await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(request.state.project_id),
@@ -367,34 +358,31 @@ class VaultRouter:
 
         project_id = UUID(request.state.project_id)
 
-        if include_inherited and request_has_grant(request, SECRET_RESOLVE_GRANT):
-            # The runtime's plaintext read never receives an inherited row (M5): the
+        if include_organization and request_has_grant(request, SECRET_RESOLVE_GRANT):
+            # The runtime's plaintext read never receives an organization row (M5): the
             # parameter is ignored rather than refused, so such a caller keeps working.
             log.info(
-                "[secrets] include_inherited ignored for a resolve grant",
+                "[secrets] include_organization ignored for a resolve grant",
                 project_id=str(project_id),
             )
-            include_inherited = False
+            include_organization = False
 
         organization_id = getattr(request.state, "organization_id", None)
-        if not include_inherited or not organization_id:
+        if not include_organization or not organization_id:
             secrets_dtos = await self.service.list_secrets(project_id=project_id)
             return [
                 self._for_caller(request, secret_dto) for secret_dto in secrets_dtos
             ]
 
-        secrets_dtos, inherited = await self.service.list_project_and_inherited_secrets(
+        # The project's rows, then the organization connections an agent of this project
+        # may name (by scope `organization` and slug), without values.
+        secrets_dtos, organization = await self.service.list_project_and_organization_secrets(
             organization_id=UUID(str(organization_id)),
             project_id=project_id,
         )
         return [
             self._for_caller(request, secret_dto) for secret_dto in secrets_dtos
-        ] + [
-            inherited_secret_response(
-                item.secret, overridden_by_secret_id=item.overridden_by_secret_id
-            )
-            for item in inherited
-        ]
+        ] + [organization_connection_response(secret) for secret in organization]
 
     @intercept_exceptions()
     async def read_secret(self, request: Request, secret_id_or_slug: str):
@@ -470,10 +458,6 @@ class VaultRouter:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=e.message
             ) from e
-        except (SecretShadowConflict, SecretWriteConflict) as e:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail=e.message
-            ) from None
         except ServerOwnedFieldNotWritable as e:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.message

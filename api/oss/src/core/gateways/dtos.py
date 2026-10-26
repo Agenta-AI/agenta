@@ -483,6 +483,8 @@ class GatewayEndpointNamespace(str, Enum):
     BUILTIN = "builtin"  # our account; a provider segment follows (agenta, composio)
     STANDARD = "standard"  # a known shape, the user's secret; generated, never a row
     CUSTOM = "custom"  # a row; configurable
+    # An organization connection an agent named by scope and slug (M5, LLM plane only).
+    ORGANIZATION = "organization"
 
 
 class GatewayEndpointRoute(BaseModel):

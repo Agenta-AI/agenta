@@ -62,9 +62,11 @@ class SecretAvailability(str, Enum):
     SELECTED_PROJECTS = "selected_projects"
 
 
-# The kinds an organization owns for its projects to inherit. Every other kind stays
-# project-owned (or, for SSO, organization-only and never inherited).
-INHERITABLE_KINDS = frozenset({SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER})
+# The kinds an organization can share with its projects. An agent uses a shared row only
+# when it names it. Every other kind stays project-owned (or, for SSO, organization-only).
+ORGANIZATION_SECRET_KINDS = frozenset(
+    {SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER}
+)
 
 
 class ChannelSecretKind(str, Enum):

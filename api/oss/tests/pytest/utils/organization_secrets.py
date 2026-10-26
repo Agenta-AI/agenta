@@ -3,7 +3,7 @@
 - `owner_scope(owner)`: the (project_id, organization_id) pair an owner names, for the
   older in-memory fakes that still keep records by that pair.
 - `InMemorySecretsDAO`: an owner-based `SecretsDAOInterface` with the organization
-  operations, `load_effective` and the shadow rule, counting every call.
+  operations and `load_effective`, counting every call.
 - `make_auth_scope(...)`: the one place tests build an `AuthScope`.
 - `org_secret_payload(...)`: a create body for an organization credential.
 - `SENTINEL_KEY`: a credential value that log and response sweeps search for.
@@ -20,14 +20,12 @@ from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
 )
 from oss.src.core.secrets.enums import (
-    INHERITABLE_KINDS,
+    ORGANIZATION_SECRET_KINDS,
     SecretAvailability,
-    SecretKind,
     SecretOwnerKind,
 )
 from oss.src.core.secrets.types import (
     ProjectNotInOrganization,
-    SecretShadowConflict,
     SecretSlugConflict,
 )
 from oss.src.utils.context import AuthScope
@@ -99,19 +97,6 @@ def org_secret_payload(
     return body
 
 
-def _family(secret) -> Optional[str]:
-    kind = getattr(secret.data, "kind", None)
-    return None if kind is None else str(getattr(kind, "value", kind))
-
-
-def _same_identity(a_kind, a_family, b_kind, b_family) -> bool:
-    if a_kind != b_kind:
-        return False
-    if a_kind == SecretKind.PROVIDER_KEY:
-        return a_family == b_family
-    return True
-
-
 class InMemorySecretsDAO:
     """Owner-based `SecretsDAOInterface` over dicts. `calls` lists every method call.
 
@@ -143,7 +128,7 @@ class InMemorySecretsDAO:
             if r.owner
             and r.owner.kind == SecretOwnerKind.ORGANIZATION
             and r.owner.id == organization_id
-            and r.kind in INHERITABLE_KINDS
+            and r.kind in ORGANIZATION_SECRET_KINDS
         ]
 
     def _store(self, record: SecretResponseDTO) -> SecretResponseDTO:
@@ -176,25 +161,10 @@ class InMemorySecretsDAO:
         owner,
         create_secret_dto,
         management=None,
-        check_shadow=False,
     ):
         self.calls.append("create")
         if self._slug_taken(owner, create_secret_dto.slug):
             raise SecretSlugConflict(slug=create_secret_dto.slug)
-        if check_shadow and owner.kind == SecretOwnerKind.PROJECT:
-            organization_id = self.projects.get(owner.id)
-            for row in self._org_rows(organization_id) if organization_id else []:
-                if (
-                    row.slug == create_secret_dto.slug
-                    and self._available(row, owner.id)
-                    and not _same_identity(
-                        row.kind,
-                        _family(row),
-                        create_secret_dto.secret.kind,
-                        _family(create_secret_dto.secret),
-                    )
-                ):
-                    raise SecretShadowConflict(slug=create_secret_dto.slug)
         return self._store(
             self._build(owner=owner, dto=create_secret_dto, management=management)
         )
@@ -219,7 +189,6 @@ class InMemorySecretsDAO:
         update_secret_dto,
         user_id=None,
         resolve_update=None,
-        check_shadow=False,
     ):
         self.calls.append("update")
         stored = next((r for r in self._of(owner) if r.id == secret_id), None)
@@ -230,20 +199,6 @@ class InMemorySecretsDAO:
             if resolved is None:
                 return stored
             update_secret_dto = resolved
-        if check_shadow and update_secret_dto.secret is not None:
-            organization_id = self.projects.get(owner.id)
-            for row in self._org_rows(organization_id) if organization_id else []:
-                if (
-                    row.slug == stored.slug
-                    and self._available(row, owner.id)
-                    and not _same_identity(
-                        row.kind,
-                        _family(row),
-                        update_secret_dto.secret.kind,
-                        _family(update_secret_dto.secret),
-                    )
-                ):
-                    raise SecretShadowConflict(slug=stored.slug or "")
         return self._store(self._updated(stored, update_secret_dto))
 
     def _updated(self, stored: SecretResponseDTO, update_secret_dto):
@@ -276,7 +231,7 @@ class InMemorySecretsDAO:
             return CachedEffectiveSecrets(project_id=project_id)
         organization_id = self.projects[project_id]
         own = self._of(SecretOwner(kind=SecretOwnerKind.PROJECT, id=project_id))
-        inherited = [
+        organization = [
             r.model_copy(update={"selected_project_ids": None})
             for r in self._org_rows(organization_id)
             if self._available(r, project_id)
@@ -285,7 +240,7 @@ class InMemorySecretsDAO:
             project_id=project_id,
             organization_id=organization_id,
             secrets=own,
-            inherited=inherited,
+            organization=organization,
         )
 
     # organization operations ------------------------------------------------------
@@ -297,27 +252,6 @@ class InMemorySecretsDAO:
             else None
         )
         return row.model_copy(update={"selected_project_ids": selected})
-
-    def _check_org_conflicts(
-        self, *, organization_id, slug, kind, family, availability, project_ids
-    ):
-        if not slug:
-            return
-        for project_id, project_organization in self.projects.items():
-            if project_organization != organization_id:
-                continue
-            if (
-                availability == SecretAvailability.SELECTED_PROJECTS
-                and project_id not in project_ids
-            ):
-                continue
-            for row in self._of(
-                SecretOwner(kind=SecretOwnerKind.PROJECT, id=project_id)
-            ):
-                if row.slug == slug and not _same_identity(
-                    row.kind, _family(row), kind, family
-                ):
-                    raise SecretShadowConflict(slug=slug)
 
     def _check_projects(self, organization_id, project_ids):
         wanted = list(dict.fromkeys(project_ids))
@@ -346,14 +280,6 @@ class InMemorySecretsDAO:
             if availability == SecretAvailability.SELECTED_PROJECTS
             else []
         )
-        self._check_org_conflicts(
-            organization_id=organization_id,
-            slug=create_secret_dto.slug,
-            kind=create_secret_dto.secret.kind,
-            family=_family(create_secret_dto.secret),
-            availability=availability,
-            project_ids=selected,
-        )
         if self._slug_taken(owner, create_secret_dto.slug):
             raise SecretSlugConflict(slug=create_secret_dto.slug)
         row = self._store(
@@ -376,14 +302,6 @@ class InMemorySecretsDAO:
         if resolved is None:
             return self._with_selected(stored)
         updated = self._updated(stored, resolved)
-        self._check_org_conflicts(
-            organization_id=organization_id,
-            slug=stored.slug,
-            kind=updated.kind,
-            family=_family(updated),
-            availability=stored.availability,
-            project_ids=self.selected.get(secret_id, []),
-        )
         return self._with_selected(self._store(updated))
 
     async def delete_organization_secret(self, *, organization_id, secret_id):
@@ -415,14 +333,6 @@ class InMemorySecretsDAO:
             self._check_projects(organization_id, project_ids)
             if availability == SecretAvailability.SELECTED_PROJECTS
             else []
-        )
-        self._check_org_conflicts(
-            organization_id=organization_id,
-            slug=stored.slug,
-            kind=stored.kind,
-            family=_family(stored),
-            availability=availability,
-            project_ids=selected,
         )
         updated = self._store(stored.model_copy(update={"availability": availability}))
         self.selected[secret_id] = selected
@@ -504,28 +414,8 @@ def install_cache_engine(monkeypatch, *, fail: bool = False) -> RecordingCacheEn
 
 async def load_effective_from_list(self, *, project_id):
     """`load_effective` for the older in-memory fakes: the project's rows from the fake's
-    own `list`, no organization (so nothing is inherited)."""
+    own `list`, no organization (so no organization connection is available)."""
     secrets = await self.list(
         owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=project_id)
     )
     return CachedEffectiveSecrets(project_id=project_id, secrets=list(secrets or []))
-
-
-async def retry_write_conflict(make_call, *, attempts: int = 5):
-    """Run a fixture write again when it answers `SecretWriteConflict`.
-
-    On a small test database Postgres scans `secrets` and `projects` whole, so its
-    serializable reads lock the whole table and parallel tests abort one another more
-    often than a real deployment does. Setup writes retry here; measured calls never do.
-    """
-    import asyncio
-
-    from oss.src.core.secrets.types import SecretWriteConflict
-
-    for attempt in range(1, attempts + 1):
-        try:
-            return await make_call()
-        except SecretWriteConflict:
-            if attempt == attempts:
-                raise
-            await asyncio.sleep(0.05 * attempt)

@@ -113,7 +113,7 @@ async def test_load_effective_is_one_statement(org):
         empty = await dao.load_effective(project_id=project_id)
     assert len(statements) == 1
     assert empty.organization_id == seeded.organization_id
-    assert empty.secrets == [] and empty.inherited == []
+    assert empty.secrets == [] and empty.organization == []
 
     own = await dao.create(owner=_project(project_id), create_secret_dto=_create())
     shared = await dao.create_organization_secret(
@@ -127,8 +127,8 @@ async def test_load_effective_is_one_statement(org):
         entry = await dao.load_effective(project_id=project_id)
     assert len(statements) == 1
     assert [s.id for s in entry.secrets] == [own.id]
-    assert [s.id for s in entry.inherited] == [shared.id]
-    assert entry.inherited[0].selected_project_ids is None
+    assert [s.id for s in entry.organization] == [shared.id]
+    assert entry.organization[0].selected_project_ids is None
 
     unknown = uuid4()
     with count_statements(get_transactions_engine()) as statements:
@@ -185,10 +185,10 @@ async def test_load_effective_applies_availability_and_excludes_sso(org):
     sales_entry = await dao.load_effective(project_id=sales)
     marketing_entry = await dao.load_effective(project_id=marketing)
 
-    assert {s.id for s in sales_entry.inherited} == {limited.id}
-    assert marketing_entry.inherited == []
+    assert {s.id for s in sales_entry.organization} == {limited.id}
+    assert marketing_entry.organization == []
     for entry in (sales_entry, marketing_entry):
-        ids = {s.id for s in entry.inherited}
+        ids = {s.id for s in entry.organization}
         assert sso.id not in ids and nobody.id not in ids and foreign.id not in ids
 
 
@@ -318,10 +318,10 @@ async def test_concurrent_reader_never_sees_a_limited_row_before_its_limit(
         project_ids=[sales],
         user_id=seeded.owner_id,
     )
-    assert created.id not in {s.id for s in seen["marketing"].inherited}
-    assert created.id not in {s.id for s in seen["sales"].inherited}
+    assert created.id not in {s.id for s in seen["marketing"].organization}
+    assert created.id not in {s.id for s in seen["sales"].organization}
     after = await SecretsDAO().load_effective(project_id=marketing)
-    assert created.id not in {s.id for s in after.inherited}
+    assert created.id not in {s.id for s in after.organization}
 
 
 async def test_duplicate_organization_slug_maps_to_secret_slug_conflict(org):
@@ -351,13 +351,12 @@ async def test_duplicate_organization_slug_maps_to_secret_slug_conflict(org):
 
 
 async def test_unexpected_db_error_is_raised_without_parameters(org):
-    # An unknown project: the checked insert passes its NOT EXISTS and fails on the
-    # foreign key. The plaintext value is a bind parameter of that statement.
+    # An unknown project: the insert fails on the foreign key. The plaintext value is a
+    # bind parameter of that statement.
     with pytest.raises(SecretStorageError) as excinfo:
         await SecretsDAO().create(
             owner=_project(uuid4()),
             create_secret_dto=_create(slug="explicit", key=SENTINEL_KEY),
-            check_shadow=True,
         )
     error = excinfo.value
     assert error.__cause__ is None and error.__suppress_context__ is True

@@ -59,7 +59,7 @@ class SecretsDAOInterface:
     The existing methods take `owner: SecretOwner` instead of the column pair; the DAO maps
     the kind to the column. A USER owner is refused in M5. The existing methods with an
     ORGANIZATION owner serve EE SSO (any kind, as before). The organization-credential
-    operations address inheritable kinds only.
+    operations address shareable kinds only.
     """
 
     def __init__(self):
@@ -71,9 +71,6 @@ class SecretsDAOInterface:
         owner: SecretOwner,
         create_secret_dto: CreateSecretDTO,
         management: Optional[SecretManagementDTO] = None,
-        # A project row with a caller-given slug: refuse it (SecretShadowConflict) when an
-        # available organization row with that slug has another kind or provider family.
-        check_shadow: bool = False,
     ) -> SecretResponseDTO:
         raise NotImplementedError
 
@@ -105,9 +102,6 @@ class SecretsDAOInterface:
         resolve_update: Optional[
             Callable[[SecretResponseDTO, UpdateSecretDTO], Optional[UpdateSecretDTO]]
         ] = None,
-        # A project user update: refuse a kind or family change that an available
-        # organization row with the row's slug would then conflict with.
-        check_shadow: bool = False,
     ) -> Optional[SecretResponseDTO]:
         raise NotImplementedError
 
@@ -122,7 +116,7 @@ class SecretsDAOInterface:
 
     async def load_effective(self, *, project_id: UUID) -> CachedEffectiveSecrets:
         """ONE statement: the project row's organization, the project's rows, and the
-        inheritable organization rows available to the project. An unknown project
+        shareable organization rows available to the project. An unknown project
         answers `organization_id=None` and no rows."""
         raise NotImplementedError
 
@@ -145,8 +139,8 @@ class SecretsDAOInterface:
         project_ids: Sequence[UUID],
         user_id: Optional[UUID],
     ) -> SecretResponseDTO:
-        """One transaction: conflict check, row, availability, selected projects of the
-        same organization. Any refusal leaves no row."""
+        """One transaction: row, availability, selected projects of the same
+        organization. Any refusal leaves no row."""
         raise NotImplementedError
 
     async def update_organization_secret(

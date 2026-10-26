@@ -1,5 +1,5 @@
-"""`GET /secrets/?include_inherited=true` and the project routes against organization rows
-(M5, Task 8)."""
+"""`GET /secrets/?include_organization=true` and the project routes against organization
+rows (M5)."""
 
 from uuid import uuid4
 
@@ -93,33 +93,33 @@ async def test_list_without_the_parameter_is_todays_response_plus_owner(world):
     rows = client.get("/secrets/").json()
     assert [r["slug"] for r in rows] == ["mine"]
     assert rows[0]["owner"] == {"kind": "project", "id": str(world["sales"])}
-    assert "overridden_by_secret_id" not in rows[0]
 
 
-async def test_include_inherited_adds_inherited_rows_without_values(world):
-    inherited = await _org(world, slug="openai-company")
+async def test_include_organization_adds_organization_rows_without_values(world):
+    company = await _org(world, slug="openai-company")
     client = world["client"]
-    override = client.post(
+    # A project row with the same slug is a separate connection; both are listed.
+    own = client.post(
         "/secrets/",
         json=org_secret_payload(slug="openai-company", key="sk-proj-0123456789"),
-    ).json()
-    response = client.get("/secrets/?include_inherited=true")
+    )
+    assert own.status_code == 200
+    response = client.get("/secrets/?include_organization=true")
     assert response.status_code == 200
     rows = response.json()
     assert [r["owner"]["kind"] for r in rows] == ["project", "organization"]
     org_row = rows[1]
-    assert org_row["id"] == str(inherited.id)
+    assert org_row["id"] == str(company.id)
     assert org_row["slug"] == "openai-company"
     assert org_row["header"]["name"] == "OpenAI"
     assert org_row["data"]["kind"] == "openai"
     assert org_row["value_status"] == {"configured": True}
-    assert org_row["overridden_by_secret_id"] == override["id"]
     assert "availability" not in org_row and "selected_project_ids" not in org_row
     assert "key" not in org_row["data"]["provider"]
     assert SENTINEL_KEY not in response.text
 
 
-async def test_inherited_projection_drops_other_project_ids(world):
+async def test_member_projection_drops_other_project_ids(world):
     limited = await world["vault"].create_organization_secret(
         organization_id=world["organization_id"],
         create_secret_dto=CreateSecretDTO.model_validate(
@@ -134,14 +134,14 @@ async def test_inherited_projection_drops_other_project_ids(world):
     await world["vault"]._invalidate_organization(
         organization_id=world["organization_id"]
     )
-    response = world["client"].get("/secrets/?include_inherited=true")
+    response = world["client"].get("/secrets/?include_organization=true")
     assert str(world["marketing"]) not in response.text
     assert "selected_project_ids" not in response.text
 
 
-async def test_resolve_grant_never_receives_inherited_rows(world):
+async def test_resolve_grant_never_receives_organization_rows(world):
     await _org(world, slug="openai-company")
-    for path in ("/secrets/", "/secrets/?include_inherited=true"):
+    for path in ("/secrets/", "/secrets/?include_organization=true"):
         response = world["client"].get(path, headers={"x-test-grant": "1"})
         assert response.status_code == 200
         assert response.json() == []
@@ -149,30 +149,30 @@ async def test_resolve_grant_never_receives_inherited_rows(world):
 
 
 async def test_project_routes_answer_404_for_an_organization_id_and_slug(world):
-    inherited = await _org(world, slug="openai-company")
+    company = await _org(world, slug="openai-company")
     client = world["client"]
-    assert client.get(f"/secrets/{inherited.id}").status_code == 404
+    assert client.get(f"/secrets/{company.id}").status_code == 404
     assert client.get("/secrets/openai-company").status_code == 404
     assert (
         client.put(
-            f"/secrets/{inherited.id}", json={"header": {"name": "x"}}
+            f"/secrets/{company.id}", json={"header": {"name": "x"}}
         ).status_code
         == 404
     )
-    assert inherited.id in world["dao"].records
-    assert world["dao"].records[inherited.id].header.name == "OpenAI"
+    assert company.id in world["dao"].records
+    assert world["dao"].records[company.id].header.name == "OpenAI"
 
 
 async def test_project_delete_of_an_organization_id_or_unknown_id_answers_204_and_changes_nothing(
     world,
 ):
-    inherited = await _org(world, slug="openai-company")
+    company = await _org(world, slug="openai-company")
     client = world["client"]
     before = {
         secret_id: record.model_dump(mode="json")
         for secret_id, record in world["dao"].records.items()
     }
-    assert client.delete(f"/secrets/{inherited.id}").status_code == 204
+    assert client.delete(f"/secrets/{company.id}").status_code == 204
     assert client.delete(f"/secrets/{uuid4()}").status_code == 204
     after = {
         secret_id: record.model_dump(mode="json")
@@ -181,7 +181,8 @@ async def test_project_delete_of_an_organization_id_or_unknown_id_answers_204_an
     assert after == before
 
 
-async def test_post_with_an_inherited_slug_and_another_kind_answers_409(world):
+async def test_a_project_row_may_reuse_an_organization_slug_with_any_kind(world):
+    """No name rule joins the two scopes: an agent names the one it uses."""
     await _org(world, slug="openai-company")
     response = world["client"].post(
         "/secrets/",
@@ -194,19 +195,12 @@ async def test_post_with_an_inherited_slug_and_another_kind_answers_409(world):
             },
         },
     )
-    assert response.status_code == 409
-    assert "another kind or provider" in response.json()["detail"]
-    response = world["client"].post(
-        "/secrets/", json=org_secret_payload(slug="openai-company", family="anthropic")
-    )
-    assert response.status_code == 409
+    assert response.status_code == 200, response.text
 
 
 async def test_the_sdk_vault_fallback_parses_the_new_list_response(world):
     """The SDK's vault fallback reads the list as plain dictionaries: the additive
-    `owner`/`availability` fields change nothing for its connection resolution. The lane
-    changes no SDK file, so this SDK is also the pre-M5 SDK; the deployed pre-M5 SDK and
-    runner are checked against a running stack in the rollout QA, not here."""
+    `owner`/`availability` fields change nothing for its connection resolution."""
     from agenta.sdk.agents.connections import ModelRef
     from agenta.sdk.agents.platform import connections as sdk_connections
 
