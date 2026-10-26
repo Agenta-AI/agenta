@@ -59,6 +59,20 @@ export const failPendingTaskAtom = atom(null, (get, set, sessionId: string) => {
     }
 })
 
+/**
+ * Keep a send that failed after its chat screen closed. No composer is left to take the text back,
+ * so it waits here as a failed task, and the chat screen offers it again with a retry when the user
+ * comes back. A slot already in use is a Home task, whose own send marks it failed.
+ */
+export const keepFailedSendAtom = atom(
+    null,
+    (get, set, {sessionId, task}: {sessionId: string; task: PendingTask}) => {
+        const tasks = get(pendingTasksAtom)
+        if (tasks[sessionId]) return
+        set(pendingTasksAtom, {...tasks, [sessionId]: {...task, delivery: "failed"}})
+    },
+)
+
 export const sendPendingTaskAtom = atom(
     null,
     async (
