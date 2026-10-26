@@ -2,7 +2,6 @@ import asyncio
 import random
 from typing import Protocol, Any, Optional, Iterable
 from os import environ
-from contextlib import contextmanager
 from urllib.parse import urlparse
 
 from agenta.sdk.utils.logging import get_module_logger
@@ -16,56 +15,120 @@ AGENTA_LITELLM_MOCK = environ.get("AGENTA_LITELLM_MOCK") or None
 log = get_module_logger(__name__)
 
 
-ENV_KEYS_TO_CLEAR = [
-    # anything that could inject Lambda/ECS role creds
-    "AWS_SESSION_TOKEN",
-    "AWS_SECURITY_TOKEN",
-    "AWS_WEB_IDENTITY_TOKEN_FILE",
-    "AWS_ROLE_ARN",
-    "AWS_CONTAINER_CREDENTIALS_FULL_URI",
-    "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
-    "AWS_ECS_CONTAINER_AUTHORIZATION_TOKEN",
-    "AWS_PROFILE",
-    "AWS_SHARED_CREDENTIALS_FILE",
-    "AWS_CONFIG_FILE",
-]
+# LiteLLM providers that sign their calls with AWS credentials.
+AWS_PROVIDERS = frozenset(
+    {"bedrock", "bedrock_mantle", "sagemaker", "sagemaker_chat", "sagemaker_nova"}
+)
 
-ENV_KEYS_FROM_USER = [
-    "AWS_ACCESS_KEY_ID",
-    "AWS_SECRET_ACCESS_KEY",
-    "AWS_SESSION_TOKEN",
-    "AWS_REGION",
-    "AWS_DEFAULT_REGION",
-]
+# The litellm argument for each AWS credential, then the other spellings a stored
+# connection may use for it. The credentials travel with the call, never through
+# `os.environ`, which every concurrent request in the process shares.
+_AWS_CREDENTIAL_SPELLINGS = {
+    "aws_access_key_id": ("AWS_ACCESS_KEY_ID",),
+    "aws_secret_access_key": ("AWS_SECRET_ACCESS_KEY",),
+    "aws_session_token": ("AWS_SESSION_TOKEN",),
+    "aws_region_name": (
+        "AWS_REGION",
+        "AWS_DEFAULT_REGION",
+        "aws_region",
+        "aws_default_region",
+    ),
+}
 
 
-@contextmanager
-def user_aws_credentials_from(ps: dict):
-    old = {}
-    try:
-        # Save original state of ALL keys we'll modify
-        for k in ENV_KEYS_TO_CLEAR + ENV_KEYS_FROM_USER:
-            if k in environ:
-                old[k] = environ[k]
+def _aws_provider(
+    *, args: tuple[Any, ...], kwargs: dict[str, Any], litellm: Any = None
+) -> Optional[str]:
+    model = _get_model_from_call(args=args, kwargs=kwargs) or ""
+    custom_llm_provider = kwargs.get("custom_llm_provider")
 
-        # Clear AWS role credentials
-        for k in ENV_KEYS_TO_CLEAR:
-            environ.pop(k, None)
+    provider = None
+    # litellm also routes bare Bedrock ids (`anthropic.claude-...`, `us.anthropic...`).
+    get_llm_provider = getattr(litellm, "get_llm_provider", None)
+    if callable(get_llm_provider):
+        try:
+            provider = get_llm_provider(
+                model=model, custom_llm_provider=custom_llm_provider
+            )[1]
+        except Exception:  # pylint: disable=broad-exception-caught
+            provider = None
 
-        # Set user credentials
-        for k in ENV_KEYS_FROM_USER:
-            if ps.get(k.upper()) is None:
-                environ.pop(k, None)
-            else:
-                environ[k] = ps[k.upper()]
-        yield
-    finally:
-        # Restore all environment variables to original state
-        for k in ENV_KEYS_TO_CLEAR + ENV_KEYS_FROM_USER:
-            if k in old:
-                environ[k] = old[k]
-            else:
-                environ.pop(k, None)
+    if not isinstance(provider, str) or not provider:
+        provider = custom_llm_provider
+    if not isinstance(provider, str) or not provider:
+        provider = model.split("/", 1)[0]
+
+    provider = provider.lower()
+    return provider if provider in AWS_PROVIDERS else None
+
+
+def _has_value(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _signs_with_own_aws_credentials(provider: str, kwargs: dict[str, Any]) -> bool:
+    """Whether the AWS identity litellm picks for this call comes from the call alone.
+
+    Follows litellm's order: a web identity, then a role, then a profile, then a key pair.
+    A role is assumed with the call's key pair or else with the host's credentials, and a
+    profile is read from the host, so neither counts on its own.
+    """
+    has_key_pair = _has_value(kwargs.get("aws_access_key_id")) and _has_value(
+        kwargs.get("aws_secret_access_key")
+    )
+    if all(
+        _has_value(kwargs.get(name))
+        for name in ("aws_web_identity_token", "aws_role_name", "aws_session_name")
+    ):
+        return True
+    if kwargs.get("aws_role_name") is not None:
+        return has_key_pair
+    if kwargs.get("aws_profile_name") is not None:
+        return False
+    if has_key_pair:
+        return True
+
+    # A Bedrock API key replaces signing altogether. SageMaker always signs.
+    return provider in {"bedrock", "bedrock_mantle"} and _has_value(
+        kwargs.get("api_key")
+    )
+
+
+def prepare_aws_call_kwargs(
+    *, args: tuple[Any, ...], kwargs: dict[str, Any], litellm: Any = None
+) -> dict[str, Any]:
+    """Return the call's arguments with its AWS credentials as litellm arguments.
+
+    A call whose AWS identity does not come from its own arguments signs with whatever
+    the host provides (environment, profile, role, instance metadata). That is allowed
+    only where the host's provider credentials may serve requests, as in a self-hosted
+    deployment.
+    """
+    provider = _aws_provider(args=args, kwargs=kwargs, litellm=litellm)
+    if provider is None:
+        return kwargs
+
+    kwargs = dict(kwargs)
+    for name, spellings in _AWS_CREDENTIAL_SPELLINGS.items():
+        values = [kwargs.pop(spelling, None) for spelling in spellings]
+        if kwargs.get(name) is None:
+            kwargs[name] = next((value for value in values if value), None)
+        if kwargs[name] is None:
+            kwargs.pop(name)
+
+    if not _signs_with_own_aws_credentials(provider, kwargs):
+        from agenta.sdk.middlewares.running.vault import env_provider_keys_enabled
+
+        if not env_provider_keys_enabled():
+            from agenta.sdk.engines.running.errors import InvalidSecretsV0Error
+
+            raise InvalidSecretsV0Error(
+                expected="the connection's own AWS credentials",
+                got=None,
+                model=_get_model_from_call(args=args, kwargs=kwargs),
+            )
+
+    return kwargs
 
 
 class LitellmProtocol(Protocol):
@@ -211,6 +274,8 @@ async def acompletion(*args, **kwargs):
     litellm = _load_litellm(injected=globals().get("litellm"))
     if not litellm:
         raise ValueError("litellm not found")
+
+    kwargs = prepare_aws_call_kwargs(args=args, kwargs=kwargs, litellm=litellm)
 
     # Retry logic for litellm's httpx client caching.
     #

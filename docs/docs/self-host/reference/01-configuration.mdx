@@ -1366,6 +1366,14 @@ OSS edition and to `false` in the EE edition. With it off, a project without a s
 error "No API key found for model". A custom provider always uses its own key and never one of
 these.
 
+The same setting covers AWS. A Bedrock or SageMaker connection can omit its access keys and run on
+the AWS credentials of the host (the environment, an attached role, or instance metadata) only when
+`AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` allows it. With it off, such a call stops with the same
+error, and the services container removes the AWS credential variables (such as
+`AWS_ACCESS_KEY_ID`, `AWS_SESSION_TOKEN` and `AWS_PROFILE`) from its environment at start. The
+region variables stay. The Bedrock bearer tokens `AWS_BEARER_TOKEN_BEDROCK` and `BEDROCK_MANTLE_API_KEY` are never
+read from the services environment.
+
 ## loops
 
 | Env var | env.py path | values.yaml path |
