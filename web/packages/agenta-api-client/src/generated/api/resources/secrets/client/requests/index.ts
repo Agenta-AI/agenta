@@ -1,6 +1,7 @@
 export type { CancelSubscriptionLoginRequest } from "./CancelSubscriptionLoginRequest.js";
 export type { CreateSecretDto } from "./CreateSecretDto.js";
 export type { DeleteSecretRequest } from "./DeleteSecretRequest.js";
+export type { ListSecretsRequest } from "./ListSecretsRequest.js";
 export type { ProbeProviderRequest } from "./ProbeProviderRequest.js";
 export type { ReadSecretRequest } from "./ReadSecretRequest.js";
 export type { ReadSubscriptionLoginRequest } from "./ReadSubscriptionLoginRequest.js";

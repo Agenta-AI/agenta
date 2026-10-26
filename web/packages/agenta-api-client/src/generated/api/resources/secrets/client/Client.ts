@@ -26,20 +26,29 @@ export class SecretsClient {
     }
 
     /**
+     * @param {AgentaApi.ListSecretsRequest} request
      * @param {SecretsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
      *     await client.secrets.listSecrets()
      */
     public listSecrets(
+        request: AgentaApi.ListSecretsRequest = {},
         requestOptions?: SecretsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.PublicSecretResponseDto[]> {
-        return core.HttpResponsePromise.fromPromise(this.__listSecrets(requestOptions));
+    ): core.HttpResponsePromise<AgentaApi.ListSecretsResponseItem[]> {
+        return core.HttpResponsePromise.fromPromise(this.__listSecrets(request, requestOptions));
     }
 
     private async __listSecrets(
+        request: AgentaApi.ListSecretsRequest = {},
         requestOptions?: SecretsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.PublicSecretResponseDto[]>> {
+    ): Promise<core.WithRawResponse<AgentaApi.ListSecretsResponseItem[]>> {
+        const { include_inherited: includeInherited } = request;
+        const _queryParams: Record<string, unknown> = {
+            include_inherited: includeInherited,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -55,7 +64,7 @@ export class SecretsClient {
             ),
             method: "GET",
             headers: _headers,
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,
@@ -64,15 +73,23 @@ export class SecretsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as AgentaApi.PublicSecretResponseDto[], rawResponse: _response.rawResponse };
+            return { data: _response.body as AgentaApi.ListSecretsResponseItem[], rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
-            throw new errors.AgentaApiError({
-                statusCode: _response.error.statusCode,
-                body: _response.error.body,
-                rawResponse: _response.rawResponse,
-            });
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
         }
 
         return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/secrets/");
