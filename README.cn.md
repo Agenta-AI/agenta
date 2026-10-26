@@ -241,7 +241,7 @@ Agenta 是基于 MIT 许可证的开源项目。你可以查看代码、自行�
 ## 贡献者 ✨
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-101-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-102-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 感谢这些了不起的贡献者（[emoji 说明](https://allcontributors.org/docs/en/emoji-key)）：
@@ -381,6 +381,7 @@ Agenta 是基于 MIT 许可证的开源项目。你可以查看代码、自行�
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/demonroute1"><img src="https://avatars.githubusercontent.com/u/340640589?v=4?s=100" width="100px;" alt="Demon Route "/><br /><sub><b>Demon Route </b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=demonroute1" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/mosifu"><img src="https://avatars.githubusercontent.com/u/256577176?v=4?s=100" width="100px;" alt="mosifu"/><br /><sub><b>mosifu</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=mosifu" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/yunusarda-sudo"><img src="https://avatars.githubusercontent.com/u/64425746?v=4?s=100" width="100px;" alt="Yunus Arda Güney"/><br /><sub><b>Yunus Arda Güney</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=yunusarda-sudo" title="Code">💻</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/itsgintoki"><img src="https://avatars.githubusercontent.com/u/237295543?v=4?s=100" width="100px;" alt="Gin"/><br /><sub><b>Gin</b></sub></a><br /><a href="https://github.com/Agenta-AI/agenta/commits?author=itsgintoki" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
