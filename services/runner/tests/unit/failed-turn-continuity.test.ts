@@ -287,3 +287,165 @@ describe("a completed turn whose conversation file did not reach the drive (Code
     assert.equal(calls.completed.length, 1);
   });
 });
+
+/**
+ * A time limit that ends a long turn is no refusal: the work is sound and the person is told to
+ * continue. The harness is stopped like a Stop, and when it answers, the turn stays the resume
+ * point with its work in it (EU session cf7fd5de, 2026-10-26, lost 45 minutes of work this way).
+ */
+function fakeLimitedTurn(options: {
+  kind: "total" | "idle" | "ttfb" | "tool-call";
+  cancelSettles: boolean;
+  /** The stop reason the prompt answers the cancel with. */
+  settledStopReason?: string;
+  nativeHistorySaved?: () => boolean;
+  /** Emitted while the harness settles the cancel, before the prompt answers. */
+  updateOnCancel?: unknown;
+}) {
+  const fake = fakeFailingSandbox(async () => true);
+  let trip: ((reason: string, kind: "total" | "idle" | "ttfb" | "tool-call") => void) | undefined;
+  let endPrompt: ((value: unknown) => void) | undefined;
+  const cancels: string[] = [];
+  let sessionEvent: ((event: unknown) => void) | undefined;
+  const session: any = {
+    id: "harness-session-1",
+    agentSessionId: AGENT_SESSION_ID,
+    onEvent(handler: (event: unknown) => void) {
+      sessionEvent = handler;
+    },
+    onPermissionRequest() {},
+    prompt() {
+      queueMicrotask(() => trip?.("limit tripped", options.kind));
+      return new Promise((resolve) => {
+        endPrompt = resolve;
+      });
+    },
+    rollbackFailedTurn: async () => {
+      fake.calls.rollbacks += 1;
+      return false;
+    },
+  };
+  if (options.nativeHistorySaved) session.nativeHistorySaved = options.nativeHistorySaved;
+  const sandbox: any = {
+    sandboxId: "daytona/sbx-warm",
+    sandboxProvider: { destroy: async () => {} },
+    sandboxProviderRawId: "sbx-warm",
+    createSession: async () => session,
+    resumeSession: async () => session,
+    async cancelSession(id: string) {
+      cancels.push(id);
+      if (options.updateOnCancel) sessionEvent?.({ payload: { params: { update: options.updateOnCancel } } });
+      if (options.cancelSettles) endPrompt?.({ stopReason: options.settledStopReason ?? "cancelled" });
+    },
+    async destroySession() {},
+    async pauseSandbox() {},
+    async destroySandbox() {},
+    async dispose() {},
+    runProcess: async () => ({ stdout: "", exitCode: 0 }),
+  };
+  fake.deps.startSandboxAgent = (async () => sandbox) as any;
+  fake.deps.createRunLimits = (() => ({
+    onTrip(handler: typeof trip) {
+      trip = handler;
+    },
+    noteToolCallStart() {},
+    noteToolCallEnd() {},
+    noteProgress() {},
+    notePaused() {},
+    dispose() {},
+  })) as any;
+  return { ...fake, cancels };
+}
+
+describe("a turn a time limit ended", () => {
+  beforeEach(() => vi.stubEnv("AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS", "50"));
+
+  it("stops the harness and keeps the turn, work included, as the resume point", async () => {
+    const { calls, deps, continuityStore, cancels } = fakeLimitedTurn({ kind: "total", cancelSettles: true });
+
+    const result = await runSandboxAgent(failRequest, undefined, undefined, deps);
+
+    assert.equal(result.ok, false);
+    assert.deepEqual(cancels, ["harness-session-1"]);
+    assert.equal(calls.rollbacks, 0, "the turn's work is not rolled back");
+    assert.deepEqual(continuityStore.get("sess-fail", "claude"), {
+      agentSessionId: AGENT_SESSION_ID,
+      turnIndex: 1,
+    });
+    assert.equal(calls.completed.length, 1, "the ledger row is completed");
+    assert.equal(calls.completed[0].agentSessionId, AGENT_SESSION_ID);
+  });
+
+  it("does the same for the idle and tool-call limits", async () => {
+    for (const kind of ["idle", "tool-call"] as const) {
+      const { calls, deps, continuityStore } = fakeLimitedTurn({ kind, cancelSettles: true });
+      await runSandboxAgent(failRequest, undefined, undefined, deps);
+      assert.equal(calls.rollbacks, 0, kind);
+      assert.equal(continuityStore.get("sess-fail", "claude")?.turnIndex, 1, kind);
+    }
+  });
+
+  it("falls back to the failed-turn rule when the harness does not answer the cancel", async () => {
+    const { calls, deps, continuityStore, cancels } = fakeLimitedTurn({ kind: "total", cancelSettles: false });
+
+    await runSandboxAgent(failRequest, undefined, undefined, deps);
+
+    assert.equal(cancels.length, 1);
+    assert.equal(calls.rollbacks, 1);
+    assert.equal(continuityStore.get("sess-fail", "claude"), undefined);
+    assert.equal(calls.completed.length, 0);
+  });
+
+  it("falls back to the failed-turn rule when the prompt ends in an error instead of the cancel", async () => {
+    const { calls, deps, continuityStore, cancels } = fakeLimitedTurn({
+      kind: "total",
+      cancelSettles: true,
+      settledStopReason: "error",
+    });
+
+    await runSandboxAgent(failRequest, undefined, undefined, deps);
+
+    assert.equal(cancels.length, 1);
+    assert.equal(calls.rollbacks, 1, "a turn that ended in an error is rolled back");
+    assert.equal(continuityStore.get("sess-fail", "claude"), undefined);
+    assert.equal(calls.completed.length, 0);
+  });
+
+  it("drops the resume point when the stopped turn's file did not reach the drive", async () => {
+    const { calls, deps, continuityStore } = fakeLimitedTurn({
+      kind: "total",
+      cancelSettles: true,
+      nativeHistorySaved: () => false,
+    });
+
+    await runSandboxAgent(failRequest, undefined, undefined, deps);
+
+    assert.equal(continuityStore.get("sess-fail", "claude"), undefined);
+    assert.equal(calls.completed.length, 0);
+  });
+
+  it("drops the resume point when an update crossed the output limit while the cancel settled", async () => {
+    vi.stubEnv("AGENTA_RUNNER_OUTPUT_MAX_BYTES", "1024");
+    const { calls, deps, continuityStore } = fakeLimitedTurn({
+      kind: "total",
+      cancelSettles: true,
+      updateOnCancel: { sessionUpdate: "tool_call", toolCallId: "late", rawInput: { text: "x".repeat(2048) } },
+    });
+    deps.createOtel = (init) => createSandboxAgentOtel({ ...init, emitSpans: false });
+
+    const result = await runSandboxAgent(failRequest, undefined, undefined, deps);
+
+    assert.match(result.error!, /output exceeded the turn limit/);
+    assert.equal(calls.rollbacks, 1, "the failed-turn rule applies");
+    assert.equal(continuityStore.get("sess-fail", "claude"), undefined);
+    assert.equal(calls.completed.length, 0);
+  });
+
+  it("sends no cancel for the first-response limit, which the dispatch retries", async () => {
+    const { deps, cancels } = fakeLimitedTurn({ kind: "ttfb", cancelSettles: true });
+
+    await runSandboxAgent(failRequest, undefined, undefined, deps);
+
+    assert.deepEqual(cancels, []);
+  });
+});
