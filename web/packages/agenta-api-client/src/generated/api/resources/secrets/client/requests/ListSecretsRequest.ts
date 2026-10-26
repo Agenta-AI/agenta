@@ -5,5 +5,5 @@
  *     {}
  */
 export interface ListSecretsRequest {
-    include_inherited?: boolean;
+    include_organization?: boolean;
 }

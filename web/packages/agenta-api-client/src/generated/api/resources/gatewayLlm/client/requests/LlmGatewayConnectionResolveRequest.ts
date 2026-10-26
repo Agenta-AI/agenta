@@ -13,4 +13,13 @@ export interface LlmGatewayConnectionResolveRequest {
     provider_key?: string | null;
     connection_slug?: string | null;
     connection_namespace?: AgentaApi.GatewayEndpointNamespace | null;
+    connection_scope?: LlmGatewayConnectionResolveRequest.ConnectionScope | null;
+}
+
+export namespace LlmGatewayConnectionResolveRequest {
+    export const ConnectionScope = {
+        Project: "project",
+        Organization: "organization",
+    } as const;
+    export type ConnectionScope = (typeof ConnectionScope)[keyof typeof ConnectionScope];
 }

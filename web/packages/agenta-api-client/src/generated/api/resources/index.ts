@@ -47,7 +47,6 @@ export * as queries from "./queries/index.js";
 export * from "./queries/types/index.js";
 export * from "./secrets/client/requests/index.js";
 export * as secrets from "./secrets/index.js";
-export * from "./secrets/types/index.js";
 export * from "./sessions/client/requests/index.js";
 export * as sessions from "./sessions/index.js";
 export * from "./sessions/types/index.js";

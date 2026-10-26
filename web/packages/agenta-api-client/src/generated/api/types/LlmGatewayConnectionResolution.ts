@@ -15,4 +15,5 @@ export interface LlmGatewayConnectionResolution {
     provider_key: string;
     deployment_kind: AgentaApi.LlmDeploymentKind;
     model: string;
+    custom_provider?: (boolean | null) | undefined;
 }

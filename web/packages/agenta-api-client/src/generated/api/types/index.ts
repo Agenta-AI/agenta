@@ -536,7 +536,6 @@ export * from "./ProbeProviderResponse.js";
 export * from "./ProjectMemberProfile.js";
 export * from "./ProjectsResponse.js";
 export * from "./ProviderCredentials.js";
-export * from "./PublicInheritedSecretResponseDto.js";
 export * from "./PublicMountCreate.js";
 export * from "./PublicOrganizationSecretResponse.js";
 export * from "./PublicOrganizationSecretsResponse.js";

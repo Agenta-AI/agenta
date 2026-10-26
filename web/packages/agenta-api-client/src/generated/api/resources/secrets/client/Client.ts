@@ -37,17 +37,17 @@ export class SecretsClient {
     public listSecrets(
         request: AgentaApi.ListSecretsRequest = {},
         requestOptions?: SecretsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.ListSecretsResponseItem[]> {
+    ): core.HttpResponsePromise<AgentaApi.PublicSecretResponseDto[]> {
         return core.HttpResponsePromise.fromPromise(this.__listSecrets(request, requestOptions));
     }
 
     private async __listSecrets(
         request: AgentaApi.ListSecretsRequest = {},
         requestOptions?: SecretsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.ListSecretsResponseItem[]>> {
-        const { include_inherited: includeInherited } = request;
+    ): Promise<core.WithRawResponse<AgentaApi.PublicSecretResponseDto[]>> {
+        const { include_organization: includeOrganization } = request;
         const _queryParams: Record<string, unknown> = {
-            include_inherited: includeInherited,
+            include_organization: includeOrganization,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -73,7 +73,7 @@ export class SecretsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as AgentaApi.ListSecretsResponseItem[], rawResponse: _response.rawResponse };
+            return { data: _response.body as AgentaApi.PublicSecretResponseDto[], rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
