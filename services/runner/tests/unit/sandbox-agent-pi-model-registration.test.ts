@@ -481,6 +481,15 @@ describe("models newer than the pinned Pi catalog", () => {
     });
     assert.equal(entry?.contextWindow, 1000000);
     assert.equal(entry?.maxTokens, 128000);
+    // Haiku 5.5 can run with thinking off, which Sonnet 5.5's map forbids.
+    assert.deepEqual(entry?.thinkingLevelMap, {
+      minimal: null,
+      low: "low",
+      medium: "medium",
+      high: "high",
+      xhigh: "xhigh",
+      max: "max",
+    });
     assert.equal(
       serializePiModelsJson(plan as PiModelRegistrationPlan).includes("allowedFallbackModels"),
       false,

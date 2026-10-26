@@ -215,6 +215,7 @@ interface PiModelAheadOfCatalog {
   cost: PiModelCost;
   contextWindow?: number;
   maxTokens?: number;
+  thinkingLevelMap?: Record<string, string | null>;
   /** `compat` keys to drop from the inherited definition. */
   withoutCompat?: string[];
 }
@@ -224,7 +225,8 @@ interface PiModelAheadOfCatalog {
 export const PI_MODELS_AHEAD_OF_CATALOG: Record<string, PiModelAheadOfCatalog> = {
   // Pi 0.99.1 does not carry Haiku 5.5. Its request surface is Sonnet 5.5's, not Haiku 4.5's:
   // adaptive thinking only (a `budget_tokens` request is a 400), 1M context, and 128K output.
-  // A prompt over 100,000 tokens pays five times every rate.
+  // Unlike Sonnet 5.5, thinking can be turned off. A prompt over 100,000 tokens pays five times
+  // every rate. The values match the entry newer Pi releases ship (pi.dev/models).
   "anthropic/claude-haiku-5-5": {
     inheritsFrom: "claude-sonnet-5-5",
     cost: {
@@ -244,6 +246,14 @@ export const PI_MODELS_AHEAD_OF_CATALOG: Record<string, PiModelAheadOfCatalog> =
     },
     contextWindow: 1000000,
     maxTokens: 128000,
+    thinkingLevelMap: {
+      minimal: null,
+      low: "low",
+      medium: "medium",
+      high: "high",
+      xhigh: "xhigh",
+      max: "max",
+    },
   },
 };
 
@@ -265,6 +275,8 @@ function entryAheadOfCatalog(
   entry.cost = structuredClone(known.cost) as unknown as Record<string, unknown>;
   if (known.contextWindow !== undefined) entry.contextWindow = known.contextWindow;
   if (known.maxTokens !== undefined) entry.maxTokens = known.maxTokens;
+  if (known.thinkingLevelMap !== undefined)
+    entry.thinkingLevelMap = { ...known.thinkingLevelMap };
   return entry;
 }
 
