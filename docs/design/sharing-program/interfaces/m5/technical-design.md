@@ -49,7 +49,6 @@ Scope: backend first. OpenSpec `tasks.md` sections 1 (schema), 2 (core), 3 (acce
 | `oss/src/apis/fastapi/gateways/llms/{models,router,proxy}.py`, `gateways/exceptions.py` | `connection_scope`; the `organization` relay routes; the two new error mappings. |
 | `oss/src/apis/fastapi/providers/{models,router}.py` | `secret_scope` on the probe. |
 | `entrypoints/routers.py` | `VaultService(..., project_limits=...)`; two resolvers (`plane=LLM` for the LLM gateway, `plane=MCP` for every other user); mount `OrganizationSecretsRouter` with `tags=["Organization Secrets"]`. |
-| `utils/env.py` | NEW `AGENTA_RUNNER_REQUIRE_NAMED_SELF_MANAGED_CONNECTION` (default false; true on the cloud). |
 | `web/packages/agenta-api-client/src/generated/**` | Fern regeneration. |
 
 ### 1.4 SDK and web
@@ -193,14 +192,14 @@ Every existing request is equal or lower in every cache mode. M5 adds no HTTP ca
 | Plaintext paths | The run's `GET /secrets/` has no organization row; the sandbox env has no organization key; a named organization connection without the gateway fails. A completion app and an AI evaluator run on project keys only. | local stack |
 | Redaction | Every project role and the organization owner: no response carries an organization value or preview. | local stack, both editions |
 | Organization authorization | EE hobby org `editor` 403; owner API key 403; owner run credential 403; owner and admin 200. | local stack |
-| Saved agents | Every save path and the template default write an explicit connection; an incomplete organization connection and, on the cloud, `self_managed` without a slug are refused at save. | local stack |
+| Saved agents | Every save path and the template default write an explicit connection; an incomplete organization connection is refused at save; `self_managed` with or without a slug commits as on v0.125.0. | local stack |
 | EE limit | A limited connection is invisible to other projects (list and resolve); deleting the only selected project leaves it with no project; OSS gets 403. | local stack |
 | Mixed versions | The migration runs while the pre-M5 API image serves; pre-M5 rows behave as before; an old services image refuses an organization connection. | local EE stack |
 
 ## 10. Docs and config
 
 - OpenSpec `organization-credentials` (validated `--strict`), CONTRACT section 8, `api/AGENTS.md`, this folder.
-- Config: `AGENTA_RUNNER_REQUIRE_NAMED_SELF_MANAGED_CONNECTION` (set to `true` on the cloud deployments).
+- Config: none new.
 
 ## 11. Risks
 

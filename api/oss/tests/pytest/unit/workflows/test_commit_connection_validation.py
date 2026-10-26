@@ -2,16 +2,14 @@
 
 An organization connection is named by scope `organization`, its slug and namespace
 `organization`; an older runtime refuses that namespace instead of reading the slug as a
-project connection. Where the runners hold no operator login (the cloud), a `self_managed`
-connection must name a subscription connection. An agent with no connection keeps the
-project default.
+project connection. An agent with no connection keeps the project default. A `self_managed`
+connection commits with or without a slug, as on v0.125.0: the runner decides at run time.
 """
 
 import pytest
 
 from oss.src.core.workflows.service import _reject_unrunnable_agent_connection
 from oss.src.core.workflows.types import InvalidAgentConnectionError
-from oss.src.utils.env import env
 
 
 def _data(connection):
@@ -35,10 +33,10 @@ def _data(connection):
             "namespace": "organization",
         },
         {"mode": "self_managed", "slug": "claude"},
+        {"mode": "self_managed"},
     ],
 )
-def test_runnable_connections_commit(connection, monkeypatch):
-    monkeypatch.setattr(env.runner, "require_named_self_managed_connection", True)
+def test_runnable_connections_commit(connection):
     _reject_unrunnable_agent_connection(_data(connection))
 
 
@@ -59,15 +57,24 @@ def test_an_incomplete_organization_connection_is_refused(connection):
     )
 
 
-def test_self_managed_without_a_slug_is_refused_only_where_runners_hold_no_login(
-    monkeypatch,
+@pytest.mark.parametrize(
+    "connection",
+    [{"mode": "self_managed"}, {"mode": "self_managed", "slug": "claude"}],
+    ids=["no-slug", "slug"],
+)
+@pytest.mark.parametrize(
+    "deployment_env",
+    [{}, {"AGENTA_RUNNER_REQUIRE_NAMED_SELF_MANAGED_CONNECTION": "true"}],
+    ids=["no-env", "old-cloud-env"],
+)
+def test_self_managed_saves_as_on_v0125_with_any_env(
+    connection, deployment_env, monkeypatch
 ):
-    data = _data({"mode": "self_managed"})
-    monkeypatch.setattr(env.runner, "require_named_self_managed_connection", False)
-    _reject_unrunnable_agent_connection(data)  # self-hosting keeps the operator login
-    monkeypatch.setattr(env.runner, "require_named_self_managed_connection", True)
-    with pytest.raises(InvalidAgentConnectionError) as excinfo:
-        _reject_unrunnable_agent_connection(data)
-    detail = excinfo.value.to_detail()
-    assert detail["code"] == "invalid_agent_connection"
-    assert detail["details"]["reason"] == "self_managed_without_slug"
+    """A save never checks whether the runner holds a login (owner decision, 2026-10-26).
+    The variable an earlier M5 draft read is gone; setting it changes nothing."""
+    from oss.src.utils.env import env
+
+    for name, value in deployment_env.items():
+        monkeypatch.setenv(name, value)
+    assert not hasattr(env.runner, "require_named_self_managed_connection")
+    _reject_unrunnable_agent_connection(_data(connection))

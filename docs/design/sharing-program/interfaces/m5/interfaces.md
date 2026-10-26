@@ -410,7 +410,7 @@ The response model of `GET /secrets/` stays `List[PublicSecretResponseDTO]`; `ow
 
 ### 4.4 Agent commit check (`oss/src/core/workflows/service.py`, MODIFIED)
 
-`_reject_unrunnable_agent_connection(data)` runs where the instructions check runs (every revision commit and the simple workflow writes). It refuses with 422 `invalid_agent_connection` (`details.reason`): an organization connection without scope `organization`, namespace `organization` and a slug (`organization_connection_incomplete`); and, with `AGENTA_RUNNER_REQUIRE_NAMED_SELF_MANAGED_CONNECTION=true` (the cloud), a `self_managed` connection without a slug (`self_managed_without_slug`). The template compiler writes `{"mode": "agenta", "scope": "project"}` when the base revision names no connection.
+`_reject_unrunnable_agent_connection(data)` runs where the instructions check runs (every revision commit and the simple workflow writes). It refuses with 422 `invalid_agent_connection` (`details.reason`): an organization connection without scope `organization`, namespace `organization` and a slug (`organization_connection_incomplete`). It never checks whether a named item exists or is usable (owner decision, 2026-10-26); a `self_managed` connection commits with or without a slug, as on v0.125.0. The template compiler writes `{"mode": "agenta", "scope": "project"}` when the base revision names no connection.
 
 ### 4.5 Organization subscription logins (2026-10-26)
 
@@ -434,7 +434,7 @@ Bodies keep the vault router's existing shape (`{"detail": <message>}` through `
 | Duplicate organization slug | 409 | today's `SecretSlugConflict` message |
 | Named organization connection missing or not available (resolve, relay) | 404 | `connection_not_found` envelope with `details: {scope, slug}` |
 | Organization scope without a slug, or with another namespace (resolve) | 422 | `organization_connection_slug_required` envelope |
-| Agent saved with an incomplete organization connection, or `self_managed` without a slug on the cloud | 422 | `invalid_agent_connection` envelope with `details.reason` |
+| Agent saved with an incomplete organization connection | 422 | `invalid_agent_connection` envelope with `details.reason` |
 | Organization Claude login named by an agent (SDK) | 422 | `organization_subscription_not_supported` |
 | Organization subscription login on the `daytona` or `local` engine (runner) | run error | `ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE` |
 | Limit not allowed (OSS, or EE without RBAC) | 403 | "Limiting a credential to selected projects is not available for this organization." |

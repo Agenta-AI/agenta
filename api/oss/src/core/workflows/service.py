@@ -328,13 +328,11 @@ def _reject_unrunnable_agent_connection(data: Any) -> None:
     """Refuse a commit whose agent connection the runtime cannot use (M5).
 
     Runs only when the commit carries ``parameters.agent.llm.connection``; an agent with no
-    connection keeps the project default, as before. Two shapes are refused:
-
-    - scope ``organization`` without a slug, or with a namespace other than
-      ``organization``. The namespace makes an older runtime refuse the connection instead
-      of reading the slug as a project connection.
-    - ``self_managed`` without a slug, where the runners hold no operator login
-      (``AGENTA_RUNNER_REQUIRE_NAMED_SELF_MANAGED_CONNECTION``, set on the cloud).
+    connection keeps the project default, as before. One shape is refused: scope
+    ``organization`` without a slug, or with a namespace other than ``organization``. The
+    namespace makes an older runtime refuse the connection instead of reading the slug as a
+    project connection. Nothing here checks whether a named item exists or is usable; the
+    run reports that.
     """
     if hasattr(data, "model_dump"):
         data = data.model_dump(mode="json", exclude_none=True)
@@ -368,22 +366,6 @@ def _reject_unrunnable_agent_connection(data: Any) -> None:
                     "send the commit again."
                 ),
             )
-    if (
-        connection.get("mode") == "self_managed"
-        and not slug
-        and env.runner.require_named_self_managed_connection
-    ):
-        raise InvalidAgentConnectionError(
-            reason="self_managed_without_slug",
-            message=(
-                "This deployment has no login on its runners, so a self-managed "
-                "connection must name a subscription connection."
-            ),
-            next_step=(
-                "Connect a subscription login and set agent.llm.connection.slug to its "
-                "slug, or use an Agenta connection, then send the commit again."
-            ),
-        )
 
 
 def _validate_persisted_shape(data: dict) -> None:

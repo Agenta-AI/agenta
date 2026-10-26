@@ -47,7 +47,7 @@ An agent names its connection with a scope: `project` (the default, also for age
 
 An organization connection is saved as `{"mode": "agenta", "scope": "organization", "namespace": "organization", "slug": ...}`. The SDK `Connection` model fills the namespace when it is omitted, and the commit check refuses an incomplete one (`invalid_agent_connection`). A services image older than M5 does not know the `organization` namespace and refuses the connection instead of reading the slug as a project connection. Without the gateway, the SDK refuses an organization connection (`organization_connection_unavailable`) and never reads the vault for it. The runner holds no provider key in gateway mode, so its version does not matter here.
 
-Every save path writes the connection explicitly: the `/m` model picker and the agent create path write `{"mode": "agenta", "scope": "project"}` for the project default, and the template compiler writes it when the base revision names none. On the cloud (`AGENTA_RUNNER_REQUIRE_NAMED_SELF_MANAGED_CONNECTION=true`), a commit with a `self_managed` connection and no slug is refused: the cloud runners hold no operator login.
+Every save path writes the connection explicitly: the `/m` model picker and the agent create path write `{"mode": "agenta", "scope": "project"}` for the project default, and the template compiler writes it when the base revision names none. A save never checks whether a named item exists or is usable (owner decision, 2026-10-26); a `self_managed` connection commits with or without a slug, as on v0.125.0, and the runner decides at run time.
 
 ### D6. EE project limit
 

@@ -23,7 +23,7 @@ Order follows the implementation sequence. Spec references: OC = organization-cr
 - [x] 4.1 `OrganizationSecretsRouter` at `/organization-secrets/` with the EE limit route (OC "EE limits").
 - [x] 4.2 `GET /secrets/?include_organization=true`, never with organization rows under the `secret-resolve` grant; single-row and write routes stay project-only; members test an organization connection as saved (OC "never leave the API", "project routes").
 - [x] 4.3 Regenerate the Fern client from an EE OpenAPI spec.
-- [x] 4.4 Commit check for agent connections (organization connection complete; `self_managed` with a slug on the cloud) and the template default connection (OC "explicit connection").
+- [x] 4.4 Commit check for agent connections (organization connection complete; no check that named items exist) and the template default connection (OC "explicit connection").
 
 ## 5. Gateway
 

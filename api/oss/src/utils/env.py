@@ -1761,14 +1761,6 @@ class RunnerConfig(BaseModel):
     internal_url: Optional[str] = os.getenv("AGENTA_RUNNER_INTERNAL_URL") or None
     token: Optional[str] = os.getenv("AGENTA_RUNNER_TOKEN") or None
 
-    # A `self_managed` connection without a slug means "the operator's login mounted on the
-    # runner process". A deployment whose runners hold no such login (the cloud) refuses an
-    # agent saved that way, so it fails at save rather than at run time. Self-hosting keeps
-    # the operator login (default false).
-    require_named_self_managed_connection: bool = _parse_bool_env(
-        "AGENTA_RUNNER_REQUIRE_NAMED_SELF_MANAGED_CONNECTION", False
-    )
-
     model_config = ConfigDict(extra="ignore")
 
     @model_validator(mode="after")

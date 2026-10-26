@@ -108,12 +108,12 @@ Every agent save path and the template default SHALL write an explicit `agent.ll
 - **WHEN** an agent is created from a template whose base revision names no connection
 - **THEN** the stored agent SHALL carry `{"mode": "agenta", "scope": "project"}`.
 
-### Requirement: Self-managed connections name a login on the cloud
-Where the runners hold no operator login (`AGENTA_RUNNER_REQUIRE_NAMED_SELF_MANAGED_CONNECTION`, set on the cloud), a commit with a `self_managed` connection and no slug SHALL be refused with HTTP 422. Self-hosted deployments SHALL keep the operator login.
+### Requirement: A save does not check that named items exist or are usable
+A commit SHALL NOT be refused because a named connection is missing or unusable where it runs. A `self_managed` connection SHALL commit with or without a slug, as on v0.125.0; the runner decides at run time.
 
-#### Scenario: Self-managed on the cloud
-- **WHEN** an agent with `{"mode": "self_managed"}` is saved on the cloud
-- **THEN** Agenta SHALL return HTTP 422 and SHALL NOT store the revision.
+#### Scenario: Self-managed without a slug
+- **WHEN** an agent with `{"mode": "self_managed"}` is saved
+- **THEN** Agenta SHALL store the revision, and a runner that holds an operator login SHALL run it as on v0.125.0.
 
 ### Requirement: EE limits a credential to selected projects
 In EE, with the `Flag.RBAC` entitlement, `PUT /organization-secrets/{secret_id}/projects` SHALL set, in one transaction, `availability` to `all_projects` or `selected_projects` with project ids of the same organization. With `selected_projects`, only agents of listed projects SHALL use the connection, and with none listed, no project SHALL. OSS SHALL refuse `selected_projects` with HTTP 403. Resolution SHALL apply the same filter in both editions.
