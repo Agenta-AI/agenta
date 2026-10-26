@@ -135,7 +135,7 @@ def test_every_deployed_provider_key_is_held():
 
     assert deployed <= set(vault.env_provider_key_names())
     # Not deployed by the chart, but litellm and the OpenAI client read them from the
-    # environment for Azure and Vertex calls.
+    # environment for Azure, Vertex and Bedrock calls.
     assert {
         "AZURE_API_KEY",
         "AZURE_OPENAI_API_KEY",
@@ -143,6 +143,8 @@ def test_every_deployed_provider_key_is_held():
         "AZURE_OPENAI_AD_TOKEN",
         "VERTEXAI_CREDENTIALS",
         "VERTEX_CREDENTIALS",
+        "AWS_BEARER_TOKEN_BEDROCK",
+        "BEDROCK_MANTLE_API_KEY",
     } <= set(vault.env_provider_key_names())
 
 

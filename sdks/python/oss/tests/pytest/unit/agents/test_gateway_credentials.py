@@ -265,3 +265,20 @@ def test_an_https_gateway_never_consults_the_flag(monkeypatch):
     connection = _build_gateway(gateway_base_url="https://cloud.example.com/api")
 
     assert connection.endpoint.base_url.startswith("https://cloud.example.com/api")
+
+
+def test_a_native_gemini_route_matches_its_shared_golden(golden):
+    """The built-in Gemini route also served natively: the hint is one more field, and the
+    base URL stays the OpenAI-compatible route (`docs/design/gemini-native-door`)."""
+    connection = build_gateway_resolved_connection(
+        provider="openai",
+        model="google/gemini-3.8-flash",
+        deployment="custom",
+        namespace="builtin",
+        name="agenta",
+        gateway_base_url="https://gateway.example.com",
+        gateway_credentials_value="ApiKey mock-gateway-credentials",
+        protocol="gemini",
+    )
+
+    assert connection.to_wire() == golden("model_connection.gateway_gemini.json")

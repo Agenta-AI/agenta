@@ -44,7 +44,7 @@ for (const {entry, out, name} of viewers) {
 
 if (stale.length) {
     console.error(
-        `Stale: ${stale.join(", ")}. Run pnpm --filter @agenta/entity-ui build:office-viewers.`,
+        `Stale: ${stale.join(", ")}. Run pnpm --filter @agenta/entity-ui build:office-viewers and commit the result.`,
     )
     process.exit(1)
 }
