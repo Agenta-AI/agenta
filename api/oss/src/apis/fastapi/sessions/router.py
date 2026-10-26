@@ -1055,15 +1055,39 @@ class SessionStreamsRouter:
 
         `visibility` is the visibility a header call that creates the session asks for. It
         is ignored on an existing session, and a `private` without an owner is dropped.
+        A call with a `visibility` may carry no header field: it only creates the session
+        (the /w pre-create of a new chat) and changes nothing on an existing one. Without
+        a `visibility`, a body with no header field (an empty or wrapped body) is refused.
         """
+        if not header.has_header_field and visibility is None:
+            # The body validation error FastAPI answered before this rule moved here.
+            raise HTTPException(
+                status_code=422,
+                detail=[
+                    {
+                        "type": "value_error",
+                        "loc": ["body"],
+                        "msg": "Value error, no header field to update; send name or "
+                        "description at the top level",
+                        "input": {},
+                    }
+                ],
+            )
         _validate_session_id_http(session_id)
         resolved_source = _resolve_name_source(name_source=name_source, author=author)
 
         # A header call on an unknown id creates the session, so a hidden one answers
-        # the one canonical not-found body.
+        # the one canonical not-found body. A call with no header field changes nothing
+        # on an existing session: it is part of sending a new chat's first message, so it
+        # needs what a send needs (a member may send into a colleague's project chat).
+        action = (
+            Permission.EDIT_SESSIONS
+            if header.has_header_field
+            else Permission.RUN_SESSIONS
+        )
         if not await allow_resource(
             request,
-            action=Permission.EDIT_SESSIONS,
+            action=action,
             resource=session_resource(session_id),
         ):
             raise not_found_exception()
@@ -1077,9 +1101,7 @@ class SessionStreamsRouter:
             access=policy_for_request(
                 request, kind=SharedItemKind.SESSION, requested=visibility
             ),
-            recheck=session_recheck(
-                request, action=Permission.EDIT_SESSIONS, session_id=session_id
-            ),
+            recheck=session_recheck(request, action=action, session_id=session_id),
         )
         return SessionStreamResponse(stream=sanitize_session_stream(stream))
 

@@ -9,7 +9,6 @@ from pydantic import (
     Field,
     PrivateAttr,
     field_validator,
-    model_validator,
 )
 
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
@@ -200,13 +199,12 @@ class SessionStreamHeaderEdit(Header):
             )
         return trimmed
 
-    @model_validator(mode="after")
-    def _require_header_field(self) -> "SessionStreamHeaderEdit":
-        if not self.model_fields_set.intersection({"name", "description"}):
-            raise ValueError(
-                "no header field to update; send name or description at the top level"
-            )
-        return self
+    @property
+    def has_header_field(self) -> bool:
+        """Whether the edit names a header field. The header route refuses an edit
+        without one (a wrapped or empty body), unless the call only creates the session
+        with a requested visibility (the /w pre-create of a new chat)."""
+        return bool(self.model_fields_set.intersection({"name", "description"}))
 
 
 class SessionStreamQuery(BaseModel):

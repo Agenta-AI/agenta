@@ -445,11 +445,12 @@ def test_empty_name_stays_the_explicit_clear():
     assert SessionStreamHeaderEdit(name="").name == ""
 
 
-def test_empty_header_edit_is_rejected():
-    from pydantic import ValidationError
-
-    with pytest.raises(ValidationError, match="no header field to update"):
-        SessionStreamHeaderEdit()
+def test_empty_header_edit_names_no_header_field():
+    # The header route refuses it unless the call only creates the session with a
+    # requested visibility (acceptance: test_header_precreate.py).
+    assert SessionStreamHeaderEdit().has_header_field is False
+    assert SessionStreamHeaderEdit(name=None).has_header_field is True
+    assert SessionStreamHeaderEdit(description="d").has_header_field is True
 
 
 def test_explicit_none_name_still_means_no_change():

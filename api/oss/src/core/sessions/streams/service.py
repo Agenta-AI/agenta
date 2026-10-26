@@ -1306,6 +1306,14 @@ class SessionStreamsService:
         request created in the meantime is checked before the edit.
         """
         _validate_session_id(session_id)
+        if not header.has_header_field:
+            return await self._create_header_row(
+                project_id=project_id,
+                user_id=user_id,
+                session_id=session_id,
+                access=access,
+                recheck=recheck,
+            )
         unchecked = recheck is not None and session_was_missing(
             project_id=project_id, session_id=session_id
         )
@@ -1348,6 +1356,35 @@ class SessionStreamsService:
         if updated is not None:
             await self._publish_changed(project_id=project_id, session_id=session_id)
         return updated
+
+    async def _create_header_row(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        access: AccessPolicy,
+        recheck: Optional[SessionRecheck],
+    ) -> Optional[SessionStream]:
+        """A header call with no header field only creates the session with `access`
+        (the /w pre-create of a new chat) and returns the row it created. An existing
+        row is left unchanged and not returned: the call is checked like a send, which
+        does not include reading the session (one that a concurrent first touch created
+        is still checked first, so a hidden one answers like a hidden one)."""
+        try:
+            created = await self._create_row(
+                project_id=project_id,
+                user_id=user_id,
+                stream=SessionStreamCreate(session_id=session_id, access=access),
+            )
+        except SessionStreamAlreadyExists:
+            if recheck is not None and session_was_missing(
+                project_id=project_id, session_id=session_id
+            ):
+                await recheck()
+            return None
+        await self._publish_changed(project_id=project_id, session_id=session_id)
+        return created
 
     async def query_streams(
         self,
