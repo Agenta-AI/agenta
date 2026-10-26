@@ -33,6 +33,7 @@ from ee.src.core.access.entitlements.types import (
     HOBBY_AGENT_TURN_CAPS,
     PRO_AGENT_TURN_CAPS,
 )
+from ee.tests.pytest.utils.wallets.switch import set_wallets_enabled
 from ee.tests.pytest.utils.measurements.fakes import (
     InMemoryMeasurementPublisher,
     InMemorySessionTurnHolds,
@@ -222,13 +223,7 @@ async def test_a_slot_store_that_cannot_answer_admits_uncounted():
 
 
 async def test_an_organization_whose_wallet_is_off_is_never_capped(monkeypatch):
-    from ee.src.core.wallets import admission
-    from oss.src.core.rollout.switches import WalletMode
-
-    async def _off(organization_id, *, wait=True):
-        return WalletMode.OFF
-
-    monkeypatch.setattr(admission, "wallet_mode_for", _off)
+    set_wallets_enabled(monkeypatch, False)
     slots = InMemoryTurnSlots()
     router = _router(allowed=False, plan=HOBBY, slots=slots)
     with _caller():

@@ -11,8 +11,8 @@ export interface WalletCredit {
     created_at: string | null
 }
 
-/** The organization's `wallets-rollout` mode. Only `enforce` shows the credits view. */
-export type WalletMode = "off" | "shadow" | "enforce"
+/** `enforce` while the deployment's wallet is on, else `off`. Only `enforce` shows the credits view. */
+export type WalletMode = "off" | "enforce"
 
 export interface WalletSummary {
     mode: WalletMode

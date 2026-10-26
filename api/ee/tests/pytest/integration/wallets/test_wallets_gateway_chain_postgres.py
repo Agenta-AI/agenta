@@ -33,7 +33,6 @@ from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
 from oss.src.core.gateways.policy import service as policy_service_module
 from oss.src.core.gateways.policy.service import GatewayPolicyService
-from oss.src.core.rollout import switches
 from oss.src.dbs.postgres.shared.engine import (
     AnalyticsEngine,
     get_transactions_engine,
@@ -769,53 +768,13 @@ async def test_the_daily_totals_count_every_posting_past_the_detail_cap(
     await _cleanup(organization_id)
 
 
-@pytest.fixture
-def rollout(monkeypatch):
-    """Publish both rollout payloads as PostHog would, past the real switch module."""
-
-    def _set(*, gateway, wallets):
-        monkeypatch.setattr(env.rollout, "enabled", True)
-        payloads = {
-            switches.LLM_GATEWAY_ROLLOUT_FLAG: [str(o) for o in gateway],
-            switches.WALLETS_ROLLOUT_FLAG: {str(o): m for o, m in wallets.items()},
-        }
-
-        async def _payload(flag, **_kwargs):
-            return payloads[flag]
-
-        monkeypatch.setattr(switches, "_flag_payload", _payload)
-
-    return _set
-
-
-async def test_a_shadow_organization_at_its_floor_is_served_and_still_charged(
-    wallet_schema, redis_client, analytics_engine, rollout
+async def test_with_the_wallet_off_a_builtin_call_is_refused(
+    wallet_schema, redis_client, analytics_engine, monkeypatch
 ):
-    organization_id = uuid4()  # never funded: `enforce` would refuse it
-    rollout(gateway=[organization_id], wallets={organization_id: "shadow"})
-    chain = _Chain(redis_client=redis_client, analytics_engine=analytics_engine)
-    await chain.start_workers()
-
-    response, _ = await _call(chain, organization_id)
-    [measurement] = await chain.run_workers()
-
-    assert response.status_code == 200
-    assert chain.checks == 1
-    assert chain.adapter.calls == 1
-    [debit] = await _debits(organization_id)
-    assert debit.idempotency_key == f"measurement:{measurement.measurement_id}"
-    assert await _general_balance(organization_id) == -debit.amount_musd
-
-    await _cleanup(organization_id)
-
-
-async def test_an_organization_absent_from_the_wallet_rollout_is_refused_a_builtin_call(
-    wallet_schema, redis_client, analytics_engine, rollout
-):
-    """Its wallet is `off`, so the call would not be measured: a platform-funded model is
-    refused rather than served free, and the wallet is never read."""
+    """The call would not be measured: a platform-funded model is refused rather than
+    served free, and the wallet is never read."""
     organization_id = uuid4()
-    rollout(gateway=[organization_id], wallets={})
+    monkeypatch.setattr(env.wallets, "enabled", False)
     chain = _Chain(redis_client=redis_client, analytics_engine=analytics_engine)
     await chain.start_workers()
 
@@ -832,22 +791,3 @@ async def test_an_organization_absent_from_the_wallet_rollout_is_refused_a_built
     assert chain.adapter.calls == 0
     assert await chain.run_workers() == []
     assert await _debits(organization_id) == []
-
-
-async def test_two_organizations_on_one_stack_follow_their_own_modes(
-    wallet_schema, redis_client, analytics_engine, rollout
-):
-    enforced, outside = uuid4(), uuid4()
-    rollout(gateway=[enforced], wallets={enforced: "enforce", outside: "enforce"})
-    chain = _Chain(redis_client=redis_client, analytics_engine=analytics_engine)
-    await chain.start_workers()
-
-    refused, refused_body = await _call(chain, enforced)
-    off_gateway, off_body = await _call(chain, outside)
-
-    assert refused.status_code == 403
-    assert json.loads(refused_body)["error"]["code"] == "wallet_balance_exhausted"
-    # Outside the gateway rollout: refused as a disabled plane, before any wallet read.
-    assert json.loads(off_body)["error"]["code"] == "llm_gateway_disabled"
-    assert chain.checks == 1
-    assert chain.adapter.calls == 0
