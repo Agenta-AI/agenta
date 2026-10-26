@@ -42,6 +42,8 @@ All schema changes go in one `core_oss` revision. EE runs the same chain. Nothin
 | `project_id` | uuid | NOT NULL | |
 | `created_at` | timestamptz | NULL | `current_timestamp` |
 | `created_by_id` | uuid | NULL | |
+| `updated_at`, `deleted_at` | timestamptz | NULL | |
+| `updated_by_id`, `deleted_by_id` | uuid | NULL | |
 
 - PK `(secret_id, project_id)`. FK `secret_id` -> `secrets.id` ON DELETE CASCADE. FK `project_id` -> `projects.id` ON DELETE CASCADE. Index `ix_secret_projects_project_id (project_id)`.
 - Only rows of an organization-owned `secrets` row with `availability = 'selected_projects'` are meaningful. The DAO writes them only for such a row, and only for projects of the same organization (section 3.1, `set_availability`). The database does not enforce the organization match; the DAO does it in the write statement.
@@ -163,7 +165,7 @@ class CachedEffectiveSecrets(BaseModel):   # NEW cache value of `effective_secre
 | `OrganizationSecretNotServed(deployment_kind)` (NEW) | org create/update of a `custom_provider` whose deployment kind is not in `LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS` (today Bedrock and SageMaker are not) | 422 |
 | `SecretSlugConflict(slug)` (existing) | a duplicate organization slug (`uq_secrets_organization_id_slug`), as for projects | 409 |
 | `SecretShadowConflict(slug)` (NEW) | any write after which one project would hold a project row and an available organization row with the same slug and another kind or provider family: project create with that slug, project kind or family change, organization create or update, availability widening (section 3.1 conflict rule) | 409 |
-| `SecretWriteConflict()` (NEW) | a serialization failure (`40001`) of a conflict-checked write, after one internal retry | 409, `retryable` text "Try again." |
+| `SecretWriteConflict()` (NEW) | a serialization failure (`40001`) of a conflict-checked write, on each of up to six attempts | 409, `retryable` text "Try again." |
 | `ProjectLimitNotAllowed()` (NEW) | `selected_projects` in OSS, or in EE without `Flag.RBAC` | 403 |
 | `ProjectNotInOrganization(project_ids)` (NEW) | a limit that names a project of another organization or an unknown project | 422 |
 | `OrganizationSecretNotFound()` (NEW) | an org route with an id that is not an INHERITABLE organization row of the request's organization (an SSO id answers this too) | 404 |
@@ -234,12 +236,12 @@ class SecretsDAOInterface:
 
 | Write | Check (same transaction) | Serialization with concurrent writes |
 | --- | --- | --- |
-| Project create with a caller-given slug | Folded into the insert: `INSERT ... SELECT ... WHERE NOT EXISTS (<available organization row of the project's organization with this slug and another kind or family>) RETURNING id`; no row returned -> `SecretShadowConflict`. A server-derived slug (12 random hex chars) cannot match and keeps today's statement. | The transaction runs `SERIALIZABLE` (set with the connection's isolation option on `BEGIN`, no extra statement) |
+| Project create with a caller-given slug | Folded into the insert: `INSERT ... SELECT ... WHERE NOT EXISTS (<available organization row of the project's organization with this slug and another kind or family>) RETURNING id`; no row returned -> `SecretShadowConflict`. Every project row with a slug uses this insert, including the canonical subscription slug and a server-derived slug (12 random hex chars), so the check also covers an unlikely derived collision. | The transaction runs `SERIALIZABLE` (set with the connection's isolation option on `BEGIN`, no extra statement) |
 | Project user update (`update_secret`) that changes kind or provider family of a row with a slug | Folded into the existing `SELECT ... FOR UPDATE`: a scalar subquery returns the kind and family of an available organization row with the row's slug; the resolver refuses a mismatch under the lock | `SERIALIZABLE` (only `update_secret`; the managed and subscription upkeep updates keep `READ COMMITTED` and never change kind) |
 | Organization create or update (slug, kind, family) | `SELECT ... FROM secrets JOIN projects ... WHERE organization_id = :org AND slug = :slug AND <kind or family differs> AND <project gains or keeps access> FOR SHARE` | `SERIALIZABLE` |
 | Availability change (widening) | The same check for the projects that gain access | `SERIALIZABLE` |
 
-Two `SERIALIZABLE` transactions that read each other's predicate abort one of them with `40001`; the DAO retries once, then raises `SecretWriteConflict` (409). The isolation option is sent with the `BEGIN`, so it costs no extra statement (checked on the wire).
+Two `SERIALIZABLE` transactions that read each other's predicate abort one of them with `40001`; the DAO tries the write up to six times (`_SERIALIZABLE_ATTEMPTS`) with a short, growing random wait, then raises `SecretWriteConflict` (409). The isolation option is sent with the `BEGIN`, so it costs no extra statement (checked on the wire).
 
 **Errors without values.** `SecretsDAO` catches `DBAPIError` on every secrets write and raises a domain error (`SecretSlugConflict`, `SecretShadowConflict`, `SecretWriteConflict`, else `SecretStorageError`) with `raise ... from None`, so no traceback carries the SQL parameters (the plaintext JSON is a bind parameter of `pgp_sym_encrypt`).
 
@@ -414,7 +416,7 @@ Bodies keep the vault router's existing shape (`{"detail": <message>}` through `
 | Gateway does not serve the deployment (Bedrock, SageMaker) | 422 | "The LLM gateway does not serve this deployment, so it cannot be shared with projects." |
 | Duplicate organization slug | 409 | today's `SecretSlugConflict` message |
 | Shadow mismatch (project or organization side, availability widening included) | 409 | "A credential with this slug already exists with another kind or provider." |
-| Serialization conflict after one retry | 409 | "Another change to these credentials happened at the same time. Try again." |
+| Serialization conflict on every attempt (six) | 409 | "Another change to these credentials happened at the same time. Try again." |
 | Limit not allowed (OSS, or EE without RBAC) | 403 | "Limiting a credential to selected projects is not available for this organization." |
 | Foreign or unknown project in a limit | 422 | "Every project must belong to this organization." |
 | Unknown organization credential id | 404 | "Secret not found" (today's text) |

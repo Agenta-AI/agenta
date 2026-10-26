@@ -281,7 +281,7 @@ def _inherited_identity_column():
 
 
 async def _wait_before_retry(attempt: int) -> None:
-    # Exponential with jitter: 5 to 20 ms, then up to about 320 ms on the fifth wait.
+    # Exponential with jitter: 5 to 10 ms on the first wait, up to 160 ms on the fifth.
     await asyncio.sleep(random.uniform(0.5, 1.0) * 0.01 * (2 ** (attempt - 1)))
 
 

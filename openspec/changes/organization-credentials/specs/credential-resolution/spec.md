@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: One effective credential set per project
-Every in-process reader (the LLM gateway resolver and the custom endpoint lookup) SHALL resolve through `VaultService.list_effective_secrets(organization_id, project_id)` and its single-row forms. The effective set SHALL be the project's rows, then the available inherited rows whose slug no project row uses.
+The LLM and MCP gateway resolvers SHALL resolve through `VaultService.list_effective_secrets(organization_id, project_id)` and its single-row forms. The custom endpoint lookup uses its own one-statement read ("Inherited custom providers resolve without an endpoint row"). The effective set SHALL be the project's rows, then the available inherited rows whose slug no project row uses.
 
 #### Scenario: New project sees the company key
 - **WHEN** an organization has an OpenAI organization credential and an admin creates a new project
