@@ -425,9 +425,12 @@ async def test_an_organization_connection_never_falls_back_to_the_vault(
             model=ModelRef(
                 provider="openai",
                 model="gpt-5.5",
-                connection={"mode": "agenta", "slug": "openai", "scope": "organization"},
+                connection={
+                    "mode": "agenta",
+                    "slug": "openai",
+                    "scope": "organization",
+                },
             ),
             context=_context(),
         )
     assert routes.paths() == [RESOLVE_PATH]
-

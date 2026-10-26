@@ -23,7 +23,13 @@ from oss.src.core.memberships.dtos import OrganizationMember
 from oss.src.core.secrets.dtos import CreateSecretDTO, SecretOwner
 from oss.src.core.secrets.enums import SecretOwnerKind
 from oss.src.core.secrets.limits import NoProjectLimits
+from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.subscription_login import (
+    RunnerLoginAttempt,
+    SubscriptionLoginRunnerClient,
+)
+from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.tests.pytest.utils.organization_secrets import (
     SENTINEL_KEY,
     InMemorySecretsDAO,
@@ -85,9 +91,17 @@ def world(monkeypatch):
         "organization": organization_id,
     }
 
-    def client(limits=None):
+    def client(limits=None, runner=None):
         vault = VaultService(dao, project_limits=limits)
-        router = OrganizationSecretsRouter(vault_service=vault)
+        router = OrganizationSecretsRouter(
+            vault_service=vault,
+            subscription_login_service=SubscriptionLoginService(
+                vault_service=vault,
+                runner_client=runner
+                or SubscriptionLoginRunnerClient(base_url="", token=""),
+                claude_token_client=ClaudeTokenClient(),
+            ),
+        )
         app = FastAPI()
 
         @app.middleware("http")
@@ -135,6 +149,18 @@ def _routes(secret_id):
             "put",
             f"/organization-secrets/{secret_id}/projects",
             {"availability": "all_projects", "project_ids": []},
+        ),
+        (
+            "put",
+            f"/organization-secrets/{secret_id}/subscription-token",
+            {"token": "sk-ant-oat01-" + "x" * 40},
+        ),
+        ("post", f"/organization-secrets/{secret_id}/login-attempts", None),
+        ("get", f"/organization-secrets/{secret_id}/login-attempts/att-1", None),
+        (
+            "post",
+            f"/organization-secrets/{secret_id}/login-attempts/att-1/cancel",
+            None,
         ),
     ]
 
@@ -503,3 +529,90 @@ def test_a_limit_on_an_unknown_sso_or_foreign_id_answers_404_before_403(world):
         ).status_code
         == 403
     )
+
+
+class _FakeRunner:
+    def __init__(self):
+        self.started = []
+
+    async def start_attempt(
+        self, *, provider, project_id, secret_id, organization_id=None
+    ):
+        self.started.append(
+            {
+                "provider": provider,
+                "project_id": project_id,
+                "organization_id": organization_id,
+                "secret_id": secret_id,
+            }
+        )
+        from datetime import datetime, timedelta, timezone
+
+        return RunnerLoginAttempt(
+            attempt_id="att-org",
+            state="pending",
+            expires_at=(datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
+            user_code="ABCD-1234",
+            verification_uri="https://auth.openai.com/codex/device",
+        )
+
+    async def delete_attempt(
+        self, *, attempt_id, base_url=None, runner_replica_id=None
+    ):
+        return True
+
+
+def test_an_admin_creates_an_organization_subscription_and_starts_its_login(world):
+    """An organization subscription login (M5): created pending, named with its owner, and
+    its device login reports to the organization row, never to a project."""
+    runner = _FakeRunner()
+    client, _ = world["client"](runner=runner)
+    world["state"].update(user=world["admin"])
+    created = client.post(
+        "/organization-secrets/",
+        json={
+            "header": {"description": "shared"},
+            "secret": {
+                "kind": "subscription_provider",
+                "data": {"provider": "chatgpt"},
+            },
+        },
+    )
+    assert created.status_code == 200, created.text
+    body = created.json()
+    assert body["header"]["name"] == "ChatGPT (Organization)"
+    assert body["owner"]["kind"] == "organization"
+    assert body["data"]["login_state"] == "pending_login"
+
+    started = client.post(f"/organization-secrets/{body['id']}/login-attempts")
+    assert started.status_code == 200, started.text
+    assert started.json()["user_code"] == "ABCD-1234"
+    assert runner.started == [
+        {
+            "provider": "chatgpt",
+            "project_id": None,
+            "organization_id": str(world["organization_id"]),
+            "secret_id": body["id"],
+        }
+    ]
+
+    polled = client.get(f"/organization-secrets/{body['id']}/login-attempts/att-org")
+    assert polled.status_code == 200, polled.text
+    assert polled.json()["state"] == "pending"
+
+
+def test_an_editor_cannot_create_an_organization_subscription(world):
+    client, _ = world["client"](runner=_FakeRunner())
+    world["state"].update(user=world["editor"])
+    response = client.post(
+        "/organization-secrets/",
+        json={
+            "header": {"name": "ChatGPT"},
+            "secret": {
+                "kind": "subscription_provider",
+                "data": {"provider": "chatgpt"},
+            },
+        },
+    )
+    assert response.status_code == 403
+    assert world["dao"].records == {}

@@ -65,6 +65,16 @@ class SecretAvailability(str, Enum):
 # The kinds an organization can share with its projects. An agent uses a shared row only
 # when it names it. Every other kind stays project-owned (or, for SSO, organization-only).
 ORGANIZATION_SECRET_KINDS = frozenset(
+    {
+        SecretKind.PROVIDER_KEY,
+        SecretKind.CUSTOM_PROVIDER,
+        SecretKind.SUBSCRIPTION_PROVIDER,
+    }
+)
+# The organization kinds the LLM gateway serves. Their values never leave the API. An
+# organization subscription login is the one kind that does: it reaches the runner process
+# of an `inprocess` run that named it, never a sandbox.
+ORGANIZATION_GATEWAY_KINDS = frozenset(
     {SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER}
 )
 

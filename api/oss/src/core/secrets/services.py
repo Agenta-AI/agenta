@@ -664,7 +664,9 @@ class VaultService:
                 kind=create_secret_dto.secret.data.kind,
                 # An organization connection's default name says it is the organization's.
                 owner_label=(
-                    "Organization" if owner.kind == SecretOwnerKind.ORGANIZATION else None
+                    "Organization"
+                    if owner.kind == SecretOwnerKind.ORGANIZATION
+                    else None
                 ),
                 taken_names={
                     secret_dto.header.name
@@ -714,6 +716,8 @@ class VaultService:
         header = create_secret_dto.header
         if not header.name:
             header.name = SUBSCRIPTION_PROVIDER_DISPLAY_NAMES[provider_kind]
+            if owner.kind == SecretOwnerKind.ORGANIZATION:
+                header.name = f"{header.name} (Organization)"
 
         # This is the storage identity, not the editable display identity. Keeping it canonical
         # lets the database's (project_id, slug) unique index serialize concurrent creates.
@@ -1030,6 +1034,10 @@ class VaultService:
 
         if changed and project_id is not None:
             await self._invalidate_project(project_id)
+        elif changed and organization_id is not None:
+            # An organization subscription login moved (a device login, a refresh pushed by
+            # a run): every project entry of the organization holds the row.
+            await self._invalidate_organization(organization_id=organization_id)
         return secret_dto
 
     async def update_managed_secret(
@@ -1151,13 +1159,17 @@ class VaultService:
     def _check_organization_secret(self, *, secret: Any) -> None:
         """The product rules of a shareable credential, on the payload as it will be
         stored: a shareable kind, an LLM family for a key, a deployment the gateway
-        serves, and values long enough for the gateway's echo scan.
+        serves, and values long enough for the gateway's echo scan. A subscription login
+        carries no value at create time (it signs in through the device login), so only
+        its kind is checked here.
 
         Normalizes the credential values in place first (surrounding whitespace removed),
         so the minimum applies to the value the gateway will send and scan."""
         kind = secret.kind
         if kind not in ORGANIZATION_SECRET_KINDS:
             raise OrganizationSecretKindNotShareable(kind=str(kind.value))
+        if kind == SecretKind.SUBSCRIPTION_PROVIDER:
+            return
         if kind == SecretKind.PROVIDER_KEY and not is_llm_provider_family(secret.data):
             raise OrganizationSecretKindNotShareable(kind=str(kind.value))
         if kind == SecretKind.CUSTOM_PROVIDER:
@@ -1310,6 +1322,15 @@ class VaultService:
 
         if create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY:
             await self._name_and_slug_provider_key(
+                owner=SecretOwner(
+                    kind=SecretOwnerKind.ORGANIZATION, id=organization_id
+                ),
+                create_secret_dto=create_secret_dto,
+            )
+        elif create_secret_dto.secret.kind == SecretKind.SUBSCRIPTION_PROVIDER:
+            # One login per provider per organization; it signs in through the device
+            # login routes of the organization (or a Claude token), never with the create.
+            await self._name_and_slug_subscription_provider(
                 owner=SecretOwner(
                     kind=SecretOwnerKind.ORGANIZATION, id=organization_id
                 ),

@@ -43,7 +43,7 @@ from oss.src.core.gateways.llms.interfaces import (
 )
 from oss.src.core.gateways.llms.registrar import map_custom_provider_secret_to_endpoint
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry, select_upstream
-from oss.src.core.secrets.enums import SecretKind
+from oss.src.core.secrets.enums import ORGANIZATION_GATEWAY_KINDS, SecretKind
 from oss.src.core.gateways.llms.types import (
     LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS,
     LLMCapabilityNotAllowedError,
@@ -1232,7 +1232,13 @@ class LLMGatewayService:
         builds its target from the row, with no endpoint row. Either way the target is
         pinned to that row, and the relay uses the row it carries."""
         secret = await self.resolver.organization_connection(scope=scope, slug=slug)
-        if secret is None or secret.id is None:
+        # A subscription login is not a gateway connection: it is named with mode
+        # `self_managed`, and the gateway never routes it.
+        if (
+            secret is None
+            or secret.id is None
+            or secret.kind not in ORGANIZATION_GATEWAY_KINDS
+        ):
             raise LLMNamedConnectionNotFoundError(
                 scope=SecretOwnerKind.ORGANIZATION, slug=slug
             )

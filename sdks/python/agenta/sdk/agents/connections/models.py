@@ -145,10 +145,11 @@ class Connection(BaseModel):
     @model_validator(mode="after")
     def _namespace_names_a_slug(self) -> "Connection":
         if self.scope == "organization" or self.namespace == "organization":
-            if self.scope != "organization" or self.mode != "agenta" or not self.slug:
+            # An organization key or custom provider (mode `agenta`), or an organization
+            # subscription login (mode `self_managed`); both are named by slug.
+            if self.scope != "organization" or not self.slug:
                 raise ValueError(
-                    "an organization connection requires scope 'organization', mode "
-                    "'agenta' and a slug"
+                    "an organization connection requires scope 'organization' and a slug"
                 )
             if self.namespace is None:
                 self.namespace = "organization"
@@ -270,6 +271,10 @@ class ResolvedSubscription(BaseModel):
     generation: int = 0
     # The harness-format credential, carried verbatim. Pi's shape today; unknown keys survive.
     login: Dict[str, Any] = Field(default_factory=dict, repr=False)
+    # Whose login it is (M5). An organization login travels as `organizationSubscription`,
+    # a field a runner older than M5 does not read, and a new runner uses it only on the
+    # `inprocess` engine (never in a sandbox).
+    owner: Literal["project", "organization"] = "project"
 
     @model_validator(mode="after")
     def _require_identity_and_login(self) -> "ResolvedSubscription":
@@ -500,7 +505,12 @@ class ResolvedConnection(BaseModel):
         if self.input_modalities is not None:
             wire["modelCapabilities"] = {"inputModalities": list(self.input_modalities)}
         if self.subscription is not None:
-            wire["subscription"] = self.subscription.to_wire()
+            key = (
+                "organizationSubscription"
+                if self.subscription.owner == "organization"
+                else "subscription"
+            )
+            wire[key] = self.subscription.to_wire()
         if self.gateway_credentials is not None:
             wire["gatewayCredentials"] = self.gateway_credentials.to_wire()
         if self.custom_connection is not None:

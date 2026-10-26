@@ -11,7 +11,7 @@ import oss.src.core.secrets.services as services_module
 from oss.src.apis.fastapi.vault import router as router_module
 from oss.src.apis.fastapi.vault.router import VaultRouter
 from oss.src.core.secrets.claude_token import ClaudeTokenClient
-from oss.src.core.secrets.dtos import CreateSecretDTO
+from oss.src.core.secrets.dtos import CreateSecretDTO, SubscriptionLoginDTO
 from oss.src.core.secrets.enums import SecretAvailability
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
@@ -154,9 +154,7 @@ async def test_project_routes_answer_404_for_an_organization_id_and_slug(world):
     assert client.get(f"/secrets/{company.id}").status_code == 404
     assert client.get("/secrets/openai-company").status_code == 404
     assert (
-        client.put(
-            f"/secrets/{company.id}", json={"header": {"name": "x"}}
-        ).status_code
+        client.put(f"/secrets/{company.id}", json={"header": {"name": "x"}}).status_code
         == 404
     )
     assert company.id in world["dao"].records
@@ -218,3 +216,204 @@ async def test_the_sdk_vault_fallback_parses_the_new_list_response(world):
     )
     values = {item.binding.name: item.value for item in resolved.credentials}
     assert values["OPENAI_API_KEY"] == "sk-proj-0123456789"
+
+
+# --- Organization subscription logins (M5) -------------------------------------------------
+
+
+def _codex_access_token(account_id: str = "acct-org") -> str:
+    """An access token shaped like Codex's. The signature is filler; nothing checks it."""
+    from base64 import urlsafe_b64encode
+    from json import dumps
+
+    def segment(payload: dict) -> str:
+        return urlsafe_b64encode(dumps(payload).encode()).decode().rstrip("=")
+
+    claims = {"https://api.openai.com/auth": {"chatgpt_account_id": account_id}}
+    return f"{segment({'alg': 'RS256'})}.{segment(claims)}.signature"
+
+
+def _expires_in(hours: float) -> int:
+    from datetime import datetime, timezone
+
+    return int(datetime.now(timezone.utc).timestamp() * 1000) + int(hours * 3_600_000)
+
+
+ORG_LOGIN = {
+    "type": "oauth",
+    "access": _codex_access_token(),
+    "refresh": "org-refresh-1",
+    "expires": _expires_in(1),
+    "accountId": "acct-org",
+}
+
+
+async def _org_subscription(world, *, login=None):
+    created = await world["vault"].create_organization_secret(
+        organization_id=world["organization_id"],
+        create_secret_dto=CreateSecretDTO.model_validate(
+            {
+                "header": {"name": "Company ChatGPT"},
+                "secret": {
+                    "kind": "subscription_provider",
+                    "data": {"provider": "chatgpt"},
+                },
+            }
+        ),
+        user_id=uuid4(),
+    )
+    if login is not None:
+        record = world["dao"].records[created.id]
+        data = record.data.model_copy(
+            update={
+                "login": SubscriptionLoginDTO.model_validate(login),
+                "login_state": "ready",
+                "login_version": 3,
+                "login_generation": 1,
+            }
+        )
+        world["dao"].records[created.id] = record.model_copy(update={"data": data})
+        await world["vault"]._invalidate_organization(
+            organization_id=world["organization_id"]
+        )
+    return created
+
+
+async def test_a_run_reads_the_organization_subscription_login_it_named(world):
+    created = await _org_subscription(world, login=ORG_LOGIN)
+    response = world["client"].get(
+        "/secrets/organization-subscriptions/chatgpt", headers={"x-test-grant": "1"}
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["id"] == str(created.id)
+    assert body["owner"]["kind"] == "organization"
+    assert body["data"]["login"]["refresh"] == "org-refresh-1"
+
+
+async def test_only_the_runs_credential_reads_an_organization_subscription_login(world):
+    await _org_subscription(world, login=ORG_LOGIN)
+    response = world["client"].get("/secrets/organization-subscriptions/chatgpt")
+    assert response.status_code == 403
+    assert "org-refresh-1" not in response.text
+
+
+async def test_the_release_route_serves_no_other_organization_kind(world):
+    await _org(world, slug="openai-company")
+    response = world["client"].get(
+        "/secrets/organization-subscriptions/openai-company",
+        headers={"x-test-grant": "1"},
+    )
+    assert response.status_code == 404
+    assert SENTINEL_KEY not in response.text
+
+
+async def test_the_release_route_refuses_a_project_the_login_is_not_available_to(world):
+    created = await _org_subscription(world, login=ORG_LOGIN)
+    world["dao"].selected[created.id] = [world["sales"]]
+    world["dao"].records[created.id] = (
+        world["dao"]
+        .records[created.id]
+        .model_copy(update={"availability": SecretAvailability.SELECTED_PROJECTS})
+    )
+    await world["vault"]._invalidate_organization(
+        organization_id=world["organization_id"]
+    )
+    world["state"]["project"] = world["marketing"]
+    response = world["client"].get(
+        "/secrets/organization-subscriptions/chatgpt", headers={"x-test-grant": "1"}
+    )
+    assert response.status_code == 404
+    assert "org-refresh-1" not in response.text
+
+
+async def test_the_release_route_never_serves_a_project_subscription(world):
+    created = world["client"].post(
+        "/secrets/",
+        json={
+            "header": {"name": "ChatGPT"},
+            "secret": {
+                "kind": "subscription_provider",
+                "data": {"provider": "chatgpt"},
+            },
+        },
+    )
+    assert created.status_code == 200, created.text
+    response = world["client"].get(
+        "/secrets/organization-subscriptions/chatgpt", headers={"x-test-grant": "1"}
+    )
+    assert response.status_code == 404
+
+
+async def test_a_run_pushes_a_refreshed_organization_login_with_scope_organization(
+    world,
+):
+    created = await _org_subscription(world, login=ORG_LOGIN)
+    refreshed = {**ORG_LOGIN, "refresh": "org-refresh-2", "expires": _expires_in(2)}
+    body = {"login": refreshed, "version": 3, "generation": 1}
+
+    # Without the scope the id names a project row, and there is none.
+    project_scoped = world["client"].post(
+        f"/secrets/{created.id}/subscription-login",
+        json=body,
+        headers={"x-test-grant": "1"},
+    )
+    assert project_scoped.status_code == 404
+    assert world["dao"].records[created.id].data.login.refresh == "org-refresh-1"
+
+    response = world["client"].post(
+        f"/secrets/{created.id}/subscription-login?scope=organization",
+        json=body,
+        headers={"x-test-grant": "1"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["updated"] is True
+    assert world["dao"].records[created.id].data.login.refresh == "org-refresh-2"
+
+
+async def test_an_organization_login_push_needs_the_project_to_have_it(world):
+    created = await _org_subscription(world, login=ORG_LOGIN)
+    world["dao"].selected[created.id] = [world["sales"]]
+    world["dao"].records[created.id] = (
+        world["dao"]
+        .records[created.id]
+        .model_copy(update={"availability": SecretAvailability.SELECTED_PROJECTS})
+    )
+    await world["vault"]._invalidate_organization(
+        organization_id=world["organization_id"]
+    )
+    world["state"]["project"] = world["marketing"]
+    response = world["client"].post(
+        f"/secrets/{created.id}/subscription-login?scope=organization",
+        json={
+            "login": {**ORG_LOGIN, "refresh": "org-refresh-2"},
+            "version": 3,
+            "generation": 1,
+        },
+        headers={"x-test-grant": "1"},
+    )
+    assert response.status_code == 404
+    assert world["dao"].records[created.id].data.login.refresh == "org-refresh-1"
+
+
+@pytest.mark.parametrize(
+    "owners",
+    [
+        {},
+        {"project_id": str(uuid4()), "organization_id": str(uuid4())},
+    ],
+)
+def test_a_login_outcome_names_exactly_one_owner(owners):
+    from pydantic import ValidationError
+
+    from oss.src.apis.fastapi.vault.models import SubscriptionLoginOutcomeRequest
+
+    with pytest.raises(ValidationError):
+        SubscriptionLoginOutcomeRequest.model_validate(
+            {"secret_id": str(uuid4()), "state": "expired", **owners}
+        )
+    for owner in ("project_id", "organization_id"):
+        outcome = SubscriptionLoginOutcomeRequest.model_validate(
+            {"secret_id": str(uuid4()), "state": "expired", owner: str(uuid4())}
+        )
+        assert getattr(outcome, owner) is not None

@@ -22,10 +22,10 @@ Every `/organization-secrets/` route SHALL call `decide_organization(access, org
 - **THEN** Agenta SHALL return HTTP 403.
 
 ### Requirement: Only shareable kinds
-The organization routes SHALL accept only `provider_key` (of an LLM provider family) and `custom_provider`. They SHALL refuse a `custom_provider` whose deployment kind the LLM gateway does not serve (Bedrock and SageMaker today). Every refusal SHALL be HTTP 422 naming the reason.
+The organization routes SHALL accept only `provider_key` (of an LLM provider family), `custom_provider` and `subscription_provider`. They SHALL refuse a `custom_provider` whose deployment kind the LLM gateway does not serve (Bedrock and SageMaker today). Every refusal SHALL be HTTP 422 naming the reason.
 
 #### Scenario: Refused kinds
-- **WHEN** an owner posts a `custom_secret`, a `subscription_provider`, or a `custom_provider` for a Bedrock or SageMaker deployment
+- **WHEN** an owner posts a `custom_secret`, an `sso_provider`, or a `custom_provider` for a Bedrock or SageMaker deployment
 - **THEN** Agenta SHALL return HTTP 422 and SHALL NOT store a row.
 
 ### Requirement: Organization values are long enough to scan
@@ -50,7 +50,7 @@ Every `secrets` row SHALL have exactly one owner column set (`ck_secrets_single_
 - **THEN** the second create SHALL return HTTP 409, and one row SHALL exist.
 
 ### Requirement: Organization values never leave the API
-No HTTP response SHALL carry the value of an organization credential, a part of it or a preview of it, for any caller, including the organization owner and a request with the `secret-resolve` grant. Only the in-process LLM gateway SHALL use the value. No log record SHALL carry it.
+No HTTP response SHALL carry the value of an organization API key or custom provider, a part of it or a preview of it, for any caller, including the organization owner and a request with the `secret-resolve` grant. Only the in-process LLM gateway SHALL use the value. An organization subscription login follows its own requirement. No log record SHALL carry it.
 
 #### Scenario: Run credential reads the vault
 - **WHEN** an agent run reads `GET /secrets/` with its run credential, and an OpenAI organization connection is available to the project
@@ -129,3 +129,36 @@ In EE, with the `Flag.RBAC` entitlement, `PUT /organization-secrets/{secret_id}/
 #### Scenario: Foreign project id
 - **WHEN** an EE admin lists a project of another organization
 - **THEN** Agenta SHALL return HTTP 422 and SHALL NOT change the limit.
+
+### Requirement: Organization admins manage organization subscription logins
+An organization owner or admin MAY create a `subscription_provider` (ChatGPT or Claude) at `/organization-secrets/` and sign it in through its `login-attempts` or `subscription-token` route. Its default name SHALL carry the owner ("ChatGPT (Organization)"), and it SHALL start available to all projects.
+
+#### Scenario: Member creates a login
+- **WHEN** an organization member with role `editor` posts a `subscription_provider` to `/organization-secrets/`
+- **THEN** Agenta SHALL return HTTP 403 and SHALL NOT store a row.
+
+#### Scenario: Admin signs in
+- **WHEN** an admin starts a device login for the organization ChatGPT login
+- **THEN** the runner SHALL report the outcome to the organization row, never to a project row.
+
+### Requirement: Only the run credential receives an organization subscription login
+An agent SHALL use an organization subscription login only when it names it with `{"mode": "self_managed", "scope": "organization", "slug": ...}`. The API SHALL release it only to the run's own credential (`secret-resolve` grant) of a project it is available to, from `GET /secrets/organization-subscriptions/{slug}`.
+
+#### Scenario: A browser reads the login
+- **WHEN** an organization owner calls `GET /secrets/organization-subscriptions/chatgpt` from a browser session
+- **THEN** Agenta SHALL return HTTP 403.
+
+#### Scenario: Project not allowed
+- **WHEN** a run of a project the admin did not select names the organization ChatGPT login
+- **THEN** the release route SHALL return HTTP 404, and the run SHALL fail without using a project login.
+
+### Requirement: Organization subscription logins run only on the inprocess engine
+The runner SHALL use an organization subscription login only on the `inprocess` engine, and SHALL refuse it on the `daytona` and `local` sandbox_agent engines with a typed error. An organization Claude login SHALL be refused at run time. Refreshed logins and failures SHALL be written to the organization row (`?scope=organization`), only for a project the login is available to.
+
+#### Scenario: Pi run on the inprocess engine
+- **WHEN** an agent of project Sales names the organization ChatGPT login and runs Pi on the `inprocess` engine
+- **THEN** the run SHALL use the login from the runner's credential store, and the sandbox SHALL NOT receive it.
+
+#### Scenario: Run on the daytona engine
+- **WHEN** the same agent runs on the `daytona` sandbox_agent engine or the `local` engine
+- **THEN** the runner SHALL refuse the run with a typed error and SHALL NOT write the login anywhere.

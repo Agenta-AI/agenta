@@ -33,6 +33,7 @@ from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.types import LLMGatewayConnectionNotServedError
 from oss.src.core.secrets.dtos import CreateSecretDTO, SecretResponseDTO
 from oss.src.core.secrets.enums import (
+    ORGANIZATION_GATEWAY_KINDS,
     ORGANIZATION_SECRET_KINDS,
     SecretAvailability,
     SecretKind,
@@ -419,3 +420,28 @@ def test_shareable_kinds_hold_the_custom_provider():
 
 def _unused(_: Optional[SecretResponseDTO]):
     return None
+
+
+async def test_an_organization_subscription_login_is_never_a_gateway_target(world):
+    """An organization subscription login runs on the runner, never through the LLM
+    gateway; the gateway answers the typed not-found error for its slug."""
+    await world["vault"].create_organization_secret(
+        organization_id=world["organization_id"],
+        create_secret_dto=CreateSecretDTO.model_validate(
+            {
+                "header": {"name": "Company ChatGPT"},
+                "secret": {
+                    "kind": "subscription_provider",
+                    "data": {"provider": "chatgpt"},
+                },
+            }
+        ),
+        user_id=uuid4(),
+    )
+    with pytest.raises(LLMNamedConnectionNotFoundError):
+        await _resolve(world, slug="chatgpt", connection_scope=ORG)
+
+
+def test_the_gateway_kinds_leave_out_the_subscription_login():
+    assert SecretKind.SUBSCRIPTION_PROVIDER in ORGANIZATION_SECRET_KINDS
+    assert SecretKind.SUBSCRIPTION_PROVIDER not in ORGANIZATION_GATEWAY_KINDS

@@ -10,11 +10,17 @@ from oss.src.core.secrets.dtos import (
     PublicSecretResponseDTO,
     UpdateSecretDTO,
 )
+from oss.src.apis.fastapi.vault.models import SubscriptionTokenRequest
 from oss.src.core.secrets.enums import SecretAvailability
 
 
+class OrganizationSubscriptionTokenRequest(SubscriptionTokenRequest):
+    """A `claude setup-token` for an organization subscription login. Its own model, so the
+    project route keeps its generated client request shape."""
+
+
 class OrganizationSecretCreateRequest(CreateSecretDTO):
-    """A `provider_key` or `custom_provider` for every project of the organization (or,
+    """A `provider_key`, `custom_provider` or `subscription_provider` for every project of the organization (or,
     in EE with RBAC, for selected projects). An optional slug; without one the server
     derives `<name>-<12 hex>`. No `management`."""
 

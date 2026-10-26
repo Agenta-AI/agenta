@@ -203,4 +203,3 @@ def test_compiler_keeps_a_connection_the_base_revision_names():
         first_message="hello",
     )
     assert compiled.revision_data.parameters["agent"]["llm"]["connection"] == named
-

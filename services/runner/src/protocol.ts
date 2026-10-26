@@ -722,6 +722,11 @@ export interface ModelConnectionSubscription {
   version: number;
   generation: number;
   login: SubscriptionLogin;
+  /**
+   * Set by this runner, never sent: whose login it is. An organization login (it arrived as
+   * `organizationSubscription`) pushes its refreshes to the organization's row.
+   */
+  owner?: "project" | "organization";
 }
 
 export interface ModelConnection {
@@ -742,6 +747,12 @@ export interface ModelConnection {
    * Daytona; WITHOUT it the run reads the operator's own mount and stays local, unchanged.
    */
   subscription?: ModelConnectionSubscription;
+  /**
+   * An organization subscription login the agent named (M5). The same shape as `subscription`,
+   * in its own field so a runner older than M5 never reads it. It is used only on the
+   * `inprocess` engine, where the login stays in this process; any other engine refuses the run.
+   */
+  organizationSubscription?: ModelConnectionSubscription;
   /** Our own credentials for the gateway. Independent of `credentialMode`, which describes the
    * provider's secret. Omitted when the model is not reached through a gateway. */
   gatewayCredentials?: GatewayCredentials;

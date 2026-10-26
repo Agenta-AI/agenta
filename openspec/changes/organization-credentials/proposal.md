@@ -11,7 +11,8 @@ A company with ten projects pastes the same OpenAI key ten times, and edits ten 
 - An agent uses exactly the connection it picked, by scope and name: a project connection, or an organization connection. Nothing is inherited or overridden automatically. A project connection and an organization connection with the same name are two separate connections. See CONTRACT.md section 8.
 - An agent with no connection keeps today's behavior: the project's default for the provider. No data is backfilled.
 - Every save path and the template default write an explicit connection. On the cloud, an agent saved with a `self_managed` connection must name a subscription connection.
-- Organization connection values never leave the API. Runs use them only through the LLM gateway. Paths that deliver plaintext values (the SDK vault fallback, the legacy vault middleware) never receive them.
+- Organization owners and admins may also hold ChatGPT and Claude subscription logins (owner decision, 2026-10-26). An agent uses one only when it names it. It runs only on the `inprocess` engine, where the login stays in the runner's credential store; the `daytona` and `local` engines refuse it. An organization Claude login is refused at run time.
+- Organization API keys and custom providers never leave the API. Runs use them only through the LLM gateway. Paths that deliver plaintext values (the SDK vault fallback, the legacy vault middleware) never receive them.
 - Project members see the organization connections their project may use (name, provider, status) in the project connection list, never their values, and may test one as saved.
 - A new organization-scoped access decision guards management. It accepts only a human in a browser session, never an API key or a run credential. Project RBAC shortcuts, including the EE no-RBAC bypass, do not apply to it.
 

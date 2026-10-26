@@ -28,6 +28,7 @@ from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.enums import (
     SUBSCRIPTION_PROVIDER_DISPLAY_NAMES,
     SecretKind,
+    SecretOwnerKind,
     SubscriptionLoginState,
     SubscriptionProviderKind,
 )
@@ -280,15 +281,34 @@ class SubscriptionLoginService:
     async def _load(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         provider: SubscriptionProviderKind,
     ) -> SecretResponseDTO:
-        """The project's subscription row, refused unless it belongs to `provider`."""
-        secret = await self.vault_service.get_secret_by_id(
-            secret_id=secret_id,
-            project_id=project_id,
-        )
+        """The subscription row, refused unless it belongs to `provider`.
+
+        A project row by default. An organization row (M5) in two cases: with
+        `organization_id` alone, the organization's own row (its owners and admins sign it
+        in); with both ids, the organization row only while it is available to that
+        project (a run of the project pushes a refreshed login back)."""
+        if organization_id is not None and project_id is not None:
+            secret = await self.vault_service.get_connection_secret_by_id(
+                organization_id=organization_id,
+                project_id=project_id,
+                secret_id=secret_id,
+                owner_kind=SecretOwnerKind.ORGANIZATION,
+            )
+        elif organization_id is not None:
+            secret = await self.vault_service.get_secret_by_id(
+                secret_id=secret_id,
+                organization_id=organization_id,
+            )
+        else:
+            secret = await self.vault_service.get_secret_by_id(
+                secret_id=secret_id,
+                project_id=project_id,
+            )
         if secret is None or secret.kind != SecretKind.SUBSCRIPTION_PROVIDER:
             raise SubscriptionSecretNotFound()
         stored_provider = _subscription_data(secret).provider
@@ -301,7 +321,8 @@ class SubscriptionLoginService:
     async def _apply(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         user_id: Optional[UUID],
         build_changes,
@@ -323,9 +344,12 @@ class SubscriptionLoginService:
             changes = build_changes(_subscription_data(stored))
             return None if changes is None else _update_with(stored, changes)
 
+        # An organization row is written as the organization's, whichever project's run
+        # pushed it; `_load` already checked that the row is available to that project.
         secret = await self.vault_service.update_secret_atomically(
             secret_id=secret_id,
-            project_id=project_id,
+            project_id=None if organization_id is not None else project_id,
+            organization_id=organization_id,
             user_id=user_id,
             resolve_update=resolve,
         )
@@ -340,7 +364,8 @@ class SubscriptionLoginService:
     async def start_attempt(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         user_id: Optional[UUID] = None,
     ) -> SubscriptionLoginAttemptView:
@@ -353,6 +378,7 @@ class SubscriptionLoginService:
         """
         secret = await self._load(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             provider=SubscriptionProviderKind.CHATGPT,
         )
@@ -365,7 +391,10 @@ class SubscriptionLoginService:
 
         attempt = await self.runner_client.start_attempt(
             provider=data.provider.value,
-            project_id=str(project_id),
+            project_id=str(project_id) if project_id is not None else None,
+            organization_id=(
+                str(organization_id) if organization_id is not None else None
+            ),
             secret_id=str(secret_id),
         )
 
@@ -389,6 +418,7 @@ class SubscriptionLoginService:
 
         await self._apply(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             user_id=user_id,
             build_changes=build_changes,
@@ -418,7 +448,8 @@ class SubscriptionLoginService:
     async def read_attempt(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         attempt_id: str,
         user_id: Optional[UUID] = None,
@@ -433,6 +464,7 @@ class SubscriptionLoginService:
         """
         secret = await self._load(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             provider=SubscriptionProviderKind.CHATGPT,
         )
@@ -448,6 +480,7 @@ class SubscriptionLoginService:
             # the provider poll stopped before it could report.
             cleared = await self._clear_attempt(
                 project_id=project_id,
+                organization_id=organization_id,
                 secret_id=secret_id,
                 user_id=user_id,
                 attempt_id=attempt_id,
@@ -458,6 +491,7 @@ class SubscriptionLoginService:
                 # cancelled. Answer from what the row holds now.
                 return await self.read_attempt(
                     project_id=project_id,
+                    organization_id=organization_id,
                     secret_id=secret_id,
                     attempt_id=attempt_id,
                     user_id=user_id,
@@ -466,6 +500,7 @@ class SubscriptionLoginService:
         else:
             await self._clear_attempt(
                 project_id=project_id,
+                organization_id=organization_id,
                 secret_id=secret_id,
                 user_id=user_id,
                 attempt_id=attempt_id,
@@ -481,13 +516,15 @@ class SubscriptionLoginService:
     async def cancel_attempt(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         attempt_id: str,
         user_id: Optional[UUID] = None,
     ) -> SubscriptionLoginAttemptView:
         secret = await self._load(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             provider=SubscriptionProviderKind.CHATGPT,
         )
@@ -500,6 +537,7 @@ class SubscriptionLoginService:
         # started again in that time must not be handed the dead attempt's code back.
         cleared = await self._clear_attempt(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             user_id=user_id,
             attempt_id=attempt_id,
@@ -531,7 +569,8 @@ class SubscriptionLoginService:
     async def set_subscription_token(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         token: str,
         user_id: Optional[UUID] = None,
@@ -544,6 +583,7 @@ class SubscriptionLoginService:
         """
         await self._load(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             provider=SubscriptionProviderKind.CLAUDE,
         )
@@ -573,6 +613,7 @@ class SubscriptionLoginService:
 
         secret = await self._apply(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             user_id=user_id,
             build_changes=build_changes,
@@ -585,7 +626,8 @@ class SubscriptionLoginService:
     async def report_attempt_outcome(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         attempt_id: str,
         state: str,
@@ -601,6 +643,7 @@ class SubscriptionLoginService:
         if state == _SUCCEEDED and login is not None and login_is_usable(login):
             bound = await self._finish_attempt(
                 project_id=project_id,
+                organization_id=organization_id,
                 secret_id=secret_id,
                 attempt_id=attempt_id,
                 state=_SUCCEEDED,
@@ -617,6 +660,7 @@ class SubscriptionLoginService:
                 outcome, warn = "unusable_login", True
             bound = await self._finish_attempt(
                 project_id=project_id,
+                organization_id=organization_id,
                 secret_id=secret_id,
                 attempt_id=attempt_id,
                 state=state,
@@ -634,7 +678,8 @@ class SubscriptionLoginService:
     async def push_login(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         login: Dict[str, Any],
         version: int,
@@ -647,6 +692,7 @@ class SubscriptionLoginService:
         """
         secret = await self._load(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             provider=SubscriptionProviderKind.CHATGPT,
         )
@@ -687,6 +733,7 @@ class SubscriptionLoginService:
 
         await self._apply(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             user_id=None,
             build_changes=build_changes,
@@ -697,7 +744,8 @@ class SubscriptionLoginService:
     async def report_login_failure(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         version: int,
         generation: int,
@@ -710,6 +758,7 @@ class SubscriptionLoginService:
         """
         secret = await self._load(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             provider=SubscriptionProviderKind.CHATGPT,
         )
@@ -745,6 +794,7 @@ class SubscriptionLoginService:
 
         await self._apply(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             user_id=None,
             build_changes=build_changes,
@@ -757,7 +807,8 @@ class SubscriptionLoginService:
     async def _finish_attempt(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         attempt_id: str,
         state: str,
@@ -817,6 +868,7 @@ class SubscriptionLoginService:
 
         await self._apply(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             user_id=None,
             build_changes=build_changes,
@@ -827,7 +879,8 @@ class SubscriptionLoginService:
     async def _clear_attempt(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         user_id: Optional[UUID],
         attempt_id: str,
@@ -861,6 +914,7 @@ class SubscriptionLoginService:
 
         await self._apply(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             user_id=user_id,
             build_changes=build_changes,

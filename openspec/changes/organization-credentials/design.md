@@ -14,7 +14,7 @@ M7 adds `secrets.user_id`. A user row also carries `organization_id`, so M7 repl
 
 ### D2. Shareable kinds
 
-`ORGANIZATION_SECRET_KINDS = {provider_key, custom_provider}`. An organization `provider_key` must name an LLM provider family. A `custom_provider` whose deployment kind the gateway does not serve is refused at creation, at update and at resolution, because its value could reach a run only in plaintext. The served deployments are an explicit set, `LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS`, pinned by a test against the passthrough auth table; today Bedrock and SageMaker are not served. `custom_secret` (plaintext by design) and the feature-owned kinds stay project-owned. `sso_provider` stays organization-only and is never shared. Every organization DAO operation filters `kind IN ORGANIZATION_SECRET_KINDS`, so an SSO id answers 404 on every organization route.
+`ORGANIZATION_SECRET_KINDS = {provider_key, custom_provider, subscription_provider}`; the gateway serves `ORGANIZATION_GATEWAY_KINDS = {provider_key, custom_provider}` only (see D9 for subscription logins). An organization `provider_key` must name an LLM provider family. A `custom_provider` whose deployment kind the gateway does not serve is refused at creation, at update and at resolution, because its value could reach a run only in plaintext. The served deployments are an explicit set, `LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS`, pinned by a test against the passthrough auth table; today Bedrock and SageMaker are not served. `custom_secret` (plaintext by design) and the feature-owned kinds stay project-owned. `sso_provider` stays organization-only and is never shared. Every organization DAO operation filters `kind IN ORGANIZATION_SECRET_KINDS`, so an SSO id answers 404 on every organization route.
 
 An organization credential value (the primary value and every credential extras value) is stripped of surrounding whitespace and must then be at least 8 characters (`MIN_SCANNED_CREDENTIAL_LENGTH`), so the gateway's echo scan covers every organization value. The passthrough adapter scans every value of an organization secret, not only the injected auth headers.
 
@@ -78,6 +78,21 @@ Rule, in order:
 3. The organization role is `owner` or `admin`, else `missing_capability`. M1 guarantees the owner an `owner` row.
 
 The rule is the same in OSS and EE. It reads no entitlement, project row, project role or custom role, so the EE no-RBAC bypass and the owner shortcut of project RBAC do not apply. It lives in `api/oss/src/core/access/organizations.py` and returns M2's `Decision`. Routes read `get_request_access()` and `request.state.organization_id`.
+
+### D9. Organization subscription logins (owner decision, 2026-10-26)
+
+An organization may hold a ChatGPT or Claude subscription login. It is created and signed in only by an organization owner or admin (`/organization-secrets/`, with its own `login-attempts` and `subscription-token` routes behind the organization decision), named with its owner ("ChatGPT (Organization)") and available to all projects by default. An agent uses it only when it names it: `{"mode": "self_managed", "scope": "organization", "namespace": "organization", "slug": ...}`.
+
+A subscription login is the one organization value that leaves the API, because the harness authenticates itself with it. It must still never reach a sandbox. The default engine, `inprocess`, runs Pi inside the runner process and keeps the login in the runner's `SubscriptionCredentialStore`; the Daytona sandbox runs only shell commands. The `daytona` sandbox_agent engine and the `local` engine write the login where agent code can read it, so they refuse an organization login.
+
+Where each check runs, given runner and services version skew:
+
+- The API releases the login only to the run's own credential (`secret-resolve` grant) of a project it is available to, from `GET /secrets/organization-subscriptions/{slug}` (not in the OpenAPI schema). The plaintext vault list never carries it.
+- The SDK puts the login in its own wire field, `organizationSubscription`, never in `subscription`. A runner older than M5 does not read that field, so it never runs the login on any engine; the run then has no login and fails (a self-host runner with an operator login would use the operator login, never the organization's).
+- The runner checks the engine when it builds the run plan (`sandboxId === "inprocess"`, Pi with a ChatGPT login, runtime-provided credentials, no project `subscription` on the same run) and refuses otherwise with `ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE`.
+- An organization Claude login is refused in the SDK (`organization_subscription_not_supported`), because its token travels as an environment value.
+
+Upkeep writes the organization row: the runner sends refreshes and failures with `?scope=organization`, and the API checks that the login is available to the run's project. A device login attempt carries `organizationId` instead of `projectId`, and its outcome names exactly one owner.
 
 ## Routes
 

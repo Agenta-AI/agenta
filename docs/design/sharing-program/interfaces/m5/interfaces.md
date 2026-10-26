@@ -7,8 +7,8 @@ Normative names come from `docs/design/sharing-program/CONTRACT.md` (v3, section
 Owner decisions applied (DECISIONS.md, M5 lines):
 
 - An agent uses exactly the connection it picked, by scope (`project` or `organization`) and slug. Nothing is inherited or overridden automatically; an agent with no connection keeps the project default (option B, 2026-10-26).
-- Organization subscription logins are not supported (M7 owns personal logins).
-- Organization credential values never reach a sandbox.
+- Organization subscription logins (ChatGPT, Claude) are allowed (2026-10-26). An agent uses one only when it names it; it runs only on the `inprocess` engine (section 4.5). M7 owns personal logins.
+- Organization credential values never reach a sandbox. An organization subscription login reaches the runner process only, never the sandbox.
 - Legacy completion and chat apps cannot use organization credentials (2026-10-25). In the code this is every workflow that loads the vault through the SDK `VaultMiddleware`: completion and chat apps, the prompt playground, and LLM-as-a-judge and other AI evaluators. Only agents, through the LLM gateway, use organization credentials.
 - Organization owners and admins manage organization credentials, in both editions, with one rule (2026-10-25).
 - The EE project limit reuses the RBAC entitlement (`Flag.RBAC`). There is no new plan flag (2026-10-25).
@@ -121,7 +121,8 @@ class SecretAvailability(str, Enum):       # NEW
     ALL_PROJECTS = "all_projects"
     SELECTED_PROJECTS = "selected_projects"
 
-ORGANIZATION_SECRET_KINDS = frozenset({SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER})   # NEW
+ORGANIZATION_SECRET_KINDS = frozenset({SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER, SecretKind.SUBSCRIPTION_PROVIDER})   # NEW
+ORGANIZATION_GATEWAY_KINDS = frozenset({SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER})   # NEW: what the LLM gateway serves
 ```
 
 ### 2.2 `oss/src/core/secrets/dtos.py` (MODIFIED)
@@ -351,12 +352,14 @@ It reads no entitlement, project row, project role or custom role, in OSS and EE
 - `project_secret_response(secret, *, reveal_write_only)` never reveals a value when `secret.owner.kind == ORGANIZATION`, whatever `reveal_write_only` says. It also leaves `value_status.preview` empty for organization rows (no partial value; the design board's question G3 is open, see technical design section 12).
 - NEW `organization_connection_response(secret) -> PublicSecretResponseDTO`: an organization row as a member of a project it is available to sees it: owner, kind, slug, header, provider family, the non-credential `data` fields (for example the base URL and models of a custom provider), `value_status.configured`, no preview. It drops `availability` and `selected_project_ids` (other projects' ids never reach a project member) and every credential field, through the same `CREDENTIAL_FIELDS` / `CREDENTIAL_MAP_FIELDS` tables.
 - NEW `organization_secret_response(secret) -> PublicOrganizationSecretResponse`: the public projection without values, plus `availability` and `selected_project_ids`.
+- NEW `organization_subscription_for_runtime(secret) -> PublicSecretResponseDTO`: an organization `subscription_provider` row with its login, for the release route of section 4.5 only. Raises `ValueError` for any other row.
 
 ### 3.9 SDK connection (`sdks/python/agenta/sdk/agents/connections/models.py`, `platform/connections.py`, `wire_models.py`, MODIFIED)
 
 - `Connection.scope: Optional["project" | "organization"]` (omitted means project). `ConnectionNamespace` gains `"organization"`. Scope `organization` needs mode `agenta` and a slug; the model fills namespace `organization` when it is omitted and refuses another namespace. Namespace `organization` needs scope `organization`.
 - Fail closed across versions: a services image older than M5 has no `organization` namespace in its `Literal`, so it refuses the saved connection instead of reading the slug as a project connection. The runner holds no provider key in gateway mode, so its version does not matter.
 - `VaultConnectionResolver.resolve` sends `connection_scope` with `connection_slug` and `connection_namespace`. When the gateway does not serve the run (`llm_gateway_disabled`), an organization connection raises `OrganizationConnectionUnavailableError` (`organization_connection_unavailable`, 422) and the vault is not read. The plaintext path `_resolve_from_secrets` and `EnvConnectionResolver` refuse an organization connection the same way.
+- An organization subscription login (`{"mode": "self_managed", "scope": "organization", "slug": ...}`) is read from `GET /secrets/organization-subscriptions/{slug}`, never from `GET /secrets/`. `ResolvedSubscription.owner` is `organization`, and `ResolvedConnection.to_wire()` puts it under `organizationSubscription`, never `subscription`. An organization Claude login raises `OrganizationSubscriptionNotSupportedError` (`organization_subscription_not_supported`, 422).
 - `WireConnection.scope` (omitted for the project) and `HarnessAgentTemplate.wire_connection_ref` carry it to the runner; routing does not depend on it, because the resolved route already points at the `organization` namespace. `custom_connection` comes from the resolution's `custom_provider` for an organization route.
 
 ---
@@ -375,6 +378,10 @@ Every route calls `decide_organization(access=get_request_access(), organization
 | PUT | `/organization-secrets/{secret_id}` | `edit_organization_secret` | `OrganizationSecretEditRequest` (keeps the value when omitted) | `PublicOrganizationSecretResponse` |
 | DELETE | `/organization-secrets/{secret_id}` | `delete_organization_secret` | none | 204 |
 | PUT | `/organization-secrets/{secret_id}/projects` | `set_organization_secret_projects` | `OrganizationSecretProjectsRequest {availability, project_ids}` | `PublicOrganizationSecretResponse` |
+| PUT | `/organization-secrets/{secret_id}/subscription-token` | `set_organization_subscription_token` | the project route's token body | `PublicOrganizationSecretResponse` |
+| POST | `/organization-secrets/{secret_id}/login-attempts` | `start_organization_subscription_login` | none | `SubscriptionLoginAttemptResponse` |
+| GET | `/organization-secrets/{secret_id}/login-attempts/{attempt_id}` | `read_organization_subscription_login` | none | `SubscriptionLoginAttemptResponse` |
+| POST | `/organization-secrets/{secret_id}/login-attempts/{attempt_id}/cancel` | `cancel_organization_subscription_login` | none | `SubscriptionLoginAttemptResponse` |
 
 - `OrganizationSecretCreateRequest` = `CreateSecretDTO` without `management` (`extra="forbid"`). An optional `slug` is accepted (OpenSpec scenario "duplicate organization slug"); without one the server derives `<name>-<12 hex>` as for projects. `availability` and `project_ids` are optional on create (default all projects) and go through the same limit checks as the projects route.
 - `OrganizationSecretEditRequest` = `UpdateSecretDTO` (header and secret; the same keep-on-omit merge under the row lock).
@@ -390,7 +397,10 @@ Every route calls `decide_organization(access=get_request_access(), organization
 | `POST /secrets/` | Project row, unchanged. A project row may use an organization row's slug. |
 | `PUT /secrets/{id}` | Project row, unchanged. An organization id answers 404. |
 | `DELETE /secrets/{id}` | Project row. An organization id answers 204, as an unknown id does today, and the row stays. |
-| Subscription routes | Unchanged. |
+| `GET /secrets/organization-subscriptions/{slug}` | NEW, not in the OpenAPI schema. Section 4.5. |
+| `POST /secrets/{id}/subscription-login`, `.../failure` | NEW query parameter `scope: "project" \| "organization" = "project"`. With `organization`, the row is the organization's and must be available to the run's project; otherwise 404. |
+| `POST /secrets/subscription-login/attempts/{attempt_id}/outcome` | The body names exactly one of `project_id` and `organization_id` (422 otherwise). |
+| Other subscription routes | Unchanged. |
 
 The response model of `GET /secrets/` stays `List[PublicSecretResponseDTO]`; `owner.kind` tells the scope. The Fern client is regenerated from an EE spec served over HTTP.
 
@@ -401,6 +411,13 @@ The response model of `GET /secrets/` stays `List[PublicSecretResponseDTO]`; `ow
 ### 4.4 Agent commit check (`oss/src/core/workflows/service.py`, MODIFIED)
 
 `_reject_unrunnable_agent_connection(data)` runs where the instructions check runs (every revision commit and the simple workflow writes). It refuses with 422 `invalid_agent_connection` (`details.reason`): an organization connection without scope `organization`, namespace `organization` and a slug (`organization_connection_incomplete`); and, with `AGENTA_RUNNER_REQUIRE_NAMED_SELF_MANAGED_CONNECTION=true` (the cloud), a `self_managed` connection without a slug (`self_managed_without_slug`). The template compiler writes `{"mode": "agenta", "scope": "project"}` when the base revision names no connection.
+
+### 4.5 Organization subscription logins (2026-10-26)
+
+- Create and sign-in: `/organization-secrets/` with kind `subscription_provider`, then the `login-attempts` or `subscription-token` routes of section 4.1, all behind the organization decision. The default name is "ChatGPT (Organization)" or "Claude (Organization)"; the slug is the provider id; availability starts at all projects.
+- Release: `GET /secrets/organization-subscriptions/{slug}` answers the row with its login only to the `secret-resolve` grant (403 otherwise) with `VIEW_SECRET`, and only when the row is an organization `subscription_provider` available to the run's project (404 otherwise). It logs the project and secret ids only.
+- Runner (`services/runner/src/engines/sandbox_agent/run-plan.ts`): the request field `organizationSubscription` is used only when `sandboxId === "inprocess"`, the harness is Pi with a ChatGPT login, the credential mode is `runtime_provided`, and the run carries no project `subscription`. Otherwise the plan build refuses with `ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE`. A runner older than M5 ignores the field.
+- Upkeep: the publisher appends `?scope=organization` to the push and failure URLs; device login attempts carry `organizationId` (start body: exactly one of `projectId` and `organizationId`) and report `organization_id`.
 
 ---
 
@@ -418,6 +435,8 @@ Bodies keep the vault router's existing shape (`{"detail": <message>}` through `
 | Named organization connection missing or not available (resolve, relay) | 404 | `connection_not_found` envelope with `details: {scope, slug}` |
 | Organization scope without a slug, or with another namespace (resolve) | 422 | `organization_connection_slug_required` envelope |
 | Agent saved with an incomplete organization connection, or `self_managed` without a slug on the cloud | 422 | `invalid_agent_connection` envelope with `details.reason` |
+| Organization Claude login named by an agent (SDK) | 422 | `organization_subscription_not_supported` |
+| Organization subscription login on the `daytona` or `local` engine (runner) | run error | `ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE` |
 | Limit not allowed (OSS, or EE without RBAC) | 403 | "Limiting a credential to selected projects is not available for this organization." |
 | Foreign or unknown project in a limit | 422 | "Every project must belong to this organization." |
 | Unknown organization credential id | 404 | "Secret not found" (today's text) |

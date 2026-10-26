@@ -44,6 +44,7 @@ from ..connections import (
     MissingCredentialError,
     MissingProviderError,
     OrganizationConnectionUnavailableError,
+    OrganizationSubscriptionNotSupportedError,
     ModelRef,
     ProviderMismatchError,
     ResolvedConnection,
@@ -682,8 +683,14 @@ def _resolve_subscription(
     model: ModelRef,
     slug: str,
     harness: Optional[str] = None,
+    organization: bool = False,
 ) -> ResolvedConnection:
     """Resolve a ``self_managed`` connection that names a hosted subscription secret.
+
+    With ``organization``, ``secrets`` holds the one organization login the API released
+    for this run (M5). Only a ChatGPT login on its harness is accepted: it travels as
+    ``organizationSubscription`` and stays in the runner process. A Claude setup-token
+    would travel as an environment value into the sandbox, so it is refused.
 
     A ChatGPT login stays ``runtime_provided``: the harness authenticates itself with the
     login Agenta delivers as the ``subscription`` block, and refreshes it during the turn. A
@@ -720,6 +727,10 @@ def _resolve_subscription(
         raise SubscriptionLoginRequiredError(slug=slug, provider=chosen.provider)
 
     provider = run.provider
+    if organization and chosen.provider == "claude":
+        raise OrganizationSubscriptionNotSupportedError(
+            slug=slug, provider=chosen.provider
+        )
     if chosen.provider == "claude":
         return build_resolved_connection(
             provider=provider,
@@ -747,6 +758,7 @@ def _resolve_subscription(
             version=chosen.version,
             generation=chosen.generation,
             login=chosen.login,
+            owner="organization" if organization else "project",
         ),
     )
 
@@ -874,6 +886,11 @@ def _resolve_from_secrets(
         model = model.model_copy(update={"provider": inferred})
     if connection.mode == "self_managed":
         subscription_slug = _stripped(connection.slug)
+        if connection.is_organization:
+            # The rows here are the project's; an organization login is released by its own
+            # route (`VaultConnectionResolver`), and a project login with the same slug never
+            # stands in for it.
+            raise OrganizationConnectionUnavailableError(slug=subscription_slug or "")
         if subscription_slug:
             # A named self-managed connection is a hosted subscription: Agenta stores the
             # login and delivers it. An unnamed one is the operator mount on the runner.
@@ -1046,6 +1063,54 @@ class VaultConnectionResolver:
         except GatewayCredentialsError as exc:
             raise ConnectionResolutionError(str(exc)) from exc
 
+    async def _resolve_organization_subscription(
+        self,
+        *,
+        api_base: str,
+        authorization: Optional[str],
+        model: ModelRef,
+        slug: str,
+        context: RuntimeAuthContext,
+    ) -> ResolvedConnection:
+        """An organization subscription login the agent named (M5).
+
+        The API releases it to the run's own credential only, from its own route; the
+        plaintext vault list never carries organization rows."""
+        try:
+            async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
+                response = await client.get(
+                    f"{api_base}/secrets/organization-subscriptions/{slug}",
+                    headers=self._connection.headers(authorization=authorization),
+                )
+        except Exception as exc:  # pylint: disable=broad-except
+            log.warning("agent: organization subscription fetch failed", exc_info=True)
+            raise ConnectionResolutionError(
+                "connection resolution request failed"
+            ) from exc
+
+        if response.status_code == 404:
+            raise SubscriptionConnectionMissingError(slug=slug)
+        if response.status_code >= 400:
+            try:
+                body = response.json()
+            except Exception:  # pylint: disable=broad-except
+                body = None
+            if is_access_refusal(status_code=response.status_code, body=body):
+                raise ConnectionAccessDeniedError.from_response(
+                    status_code=response.status_code, body=body
+                )
+            raise ConnectionResolutionError(
+                f"organization subscription fetch returned HTTP {response.status_code}"
+            )
+
+        return _resolve_subscription(
+            secrets=[response.json() or {}],
+            model=model,
+            slug=slug,
+            harness=context.harness,
+            organization=True,
+        )
+
     async def _resolve_from_vault(
         self,
         *,
@@ -1127,6 +1192,14 @@ class VaultConnectionResolver:
             if not api_base:
                 raise ConnectionResolutionError(
                     "no Agenta backend configured for connection resolution"
+                )
+            if model.connection.is_organization:
+                return await self._resolve_organization_subscription(
+                    api_base=api_base,
+                    authorization=self._connection.authorization(),
+                    model=model,
+                    slug=slug,
+                    context=context,
                 )
             return await self._resolve_from_vault(
                 api_base=api_base,

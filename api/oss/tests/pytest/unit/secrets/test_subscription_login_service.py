@@ -217,11 +217,18 @@ class _FakeRunner:
     def calls(self) -> int:
         return self.started + len(self.deleted)
 
-    async def start_attempt(self, *, provider, project_id, secret_id):
+    async def start_attempt(
+        self, *, provider, project_id, secret_id, organization_id=None
+    ):
         self.started += 1
-        self.started_with.append(
-            {"provider": provider, "project_id": project_id, "secret_id": secret_id}
-        )
+        started = {
+            "provider": provider,
+            "project_id": project_id,
+            "secret_id": secret_id,
+        }
+        if organization_id is not None:
+            started["organization_id"] = organization_id
+        self.started_with.append(started)
         if self.raises is not None:
             raise self.raises
         answer = self.starts.pop(0) if self.starts else None

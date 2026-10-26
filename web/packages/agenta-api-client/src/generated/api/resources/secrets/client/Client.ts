@@ -721,7 +721,10 @@ export class SecretsClient {
         request: AgentaApi.SubscriptionLoginPushRequest,
         requestOptions?: SecretsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SubscriptionLoginPushResponse>> {
-        const { secret_id: secretId, ..._body } = request;
+        const { secret_id: secretId, scope, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -738,7 +741,7 @@ export class SecretsClient {
             method: "POST",
             headers: _headers,
             contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             requestType: "json",
             body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
@@ -804,7 +807,10 @@ export class SecretsClient {
         request: AgentaApi.SubscriptionLoginFailureRequest,
         requestOptions?: SecretsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SubscriptionLoginFailureResponse>> {
-        const { secret_id: secretId, ..._body } = request;
+        const { secret_id: secretId, scope, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -821,7 +827,7 @@ export class SecretsClient {
             method: "POST",
             headers: _headers,
             contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             requestType: "json",
             body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,

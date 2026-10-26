@@ -1163,7 +1163,10 @@ _t_routers = time.perf_counter()
 
 # ROUTERS ----------------------------------------------------------------------
 
-organization_secrets = OrganizationSecretsRouter(vault_service=vault_service)
+organization_secrets = OrganizationSecretsRouter(
+    vault_service=vault_service,
+    subscription_login_service=subscription_login_service,
+)
 
 secrets = VaultRouter(
     vault_service=vault_service,

@@ -191,7 +191,14 @@ class _FakeRunner:
         self.deleted: list = []
         self.deleted_at: list = []
 
-    async def start_attempt(self, *, provider, project_id, secret_id):
+    async def start_attempt(
+        self, *, provider, project_id, secret_id, organization_id=None
+    ):
+        self.started = {
+            "project_id": project_id,
+            "organization_id": organization_id,
+            "secret_id": secret_id,
+        }
         if self.raises is not None:
             raise self.raises
         return self.next_attempt

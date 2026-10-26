@@ -22,7 +22,7 @@ from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
     SecretValueStatus,
 )
-from oss.src.core.secrets.enums import SecretOwnerKind
+from oss.src.core.secrets.enums import SecretKind, SecretOwnerKind
 
 
 # EVERY credential-bearing field per secret kind, as (container attribute, field names).
@@ -189,9 +189,37 @@ def project_secret_response(
     """Build the public response, optionally retaining a write-only value for runtime.
 
     An organization row is never revealed, whatever `reveal_write_only` says, and has no
-    preview: no HTTP response carries an organization value or a part of one (M5)."""
+    preview: no HTTP response carries an organization value or a part of one (M5). The one
+    exception is `organization_subscription_for_runtime`."""
+    return _projected(secret, reveal_write_only=reveal_write_only)
+
+
+def organization_subscription_for_runtime(
+    secret: SecretResponseDTO,
+) -> PublicSecretResponseDTO:
+    """An organization subscription login in plaintext, for the platform runtime only.
+
+    An organization subscription login is the one organization value that leaves the API
+    (M5): the run that named it carries it to the runner process, which uses it only on the
+    `inprocess` engine and never writes it into a sandbox. The caller holds the
+    `secret-resolve` grant (the run's own credential). Every other organization value stays
+    in the API."""
+    if (
+        not _is_organization_row(secret)
+        or secret.kind != SecretKind.SUBSCRIPTION_PROVIDER
+    ):
+        raise ValueError("Only an organization subscription login is released.")
+    return _projected(secret, reveal_write_only=True, release_organization_login=True)
+
+
+def _projected(
+    secret: SecretResponseDTO,
+    *,
+    reveal_write_only: bool,
+    release_organization_login: bool = False,
+) -> PublicSecretResponseDTO:
     organization_row = _is_organization_row(secret)
-    if organization_row:
+    if organization_row and not release_organization_login:
         reveal_write_only = False
 
     public_data = secret.model_dump(mode="python", exclude={"management"})

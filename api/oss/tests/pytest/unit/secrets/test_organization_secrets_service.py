@@ -116,19 +116,10 @@ async def test_derived_slug_and_name_for_an_unnamed_key(world):
     assert created.slug and len(created.slug.rsplit("-", 1)[-1]) == 12
 
 
-async def test_refuses_custom_secret_subscription_and_sso_kinds(world):
+async def test_refuses_custom_secret_and_sso_kinds(world):
     vault = world["vault"]()
     for dto in (
         _custom_secret(),
-        CreateSecretDTO.model_validate(
-            {
-                "header": {"name": "ChatGPT"},
-                "secret": {
-                    "kind": "subscription_provider",
-                    "data": {"provider": "chatgpt"},
-                },
-            }
-        ),
         CreateSecretDTO.model_validate(
             {
                 "header": {"name": "SSO"},
@@ -153,6 +144,32 @@ async def test_refuses_custom_secret_subscription_and_sso_kinds(world):
                 user_id=uuid4(),
             )
     assert world["dao"].records == {}
+
+
+async def test_an_organization_subscription_login_is_created_pending_for_all_projects(
+    world,
+):
+    """An organization may hold a subscription login (M5). It is created without a login,
+    named with its owner, available to all projects, and gets no gateway endpoint row."""
+    created = await world["vault"]().create_organization_secret(
+        organization_id=world["organization_id"],
+        create_secret_dto=CreateSecretDTO.model_validate(
+            {
+                "header": {"description": "shared login"},
+                "secret": {
+                    "kind": "subscription_provider",
+                    "data": {"provider": "chatgpt"},
+                },
+            }
+        ),
+        user_id=uuid4(),
+    )
+    assert created.owner.kind == SecretOwnerKind.ORGANIZATION
+    assert created.header.name == "ChatGPT (Organization)"
+    assert created.slug == "chatgpt"
+    assert created.availability == SecretAvailability.ALL_PROJECTS
+    assert created.data.login_state == "pending_login"
+    assert world["registrar"].calls == []
 
 
 async def test_refuses_a_non_llm_provider_family(world):

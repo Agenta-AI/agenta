@@ -9,6 +9,7 @@ from oss.src.core.secrets.redaction import (
     CREDENTIAL_FIELDS,
     organization_connection_response,
     organization_secret_response,
+    organization_subscription_for_runtime,
     project_secret_response,
 )
 from oss.tests.pytest.utils.organization_secrets import SENTINEL_KEY
@@ -86,3 +87,50 @@ def test_organization_projection_keeps_availability_and_selected_projects(kind):
     assert SENTINEL_KEY not in projected.model_dump_json()
     assert projected.availability == row.availability
     assert projected.selected_project_ids == row.selected_project_ids
+
+
+def _subscription_row(owner_kind: str) -> SecretResponseDTO:
+    return SecretResponseDTO.model_validate(
+        {
+            "id": str(uuid4()),
+            "slug": "chatgpt",
+            "kind": "subscription_provider",
+            "data": {
+                "provider": "chatgpt",
+                "login": {"type": "oauth", "access": SENTINEL_KEY, "refresh": "r"},
+                "login_state": "ready",
+            },
+            "header": {"name": "ChatGPT (Organization)"},
+            "write_only": True,
+            "owner": {"kind": owner_kind, "id": str(ORGANIZATION)},
+            "availability": "all_projects",
+        }
+    )
+
+
+def test_an_organization_subscription_login_is_hidden_from_every_ordinary_read():
+    row = _subscription_row("organization")
+    for projected in (
+        project_secret_response(row, reveal_write_only=True),
+        organization_connection_response(row),
+        organization_secret_response(row),
+    ):
+        assert SENTINEL_KEY not in projected.model_dump_json()
+
+
+def test_only_the_runtime_release_carries_the_organization_login():
+    released = organization_subscription_for_runtime(_subscription_row("organization"))
+    assert released.data.login.access == SENTINEL_KEY
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        lambda: _subscription_row("project"),
+        lambda: _row("provider_key"),
+        lambda: _row("custom_provider"),
+    ],
+)
+def test_the_runtime_release_refuses_every_other_row(row):
+    with pytest.raises(ValueError):
+        organization_subscription_for_runtime(row())

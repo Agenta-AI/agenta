@@ -119,6 +119,10 @@ Access layer invariants (agent and session sharing):
 - Audit events carry identifiers, never credential values.
 
 Organization-scoped decisions and organization credentials (M5):
+- An organization subscription login (`subscription_provider` in `ORGANIZATION_SECRET_KINDS`,
+  never in `ORGANIZATION_GATEWAY_KINDS`) is the one organization value that leaves the API:
+  only to the run credential, from `GET /secrets/organization-subscriptions/{slug}`, through
+  `organization_subscription_for_runtime`. The runner uses it only on the `inprocess` engine.
 
 - Organization-scoped actions are decided only by `decide_organization`
   (`oss/src/core/access/organizations.py`). It allows a browser-session human acting as

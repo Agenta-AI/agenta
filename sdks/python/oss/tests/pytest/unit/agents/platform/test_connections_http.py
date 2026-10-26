@@ -301,7 +301,7 @@ async def test_an_organization_pick_sends_its_scope_and_routes_in_its_namespace(
     "connection",
     [
         {"mode": "agenta", "scope": "organization"},
-        {"mode": "self_managed", "slug": "x", "scope": "organization"},
+        {"mode": "self_managed", "scope": "organization"},
         {"mode": "agenta", "slug": "x", "namespace": "organization"},
         {
             "mode": "agenta",
@@ -310,7 +310,12 @@ async def test_an_organization_pick_sends_its_scope_and_routes_in_its_namespace(
             "namespace": "custom",
         },
     ],
-    ids=["no-slug", "self-managed", "namespace-without-scope", "other-namespace"],
+    ids=[
+        "no-slug",
+        "self-managed-no-slug",
+        "namespace-without-scope",
+        "other-namespace",
+    ],
 )
 def test_an_organization_connection_needs_scope_slug_and_its_namespace(connection):
     with pytest.raises(ValueError):
@@ -1997,3 +2002,78 @@ async def test_a_route_without_a_protocol_puts_none_on_the_wire(fake_http, conne
 
     assert resolved.protocol is None
     assert "protocol" not in resolved.to_wire()
+
+
+# ------------------------------------- organization subscription login (M5, inprocess only)
+
+
+def _organization_subscription_model(slug: str = "chatgpt", provider="openai-codex"):
+    return ModelRef(
+        provider=provider,
+        model="gpt-5.5",
+        connection={"mode": "self_managed", "slug": slug, "scope": "organization"},
+    )
+
+
+async def test_an_organization_subscription_reads_its_own_route_and_rides_its_own_wire_key(
+    fake_http, connection
+):
+    secret = _subscription_secret()
+    secret["owner"] = {"kind": "organization", "id": "org-1"}
+    capture = fake_http(connections, payload=secret)
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_organization_subscription_model(), context=_context()
+    )
+
+    # Never the plaintext vault list: the API releases the login to the run's credential
+    # from its own route.
+    assert capture["method"] == "GET"
+    assert (
+        capture["url"] == "https://api.x/api/secrets/organization-subscriptions/chatgpt"
+    )
+    assert resolved.credential_mode == "runtime_provided"
+    assert resolved.subscription is not None
+    assert resolved.subscription.owner == "organization"
+    assert resolved.subscription.login == _READY_LOGIN
+    wire = resolved.to_wire()
+    # A runner older than M5 does not read this key, so it never runs the login at all.
+    assert "subscription" not in wire
+    assert wire["organizationSubscription"]["slug"] == "chatgpt"
+
+
+async def test_a_project_subscription_keeps_the_subscription_wire_key(
+    fake_http, connection
+):
+    fake_http(connections, payload=[_subscription_secret()])
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_subscription_model(), context=_context()
+    )
+    wire = resolved.to_wire()
+    assert "organizationSubscription" not in wire
+    assert wire["subscription"]["slug"] == "chatgpt"
+
+
+async def test_a_missing_organization_subscription_is_typed(fake_http, connection):
+    fake_http(connections, status=404, payload={"detail": "Secret not found"})
+    with pytest.raises(SubscriptionConnectionMissingError):
+        await VaultConnectionResolver(connection).resolve(
+            model=_organization_subscription_model(), context=_context()
+        )
+
+
+async def test_an_organization_claude_login_is_refused(fake_http, connection):
+    """A Claude setup-token travels as an environment value into the harness process, so
+    an organization Claude login is refused; a project Claude login is unchanged."""
+    from agenta.sdk.agents.connections import OrganizationSubscriptionNotSupportedError
+
+    secret = _subscription_secret(slug="claude")
+    secret["data"]["provider"] = "claude"
+    secret["data"]["harnesses"] = ["claude"]
+    secret["data"]["login"] = {"type": "token", "access": "sk-ant-oat01-x"}
+    fake_http(connections, payload=secret)
+    with pytest.raises(OrganizationSubscriptionNotSupportedError):
+        await VaultConnectionResolver(connection).resolve(
+            model=_organization_subscription_model(slug="claude", provider="anthropic"),
+            context=RuntimeAuthContext(harness="claude", backend="local"),
+        )

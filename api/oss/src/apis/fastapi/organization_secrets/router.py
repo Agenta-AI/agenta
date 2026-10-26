@@ -9,6 +9,7 @@ answers 404. No response carries a credential value or a part of one.
 """
 
 from functools import wraps
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, Response, status
@@ -18,10 +19,16 @@ from oss.src.apis.fastapi.organization_secrets.models import (
     OrganizationSecretCreateRequest,
     OrganizationSecretEditRequest,
     OrganizationSecretProjectsRequest,
+    OrganizationSubscriptionTokenRequest,
     PublicOrganizationSecretResponse,
     PublicOrganizationSecretsResponse,
 )
-from oss.src.apis.fastapi.vault.router import SecretSafeRoute
+from oss.src.apis.fastapi.vault.models import SubscriptionLoginAttemptResponse
+from oss.src.apis.fastapi.vault.router import (
+    SecretSafeRoute,
+    _attempt_response,
+    handle_subscription_exceptions,
+)
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.organizations import OrganizationAction, decide_organization
 from oss.src.core.secrets.dtos import (
@@ -32,6 +39,7 @@ from oss.src.core.secrets.dtos import (
 )
 from oss.src.core.secrets.redaction import organization_secret_response
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.core.secrets.types import (
     OrganizationSecretKindNotShareable,
     OrganizationSecretNotFound,
@@ -104,8 +112,14 @@ def _response(secret: SecretResponseDTO) -> PublicOrganizationSecretResponse:
 
 
 class OrganizationSecretsRouter:
-    def __init__(self, *, vault_service: VaultService):
+    def __init__(
+        self,
+        *,
+        vault_service: VaultService,
+        subscription_login_service: Optional[SubscriptionLoginService] = None,
+    ):
         self.service = vault_service
+        self.subscription_login_service = subscription_login_service
         self.router = APIRouter(route_class=SecretSafeRoute)
 
         self.router.add_api_route(
@@ -147,6 +161,37 @@ class OrganizationSecretsRouter:
             operation_id="delete_organization_secret",
             status_code=status.HTTP_204_NO_CONTENT,
         )
+        # An organization subscription login signs in here, as a project's does on
+        # `/secrets/{id}/login-attempts` and `/secrets/{id}/subscription-token`.
+        self.router.add_api_route(
+            "/organization-secrets/{secret_id}/subscription-token",
+            self.set_organization_subscription_token,
+            methods=["PUT"],
+            operation_id="set_organization_subscription_token",
+            response_model=PublicOrganizationSecretResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/organization-secrets/{secret_id}/login-attempts",
+            self.start_organization_subscription_login,
+            methods=["POST"],
+            operation_id="start_organization_subscription_login",
+            response_model=SubscriptionLoginAttemptResponse,
+        )
+        self.router.add_api_route(
+            "/organization-secrets/{secret_id}/login-attempts/{attempt_id}",
+            self.read_organization_subscription_login,
+            methods=["GET"],
+            operation_id="read_organization_subscription_login",
+            response_model=SubscriptionLoginAttemptResponse,
+        )
+        self.router.add_api_route(
+            "/organization-secrets/{secret_id}/login-attempts/{attempt_id}/cancel",
+            self.cancel_organization_subscription_login,
+            methods=["POST"],
+            operation_id="cancel_organization_subscription_login",
+            response_model=SubscriptionLoginAttemptResponse,
+        )
         self.router.add_api_route(
             "/organization-secrets/{secret_id}/projects",
             self.set_organization_secret_projects,
@@ -187,8 +232,14 @@ class OrganizationSecretsRouter:
         organization_id = await self._organization_id(request)
         if organization_id is None:
             return self._denied()
+        # `exclude_unset` keeps what the caller stated, so a subscription's server-owned
+        # defaults (login state, version) do not read as written by the caller.
         create_secret_dto = CreateSecretDTO.model_validate(
-            body.model_dump(mode="python", exclude={"availability", "project_ids"})
+            body.model_dump(
+                mode="python",
+                exclude={"availability", "project_ids"},
+                exclude_unset=True,
+            )
         )
         secret = await self.service.create_organization_secret(
             organization_id=organization_id,
@@ -281,3 +332,80 @@ class OrganizationSecretsRouter:
         if secret is None:
             raise OrganizationSecretNotFound()
         return _response(secret)
+
+    # -- organization subscription logins (M5) -------------------------------------
+
+    def _logins(self) -> SubscriptionLoginService:
+        if self.subscription_login_service is None:
+            raise OrganizationSecretNotFound()
+        return self.subscription_login_service
+
+    @intercept_exceptions()
+    @handle_organization_secret_exceptions()
+    @handle_subscription_exceptions()
+    async def set_organization_subscription_token(
+        self,
+        request: Request,
+        secret_id: UUID,
+        body: OrganizationSubscriptionTokenRequest,
+    ):
+        organization_id = await self._organization_id(request)
+        if organization_id is None:
+            return self._denied()
+        secret = await self._logins().set_subscription_token(
+            organization_id=organization_id,
+            secret_id=secret_id,
+            token=body.token,
+            user_id=self._user_id(request),
+        )
+        return _response(secret)
+
+    @intercept_exceptions()
+    @handle_organization_secret_exceptions()
+    @handle_subscription_exceptions()
+    async def start_organization_subscription_login(
+        self, request: Request, secret_id: UUID
+    ):
+        organization_id = await self._organization_id(request)
+        if organization_id is None:
+            return self._denied()
+        view = await self._logins().start_attempt(
+            organization_id=organization_id,
+            secret_id=secret_id,
+            user_id=self._user_id(request),
+        )
+        return _attempt_response(view)
+
+    @intercept_exceptions()
+    @handle_organization_secret_exceptions()
+    @handle_subscription_exceptions()
+    async def read_organization_subscription_login(
+        self, request: Request, secret_id: UUID, attempt_id: str
+    ):
+        organization_id = await self._organization_id(request)
+        if organization_id is None:
+            return self._denied()
+        view = await self._logins().read_attempt(
+            organization_id=organization_id,
+            secret_id=secret_id,
+            attempt_id=attempt_id,
+            user_id=self._user_id(request),
+        )
+        return _attempt_response(view)
+
+    @intercept_exceptions()
+    @handle_organization_secret_exceptions()
+    @handle_subscription_exceptions()
+    async def cancel_organization_subscription_login(
+        self, request: Request, secret_id: UUID, attempt_id: str
+    ):
+        organization_id = await self._organization_id(request)
+        if organization_id is None:
+            return self._denied()
+        view = await self._logins().cancel_attempt(
+            organization_id=organization_id,
+            secret_id=secret_id,
+            attempt_id=attempt_id,
+            user_id=self._user_id(request),
+        )
+        return _attempt_response(view)

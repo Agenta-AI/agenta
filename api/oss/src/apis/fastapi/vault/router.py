@@ -1,6 +1,6 @@
 from functools import wraps
 from uuid import UUID
-from typing import List
+from typing import List, Literal, Optional
 
 from oss.src.utils.logging import get_module_logger
 
@@ -19,9 +19,11 @@ from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
     PublicSecretResponseDTO,
 )
+from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.secrets.managed import ManagedSecretReadOnlyError
 from oss.src.core.secrets.redaction import (
     organization_connection_response,
+    organization_subscription_for_runtime,
     project_secret_response,
 )
 from oss.src.core.secrets.subscription_service import (
@@ -187,6 +189,16 @@ class VaultRouter:
             response_model_exclude_none=True,
             response_model=List[PublicSecretResponseDTO],
         )
+        # Before `/secrets/{secret_id_or_slug}` in reading order; two segments, so no clash.
+        self.router.add_api_route(
+            "/secrets/organization-subscriptions/{slug}",
+            self.read_organization_subscription,
+            methods=["GET"],
+            operation_id="read_organization_subscription",
+            response_model_exclude_none=True,
+            response_model=PublicSecretResponseDTO,
+            include_in_schema=False,
+        )
         self.router.add_api_route(
             "/secrets/{secret_id_or_slug}",
             self.read_secret,
@@ -285,6 +297,19 @@ class VaultRouter:
         )
 
     @staticmethod
+    def _organization_scope(request: Request, scope: str) -> Optional[UUID]:
+        """The organization a run's login upkeep addresses (M5): its organization row,
+        checked as available to the run's project by the service; None for a project row."""
+        if scope != "organization":
+            return None
+        raw = getattr(request.state, "organization_id", None)
+        if not raw:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
+            )
+        return UUID(str(raw))
+
+    @staticmethod
     def _require_platform_runtime(request: Request) -> None:
         """Refuse a caller that is not the run's own credential.
 
@@ -340,9 +365,7 @@ class VaultRouter:
         return self._for_caller(request, vault_secret)
 
     @intercept_exceptions()
-    async def list_secrets(
-        self, request: Request, include_organization: bool = False
-    ):
+    async def list_secrets(self, request: Request, include_organization: bool = False):
         has_permission = await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(request.state.project_id),
@@ -376,13 +399,44 @@ class VaultRouter:
 
         # The project's rows, then the organization connections an agent of this project
         # may name (by scope `organization` and slug), without values.
-        secrets_dtos, organization = await self.service.list_project_and_organization_secrets(
+        (
+            secrets_dtos,
+            organization,
+        ) = await self.service.list_project_and_organization_secrets(
             organization_id=UUID(str(organization_id)),
             project_id=project_id,
         )
         return [
             self._for_caller(request, secret_dto) for secret_dto in secrets_dtos
         ] + [organization_connection_response(secret) for secret in organization]
+
+    @intercept_exceptions()
+    async def read_organization_subscription(self, request: Request, slug: str):
+        """The organization subscription login a run named, for the platform runtime only
+        (M5): the run's own credential (`secret-resolve` grant) of a project the login is
+        available to. The runner uses it only on the `inprocess` engine."""
+        self._require_platform_runtime(request)
+        await self._require(request, Permission.VIEW_SECRET)
+        organization_id = getattr(request.state, "organization_id", None)
+        secret = (
+            await self.service.get_organization_connection(
+                organization_id=UUID(str(organization_id)),
+                project_id=UUID(request.state.project_id),
+                slug=slug,
+            )
+            if organization_id
+            else None
+        )
+        if secret is None or secret.kind != SecretKind.SUBSCRIPTION_PROVIDER:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
+            )
+        log.info(
+            "[secrets] organization subscription released to a run",
+            project_id=str(request.state.project_id),
+            secret_id=str(secret.id),
+        )
+        return organization_subscription_for_runtime(secret)
 
     @intercept_exceptions()
     async def read_secret(self, request: Request, secret_id_or_slug: str):
@@ -597,6 +651,7 @@ class VaultRouter:
         """
         await self.subscription_login_service.report_attempt_outcome(
             project_id=body.project_id,
+            organization_id=body.organization_id,
             secret_id=body.secret_id,
             attempt_id=attempt_id,
             state=body.state,
@@ -612,6 +667,7 @@ class VaultRouter:
         request: Request,
         secret_id: UUID,
         body: SubscriptionLoginPushRequest,
+        scope: Literal["project", "organization"] = "project",
     ):
         # The caller here is the run's own credential, not an editor, so this is the pair
         # the mount sign route uses rather than EDIT_SECRET. The grant is what proves the
@@ -621,6 +677,7 @@ class VaultRouter:
 
         result = await self.subscription_login_service.push_login(
             project_id=UUID(request.state.project_id),
+            organization_id=self._organization_scope(request, scope),
             secret_id=secret_id,
             login=body.login,
             version=body.version,
@@ -635,12 +692,14 @@ class VaultRouter:
         request: Request,
         secret_id: UUID,
         body: SubscriptionLoginFailureRequest,
+        scope: Literal["project", "organization"] = "project",
     ):
         self._require_platform_runtime(request)
         await self._require(request, Permission.RUN_SESSIONS, Permission.USE_MOUNTS)
 
         result = await self.subscription_login_service.report_login_failure(
             project_id=UUID(request.state.project_id),
+            organization_id=self._organization_scope(request, scope),
             secret_id=secret_id,
             version=body.version,
             generation=body.generation,

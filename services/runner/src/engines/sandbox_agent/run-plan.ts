@@ -124,6 +124,16 @@ export const SUBSCRIPTION_INVALID_MESSAGE =
  * boundary, which a direct `/run` caller reaches without passing through the SDK.
  */
 export const SUBSCRIPTION_SUPPORTED_PROVIDER = "chatgpt";
+
+/**
+ * An organization subscription login runs only where it stays in this process (M5). The
+ * `inprocess` engine keeps the login in the runner's credential store and gives its Daytona
+ * sandbox shell commands only. The `daytona` engine and the `local` engine would write the login
+ * where agent code can read it, so they refuse the run instead.
+ */
+export const ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE =
+  "An organization subscription login can be used only by a Pi agent that runs in Agenta's own " +
+  "process (the inprocess engine). Use a project subscription or an API key for this run.";
 export const SUBSCRIPTION_UNSUPPORTED_MESSAGE =
   "A subscription connection is supported only for the ChatGPT provider on a Pi harness. " +
   "Use a managed API key (credentialMode 'env') for anything else.";
@@ -233,6 +243,8 @@ export interface RunPlanCredentials {
    * in-VM path the sandbox writes to. See `subscriptionHomeDir`.
    */
   subscriptionHome?: string;
+  /** Whose login `subscription` is: a project's, or an organization's (M5). */
+  subscriptionOwner?: "project" | "organization";
   /** Whether the run reaches its model through the Agenta LLM gateway (it carries gateway credentials). */
   throughGateway?: boolean;
 }
@@ -851,8 +863,44 @@ export function buildRunPlan(
   // OPERATOR MOUNT (no block): unchanged. Local only, and the harness config var must name a
   // read-write mount of the operator's own login.
   const requestCredentialMode = request.modelConnection?.credentialMode;
-  const requestSubscription = request.modelConnection?.subscription;
-  if (requestCredentialMode === "runtime_provided" && requestSubscription) {
+  const organizationSubscription =
+    request.modelConnection?.organizationSubscription;
+  if (organizationSubscription) {
+    // Checked before the project shapes, and terminal: an organization login never takes the
+    // project or operator path, and never runs where agent code can read it.
+    if (
+      request.modelConnection?.subscription ||
+      requestCredentialMode !== "runtime_provided"
+    ) {
+      return {
+        ok: false,
+        error:
+          "modelConnection.organizationSubscription requires credentialMode 'runtime_provided' and no subscription.",
+      };
+    }
+    if (!isUsableSubscription(organizationSubscription)) {
+      return { ok: false, error: SUBSCRIPTION_INVALID_MESSAGE };
+    }
+    if (
+      !isPi ||
+      organizationSubscription.provider?.trim().toLowerCase() !==
+        SUBSCRIPTION_SUPPORTED_PROVIDER
+    ) {
+      return { ok: false, error: SUBSCRIPTION_UNSUPPORTED_MESSAGE };
+    }
+    if (sandboxId !== "inprocess") {
+      return { ok: false, error: ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE };
+    }
+  }
+  const requestSubscription = organizationSubscription
+    ? { ...organizationSubscription, owner: "organization" as const }
+    : request.modelConnection?.subscription;
+  if (organizationSubscription) {
+    // Validated above.
+  } else if (
+    requestCredentialMode === "runtime_provided" &&
+    requestSubscription
+  ) {
     // A malformed block is terminal. Falling through would run on the operator's mount instead,
     // which authenticates as the wrong account.
     if (!isUsableSubscription(requestSubscription)) {
@@ -1126,6 +1174,11 @@ export function buildRunPlan(
         subscription,
         subscriptionHome: subscription
           ? subscriptionHomeDir(subscription.id, isDaytona)
+          : undefined,
+        subscriptionOwner: subscription
+          ? organizationSubscription
+            ? "organization"
+            : "project"
           : undefined,
         throughGateway:
           Object.keys(materializeGatewayHeaders(request)).length > 0,

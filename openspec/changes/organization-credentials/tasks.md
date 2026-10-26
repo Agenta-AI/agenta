@@ -31,6 +31,13 @@ Order follows the implementation sequence. Spec references: OC = organization-cr
 - [x] 5.2 The `organization` gateway namespace (resolve with `connection_scope`, relay routes), the one-pass project slug resolve (`_resolve_slug_target`); echo scan over organization values; tenancy rule unchanged (CR "own gateway namespace").
 - [x] 5.3 SDK: `Connection.scope` and `WireConnection.scope`, the `organization` namespace, `connection_scope` on resolve, and the refusal without the gateway (CR "older runtime refuses").
 
+## 5b. Organization subscription logins
+
+- [x] 5b.1 `subscription_provider` in `ORGANIZATION_SECRET_KINDS`, never a gateway target; organization create, device login and setup-token routes behind the organization decision (OC "inprocess engine").
+- [x] 5b.2 `GET /secrets/organization-subscriptions/{slug}` for the run credential only; upkeep with `?scope=organization`, checked for availability.
+- [x] 5b.3 SDK: `organizationSubscription` wire field; organization Claude login refused.
+- [x] 5b.4 Runner: `inprocess` only, typed refusal elsewhere; upkeep and device login carry the organization owner.
+
 ## 6. Web
 
 - [x] 6.0 Every `/m` save path writes the picked or default connection explicitly (`scope` included).
