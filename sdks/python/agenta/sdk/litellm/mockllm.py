@@ -116,6 +116,15 @@ def prepare_aws_call_kwargs(
         if kwargs[name] is None:
             kwargs.pop(name)
 
+    # litellm fills a missing session token from `AWS_SESSION_TOKEN`. A key pair the call
+    # carries must not sign with a token the host set for its own identity.
+    if (
+        _has_value(kwargs.get("aws_access_key_id"))
+        and _has_value(kwargs.get("aws_secret_access_key"))
+        and "aws_session_token" not in kwargs
+    ):
+        kwargs["aws_session_token"] = ""
+
     if not _signs_with_own_aws_credentials(provider, kwargs):
         from agenta.sdk.middlewares.running.vault import env_provider_keys_enabled
 

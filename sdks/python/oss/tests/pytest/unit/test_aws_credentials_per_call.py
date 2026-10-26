@@ -377,6 +377,8 @@ def test_host_aws_credentials_leave_the_environment_only_in_hosted_mode(
         monkeypatch.delenv("AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED", raising=False)
     else:
         monkeypatch.setenv("AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED", flag)
+    for name in vault._HOST_AWS_CREDENTIAL_NAMES:
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("AWS_ACCESS_KEY_ID", "host-access-key")
     monkeypatch.setenv("AWS_PROFILE_NAME", "host-profile")
     monkeypatch.setenv("AWS_REGION", "eu-west-1")
@@ -391,3 +393,30 @@ def test_host_aws_credentials_leave_the_environment_only_in_hosted_mode(
         assert names == []
         assert os.environ["AWS_ACCESS_KEY_ID"] == "host-access-key"
     assert os.environ["AWS_REGION"] == "eu-west-1"
+
+
+@pytest.mark.parametrize(
+    "extra, expected_token",
+    [({}, ""), ({"aws_session_token": "connection-token"}, "connection-token")],
+)
+def test_a_key_pair_never_takes_the_host_session_token(
+    monkeypatch, extra, expected_token
+):
+    """litellm fills a missing token from `AWS_SESSION_TOKEN`; an empty one stops that."""
+    monkeypatch.setenv("AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED", "true")
+
+    kwargs = mockllm.prepare_aws_call_kwargs(
+        args=(), kwargs={**PROJECT_A_SETTINGS, **extra}
+    )
+
+    assert kwargs["aws_session_token"] == expected_token
+
+
+def test_a_keyless_call_keeps_the_host_session_token(monkeypatch):
+    monkeypatch.setenv("AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED", "true")
+
+    kwargs = mockllm.prepare_aws_call_kwargs(
+        args=(), kwargs={"model": BEDROCK_MODEL, "aws_region_name": "eu-west-1"}
+    )
+
+    assert "aws_session_token" not in kwargs
