@@ -148,3 +148,25 @@ async def test_one_failed_named_secret_read_leaves_the_others_resolved(
         ["OK", "BROKEN", "ABSENT", "ALSO"], connection=connection
     )
     assert resolved == {"OK": "ok", "ALSO": "also"}
+
+
+async def test_named_secret_reads_stay_within_the_concurrency_bound(
+    monkeypatch, connection
+):
+    in_flight = 0
+    peak = 0
+
+    async def _handle(slug):
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        await asyncio.sleep(0.01)
+        in_flight -= 1
+        return 200, _secret(slug.lower())
+
+    monkeypatch.setattr(secrets.httpx, "AsyncClient", _routed_client(_handle))
+    names = [f"S{i}" for i in range(40)]
+    resolved = await resolve_named_secrets(names, connection=connection)
+
+    assert list(resolved) == names
+    assert peak == secrets._READ_CONCURRENCY

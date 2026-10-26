@@ -247,7 +247,45 @@ class ToolsService:
         a tool key maps to exactly one provider action ID on every path. The provider
         crawl is bounded by a deadline and its result is cached whole; a crawl that
         cannot finish raises, so a partial catalog never reaches the cache.
+
+        Concurrent calls for the same catalog share one fetch. A caller that is
+        cancelled does not cancel the fetch for the others.
         """
+        key = (provider_key, integration_key, toolkit_version or "latest")
+        # One provider crawl per catalog at a time: concurrent resolves of the same
+        # integration share it instead of each crawling every page.
+        fetches: Dict[Tuple[str, str, str], "asyncio.Future"] = (
+            self.__dict__.setdefault("_catalog_fetches", {})
+        )
+        fetch = fetches.get(key)
+        if fetch is None:
+            fetch = asyncio.ensure_future(
+                self._fetch_all_actions(
+                    provider_key=provider_key,
+                    integration_key=integration_key,
+                    toolkit_version=toolkit_version,
+                )
+            )
+            fetches[key] = fetch
+
+            def _done(done: "asyncio.Future", key=key) -> None:
+                if fetches.get(key) is done:
+                    del fetches[key]
+                # Retrieve the outcome so a fetch every caller left is not reported
+                # as an exception that was never retrieved.
+                if not done.cancelled():
+                    done.exception()
+
+            fetch.add_done_callback(_done)
+        return list(await asyncio.shield(fetch))
+
+    async def _fetch_all_actions(
+        self,
+        *,
+        provider_key: str,
+        integration_key: str,
+        toolkit_version: Optional[str] = None,
+    ) -> List[ToolCatalogEntry]:
         started = perf_counter()
         cache_key = {
             "provider": provider_key,

@@ -88,3 +88,74 @@ async def test_resolve_tools_cancels_later_references_after_a_failure(monkeypatc
             tools=[_ref("FIRST"), _ref("SECOND")],
         )
     assert cancelled.is_set()
+
+
+def _crawling_service(monkeypatch, crawl):
+    from oss.src.core.tools import service as service_module
+
+    service = object.__new__(ToolsService)
+    service.adapter_registry = SimpleNamespace(
+        get=lambda _key: SimpleNamespace(list_all_actions=crawl)
+    )
+
+    async def _no_cache(**_kwargs):
+        return None
+
+    monkeypatch.setattr(service_module, "get_cache", _no_cache)
+    monkeypatch.setattr(service_module, "set_cache", _no_cache)
+    return service
+
+
+async def test_concurrent_catalog_reads_share_one_crawl(monkeypatch):
+    crawls = []
+    release = asyncio.Event()
+
+    async def _crawl(**_kwargs):
+        crawls.append(1)
+        await release.wait()
+        return [
+            SimpleNamespace(
+                key="A", provider_action_id="a", read_only=True, input_schema=None
+            )
+        ]
+
+    service = _crawling_service(monkeypatch, _crawl)
+    reads = [
+        asyncio.ensure_future(
+            service.list_all_actions(provider_key="composio", integration_key="github")
+        )
+        for _ in range(8)
+    ]
+    await asyncio.sleep(0)
+    release.set()
+    results = await asyncio.gather(*reads)
+
+    assert len(crawls) == 1
+    assert all([entry.key for entry in result] == ["A"] for result in results)
+
+
+async def test_a_cancelled_catalog_reader_does_not_cancel_the_shared_crawl(monkeypatch):
+    release = asyncio.Event()
+
+    async def _crawl(**_kwargs):
+        await release.wait()
+        return [
+            SimpleNamespace(
+                key="A", provider_action_id="a", read_only=True, input_schema=None
+            )
+        ]
+
+    service = _crawling_service(monkeypatch, _crawl)
+    first = asyncio.ensure_future(
+        service.list_all_actions(provider_key="composio", integration_key="github")
+    )
+    second = asyncio.ensure_future(
+        service.list_all_actions(provider_key="composio", integration_key="github")
+    )
+    await asyncio.sleep(0)
+    first.cancel()
+    release.set()
+
+    assert [entry.key for entry in await second] == ["A"]
+    with pytest.raises(asyncio.CancelledError):
+        await first

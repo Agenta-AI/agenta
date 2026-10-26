@@ -29,6 +29,9 @@ from .connection import PlatformConnection
 
 log = get_module_logger(__name__)
 
+# How many named-secret reads one call keeps in flight.
+_READ_CONCURRENCY = 8
+
 
 async def resolve_named_secrets(
     names: Sequence[str],
@@ -47,7 +50,14 @@ async def resolve_named_secrets(
     requested = list(dict.fromkeys(str(name) for name in names))
     headers = connection.headers()
 
+    # Bounded so a long list cannot wait out the client's pool and read as missing.
+    semaphore = asyncio.Semaphore(_READ_CONCURRENCY)
+
     async def _read(client: httpx.AsyncClient, name: str) -> Optional[str]:
+        async with semaphore:
+            return await _read_one(client, name)
+
+    async def _read_one(client: httpx.AsyncClient, name: str) -> Optional[str]:
         try:
             response = await client.get(
                 f"{api_base}/secrets/{quote(name, safe='')}",
@@ -74,7 +84,7 @@ async def resolve_named_secrets(
             log.warning("agent: named-secret read failed", exc_info=True)
             return None
 
-    # One read per name, all in flight at once: each one swallows its own failure.
+    # One read per name, up to `_READ_CONCURRENCY` at once: each one swallows its own failure.
     async with httpx.AsyncClient(timeout=connection.timeout) as client:
         values = await asyncio.gather(*(_read(client, name) for name in requested))
     resolved: Dict[str, str] = {
