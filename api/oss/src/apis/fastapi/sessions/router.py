@@ -1533,6 +1533,20 @@ class RecordsRouter:
                 session_id=first.session_id,
             )
             if current_execution_id != first.execution_id:
+                # Not the session's running turn (a Stop, a takeover or a newer turn
+                # moved it). To a caller who may run the session: 409, never 403. A
+                # runner reads 403 as lost access and ends the turn with access_denied,
+                # which drops the stopped turn's own records. A hidden or unknown session
+                # keeps the one 403 it answered before. Always the full check, never the
+                # turn's admission: this request's cache read may predate the Stop.
+                if await allow_resource(
+                    request,
+                    action=Permission.RUN_SESSIONS,
+                    resource=session_resource(first.session_id),
+                ) and not session_was_missing(
+                    project_id=UUID(str(project_id)), session_id=first.session_id
+                ):
+                    raise _not_running_turn_exception()
                 raise FORBIDDEN_EXCEPTION
             # A hidden session answers what a session with no running turn answers.
             if not await allow_session_write(
@@ -1605,6 +1619,15 @@ class RecordsRouter:
                 detail="Record ingestion is temporarily unavailable.",
             )
         return {"ok": True}
+
+
+def _not_running_turn_exception() -> HTTPException:
+    """A live frame of a turn that is not the session's running turn. 409, not 403:
+    the runner keeps 403 for lost access."""
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="This turn is no longer the session's running turn.",
+    )
 
 
 class InteractionsRouter:
