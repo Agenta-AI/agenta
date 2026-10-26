@@ -746,7 +746,7 @@ export function classifyRunError(
   }
   const providerError = describeProviderError(raw);
   if (providerError) return { message: providerError, code: "provider_error" };
-  const rawProviderError = describeRawProviderError(msg);
+  const rawProviderError = describeRawProviderError(googleStatusLine(msg) ?? msg);
   if (rawProviderError) return rawProviderError;
   if (options.unknownText !== "hidden")
     return {
@@ -785,11 +785,25 @@ const PROVIDER_ERROR_ADVICE =
 
 /** A provider's own words, redacted and cut, ending with a full stop. */
 function providerSentence(text: string): string | undefined {
-  const said = sanitizeErrorText(text.trim())
+  // The gateway's `⟦agenta_code:…⟧` marker is for machines; the person reads the sentence.
+  const said = sanitizeErrorText(text.replace(/\s*⟦agenta_code:[a-z_]+⟧/g, "").trim())
     .slice(0, PROVIDER_TEXT_MAX_CHARS)
     .trim();
   if (!said) return undefined;
   return /[.!?]$/.test(said) ? said : `${said}.`;
+}
+
+/**
+ * A Google-shaped error body (`{"error": {"code": <HTTP status>, ...}}`) as the `NNN {json}` line
+ * `describeRawProviderError` reads. Pi's Google client, on the native Gemini route, keeps only the
+ * body as its error text, without the status prefix Pi's OpenAI client writes; undefined for any
+ * other text.
+ */
+function googleStatusLine(line: string): string | undefined {
+  if (RAW_PROVIDER_ERROR.test(line)) return undefined;
+  const body = line.slice(Math.max(line.indexOf("{"), 0));
+  const status = /^\{\s*"error"\s*:\s*\{\s*"code"\s*:\s*([45]\d\d)\b/.exec(body)?.[1];
+  return status ? `${status} ${body}` : undefined;
 }
 
 /** The `message` of a provider's JSON error body (`{"error":{"message":...}}` or `{"message":...}`). */
