@@ -1252,6 +1252,11 @@ class VaultConnectionResolver:
             # `custom` is a custom-provider record, `standard` a provider key. The response
             # carries no management flag, so the Agenta-funded record is known by its slug.
             custom_connection=namespace == "custom" and name != STARTER_CREDITS_SLUG,
+            # An older API sends no `protocol`; any other value is passed on for the runner
+            # to judge, which ignores one it does not know.
+            protocol=resolved.get("protocol")
+            if isinstance(resolved.get("protocol"), str)
+            else None,
         )
 
 

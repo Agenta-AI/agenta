@@ -707,6 +707,11 @@ def test_route_table_matches_the_design_exactly():
         ("/builtin/{provider}/v1/messages", "POST"): "llm_gateway_messages_builtin",
         ("/standard/{provider}/v1/messages", "POST"): "llm_gateway_messages_standard",
         ("/custom/{slug}/v1/messages", "POST"): "llm_gateway_messages_custom",
+        # Google's native protocol, for the built-in Gemini endpoint only.
+        (
+            "/builtin/{provider}/v1beta/models/{model}:streamGenerateContent",
+            "POST",
+        ): "llm_gateway_gemini_stream_builtin",
         ("/builtin/{provider}/v1/models", "GET"): "llm_gateway_list_models_builtin",
         ("/standard/{provider}/v1/models", "GET"): "llm_gateway_list_models_standard",
         ("/custom/{slug}/v1/models", "GET"): "llm_gateway_list_models_custom",

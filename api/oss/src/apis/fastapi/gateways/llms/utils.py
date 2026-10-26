@@ -48,6 +48,24 @@ def _parse(*, body: bytes, protocol: LLMProtocol) -> LLMCallContext:
     return LLMCallContext(model=model, stream=stream, protocol=protocol)
 
 
+def parse_gemini_call_context(*, body: bytes, model: str) -> LLMCallContext:
+    """Check a native Gemini request's body; its model comes from the URL path, named
+    `google/<model>` as the built-in endpoint's allowlist spells it."""
+    try:
+        payload = json.loads(body) if body else None
+    except ValueError as exc:
+        raise LLMRequestBodyError(
+            cause="invalid_json", detail="request body is not valid JSON"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise LLMRequestBodyError(
+            cause="not_an_object", detail="request body must be a JSON object"
+        )
+    return LLMCallContext(
+        model=f"google/{model}", stream=True, protocol=LLMProtocol.GEMINI
+    )
+
+
 def parse_llm_call_context(*, body: bytes) -> LLMCallContext:
     """Parse a Chat Completions request."""
     return _parse(body=body, protocol=LLMProtocol.CHAT_COMPLETIONS)

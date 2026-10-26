@@ -72,6 +72,9 @@ NON_FORWARDABLE_REQUEST_HEADERS = frozenset(
         "proxy-authorization",
         "cookie",
         "authorization",
+        # The key Google's SDKs send. On the native Gemini door Pi sends a placeholder here;
+        # the gateway authenticates with `x-ag-credentials` and Vertex with the platform's own.
+        "x-goog-api-key",
     }
 )
 

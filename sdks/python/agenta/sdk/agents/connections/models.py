@@ -397,6 +397,11 @@ class ResolvedConnection(BaseModel):
     # "not stated" (a resolver that does not track provenance): the runner then treats only a
     # ``custom`` deployment as custom.
     custom_connection: Optional[bool] = None
+    # The protocol the gateway route also serves natively, when a harness that knows it should
+    # speak that instead of the one `provider` implies: "gemini" on the built-in Gemini route
+    # (Google's native `streamGenerateContent`). `endpoint.base_url` stays the OpenAI-compatible
+    # route either way, so a runner that ignores this keeps working.
+    protocol: Optional[str] = None
 
     def _require_effective_https(
         self, subject: str, *, allow_insecure_http: bool = False
@@ -474,6 +479,8 @@ class ResolvedConnection(BaseModel):
             wire["gatewayCredentials"] = self.gateway_credentials.to_wire()
         if self.custom_connection is not None:
             wire["customConnection"] = self.custom_connection
+        if self.protocol is not None:
+            wire["protocol"] = self.protocol
         return wire
 
 

@@ -163,6 +163,8 @@ class WireModelConnection(_WireModel):
     environment: Optional[Dict[str, str]] = None
     credentials: List[WireCredential] = Field(default_factory=list)
     subscription: Optional[WireSubscription] = None
+    # "gemini" when the gateway route also serves Google's native protocol; omitted otherwise.
+    protocol: Optional[str] = None
 
 
 class WireModelCapabilities(_WireModel):
