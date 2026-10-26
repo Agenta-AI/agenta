@@ -297,15 +297,20 @@ function fakeLimitedTurn(options: {
   kind: "total" | "idle" | "ttfb" | "tool-call";
   cancelSettles: boolean;
   nativeHistorySaved?: () => boolean;
+  /** Emitted while the harness settles the cancel, before the prompt answers. */
+  updateOnCancel?: unknown;
 }) {
   const fake = fakeFailingSandbox(async () => true);
   let trip: ((reason: string, kind: "total" | "idle" | "ttfb" | "tool-call") => void) | undefined;
   let endPrompt: ((value: unknown) => void) | undefined;
   const cancels: string[] = [];
+  let sessionEvent: ((event: unknown) => void) | undefined;
   const session: any = {
     id: "harness-session-1",
     agentSessionId: AGENT_SESSION_ID,
-    onEvent() {},
+    onEvent(handler: (event: unknown) => void) {
+      sessionEvent = handler;
+    },
     onPermissionRequest() {},
     prompt() {
       queueMicrotask(() => trip?.("limit tripped", options.kind));
@@ -327,6 +332,7 @@ function fakeLimitedTurn(options: {
     resumeSession: async () => session,
     async cancelSession(id: string) {
       cancels.push(id);
+      if (options.updateOnCancel) sessionEvent?.({ payload: { params: { update: options.updateOnCancel } } });
       if (options.cancelSettles) endPrompt?.({ stopReason: "cancelled" });
     },
     async destroySession() {},
@@ -397,6 +403,23 @@ describe("a turn a time limit ended", () => {
 
     await runSandboxAgent(failRequest, undefined, undefined, deps);
 
+    assert.equal(continuityStore.get("sess-fail", "claude"), undefined);
+    assert.equal(calls.completed.length, 0);
+  });
+
+  it("drops the resume point when an update crossed the output limit while the cancel settled", async () => {
+    vi.stubEnv("AGENTA_RUNNER_OUTPUT_MAX_BYTES", "1024");
+    const { calls, deps, continuityStore } = fakeLimitedTurn({
+      kind: "total",
+      cancelSettles: true,
+      updateOnCancel: { sessionUpdate: "tool_call", toolCallId: "late", rawInput: { text: "x".repeat(2048) } },
+    });
+    deps.createOtel = (init) => createSandboxAgentOtel({ ...init, emitSpans: false });
+
+    const result = await runSandboxAgent(failRequest, undefined, undefined, deps);
+
+    assert.match(result.error!, /output exceeded the turn limit/);
+    assert.equal(calls.rollbacks, 1, "the failed-turn rule applies");
     assert.equal(continuityStore.get("sess-fail", "claude"), undefined);
     assert.equal(calls.completed.length, 0);
   });

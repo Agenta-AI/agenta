@@ -351,7 +351,10 @@ export async function runTurn(
     // A time limit is no refusal: the turn's work is sound, and the person is told to continue it.
     // A harness that answered the limit's cancel holds a short but finished turn, as after a Stop,
     // so its transcript stays the resume point with that work in it.
-    const keepsWork = limitStopSettled && session?.nativeHistorySaved?.() !== false;
+    // An update that crossed the output limit while the cancel settled was never recorded, so that
+    // turn is not a faithful resume point.
+    const keepsWork =
+      limitStopSettled && !outputLimitReason && session?.nativeHistorySaved?.() !== false;
     // Only a harness in this runner can roll its own transcript back.
     if (!keepsWork && session?.rollbackFailedTurn) {
       try {
