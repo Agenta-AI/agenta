@@ -141,6 +141,13 @@ class TemplateCompiler:
             key=_mcp_key,
         )
 
+        # The agent stores an explicit model connection, the project default when the base
+        # revision names none (M5): it keeps the connection it was created with.
+        llm = agent.get("llm") if isinstance(agent.get("llm"), dict) else {}
+        if not isinstance(llm.get("connection"), dict):
+            llm = {**llm, "connection": {"mode": "agenta", "scope": "project"}}
+        agent["llm"] = llm
+
         try:
             AgentTemplateSchema.model_validate(agent)
         except (ValidationError, ValueError, TypeError) as exc:

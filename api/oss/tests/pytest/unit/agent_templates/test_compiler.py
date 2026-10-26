@@ -85,7 +85,12 @@ def test_compiler_preserves_ordinary_execution_settings():
 
     agent = compiled.revision_data.parameters["agent"]
     original = base.parameters["agent"]
-    assert agent["llm"] == original["llm"]
+    # The model is kept; a base revision with no connection gets the explicit project
+    # default (M5), so the created agent keeps the connection it was created with.
+    assert agent["llm"] == {
+        **original["llm"],
+        "connection": {"mode": "agenta", "scope": "project"},
+    }
     assert agent["harness"] == original["harness"]
     assert agent["runner"] == original["runner"]
     assert agent["sandbox"] == original["sandbox"]
@@ -183,3 +188,19 @@ def test_compiler_rejects_invalid_native_agent_configuration():
         )
 
     assert error.value.code == "native_agent_invalid"
+
+
+def test_compiler_keeps_a_connection_the_base_revision_names():
+    """A connection the base revision already names is written through unchanged."""
+    named = {"mode": "agenta", "slug": "openai-sales", "scope": "project"}
+    base = _base_revision()
+    base.parameters["agent"]["llm"] = {"model": "openai/gpt-5", "connection": named}
+    compiled = TemplateCompiler().compile(
+        package=_package(),
+        base_revision=base,
+        bindings=TemplateBindingPlan(tools=[], mcps=[]),
+        installed_skills=[],
+        first_message="hello",
+    )
+    assert compiled.revision_data.parameters["agent"]["llm"]["connection"] == named
+
