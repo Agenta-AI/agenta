@@ -1345,6 +1345,37 @@ async def _respond_channel_interaction(
     )
 
 
+# Durable session commands (Stop). The control-delivery adapter is chosen by one setting.
+# `direct` posts the command to the runner's own /cancel over the hop that already carries hard
+# kill; `long_poll` is not built yet, and naming it fails at boot rather than silently falling
+# back to a transport the operator did not choose.
+_control_adapter = (env.agenta.sessions.commands.adapter or "direct").strip().lower()
+if _control_adapter != "direct":
+    raise RuntimeError(
+        f"AGENTA_SESSIONS_CONTROL_ADAPTER={_control_adapter!r} is not available in this build. "
+        "Only 'direct' is implemented; the long-poll adapter is a later change."
+    )
+
+session_commands_service = SessionCommandsService(
+    commands_dao=session_commands_dao,
+    streams_service=session_streams_service,
+    interactions_service=interactions_service,
+    lock_engine=_lock_engine,
+    delivery=DirectControlDelivery(
+        continue_interaction=lambda command: deliver_continue_interaction(
+            command=command,
+            interactions_dispatcher=_interactions_dispatcher,
+        ),
+        continue_input=lambda command: deliver_continue_input(
+            command=command,
+            workflows_service=workflows_service,
+            run_admission=run_admission,
+        ),
+    ),
+    executions_dao=session_executions_dao,
+    inputs_dao=session_inputs_dao,
+)
+
 _channels_inbox_dispatcher = InboxDispatcher(
     channels_service=channels_service,
     run_admission=run_admission,
@@ -1352,7 +1383,7 @@ _channels_inbox_dispatcher = InboxDispatcher(
     respond_interaction_fn=_respond_channel_interaction,
     workflows_service=workflows_service,
     identity_service=channels_identity_service,
-    streams_service=session_streams_service,
+    commands_service=session_commands_service,
     session_queue=ChannelSessionQueue(
         inputs_service=SessionInputsService(
             inputs_dao=session_inputs_dao,
@@ -1581,36 +1612,6 @@ sessions_service = SessionsService(
     records_service=records_service,
 )
 
-# Durable session commands (Stop). The control-delivery adapter is chosen by one setting.
-# `direct` posts the command to the runner's own /cancel over the hop that already carries hard
-# kill; `long_poll` is not built yet, and naming it fails at boot rather than silently falling
-# back to a transport the operator did not choose.
-_control_adapter = (env.agenta.sessions.commands.adapter or "direct").strip().lower()
-if _control_adapter != "direct":
-    raise RuntimeError(
-        f"AGENTA_SESSIONS_CONTROL_ADAPTER={_control_adapter!r} is not available in this build. "
-        "Only 'direct' is implemented; the long-poll adapter is a later change."
-    )
-
-session_commands_service = SessionCommandsService(
-    commands_dao=session_commands_dao,
-    streams_service=session_streams_service,
-    interactions_service=interactions_service,
-    lock_engine=_lock_engine,
-    delivery=DirectControlDelivery(
-        continue_interaction=lambda command: deliver_continue_interaction(
-            command=command,
-            interactions_dispatcher=_interactions_dispatcher,
-        ),
-        continue_input=lambda command: deliver_continue_input(
-            command=command,
-            workflows_service=workflows_service,
-            run_admission=run_admission,
-        ),
-    ),
-    executions_dao=session_executions_dao,
-    inputs_dao=session_inputs_dao,
-)
 session_inputs_service = SessionInputsService(
     inputs_dao=session_inputs_dao,
     interactions_dao=interactions_dao,

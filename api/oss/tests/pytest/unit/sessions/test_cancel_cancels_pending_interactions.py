@@ -7,6 +7,9 @@ whose buttons answered a turn that no longer existed (#6315).
 These pin the router wiring: CANCEL cancels pending gates for the turns it ended, SEND / STEER /
 ATTACH do not, and a cancel that ended no turn falls back to the whole session (nothing holds
 it, so nothing can ever answer those gates — the same reasoning as kill).
+
+The CANCEL mode of `POST /sessions/streams/` is deprecated in favor of
+`POST /sessions/{session_id}/cancel`. Delete the CANCEL cases here when that mode is removed.
 """
 
 from unittest.mock import AsyncMock, patch

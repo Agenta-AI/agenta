@@ -159,6 +159,7 @@ def _probes(session_id, *, agent, interaction_id, turn_id, token, input_id):
          {"json": {"session_id": session_id, "data": messages}}),
         ("stream steer", "api", "POST", "/sessions/streams/",
          {"json": {"session_id": session_id, "data": messages, "force": True}}),
+        # Deprecated stop mode; drop this row when the mode is removed.
         ("stream cancel", "api", "POST", "/sessions/streams/",
          {"json": {"session_id": session_id}}),
         ("stream attach", "api", "POST", "/sessions/streams/",
