@@ -498,7 +498,16 @@ export async function runTurn(
       promptPromise,
       log: logger,
     });
-    limitStopSettled = cancel.settled;
+    // Only a prompt that answered the cancel as cancelled ended on the limit. One that ended on
+    // its own in that window, with an error above all, may hold content a provider refused, so
+    // the failed-turn rule applies to it.
+    const endedAs = cancel.settled
+      ? await promptPromise.then(
+          (value) => (value as { stopReason?: unknown } | undefined)?.stopReason,
+          () => undefined,
+        )
+      : undefined;
+    limitStopSettled = endedAs === "cancelled";
   };
   runLimits.onTrip((reason, kind) => {
     runLimitReason = reason;

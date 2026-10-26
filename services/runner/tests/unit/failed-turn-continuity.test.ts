@@ -296,6 +296,8 @@ describe("a completed turn whose conversation file did not reach the drive (Code
 function fakeLimitedTurn(options: {
   kind: "total" | "idle" | "ttfb" | "tool-call";
   cancelSettles: boolean;
+  /** The stop reason the prompt answers the cancel with. */
+  settledStopReason?: string;
   nativeHistorySaved?: () => boolean;
   /** Emitted while the harness settles the cancel, before the prompt answers. */
   updateOnCancel?: unknown;
@@ -333,7 +335,7 @@ function fakeLimitedTurn(options: {
     async cancelSession(id: string) {
       cancels.push(id);
       if (options.updateOnCancel) sessionEvent?.({ payload: { params: { update: options.updateOnCancel } } });
-      if (options.cancelSettles) endPrompt?.({ stopReason: "cancelled" });
+      if (options.cancelSettles) endPrompt?.({ stopReason: options.settledStopReason ?? "cancelled" });
     },
     async destroySession() {},
     async pauseSandbox() {},
@@ -390,6 +392,21 @@ describe("a turn a time limit ended", () => {
 
     assert.equal(cancels.length, 1);
     assert.equal(calls.rollbacks, 1);
+    assert.equal(continuityStore.get("sess-fail", "claude"), undefined);
+    assert.equal(calls.completed.length, 0);
+  });
+
+  it("falls back to the failed-turn rule when the prompt ends in an error instead of the cancel", async () => {
+    const { calls, deps, continuityStore, cancels } = fakeLimitedTurn({
+      kind: "total",
+      cancelSettles: true,
+      settledStopReason: "error",
+    });
+
+    await runSandboxAgent(failRequest, undefined, undefined, deps);
+
+    assert.equal(cancels.length, 1);
+    assert.equal(calls.rollbacks, 1, "a turn that ended in an error is rolled back");
     assert.equal(continuityStore.get("sess-fail", "claude"), undefined);
     assert.equal(calls.completed.length, 0);
   });
