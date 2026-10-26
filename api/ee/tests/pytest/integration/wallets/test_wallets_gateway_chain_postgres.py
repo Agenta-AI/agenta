@@ -127,6 +127,7 @@ async def analytics_engine():
 def _gateway_switches(monkeypatch):
     monkeypatch.setattr(env.llm_gateway, "enabled", True)
     monkeypatch.setattr(env.mock_gateways, "enabled", True)
+    monkeypatch.setattr(env.wallets, "enabled", True)
 
     async def _permitted(**_kwargs):
         return True
