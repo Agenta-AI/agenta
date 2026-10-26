@@ -324,6 +324,20 @@ def _inherited_identity_matches(*, inherited: Optional[str], kind, data) -> bool
     return True
 
 
+class _IdentityChanges(Exception):
+    """An update changes the row's kind or provider family; redo it SERIALIZABLE."""
+
+
+def _identity(kind, data) -> tuple:
+    kind = SecretKind(getattr(kind, "value", kind)) if kind is not None else None
+    return (kind, _family(data) if kind == SecretKind.PROVIDER_KEY else None)
+
+
+def _identity_of_row(secrets_dbe) -> tuple:
+    stored = map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
+    return _identity(stored.kind, stored.data)
+
+
 def _secret_kind_of(label: str) -> SecretKind:
     return SecretKind[label]
 
@@ -560,6 +574,26 @@ class SecretsDAO(SecretsDAOInterface):
         check_shadow: bool = False,
     ) -> Optional[SecretResponseDTO]:
         if check_shadow and owner.kind == SecretOwnerKind.PROJECT:
+            # An update that keeps the row's kind and provider family cannot create a
+            # mismatch with an organization row, so it runs as today (READ COMMITTED).
+            # Only an update that changes them is redone in a SERIALIZABLE transaction.
+            try:
+                async with self.engine.session() as session:
+                    return await self._update_in(
+                        session,
+                        owner=owner,
+                        secret_id=secret_id,
+                        update_secret_dto=update_secret_dto,
+                        user_id=user_id,
+                        resolve_update=resolve_update,
+                        check_shadow=False,
+                        commit=True,
+                        stop_on_identity_change=True,
+                    )
+            except _IdentityChanges:
+                pass
+            except DBAPIError as error:
+                raise _conflict_from(error) from None
 
             async def work(connection: AsyncConnection):
                 session = AsyncSession(bind=connection, expire_on_commit=False)
@@ -608,6 +642,7 @@ class SecretsDAO(SecretsDAOInterface):
         resolve_update,
         check_shadow: bool,
         commit: bool = False,
+        stop_on_identity_change: bool = False,
     ) -> Optional[SecretResponseDTO]:
         # FOR UPDATE lets the domain resolver apply immutable policy and carry-over
         # against the latest committed row before this transaction persists the update.
@@ -647,6 +682,14 @@ class SecretsDAO(SecretsDAOInterface):
             if resolved is None:
                 return map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
             update_secret_dto = resolved
+
+        if (
+            stop_on_identity_change
+            and update_secret_dto.secret is not None
+            and _identity(update_secret_dto.secret.kind, update_secret_dto.secret.data)
+            != _identity_of_row(secrets_dbe)
+        ):
+            raise _IdentityChanges()
 
         if (
             check_shadow

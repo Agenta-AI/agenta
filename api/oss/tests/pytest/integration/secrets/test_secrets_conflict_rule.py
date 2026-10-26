@@ -182,6 +182,65 @@ async def test_override_family_change_is_refused(org):
     assert await _pairs(org) == []
 
 
+async def test_an_update_that_keeps_kind_and_family_runs_read_committed(
+    org, monkeypatch
+):
+    """Only a kind or family change can create a mismatch, so only it runs SERIALIZABLE.
+    A key rotation or a rename runs as before M5 (no serializable transaction, so no
+    contention retry), and a family change still takes the serializable path."""
+    slug = _slug()
+    await _org_row(org, slug)
+    dao = SecretsDAO()
+    vault = VaultService(dao)
+    override = await vault.create_secret(
+        project_id=org.project_ids[0], create_secret_dto=_create(slug=slug)
+    )
+    serializable = []
+    real_transaction = dao.engine.transaction
+
+    def _recording_transaction(*args, **kwargs):
+        serializable.append(kwargs.get("isolation_level"))
+        return real_transaction(*args, **kwargs)
+
+    monkeypatch.setattr(dao.engine, "transaction", _recording_transaction)
+    rotated = await vault.update_secret(
+        secret_id=override.id,
+        project_id=org.project_ids[0],
+        update_secret_dto=UpdateSecretDTO.model_validate(
+            {
+                "header": {"name": "Rotated"},
+                "secret": {
+                    "kind": "provider_key",
+                    "data": {
+                        "kind": "openai",
+                        "provider": {"key": "sk-0123456789"},
+                    },
+                },
+            }
+        ),
+    )
+    assert rotated.header.name == "Rotated"
+    assert serializable == []
+    with pytest.raises(SecretShadowConflict):
+        await vault.update_secret(
+            secret_id=override.id,
+            project_id=org.project_ids[0],
+            update_secret_dto=UpdateSecretDTO.model_validate(
+                {
+                    "secret": {
+                        "kind": "provider_key",
+                        "data": {
+                            "kind": "anthropic",
+                            "provider": {"key": "sk-ant-123456"},
+                        },
+                    }
+                }
+            ),
+        )
+    assert serializable == ["SERIALIZABLE"]
+    assert await _pairs(org) == []
+
+
 async def test_organization_create_over_an_existing_project_slug_is_refused(org):
     slug = _slug()
     vault = VaultService(SecretsDAO())
@@ -272,14 +331,32 @@ async def test_concurrent_conflicting_writes_one_succeeds(org, monkeypatch):
         assert await _pairs(org) == []
 
 
-async def test_derived_slug_project_create_keeps_todays_statements(org):
+async def test_derived_slug_project_create_keeps_todays_statements(org, monkeypatch):
+    import oss.src.dbs.postgres.secrets.dao as secrets_dao_module
+
     vault = VaultService(SecretsDAO())
-    body = org_secret_payload(kind="custom_provider", family="custom")
-    with count_statements(get_transactions_engine()) as statements:
-        created = await vault.create_secret(
-            project_id=org.project_ids[0],
-            create_secret_dto=CreateSecretDTO.model_validate(body),
-        )
+    retried = []
+    real_wait = secrets_dao_module._wait_before_retry
+
+    async def _counting_wait(attempt):
+        retried.append(attempt)
+        return await real_wait(attempt)
+
+    monkeypatch.setattr(secrets_dao_module, "_wait_before_retry", _counting_wait)
+    # Parallel tests can make Postgres abort the serializable insert without a real
+    # conflict (a retry sends the insert again), so measure again until no retry ran.
+    for _ in range(5):
+        retried.clear()
+        with count_statements(get_transactions_engine()) as statements:
+            created = await vault.create_secret(
+                project_id=org.project_ids[0],
+                create_secret_dto=CreateSecretDTO.model_validate(
+                    org_secret_payload(kind="custom_provider", family="custom")
+                ),
+            )
+        if not retried:
+            break
+    assert not retried
     assert created.slug and len(created.slug.rsplit("-", 1)[-1]) == 12
     assert len(statements) == 1
     assert statements[0].lstrip().upper().startswith("INSERT INTO SECRETS")
