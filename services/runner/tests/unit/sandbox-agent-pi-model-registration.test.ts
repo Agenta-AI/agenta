@@ -444,13 +444,13 @@ describe("models newer than the pinned Pi catalog", () => {
   // Pi 0.99.1 does not carry Haiku 5.5. Before it had an entry, the run borrowed the compat of
   // the first anthropic built-in (Fable 5), so Pi sent its fallback list and the gateway refused
   // every turn with HTTP 400 `routing_field_not_allowed`, and the span cost was $0.
-  it("registers Haiku 5.5 with Haiku 4.5's dialect and its own prices", async () => {
+  it("registers Haiku 5.5 with Sonnet 5.5's request surface and its own prices", async () => {
     const registry = await loadPiBuiltinRegistry();
     assert.ok(registry);
-    const haiku45 = registry
+    const sonnet55 = registry
       .models("anthropic")
-      .find((model) => model.id === "claude-haiku-4-5");
-    assert.ok(haiku45);
+      .find((model) => model.id === "claude-sonnet-5-5");
+    assert.ok(sonnet55);
 
     const plan = buildPiModelRegistrationPlan(
       piRequest("anthropic/claude-haiku-5-5"),
@@ -460,15 +460,27 @@ describe("models newer than the pinned Pi catalog", () => {
     assert.equal(plan?.builtinProvider, "anthropic");
     const entry = plan?.models[0];
     assert.equal(entry?.id, "claude-haiku-5-5");
-    assert.deepEqual(entry?.compat, haiku45.compat);
-    assert.equal(entry?.reasoning, haiku45.reasoning);
+    assert.deepEqual(entry?.compat, sonnet55.compat);
+    // Haiku 5.5 rejects a `budget_tokens` thinking request, so Pi must send adaptive thinking.
+    assert.equal(entry?.compat?.forceAdaptiveThinking, true);
+    assert.equal(entry?.reasoning, true);
     assert.deepEqual(entry?.cost, {
       input: 0.1,
       output: 0.5,
       cacheRead: 0.01,
       cacheWrite: 0.125,
+      tiers: [
+        {
+          inputTokensAbove: 100000,
+          input: 0.5,
+          output: 2.5,
+          cacheRead: 0.05,
+          cacheWrite: 0.625,
+        },
+      ],
     });
     assert.equal(entry?.contextWindow, 1000000);
+    assert.equal(entry?.maxTokens, 128000);
     assert.equal(
       serializePiModelsJson(plan as PiModelRegistrationPlan).includes("allowedFallbackModels"),
       false,
@@ -523,7 +535,7 @@ describe("models newer than the pinned Pi catalog", () => {
       const addition = additions.get(id);
       assert.ok(addition, `${id} has no SDK catalog addition`);
       assert.deepEqual(
-        known.cost,
+        pickRates(known.cost as unknown as Record<string, unknown>),
         {
           input: addition.pricing.input_per_mtok,
           output: addition.pricing.output_per_mtok,

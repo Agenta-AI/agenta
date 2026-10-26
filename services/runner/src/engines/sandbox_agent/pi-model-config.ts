@@ -196,11 +196,25 @@ function entryFromBuiltin(id: string, builtin: PiBuiltinModel): PiModelEntry {
  * together. Drop an entry once a Pi bump carries the model, since a built-in id is never
  * registered.
  */
+interface PiModelCostRates {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+interface PiModelCost extends PiModelCostRates {
+  /** Rates for the whole request once its input passes `inputTokensAbove`. */
+  tiers?: Array<PiModelCostRates & { inputTokensAbove: number }>;
+}
+
 interface PiModelAheadOfCatalog {
   /** The built-in id on the same provider whose metadata this model inherits. */
   inheritsFrom: string;
-  cost: Record<string, number>;
+  /** Pi's cost table: per-million rates, plus optional long-prompt `tiers`. */
+  cost: PiModelCost;
   contextWindow?: number;
+  maxTokens?: number;
   /** `compat` keys to drop from the inherited definition. */
   withoutCompat?: string[];
 }
@@ -208,11 +222,28 @@ interface PiModelAheadOfCatalog {
 // Pi 0.87.1 added Claude Opus 5.5 and Grok 4.7, and Pi 0.99.1 added Claude Sonnet 5.5, at the
 // prices their entries used to supply, so all three were dropped.
 export const PI_MODELS_AHEAD_OF_CATALOG: Record<string, PiModelAheadOfCatalog> = {
-  // Pi 0.99.1 does not carry Haiku 5.5. It speaks the same dialect as Haiku 4.5.
+  // Pi 0.99.1 does not carry Haiku 5.5. Its request surface is Sonnet 5.5's, not Haiku 4.5's:
+  // adaptive thinking only (a `budget_tokens` request is a 400), 1M context, and 128K output.
+  // A prompt over 100,000 tokens pays five times every rate.
   "anthropic/claude-haiku-5-5": {
-    inheritsFrom: "claude-haiku-4-5",
-    cost: { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
+    inheritsFrom: "claude-sonnet-5-5",
+    cost: {
+      input: 0.1,
+      output: 0.5,
+      cacheRead: 0.01,
+      cacheWrite: 0.125,
+      tiers: [
+        {
+          inputTokensAbove: 100000,
+          input: 0.5,
+          output: 2.5,
+          cacheRead: 0.05,
+          cacheWrite: 0.625,
+        },
+      ],
+    },
     contextWindow: 1000000,
+    maxTokens: 128000,
   },
 };
 
@@ -231,8 +262,9 @@ function entryAheadOfCatalog(
       Object.entries(entry.compat).filter(([key]) => !known.withoutCompat?.includes(key)),
     );
   }
-  entry.cost = { ...known.cost };
+  entry.cost = structuredClone(known.cost) as unknown as Record<string, unknown>;
   if (known.contextWindow !== undefined) entry.contextWindow = known.contextWindow;
+  if (known.maxTokens !== undefined) entry.maxTokens = known.maxTokens;
   return entry;
 }
 
