@@ -14,6 +14,7 @@ import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+const setupStep = vi.hoisted(() => ({blocking: false}))
 const calls = vi.hoisted(() => ({
     dropLocalSession: vi.fn(),
     onSendFailed: null as null | ((message: unknown, error?: unknown) => void),
@@ -231,8 +232,16 @@ vi.mock("@/features/chat/turnStatus", () => ({
 vi.mock("@/features/chat/turnRowClass", () => ({mobileTurnRowClass: ""}))
 vi.mock("@/features/chat/states/ChatStates", () => ({ChatLoading: () => null}))
 vi.mock("@/features/chat/states/PendingTaskError", () => ({
-    PendingTaskError: ({failureReason}: {failureReason?: string}) => (
-        <div data-testid="task-error">{failureReason}</div>
+    PendingTaskError: ({
+        failureReason,
+        retryDisabled,
+    }: {
+        failureReason?: string
+        retryDisabled: boolean
+    }) => (
+        <div data-testid="task-error" data-retry-disabled={retryDisabled ? "true" : "false"}>
+            {failureReason}
+        </div>
     ),
 }))
 vi.mock("@/features/chat/ConnectModelStrip", () => ({ConnectModelStrip: () => null}))
@@ -263,7 +272,7 @@ vi.mock("@/features/chat/useApprovalActions", () => ({
     useApprovalActions: () => ({phase: "idle", errorText: null, respond: vi.fn()}),
 }))
 vi.mock("@/features/chat/useSessionSetupStep", () => ({
-    useSessionSetupStep: () => ({open: false, blocking: false}),
+    useSessionSetupStep: () => ({open: setupStep.blocking, blocking: setupStep.blocking}),
 }))
 vi.mock("@/features/chat/useSessionWatch", () => ({useSessionWatch: () => ({connected: true})}))
 vi.mock("@/features/chat/useStartBlankSession", () => ({useStartBlankSession: () => vi.fn()}))
@@ -281,6 +290,7 @@ let root: Root
 let store: ReturnType<typeof createStore>
 
 beforeEach(() => {
+    setupStep.blocking = false
     calls.dropLocalSession.mockReset()
     calls.onSendFailed = null
     store = createStore()
@@ -374,5 +384,21 @@ describe("a send that fails while the session is open", () => {
 
         expect(calls.dropLocalSession).toHaveBeenCalledWith("session-1")
         expect(store.get(pendingTasksAtom)["session-1"]).toBeUndefined()
+    })
+})
+
+describe("a failed task whose template connect step is up", () => {
+    it("waits for the step before it can be sent again", async () => {
+        store.set(pendingTasksAtom, {
+            "session-1": {agentId: "agent-1", text: "hello", delivery: "failed"},
+        })
+        setupStep.blocking = true
+        await render()
+        const card = () => host.querySelector('[data-testid="task-error"]')
+        expect(card()?.getAttribute("data-retry-disabled")).toBe("true")
+
+        setupStep.blocking = false
+        await render()
+        expect(card()?.getAttribute("data-retry-disabled")).toBe("false")
     })
 })

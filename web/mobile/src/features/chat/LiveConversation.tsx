@@ -1018,14 +1018,17 @@ export const LiveConversation = ({
                                 filenames={pendingTask?.parts?.map(
                                     (part) => part.filename || "Attachment",
                                 )}
+                                // A template task left while its connect step held it comes
+                                // back failed; the step still goes first.
                                 retryDisabled={
                                     locked ||
+                                    setup.blocking ||
                                     isHydrating ||
                                     modelBlocked ||
                                     (modelKeyLoading && modelKeyWaitedMs < MODEL_KEY_WAIT_LIMIT_MS)
                                 }
                                 onRetry={() => {
-                                    if (locked) return
+                                    if (locked || setup.blocking) return
                                     void sendPendingTask({
                                         sessionId,
                                         retry: true,
