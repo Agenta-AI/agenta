@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import {
+  carriesGatewayRefusalMarker,
   isUpstreamFailure,
   parseGatewayErrorDetail,
   personFacingGatewayRefusal,
@@ -785,8 +786,7 @@ const PROVIDER_ERROR_ADVICE =
 
 /** A provider's own words, redacted and cut, ending with a full stop. */
 function providerSentence(text: string): string | undefined {
-  // The gateway's `⟦agenta_code:…⟧` marker is for machines; the person reads the sentence.
-  const said = sanitizeErrorText(text.replace(/\s*⟦agenta_code:[a-z_]+⟧/g, "").trim())
+  const said = sanitizeErrorText(text.trim())
     .slice(0, PROVIDER_TEXT_MAX_CHARS)
     .trim();
   if (!said) return undefined;
@@ -794,16 +794,33 @@ function providerSentence(text: string): string | undefined {
 }
 
 /**
- * A Google-shaped error body (`{"error": {"code": <HTTP status>, ...}}`) as the `NNN {json}` line
- * `describeRawProviderError` reads. Pi's Google client, on the native Gemini route, keeps only the
- * body as its error text, without the status prefix Pi's OpenAI client writes; undefined for any
- * other text.
+ * The gateway's Google-shaped refusal (`{"error": {"code": <HTTP status>, "message": "...
+ * ⟦agenta_code:…⟧", "status": "<CANONICAL>"}}`) as the `NNN {json}` line `describeRawProviderError`
+ * reads. Pi's Google client, on the native Gemini route, keeps only the body as its error text,
+ * without the status prefix Pi's OpenAI client writes. Only a marked body with a numeric `code` and
+ * a string `status` qualifies, so another `{"error": ...}` in some text is never read as a model
+ * refusal; undefined otherwise.
  */
 function googleStatusLine(line: string): string | undefined {
-  if (RAW_PROVIDER_ERROR.test(line)) return undefined;
-  const body = line.slice(Math.max(line.indexOf("{"), 0));
-  const status = /^\{\s*"error"\s*:\s*\{\s*"code"\s*:\s*([45]\d\d)\b/.exec(body)?.[1];
-  return status ? `${status} ${body}` : undefined;
+  if (RAW_PROVIDER_ERROR.test(line) || !carriesGatewayRefusalMarker(line)) return undefined;
+  const prefix = /^(?:[A-Za-z][A-Za-z ]*:\s*)*(?=\{)/.exec(line);
+  if (!prefix) return undefined;
+  const body = line.slice(prefix[0].length);
+  let error: { code?: unknown; status?: unknown } | undefined;
+  try {
+    error = (JSON.parse(body) as { error?: { code?: unknown; status?: unknown } }).error;
+  } catch {
+    return undefined;
+  }
+  const status = error?.code;
+  if (
+    typeof status !== "number" ||
+    status < 400 ||
+    status > 599 ||
+    typeof error?.status !== "string"
+  )
+    return undefined;
+  return `${status} ${body}`;
 }
 
 /** The `message` of a provider's JSON error body (`{"error":{"message":...}}` or `{"message":...}`). */

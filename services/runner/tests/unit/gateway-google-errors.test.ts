@@ -74,7 +74,9 @@ describe("gateway errors in Google's shape (the native Gemini route)", () => {
       );
 
       expect(viaGoogle.code).not.toBe("internal_error");
-      expect(viaGoogle.message).not.toMatch(/agenta_code|\{"error"/);
+      // The marker stays, as on the OpenAI route: the runner re-reads it for the gateway's code,
+      // and the web app strips it before display.
+      expect(viaGoogle.message).not.toMatch(/\{"error"/);
       expect(viaGoogle.code).toBe(viaOpenAI.code);
       expect(viaGoogle.message).toBe(viaOpenAI.message);
     });
@@ -96,7 +98,41 @@ describe("the staging report (v0.125.1, reference 876ec5d2)", () => {
     );
     const classified = classifyRunError(raw, "pi_core", "agenta", { unknownText: "hidden" });
     expect(classified.code).toBe("provider_error");
-    expect(classified.message).toMatch(/^The model provider refused the request \(HTTP 403\): Model google\/gemini-2\.0-flash not allowed on builtin\/agenta\./);
-    expect(classified.message).not.toMatch(/agenta_code/);
+    expect(classified.message).toMatch(/^The model provider refused the request \(HTTP 403\): Model google\/gemini-2\.0-flash not allowed on builtin\/agenta/);
+    expect(parseGatewayErrorDetail(classified.message)).toMatchObject({
+      code: "model_not_allowed",
+      retryable: false,
+    });
+  });
+});
+
+describe("text that only looks like a Google error", () => {
+  it.each([
+    ['a tool\'s own error body', 'Tool output validation failed: {"error":{"code":403,"message":"Missing field"}}'],
+    ["a provider's own Google error, unmarked", 'Internal error: {"error":{"code":403,"message":"Permission denied on resource project x.","status":"PERMISSION_DENIED"}}'],
+    ["a marked body without a status", 'Internal error: {"error":{"code":403,"message":"No ⟦agenta_code:model_not_allowed⟧"}}'],
+  ])("is not read as the gateway's refusal: %s", (_name, text) => {
+    const classified = classifyRunError(new Error(text), "pi_core", "agenta", { unknownText: "hidden" });
+    expect(classified.message).not.toMatch(/^The model provider refused the request \(HTTP 403\)/);
+  });
+});
+
+describe("Google-shaped refusals that earlier rules own", () => {
+  it("keeps the out-of-credits sentence", () => {
+    const raw = new Error(
+      `Internal error: ${google(403, "PERMISSION_DENIED", `You've used all your organization's credits. ${MARK("wallet_balance_exhausted")}`)}`,
+    );
+    expect(classifyRunError(raw, "pi_core", "agenta", { unknownText: "hidden" }).code).toBe(
+      "wallet_balance_exhausted",
+    );
+  });
+
+  it("keeps an upstream rejection as the gateway's sentence", () => {
+    const raw = new Error(
+      `Internal error: ${google(400, "INVALID_ARGUMENT", `The model rejected the request. ${MARK("upstream_rejected")}`)}`,
+    );
+    expect(classifyRunError(raw, "pi_core", "agenta", { unknownText: "hidden" }).code).toBe(
+      "upstream_rejected",
+    );
   });
 });
