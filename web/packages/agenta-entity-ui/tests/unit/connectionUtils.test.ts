@@ -101,7 +101,13 @@ describe("connectionUtils: connectionFromConfig", () => {
                 provider: "openai",
                 connection: {mode: "agenta", slug: "openai-prod"},
             }),
-        ).toEqual({provider: "openai", mode: "agenta", slug: "openai-prod", namespace: null})
+        ).toEqual({
+            provider: "openai",
+            mode: "agenta",
+            slug: "openai-prod",
+            namespace: null,
+            scope: null,
+        })
     })
 
     it("defaults the mode to agenta when the connection block is absent or unknown", () => {
@@ -120,6 +126,7 @@ describe("connectionUtils: connectionFromConfig", () => {
             mode: "agenta",
             slug: null,
             namespace: null,
+            scope: null,
         })
     })
 })
@@ -137,19 +144,42 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
         expect(compose("agenta", "agenta").connection).toEqual({
             mode: "agenta",
             slug: "agenta",
+            scope: "project",
             namespace: "builtin",
         })
-        expect(compose("agenta", null).connection).toBeUndefined()
+        // The project default is written explicitly too (M5), with no namespace.
+        expect(compose("agenta", null).connection).toEqual({mode: "agenta", scope: "project"})
         expect(compose("self_managed", "chatgpt").connection).toEqual({
             mode: "self_managed",
             slug: "chatgpt",
         })
     })
 
-    it("returns a structured object even for the default connection (no bare string)", () => {
+    it("writes the default connection explicitly (no bare string, no omitted connection)", () => {
         expect(
             composeModelValue({modelId: "gpt-5.5", provider: "openai", mode: "agenta", slug: null}),
-        ).toEqual({model: "gpt-5.5", provider: "openai"})
+        ).toEqual({
+            model: "gpt-5.5",
+            provider: "openai",
+            connection: {mode: "agenta", scope: "project"},
+        })
+    })
+
+    it("writes an organization pick with its scope and the organization namespace", () => {
+        expect(
+            composeModelValue({
+                modelId: "gpt-5.5",
+                provider: "openai",
+                mode: "agenta",
+                slug: "openai-company",
+                scope: "organization",
+            }).connection,
+        ).toEqual({
+            mode: "agenta",
+            slug: "openai-company",
+            scope: "organization",
+            namespace: "organization",
+        })
     })
 
     it("includes the agenta connection with its slug", () => {
@@ -163,7 +193,7 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
         ).toEqual({
             model: "gpt-5.5",
             provider: "openai",
-            connection: {mode: "agenta", slug: "openai-prod"},
+            connection: {mode: "agenta", slug: "openai-prod", scope: "project"},
         })
     })
 
@@ -199,7 +229,7 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
         const value = {
             model: "gpt-5.5",
             provider: "openai",
-            connection: {mode: "agenta", slug: "openai-prod"},
+            connection: {mode: "agenta", slug: "openai-prod", scope: "project"},
         }
         const fields = connectionFromConfig(value)
         const round = composeModelValue({modelId: modelIdFromConfig(value), ...fields})
@@ -219,7 +249,7 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
             params: {reasoning_effort: "high"},
             model: "gpt-5.6",
             provider: "openai",
-            connection: {mode: "agenta", slug: "openai-prod"},
+            connection: {mode: "agenta", slug: "openai-prod", scope: "project"},
         })
     })
 })
@@ -938,7 +968,7 @@ describe("connectionUtils: a custom pick keeps the slug and omits the provider",
         })
         expect(ref).toEqual({
             model: "gpt-oss",
-            connection: {mode: "agenta", slug: "my-gateway"},
+            connection: {mode: "agenta", slug: "my-gateway", scope: "project"},
         })
         expect(ref).not.toHaveProperty("provider")
     })

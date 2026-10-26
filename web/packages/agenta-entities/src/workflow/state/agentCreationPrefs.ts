@@ -6,7 +6,11 @@
  */
 import {atomWithStorage} from "jotai/utils"
 
-import {connectionNamespaceFrom, type AgentModelSelection} from "../../secret/core"
+import {
+    connectionNamespaceFrom,
+    explicitAgentConnection,
+    type AgentModelSelection,
+} from "../../secret/core"
 
 export interface AgentCreationPrefs {
     version: 1
@@ -69,13 +73,7 @@ export function applyAgentModelSelection(
     const nextLlm: Record<string, unknown> = {
         ...llm,
         model: selection.modelId,
-        connection: {
-            mode: selection.mode,
-            ...(selection.slug ? {slug: selection.slug} : {}),
-            ...(selection.mode === "agenta" && selection.slug && selection.namespace
-                ? {namespace: selection.namespace}
-                : {}),
-        },
+        connection: explicitAgentConnection(selection),
     }
     if (selection.provider) nextLlm.provider = selection.provider
     else delete nextLlm.provider
@@ -127,6 +125,24 @@ export function applyAgentCreationPrefs(
     }
 
     return next
+}
+
+/**
+ * Give an agent config that names no model connection the explicit project default, so a saved
+ * agent keeps the connection it was saved with. A config that already names one is unchanged.
+ */
+export function withExplicitAgentConnection(
+    agentConfig: Record<string, unknown>,
+): Record<string, unknown> {
+    const llm = objectAt(agentConfig, "llm")
+    const connection = llm.connection
+    if (connection && typeof connection === "object" && !Array.isArray(connection)) {
+        return agentConfig
+    }
+    return {
+        ...agentConfig,
+        llm: {...llm, connection: explicitAgentConnection({mode: "agenta"})},
+    }
 }
 
 /** The object at `key`, or `{}` when the config carries nothing usable there. */

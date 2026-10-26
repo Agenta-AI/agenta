@@ -24,11 +24,52 @@ export type AgentConnectionMode = "agenta" | "self_managed"
  * The gateway namespace an `agenta` slug was picked from. Unset, the gateway infers it from the
  * slug, which is ambiguous where a custom endpoint shares a built-in endpoint's name.
  */
-export type AgentConnectionNamespace = "standard" | "custom" | "builtin"
+export type AgentConnectionNamespace = "standard" | "custom" | "builtin" | "organization"
 
 /** A stored gateway namespace, or null when it names none this build knows. */
 export const connectionNamespaceFrom = (value: unknown): AgentConnectionNamespace | null =>
-    value === "standard" || value === "custom" || value === "builtin" ? value : null
+    value === "standard" || value === "custom" || value === "builtin" || value === "organization"
+        ? value
+        : null
+
+/**
+ * Whose connection an `agenta` slug names: the project's, or the organization's. An agent uses an
+ * organization connection only when it names it (with namespace `organization`).
+ */
+export type AgentConnectionScope = "project" | "organization"
+
+export const connectionScopeFrom = (value: unknown): AgentConnectionScope | null =>
+    value === "project" || value === "organization" ? value : null
+
+/**
+ * The `agent.llm.connection` object a save writes. Every save writes one explicitly, so an agent
+ * keeps the connection it was saved with. An `agenta` connection names its scope; an organization
+ * one also carries namespace `organization`, so an older runtime refuses it rather than reading its
+ * slug as a project connection.
+ */
+export const explicitAgentConnection = ({
+    mode,
+    slug,
+    namespace,
+    scope,
+}: {
+    mode: AgentConnectionMode
+    slug?: string | null
+    namespace?: AgentConnectionNamespace | null
+    scope?: AgentConnectionScope | null
+}): Record<string, unknown> => {
+    const connection: Record<string, unknown> = {mode}
+    if (slug) connection.slug = slug
+    if (mode !== "agenta") return connection
+    if (scope === "organization" && slug) {
+        connection.scope = "organization"
+        connection.namespace = "organization"
+        return connection
+    }
+    connection.scope = "project"
+    if (slug && namespace && namespace !== "organization") connection.namespace = namespace
+    return connection
+}
 
 export interface AgentModelSelection {
     modelId: string
@@ -36,6 +77,7 @@ export interface AgentModelSelection {
     mode: AgentConnectionMode
     slug: string | null
     namespace?: AgentConnectionNamespace | null
+    scope?: AgentConnectionScope | null
     harness: string
 }
 

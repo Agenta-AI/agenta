@@ -23,7 +23,10 @@
 import {
     bareModelId,
     connectionNamespaceFrom,
+    connectionScopeFrom,
+    explicitAgentConnection,
     type AgentConnectionNamespace,
+    type AgentConnectionScope,
 } from "@agenta/entities/secret"
 import type {
     HarnessCapabilities,
@@ -54,6 +57,8 @@ export interface ConnectionFields {
     slug: string | null
     /** The gateway namespace an `agenta` slug was picked from; null lets the gateway infer it. */
     namespace: AgentConnectionNamespace | null
+    /** Whose connection the slug names; null reads as the project's. */
+    scope: AgentConnectionScope | null
 }
 
 /** The structured `agent.llm` object shape (a subset; extra keys round-trip untouched). */
@@ -61,7 +66,12 @@ interface ModelRefObject {
     provider?: string | null
     model?: string | null
     extras?: Record<string, unknown>
-    connection?: {mode?: string | null; slug?: string | null; namespace?: string | null} | null
+    connection?: {
+        mode?: string | null
+        slug?: string | null
+        namespace?: string | null
+        scope?: string | null
+    } | null
     [key: string]: unknown
 }
 
@@ -99,9 +109,10 @@ export function connectionFromConfig(model: unknown): ConnectionFields {
             mode: coerceMode(connection.mode),
             slug: typeof connection.slug === "string" ? connection.slug : null,
             namespace: connectionNamespaceFrom(connection.namespace),
+            scope: connectionScopeFrom(connection.scope),
         }
     }
-    return {provider: null, mode: "agenta", slug: null, namespace: null}
+    return {provider: null, mode: "agenta", slug: null, namespace: null, scope: null}
 }
 
 export interface ComposeModelValueArgs {
@@ -111,6 +122,8 @@ export interface ComposeModelValueArgs {
     slug: string | null
     /** Written only beside an `agenta` slug; omitted, the gateway infers it from the slug. */
     namespace?: AgentConnectionNamespace | null
+    /** Whose connection the slug names; written on every `agenta` connection. */
+    scope?: AgentConnectionScope | null
     /**
      * The prior `agent.llm` value. When it is a structured object, its extra keys (notably
      * `extras`, set via the raw-JSON hatch) are carried through so a form edit never silently
@@ -125,10 +138,10 @@ const FORM_MANAGED_KEYS = new Set(["model", "provider", "connection"])
  * Compose the `config.model` ModelRef the backend expects from the form fields.
  *
  * Always returns the structured object (never a bare string): the picker always produces a
- * ModelRef. The `connection` is emitted only when it carries non-default info (a `self_managed`
- * mode, or a slug); a slug rides along in EITHER mode — under `agenta` it names a stored key, under
- * `self_managed` it names a stored subscription sign-in. Extra keys on the prior object (e.g.
- * `extras`) ride through.
+ * ModelRef. The `connection` is always written explicitly, also for the project default, so an
+ * agent keeps the connection it was saved with (M5). A slug rides along in EITHER mode — under
+ * `agenta` it names a stored key, under `self_managed` it names a stored subscription sign-in.
+ * Extra keys on the prior object (e.g. `extras`) ride through.
  */
 export function composeModelValue({
     modelId,
@@ -136,6 +149,7 @@ export function composeModelValue({
     mode,
     slug,
     namespace,
+    scope,
     existing,
 }: ComposeModelValueArgs): Record<string, unknown> {
     const id = modelId ?? ""
@@ -152,13 +166,7 @@ export function composeModelValue({
     const result: Record<string, unknown> = {...extras, model: id}
     if (hasProvider) result.provider = provider
 
-    const isDefaultConnection = mode === "agenta" && !slug
-    if (!isDefaultConnection) {
-        const connection: Record<string, unknown> = {mode}
-        if (slug) connection.slug = slug
-        if (slug && mode === "agenta" && namespace) connection.namespace = namespace
-        result.connection = connection
-    }
+    result.connection = explicitAgentConnection({mode, slug, namespace, scope})
 
     return result
 }

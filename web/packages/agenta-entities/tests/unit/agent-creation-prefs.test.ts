@@ -3,6 +3,7 @@ import {describe, expect, it} from "vitest"
 import {
     applyAgentCreationPrefs,
     applyAgentModelSelection,
+    withExplicitAgentConnection,
     ensureEnabledSandbox,
     selectionFromAgentCreationPrefs,
 } from "../../src/workflow/state/agentCreationPrefs"
@@ -86,7 +87,7 @@ describe("applyAgentModelSelection", () => {
                     model,
                     temperature: 0.5,
                     provider,
-                    connection: {mode: "agenta", slug: provider},
+                    connection: {mode: "agenta", slug: provider, scope: "project"},
                 },
             })
             expect(result.runner).toEqual({permissions: {default: policy}})
@@ -111,7 +112,7 @@ describe("a built-in pick's namespace", () => {
         expect(applyAgentModelSelection({}, builtin).llm).toEqual({
             model: "gpt-5.5",
             provider: "openai",
-            connection: {mode: "agenta", slug: "agenta", namespace: "builtin"},
+            connection: {mode: "agenta", slug: "agenta", scope: "project", namespace: "builtin"},
         })
     })
 
@@ -207,3 +208,18 @@ describe("ensureEnabledSandbox", () => {
         expect(ensureEnabledSandbox(config, [])).toBe(config)
     })
 })
+
+describe("an explicit connection on every new agent (M5)", () => {
+    it("writes the project default when the config names no connection", () => {
+        expect(withExplicitAgentConnection({llm: {model: "gpt-5.5"}}).llm).toEqual({
+            model: "gpt-5.5",
+            connection: {mode: "agenta", scope: "project"},
+        })
+    })
+
+    it("keeps a connection the config already names", () => {
+        const config = {llm: {model: "gpt-5.5", connection: {mode: "self_managed"}}}
+        expect(withExplicitAgentConnection(config)).toBe(config)
+    })
+})
+
