@@ -76,6 +76,7 @@ const DeviceSignInDialog = ({
         provider,
         connection,
         scope: organization ? "organization" : "project",
+        organizationName: organization?.name,
     })
     const {name, isReady, pending, starting, error, lostPoll, now, statusLine, connect} = signIn
     const draft = useOrganizationProjectsDraft({

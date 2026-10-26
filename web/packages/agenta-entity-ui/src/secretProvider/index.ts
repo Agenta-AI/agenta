@@ -58,6 +58,7 @@ export {
     type OrganizationProjectOption,
     type OrganizationProjectsSectionProps,
 } from "./OrganizationProjectsSection"
+export {organizationSaveError} from "./useOrganizationProjectsDraft"
 
 /**
  * The "Configure provider" drawer and the drill-in `llmProviderConfig` bridge that opens it —

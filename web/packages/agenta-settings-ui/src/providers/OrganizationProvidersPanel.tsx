@@ -30,6 +30,7 @@ import {
 import {
     ProviderDrawer,
     providerIconFor,
+    organizationSaveError,
     SubscriptionSignInDialog,
     type OrganizationConnectionScope,
 } from "@agenta/entity-ui/secretProvider"
@@ -179,13 +180,16 @@ export const OrganizationProvidersPanel = ({
             await deleteConnection(pendingRemoval)
             message.success(`${pendingRemoval.name} deleted.`)
             setPendingRemoval(null)
-        } catch {
-            setRemoveError(`Agenta could not remove ${pendingRemoval.name}. Try again.`)
+        } catch (failure) {
+            setRemoveError(
+                organizationSaveError(failure, scope.name, pendingRemoval.name) ??
+                    `Agenta could not remove ${pendingRemoval.name}. Try again.`,
+            )
             setPendingRemoval(null)
         } finally {
             setRemoving(false)
         }
-    }, [deleteConnection, pendingRemoval])
+    }, [deleteConnection, pendingRemoval, scope.name])
 
     const groups = useMemo<SettingsCatalogGroup[]>(() => {
         const connectedRows = (manage ? keyConnections : connections).map<SettingsCatalogItem>(

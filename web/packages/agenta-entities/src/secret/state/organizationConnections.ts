@@ -223,7 +223,10 @@ export const setOrganizationSubscriptionTokenAtom = atom(
         if (row) {
             queryClient.setQueriesData<ProviderVaultRow[]>(
                 {queryKey: ["vault", "organization-secrets"]},
-                (rows) => rows?.map((item) => (item.id === row.id ? row : item)),
+                (rows) =>
+                    rows?.some((item) => item.id === row.id)
+                        ? rows.map((item) => (item.id === row.id ? row : item))
+                        : [...(rows ?? []), row],
             )
         }
         void queryClient.invalidateQueries({queryKey: ["vault"]})

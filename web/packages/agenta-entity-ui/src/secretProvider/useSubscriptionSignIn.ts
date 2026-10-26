@@ -18,6 +18,8 @@ import {
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {organizationSaveError} from "./useOrganizationProjectsDraft"
+
 /** The in-flight device login being shown. */
 export interface PendingAttempt {
     secretId: string
@@ -48,11 +50,14 @@ export const useSubscriptionSignIn = ({
     provider = "chatgpt",
     connection = null,
     scope = "project",
+    organizationName = "",
 }: {
     provider?: string
     connection?: ProviderConnection | null
     /** `organization` creates and signs in an organization connection (for every project). */
     scope?: SignInScope
+    /** For the organization refusal messages. */
+    organizationName?: string
 }) => {
     const createProjectConnection = useSetAtom(createSubscriptionConnectionAtom)
     const createOrganizationConnection = useSetAtom(createOrganizationSubscriptionConnectionAtom)
@@ -200,7 +205,12 @@ export const useSubscriptionSignIn = ({
             if (!connection) void refreshVault()
         } catch (caught) {
             if (start !== startRef.current) return
-            setError(extractApiErrorMessage(caught) || "Agenta could not start the sign-in.")
+            setError(
+                (scope === "organization" &&
+                    organizationSaveError(caught, organizationName, name)) ||
+                    extractApiErrorMessage(caught) ||
+                    "Agenta could not start the sign-in.",
+            )
         } finally {
             if (start === startRef.current) setStarting(false)
         }
@@ -210,8 +220,10 @@ export const useSubscriptionSignIn = ({
         createConnection,
         loginScope,
         name,
+        organizationName,
         provider,
         refreshVault,
+        scope,
         startLogin,
     ])
 
