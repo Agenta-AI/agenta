@@ -506,14 +506,16 @@ describe("first agent onboarding", () => {
         expect(heading()).toBe("Create your first agent")
         expect(host!.querySelector("[data-dock]")).toBeNull()
         expect(button("Send").disabled).toBe(true)
-        type("Name your agent", "Atlas")
+        expect(host!.textContent).toContain("Describe your agent")
+        expect(host!.querySelector('[placeholder="Name your agent"]')).toBeNull()
         click("Review my open pull requests")
         expect(message("Describe the agent")).toBe("Review my open pull requests")
         render(props)
         expect(message("Describe the agent")).toBe("Review my open pull requests")
+        vi.spyOn(Math, "random").mockReturnValue(0)
         await send()
         expect(props.onCreate).toHaveBeenCalledWith({
-            name: "Atlas",
+            name: "",
             firstMessage: "Review my open pull requests",
             templateKey: null,
             icon: {icon: "robot", color: "#111111"},
@@ -525,20 +527,20 @@ describe("first agent onboarding", () => {
         render(baseProps())
         toGallery()
         click(/^New agent/)
-        const savedName = () =>
-            JSON.parse(window.sessionStorage.getItem("onboarding:test") ?? "{}").agent?.name
-        type("Name your agent", "Atl")
-        expect(savedName()).toBe("")
+        const savedMessage = () =>
+            JSON.parse(window.sessionStorage.getItem("onboarding:test") ?? "{}").agent?.firstMessage
+        type("Describe the agent", "Plan")
+        expect(savedMessage()).toBe("")
         act(() => vi.advanceTimersByTime(300))
-        expect(savedName()).toBe("Atl")
-        type("Name your agent", "Atlas")
-        expect(savedName()).toBe("Atl")
+        expect(savedMessage()).toBe("Plan")
+        type("Describe the agent", "Plan my week")
+        expect(savedMessage()).toBe("Plan")
         act(() => window.dispatchEvent(new Event("pagehide")))
-        expect(savedName()).toBe("Atlas")
-        type("Name your agent", "Atlas 2")
+        expect(savedMessage()).toBe("Plan my week")
+        type("Describe the agent", "Plan my month")
         act(() => root!.unmount())
         root = undefined
-        expect(savedName()).toBe("Atlas 2")
+        expect(savedMessage()).toBe("Plan my month")
     })
 
     it("keeps the message and points at the model note when sent without a model", async () => {
@@ -581,7 +583,7 @@ describe("first agent onboarding", () => {
         click("Try again")
         expect(retry).toHaveBeenCalledOnce()
         click(/^New agent/)
-        expect(host!.querySelector('[placeholder="Name your agent"]')).not.toBeNull()
+        expect(host!.textContent).toContain("Describe your agent")
     })
 
     it("opens a template on its own view on a phone, and Back returns to the list", () => {
@@ -595,7 +597,7 @@ describe("first agent onboarding", () => {
         expect(() => button("Templates")).toThrow()
         click(/^New agent/)
         expect(nav.url).toBe(`${nav.BASE}/templates/scratch`)
-        expect(host!.querySelector('[placeholder="Name your agent"]')).not.toBeNull()
+        expect(host!.textContent).toContain("Describe your agent")
         click("Templates")
         expect(nav.url).toBe(`${nav.BASE}/templates`)
     })

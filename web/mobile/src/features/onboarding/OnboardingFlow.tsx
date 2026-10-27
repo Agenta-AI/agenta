@@ -158,7 +158,7 @@ export const OnboardingFlow = ({
         attachments,
         onChooseModel: () => go({step: "credits"}, {returnTo: routeRef.current}),
         onCreate: async (firstMessage) => {
-            const input = blankAgentInput(draftRef.current.agent, firstMessage)
+            const input = blankAgentInput(firstMessage)
             flushDraft()
             return input ? onCreate(input) : false
         },

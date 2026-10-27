@@ -28,7 +28,7 @@ export const OnboardingComposer = ({
     const chooseModelRef = useRef<HTMLButtonElement | null>(null)
 
     return (
-        <div className="flex min-w-0 flex-col gap-2">
+        <div className="flex min-w-0 flex-col gap-3">
             <HomeTaskComposer
                 mode="create"
                 ring={false}
@@ -52,18 +52,15 @@ export const OnboardingComposer = ({
                 }}
             />
             <OnboardingCreateStatus create={create} chooseModelRef={chooseModelRef} />
-            <div
-                role="group"
-                aria-label={copy.starters}
-                className="-mx-3 flex gap-1 overflow-x-auto px-3 [mask-image:linear-gradient(90deg,#000_90%,transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
+            <div role="group" aria-label={copy.starters} className="flex flex-wrap gap-1.5">
                 {starters.map((text) => (
                     <button
                         type="button"
                         key={text}
                         onClick={() => void inputRef.current?.setMarkdown(text)}
                         className={cn(
-                            "bg-foreground/[0.04] text-muted-foreground hover:bg-foreground/[0.06] hover:text-foreground min-h-7 shrink-0 cursor-pointer whitespace-nowrap rounded-md border-0 px-2 py-[5px] text-xs leading-4",
+                            // White on the grey card, outlined, so they read as buttons beside the white composer.
+                            "bg-background text-foreground/80 ring-border hover:text-foreground hover:ring-foreground/30 min-h-7 cursor-pointer rounded-md border-0 px-2.5 py-[5px] text-xs leading-4 ring-1 transition-shadow",
                             FOCUS_RING,
                         )}
                     >

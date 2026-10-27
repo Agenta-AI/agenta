@@ -127,13 +127,7 @@ export const FIRST_MESSAGE_STARTERS = [
     "Summarize my unread email from today",
     "Draft a weekly update for my team",
     "Plan my week from my calendar",
-    "Research a company and write a one-page brief",
-    "Turn my meeting notes into action items",
     "Review my open pull requests",
-    "Draft replies to my support inbox",
-    "Find time for a 30-minute meeting next week",
-    "Summarize this week's Slack threads",
-    "Write release notes from merged PRs",
 ]
 
 /** The template catalog as the flow reads it; `templates` is empty until it succeeds. */
