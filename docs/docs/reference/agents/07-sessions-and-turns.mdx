@@ -13,6 +13,47 @@ Omit `session_id` to let Agenta mint one, then store `x-ag-session-id` from the 
 
 When your client also uses `/api/sessions`, keep IDs to letters, numbers, underscores, and hyphens. The management API currently accepts a narrower character set than invoke.
 
+## Run in the background
+
+Every run belongs to a session. When the request has no `session_id`, Agenta mints one. The run is tied to the session, not to the HTTP connection. If the client disconnects before the turn ends, the run continues and Agenta stores its records.
+
+To start a run without waiting for it:
+
+1. Send your own `session_id`, so you know where to read the result.
+2. Request `Accept: text/event-stream` and set `"flags": {"detached": true}` in the body.
+3. Read the first frame. A `session-accepted` frame confirms that the run started:
+
+   ```text
+   data: {"type": "data", "data": {"type": "data", "name": "session-accepted", "data": {"sessionId": "019d952f-0000-0000-0000-000000000001", "turnId": "019d952f-0000-0000-0000-000000000005", "executionId": "019d952f-0000-0000-0000-000000000005"}, "transient": true}}
+   ```
+
+4. Close the connection.
+
+```bash
+curl -N -X POST \
+  "https://eu.cloud.agenta.ai/services/agent/v0/invoke?project_id=019d952f-0000-0000-0000-000000000000" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "session_id": "019d952f-0000-0000-0000-000000000001",
+    "flags": {"detached": true},
+    "references": {"workflow_revision": {"id": "019d952f-0000-0000-0000-000000000002"}},
+    "data": {"inputs": {"messages": [{"role": "user", "content": "Research lead L-1042."}]}}
+  }'
+```
+
+A request without `detached` also keeps running after a disconnect. The difference is that the client cannot tell whether the run started before the connection dropped. Check the session's records before you send the turn again.
+
+To read the result later, use either endpoint:
+
+| Method and path                         | Returns                                                                                                                           |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/sessions/records/query`      | The session's records for the body `{"session_id": "<id>"}`. A finished turn ends with the agent message and a `done` record.     |
+| `GET /api/sessions/{session_id}/events` | The durable events, replayed from `after=<cursor>`, then the live stream. See [Session events](/reference/agents/session-events). |
+
+Agenta does not call a webhook when a run ends. Poll the records, or keep the event stream open. A background turn that needs an approval stops with `stop_reason: "paused"`; answer it as described in [Pause and resume](#pause-and-resume).
+
 ## Busy sessions
 
 Set top-level `on_busy` when a session already has an active execution:
