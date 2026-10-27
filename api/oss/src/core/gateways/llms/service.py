@@ -175,6 +175,14 @@ class _ResolvedLlmTarget:
     # An organization target carries the row it was built from (read from the project's
     # one cache entry), so the relay reads nothing more. In process only.
     resolved_secret: Optional[ResolvedSecret] = None
+    # The namespace whose model rules the target follows, when it differs from its own: an
+    # organization `provider_key` follows `standard`, an organization `custom_provider`
+    # follows `custom`.
+    rules_namespace: Optional[GatewayEndpointNamespace] = None
+
+    @property
+    def model_rules(self) -> GatewayEndpointNamespace:
+        return self.rules_namespace or self.namespace
 
     def target_path(self) -> str:
         return f"{self.namespace.value}/{self.name}"
@@ -217,7 +225,7 @@ class _ResolvedLlmTarget:
         unchanged.
         """
         if (
-            self.namespace != GatewayEndpointNamespace.CUSTOM
+            self.model_rules != GatewayEndpointNamespace.CUSTOM
             or not self.models.allowlist
         ):
             return model
@@ -1252,8 +1260,10 @@ class LLMGatewayService:
             endpoint = (
                 standard_llm_endpoint(provider_key=str(family)) if family else None
             )
+            rules = GatewayEndpointNamespace.STANDARD
         else:
             endpoint = map_custom_provider_secret_to_endpoint(secret)
+            rules = GatewayEndpointNamespace.CUSTOM
         if endpoint is None:
             raise LLMNamedConnectionNotFoundError(
                 scope=SecretOwnerKind.ORGANIZATION, slug=slug
@@ -1271,6 +1281,7 @@ class LLMGatewayService:
             secret_id=secret.id,
             secret_owner_kind=SecretOwnerKind.ORGANIZATION,
             resolved_secret=resolved,
+            rules_namespace=rules,
         )
 
     @staticmethod
@@ -1388,7 +1399,7 @@ class LLMGatewayService:
                     field=field, namespace=target.namespace, name=target.name
                 )
 
-        if target.namespace == GatewayEndpointNamespace.STANDARD:
+        if target.model_rules == GatewayEndpointNamespace.STANDARD:
             return
 
         if not target.models.allows(context.model):

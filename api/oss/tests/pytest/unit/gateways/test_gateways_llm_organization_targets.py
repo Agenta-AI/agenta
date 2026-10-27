@@ -14,6 +14,7 @@ import pytest
 import oss.src.core.secrets.services as services_module
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.dtos import (
+    LLMCallContext,
     LLMDeploymentKind,
     LLMEndpoint,
     LLMEndpointData,
@@ -25,6 +26,7 @@ from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
 from oss.src.core.gateways.llms.types import (
     LLMEndpointNotFoundError,
+    LLMModelNotAllowedError,
     LLMNamedConnectionNotFoundError,
     LLMOrganizationConnectionSlugRequiredError,
 )
@@ -322,6 +324,39 @@ async def test_relay_uses_the_carried_organization_secret(world):
     assert ref.owner_kind == ORG
     # The relay takes `target.resolved_secret`; the resolver is never asked.
     assert world["resolver"].resolve_calls == 0
+
+
+async def _organization_target(world, slug):
+    return await world["service"]._resolve_target(
+        scope=world["scope"],
+        namespace=GatewayEndpointNamespace.ORGANIZATION,
+        name=slug,
+    )
+
+
+async def test_an_organization_key_leaves_the_model_to_the_provider(world):
+    """Like a project key: a model the catalogue does not list (a dated id) is relayed."""
+    await _company(world, kind="provider_key", family="anthropic", slug="claude-co")
+    target = await _organization_target(world, "claude-co")
+    context = LLMCallContext(model="claude-haiku-4-5-20251001")
+    world["service"]._check_allowlist(target=target, context=context, payload={})
+    assert target.upstream_model(context.model) == context.model
+
+
+async def test_an_organization_custom_provider_sends_the_bare_model_upstream(world):
+    """Like a project custom provider: the allowlist holds both spellings, and only the
+    bare model slug reaches the upstream."""
+    await _company(world, family="custom", slug="custom-co")
+    target = await _organization_target(world, "custom-co")
+    qualified = next(model for model in target.models.allowlist if "/" in model)
+    world["service"]._check_allowlist(
+        target=target, context=LLMCallContext(model=qualified), payload={}
+    )
+    assert target.upstream_model(qualified) == "gpt-4o-mini"
+    with pytest.raises(LLMModelNotAllowedError):
+        world["service"]._check_allowlist(
+            target=target, context=LLMCallContext(model="gpt-5"), payload={}
+        )
 
 
 async def test_an_organization_target_reads_the_entry_once_per_request(world):
