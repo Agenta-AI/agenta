@@ -61,7 +61,6 @@ describe("onboarding pending mark", () => {
 
 describe("what Home does about a pending mark", () => {
     const input = (overrides: Partial<PendingOnboardingInput> = {}): PendingOnboardingInput => ({
-        enabled: true,
         pending: true,
         agentCount: 0,
         agentsPending: false,
@@ -85,10 +84,8 @@ describe("what Home does about a pending mark", () => {
         )
     })
 
-    it("leaves Home alone without a mark, with the flag off, or when the list failed", () => {
+    it("leaves Home alone without a mark or when the list failed", () => {
         expect(resolvePendingOnboarding(input({pending: false}))).toBe("none")
-        expect(resolvePendingOnboarding(input({enabled: false}))).toBe("none")
-        expect(resolvePendingOnboarding(input({enabled: false, pending: null}))).toBe("none")
         expect(resolvePendingOnboarding(input({agentsError: true}))).toBe("none")
     })
 })

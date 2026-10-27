@@ -7,7 +7,6 @@ import {useRouter} from "next/router"
 import {postAuthBootAtom} from "@/features/app/postAuthBoot"
 import {markOnboardingPending} from "@/features/onboarding/onboardingPending"
 import {writeLastAuthEmail, writeLastAuthMethod} from "@/lib/auth"
-import {isOnboardingFlowEnabled} from "@/lib/env"
 import {queryClient} from "@/lib/queryClient"
 
 export interface AuthSuccess {
@@ -42,7 +41,7 @@ export function useAuthSuccess() {
                     queryClient.invalidateQueries({queryKey: ["profile"]}),
                     queryClient.invalidateQueries({queryKey: ["mobile", "projects"]}),
                 ])
-                if (isNewUser && isOnboardingFlowEnabled()) await markNewAccount()
+                if (isNewUser) await markNewAccount()
                 await router.replace("/")
             } catch (error) {
                 startBoot(null)
