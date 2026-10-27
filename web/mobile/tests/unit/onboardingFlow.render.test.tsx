@@ -443,7 +443,7 @@ describe("first agent onboarding", () => {
         render(props)
         toGallery()
         click(/^PR reviewer/)
-        expect(host!.textContent).toContain("Creates the agent and opens it.")
+        expect(host!.textContent).not.toContain("Creates the agent and opens it.")
         await act(async () => button("Use template").click())
         expect(props.onCreate).toHaveBeenCalledWith({
             name: "PR reviewer",

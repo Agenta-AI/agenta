@@ -88,7 +88,6 @@ export const ONBOARDING_COPY = {
         howItWorks: "How it works",
         when: "When",
         step: (n: number, app: string | null) => (app ? `Step ${n} · ${app}` : `Step ${n}`),
-        useHint: "Creates the agent and opens it.",
         use: "Use template",
         creating: "Creating agent",
         loading: "Loading templates",

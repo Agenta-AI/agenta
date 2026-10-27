@@ -40,7 +40,7 @@ export const OnboardingScratchPanel = ({
     return (
         <section
             aria-label={ONBOARDING_COPY.gallery.scratch}
-            className="bg-muted flex min-w-0 flex-col rounded-xl"
+            className="bg-muted flex min-w-0 flex-col rounded-xl md:h-full md:overflow-y-auto"
         >
             <div className="flex min-w-0 flex-col gap-2.5 p-3">
                 <div className="flex min-w-0 items-center gap-2.5">
