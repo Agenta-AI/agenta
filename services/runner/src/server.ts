@@ -101,6 +101,7 @@ import {
   runnerConfigSummary,
 } from "./config/runner-config.ts";
 import { applyDaytonaSdkEnv } from "./engines/sandbox_agent/daytona-provider.ts";
+import { seedPinnedAgentProcesses } from "./engines/sandbox_agent/adapter-seed.ts";
 import { flushPendingDaytonaSecretCleanups } from "./engines/sandbox_agent/daytona-secret-provider.ts";
 import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
@@ -2076,6 +2077,12 @@ if (isEntrypoint(import.meta.url)) {
   // one redacted summary, then bridge the typed Daytona credential into the ambient names the
   // vendored SDK reads during sandbox creation.
   let runnerConfig = loadRunnerConfig();
+
+  // BEFORE ANY DAEMON CAN START, which is why it sits at boot rather than in the acquire path:
+  // the daemon reads its data dir when the first run spawns it, and under a HOME override the
+  // image's pinned Codex adapter is not there. Seeding it is what stops the daemon cold-installing
+  // a floating adapter and wedging the session open. Never throws. See `adapter-seed.ts`.
+  seedPinnedAgentProcesses();
 
   // On SIGTERM (a deploy, a node drain, `docker stop`) or Ctrl-C (SIGINT): refuse new turns,
   // let running ones finish, cancel the rest with a settled wait, then delete every sandbox this
