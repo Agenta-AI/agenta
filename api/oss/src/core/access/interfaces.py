@@ -5,8 +5,12 @@ from uuid import UUID
 from typing import Sequence
 
 from oss.src.core.access.dtos import (
+    Action,
+    DecisionReason,
     PrincipalRecord,
     PrincipalRef,
+    ResourceRef,
+    RunContext,
     ScopePrincipals,
     UserPrincipals,
 )
@@ -18,6 +22,30 @@ class RbacEnforcementInterface(ABC):
 
     @abstractmethod
     async def is_enforced(self, *, organization_id: UUID) -> bool: ...
+
+
+class ResourcePolicyInterface(ABC):
+    """Step 4 of `AccessService.decide`: the rules of one resource (M3 sharing).
+    `decide` calls it only when a resource is given and steps 1 to 3 allowed. `None`
+    allows; a reason denies."""
+
+    @abstractmethod
+    async def evaluate(
+        self,
+        *,
+        principal: PrincipalRef,
+        action: Action,
+        project_id: UUID,
+        resource: ResourceRef,
+        context: Optional[RunContext] = None,
+    ) -> Optional[DecisionReason]: ...
+
+    def prefetch(self, *, project_id: UUID, resource: ResourceRef) -> None:
+        """Register the cache entries `evaluate` will read for this resource
+        (`core.access.prefetch.register`), so the decision's one cache read reads them
+        too. No I/O. The default registers none."""
+
+        return None
 
 
 class PrincipalsDAOInterface(ABC):

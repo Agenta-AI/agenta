@@ -18,12 +18,15 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from oss.src.core.memberships.dtos import (
     CreatedProject,
+    MembershipPolicy,
     MembershipRow,
     MembershipWriteResult,
     OrganizationMember,
+    ProjectMemberProfile,
     ProjectScope,
 )
 from oss.src.core.memberships.interfaces import MembershipsDAOInterface
+from oss.src.core.memberships.workspaces import legacy_workspace_id
 from oss.src.core.memberships.types import (
     MemberNotFound,
     OrganizationNotFound,
@@ -33,8 +36,10 @@ from oss.src.core.memberships.types import (
 from oss.src.dbs.postgres.memberships.mappings import (
     map_membership_row_to_dto,
     map_organization_member_dbe_to_dto,
+    map_project_member_profile_to_dto,
     map_project_scope_dbe_to_dto,
 )
+from oss.src.core.shared.dtos import Windowing
 from oss.src.models.db_models import (  # noqa: F401  (the tables this DAO owns)
     InvitationDB,
     OrganizationDB,
@@ -52,10 +57,10 @@ _OLDEST = "ORDER BY created_at ASC NULLS LAST, id ASC LIMIT 1"
 _SUMMARY_COLUMNS = """
     p.id AS project_id,
     p.organization_id,
-    p.workspace_id,
+    COALESCE(p.workspace_id, p.organization_id) AS workspace_id,
     p.is_default,
     p.project_name,
-    w.name AS workspace_name,
+    CASE WHEN p.workspace_id IS NULL THEN o.name ELSE w.name END AS workspace_name,
     o.name AS organization_name,
     o.owner_id AS organization_owner_id
 """
@@ -69,7 +74,7 @@ SELECT {_SUMMARY_COLUMNS},
        pm.id IS NOT NULL AS has_project_row,
        pm.role AS project_role
 FROM projects p
-JOIN workspaces w ON w.id = p.workspace_id
+LEFT JOIN workspaces w ON w.id = p.workspace_id
 JOIN organizations o ON o.id = p.organization_id
 LEFT JOIN LATERAL (
     SELECT id, role FROM organization_members
@@ -97,7 +102,7 @@ FROM (
     ORDER BY organization_id, created_at ASC NULLS LAST, id ASC
 ) om
 JOIN projects p ON p.organization_id = om.organization_id
-JOIN workspaces w ON w.id = p.workspace_id
+LEFT JOIN workspaces w ON w.id = p.workspace_id
 JOIN organizations o ON o.id = p.organization_id
 LEFT JOIN LATERAL (
     SELECT id, role FROM project_members
@@ -114,13 +119,81 @@ WHERE organization_id = :organization_id AND user_id = :user_id
 """
 
 _LIST_PROJECTS_SQL = """
-SELECT p.id AS project_id, p.organization_id, p.workspace_id, p.is_default,
+SELECT p.id AS project_id, p.organization_id,
+       COALESCE(p.workspace_id, p.organization_id) AS workspace_id, p.is_default,
        o.owner_id AS organization_owner_id
 FROM projects p
 JOIN organizations o ON o.id = p.organization_id
 WHERE p.organization_id = ANY(CAST(:organization_ids AS uuid[]))
 ORDER BY p.organization_id, p.created_at ASC NULLS LAST, p.id ASC
 """
+
+# The members of one project, one row per user with the role of their oldest row. OSS
+# reads the organization rows of the project's organization; EE reads the project rows
+# and keeps only users that have an organization row too (as `resolve` does). Neither
+# reads workspace rows.
+_PROJECT_MEMBERS_BY_POLICY = {
+    MembershipPolicy.ORGANIZATION_WIDE: """
+    SELECT DISTINCT ON (om.user_id) om.user_id, om.role
+    FROM organization_members om
+    JOIN projects p ON p.organization_id = om.organization_id
+    WHERE p.id = :project_id AND om.user_id IS NOT NULL
+    ORDER BY om.user_id, om.created_at ASC NULLS LAST, om.id ASC
+""",
+    MembershipPolicy.PROJECT_ROWS: """
+    SELECT DISTINCT ON (pm.user_id) pm.user_id, pm.role
+    FROM project_members pm
+    JOIN projects p ON p.id = pm.project_id
+    WHERE p.id = :project_id
+      AND EXISTS (
+          SELECT 1 FROM organization_members om
+          WHERE om.organization_id = p.organization_id AND om.user_id = pm.user_id
+      )
+    ORDER BY pm.user_id, pm.created_at ASC NULLS LAST, pm.id ASC
+""",
+}
+
+_DEFAULT_MEMBERS_LIMIT = 50
+# The largest page a members query returns: a bigger `limit` is clamped, so one request
+# never sorts and returns a whole organization's members.
+_MAX_MEMBERS_LIMIT = 500  # the /m roster page (MEMBER_ROSTER_PAGE_SIZE)
+
+
+def _query_project_members_sql(
+    *, policy: MembershipPolicy, search: bool, cursor: bool
+) -> str:
+    """Ordered by (email, user_id). The cursor is the last user of the previous page:
+    the page starts after that user's (email, id)."""
+
+    filters = []
+    if search:
+        filters.append(
+            "(lower(COALESCE(u.email, '')) LIKE :pattern ESCAPE '\\' "
+            "OR lower(COALESCE(u.username, '')) LIKE :pattern ESCAPE '\\')"
+        )
+    if cursor:
+        filters.append(
+            "(COALESCE(u.email, ''), u.id) > ("
+            "SELECT COALESCE(c.email, ''), c.id FROM users c WHERE c.id = :cursor)"
+        )
+    where = f"WHERE {' AND '.join(filters)}" if filters else ""
+    return f"""
+WITH members AS ({_PROJECT_MEMBERS_BY_POLICY[policy]})
+SELECT u.id AS user_id, COALESCE(u.email, '') AS email, u.username AS name, m.role
+FROM members m
+JOIN users u ON u.id = m.user_id
+{where}
+ORDER BY COALESCE(u.email, '') ASC, u.id ASC
+LIMIT :limit
+"""
+
+
+def _prefix_pattern(search: str) -> str:
+    escaped = (
+        search.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    )
+    return f"{escaped}%"
+
 
 # -- writers --------------------------------------------------------------------------
 
@@ -209,17 +282,34 @@ WHERE email = :email
   AND project_id IN (SELECT id FROM projects WHERE organization_id = :organization_id)
 """
 
-_WORKSPACE_IN_ORGANIZATION_SQL = """
-SELECT 1 FROM workspaces WHERE id = :workspace_id AND organization_id = :organization_id
+# The workspace a new project goes into: the given workspace of the organization, or, when
+# the organization id is given, its `default`-type workspace, else its oldest. No row for an
+# organization id means an organization without workspaces: the project gets none.
+_RESOLVE_PROJECT_WORKSPACE_SQL = """
+SELECT w.id FROM workspaces w
+WHERE w.organization_id = CAST(:organization_id AS uuid)
+  AND (w.id = CAST(:workspace_id AS uuid)
+       OR CAST(:workspace_id AS uuid) = CAST(:organization_id AS uuid))
+ORDER BY (w.id = CAST(:workspace_id AS uuid)) DESC, (w.type = 'default') DESC NULLS LAST,
+         w.created_at ASC NULLS LAST, w.id ASC
+LIMIT 1
 """
 
-_WORKSPACE_HAS_DEFAULT_SQL = """
-SELECT 1 FROM projects WHERE workspace_id = :workspace_id AND is_default IS TRUE LIMIT 1
+# The default of a project's scope: its workspace, or its whole organization when it has no
+# workspace (projects that workspace removal step 2 writes).
+_SCOPE_DEFAULT_FILTER = """
+is_default IS TRUE
+AND ((CAST(:workspace_id AS uuid) IS NOT NULL AND workspace_id = CAST(:workspace_id AS uuid))
+  OR (CAST(:workspace_id AS uuid) IS NULL AND organization_id = CAST(:organization_id AS uuid)))
 """
 
-_UNSET_DEFAULTS_SQL = """
+_WORKSPACE_HAS_DEFAULT_SQL = f"""
+SELECT 1 FROM projects WHERE {_SCOPE_DEFAULT_FILTER} LIMIT 1
+"""
+
+_UNSET_DEFAULTS_SQL = f"""
 UPDATE projects SET is_default = false, updated_at = now()
-WHERE workspace_id = :workspace_id AND is_default IS TRUE
+WHERE {_SCOPE_DEFAULT_FILTER}
 """
 
 _INSERT_PROJECT_SQL = """
@@ -403,6 +493,43 @@ class MembershipsDAO(MembershipsDAOInterface):
             ).all()
         return [map_project_scope_dbe_to_dto(row) for row in rows]
 
+    async def query_project_member_profiles(
+        self,
+        *,
+        project_id: UUID,
+        policy: MembershipPolicy,
+        #
+        search: Optional[str] = None,
+        windowing: Optional[Windowing] = None,
+    ) -> List[ProjectMemberProfile]:
+        search = (search or "").strip() or None
+        cursor = windowing.next if windowing else None
+        limit = min(
+            (windowing.limit if windowing else None) or _DEFAULT_MEMBERS_LIMIT,
+            _MAX_MEMBERS_LIMIT,
+        )
+
+        params = {"project_id": project_id, "limit": limit}
+        if search is not None:
+            params["pattern"] = _prefix_pattern(search)
+        if cursor is not None:
+            params["cursor"] = cursor
+
+        async with self.engine.session() as session:
+            rows = (
+                await session.execute(
+                    text(
+                        _query_project_members_sql(
+                            policy=policy,
+                            search=search is not None,
+                            cursor=cursor is not None,
+                        )
+                    ),
+                    params,
+                )
+            ).all()
+        return [map_project_member_profile_to_dto(row) for row in rows]
+
     # -- writers -----------------------------------------------------------------------
 
     @staticmethod
@@ -551,31 +678,35 @@ class MembershipsDAO(MembershipsDAOInterface):
         async with self.engine.transaction() as connection:
             await self._lock(connection, organization_id)
 
-            scope = {"organization_id": organization_id, "workspace_id": workspace_id}
-
-            in_organization = (
-                await connection.execute(text(_WORKSPACE_IN_ORGANIZATION_SQL), scope)
+            resolved = (
+                await connection.execute(
+                    text(_RESOLVE_PROJECT_WORKSPACE_SQL),
+                    {"organization_id": organization_id, "workspace_id": workspace_id},
+                )
             ).first()
-            if in_organization is None:
+            if resolved is None and workspace_id != organization_id:
                 raise WorkspaceNotFound(
                     organization_id=organization_id, workspace_id=workspace_id
                 )
 
-            # As today: the new project becomes the default when asked, or when the
-            # workspace has none.
+            # NULL for an organization without workspaces.
+            project_workspace_id = resolved.id if resolved is not None else None
+            scope = {
+                "organization_id": organization_id,
+                "workspace_id": project_workspace_id,
+            }
+
+            # As today: the new project becomes the default when asked, or when its
+            # scope (the workspace, else the organization) has none.
             should_be_default = (
                 is_default
                 or (
-                    await connection.execute(
-                        text(_WORKSPACE_HAS_DEFAULT_SQL), {"workspace_id": workspace_id}
-                    )
+                    await connection.execute(text(_WORKSPACE_HAS_DEFAULT_SQL), scope)
                 ).first()
                 is None
             )
             if should_be_default:
-                await connection.execute(
-                    text(_UNSET_DEFAULTS_SQL), {"workspace_id": workspace_id}
-                )
+                await connection.execute(text(_UNSET_DEFAULTS_SQL), scope)
 
             await connection.execute(
                 text(_INSERT_PROJECT_SQL),
@@ -598,7 +729,10 @@ class MembershipsDAO(MembershipsDAOInterface):
             scope=ProjectScope(
                 project_id=project_id,
                 organization_id=organization_id,
-                workspace_id=workspace_id,
+                workspace_id=legacy_workspace_id(
+                    workspace_id=project_workspace_id,
+                    organization_id=organization_id,
+                ),
                 organization_owner_id=owner_id,
                 is_default=should_be_default,
             ),

@@ -442,8 +442,11 @@ export interface WorkflowListRef {
     deleted_at: string | null
     created_at: string | null
     updated_at: string | null
-    /** Creator user id — the "Created by" column and facet on the agents roster. */
+    /** Creator user id. */
     created_by_id: string | null
+    /** The agent's access policy (owner and visibility): the Owner column and the private
+     *  marker on the agents roster. */
+    access: Workflow["access"]
 }
 
 /**
@@ -469,6 +472,7 @@ export function toWorkflowListRef(w: Workflow): WorkflowListRef {
         created_at: w.created_at ?? null,
         updated_at: w.updated_at ?? null,
         created_by_id: w.created_by_id ?? null,
+        access: w.access ?? null,
     }
 }
 
@@ -2955,6 +2959,8 @@ export function seedCreatedWorkflowCache(
         created_at: revision.created_at ?? null,
         updated_at: revision.updated_at ?? null,
         created_by_id: revision.created_by_id ?? null,
+        // A revision carries no access policy; the list refetch fills it.
+        access: revision.access ?? null,
     }
 
     store.set(workflowLocalServerDataAtomFamily(revision.id), revision)

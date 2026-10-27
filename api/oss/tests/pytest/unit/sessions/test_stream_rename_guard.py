@@ -44,6 +44,8 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
 )
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -394,6 +396,7 @@ def test_a_create_carries_the_stamp():
             session_id=_SESSION,
             name=_PERSON_NAME,
             name_source=SessionNameSource.manual,
+            access=OWNERLESS_PROJECT_POLICY,
         ),
     )
 
@@ -408,6 +411,7 @@ def test_a_create_from_an_automatic_caller_is_unstamped():
             session_id=_SESSION,
             name=_AGENT_NAME,
             name_source=SessionNameSource.automatic,
+            access=OWNERLESS_PROJECT_POLICY,
         ),
     )
 
@@ -520,6 +524,7 @@ async def _rename(service, *, name, source, replacing=None, revision=None):
         session_id=_SESSION,
         header=_edit(name=name, replacing_name=replacing, replacing_revision=revision),
         name_source=source,
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
 
@@ -629,6 +634,7 @@ async def test_repeating_a_person_name_does_not_open_the_door(lock_engine):
         session_id=_SESSION,
         header=_edit(name=_PERSON_NAME, description="ran the shell command"),
         name_source=SessionNameSource.automatic,
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     with pytest.raises(SessionNameProtected):
@@ -757,7 +763,13 @@ def _app(router) -> FastAPI:
 
 def _client(service) -> TestClient:
     return TestClient(
-        _app(SessionStreamsRouter(service=service, interactions_service=AsyncMock()))
+        _app(
+            SessionStreamsRouter(
+                service=service,
+                interactions_service=AsyncMock(),
+                run_admission=NoopRunAdmission(),
+            )
+        )
     )
 
 

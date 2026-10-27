@@ -253,7 +253,9 @@ export const ChannelsHubView = ({
                                                     className={`size-1.5 flex-none rounded-full ${
                                                         connection.status === "revoked"
                                                             ? "bg-colorError"
-                                                            : "bg-colorSuccess"
+                                                            : connection.agentOff
+                                                              ? "bg-colorTextQuaternary"
+                                                              : "bg-colorSuccess"
                                                     }`}
                                                 />
                                                 <CaretRight

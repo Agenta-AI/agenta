@@ -38,6 +38,17 @@ class SessionStreamAlreadyExists(SessionStreamError):
         super().__init__(self.message)
 
 
+class SessionIdTombstoned(SessionStreamError):
+    """The id is reserved: a deleted private session's (its tombstone), no session is
+    created with it again; or a channel thread names it, and only that channel's run
+    creates its session. Answered as a hidden session."""
+
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        self.message = f"No session can be created with the id '{session_id}'."
+        super().__init__(self.message)
+
+
 class SessionTurnInUse(SessionStreamError):
     """Raised when a session is already alive and force=False (a turn is in use)."""
 

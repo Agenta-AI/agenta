@@ -262,6 +262,25 @@ describe("readableQuoteText", () => {
         expect(readableQuoteText(cells([["Plan"], ["80"]]))).toBe("Plan: 80")
     })
 
+    it("shows the value alone when its column has no header name", () => {
+        // A CSV header row shorter than the selected column: the table's header cell is empty.
+        const quote = previewQuote(
+            {type: "cells", range: "F5"},
+            cellsToTable([], [["Refund not received"]]),
+            "",
+        )
+        expect(readableQuoteText(quote)).toBe("Refund not received")
+    })
+
+    it("keeps named pairs next to unnamed ones for one row", () => {
+        const quote = previewQuote(
+            {type: "cells", range: "B5:C5"},
+            cellsToTable(["Name", ""], [["Alice", "42"]]),
+            "",
+        )
+        expect(readableQuoteText(quote)).toBe("Name: Alice, 42")
+    })
+
     it("pairs each header with its value for one row", () => {
         expect(
             readableQuoteText(

@@ -11,6 +11,7 @@ from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
 from oss.tests.pytest.utils.principals import DenyingAccessService
 
 from .turn_harness import InMemoryChannels
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 class _Recorder:
@@ -28,7 +29,9 @@ async def test_archived_binding_stops_with_principal_inactive(monkeypatch):
     channels = InMemoryChannels()
     recorder = _Recorder()
     dispatcher = InboxDispatcher(
-        channels_service=channels.service, invoke_fn=recorder.invoke
+        run_admission=NoopRunAdmission(),
+        channels_service=channels.service,
+        invoke_fn=recorder.invoke,
     )
     dispatcher._invoking_identity = AsyncMock(return_value=(None, "slack:T1:U1"))
     settled = []
@@ -66,6 +69,7 @@ async def test_busy_thread_queues_with_envelope():
     channels = InMemoryChannels()
     recorder = _Recorder()
     dispatcher = InboxDispatcher(
+        run_admission=NoopRunAdmission(),
         channels_service=channels.service,
         invoke_fn=recorder.invoke,
         session_queue=_Queue(),
@@ -98,7 +102,9 @@ async def test_a_failed_recheck_settles_the_trigger_failed(monkeypatch):
     channels = InMemoryChannels()
     recorder = _Recorder()
     dispatcher = InboxDispatcher(
-        channels_service=channels.service, invoke_fn=recorder.invoke
+        run_admission=NoopRunAdmission(),
+        channels_service=channels.service,
+        invoke_fn=recorder.invoke,
     )
     dispatcher._invoking_identity = AsyncMock(return_value=(None, "slack:T1:U1"))
     settled = []

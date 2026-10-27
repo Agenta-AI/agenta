@@ -228,6 +228,7 @@ def build_gateway_resolved_connection(
     gateway_credentials_value: str,
     input_modalities: Optional[List[str]] = None,
     custom_connection: Optional[bool] = None,
+    protocol: Optional[str] = None,
 ) -> ResolvedConnection:
     """Build a resolved connection that routes through the gateway (D36/D30/D31).
 
@@ -263,4 +264,5 @@ def build_gateway_resolved_connection(
         gateway_credentials=GatewayCredentials(value=gateway_credentials_value),
         input_modalities=input_modalities,
         custom_connection=custom_connection,
+        protocol=protocol,
     )

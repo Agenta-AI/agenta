@@ -363,7 +363,14 @@ export const readableQuoteText = (quote: Quote): string => {
     if (!isPreviewQuote(quote) || quote.source.anchor.type !== "cells") return quote.text
     const [head, , ...body] = quote.text.split("\n").map(tableRow)
     if (!head) return quote.text
-    if (body.length === 1) return head.map((name, i) => `${name}: ${body[0][i] ?? ""}`).join(", ")
+    if (body.length === 1)
+        return head
+            .map((name, i) => {
+                const value = body[0][i] ?? ""
+                // A column past the sheet's header row has no name; the value stands alone.
+                return name ? `${name}: ${value}` : value
+            })
+            .join(", ")
     return [head, ...body].map((row) => row.join(" · ")).join(" / ")
 }
 

@@ -22,7 +22,6 @@ from ee.src.core.measurements.components import (
     VCPU_SECONDS,
 )
 from ee.src.core.measurements.rate_card import sandbox_rates_for
-from ee.src.core.wallets.admission import admit_in_mode, enforced, measured
 from ee.src.core.wallets.caps import (
     CONCURRENT_TURNS_LIMIT_CODE,
     TURN_SLOT_TTL_SECONDS,
@@ -178,13 +177,11 @@ class SandboxUsageService:
         and a turn already running is never stopped for its balance. Its plan caps how
         many such turns the organization runs at once and how long each runs.
 
-        Nothing is capped for an organization whose wallet is `off`, and nothing is
-        refused in `shadow`: the turn takes a slot when one is free and runs without the
-        plan's turn limit, and a turn the cap would refuse is logged. A plan or slot store
-        that cannot answer admits uncapped: a metering outage must not stop agents.
+        Nothing is capped while the wallet is off. A plan or slot store that cannot answer
+        admits uncapped: a metering outage must not stop agents.
         """
         organization_id = scope.organization_id
-        if not await measured(organization_id):
+        if not env.wallets.enabled:
             return TurnAdmission(allowed=True)
         try:
             plan = await self.plan_for(organization_id)
@@ -195,11 +192,7 @@ class SandboxUsageService:
                 exc_info=True,
             )
             plan = None
-        if not await admit_in_mode(
-            organization_id=organization_id,
-            point="sandbox",
-            check=lambda: self.wallet.check(organization_id=organization_id),
-        ):
+        if not await self.wallet.check(organization_id=organization_id):
             return TurnAdmission(
                 allowed=False,
                 code=WALLET_BALANCE_EXHAUSTED_CODE,
@@ -216,7 +209,6 @@ class SandboxUsageService:
                 ttl_seconds=env.gateway_credentials.ttl_seconds,
             )
             return TurnAdmission(allowed=True)
-        enforcing = await enforced(organization_id)
         slot_held = False
         if turn_id:
             try:
@@ -234,34 +226,11 @@ class SandboxUsageService:
                 )
             else:
                 if not slot_held:
-                    if enforcing:
-                        return TurnAdmission(
-                            allowed=False,
-                            code=CONCURRENT_TURNS_LIMIT_CODE,
-                            message=concurrent_turns_message(plan, caps),
-                        )
-                    log.warning(
-                        "[wallets] shadow: would have refused at the running-turns cap; admitting",
-                        organization_id=str(organization_id),
-                        plan=plan,
-                        limit=caps.concurrent_turns,
+                    return TurnAdmission(
+                        allowed=False,
+                        code=CONCURRENT_TURNS_LIMIT_CODE,
+                        message=concurrent_turns_message(plan, caps),
                     )
-        if not enforcing:
-            # No turn limit, so the session hold lasts as long as the turn can run.
-            log.info(
-                "[wallets] shadow: turn runs without the plan's turn limit",
-                organization_id=str(organization_id),
-                turn_id=turn_id,
-                plan=plan,
-                limit_seconds=caps.max_turn_seconds,
-            )
-            await self._hold_session(
-                organization_id=organization_id,
-                session_id=session_id,
-                turn_id=turn_id,
-                ttl_seconds=env.gateway_credentials.ttl_seconds,
-            )
-            return TurnAdmission(allowed=True, slot_held=slot_held)
         await self._hold_session(
             organization_id=organization_id,
             session_id=session_id,
@@ -337,9 +306,9 @@ class SandboxUsageService:
     ) -> Optional[str]:
         """The measurement id, or None for an organization whose wallet is `off`: its
         interval is acknowledged and dropped, so the runner does not report it again."""
-        # Validated first, so a report for an unmetered provider is refused in any mode.
+        # Validated first, so a report for an unmetered provider is refused with the wallet off too.
         command = sandbox_measurement(scope=scope, interval=interval)
-        if not await measured(scope.organization_id):
+        if not env.wallets.enabled:
             return None
         if not await self.publisher.publish(command):
             raise SandboxUsageNotRecordedError()

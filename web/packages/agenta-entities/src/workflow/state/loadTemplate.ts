@@ -3,6 +3,7 @@ import {generateId} from "@agenta/shared/utils"
 import type {AgentaApi} from "@agentaai/api-client"
 import {atom} from "jotai"
 
+import type {Visibility} from "../../sharing/core/schema"
 import {type AgentSetupSelection} from "../agentSetup"
 import {
     templateBuilderMessage,
@@ -37,6 +38,8 @@ export interface LoadAgentTemplateFromEphemeralParams {
     attachmentIds?: string[]
     initialMessage?: string
     setup?: AgentSetupSelection
+    /** Sharing (M3): sent as the load request's top-level `visibility`. */
+    visibility?: Visibility
 }
 
 type ConnectionChoice = NonNullable<AgentTemplateLoadRequest["connection_choices"]>[number]
@@ -115,6 +118,7 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
             setup,
             stagingSessionId,
             attachmentIds,
+            visibility,
         }: LoadAgentTemplateFromEphemeralParams,
     ): Promise<AgentTemplateLoadResult> => {
         const projectId = get(projectIdAtom)
@@ -157,6 +161,7 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
                         connection_choices: template
                             ? templateConnectionChoices(template, setup)
                             : [],
+                        ...(visibility ? {visibility} : {}),
                     },
                 }
             }

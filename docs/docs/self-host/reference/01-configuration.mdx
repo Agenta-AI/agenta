@@ -892,9 +892,10 @@ S3-compatible store. This toggle mirrors `postgresql.enabled`.
 
 :::note `AGENTA_STORE_NAMESPACE`: sharing one bucket across environments
 The key layout treats the store as a small database: the **bucket** is the cluster, an optional
-**namespace** is the database, and the **row** is the mount's stored prefix,
-`mounts/<project_id>/<mount_id>`. Each mount records its prefix when it is created, so a full key
-is `<bucket>/[<namespace>/]<stored prefix>/...`.
+**namespace** is the database, and the **row** is the mount's stored prefix:
+`mounts/<organization_id>/<mount_id>` for mounts created by version 0.125.0 or later,
+`mounts/<project_id>/<mount_id>` for mounts created by earlier versions. Each mount records its
+prefix when it is created, so a full key is `<bucket>/[<namespace>/]<stored prefix>/...`.
 
 Leave `NAMESPACE` unset for a dedicated bucket; the key layout is then identical to a single-tenant
 store (no empty leading segment). Set it (typically to a deployment or environment id) when
@@ -1365,6 +1366,14 @@ and only when `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` allows it. It defaults
 OSS edition and to `false` in the EE edition. With it off, a project without a saved key gets the
 error "No API key found for model". A custom provider always uses its own key and never one of
 these.
+
+The same setting covers AWS. A Bedrock or SageMaker connection can omit its access keys and run on
+the AWS credentials of the host (the environment, an attached role, or instance metadata) only when
+`AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` allows it. With it off, such a call stops with the same
+error, and the services container removes the AWS credential variables (such as
+`AWS_ACCESS_KEY_ID`, `AWS_SESSION_TOKEN` and `AWS_PROFILE`) from its environment at start. The
+region variables stay. The Bedrock bearer tokens `AWS_BEARER_TOKEN_BEDROCK` and `BEDROCK_MANTLE_API_KEY` are never
+read from the services environment.
 
 ## loops
 

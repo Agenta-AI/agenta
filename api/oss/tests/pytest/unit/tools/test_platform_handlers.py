@@ -32,6 +32,7 @@ from oss.src.core.workflows.dtos import WorkflowRevisionData, WorkflowServiceReq
 from oss.src.core.workflows import service as service_module
 from oss.src.core.workflows.service import WorkflowsService
 from oss.tests.pytest.utils.principals import make_envelope
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 @pytest.fixture(autouse=True)
@@ -217,6 +218,7 @@ async def _run(monkeypatch, *, outputs, args=None, tracing=None, raises=None):
     )
     workflows = FakeWorkflowsService()
     result = await handle_test_run(
+        run_admission=NoopRunAdmission(),
         arguments=args or _args(),
         headers={},
         project_id=uuid4(),
@@ -358,6 +360,7 @@ async def test_test_run_parameters_less_agent_revision_succeeds_with_resolver_ba
     )
 
     result = await handle_test_run(
+        run_admission=NoopRunAdmission(),
         arguments=_args(terminal_tool=None),
         headers={},
         project_id=uuid4(),
@@ -387,6 +390,7 @@ async def test_test_run_applies_delta_in_memory(monkeypatch):
     )
 
     result = await handle_test_run(
+        run_admission=NoopRunAdmission(),
         arguments=_args(
             terminal_tool=None,
             delta={
@@ -423,6 +427,7 @@ async def test_test_run_delta_requires_existing_project_scoped_variant(monkeypat
     http = HttpxController(monkeypatch)
     workflows = FakeWorkflowsService(revision_data=None)
     router = ToolsRouter(
+        run_admission=NoopRunAdmission(),
         tools_service=SimpleNamespace(),
         workflows_service=workflows,
         tracing_service=FakeTracingService(),
@@ -477,6 +482,7 @@ async def test_test_run_delta_outside_parameters_is_refused(monkeypatch, delta):
 
     with pytest.raises(PlatformToolHandlerRefused) as exc_info:
         await handle_test_run(
+            run_admission=NoopRunAdmission(),
             arguments=_args(delta=delta),
             headers={},
             project_id=uuid4(),
@@ -507,6 +513,7 @@ async def test_test_run_delta_requires_edit_workflows_permission(monkeypatch):
     http = HttpxController(monkeypatch)
     workflows = FakeWorkflowsService()
     router = ToolsRouter(
+        run_admission=NoopRunAdmission(),
         tools_service=SimpleNamespace(),
         workflows_service=workflows,
         tracing_service=FakeTracingService(),
@@ -561,6 +568,7 @@ async def test_test_run_delta_with_edit_workflows_permission_invokes(monkeypatch
         }
     )
     router = ToolsRouter(
+        run_admission=NoopRunAdmission(),
         tools_service=SimpleNamespace(),
         workflows_service=workflows,
         tracing_service=FakeTracingService(),
@@ -748,6 +756,7 @@ async def test_test_run_recursion_marker_is_refused(monkeypatch):
 
     with pytest.raises(PlatformToolHandlerRefused):
         await handle_test_run(
+            run_admission=NoopRunAdmission(),
             arguments=_args(),
             headers={TEST_RUN_RECURSION_HEADER: TEST_RUN_RECURSION_VALUE},
             project_id=uuid4(),
@@ -818,6 +827,7 @@ async def test_registered_test_run_dispatches_through_tools_call(monkeypatch):
         ),
     )
     router = ToolsRouter(
+        run_admission=NoopRunAdmission(),
         tools_service=SimpleNamespace(),
         workflows_service=(workflows := FakeWorkflowsService()),
         tracing_service=FakeTracingService(),
@@ -859,6 +869,7 @@ async def test_infra_failure_surfaces_as_error_status_on_the_tool_result(monkeyp
     monkeypatch.setattr("oss.src.apis.fastapi.tools.router.check_action_access", _allow)
     HttpxController(monkeypatch, raises=httpx.ReadTimeout("too slow"))
     router = ToolsRouter(
+        run_admission=NoopRunAdmission(),
         tools_service=SimpleNamespace(),
         workflows_service=FakeWorkflowsService(),
         tracing_service=FakeTracingService(),
@@ -953,6 +964,7 @@ async def test_test_run_ordered_delta_outside_parameters_is_refused(monkeypatch)
             workflows_service=workflows,
             tracing_service=FakeTracingService(),
             envelope=make_envelope(),
+            run_admission=NoopRunAdmission(),
         )
 
     assert workflows.scope_policies == [PARAMETERS_ONLY]
@@ -980,6 +992,7 @@ async def test_test_run_non_scope_delta_error_is_not_reported_as_scope(monkeypat
             workflows_service=_RejectingWorkflowsService(),
             tracing_service=FakeTracingService(),
             envelope=make_envelope(),
+            run_admission=NoopRunAdmission(),
         )
 
     assert exc.value.reason == Reason.INVALID_DELTA
@@ -1011,6 +1024,7 @@ async def test_test_run_ordered_delta_outside_parameters_is_refused_for_each_roo
             workflows_service=workflows,
             tracing_service=FakeTracingService(),
             envelope=make_envelope(),
+            run_admission=NoopRunAdmission(),
         )
 
     assert isinstance(exc_info.value.__cause__, ChangeSetError)
@@ -1065,3 +1079,55 @@ async def test_test_run_legacy_delta_inside_parameters_keeps_other_fields(
         "url": "https://agent.internal",
         "parameters": {"agent": {"model": "base", "instructions": "hi"}},
     }
+
+
+async def test_test_run_into_a_private_agent_is_access_denied(monkeypatch):
+    """`test_run` is a child run: the admission checks the target agent before any
+    delta is applied or anything is invoked; a refusal is the `access_denied` tool
+    result."""
+
+    from oss.src.core.access.dtos import Decision, DecisionReason
+    from oss.src.core.sharing.types import AdmissionDenied
+    from oss.tests.pytest.utils.sharing import RecordingRunAdmission
+
+    async def _allow(**_kwargs):
+        return True
+
+    monkeypatch.setattr("oss.src.apis.fastapi.tools.router.check_action_access", _allow)
+    http = HttpxController(monkeypatch)
+    admission = RecordingRunAdmission(
+        refuse=lambda method, kwargs: AdmissionDenied(
+            decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
+            readable=False,
+            boundary=kwargs["boundary"],
+        )
+    )
+    router = ToolsRouter(
+        run_admission=admission,
+        tools_service=SimpleNamespace(),
+        workflows_service=(workflows := FakeWorkflowsService()),
+        tracing_service=FakeTracingService(),
+    )
+    request = SimpleNamespace(
+        state=SimpleNamespace(
+            project_id=str(uuid4()),
+            user_id=str(uuid4()),
+            run_envelope=make_envelope(run_id="parent-run"),
+        ),
+        headers={},
+    )
+    body = ToolCall(
+        data=ToolCallData(
+            id="outer_call",
+            function=ToolCallFunction(name="tools.agenta.test_run", arguments=_args()),
+        )
+    )
+
+    response = await router.call_tool(request, body=body)
+
+    assert admission.calls[0][1]["boundary"] == "child_run"
+    assert workflows.prepare_calls == []
+    assert http.calls == []
+    content = json.loads(response.call.data.content)
+    assert content["code"] == "access_denied"
+    assert response.call.status.code == "STATUS_CODE_ERROR"

@@ -11,7 +11,7 @@ Today every project member can read every agent and chat in the project, and the
 - Shortcuts do not open private items.
 - Every point where a run starts or resumes checks the session and the agent, including browser runs on their first heartbeat.
 - When the owner leaves, their private items lock for everyone. Their project-visible agents become ownerless, and an admin can take ownership.
-- The share step discloses the agent's connections, shared session files and tool results, and trace readers. The invite field lists the project's members.
+- The share step discloses the agent's connected accounts and that the people added see everything in the session; the docs state that trace readers can read the session. The invite field lists the project's members.
 - Existing agents and chats become project-visible, owned by their recorded creator. Sharing changes are audited.
 - M3 ships in one release. `/w` creates project-visible chats and agents. Accepted risk: rolling back to pre-M3 code makes private items visible to their project.
 

@@ -26,6 +26,8 @@ from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -112,6 +114,7 @@ async def test_send_publishes_lifecycle_running(lock_engine):
             data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
             force=False,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "running")]
@@ -130,6 +133,7 @@ async def test_steer_publishes_lifecycle_running(lock_engine):
             data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
             force=True,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert (str(_PROJECT), session_id, "running") in publisher.lifecycle_calls
@@ -147,6 +151,7 @@ async def test_cancel_publishes_lifecycle_ended(lock_engine):
             session_id=session_id,
             data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     publisher.lifecycle_calls.clear()
 
@@ -154,6 +159,7 @@ async def test_cancel_publishes_lifecycle_ended(lock_engine):
         project_id=_PROJECT,
         user_id=_USER,
         request=SessionStreamCommandRequest(session_id=session_id, force=False),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "ended")]
@@ -187,6 +193,7 @@ async def test_turn_end_heartbeat_publishes_ended_once(lock_engine):
             data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
             force=False,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     publisher.lifecycle_calls.clear()
 
@@ -199,6 +206,9 @@ async def test_turn_end_heartbeat_publishes_ended_once(lock_engine):
             is_running=False,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "ended")]
 
@@ -213,6 +223,9 @@ async def test_turn_end_heartbeat_publishes_ended_once(lock_engine):
             is_running=False,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == []
 
@@ -234,6 +247,9 @@ async def test_first_beat_of_a_runner_minted_turn_publishes_running(lock_engine)
             is_running=True,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "running")]
 
@@ -248,6 +264,9 @@ async def test_first_beat_of_a_runner_minted_turn_publishes_running(lock_engine)
             is_running=True,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == []
 
@@ -261,6 +280,9 @@ async def test_first_beat_of_a_runner_minted_turn_publishes_running(lock_engine)
             is_running=True,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == [(str(_PROJECT), session_id, "running")]
 
@@ -311,6 +333,9 @@ async def test_beat_on_a_killed_tombstone_publishes_nothing(lock_engine):
             is_running=True,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert (dao.creates, dao.updates) == (1, 1), "both row paths must have been tried"
@@ -335,6 +360,7 @@ async def test_send_does_not_double_publish_running_on_its_first_beat(lock_engin
             data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
             force=False,
         ),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     publisher.lifecycle_calls.clear()
 
@@ -347,5 +373,50 @@ async def test_send_does_not_double_publish_running_on_its_first_beat(lock_engin
             is_running=True,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
+    assert publisher.lifecycle_calls == []
+
+
+class _ReservedIdDAO(_FakeStreamsDAO):
+    """The insert refuses: a channel thread names the id (or a tombstone does)."""
+
+    async def create(self, *, project_id, user_id, stream):
+        from oss.src.core.sessions.streams.types import SessionIdTombstoned
+
+        raise SessionIdTombstoned(session_id=stream.session_id)
+
+
+@pytest.mark.asyncio
+async def test_a_send_refused_on_a_reserved_id_hands_back_its_locks(lock_engine):
+    """A send whose insert is refused after the turn took `alive` and `running` (the
+    `_start_turn` path) hands both locks back and announces nothing, so the channel's
+    own run can take the session afterwards."""
+    from oss.src.core.sessions.streams.types import SessionIdTombstoned
+    from oss.src.dbs.redis.sessions.locks import get_session_liveness
+
+    publisher = _RecordingPublisher()
+    svc = SessionStreamsService(
+        streams_dao=_ReservedIdDAO(),
+        lock_engine=lock_engine,
+        watch_publisher=publisher,
+    )
+    session_id = _session_id()
+    with pytest.raises(SessionIdTombstoned):
+        await svc.command(
+            project_id=_PROJECT,
+            user_id=_USER,
+            request=SessionStreamCommandRequest(
+                session_id=session_id,
+                data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
+                force=False,
+            ),
+            access=OWNERLESS_PROJECT_POLICY,
+        )
+    liveness = await get_session_liveness(
+        lock_engine, project_id=str(_PROJECT), session_id=session_id
+    )
+    assert (liveness["alive"], liveness["running"]) == (False, False)
     assert publisher.lifecycle_calls == []

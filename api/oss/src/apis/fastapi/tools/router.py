@@ -18,6 +18,8 @@ from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import AccessDenied
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.principals import child_envelope
+from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY, RunAdmission
+from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.middlewares.auth import request_run_envelope
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
@@ -84,6 +86,11 @@ from oss.src.core.mounts.service import MountsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tools.exceptions import PlatformToolHandlerError
 from oss.src.core.tools.platform_handlers import (
+    COMMIT_REVISION_CALL_REF,
+    CREATE_APP_CALL_REF,
+    LIST_STARTERS_CALL_REF,
+    READ_CONFIG_CALL_REF,
+    required_agent_owner,
     required_envelope,
     dispatch_platform_tool_handler,
     is_reserved_agenta_call_ref,
@@ -99,6 +106,15 @@ from oss.src.utils.env import env
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.sharing.utils import (
+    agent_owner_for_request,
+    allow_agent,
+    allow_resource,
+    artifact_id_of,
+    not_found_exception,
+    session_resource,
+)
+from oss.src.core.access.permissions.types import Permission as _Permission
 
 # A workflow referenced as an agent tool (a ``type:"reference"`` tool) carries this call_ref
 # prefix. Distinct from the Composio 5-segment grammar (``tools.{provider}.{integration}.
@@ -260,6 +276,123 @@ async def _deny_child_run(
         )
 
 
+def _admission_error_result(
+    *,
+    body: ToolCall,
+    child: RunEnvelope,
+    refusal: AdmissionDenied,
+) -> ToolCallResponse:
+    """A child run into an agent its principal may not run: a tool result the model
+    can read (`access_denied`), not an HTTP error."""
+
+    return _agent_error_result(
+        body=body,
+        error=access_denied_error(
+            decision=refusal.decision,
+            principal_kind=child.authority.principal.kind,
+            project_id=child.authority.project_id,
+        ),
+    )
+
+
+# The reserved tools that act on an agent the arguments name (by its variant), with the
+# argument key that carries it, those that read an agent's drive by its artifact id, and
+# those that act on a session's drive. The ids are
+# "bound from the run" by the runner, but a direct caller of /tools/call sets them: each
+# is checked against the item's policy before the handler runs.
+_AGENT_TARGET_KEYS = {
+    READ_CONFIG_CALL_REF: "target",
+    COMMIT_REVISION_CALL_REF: "workflow_revision",
+}
+_SESSION_TARGET_ACTIONS = {
+    CREATE_APP_CALL_REF: _Permission.RUN_SESSIONS,
+}
+# The reserved tools that read an agent's drive by its artifact id.
+_AGENT_ARTIFACT_TARGETS = {LIST_STARTERS_CALL_REF}
+
+
+def _arguments_dict(arguments: Any) -> Optional[dict]:
+    if isinstance(arguments, dict):
+        return dict(arguments)
+    if isinstance(arguments, str):
+        try:
+            parsed = json.loads(arguments)
+        except ValueError:
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
+
+async def _checked_reserved_arguments(
+    request: Request,
+    *,
+    call_ref: str,
+    arguments: Any,
+    workflows_service: Any,
+) -> Any:
+    """The arguments the handler runs with, after the policy of the agent or session they
+    name. A hidden agent's variant becomes an id that names nothing, so the handler
+    answers exactly what it answers for an unknown variant. A hidden session answers the
+    canonical not-found body: an unknown id creates its drive, a hidden one must not.
+    Arguments the handler would refuse anyway (not an object, no id) pass unchanged."""
+
+    if call_ref in _AGENT_TARGET_KEYS:
+        parsed = _arguments_dict(arguments)
+        key = _AGENT_TARGET_KEYS[call_ref]
+        target = parsed.get(key) if parsed is not None else None
+        raw = target.get("workflow_variant_id") if isinstance(target, dict) else None
+        try:
+            variant_id = UUID(str(raw)) if raw else None
+        except ValueError:
+            variant_id = None
+        if variant_id is None or workflows_service is None:
+            return arguments
+        variant = await workflows_service.fetch_workflow_variant(
+            project_id=UUID(str(request.state.project_id)),
+            workflow_variant_ref=Reference(id=variant_id),
+        )
+        if variant is None or await allow_agent(
+            request,
+            action=_Permission.VIEW_WORKFLOWS,
+            artifact_id=artifact_id_of(variant),
+        ):
+            return arguments
+        parsed[key] = {**target, "workflow_variant_id": str(uuid4())}
+        return parsed
+
+    if call_ref in _AGENT_ARTIFACT_TARGETS:
+        parsed = _arguments_dict(arguments)
+        raw = parsed.get("artifact_id") if parsed is not None else None
+        if not isinstance(raw, str) or not raw.strip():
+            return arguments
+        try:
+            artifact_id = UUID(raw.strip())
+        except ValueError:
+            return arguments
+        if await allow_agent(
+            request, action=_Permission.VIEW_WORKFLOWS, artifact_id=artifact_id
+        ):
+            return arguments
+        # A hidden agent answers what an agent with no drive answers: the bundle only.
+        parsed.pop("artifact_id", None)
+        return parsed
+
+    if call_ref in _SESSION_TARGET_ACTIONS:
+        parsed = _arguments_dict(arguments)
+        session_id = parsed.get("session_id") if parsed is not None else None
+        if not isinstance(session_id, str) or not session_id.strip():
+            return arguments
+        if not await allow_resource(
+            request,
+            action=_SESSION_TARGET_ACTIONS[call_ref],
+            resource=session_resource(session_id.strip()),
+        ):
+            raise not_found_exception()
+        return arguments
+
+    return arguments
+
+
 def _child_run_envelope(request: Request) -> Optional[RunEnvelope]:
     """The envelope of a run this request starts as a tool call: the parent's
     principal, authority and sender; origin `child`; the parent's run id."""
@@ -273,11 +406,14 @@ class ToolsRouter:
         self,
         *,
         tools_service: ToolsService,
+        run_admission: RunAdmission,
         workflows_service: Optional[WorkflowsService] = None,
         tracing_service: Optional[TracingService] = None,
         mounts_service: Optional[MountsService] = None,
     ):
         self.tools_service = tools_service
+        # Admits each child run (the parent's principal and the child's agent).
+        self.run_admission = run_admission
         # Used to execute a referenced-workflow (@ag.reference) agent tool server-side: a
         # ``workflow.{slug}[.{version}]`` call_ref routes here instead of the Composio adapter.
         # Optional so a deployment that wires only the tools service still serves gateway tools.
@@ -1433,10 +1569,16 @@ class ToolsRouter:
             denied = await _deny_child_run(body=body, child=envelope)
             if denied is not None:
                 return denied
+        arguments = await _checked_reserved_arguments(
+            request,
+            call_ref=call_ref,
+            arguments=body.data.function.arguments,
+            workflows_service=self.workflows_service,
+        )
         try:
             response = await dispatch_platform_tool_handler(
                 call_ref=call_ref,
-                arguments=body.data.function.arguments,
+                arguments=arguments,
                 headers=request.headers,
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(request.state.user_id),
@@ -1444,7 +1586,15 @@ class ToolsRouter:
                 tracing_service=self.tracing_service,
                 mounts_service=self.mounts_service,
                 envelope=envelope,
+                run_admission=self.run_admission,
+                agent_owner_user_id=(
+                    agent_owner_for_request(request)
+                    if required_agent_owner(call_ref=call_ref)
+                    else None
+                ),
             )
+        except AdmissionDenied as refusal:
+            return _admission_error_result(body=body, child=envelope, refusal=refusal)
         except PlatformToolHandlerError as e:
             raise HTTPException(status_code=e.status_code, detail=e.message) from e
 
@@ -1797,10 +1947,23 @@ class ToolsRouter:
         denied = await _deny_child_run(body=body, child=child)
         if denied is not None:
             return denied
+        project_id = UUID(request.state.project_id)
+        try:
+            # Resolves the child's target once and leaves it on the request, so the
+            # invoke runs what was checked.
+            await self.run_admission.admit_request(
+                envelope=child,
+                session_id=None,
+                project_id=project_id,
+                request=invoke_request,
+                boundary=CHILD_RUN_BOUNDARY,
+            )
+        except AdmissionDenied as refusal:
+            return _admission_error_result(body=body, child=child, refusal=refusal)
 
         try:
             response = await self.workflows_service.invoke_workflow(
-                project_id=UUID(request.state.project_id),
+                project_id=project_id,
                 user_id=UUID(request.state.user_id),
                 request=invoke_request,
                 envelope=child,

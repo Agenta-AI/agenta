@@ -2,10 +2,9 @@ import os
 
 import pytest
 
-from oss.src.core.rollout.switches import WalletMode
 from oss.src.utils.env import env
 
-from ee.src.core.wallets import admission
+from ee.tests.pytest.utils.wallets.switch import set_wallets_enabled
 
 
 def pytest_collection_modifyitems(config, items):
@@ -76,13 +75,7 @@ def _stub_event_publishing(request, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _wallet_enforces(monkeypatch):
-    """Run the wallet's admission points and producers in `enforce`, today's behaviour.
+    """Run the wallet's admission points and producers with the wallet on, as the cloud does.
 
-    `AGENTA_WALLETS_ENABLED` is off in the unit env, which would read as `off` for every
-    organization. The rollout modes themselves are tested in `test_wallets_rollout_modes.py`.
-    """
-
-    async def _enforce(organization_id, **_kwargs):
-        return WalletMode.ENFORCE
-
-    monkeypatch.setattr(admission, "wallet_mode_for", _enforce)
+    `AGENTA_WALLETS_ENABLED` is off in the unit env."""
+    set_wallets_enabled(monkeypatch, True)

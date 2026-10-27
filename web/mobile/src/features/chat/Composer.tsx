@@ -17,7 +17,6 @@ import {
     type ComposerAttachment,
     type useComposerAttachments,
 } from "@agenta/chat/hooks"
-import {refusedSendRejections} from "@agenta/chat/model"
 import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
@@ -27,6 +26,7 @@ import {AnimatePresence, motion} from "motion/react"
 import {ContentRail} from "@/components/ContentRail"
 import {useMotionPresets} from "@/lib/motion/presets"
 
+import {sendRefusalRejections} from "./sessionReadOnly"
 import {useComposerPrefill} from "./useComposerPrefill"
 
 /**
@@ -229,7 +229,7 @@ export const Composer = ({
             // composer's own inline channel. `outbound`, not `staged`: a voice take never sat in
             // the tray, and restoring it there is what makes it retryable. Idempotent: a throw
             // before the clear leaves the tray as it was.
-            attachments.setRejections(refusedSendRejections(error))
+            attachments.setRejections(sendRefusalRejections(error))
             // Never over a draft typed while this send was pending: the host keeps it instead.
             if (cleared && !canRestoreRefusedSend(richInputRef.current)) {
                 onRefusedOverDraft?.({text, parts})

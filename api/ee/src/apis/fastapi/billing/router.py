@@ -56,7 +56,6 @@ from ee.src.core.wallets.purchases import (
 )
 from ee.src.core.wallets.service import WalletsService
 from oss.src.models.api.organization_models import OrganizationUpdate
-from oss.src.core.rollout.switches import WalletMode, wallet_mode_for
 from ee.src.apis.fastapi.billing.models import (
     TopUpPackResponse,
     TopUpPacksResponse,
@@ -969,11 +968,6 @@ class BillingRouter:
             or _load_stripe() is None
             or not env.stripe.webhook_secret
         ):
-            return "unavailable", None
-
-        # Credits stop work only where the wallet is enforced; elsewhere a pack buys
-        # nothing the organization would notice.
-        if await wallet_mode_for(UUID(organization_id)) is not WalletMode.ENFORCE:
             return "unavailable", None
 
         subscription = await self.subscription_service.read(

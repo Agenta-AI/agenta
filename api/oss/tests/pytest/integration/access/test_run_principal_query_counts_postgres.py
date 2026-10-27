@@ -31,6 +31,7 @@ from oss.tests.pytest.utils.membership_seed import (
     execute,
     seed_organization,
 )
+from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy, SharingWorld
 from oss.tests.pytest.utils.statements import (
     count_statements_by_phase,
     patch_access_phase,
@@ -40,6 +41,22 @@ from oss.tests.pytest.utils.statements import (
 pytestmark = pytest.mark.integration
 
 EDITIONS = ["oss", "ee"] if is_ee() else ["oss"]
+
+
+@pytest.fixture(autouse=True)
+def _entitlements(monkeypatch):
+    """As `ee/src/main.py` does at startup. Without it the plan read raises and
+    `check_entitlements` fails open, so the RBAC entitlement is never read."""
+
+    if not is_ee():
+        return
+    import ee.src.core.access.entitlements.service as entitlements_module
+
+    for name in ("_meters_service_singleton", "_subscriptions_service_singleton"):
+        monkeypatch.setattr(
+            entitlements_module, name, getattr(entitlements_module, name)
+        )
+    entitlements_module.bootstrap_entitlements_services()
 
 
 @pytest.fixture
@@ -94,6 +111,7 @@ def _service(edition: str) -> AccessService:
         ),
         rbac=rbac,
         principals=PrincipalsDAO(engine=engine),
+        resource_policy=AllowAllResourcePolicy(),
     )
 
 
@@ -222,6 +240,7 @@ from oss.tests.pytest.utils.principals import (  # noqa: E402
     make_envelope,
     make_request_access,
 )
+from oss.src.core.sharing.admission import RunAdmission  # noqa: E402
 
 
 def _bearer(user_id, *, project_id, organization_id):
@@ -509,11 +528,17 @@ async def test_trigger_tick_runs_no_access_statement_and_unchanged_endpoint_stat
         async def _tick(access_service, event_id):
             dispatch = AsyncMock(return_value="run-1")
             dispatcher = TriggersDispatcher(
+                # The real admission over the access service under test (M3): the
+                # tick's agent check is its decision.
+                run_admission=RunAdmission(
+                    access_service=access_service, workflows_service=workflows
+                ),
                 triggers_dao=triggers,
                 session_claims_dao=claims,
                 workflows_service=workflows,
                 dispatch_fn=dispatch,
                 access_service=access_service,
+                sharing_service=SharingWorld().service,
             )
             await dispatcher.dispatch_schedule(
                 project_id=project_id, schedule=schedule, event_id=event_id, event={}

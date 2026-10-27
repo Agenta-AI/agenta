@@ -60,6 +60,7 @@ from oss.tests.pytest.unit.channels.slack.fake_slack import (
     FakeSlackTransport,
     FakeSlackWorkspace,
 )
+from oss.tests.pytest.utils.sharing import ProjectAgentResolver
 
 pytestmark = pytest.mark.integration
 
@@ -214,6 +215,7 @@ async def arms(differential_scope, monkeypatch):
         channels_dao=ChannelsDAO(engine=engine),
         adapter_registry=registry,
         vault_service=VaultService(secrets_dao=SecretsDAO(engine=engine)),
+        workflows_service=ProjectAgentResolver(),
     )
 
     slack_signing_secret = "differential-test-slack-signing-secret-fixture"

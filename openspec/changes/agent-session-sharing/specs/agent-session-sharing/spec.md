@@ -1,22 +1,44 @@
 ## ADDED Requirements
 
 ### Requirement: Session roles
-A web agent session SHALL have a visibility, an optional owner, and named Viewer or Participant grants. The owner SHALL read, send, answer approvals, change sharing, rename, archive, and delete. A Participant SHALL read, send, and answer approvals. A Viewer SHALL read. Project visibility SHALL give Viewer access to members with `VIEW_SESSIONS`. An ownerless session SHALL keep today's rename, archive and delete rule: any principal with `EDIT_SESSIONS`.
+A web agent session SHALL have a visibility, an optional owner, and named Viewer or Participant grants. The owner SHALL read, send, answer approvals, change sharing, rename, archive, and delete. A Participant SHALL read, send, and answer approvals. A Viewer SHALL read.
 
 #### Scenario: Viewer
-- **WHEN** Carol has Viewer access
+- **WHEN** Carol has Viewer access to Alice's private session
 - **THEN** Carol can read the session and cannot send, answer an approval, rename, or change sharing
 
 ### Requirement: Capabilities and agent access still apply
-Every role SHALL also require the project capability for the action. A send SHALL require agent access for the sender's own authority. Reading history SHALL NOT require agent access. Humans SHALL only read an ownerless session in Agenta.
+Every role SHALL also require the project capability for the action. A send SHALL require agent access for the sender's own authority. Reading history SHALL NOT require agent access. Humans SHALL only read a channel session in Agenta.
 
 #### Scenario: Participant sends under his own authority
 - **WHEN** Bob, a Participant, sends a turn in Alice's session after he lost access to the agent
 - **THEN** his turn is refused, and he can still read the history
 
+### Requirement: Project visibility gives Participant
+Project visibility SHALL give Participant access to members with the project capability in a web session, owned or ownerless, also after the owner left: they read, send and answer approvals. It SHALL take precedence over a Viewer grant. Rename, archive, delete and sharing changes SHALL stay with the owner. An ownerless session SHALL keep today's rename, archive and delete rule: any principal with `EDIT_SESSIONS`. A channel (Slack) session SHALL keep Viewer access for people.
+
 #### Scenario: Ownerless session
 - **WHEN** a member opens a project-visible session that an API key started
-- **THEN** the member can read it and cannot send to it, and the API key can still send to it
+- **THEN** the member can read it and send to it under his own authority, and the API key can still send to it
+
+#### Scenario: Project-visible session of a colleague
+- **WHEN** Bob opens Alice's project-visible session, and later Alice leaves the project
+- **THEN** Bob can send and answer its approvals before and after Alice left, and only Alice can rename, archive, delete it or change its sharing
+
+#### Scenario: Legacy sessions after the backfill
+- **WHEN** a member opens a backfilled session that has no owner (an empty session with no creator, or a session whose only turn is a child run of a person), or a backfilled chat whose first sender is its owner and the member sent its second turn
+- **THEN** the member can send to it and answer its approvals, and only the owner, when there is one, can rename, archive or delete it
+
+#### Scenario: Channel session
+- **WHEN** a member opens a project-visible session that comes from Slack or Telegram
+- **THEN** the member can read it and send to it in Agenta
+
+### Requirement: A person's server run runs in its ownerless session
+A person's server run (an event subscription, a child run, an evaluation run) SHALL run in an ownerless session, like any non-human principal: its signed run origin, not the person sending, decides. A turn admitted for such a run SHALL NOT admit the same person's web or browser requests.
+
+#### Scenario: A person's subscription runs in its ownerless session
+- **WHEN** an event subscription that Alice created fires, and its run (Alice's principal, origin subscription) beats and writes in the ownerless session it claimed
+- **THEN** every beat, write and next turn of that run is admitted
 
 ### Requirement: Every session insertion path sets the initial policy
 Turn start, rename before the first turn, trigger claim, and first-heartbeat creation SHALL insert the row with a policy that `SharingService.initial_policy` computed on the server. The rename create arm SHALL accept an optional requested visibility. No conflict arm SHALL change the access fields.
@@ -45,18 +67,22 @@ Only the owner SHALL change visibility and grants. Grants SHALL name active memb
 - **THEN** the field lists only the project members
 
 ### Requirement: Approvals in a shared session
-Only the owner or a Participant SHALL answer an approval in Agenta. Before the resumed action runs, the system SHALL check the session and the agent again for the original authority (CONTRACT.md section 3).
+Only the owner or a Participant (a member of a project-visible web session included) SHALL answer an approval in Agenta. Before the resumed action runs, the system SHALL check the session and the agent again for the original authority (CONTRACT.md section 3).
 
 #### Scenario: Participant approves
 - **WHEN** Bob, a Participant, approves Alice's waiting turn
 - **THEN** the action runs under Alice's authority and Bob is recorded as `approved_by`, or the run stops if Alice lost access to the agent
 
 ### Requirement: Share step disclosure
-Before an owner shares a session or makes an agent project-visible, the system SHALL show the agent's connections, and SHALL state that each turn uses the credentials available to that run, that session files and tool results are visible to all participants, and that project trace readers can read the session. Trace storage, queries, and permissions SHALL NOT change.
+Before an owner widens who can see a session or makes an agent project-visible, the system SHALL show the agent's connected accounts and SHALL state that the people added will see everything in the session. The user documentation SHALL state that project members who can read traces can read the session. Trace storage, queries, and permissions SHALL NOT change.
 
 #### Scenario: Shared session disclosure
-- **WHEN** Alice opens the share step of a session
-- **THEN** she sees the connections and the three statements before she confirms
+- **WHEN** Alice invites Bob to a session whose agent uses a Gmail connection
+- **THEN** before the invite is saved she sees one sentence that names the connected accounts and says that Bob will see everything in the session
+
+#### Scenario: Disclosure flags in the API
+- **WHEN** a client reads a session's sharing state
+- **THEN** the response carries the connections and the three disclosure flags (run credentials, files and tool results, trace readers), and the UI leaves out the trace readers statement
 
 ### Requirement: Session files follow the session
 Session file reads, downloads, exports, and storage credentials SHALL require read access to the session. Unexpired credentials SHALL NOT be recalled, and the documentation SHALL say so.

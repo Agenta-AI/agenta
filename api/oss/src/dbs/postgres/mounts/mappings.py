@@ -1,6 +1,8 @@
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any, Dict, Union
 from uuid import UUID
+
+from sqlalchemy.sql.elements import ColumnElement
 
 from oss.src.core.mounts.dtos import (
     Mount,
@@ -19,7 +21,7 @@ def map_mount_dto_to_dbe_upsert(
     now: datetime,
     #
     mount_id: UUID,
-    storage_prefix: str,
+    storage_prefix: Union[str, ColumnElement[str]],
     #
     mount_create: MountCreate,
 ) -> Dict[str, Any]:
@@ -53,7 +55,7 @@ def map_mount_dto_to_dbe_create(
     user_id: UUID,
     #
     mount_id: UUID,
-    storage_prefix: str,
+    storage_prefix: Union[str, ColumnElement[str]],
     #
     mount_create: MountCreate,
 ) -> MountDBE:

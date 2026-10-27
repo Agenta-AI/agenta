@@ -84,6 +84,8 @@ export interface UseChannelPanelOptions {
     agents?: ChannelsPanelAgent[]
     /** Switch the panel to another agent; it reopens on that agent's hub. */
     onAgentChange?: (agentId: string) => void
+    /** The project's name, for the agent step's audience note. */
+    projectName?: string
 }
 
 export interface EmbedViewProps {
@@ -152,6 +154,7 @@ export const useChannelPanel = ({
     embed,
     agents,
     onAgentChange,
+    projectName,
 }: UseChannelPanelOptions) => {
     const [stack, setStack] = useState<ChannelsRoute[]>([])
     // Closing keeps the stack, so the last view stays mounted while the drawer animates out.
@@ -383,6 +386,13 @@ export const useChannelPanel = ({
                             }
                             await onDisconnect(route.platform, connection.connectionId)
                         }}
+                        onTurnOn={async () => {
+                            if (!connection.connectionId) {
+                                throw new Error("This connection has no id yet.")
+                            }
+                            await actions.turnOn(route.platform, connection.connectionId)
+                            await actions.reload()
+                        }}
                     />
                 )
             }
@@ -401,6 +411,8 @@ export const useChannelPanel = ({
                     <ChannelAgentPicker
                         agents={agents ?? []}
                         connections={connections}
+                        platform={route.platform}
+                        projectName={projectName}
                         onSelect={(id) => {
                             onAgentChange?.(id)
                             push(

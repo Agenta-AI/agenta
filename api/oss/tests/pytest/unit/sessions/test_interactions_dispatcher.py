@@ -21,6 +21,7 @@ from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     compose_approval_messages_many,
     resolve_gated_tool_call_id,
 )
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 def _make_interaction(
@@ -115,6 +116,7 @@ def _dispatcher_with(interaction, records, dispatch_fn):
     records_service = MagicMock()
     records_service.get_records = AsyncMock(return_value=records)
     return InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
         workflows_service=MagicMock(),
         interactions_service=interactions_service,
         records_service=records_service,
@@ -147,6 +149,7 @@ async def test_respond_fallback_calls_invoke_when_no_dispatch_fn():
     workflows_service.invoke_workflow = AsyncMock(return_value=SimpleNamespace())
 
     worker = InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
         workflows_service=workflows_service,
         interactions_service=interactions_service,
     )
@@ -177,6 +180,7 @@ async def test_respond_without_references_builds_a_safe_reference_less_request()
     workflows_service.invoke_workflow = AsyncMock(return_value=SimpleNamespace())
 
     worker = InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
         workflows_service=workflows_service,
         interactions_service=interactions_service,
     )
@@ -209,6 +213,7 @@ async def test_respond_detached_calls_dispatch_fn_not_invoke():
     dispatch_fn = AsyncMock(return_value="run-xyz")
 
     worker = InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
         workflows_service=workflows_service,
         interactions_service=interactions_service,
         dispatch_fn=dispatch_fn,
@@ -634,6 +639,7 @@ async def test_respond_passes_the_stamped_config_on_the_blocking_path_too():
     workflows_service.invoke_workflow = AsyncMock(return_value=SimpleNamespace())
 
     dispatcher = InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
         workflows_service=workflows_service,
         interactions_service=interactions_service,
     )
@@ -944,6 +950,7 @@ async def test_resume_falls_back_to_the_turn_references_when_the_gate_row_has_no
     )
 
     worker = InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
         workflows_service=workflows_service,
         interactions_service=interactions_service,
         turns_service=turns_service,
@@ -980,6 +987,7 @@ async def test_resume_falls_back_to_the_stream_references_when_no_turn_carries_a
     workflows_service.invoke_workflow = AsyncMock(return_value=SimpleNamespace())
 
     worker = InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
         workflows_service=workflows_service,
         interactions_service=interactions_service,
         turns_service=_turns_service([_session_turn(project_id, references=None)]),
@@ -1026,6 +1034,7 @@ async def test_the_gate_rows_own_references_win_over_the_session_fallback():
     )
 
     worker = InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
         workflows_service=workflows_service,
         interactions_service=interactions_service,
         turns_service=turns_service,
@@ -1056,6 +1065,7 @@ async def test_a_session_with_no_recorded_identity_still_sends_a_reference_less_
     workflows_service.invoke_workflow = AsyncMock(return_value=SimpleNamespace())
 
     worker = InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
         workflows_service=workflows_service,
         interactions_service=interactions_service,
         turns_service=_turns_service([]),
@@ -1179,6 +1189,7 @@ async def test_original_principal_removed(monkeypatch):
     workflows_service = MagicMock()
     workflows_service.invoke_workflow = AsyncMock()
     dispatcher = InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
         workflows_service=workflows_service,
         interactions_service=interactions_service,
     )
@@ -1212,6 +1223,7 @@ async def test_response_without_envelope_is_settled_not_raised(
     workflows_service = MagicMock()
     workflows_service.invoke_workflow = AsyncMock()
     dispatcher = InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
         workflows_service=workflows_service,
         interactions_service=interactions_service,
     )
@@ -1237,6 +1249,7 @@ async def test_refused_response_without_a_turn_cancels_that_interaction(
     interactions_service.cancel_session_pending = AsyncMock()
     interactions_service.transition_interaction = AsyncMock()
     dispatcher = InteractionsDispatcher(
+        run_admission=NoopRunAdmission(),
         workflows_service=MagicMock(),
         interactions_service=interactions_service,
     )
@@ -1253,3 +1266,107 @@ async def test_refused_response_without_a_turn_cancels_that_interaction(
     ]
     assert transition.token == interaction.token
     assert transition.status == SessionInteractionStatus.cancelled
+
+
+def _denying_admission():
+    from oss.src.core.access.dtos import Decision, DecisionReason
+    from oss.src.core.sharing.types import AdmissionDenied
+    from oss.tests.pytest.utils.sharing import RecordingRunAdmission
+
+    return RecordingRunAdmission(
+        refuse=lambda method, kwargs: AdmissionDenied(
+            decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
+            readable=False,
+            boundary=kwargs["boundary"],
+        )
+    )
+
+
+async def test_resume_is_admitted_on_the_session_and_dispatches_the_admitted_request():
+    """The resume admits the interaction's session and the resumed turn's target
+    right before the dispatch, and dispatches the same request object."""
+    from oss.tests.pytest.utils.sharing import RecordingRunAdmission
+
+    interaction = _make_interaction()
+    interactions_service = MagicMock()
+    interactions_service.fetch_interaction = AsyncMock(return_value=interaction)
+    dispatch_fn = AsyncMock(return_value="run-1")
+    admission = RecordingRunAdmission()
+    dispatcher = InteractionsDispatcher(
+        run_admission=admission,
+        workflows_service=MagicMock(),
+        interactions_service=interactions_service,
+        dispatch_fn=dispatch_fn,
+    )
+    envelope = make_envelope()
+    await dispatcher.respond_many(
+        project_id=interaction.project_id,
+        user_id=uuid4(),
+        interaction_answers=[(interaction.id, {"value": 1})],
+        envelope=envelope,
+    )
+
+    assert admission.methods() == ["admit_request"]
+    admitted = admission.calls[0][1]
+    assert admitted["boundary"] == "approval_resume"
+    assert admitted["session_id"] == interaction.session_id
+    assert admitted["envelope"] == envelope
+    assert dispatch_fn.await_args.kwargs["request"] is admitted["request"]
+
+
+async def test_refused_resume_raises_for_the_command_delivery_and_dispatches_nothing():
+    """`respond_many` (the command path) lets `AdmissionDenied` up, so the delivery
+    settles the command terminally."""
+    from oss.src.core.access.types import AccessDenied
+
+    interaction = _make_interaction()
+    interactions_service = MagicMock()
+    interactions_service.fetch_interaction = AsyncMock(return_value=interaction)
+    dispatch_fn = AsyncMock()
+    dispatcher = InteractionsDispatcher(
+        run_admission=_denying_admission(),
+        workflows_service=MagicMock(),
+        interactions_service=interactions_service,
+        dispatch_fn=dispatch_fn,
+    )
+    with pytest.raises(AccessDenied):
+        await dispatcher.respond_many(
+            project_id=interaction.project_id,
+            user_id=uuid4(),
+            interaction_answers=[(interaction.id, {"value": 1})],
+            envelope=make_envelope(),
+        )
+    dispatch_fn.assert_not_awaited()
+
+
+async def test_refused_resume_through_respond_cancels_the_turn(
+    _allowing_access_service,
+):
+    """`respond` (a channel's answer) settles a refused admission like a refused
+    recheck: the turn's pending interactions are cancelled, nothing runs, nothing is
+    raised."""
+
+    interaction = _make_interaction().model_copy(update={"turn_id": "turn-1"})
+    interactions_service = MagicMock()
+    interactions_service.fetch_interaction = AsyncMock(return_value=interaction)
+    interactions_service.cancel_session_pending = AsyncMock(return_value=1)
+    dispatch_fn = AsyncMock()
+    dispatcher = InteractionsDispatcher(
+        run_admission=_denying_admission(),
+        workflows_service=MagicMock(),
+        interactions_service=interactions_service,
+        dispatch_fn=dispatch_fn,
+    )
+    await dispatcher.respond(
+        project_id=interaction.project_id,
+        user_id=uuid4(),
+        interaction_id=interaction.id,
+        answer={"approved": True},
+        approved_by=any_approval(),
+    )
+    dispatch_fn.assert_not_awaited()
+    interactions_service.cancel_session_pending.assert_awaited_once_with(
+        project_id=interaction.project_id,
+        session_id=interaction.session_id,
+        only_turn_id="turn-1",
+    )

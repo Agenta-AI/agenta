@@ -18,6 +18,8 @@ import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 import {AgentChannelsCard} from "./AgentChannelsCard"
 import {AgentOverviewBody} from "./AgentOverviewBody"
 import {AgentOverviewTitle} from "./AgentOverviewTitle"
+import {AgentNotFound} from "./states/AgentNotFound"
+import {useAgentOverviewAccess} from "./useAgentOverviewAccess"
 import {useAgentPublishPanel} from "./useAgentPublishPanel"
 
 /** One agent's overview: who it is, a composer, its activity in tabs, and its own state in a rail. */
@@ -35,7 +37,7 @@ export const AgentOverviewScreen = ({
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
-    const agent = agents.find((candidate) => candidate.id === agentId)
+    const {agent, notFound} = useAgentOverviewAccess({agentId, projectId})
     const name = agent?.name || agent?.slug || "Agent"
     const description = agent?.description?.trim() || null
     const agentNames = useMemo(
@@ -79,6 +81,17 @@ export const AgentOverviewScreen = ({
         revealConfigPane()
         startBlank(agentId)
     }, [agentId, revealConfigPane, startBlank])
+
+    if (notFound) {
+        return (
+            <>
+                <PageTitle title="Agents" />
+                <AppShell workspaceId={workspaceId} projectId={projectId}>
+                    <AgentNotFound agentsHref={`${base}/agents`} />
+                </AppShell>
+            </>
+        )
+    }
 
     return (
         <>

@@ -408,7 +408,13 @@ async def set_cache(
     key: Optional[Union[str, dict]] = None,
     value: Optional[Any] = None,
     ttl: Optional[int] = AGENTA_CACHE_TTL,
+    *,
+    nx: bool = False,
+    release_lock: bool = True,
 ) -> Optional[bool]:
+    """`nx`: write only when no value is stored (False when one was). `release_lock`:
+    delete the stampede lock a `get_cache(retry=True)` reader may hold; a caller that
+    never reads with the lock passes False and saves that round trip."""
     # Noop if caching is disabled
     if not env.agenta.api.caching.enabled:
         return None
@@ -427,7 +433,9 @@ async def set_cache(
         #
         # Original L1 write path:
         # local_cache[cache_name] = cache_value
-        await _cache_engine.set(cache_name, cache_value, px=cache_px)
+        written = await _cache_engine.set(cache_name, cache_value, px=cache_px, nx=nx)
+        if nx and not written:
+            return False
 
         if CACHE_DEBUG:
             log.debug(
@@ -437,6 +445,9 @@ async def set_cache(
                 if CACHE_DEBUG_VALUE
                 else "***",
             )
+
+        if not release_lock:
+            return True
 
         lock_name = f"lock::{cache_name}"
 
@@ -646,29 +657,44 @@ async def get_cache_many(entries: list) -> list:
     `project_id`, `user_id`, `key`) and an optional `model`. Returns one value per
     entry, `None` for a miss. No lock and no retry: a caller falls back to `get_cache`
     for an entry that missed. Caching disabled, or a Redis error: all `None`.
+
+    An entry `{"raw": <key>}` names a plain key of the same Redis (a session lock key)
+    and returns its bytes as stored, also when caching is disabled: the read it saves
+    is not a cache read.
     """
 
     if not entries:
         return []
-    if not env.agenta.api.caching.enabled:
-        return [None] * len(entries)
+    caching = env.agenta.api.caching.enabled
+    read = [
+        i for i, entry in enumerate(entries) if caching or entry.get("raw") is not None
+    ]
+    values: list = [None] * len(entries)
+    if not read:
+        return values
     try:
         names = [
-            _pack(
-                namespace=entry.get("namespace"),
-                key=entry.get("key"),
-                project_id=entry.get("project_id"),
-                user_id=entry.get("user_id"),
+            entries[i]["raw"]
+            if entries[i].get("raw") is not None
+            else _pack(
+                namespace=entries[i].get("namespace"),
+                key=entries[i].get("key"),
+                project_id=entries[i].get("project_id"),
+                user_id=entries[i].get("user_id"),
             )
-            for entry in entries
+            for i in read
         ]
         raws = await _cache_engine.mget(names)
-        return [
-            _deserialize(raw, model=entry.get("model"), is_list=False)
-            if raw is not None
-            else None
-            for raw, entry in zip(raws, entries)
-        ]
+        for i, raw in zip(read, raws):
+            entry = entries[i]
+            if raw is None:
+                continue
+            values[i] = (
+                raw
+                if entry.get("raw") is not None
+                else _deserialize(raw, model=entry.get("model"), is_list=False)
+            )
+        return values
     except Exception as e:  # pylint: disable=broad-except
         log.warn("[cache] MGET ", count=len(entries))
         log.warn(e)

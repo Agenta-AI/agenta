@@ -41,6 +41,18 @@ class ProjectMember(BaseModel):
     role: Optional[str] = None  # the column is nullable (an EE row with a null role)
 
 
+class ProjectMemberProfile(BaseModel):
+    """One person the share picker lists for a project (M3)."""
+
+    user_id: UUID
+    email: str
+    name: Optional[str] = None
+    role: Optional[str] = None  # None: an EE project row with a null role
+    # Whether the member's role may send in a session ("Can send" works for them). Set by
+    # the share picker route; None elsewhere.
+    can_run_sessions: Optional[bool] = None
+
+
 class ProjectMembership(BaseModel):
     """The resolver output. M2 caches it, so every nullable field has a default."""
 

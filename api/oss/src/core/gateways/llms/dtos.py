@@ -49,6 +49,11 @@ LLMModelFilter = GatewayEndpointFilter
 
 class LLMEndpointSettings(GatewayEndpointSettings):
     max_output_tokens: Optional[int] = None
+    # How long one streaming attempt may wait for the upstream's response headers before the
+    # gateway cancels it and sends the same body again. Vertex sends its headers with the first
+    # output, so there this bounds the wait for the first byte. Streaming only: a non-streaming
+    # answer arrives whole, so a short limit there would cut long answers that never stalled.
+    response_headers_timeout_seconds: Optional[float] = None
 
 
 class LLMEndpointData(BaseModel):
@@ -106,6 +111,8 @@ class LLMProtocol(str, Enum):
     CHAT_COMPLETIONS = "chat_completions"
     RESPONSES = "responses"
     MESSAGES = "messages"
+    # Google's native `streamGenerateContent`, served only by the built-in Gemini endpoint.
+    GEMINI = "gemini"
 
 
 class LLMCallContext(BaseModel):
@@ -114,6 +121,10 @@ class LLMCallContext(BaseModel):
     model: str
     stream: bool = False
     protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS
+    # How many earlier attempts of this call stalled (`response_headers_timeout_seconds`). An
+    # adapter may vary the retried request, since an upstream stuck on one request can stall
+    # again on the identical body.
+    stalled_attempts: int = 0
 
 
 class LLMResolvedRoute(BaseModel):
@@ -148,3 +159,7 @@ class LLMGatewayConnectionResolution(BaseModel):
     provider_key: str
     deployment_kind: LLMDeploymentKind
     model: str
+    # The protocol a harness that knows it should speak on this route instead of the one
+    # `provider_key` implies: `gemini` on the built-in Gemini endpoint. A harness that does
+    # not know the field keeps the OpenAI-compatible route `provider_key` names.
+    protocol: Optional[LLMProtocol] = None

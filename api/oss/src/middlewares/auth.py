@@ -6,6 +6,7 @@ import asyncio
 import traceback
 
 from pydantic import ValidationError
+from sqlalchemy.exc import NoResultFound
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -60,6 +61,7 @@ from oss.src.core.access.principals import (
 )
 from oss.src.core.access.types import InvalidRunClaims
 from oss.src.core.memberships.service import get_memberships_service
+from oss.src.core.memberships.workspaces import legacy_workspace_id
 
 log = get_module_logger(__name__)
 
@@ -927,6 +929,10 @@ async def verify_bearer_token(
             "w_id": query_workspace_id[-12:] if query_workspace_id else "",
             "scope": cache_scope,
         }
+        # Older pods cached these branches' successes after a workspace-row check only
+        # (workspace only) or with no membership check at all (no parameters).
+        if not query_project_id:
+            cache_key["v"] = "m4b1"
 
         state = await get_cache(
             project_id=query_project_id,
@@ -981,36 +987,45 @@ async def verify_bearer_token(
                 _deny("resolve", "project not found")
                 raise UnauthorizedException()
 
-            workspace = await db_manager.get_workspace(
-                workspace_id=query_workspace_id,
-            )
-
-            if not workspace:
-                await set_cache(
-                    project_id=query_project_id,
-                    user_id=user_id,
-                    namespace="verify_bearer_token",
-                    key=cache_key,
-                    value={"deny": True},
+            # The project's own workspace id or its organization id needs no read; any
+            # other id must name a workspace of the project's organization.
+            if str(query_workspace_id) not in {
+                str(project.workspace_id),
+                str(project.organization_id),
+            }:
+                workspace = await db_manager.get_workspace(
+                    workspace_id=query_workspace_id,
                 )
 
-                _deny("resolve", "workspace not found")
-                raise UnauthorizedException()
+                if not workspace:
+                    await set_cache(
+                        project_id=query_project_id,
+                        user_id=user_id,
+                        namespace="verify_bearer_token",
+                        key=cache_key,
+                        value={"deny": True},
+                    )
 
-            if project.workspace_id != workspace.id:
-                await set_cache(
-                    project_id=query_project_id,
-                    user_id=user_id,
-                    namespace="verify_bearer_token",
-                    key=cache_key,
-                    value={"deny": True},
-                )
+                    _deny("resolve", "workspace not found")
+                    raise UnauthorizedException()
 
-                _deny("resolve", "project/workspace mismatch")
-                raise UnauthorizedException()
+                if str(workspace.organization_id) != str(project.organization_id):
+                    await set_cache(
+                        project_id=query_project_id,
+                        user_id=user_id,
+                        namespace="verify_bearer_token",
+                        key=cache_key,
+                        value={"deny": True},
+                    )
+
+                    _deny("resolve", "project/workspace mismatch")
+                    raise UnauthorizedException()
 
             project_id = query_project_id
-            workspace_id = query_workspace_id
+            workspace_id = legacy_workspace_id(
+                workspace_id=project.workspace_id,
+                organization_id=project.organization_id,
+            )
             organization_id = project.organization_id
 
         elif query_project_id and not query_workspace_id:
@@ -1031,15 +1046,19 @@ async def verify_bearer_token(
                 raise UnauthorizedException()
 
             project_id = query_project_id
-            workspace_id = project.workspace_id
+            workspace_id = legacy_workspace_id(
+                workspace_id=project.workspace_id,
+                organization_id=project.organization_id,
+            )
             organization_id = project.organization_id
 
         elif not query_project_id and query_workspace_id:
-            workspace = await db_manager.get_workspace(
-                workspace_id=query_workspace_id,
+            # A workspace id or an organization id: its default project, in one read.
+            default = await db_manager.fetch_default_project(
+                workspace_or_organization_id=query_workspace_id,
             )
 
-            if not workspace:
+            if not default:
                 await set_cache(
                     project_id=query_project_id,
                     user_id=user_id,
@@ -1051,26 +1070,52 @@ async def verify_bearer_token(
                 _deny("resolve", "workspace not found (no project_id)")
                 raise UnauthorizedException()
 
-            workspace_id = query_workspace_id
-            project_id = await db_manager.get_default_project_id_from_workspace(
-                workspace_id=workspace_id
+            project_id = default.project_id
+            workspace_id = legacy_workspace_id(
+                workspace_id=default.project_workspace_id,
+                organization_id=default.project_organization_id,
             )
-            organization_id = workspace.organization_id
+            organization_id = default.ref_organization_id
 
         else:
-            workspace_id = await db_manager.get_default_workspace_id(
-                user_id=user_id,
-            )
+            # Today's choice: the oldest workspace membership. A user without one (no
+            # workspace rows, written by workspace removal step 2) falls back to the
+            # oldest organization membership.
+            try:
+                default_ref = await db_manager.get_default_workspace_id(
+                    user_id=user_id,
+                )
+            except NoResultFound:
+                default_ref = await db_manager.fetch_oldest_organization_id(
+                    user_id=user_id,
+                )
+                if default_ref is None:
+                    raise
 
-            project_id = await db_manager.get_default_project_id_from_workspace(
-                workspace_id=workspace_id
+            default = await db_manager.fetch_default_project(
+                workspace_or_organization_id=default_ref,
             )
+            if not default:
+                raise NoResultFound(f"No default project for {default_ref}")
 
-            workspace = await db_manager.get_workspace(
-                workspace_id=workspace_id,
+            project_id = default.project_id
+            workspace_id = legacy_workspace_id(
+                workspace_id=default.project_workspace_id,
+                organization_id=default.project_organization_id,
             )
+            organization_id = default.ref_organization_id
 
-            organization_id = workspace.organization_id
+            # The resolver decides, as `?project_id=` would: a workspace row alone does
+            # not make a member (CONTRACT section 2). Not cached on a denial.
+            if (
+                await get_memberships_service().read_membership(
+                    user_id=UUID(str(user_id)),
+                    project_id=UUID(str(project_id)),
+                )
+                is None
+            ):
+                _deny("membership", "default_project_member")
+                raise HTTPException(status_code=401, detail="Unauthorized")
 
         project_id = str(project_id)
         workspace_id = str(workspace_id)
@@ -1105,9 +1150,14 @@ async def verify_bearer_token(
                     project_id=UUID(project_id),
                 )
             else:
-                is_member = await db_manager.workspace_member_exists(
-                    workspace_id=workspace_id,
-                    user_id=user_id,
+                # The request acts in the default project: the resolver answers, read
+                # without its cache (this state is cached itself).
+                is_member = (
+                    await get_memberships_service().read_membership(
+                        user_id=UUID(str(user_id)),
+                        project_id=UUID(project_id),
+                    )
+                    is not None
                 )
 
             if not is_member:
@@ -1294,7 +1344,12 @@ async def verify_apikey_token(
         user_id = str(api_key_obj.created_by_id)
         user_email = api_key_obj.user.email
         project_id = str(api_key_obj.project_id)
-        workspace_id = str(apikey_project_db.workspace_id)
+        workspace_id = str(
+            legacy_workspace_id(
+                workspace_id=apikey_project_db.workspace_id,
+                organization_id=apikey_project_db.organization_id,
+            )
+        )
         organization_id = str(apikey_project_db.organization_id)
         organization_name = None
         if is_ee():

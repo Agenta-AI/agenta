@@ -13,7 +13,8 @@
         "test:unit": "vitest run",
         "test:watch": "vitest",
         "kit:sync": "node scripts/sync-kit-css.mjs",
-        "build:office-viewers": "node scripts/build-office-viewers.mjs"
+        "build:office-viewers": "node scripts/build-office-viewers.mjs",
+        "check:office-viewers": "node scripts/build-office-viewers.mjs --check"
     },
     "exports": {
         ".": "./src/index.ts",
@@ -30,6 +31,7 @@
         "./secret": "./src/secret/index.ts",
         "./secretProvider": "./src/secretProvider/index.ts",
         "./selection": "./src/selection/index.ts",
+        "./sharing": "./src/sharing/index.ts",
         "./template-format": "./src/template-format/index.ts",
         "./testcase": "./src/testcase/index.ts",
         "./tool-utils": "./src/DrillInView/SchemaControls/toolUtils.ts",

@@ -24,6 +24,7 @@ from oss.tests.pytest.utils.membership_seed import (
 from oss.tests.pytest.utils.statements import count_statements
 from oss.tests.pytest.utils.memberships import FakeAccessCache
 from oss.tests.pytest.utils.principals import HumanPrincipalsDAO, bearer_request_access
+from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy
 
 
 pytestmark = pytest.mark.integration
@@ -179,6 +180,7 @@ def registered_access(monkeypatch):
                 memberships=_service(policy),
                 rbac=AlwaysEnforcedRbac(),
                 principals=HumanPrincipalsDAO(),
+                resource_policy=AllowAllResourcePolicy(),
             ),
         )
 

@@ -4,9 +4,9 @@ import {
     agentRosterSearchAtom,
     agentWorkflowsListQueryStateAtom,
     matchesAgentQuery,
-    type Workflow,
 } from "@agenta/entities/workflow"
 import {useWaitingByAgent} from "@agenta/sessions/state"
+import {userAtom} from "@agenta/shared/state"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
@@ -32,6 +32,7 @@ import {
     DEFAULT_AGENT_LIST_VIEW,
     deriveAgentList,
     isDefaultAgentFilters,
+    toAgentListRow,
     type AgentListRow,
     type AgentListView,
 } from "./agentListView"
@@ -43,18 +44,6 @@ import {useNewAgentAction} from "./useNewAgentAction"
 
 /** The page column, shared with sessions and automations, so the nav entries line up. */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
-/** The one place a workflow becomes a row: both views read what this resolves, never the raw
- *  workflow and never the lookup maps behind it. */
-const toRow = (workflow: Workflow, ownerName: string, waiting: number): AgentListRow => ({
-    id: workflow.id,
-    name: workflow.name || workflow.slug || "Untitled agent",
-    description: workflow.description ?? null,
-    updatedAt: workflow.updated_at ?? workflow.created_at ?? null,
-    ownerName,
-    createdById: workflow.created_by_id ?? null,
-    waiting,
-})
 
 /**
  * The full agent roster — where the nav's Agents entry lands.
@@ -92,9 +81,10 @@ export const AgentListScreen = ({
 
     const showArchived = view.type === "archived"
     const archived = useArchivedAgents({projectId, enabled: showArchived})
-    // One cached request, shared with the settings screen: the Created by column and the facet
-    // both name creators, and neither can from an id alone.
-    const {owners, ownerNames} = useAgentOwners({workspaceId, projectId})
+    // The project's member roster: the Owner column and the facet both name owners, and neither
+    // can from an id alone. An id outside it is a former member.
+    const {owners, ownerNames} = useAgentOwners()
+    const me = useAtomValue(userAtom)
 
     // This list is already resolved client-side, so the term filters it in place — no refetch.
     // Matched on the WORKFLOW, not on the row: the shared rule reads the slug too, and the row
@@ -105,13 +95,13 @@ export const AgentListScreen = ({
         return source
             .filter((workflow) => matchesAgentQuery(workflow, search))
             .map((workflow) =>
-                toRow(
-                    workflow,
-                    ownerNames.get(workflow.created_by_id ?? "")?.trim() ?? "",
-                    waitingByAgent.get(workflow.id) ?? 0,
-                ),
+                toAgentListRow(workflow, {
+                    currentUserId: me?.id,
+                    ownerNames,
+                    waiting: waitingByAgent.get(workflow.id) ?? 0,
+                }),
             )
-    }, [archived.agents, ownerNames, query.data, search, showArchived, waitingByAgent])
+    }, [archived.agents, me?.id, ownerNames, query.data, search, showArchived, waitingByAgent])
 
     const groups = useMemo(() => deriveAgentList(rows, view), [rows, view])
     const term = search.trim()

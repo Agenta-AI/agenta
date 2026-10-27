@@ -75,7 +75,7 @@ export const SkillListScreen = ({
     const setShowArchived = useSetAtom(skillsShowArchivedAtom)
     // One cached request, shared with the agents roster: a row names its author under a source
     // heading, and cannot from an id alone.
-    const {ownerNames} = useAgentOwners({workspaceId, projectId})
+    const {ownerNames} = useAgentOwners()
 
     // Grouping and the view mode are how a reader chose to read the list; the filters are a
     // question they were asking at the time, so only the first two survive a reload.

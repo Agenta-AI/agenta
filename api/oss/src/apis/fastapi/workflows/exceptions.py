@@ -9,7 +9,9 @@ from functools import wraps
 
 from fastapi import HTTPException
 
+from oss.src.apis.fastapi.sharing.utils import agent_creation_failed_exception
 from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+from oss.src.core.sharing.types import AgentCreationFailed
 from oss.src.core.workflows.types import (
     InvalidAgentInstructionsError,
     StaticWorkflowSlug,
@@ -51,6 +53,8 @@ def handle_workflow_exceptions():
                 raise NonEmbeddableWorkflowReferenceException(message=str(e)) from e
             except InvalidAgentInstructionsError as e:
                 raise InvalidAgentInstructionsException(e) from e
+            except AgentCreationFailed as e:
+                raise agent_creation_failed_exception(e) from e
 
         return wrapper
 

@@ -77,7 +77,8 @@ def env_provider_keys_enabled() -> bool:
 # Provider credentials a deployment can set (`llm.*` in Helm, the compose env files, or by hand
 # for Azure and Vertex) whose spelling no standard provider kind produces. They never become
 # local secrets, but litellm and the OpenAI client still read them from the environment (an
-# Azure AD token even wins over a key the call carries), so they are held with the rest.
+# Azure AD token even wins over a key the call carries, and a Bedrock call without a key
+# takes the Bedrock bearer token), so they are held with the rest.
 _DEPLOYED_PROVIDER_KEY_NAMES = (
     "TOGETHERAI_API_KEY",
     "XAI_API_KEY",
@@ -88,6 +89,8 @@ _DEPLOYED_PROVIDER_KEY_NAMES = (
     "AZURE_OPENAI_AD_TOKEN",
     "VERTEXAI_CREDENTIALS",
     "VERTEX_CREDENTIALS",
+    "AWS_BEARER_TOKEN_BEDROCK",
+    "BEDROCK_MANTLE_API_KEY",
 )
 
 
@@ -120,6 +123,49 @@ def hold_env_provider_keys() -> List[str]:
     _held_env_provider_keys = held
 
     return sorted(held)
+
+
+# The variables litellm and boto3 read to pick an AWS identity when a call names none of
+# its own, or to add to the keys it names (a session token, a role, a profile).
+_HOST_AWS_CREDENTIAL_NAMES = (
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+    "AWS_SECURITY_TOKEN",
+    "AWS_SESSION_NAME",
+    "AWS_ROLE_NAME",
+    "AWS_ROLE_ARN",
+    "AWS_PROFILE",
+    "AWS_PROFILE_NAME",
+    "AWS_WEB_IDENTITY_TOKEN",
+    "AWS_WEB_IDENTITY_TOKEN_FILE",
+    "AWS_STS_ENDPOINT",
+    "AWS_EXTERNAL_ID",
+    "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+    "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+    "AWS_CONTAINER_AUTHORIZATION_TOKEN",
+    "AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE",
+    "AWS_SHARED_CREDENTIALS_FILE",
+    "AWS_CONFIG_FILE",
+)
+
+
+def drop_host_aws_credentials() -> List[str]:
+    """Remove the host's AWS credentials from this process's environment in hosted mode.
+
+    Where the host's provider keys may not serve requests, its AWS identity may not either.
+    A Bedrock or SageMaker call then signs only with the keys it carries. Self-hosted, the
+    variables stay, so a connection without keys can run on the host's AWS role. Returns
+    the names removed.
+    """
+    if env_provider_keys_enabled():
+        return []
+
+    return sorted(
+        name
+        for name in _HOST_AWS_CREDENTIAL_NAMES
+        if environ.pop(name, None) is not None
+    )
 
 
 def _env_provider_key(name: str) -> Optional[str]:

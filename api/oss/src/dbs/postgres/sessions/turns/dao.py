@@ -1,7 +1,18 @@
 from typing import Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import and_, case, delete as sa_delete, func, literal, or_, select
+import uuid_utils.compat as uuid_compat
+from sqlalchemy import (
+    and_,
+    case,
+    delete as sa_delete,
+    exists,
+    func,
+    literal,
+    or_,
+    select,
+)
+from sqlalchemy import insert as sa_insert
 from sqlalchemy import update as sa_update
 from sqlalchemy.exc import IntegrityError
 
@@ -14,7 +25,12 @@ from oss.src.core.sessions.turns.dtos import (
 )
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.sessions.turns.types import (
+    SessionTurnCursorInvalid,
+    SessionTurnStreamMismatch,
+)
 from oss.src.core.shared.exceptions import EntityCreationConflict
+from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.dbs.postgres.sessions.turns.dbes import SessionTurnDBE
 from oss.src.dbs.postgres.sessions.turns.mappings import (
     map_turn_attribution_to_columns,
@@ -47,11 +63,36 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
             user_id=user_id,
             turn=turn,
         )
+        # One statement: the row is inserted only when its stream is the row of its
+        # session (every read of a session's turns goes by the session id), and comes
+        # back with its server defaults. No row: the stream is another session's row, or
+        # the session has none.
+        table = SessionTurnDBE.__table__
+        values = {
+            column.name: getattr(dbe, column.key)
+            for column in table.columns
+            if getattr(dbe, column.key, None) is not None
+        }
+        values.setdefault("id", uuid_compat.uuid7())
+        names = list(values)
+        source = select(
+            *(literal(values[name], type_=table.c[name].type) for name in names)
+        ).where(
+            exists().where(
+                SessionStreamDBE.project_id == project_id,
+                SessionStreamDBE.id == turn.stream_id,
+                SessionStreamDBE.session_id == turn.session_id,
+            )
+        )
+        stmt = (
+            sa_insert(table)
+            .from_select(names, source, include_defaults=False)
+            .returning(*table.columns)
+        )
         async with self.engine.session() as session:
             try:
-                session.add(dbe)
+                row = (await session.execute(stmt)).first()
                 await session.commit()
-                await session.refresh(dbe)
             except IntegrityError as e:
                 await session.rollback()
                 error_str = str(e.orig) if e.orig else str(e)
@@ -68,7 +109,13 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
                         },
                     ) from e
                 raise
-        return map_turn_dbe_to_dto(turn_dbe=dbe)
+        if row is None:
+            raise SessionTurnStreamMismatch(turn.session_id)
+        return map_turn_dbe_to_dto(
+            turn_dbe=SessionTurnDBE(
+                **{column.key: row._mapping[column.name] for column in table.columns}
+            )
+        )
 
     async def complete(
         self,
@@ -226,6 +273,8 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
                         stmt = stmt.where(time_attribute >= windowing.oldest)
 
                 if windowing.next is not None:
+                    # The cursor is a turn of the queried session (and stream): a turn of
+                    # another session, readable or not, answers as an unknown id.
                     cursor_stmt = select(
                         SessionTurnDBE.turn_index,
                         SessionTurnDBE.id,
@@ -233,8 +282,18 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
                         SessionTurnDBE.project_id == project_id,
                         SessionTurnDBE.id == windowing.next,
                     )
+                    if query is not None and query.session_id is not None:
+                        cursor_stmt = cursor_stmt.where(
+                            SessionTurnDBE.session_id == query.session_id
+                        )
+                    if query is not None and query.stream_id is not None:
+                        cursor_stmt = cursor_stmt.where(
+                            SessionTurnDBE.stream_id == query.stream_id
+                        )
                     cursor_result = await session.execute(cursor_stmt)
                     cursor = cursor_result.one_or_none()
+                    if cursor is None:
+                        raise SessionTurnCursorInvalid()
                     if cursor is not None:
                         cursor_index, cursor_id = cursor
                         if descending:

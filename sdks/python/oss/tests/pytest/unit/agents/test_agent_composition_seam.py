@@ -1393,5 +1393,98 @@ async def test_only_one_deadline_owns_a_turn(monkeypatch):
         parameters=_params(),
     )
 
-    # One owner per optional read, never two around the same read.
-    assert owners == ["channel tools resolver", "session context resolver"]
+    # One owner per optional read, never two around the same read. The two reads run
+    # together, so their start order is not part of the contract.
+    assert sorted(owners) == ["channel tools resolver", "session context resolver"]
+
+
+# --------------------------------------------------------------------------- #
+# Turn start: the independent lookups share one wait
+# --------------------------------------------------------------------------- #
+async def test_tools_connection_and_session_context_resolve_together():
+    """The tool chain blocks until the connection and the session facts are in flight.
+
+    Run one after another, the tool resolve would wait for lookups that start only after it.
+    """
+    backend = _FakeBackend()
+    connection_started = asyncio.Event()
+    session_started = asyncio.Event()
+
+    async def _tools(tools, **kwargs):
+        await asyncio.wait_for(connection_started.wait(), timeout=1)
+        await asyncio.wait_for(session_started.wait(), timeout=1)
+        return ResolvedToolSet()
+
+    async def _connection(*, model, context):
+        connection_started.set()
+        return _no_connection_result()
+
+    async def _session_context(*, session_id, workflow_id):
+        session_started.set()
+        return SessionContext(session_name="named")
+
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_tools=_tools,
+        resolve_connection=_connection,
+        resolve_session_context=_session_context,
+    )
+    await make_agent_handler(comp)(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(model={"provider": "openai", "model": "gpt-5.5"}),
+    )
+
+    assert backend.created_turn_contexts[0] is not None
+
+
+async def test_a_tool_failure_wins_over_a_connection_failure_that_came_first():
+    """The error a caller sees is the one a serial run would raise: tools come first."""
+
+    async def _tools(tools, **kwargs):
+        await asyncio.sleep(0.05)
+        raise RuntimeError("tools down")
+
+    async def _connection(*, model, context):
+        raise ConnectionResolutionError("vault down")
+
+    comp = AgentComposition(
+        select_backend=lambda template: _FakeBackend(),
+        resolve_tools=_tools,
+        resolve_connection=_connection,
+    )
+    with pytest.raises(RuntimeError, match="tools down"):
+        await make_agent_handler(comp)(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(model={"provider": "openai", "model": "gpt-5.5"}),
+        )
+
+
+async def test_a_tool_failure_cancels_the_connection_resolve_in_flight():
+    cancelled = asyncio.Event()
+
+    async def _tools(tools, **kwargs):
+        await asyncio.sleep(0.05)
+        raise RuntimeError("tools down")
+
+    async def _connection(*, model, context):
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+        return _no_connection_result()
+
+    comp = AgentComposition(
+        select_backend=lambda template: _FakeBackend(),
+        resolve_tools=_tools,
+        resolve_connection=_connection,
+    )
+    with pytest.raises(RuntimeError, match="tools down"):
+        await make_agent_handler(comp)(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(model={"provider": "openai", "model": "gpt-5.5"}),
+        )
+    assert cancelled.is_set()

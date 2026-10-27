@@ -25,6 +25,7 @@ from oss.src.core.sessions.records.dtos import (
 from oss.src.core.sessions.records.streaming import LIVE_FRAME_STREAM_NAME
 from oss.src.tasks.asyncio.sessions.live_relay_worker import LiveRelayWorker
 from oss.src.utils.env import env
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 class FakePubSub:
@@ -390,6 +391,7 @@ async def test_events_route_is_hidden_when_shared_reader_is_off():
     router = SessionStreamsRouter(
         service=AsyncMock(),
         interactions_service=AsyncMock(),
+        run_admission=NoopRunAdmission(),
     )
     request = Request(
         {
@@ -415,6 +417,7 @@ async def test_events_route_disables_authenticated_response_storage():
         service=AsyncMock(),
         interactions_service=AsyncMock(),
         records_service=AsyncMock(),
+        run_admission=NoopRunAdmission(),
     )
     request = Request(
         {
@@ -436,10 +439,6 @@ async def test_events_route_disables_authenticated_response_storage():
                 envelope=make_envelope(), credential_kind="bearer_session"
             ),
         ),
-        patch(
-            "oss.src.apis.fastapi.sessions.router.get_access_service",
-            return_value=AllowingAccessService(),
-        ),
     ):
         response = await router.session_events(request=request, session_id="session-1")
 
@@ -447,18 +446,22 @@ async def test_events_route_disables_authenticated_response_storage():
     await response.body_iterator.aclose()
 
 
+@pytest.mark.real_resource_checks
 async def test_recheck_uses_captured_access_and_stops_after_removal():
     """The live stream captures the request access at entry. Each recheck decides
-    for that access, also after the request's ContextVar is gone, and a removed
-    member's recheck is refused."""
+    for that access and the session (the same resource check as the entry), also
+    after the request's ContextVar is gone, and a removed member's recheck is
+    refused."""
 
     from oss.src.apis.fastapi.sessions import router as router_module
+    from oss.src.apis.fastapi.sharing import utils as sharing_utils
     from oss.src.core.access.context import reset_request_access, set_request_access
 
     router = SessionStreamsRouter(
         service=AsyncMock(),
         interactions_service=AsyncMock(),
         records_service=AsyncMock(),
+        run_admission=NoopRunAdmission(),
     )
     project_id = uuid4()
     access = make_request_access(
@@ -488,24 +491,26 @@ async def test_recheck_uses_captured_access_and_stops_after_removal():
 
         return _empty()
 
-    token = set_request_access(access)
-    try:
-        with (
-            patch.object(env.sessions, "shared_reader", True),
-            patch.object(router_module, "live_event_stream", _stream),
-            patch.object(router_module, "get_access_service", lambda: _Proxy(services)),
-        ):
+    with (
+        patch.object(env.sessions, "shared_reader", True),
+        patch.object(router_module, "live_event_stream", _stream),
+        patch.object(sharing_utils, "get_access_service", lambda: _Proxy(services)),
+    ):
+        token = set_request_access(access)
+        try:
             await router.session_events(request=request, session_id="session-1")
-    finally:
-        reset_request_access(token)
+        finally:
+            reset_request_access(token)
 
-    check = captured["authorization_check"]
-    assert await check() is True
-    services["now"] = DenyingAccessService()
-    assert await check() is False
+        # The rechecks run after the request's ContextVar is gone.
+        check = captured["authorization_check"]
+        assert await check() is True
+        services["now"] = DenyingAccessService()
+        assert await check() is False
     seen = services["now"].decisions[-1]
     assert seen["access"] == access
     assert seen["project_id"] == project_id
+    assert seen["resource"] == sharing_utils.session_resource("session-1")
 
 
 class _Proxy:

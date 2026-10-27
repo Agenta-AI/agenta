@@ -39,6 +39,10 @@ from oss.src.utils.env import env
 from oss.tests.pytest.utils.cache import FakeCache
 from oss.tests.pytest.utils.memberships import InMemoryMembershipsDAO, RecordingRbac
 from oss.tests.pytest.utils.principals import InMemoryPrincipalsDAO
+from oss.tests.pytest.utils.sharing import (
+    AllowAllResourcePolicy,
+    ProjectAgentResolver,
+)
 
 
 class _Recorder:
@@ -262,7 +266,11 @@ async def test_binding_changes_invalidate_the_binding(method, recorded):
     dao.fetch_agent = AsyncMock(return_value=existing)
     dao.edit_agent = AsyncMock(return_value=existing)
     dao.delete_agent = AsyncMock(return_value=True)
-    service = ChannelsService(channels_dao=dao, adapter_registry=MagicMock())
+    service = ChannelsService(
+        channels_dao=dao,
+        adapter_registry=MagicMock(),
+        workflows_service=ProjectAgentResolver(),
+    )
 
     if method == "delete_agent":
         await service.delete_agent(project_id=uuid4(), agent_id=agent_id)
@@ -381,6 +389,7 @@ async def test_invalidate_user_clears_user_keys_bindings_and_memberships(monkeyp
         ),
         rbac=RecordingRbac(),
         principals=PrincipalsDAO(engine=None),  # the real cache delete
+        resource_policy=AllowAllResourcePolicy(),
     )
     user_id, key_id, binding_id, project_id = uuid4(), uuid4(), uuid4(), uuid4()
     names = []
@@ -508,6 +517,7 @@ async def test_invalidate_scope_clears_keys_bindings_and_members_project_wide(
         ),
         rbac=RecordingRbac(),
         principals=principals,
+        resource_policy=AllowAllResourcePolicy(),
     )
     project_id, key_id, binding_id = uuid4(), uuid4(), uuid4()
     members = [str(uuid4()) for _ in range(50)]

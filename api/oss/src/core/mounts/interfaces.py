@@ -16,8 +16,8 @@ class MountsDAOInterface(ABC):
         #
         mount_create: MountCreate,
     ) -> Mount:
-        """Insert a mount. The new row stores the prefix the DAO writes in the same insert:
-        `project_storage_prefix(project_id=..., mount_id=<new id>)`."""
+        """Insert a mount. A new row stores `organization_storage_prefix(organization_id=<the
+        project's organization>, mount_id=<new id>)`, written in the same insert."""
         ...
 
     @abstractmethod
@@ -29,9 +29,9 @@ class MountsDAOInterface(ABC):
         #
         mount_create: MountCreate,
     ) -> Mount:
-        """Insert or re-bind a mount by `(project_id, slug)`. A new row stores the prefix the
-        DAO writes in the same statement, as in `create_mount`; on conflict the existing row
-        and its prefix win."""
+        """Insert or re-bind a mount by `(project_id, slug)`. A new row stores
+        `organization_storage_prefix(...)`, written in the same statement, as in `create_mount`;
+        the existing row and its prefix win on conflict."""
         ...
 
     @abstractmethod

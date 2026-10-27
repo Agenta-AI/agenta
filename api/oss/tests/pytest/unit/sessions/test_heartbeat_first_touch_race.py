@@ -23,6 +23,8 @@ from oss.src.core.sessions.streams.types import SessionStreamAlreadyExists
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
 from oss.tests.pytest.utils.principals import make_envelope
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -79,6 +81,9 @@ async def test_heartbeat_survives_losing_the_first_touch_race(lock_engine):
             is_running=True,
         ),
         envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert dao.creates == 1, "the heartbeat attempted the create and lost the race"

@@ -21,6 +21,7 @@ from fastapi import HTTPException
 
 from oss.src.apis.fastapi.tools.router import ToolsRouter
 from oss.src.core.tools.dtos import ToolCall, ToolCallData, ToolCallFunction
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 class FakeWorkflowsService:
@@ -54,9 +55,10 @@ class FakeWorkflowsService:
         )
 
 
-def _router(workflows_service):
+def _router(workflows_service, admission=None):
     # The Composio ToolsService is unused on the workflow branch; a stub is fine.
     return ToolsRouter(
+        run_admission=admission or NoopRunAdmission(),
         tools_service=SimpleNamespace(),
         workflows_service=workflows_service,
     )
@@ -280,3 +282,62 @@ async def test_child_run_denied_returns_access_denied(monkeypatch):
     error = json.loads(response.call.data.content)
     assert error["code"] == "access_denied"
     assert error["details"]["reason"] == "missing_capability"
+
+
+async def test_child_run_is_admitted_and_invokes_the_admitted_request():
+    from oss.tests.pytest.utils.sharing import RecordingRunAdmission
+
+    workflows = FakeWorkflowsService(outputs={"ok": True})
+    admission = RecordingRunAdmission()
+    request = _request()
+    await _router(workflows, admission)._call_workflow_tool(
+        request=request,
+        body=_call("workflow.variant.summarize", {}),
+    )
+
+    assert admission.methods() == ["admit_request"]
+    admitted = admission.calls[0][1]
+    assert admitted["boundary"] == "child_run"
+    assert admitted["session_id"] is None
+    assert str(admitted["project_id"]) == request.state.project_id
+    # The child runs as its parent: same principal and sender, origin child.
+    parent = request.state.run_envelope
+    assert admitted["envelope"].authority == parent.authority
+    assert admitted["envelope"].sender == parent.sender
+    assert admitted["envelope"].context.origin.value == "child"
+    assert workflows.calls[0]["request"] is admitted["request"]
+
+
+async def test_child_run_into_private_agent_is_access_denied():
+    """The child's agent is private to someone else: a tool result `access_denied`
+    the model can read (HTTP 200), and nothing is invoked."""
+
+    from oss.src.core.access.dtos import Decision, DecisionReason
+    from oss.src.core.sharing.types import AdmissionDenied
+    from oss.tests.pytest.utils.sharing import RecordingRunAdmission
+
+    def _refuse_the_private_agent(method, kwargs):
+        # Only an admission of the private agent's request is refused.
+        if "private-agent" not in repr(kwargs.get("request")):
+            return None
+        return AdmissionDenied(
+            decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
+            readable=False,
+            boundary=kwargs["boundary"],
+        )
+
+    workflows = FakeWorkflowsService(outputs={"ok": True})
+    admission = RecordingRunAdmission(refuse=_refuse_the_private_agent)
+    response = await _router(workflows, admission)._call_workflow_tool(
+        request=_request(),
+        body=_call("workflow.variant.private-agent", {}),
+    )
+
+    assert admission.methods() == ["admit_request"]
+    assert workflows.calls == []
+    result = response.call
+    assert result.status.code == "STATUS_CODE_ERROR"
+    error = json.loads(result.data.content)
+    assert error["code"] == "access_denied"
+    assert error["retryable"] is False
+    assert error["details"]["reason"] == "resource_denied"

@@ -614,6 +614,10 @@ export const buildAgentChannelsActions = ({
                 )
                 const id = answering ? referencedAppId(answering) : null
                 connection.agent = id ? {id, name: resolveAgentName(id)} : null
+                // A binding can be off while its connection stays connected.
+                connection.agentOff = answering
+                    ? asRecord(answering.flags).is_active === false
+                    : false
                 // The row's copy counts the places it answers in ("1 group + DMs"). One call
                 // per connection, and a failure only costs the count, not the row.
                 try {
@@ -704,8 +708,30 @@ export const buildAgentChannelsActions = ({
         return mapConnectionRow(row)
     }
 
-    const connectHere = async (_platform: ChannelPlatform, connectionId: string) =>
+    const connectHere = async (platform: ChannelPlatform, connectionId: string) =>
         pointHere(connectionId).catch(rethrow("Could not connect this agent."))
+
+    /** Turn the answering binding back on. The edit carries its references, so the server
+     *  checks the agent under a lock and refuses a private agent of someone else. */
+    const turnOn = async (platform: ChannelPlatform, connectionId: string) => {
+        const answering = await answeringAgent(connectionId)
+        const agentId = asString(answering.id)
+        if (!agentId) throw new Error("This connection answers as no agent yet.")
+        await client
+            .editChannelAgent(
+                {
+                    agent_id: agentId,
+                    agent: {
+                        id: agentId,
+                        data: {references: asRecord(answering.data).references},
+                        // The edit writes the whole flags: keep `is_default` as stored.
+                        flags: {...asRecord(answering.flags), is_active: true},
+                    },
+                },
+                scope(),
+            )
+            .catch(rethrow(`Could not turn ${platformLabel(platform)} on.`))
+    }
 
     const disconnect = async (_platform: ChannelPlatform, connectionId: string) => {
         await client
@@ -728,6 +754,7 @@ export const buildAgentChannelsActions = ({
         connectCustom,
         connectHere,
         disconnect,
+        turnOn,
         listSpaces,
         discoverSpaces,
         addSpace,

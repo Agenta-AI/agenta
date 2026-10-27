@@ -90,7 +90,9 @@ async def list_organizations(
             request.state.user_id
         )
 
-        user_workspaces = await db_manager.get_user_workspaces(request.state.user_id)
+        user_workspaces = await db_manager.fetch_user_workspace_items(
+            user_id=request.state.user_id
+        )
         workspaces_by_org = {}
         for workspace_db in user_workspaces:
             workspaces_by_org.setdefault(workspace_db.organization_id, []).append(
@@ -313,6 +315,7 @@ async def accept_organization_invitation(
         await organization_service.accept_organization_invitation(
             token=payload.token,
             organization_id=organization_id,
+            workspace_id=workspace_id,
             email=payload.email,
             session_email=request.state.user_email,
         )

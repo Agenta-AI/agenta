@@ -14,6 +14,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import AccessService
 from oss.src.core.memberships.dtos import MembershipPolicy
 from oss.src.core.memberships.service import MembershipsService
+from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy
 from oss.tests.pytest.utils.memberships import (
     InMemoryMembershipsDAO,
     RecordingRbac,
@@ -58,6 +59,7 @@ class _World:
             ),
             rbac=RecordingRbac(enforced=True),
             principals=self.principals,
+            resource_policy=AllowAllResourcePolicy(),
         )
         default = SimpleNamespace(id=self.default.project_id) if has_default else None
 

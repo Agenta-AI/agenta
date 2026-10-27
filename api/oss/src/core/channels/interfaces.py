@@ -134,7 +134,13 @@ class ChannelsDAOInterface(ABC):
         user_id: UUID,
         #
         agent: ChannelAgentCreate,
-    ) -> ChannelAgent: ...
+        #
+        guard_artifact_id: Optional[UUID] = None,
+    ) -> ChannelAgent:
+        """With `guard_artifact_id`, the write transaction first locks that agent's
+        artifact, reads its policy uncached and raises `SharedItemNotFound` for a
+        private agent that `user_id` does not own, before it writes the binding (the
+        lock order of `set_agent_policy`)."""
 
     @abstractmethod
     async def fetch_agent(
@@ -179,7 +185,22 @@ class ChannelsDAOInterface(ABC):
         user_id: UUID,
         #
         agent: ChannelAgentEdit,
-    ) -> Optional[ChannelAgent]: ...
+        #
+        guard_artifact_id: Optional[UUID] = None,
+    ) -> Optional[ChannelAgent]:
+        """`guard_artifact_id` as in `create_agent`."""
+
+    @abstractmethod
+    async def clear_agent_default(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        agent_id: UUID,
+    ) -> None:
+        """Set only `flags.is_default` to false, in one statement: the binding keeps
+        its references and every other flag as they are stored now."""
 
     @abstractmethod
     async def delete_agent(

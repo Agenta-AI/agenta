@@ -15,7 +15,7 @@ Every composition root that builds `AccessService` SHALL register the resource p
 - **THEN** the process fails at startup
 
 ### Requirement: Execution admission checks the session and the agent
-Every point where a run starts or resumes SHALL check the existing session and the agent of the current turn through `decide`, before anything is invoked: the first heartbeat of each turn, queued dispatch, approval resume, a channel turn, trigger dispatch, and child invocation. A trigger SHALL resolve its current target before the check.
+Every point where a run starts or resumes SHALL check the existing session and the agent of the current turn through `decide`, before anything is invoked: every heartbeat that lacks verified continuity (including the first heartbeat of each turn), queued dispatch, approval resume, a channel turn, trigger dispatch, and child invocation. A trigger SHALL resolve its current target before the check.
 
 #### Scenario: Browser run into another member's private session
 - **WHEN** Bob's browser run sends its first heartbeat for Alice's private session
@@ -111,11 +111,11 @@ List queries SHALL apply a read scope in SQL before ordering, counts, and pagina
 - **THEN** each list and count match what the direct fetches allow, and Alice's private items are in no list but Alice's
 
 ### Requirement: Private items lock when the owner leaves
-A grant SHALL be valid only while the session owner is an active project member. A private item whose owner is not an active member SHALL be locked for everyone, admins included. A project-visible agent of a departed owner SHALL be ownerless. A project-visible session of a departed owner SHALL stay readable and SHALL accept no sends. Access SHALL return when the owner returns.
+A grant SHALL be valid only while the session owner is an active project member. A private item whose owner is not an active member SHALL be locked for everyone, admins included. A project-visible agent of a departed owner SHALL be ownerless. A project-visible session of a departed owner SHALL stay open to members with the project capability: they read, send and answer approvals, and nobody else renames, archives or deletes it. Access SHALL return when the owner returns.
 
 #### Scenario: Owner leaves
 - **WHEN** Alice leaves the project
-- **THEN** nobody can read her private items, members can still run her project-visible agent and read her project-visible session, and her Participant Bob cannot send
+- **THEN** nobody can read her private items, her grants give nothing (her Participant Bob cannot send in her private session), and members can still run her project-visible agent and read and send in her project-visible session
 - **AND WHEN** Alice becomes a member again
 - **THEN** the earlier access returns
 
