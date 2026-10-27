@@ -215,6 +215,8 @@ export const setOrganizationSubscriptionTokenAtom = atom(
     async (get, set, {secretId, token}: {secretId: string; token: string}): Promise<void> => {
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("[vault] Missing projectId for organization connection")
+        // Captured before the request: the answer belongs to this user and project.
+        const listKey = ["vault", "organization-secrets", get(userAtom)?.id, projectId]
         const saved = await setOrganizationSubscriptionToken({projectId, secretId, token})
         // The answer is the saved row: it replaces the cached one at once, and both lists
         // refetch in the background.
@@ -222,12 +224,10 @@ export const setOrganizationSubscriptionTokenAtom = atom(
         const queryClient = getHostQueryClient()
         if (row) {
             // Only this user's list for this project: another organization's list never gets it.
-            queryClient.setQueryData<ProviderVaultRow[]>(
-                ["vault", "organization-secrets", get(userAtom)?.id, projectId],
-                (rows) =>
-                    rows?.some((item) => item.id === row.id)
-                        ? rows.map((item) => (item.id === row.id ? row : item))
-                        : [...(rows ?? []), row],
+            queryClient.setQueryData<ProviderVaultRow[]>(listKey, (rows) =>
+                rows?.some((item) => item.id === row.id)
+                    ? rows.map((item) => (item.id === row.id ? row : item))
+                    : [...(rows ?? []), row],
             )
         }
         void queryClient.invalidateQueries({queryKey: ["vault"]})
