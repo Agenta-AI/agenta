@@ -10,7 +10,6 @@ import {
     useInlineRename,
     type SessionMenuEntry,
 } from "@agenta/sessions-ui"
-import {SessionPrivacyMarker} from "@agenta/sessions-ui/sharing"
 import {userAtom} from "@agenta/shared/state"
 import {timeAgo} from "@agenta/shared/utils"
 import {Button} from "@agenta/ui/ui"
@@ -156,11 +155,6 @@ export const SessionRowCells = ({
                         >
                             {vm.title}
                         </span>
-                        <SessionPrivacyMarker
-                            visibility={vm.stream.visibility}
-                            ownerUserId={vm.stream.owner_user_id}
-                            showSharedBy
-                        />
                         {archived ? null : (
                             <span
                                 // Revealed on the ROW's hover, and gone below `sm` where the pair
