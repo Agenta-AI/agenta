@@ -1,5 +1,5 @@
 /**
- * Organization connections — state for the Organization tab of AI providers (M5).
+ * Organization connections — state for the Organization tab of AI providers.
  *
  * Two reads, and no request a screen waits on in series:
  *
@@ -12,39 +12,34 @@
  * So the 403 is what says "member": the role is never asked for on its own.
  */
 
-import {getHostQueryClient} from "@agenta/shared/api"
+import {isEE} from "@agenta/shared/api"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {deleteVaultSecret, setSubscriptionToken, updateVaultSecret} from "../api/api"
 import {
-    createOrganizationSecret,
+    fetchOrganizationProjects,
     fetchOrganizationSecrets,
     setOrganizationSecretProjects,
+    type OrganizationProject,
     type OrganizationSecretProjects,
 } from "../api/organizationSecrets"
 import {
-    buildConnectionPayload,
+    httpStatusOf,
     isOrganizationConnection,
     toProviderConnections,
-    type ConnectionDraft,
     type ProviderConnection,
 } from "../core/connections"
-import {transformSecret} from "../core/transforms"
-import type {ProviderVaultRow, SecretResponseDto} from "../core/types"
+import type {ProviderVaultRow} from "../core/types"
 
 import {vaultSecretsWithOrganizationQueryAtom} from "./atoms"
-import {buildSubscriptionSecretPayload} from "./subscriptionLogin"
+import {refreshVaultSecretsAtom} from "./subscriptionLogin"
 
-export type {OrganizationSecretProjects}
+export type {OrganizationProject, OrganizationSecretProjects}
 
-const statusOf = (error: unknown): number | null => {
-    const statusCode = (error as {statusCode?: unknown} | null)?.statusCode
-    if (typeof statusCode === "number") return statusCode
-    const status = (error as {response?: {status?: unknown}} | null)?.response?.status
-    return typeof status === "number" ? status : null
-}
+/** A 403 is an answer (not an owner or admin), not a failure to retry. */
+const retryUnlessRefused = (failureCount: number, error: unknown) =>
+    httpStatusOf(error) !== 403 && failureCount < 1
 
 /** Every organization connection, for an organization owner or admin. A 403 for anyone else. */
 export const organizationSecretsQueryAtom = atomWithQuery<ProviderVaultRow[]>((get) => {
@@ -60,8 +55,7 @@ export const organizationSecretsQueryAtom = atomWithQuery<ProviderVaultRow[]>((g
         staleTime: 1000 * 60 * 5,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
-        // A 403 is an answer (not an owner or admin), not a failure to retry.
-        retry: (failureCount, error) => statusOf(error) !== 403 && failureCount < 1,
+        retry: retryUnlessRefused,
     }
 })
 
@@ -75,10 +69,33 @@ export const organizationConnectionsAccessAtom = atom<OrganizationConnectionsAcc
     const query = get(organizationSecretsQueryAtom)
     // A 403 wins over cached rows: someone who stopped being an owner or admin sees the
     // read-only view at once, not the list they could manage before.
-    if (query.isError && statusOf(query.error) === 403) return "view"
+    if (query.isError && httpStatusOf(query.error) === 403) return "view"
     if (query.data) return "manage"
     if (query.isError) return "error"
     return "loading"
+})
+
+/**
+ * Every project of the organization, for an owner or admin choosing who may use a connection
+ * (EE: OSS has no choice). Read only once the organization list said "owner or admin": a member
+ * never asks.
+ */
+export const organizationProjectsQueryAtom = atomWithQuery<OrganizationProject[]>((get) => {
+    const user = get(userAtom)
+    const projectId = get(projectIdAtom)
+    const manage = get(organizationConnectionsAccessAtom) === "manage"
+    return {
+        queryKey: ["vault", "organization-projects", user?.id, projectId],
+        queryFn: () => {
+            if (!projectId) throw new Error("[vault] Missing projectId for organization projects")
+            return fetchOrganizationProjects({projectId})
+        },
+        enabled: manage && isEE() && !!user && !!projectId,
+        staleTime: 1000 * 60 * 5,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        retry: retryUnlessRefused,
+    }
 })
 
 /** Every organization connection, with who may use it (an owner or admin's read). */
@@ -93,71 +110,6 @@ export const organizationProviderConnectionsAtom = atom<ProviderConnection[]>((g
     ),
 )
 
-/**
- * Refetch both reads, so a change shows on the tab and in every picker. Not awaited by a save:
- * the write has answered, and the user does not wait on the reads that follow it.
- */
-export const refreshOrganizationConnectionsAtom = atom(null, async () => {
-    await getHostQueryClient().invalidateQueries({queryKey: ["vault"]})
-})
-
-/**
- * Save an organization connection draft: create it with its projects, or change it.
- *
- * A change writes the credential and the name first, then the projects, and only when they
- * changed: they are two routes, and an untouched projects choice must not cost a request.
- */
-export const saveOrganizationConnectionAtom = atom(
-    null,
-    async (
-        get,
-        set,
-        {
-            draft,
-            fallbackName,
-            connectionId,
-            projects,
-            projectsChanged,
-            connectionChanged = true,
-        }: {
-            draft: ConnectionDraft
-            fallbackName: string
-            connectionId?: string
-            projects: OrganizationSecretProjects
-            projectsChanged: boolean
-            /** False when only the projects changed: the credential write is skipped. */
-            connectionChanged?: boolean
-        },
-    ): Promise<string | null> => {
-        const projectId = get(projectIdAtom)
-        if (!projectId) throw new Error("[vault] Missing projectId for organization connection")
-
-        const payload = buildConnectionPayload(draft, fallbackName)
-
-        if (connectionId) {
-            if (connectionChanged) {
-                await updateVaultSecret({
-                    projectId,
-                    secret_id: connectionId,
-                    payload: {
-                        ...(payload.header?.name ? {header: payload.header} : {}),
-                        secret: payload.secret,
-                    },
-                })
-            }
-            if (projectsChanged) {
-                await setOrganizationSecretProjects({projectId, secretId: connectionId, projects})
-            }
-            void set(refreshOrganizationConnectionsAtom)
-            return connectionId
-        }
-
-        const created = await createOrganizationSecret({projectId, payload, projects})
-        void set(refreshOrganizationConnectionsAtom)
-        return created.id ?? null
-    },
-)
-
 /** Change only who may use an organization connection. */
 export const setOrganizationConnectionProjectsAtom = atom(
     null,
@@ -169,66 +121,6 @@ export const setOrganizationConnectionProjectsAtom = atom(
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("[vault] Missing projectId for organization connection")
         await setOrganizationSecretProjects({projectId, secretId: connectionId, projects})
-        void set(refreshOrganizationConnectionsAtom)
-    },
-)
-
-export const deleteOrganizationConnectionAtom = atom(
-    null,
-    async (get, set, connection: ProviderConnection) => {
-        const projectId = get(projectIdAtom)
-        if (!projectId) throw new Error("[vault] Missing projectId for organization connection")
-        await deleteVaultSecret({projectId, secret_id: connection.id})
-        void set(refreshOrganizationConnectionsAtom)
-    },
-)
-
-/** Create an organization subscription connection with its projects. Returns its record id. */
-export const createOrganizationSubscriptionConnectionAtom = atom(
-    null,
-    async (
-        get,
-        _set,
-        {
-            provider,
-            name,
-            projects,
-        }: {provider: string; name: string; projects: OrganizationSecretProjects},
-    ): Promise<string> => {
-        const projectId = get(projectIdAtom)
-        if (!projectId) throw new Error("[vault] Missing projectId for organization connection")
-        // No name unless one was typed: the API names it "ChatGPT (Organization)".
-        const created = await createOrganizationSecret({
-            projectId,
-            payload: buildSubscriptionSecretPayload(provider, name),
-            projects,
-        })
-        if (!created.id) throw new Error("[vault] The connection was created without an id")
-        return created.id
-    },
-)
-
-/** Store a pasted token on an organization subscription connection. */
-export const setOrganizationSubscriptionTokenAtom = atom(
-    null,
-    async (get, set, {secretId, token}: {secretId: string; token: string}): Promise<void> => {
-        const projectId = get(projectIdAtom)
-        if (!projectId) throw new Error("[vault] Missing projectId for organization connection")
-        // Captured before the request: the answer belongs to this user and project.
-        const listKey = ["vault", "organization-secrets", get(userAtom)?.id, projectId]
-        const saved = await setSubscriptionToken({projectId, secretId, token})
-        // The answer is the saved row: it replaces the cached one at once, and both lists
-        // refetch in the background.
-        const [row] = transformSecret([saved as SecretResponseDto])
-        const queryClient = getHostQueryClient()
-        if (row) {
-            // Only this user's list for this project: another organization's list never gets it.
-            queryClient.setQueryData<ProviderVaultRow[]>(listKey, (rows) =>
-                rows?.some((item) => item.id === row.id)
-                    ? rows.map((item) => (item.id === row.id ? row : item))
-                    : [...(rows ?? []), row],
-            )
-        }
-        void queryClient.invalidateQueries({queryKey: ["vault"]})
+        await set(refreshVaultSecretsAtom)
     },
 )

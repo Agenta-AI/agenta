@@ -2,7 +2,6 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     cancelSubscriptionLoginAtom,
-    createOrganizationSubscriptionConnectionAtom,
     createSubscriptionConnectionAtom,
     forgetLoginAttemptAtom,
     loginAttemptKey,
@@ -33,7 +32,7 @@ export interface PendingAttempt {
     pollKey: string
 }
 
-/** Whose connection a sign-in creates. */
+/** Whose connection a sign-in creates and signs in. */
 type SignInScope = "project" | "organization"
 
 /** `4:31`, or an empty string when the attempt names no expiry. */
@@ -59,21 +58,25 @@ export const useSubscriptionSignIn = ({
     /** For the organization refusal messages. */
     organizationName?: string
 }) => {
-    const createProjectConnection = useSetAtom(createSubscriptionConnectionAtom)
-    const createOrganizationConnection = useSetAtom(createOrganizationSubscriptionConnectionAtom)
+    const createSubscriptionConnection = useSetAtom(createSubscriptionConnectionAtom)
+    const loginScope = scope === "organization" ? scope : undefined
     const createConnection = useCallback(
         ({provider: kind, name: label}: {provider: string; name: string}) =>
-            scope === "organization"
-                ? createOrganizationConnection({
-                      provider: kind,
-                      // The API's default name says whose it is: "ChatGPT (Organization)".
-                      name: "",
-                      // A new organization connection starts with every project (Q1); the
-                      // dialog's projects section can narrow it before Done.
-                      projects: {availability: "all_projects", projectIds: []},
-                  })
-                : createProjectConnection({provider: kind, name: label}),
-        [createOrganizationConnection, createProjectConnection, scope],
+            createSubscriptionConnection(
+                loginScope
+                    ? {
+                          provider: kind,
+                          // The API's default name says whose it is: "ChatGPT (Organization)".
+                          name: "",
+                          // A new organization connection starts with every project; the
+                          // dialog's projects section can narrow it before Done.
+                          organization: {
+                              projects: {availability: "all_projects", projectIds: []},
+                          },
+                      }
+                    : {provider: kind, name: label},
+            ),
+        [createSubscriptionConnection, loginScope],
     )
     const startLogin = useSetAtom(startSubscriptionLoginAtom)
     const cancelLogin = useSetAtom(cancelSubscriptionLoginAtom)
@@ -137,7 +140,11 @@ export const useSubscriptionSignIn = ({
             return
         }
         if (outcome === "timed_out") {
-            void cancelLogin({secretId: attempt.secretId, attemptId: attempt.attemptId})
+            void cancelLogin({
+                secretId: attempt.secretId,
+                attemptId: attempt.attemptId,
+                scope: loginScope,
+            })
             setError("The sign-in did not finish in time. Start it again.")
             return
         }
@@ -152,6 +159,7 @@ export const useSubscriptionSignIn = ({
         attemptState,
         cancelLogin,
         closeAttempt,
+        loginScope,
         outcome,
         pending,
         provider,
@@ -170,9 +178,9 @@ export const useSubscriptionSignIn = ({
         setLostPoll(false)
         try {
             const secretId = connection?.id ?? (await createConnection({provider, name}))
-            const attempt = await startLogin({secretId})
+            const attempt = await startLogin({secretId, scope: loginScope})
             if (start !== startRef.current) {
-                void cancelLogin({secretId, attemptId: attempt.attempt_id})
+                void cancelLogin({secretId, attemptId: attempt.attempt_id, scope: loginScope})
                 if (!connection) void refreshVault()
                 return
             }
@@ -191,6 +199,7 @@ export const useSubscriptionSignIn = ({
                     secretId,
                     attemptId: attempt.attempt_id,
                     startedAt,
+                    scope: loginScope,
                 }),
             })
             setNow(startedAt)
@@ -211,6 +220,7 @@ export const useSubscriptionSignIn = ({
         cancelLogin,
         connection,
         createConnection,
+        loginScope,
         name,
         organizationName,
         provider,
@@ -223,9 +233,13 @@ export const useSubscriptionSignIn = ({
         startRef.current += 1
         setStarting(false)
         if (!pending) return
-        void cancelLogin({secretId: pending.secretId, attemptId: pending.attemptId})
+        void cancelLogin({
+            secretId: pending.secretId,
+            attemptId: pending.attemptId,
+            scope: loginScope,
+        })
         closeAttempt(pending)
-    }, [cancelLogin, closeAttempt, pending])
+    }, [cancelLogin, closeAttempt, loginScope, pending])
 
     const statusLine = useMemo(
         () =>

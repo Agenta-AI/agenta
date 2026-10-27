@@ -1,6 +1,6 @@
 import {useMemo} from "react"
 
-import {fetchOrganizationProjects, organizationConnectionsAccessAtom} from "@agenta/entities/secret"
+import {organizationConnectionsAccessAtom} from "@agenta/entities/secret"
 import {AIProvidersPage, useEntitlements, type AIProvidersOrganization} from "@agenta/settings-ui"
 import {isEE} from "@agenta/shared/api"
 import {useQuery} from "@tanstack/react-query"
@@ -29,20 +29,9 @@ const useOrganizationTabs = (
     })
     const enterprise = isEE()
     const {basePath} = useRouter()
-    const access = useAtomValue(organizationConnectionsAccessAtom)
-    const manage = access === "manage"
-    // In parallel with the organization read (cached for minutes), so Selected projects is
-    // ready by the time an owner or admin opens a drawer. A member never reads them.
-    const entitlements = useEntitlements({projectId, enabled: enterprise && access !== "view"})
-    // Every project of the organization, for the same readers at the same moment: the nav's
-    // list holds only the projects this person is a member of.
-    const organizationProjects = useQuery({
-        queryKey: ["vault", "organization-projects", projectId],
-        queryFn: () => fetchOrganizationProjects({projectId}),
-        enabled: enterprise && access !== "view",
-        staleTime: 30_000,
-        retry: false,
-    })
+    const manage = useAtomValue(organizationConnectionsAccessAtom) === "manage"
+    // Only an owner or admin chooses projects, so only they read the plan.
+    const entitlements = useEntitlements({projectId, enabled: enterprise && manage})
 
     return useMemo(() => {
         if (query.data?.kind !== "ok") return null
@@ -57,12 +46,6 @@ const useOrganizationTabs = (
         return {
             projectName: current.project_name ?? "Project",
             name: group.organizationName,
-            projects:
-                organizationProjects.data ??
-                group.projects.map((project) => ({
-                    id: project.project_id,
-                    name: project.project_name ?? "Project",
-                })),
             projectChoice: !enterprise
                 ? "all"
                 : entitlements.hasRBAC
@@ -73,16 +56,7 @@ const useOrganizationTabs = (
             // A plain link, so it carries this app's base path itself.
             plansHref: `${basePath}/w/${workspaceId}/p/${projectId}/settings?tab=billing`,
         }
-    }, [
-        query.data,
-        organizationProjects.data,
-        workspaceId,
-        projectId,
-        enterprise,
-        entitlements,
-        manage,
-        basePath,
-    ])
+    }, [query.data, workspaceId, projectId, enterprise, entitlements, manage, basePath])
 }
 
 /**

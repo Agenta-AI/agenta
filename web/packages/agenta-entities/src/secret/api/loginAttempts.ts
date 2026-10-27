@@ -40,15 +40,29 @@ export type LoginAttemptResponse = z.infer<typeof loginAttemptSchema>
 const attemptsUrl = (secretId: string): string =>
     `${getAgentaApiUrl()}/secrets/${encodeURIComponent(secretId)}/login-attempts`
 
+/** Whose connection the login belongs to; an organization login is addressed with its scope. */
+export type LoginAttemptScope = "project" | "organization"
+
+const attemptParams = (projectId: string, scope?: LoginAttemptScope) => ({
+    project_id: projectId,
+    ...(scope === "organization" ? {scope} : {}),
+})
+
 /** Start a device login, or return the unexpired attempt this connection is already waiting on. */
 export async function startLoginAttempt({
     projectId,
     secretId,
+    scope,
 }: {
     projectId: string
     secretId: string
+    scope?: LoginAttemptScope
 }): Promise<LoginAttemptResponse | null> {
-    const response = await axios.post(attemptsUrl(secretId), {}, {params: {project_id: projectId}})
+    const response = await axios.post(
+        attemptsUrl(secretId),
+        {},
+        {params: attemptParams(projectId, scope)},
+    )
     return safeParseWithLogging(loginAttemptSchema, response.data, "[startLoginAttempt]")
 }
 
@@ -57,13 +71,15 @@ export async function fetchLoginAttempt({
     projectId,
     secretId,
     attemptId,
+    scope,
 }: {
     projectId: string
     secretId: string
     attemptId: string
+    scope?: LoginAttemptScope
 }): Promise<LoginAttemptResponse | null> {
     const response = await axios.get(`${attemptsUrl(secretId)}/${encodeURIComponent(attemptId)}`, {
-        params: {project_id: projectId},
+        params: attemptParams(projectId, scope),
     })
     return safeParseWithLogging(loginAttemptSchema, response.data, "[fetchLoginAttempt]")
 }
@@ -73,15 +89,17 @@ export async function cancelLoginAttempt({
     projectId,
     secretId,
     attemptId,
+    scope,
 }: {
     projectId: string
     secretId: string
     attemptId: string
+    scope?: LoginAttemptScope
 }): Promise<LoginAttemptResponse | null> {
     const response = await axios.post(
         `${attemptsUrl(secretId)}/${encodeURIComponent(attemptId)}/cancel`,
         {},
-        {params: {project_id: projectId}},
+        {params: attemptParams(projectId, scope)},
     )
     return safeParseWithLogging(loginAttemptSchema, response.data, "[cancelLoginAttempt]")
 }

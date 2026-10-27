@@ -31,7 +31,7 @@ export interface SubscriptionSignInDialogProps {
     /** Remove the connection. Absent hides the verb. */
     onRemove?: (connection: ProviderConnection) => void
     /**
-     * An organization subscription (M5): it signs in on the organization's routes, and the dialog
+     * An organization subscription: it signs in on the organization's routes, and the dialog
      * ends with "Projects that can use it", applied on Done.
      */
     organization?: OrganizationConnectionScope

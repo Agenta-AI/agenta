@@ -39,7 +39,6 @@ import {
     probeRequestFor,
     providerModelCatalog,
     providerTitleForKind,
-    saveOrganizationConnectionAtom,
     saveProviderConnectionAtom,
     secretKindForProviderKind,
     secretNoteForKind,
@@ -129,7 +128,7 @@ export interface ProviderConnectionCardProps {
      */
     onSaveStateChange?: (state: ProviderCardSaveState) => void
     /**
-     * Set for an organization connection (M5): it saves to the organization, names itself
+     * Set for an organization connection: it saves to the organization, names itself
      * "{provider} (Organization)", and ends with "Projects that can use it". Read-only for a
      * member, who can still Test it.
      */
@@ -160,7 +159,6 @@ const ProviderConnectionCard = ({
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
     const probeMutation = useAtomValue(probeProviderMutationAtom)
     const saveConnection = useSetAtom(saveProviderConnectionAtom)
-    const saveOrganizationConnection = useSetAtom(saveOrganizationConnectionAtom)
 
     const fields = useMemo(() => credentialFieldsForKind(kind), [kind])
     const title = providerTitleForKind(kind)
@@ -197,7 +195,7 @@ const ProviderConnectionCard = ({
     const [protocol, setProtocol] = useState<LlmEndpointProtocol | null>(
         initialEndpointProtocol(connection),
     )
-    // A new organization connection starts with every project (Q1).
+    // A new organization connection starts with every project.
     const savedProjects = useMemo(() => savedProjectsOf(connection), [connection])
     const [projects, setProjects] = useState<OrganizationSecretProjects>(
         savedProjects ?? {availability: "all_projects", projectIds: []},
@@ -354,6 +352,14 @@ const ProviderConnectionCard = ({
           )
         : defaultNamePreview(kind, otherConnections)
 
+    // A stored organization connection is tested through the current project, so only where
+    // the project may use it.
+    const testableHere =
+        !organization ||
+        !connection ||
+        connection.availability !== "selected_projects" ||
+        (!!projectId && (connection.selectedProjectIds ?? []).includes(projectId))
+
     const runProbe = useCallback(async () => {
         if (!projectId) return
         setProbeFailure(null)
@@ -435,27 +441,20 @@ const ProviderConnectionCard = ({
         }
         const savedName = name.trim() || connection?.name || namePreview
         try {
-            const savedConnectionId = organization
-                ? await saveOrganizationConnection({
-                      draft,
-                      fallbackName: namePreview,
-                      connectionId: connection?.id,
-                      projects,
-                      projectsChanged: !savedProjects || !sameProjects(savedProjects, projects),
-                      // Only the projects changed: no credential write.
-                      connectionChanged:
-                          !connection ||
-                          !storedCredentialUnchanged ||
-                          name !== (connection.name ?? "") ||
-                          checkedModels !== (connection.models ?? null) ||
-                          harnesses !== (connection.harnesses ?? null) ||
-                          protocol !== initialEndpointProtocol(connection),
-                  })
-                : await saveConnection({
-                      draft,
-                      fallbackName: namePreview,
-                      connectionId: connection?.id,
-                  })
+            const savedConnectionId = await saveConnection({
+                draft,
+                fallbackName: namePreview,
+                connectionId: connection?.id,
+                ...(organization
+                    ? {
+                          organization: {
+                              projects,
+                              projectsChanged:
+                                  !savedProjects || !sameProjects(savedProjects, projects),
+                          },
+                      }
+                    : {}),
+            })
             if (organization) message.success(organizationSavedToast(savedName, projects))
             onSaved(savedConnectionId ?? undefined)
         } catch (error) {
@@ -499,7 +498,7 @@ const ProviderConnectionCard = ({
                         <LoadingButton
                             variant="outline"
                             loading={probeMutation.isPending}
-                            disabled={!credentialFilled || !projectId}
+                            disabled={!credentialFilled || !projectId || !testableHere}
                             onClick={() => void runProbe()}
                         >
                             {credentialFailed ? "Retry" : "Test"}

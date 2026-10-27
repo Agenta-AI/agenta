@@ -2,10 +2,8 @@ import {useCallback, useState} from "react"
 
 import {
     type OrganizationSecretProjects,
-    createOrganizationSubscriptionConnectionAtom,
     createSubscriptionConnectionAtom,
     refreshVaultSecretsAtom,
-    setOrganizationSubscriptionTokenAtom,
     setSubscriptionTokenAtom,
     subscriptionIsReady,
     subscriptionProviderName,
@@ -32,29 +30,35 @@ export const useSubscriptionToken = ({
     connection?: ProviderConnection | null
     /** `organization` creates and stores an organization connection. */
     scope?: "project" | "organization"
-    /** Who may use a new organization connection; every project when absent (Q1). */
+    /** Who may use a new organization connection; every project when absent. */
     projects?: OrganizationSecretProjects
     /** For the organization refusal messages. */
     organizationName?: string
 }) => {
-    const createProjectConnection = useSetAtom(createSubscriptionConnectionAtom)
-    const createOrganizationConnection = useSetAtom(createOrganizationSubscriptionConnectionAtom)
-    const setProjectToken = useSetAtom(setSubscriptionTokenAtom)
-    const setOrganizationToken = useSetAtom(setOrganizationSubscriptionTokenAtom)
+    const createSubscriptionConnection = useSetAtom(createSubscriptionConnectionAtom)
+    const setSubscriptionToken = useSetAtom(setSubscriptionTokenAtom)
     const organization = scope === "organization"
     const createConnection = useCallback(
         (args: {provider: string; name: string}) =>
-            organization
-                ? createOrganizationConnection({
-                      ...args,
-                      // The API's default name says whose it is: "Claude (Organization)".
-                      name: "",
-                      projects: projects ?? {availability: "all_projects", projectIds: []},
-                  })
-                : createProjectConnection(args),
-        [createOrganizationConnection, createProjectConnection, organization, projects],
+            createSubscriptionConnection(
+                organization
+                    ? {
+                          ...args,
+                          // The API's default name says whose it is: "Claude (Organization)".
+                          name: "",
+                          organization: {
+                              projects: projects ?? {availability: "all_projects", projectIds: []},
+                          },
+                      }
+                    : args,
+            ),
+        [createSubscriptionConnection, organization, projects],
     )
-    const setToken = organization ? setOrganizationToken : setProjectToken
+    const setToken = useCallback(
+        (args: {secretId: string; token: string}) =>
+            setSubscriptionToken({...args, scope: organization ? "organization" : undefined}),
+        [organization, setSubscriptionToken],
+    )
     const refreshVault = useSetAtom(refreshVaultSecretsAtom)
 
     const [value, setValue] = useState("")

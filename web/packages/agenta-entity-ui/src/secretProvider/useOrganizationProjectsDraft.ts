@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    httpStatusOf,
     setOrganizationConnectionProjectsAtom,
     type OrganizationSecretProjects,
     type ProviderConnection,
@@ -16,26 +17,22 @@ export const organizationSavedToast = (name: string, projects: OrganizationSecre
         : `${name} saved. ${count} ${count === 1 ? "project" : "projects"} can use it.`
 }
 
-/** The HTTP status of a failed save, when it carried one. */
-const failedStatus = (error: unknown): number | null => {
-    const statusCode = (error as {statusCode?: unknown} | null)?.statusCode
-    if (typeof statusCode === "number") return statusCode
-    const status = (error as {response?: {status?: unknown}} | null)?.response?.status
-    return typeof status === "number" ? status : null
+/** The `code` of a refusal whose detail carries one. */
+const refusalCode = (error: unknown): string | null => {
+    const body = (error as {body?: {detail?: unknown}} | null)?.body
+    const code = (body?.detail as {code?: unknown} | undefined)?.code
+    return typeof code === "string" ? code : null
 }
 
 /** What a refused organization save says, in the design's words; null for any other failure. */
 export const organizationSaveError = (error: unknown, org: string, name: string): string | null => {
-    const status = failedStatus(error)
+    const status = httpStatusOf(error)
     if (status === 409) return `${org} already has a connection named ${name}. Pick another name.`
     if (status === 403) {
         return `You are no longer an owner or admin of ${org}, so you can't change organization connections.`
     }
-    if (status === 422) {
-        const body = (error as {body?: {detail?: unknown}} | null)?.body
-        if (typeof body?.detail === "string" && body.detail.startsWith("Every project must")) {
-            return `One of the selected projects is no longer in ${org}. Reload the page and pick again.`
-        }
+    if (status === 422 && refusalCode(error) === "project_not_in_organization") {
+        return `One of the selected projects is no longer in ${org}. Reload the page and pick again.`
     }
     return null
 }

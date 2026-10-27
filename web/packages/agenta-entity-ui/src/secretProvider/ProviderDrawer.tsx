@@ -78,7 +78,7 @@ export interface ProviderDrawerProps {
     /** Panel width. 480 by default; 400 is the floor and 560 the roomy variant. */
     width?: number
     /**
-     * The Organization tab of AI providers (M5): `connections` are the organization's, a save
+     * The Organization tab of AI providers: `connections` are the organization's, a save
      * goes to the organization, and a member's drawer is locked with Test kept.
      */
     organization?: OrganizationConnectionScope

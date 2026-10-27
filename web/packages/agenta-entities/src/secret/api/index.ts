@@ -23,6 +23,7 @@ export {
     isTerminalLoginAttemptState,
     startLoginAttempt,
     type LoginAttemptResponse,
+    type LoginAttemptScope,
     type LoginAttemptState,
 } from "./loginAttempts"
 export {

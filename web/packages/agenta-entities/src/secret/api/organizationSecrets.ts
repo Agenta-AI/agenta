@@ -1,5 +1,5 @@
 /**
- * Organization connections on the `/secrets/` routes (M5).
+ * Organization connections on the `/secrets/` routes.
  *
  * Only an organization owner or admin may list, create or limit them; anyone else gets a 403,
  * which is also how the AI providers page tells an admin from a member without asking for a

@@ -617,7 +617,7 @@ export const resolveAgentModelSelection = ({
         const match = findRunnableAgentModel(candidates, selection)
         if (match) return match
     }
-    // The automatic default never lands on an organization connection (no automatic use, M5):
+    // The automatic default never lands on an organization connection (no automatic use):
     // only an explicit or remembered pick names one.
     return (
         candidates.find((candidate) => candidate.managed && !isOrganizationCandidate(candidate)) ??

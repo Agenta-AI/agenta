@@ -169,6 +169,7 @@ export {
     hostedSubscriptionFamilies,
     isSubscriptionConnection,
     isOrganizationConnection,
+    httpStatusOf,
     probeFailureMessage,
     probeRequestFor,
     storedCredentialFields,
@@ -186,7 +187,7 @@ export {
 // ============================================================================
 
 export {fetchVaultSecret, createVaultSecret, updateVaultSecret, deleteVaultSecret} from "./api"
-export {fetchOrganizationProjects, type OrganizationProject} from "./api"
+export type {OrganizationProject} from "./api"
 export {
     LOGIN_ATTEMPT_BACKSTOP_MS,
     LOGIN_ATTEMPT_STATES,
@@ -196,6 +197,7 @@ export {
     isTerminalLoginAttemptState,
     startLoginAttempt,
     type LoginAttemptResponse,
+    type LoginAttemptScope,
     type LoginAttemptState,
 } from "./api"
 export {
@@ -243,16 +245,12 @@ export {
     setSubscriptionTokenAtom,
     startSubscriptionLoginAtom,
     useVaultSecret,
-    createOrganizationSubscriptionConnectionAtom,
-    deleteOrganizationConnectionAtom,
     managedOrganizationConnectionsAtom,
     organizationConnectionsAccessAtom,
     organizationProviderConnectionsAtom,
+    organizationProjectsQueryAtom,
     organizationSecretsQueryAtom,
-    refreshOrganizationConnectionsAtom,
-    saveOrganizationConnectionAtom,
     setOrganizationConnectionProjectsAtom,
-    setOrganizationSubscriptionTokenAtom,
     type LoginAttemptKey,
     type LoginAttemptOutcome,
     type OrganizationConnectionsAccess,

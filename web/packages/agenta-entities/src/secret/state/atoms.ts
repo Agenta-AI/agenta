@@ -68,10 +68,12 @@ interface UpdateMutationArgs {
     projectId: string
     secret_id: string
     payload: Parameters<typeof updateVaultSecret>[0]["payload"]
+    scope?: Parameters<typeof updateVaultSecret>[0]["scope"]
 }
 interface DeleteMutationArgs {
     projectId: string
     secret_id: string
+    scope?: Parameters<typeof deleteVaultSecret>[0]["scope"]
 }
 
 /**
@@ -220,16 +222,16 @@ export const createVaultSecretMutationAtom = atomWithMutation(() => ({
  * Mutation atom for updating vault secrets.
  */
 export const updateVaultSecretMutationAtom = atomWithMutation(() => ({
-    mutationFn: ({projectId, secret_id, payload}: UpdateMutationArgs) =>
-        updateVaultSecret({projectId, secret_id, payload}),
+    mutationFn: ({projectId, secret_id, payload, scope}: UpdateMutationArgs) =>
+        updateVaultSecret({projectId, secret_id, payload, scope}),
 }))
 
 /**
  * Mutation atom for deleting vault secrets.
  */
 export const deleteVaultSecretMutationAtom = atomWithMutation(() => ({
-    mutationFn: ({projectId, secret_id}: DeleteMutationArgs) =>
-        deleteVaultSecret({projectId, secret_id}),
+    mutationFn: ({projectId, secret_id, scope}: DeleteMutationArgs) =>
+        deleteVaultSecret({projectId, secret_id, scope}),
 }))
 
 /**
@@ -360,7 +362,11 @@ export const deleteSecretAtom = atom(null, async (get, set, provider: LlmProvide
 
     try {
         if (provider.id) {
-            await deleteMutation.mutateAsync({projectId, secret_id: provider.id})
+            await deleteMutation.mutateAsync({
+                projectId,
+                secret_id: provider.id,
+                scope: provider.ownerKind,
+            })
         }
     } catch (error) {
         console.error("Failed to delete secret:", error)

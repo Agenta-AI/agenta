@@ -127,6 +127,7 @@ export {
     hostedSubscriptionFamilies,
     isSubscriptionConnection,
     isOrganizationConnection,
+    httpStatusOf,
     probeFailureMessage,
     probeRequestFor,
     storedCredentialFields,

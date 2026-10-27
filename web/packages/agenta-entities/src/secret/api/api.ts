@@ -9,6 +9,7 @@
 
 import type {LlmProvider} from "@agenta/shared/types"
 
+import type {AgentConnectionScope} from "../core/agentModelCandidates"
 import {transformSecret} from "../core/transforms"
 
 import {getSecretsClient, projectScopedRequest} from "./client"
@@ -24,7 +25,11 @@ type UpdateSecretResponse = Awaited<ReturnType<SecretsClient["updateSecret"]>>
 type DeleteSecretResponse = Awaited<ReturnType<SecretsClient["deleteSecret"]>>
 
 /** Payload portion of an update — `secret_id` is supplied alongside. */
-type UpdateSecretPayload = Omit<UpdateSecretRequest, "secret_id">
+type UpdateSecretPayload = Omit<UpdateSecretRequest, "secret_id" | "scope">
+
+/** The owner a by-id route acts for; omitted, the project's row as before. */
+const ownerScope = (scope?: AgentConnectionScope | null) =>
+    scope === "organization" ? {scope} : {}
 
 export const fetchVaultSecret = async ({
     projectId,
@@ -54,22 +59,29 @@ export const updateVaultSecret = async ({
     projectId,
     secret_id,
     payload,
+    scope,
 }: {
     projectId: string
     secret_id: string
     payload: UpdateSecretPayload
+    scope?: AgentConnectionScope | null
 }): Promise<UpdateSecretResponse> => {
-    return getSecretsClient().updateSecret({secret_id, ...payload}, projectScopedRequest(projectId))
+    return getSecretsClient().updateSecret(
+        {secret_id, ...payload, ...ownerScope(scope)},
+        projectScopedRequest(projectId),
+    )
 }
 
 export const deleteVaultSecret = async ({
     projectId,
     secret_id,
+    scope,
 }: {
     projectId: string
     secret_id: string
+    scope?: AgentConnectionScope | null
 }): Promise<DeleteSecretResponse> => {
-    const request: DeleteSecretRequest = {secret_id}
+    const request: DeleteSecretRequest = {secret_id, ...ownerScope(scope)}
     return getSecretsClient().deleteSecret(request, projectScopedRequest(projectId))
 }
 
@@ -78,12 +90,14 @@ export const setSubscriptionToken = async ({
     projectId,
     secretId,
     token,
+    scope,
 }: {
     projectId: string
     secretId: string
     token: string
+    scope?: AgentConnectionScope | null
 }) =>
     getSecretsClient().setSubscriptionToken(
-        {secret_id: secretId, token},
+        {secret_id: secretId, token, ...ownerScope(scope)},
         projectScopedRequest(projectId),
     )

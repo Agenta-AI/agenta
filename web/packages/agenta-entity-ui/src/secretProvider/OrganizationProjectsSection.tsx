@@ -1,11 +1,9 @@
 /**
- * "Projects that can use it" — the one section an organization connection's drawer adds (M5).
+ * "Projects that can use it" — the one section an organization connection's drawer adds.
  *
  * Three shapes, by what the deployment allows: OSS has no choice (every project), EE without the
  * RBAC entitlement shows the choice with "Selected projects" disabled and the plan line, and EE
  * with it lets the admin pick projects. Read-only for a member, who never sees this section.
- *
- * Design: ~/agenta-sharing-run/M5-UI-DESIGN.md (screens 2, 4, 9).
  */
 import {useMemo, useState} from "react"
 

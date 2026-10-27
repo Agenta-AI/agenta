@@ -1,4 +1,4 @@
-// "Projects that can use it" on an organization connection (M5): the three deployment shapes and
+// "Projects that can use it" on an organization connection: the three deployment shapes and
 // the two warnings, in the design's words.
 import {act} from "react"
 

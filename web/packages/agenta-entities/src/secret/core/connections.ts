@@ -320,7 +320,7 @@ export const probeRequestFor = (
 }
 
 /** The HTTP status of a failed request, when it carried one. */
-const statusOf = (error: unknown): number | null => {
+export const httpStatusOf = (error: unknown): number | null => {
     const statusCode = (error as {statusCode?: unknown})?.statusCode
     if (typeof statusCode === "number") return statusCode
 
@@ -346,7 +346,7 @@ const bodyOf = (error: unknown): unknown => {
  */
 // TODO(copy: owner)
 export const probeFailureMessage = (error: unknown, title: string): string => {
-    const status = statusOf(error)
+    const status = httpStatusOf(error)
     if (status === 404) return "This connection no longer exists. Reload and try again."
     if (status && status >= 400 && status < 500) {
         const message = extractApiErrorMessage(bodyOf(error) ?? error)

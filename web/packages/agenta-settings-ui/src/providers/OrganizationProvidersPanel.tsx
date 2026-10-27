@@ -1,80 +1,45 @@
 /**
- * AI providers → Organization tab (M5).
+ * AI providers → Organization tab.
  *
  * An organization owner or admin sees every organization connection with who may use it, then
  * today's catalog, and connects a provider once for the projects they choose. Anyone else sees
  * only the connections their project may use, read-only: no catalog, no row menu, and a locked
  * drawer that keeps Test.
- *
- * Design: ~/agenta-sharing-run/M5-UI-DESIGN.md (screens 1-5, 8-10, 14).
  */
-import {createElement, useCallback, useMemo, useState, type ReactNode} from "react"
+import {type ReactNode, useMemo} from "react"
 
 import {
-    deleteOrganizationConnectionAtom,
+    deleteSecretAtom,
     isSubscriptionConnection,
     managedOrganizationConnectionsAtom,
     organizationConnectionsAccessAtom,
+    organizationProjectsQueryAtom,
     organizationProviderConnectionsAtom,
     organizationSecretsQueryAtom,
-    PROVIDER_CATALOG,
-    SecretKind,
-    subscriptionConnectionFor,
-    subscriptionIsReady,
-    subscriptionProviderName,
+    refreshVaultSecretsAtom,
     subscriptionStatusLine,
     vaultSecretsWithOrganizationQueryAtom,
-    type ProviderCatalogEntry,
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {
-    ProviderDrawer,
-    providerIconFor,
     organizationSaveError,
-    SubscriptionSignInDialog,
     type OrganizationConnectionScope,
 } from "@agenta/entity-ui/secretProvider"
 import {message} from "@agenta/ui/app-message"
 import {Button} from "@agenta/ui/ui"
-import {PencilSimpleLine, Trash, WarningCircle} from "@phosphor-icons/react"
+import {WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {
-    SettingsCatalog,
-    type SettingsCatalogGroup,
-    type SettingsCatalogItem,
-} from "../shared/SettingsCatalog"
-import {SettingsRowMenu} from "../shared/SettingsRowMenu"
-
-import type {ProviderRemovalState} from "./AIProvidersPage"
-import {type SubscriptionPlan, SubscriptionsBanner} from "./SubscriptionsBanner"
+import {ProvidersPanel, type ProviderRemovalState, type ProvidersSource} from "./ProvidersPanel"
 
 /** The deployment kinds the LLM gateway does not serve, so they cannot belong to the organization. */
-const NOT_SHAREABLE_KINDS = new Set(["bedrock"])
-
-const FORM_FIELDS_BY_KIND: Record<string, string> = {
-    bedrock: "AWS region and an API key or access keys",
-    azure: "Endpoint, API version and API key",
-    vertex_ai: "Project, location and credentials",
+const NOT_SHAREABLE = {
+    kinds: new Set(["bedrock"]),
+    note: "Can't belong to the organization. Connect Bedrock in each project.",
 }
 
-const MODEL_PROVIDERS = PROVIDER_CATALOG.filter(
-    (entry) => entry.secretKind === SecretKind.ProviderKey,
-)
-const CLOUD_PLATFORMS = PROVIDER_CATALOG.filter(
-    (entry) => entry.secretKind === SecretKind.CustomProvider,
-)
-
-const ProviderLogo = ({kind}: {kind: string}) =>
-    createElement(providerIconFor(kind), {className: "size-[18px]"})
-
-const CHATGPT_NAME = subscriptionProviderName("chatgpt")
-const CLAUDE_NAME = subscriptionProviderName("claude")
-
-type DrawerTarget = {connection: ProviderConnection} | {kind: string}
-
 export interface OrganizationProvidersPanelProps {
-    scope: Omit<OrganizationConnectionScope, "readOnly">
+    scope: Omit<OrganizationConnectionScope, "readOnly" | "projects">
     renderRemoveDialog?: (state: ProviderRemovalState) => ReactNode
     subscriptionDocsUrl: string
 }
@@ -92,7 +57,6 @@ const projectsSummary = (
         const name = names.get(id)
         return name ? [name] : []
     })
-    // A project this admin does not see in their own list still counts.
     return picked.length === ids.length
         ? picked.join(", ")
         : `${ids.length} ${ids.length === 1 ? "project" : "projects"}`
@@ -139,254 +103,94 @@ export const OrganizationProvidersPanel = ({
     const vault = useAtomValue(vaultSecretsWithOrganizationQueryAtom)
     const managed = useAtomValue(managedOrganizationConnectionsAtom)
     const available = useAtomValue(organizationProviderConnectionsAtom)
-    const deleteConnection = useSetAtom(deleteOrganizationConnectionAtom)
+    const projectsQuery = useAtomValue(organizationProjectsQueryAtom)
+    const deleteSecret = useSetAtom(deleteSecretAtom)
+    const refresh = useSetAtom(refreshVaultSecretsAtom)
 
     const manage = access === "manage"
-    const connections = manage ? managed : available
+    // Choosing projects needs every project of the organization: until the list is in, the
+    // choice waits as it does for the plan.
+    const choosing = manage && scope.projectChoice !== "all"
+    const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
     const drawerScope = useMemo<OrganizationConnectionScope>(
-        () => ({...scope, readOnly: !manage}),
-        [scope, manage],
+        () => ({
+            ...scope,
+            projects,
+            projectChoice: choosing && !projectsQuery.data ? "pending" : scope.projectChoice,
+            readOnly: !manage,
+        }),
+        [scope, projects, choosing, projectsQuery.data, manage],
     )
-    const projectNames = useMemo(
-        () => new Map(scope.projects.map((project) => [project.id, project.name])),
-        [scope.projects],
-    )
 
-    const [drawerTarget, setDrawerTarget] = useState<DrawerTarget | null>(null)
-    const [signInProvider, setSignInProvider] = useState<"chatgpt" | "claude" | null>(null)
-    const [pendingRemoval, setPendingRemoval] = useState<ProviderConnection | null>(null)
-    const [removing, setRemoving] = useState(false)
-    const [removeError, setRemoveError] = useState<string | null>(null)
-
-    const canRemove = manage && Boolean(renderRemoveDialog)
-
-    const keyConnections = useMemo(
-        () => connections.filter((connection) => !isSubscriptionConnection(connection)),
-        [connections],
-    )
-    const chatgpt = useMemo(() => subscriptionConnectionFor(managed, "chatgpt"), [managed])
-    const claude = useMemo(() => subscriptionConnectionFor(managed, "claude"), [managed])
-
-    const requestRemoval = useCallback((connection: ProviderConnection) => {
-        setRemoveError(null)
-        setPendingRemoval(connection)
-    }, [])
-
-    const removeConnection = useCallback(async () => {
-        if (!pendingRemoval) return
-        setRemoving(true)
-        setRemoveError(null)
-        try {
-            await deleteConnection(pendingRemoval)
-            message.success(`${pendingRemoval.name} deleted.`)
-            setPendingRemoval(null)
-        } catch (failure) {
-            setRemoveError(
-                organizationSaveError(failure, scope.name, pendingRemoval.name) ??
-                    `Agenta could not remove ${pendingRemoval.name}. Try again.`,
-            )
-            setPendingRemoval(null)
-        } finally {
-            setRemoving(false)
+    const source = useMemo<ProvidersSource>(() => {
+        const connections = manage ? managed : available
+        const names = new Map(projects.map((project) => [project.id, project.name]))
+        return {
+            connections,
+            rows: manage
+                ? connections.filter((connection) => !isSubscriptionConnection(connection))
+                : connections,
+            loading: access === "loading" || (access === "view" && vault.isPending),
+            describe: (connection: ProviderConnection) =>
+                isSubscriptionConnection(connection)
+                    ? [connection.title, subscriptionStatusLine(connection.subscription)]
+                          .filter(Boolean)
+                          .join(" · ")
+                    : rowDescription(
+                          connection,
+                          manage ? projectsSummary(connection, names) : null,
+                      ),
+            // A member's subscription row has no drawer: there is nothing to test.
+            canOpen: (connection: ProviderConnection) =>
+                manage || !isSubscriptionConnection(connection),
+            manage,
+            remove: async (connection: ProviderConnection) => {
+                await deleteSecret(connection.source)
+                message.success(`${connection.name} deleted.`)
+                await refresh()
+            },
+            removeFailed: (failure: unknown, connection: ProviderConnection) =>
+                organizationSaveError(failure, scope.name, connection.name) ??
+                `Agenta could not remove ${connection.name}. Try again.`,
+            catalog: manage ? {notShareable: NOT_SHAREABLE} : undefined,
+            subscriptions: manage ? managed : undefined,
+            emptyFooter: <EmptyNote manage={manage} />,
+            organization: drawerScope,
         }
-    }, [deleteConnection, pendingRemoval, scope.name])
-
-    const groups = useMemo<SettingsCatalogGroup[]>(() => {
-        const connectedRows = (manage ? keyConnections : connections).map<SettingsCatalogItem>(
-            (connection) => {
-                const subscription = isSubscriptionConnection(connection)
-                return {
-                    key: connection.id,
-                    logo: <ProviderLogo kind={connection.kind} />,
-                    name: connection.name,
-                    description: subscription
-                        ? [connection.title, subscriptionStatusLine(connection.subscription)]
-                              .filter(Boolean)
-                              .join(" · ")
-                        : rowDescription(
-                              connection,
-                              manage ? projectsSummary(connection, projectNames) : null,
-                          ),
-                    status: "connected",
-                    statusLabel: "Connected",
-                    // A member's subscription row has no drawer: there is nothing to test.
-                    onOpen:
-                        subscription && !manage ? undefined : () => setDrawerTarget({connection}),
-                    menu: manage ? (
-                        <SettingsRowMenu
-                            label={`Actions for ${connection.name}`}
-                            items={[
-                                {
-                                    key: "edit",
-                                    label: "Edit",
-                                    icon: <PencilSimpleLine size={14} />,
-                                    onClick: () => setDrawerTarget({connection}),
-                                },
-                                {type: "divider"},
-                                {
-                                    key: "delete",
-                                    label: "Delete",
-                                    icon: <Trash size={14} />,
-                                    danger: true,
-                                    hidden: !canRemove,
-                                    onClick: () => requestRemoval(connection),
-                                },
-                            ]}
-                        />
-                    ) : undefined,
-                }
-            },
-        )
-
-        // Empty only when the organization holds nothing at all: a subscription lives in the
-        // banner above, not in this list.
-        const connected: SettingsCatalogGroup = {
-            key: "connected",
-            label: "Connected",
-            items: connectedRows,
-            ...(connections.length ? {} : {count: 0, footer: <EmptyNote manage={manage} />}),
-        }
-        if (!manage) return [connected]
-
-        const catalogRow = (entry: ProviderCatalogEntry): SettingsCatalogItem => {
-            const shareable = !NOT_SHAREABLE_KINDS.has(entry.kind)
-            return {
-                key: entry.kind,
-                logo: <ProviderLogo kind={entry.kind} />,
-                name: entry.title,
-                description: shareable
-                    ? (entry.subtitle ??
-                      (entry.secretKind === SecretKind.ProviderKey
-                          ? "API key"
-                          : FORM_FIELDS_BY_KIND[entry.kind]))
-                    : "Can't belong to the organization. Connect Bedrock in each project.",
-                status: "available",
-                statusLabel: `Connect ${entry.title}`,
-                disabled: !shareable,
-                onOpen: () => setDrawerTarget({kind: entry.kind}),
-            }
-        }
-
-        return [
-            connected,
-            {
-                key: "model-providers",
-                label: "Model providers",
-                items: MODEL_PROVIDERS.map(catalogRow),
-            },
-            {
-                key: "cloud-platforms",
-                label: "Cloud platforms",
-                items: CLOUD_PLATFORMS.map(catalogRow),
-            },
-        ]
-    }, [manage, keyConnections, connections, projectNames, canRemove, requestRemoval])
-
-    const plans = useMemo<SubscriptionPlan[]>(() => {
-        const chatgptConnected = subscriptionIsReady(chatgpt?.subscription)
-        const loginState = chatgpt?.subscription?.loginState
-        const broken = !chatgptConnected && !!loginState && loginState !== "pending_login"
-        const claudeConnected = subscriptionIsReady(claude?.subscription)
-        return [
-            {
-                key: "chatgpt",
-                logo: <ProviderLogo kind="openai" />,
-                name: CHATGPT_NAME,
-                detail:
-                    subscriptionStatusLine(chatgpt?.subscription) || "Sign in with your account",
-                state: chatgptConnected ? "connected" : broken ? "attention" : "available",
-                brand: "neutral",
-                action: {
-                    label: chatgptConnected ? "Manage" : broken ? "Sign in again" : "Connect",
-                    onClick: () => setSignInProvider("chatgpt"),
-                },
-            },
-            {
-                key: "claude",
-                logo: <ProviderLogo kind="anthropic" />,
-                name: CLAUDE_NAME,
-                detail: claudeConnected ? "Connected" : "Paste a token from Claude Code",
-                state: claudeConnected ? "connected" : "available",
-                brand: "clay",
-                action: {
-                    label: claudeConnected ? "Manage" : "Connect",
-                    onClick: () => setSignInProvider("claude"),
-                },
-            },
-        ]
-    }, [chatgpt, claude])
+    }, [
+        manage,
+        managed,
+        available,
+        projects,
+        access,
+        vault.isPending,
+        deleteSecret,
+        refresh,
+        scope.name,
+        drawerScope,
+    ])
 
     const memberVaultFailed = access === "view" && vault.isError && !vault.data
-    if (access === "error" || memberVaultFailed) {
+    const projectsFailed = choosing && projectsQuery.isError
+    if (access === "error" || memberVaultFailed || projectsFailed) {
         return (
             <LoadFailed
-                onRetry={() => void (memberVaultFailed ? vault.refetch() : query.refetch())}
+                onRetry={() =>
+                    void (memberVaultFailed
+                        ? vault.refetch()
+                        : projectsFailed
+                          ? projectsQuery.refetch()
+                          : query.refetch())
+                }
             />
         )
     }
 
     return (
-        <>
-            <SettingsCatalog
-                groups={groups}
-                loading={access === "loading" || (access === "view" && vault.isPending)}
-                notice={
-                    <>
-                        {removeError ? (
-                            <span className="flex items-center gap-1 text-xs text-destructive">
-                                <WarningCircle size={14} />
-                                {removeError}
-                            </span>
-                        ) : null}
-                        {manage ? <SubscriptionsBanner plans={plans} /> : null}
-                    </>
-                }
-            />
-
-            {renderRemoveDialog?.({
-                connection: pendingRemoval,
-                open: !!pendingRemoval,
-                pending: removing,
-                error: removeError,
-                onConfirm: () => void removeConnection(),
-                onClose: () => setPendingRemoval(null),
-            })}
-
-            {manage ? (
-                <>
-                    <SubscriptionSignInDialog
-                        open={signInProvider === "chatgpt"}
-                        onClose={() => setSignInProvider(null)}
-                        provider="chatgpt"
-                        connection={chatgpt}
-                        logo={<ProviderLogo kind="openai" />}
-                        onRemove={canRemove ? requestRemoval : undefined}
-                        organization={drawerScope}
-                    />
-                    <SubscriptionSignInDialog
-                        open={signInProvider === "claude"}
-                        onClose={() => setSignInProvider(null)}
-                        provider="claude"
-                        connection={claude}
-                        logo={<ProviderLogo kind="anthropic" />}
-                        onRemove={canRemove ? requestRemoval : undefined}
-                        organization={drawerScope}
-                    />
-                </>
-            ) : null}
-
-            <ProviderDrawer
-                open={!!drawerTarget}
-                onClose={() => setDrawerTarget(null)}
-                context="settings"
-                connections={connections}
-                connection={
-                    drawerTarget && "connection" in drawerTarget ? drawerTarget.connection : null
-                }
-                kind={drawerTarget && "kind" in drawerTarget ? drawerTarget.kind : null}
-                subscriptionDocsUrl={subscriptionDocsUrl}
-                organization={drawerScope}
-            />
-        </>
+        <ProvidersPanel
+            source={source}
+            renderRemoveDialog={renderRemoveDialog}
+            subscriptionDocsUrl={subscriptionDocsUrl}
+        />
     )
 }
