@@ -222,4 +222,3 @@ describe("an explicit connection on every new agent (M5)", () => {
         expect(withExplicitAgentConnection(config)).toBe(config)
     })
 })
-
