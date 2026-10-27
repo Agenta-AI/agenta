@@ -17,6 +17,9 @@ export const ONBOARDING_COPY = {
     kickerClass:
         "text-muted-foreground text-[11px] font-medium uppercase leading-4 tracking-[0.04em]",
     keyHint: (key: string) => `Press ${key}`,
+    /** The one-line write-in a choice marked `text` asks for. */
+    writeIn: "Tell us more",
+    writeInPlaceholder: "One line is enough",
     model: {
         kicker: "Added to your wallet",
         title: (credits: string) => `${credits} credits, on us`,

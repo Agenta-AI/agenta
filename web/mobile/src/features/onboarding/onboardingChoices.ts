@@ -6,9 +6,12 @@ export const CHOICE_KEYS = "ABCDEFGHIJKL"
 
 export interface OnboardingChoice {
     label: string
-    icon: Icon
+    /** A glyph on the chip; size chips go without one. */
+    icon?: Icon
     /** The catalog category this answer puts first under Recommended. */
     category?: string
+    /** Picking this choice asks for a line of text, stored as "`label`: the line". */
+    text?: boolean
 }
 
 export const RECOMMENDED = "recommended"

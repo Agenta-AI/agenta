@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 
-import {Button} from "@agenta/ui/ui"
+import {Button, Input} from "@agenta/ui/ui"
 import {ArrowRight} from "@phosphor-icons/react"
 
 import {FOCUS_RING} from "@/lib/interactive"
@@ -9,11 +9,19 @@ import {cn} from "@/lib/utils"
 
 import {CHOICE_KEYS, type OnboardingChoice} from "./onboardingChoices"
 import {ONBOARDING_COPY} from "./onboardingCopy"
-import {answerLabels, type OnboardingAnswer} from "./onboardingQuestions"
+import {
+    answerLabels,
+    WRITE_IN_MAX,
+    writeInAnswer,
+    writeInText,
+    type OnboardingAnswer,
+} from "./onboardingQuestions"
 
 /**
  * A chip question. One-tap: a chip or its letter key answers it, then the flow moves on.
  * Multiple: chips and keys toggle, and Continue (or Enter) moves on.
+ * A choice with `text` (Other) asks for one line: the answer is "Other: the line", and the
+ * step counts as answered only once the line is there.
  */
 export const OnboardingQuestion = ({
     headingId,
@@ -41,6 +49,15 @@ export const OnboardingQuestion = ({
     useEffect(() => () => clearTimeout(timerRef.current ?? undefined), [])
 
     const labels = answerLabels(value)
+    const asText = typeof value === "string" ? value : ""
+    // A write-in in progress, or one restored from the draft on a reload.
+    const [writing, setWriting] = useState<string | null>(null)
+    const writingChoice =
+        choices.find((choice) => choice.text && choice.label === writing) ??
+        choices.find((choice) => choice.text && writeInText(choice.label, asText) !== null)
+    const writeIn = writingChoice?.label ?? null
+    const typed = writeIn ? (writeInText(writeIn, asText) ?? "") : ""
+
     const pickRef = useRef<(label: string) => void>(() => undefined)
     pickRef.current = (label: string) => {
         if (multiple) {
@@ -48,11 +65,25 @@ export const OnboardingQuestion = ({
             onAnswer(choices.map((choice) => choice.label).filter(on))
             return
         }
+        // A write-in choice never advances on its own: it waits for the line.
+        if (choices.find((choice) => choice.label === label)?.text) {
+            pickedRef.current = false
+            setPicked(null)
+            setWriting(label)
+            if (labels.length > 0) onAnswer([])
+            return
+        }
         if (pickedRef.current) return
         pickedRef.current = true
+        setWriting(null)
         setPicked(label)
         onAnswer(label)
         timerRef.current = setTimeout(onAdvance, answerHoldMs)
+    }
+
+    const write = (text: string) => {
+        if (!writeIn) return
+        onAnswer(text.trim() ? writeInAnswer(writeIn, text) : [])
     }
 
     useEffect(() => {
@@ -81,7 +112,8 @@ export const OnboardingQuestion = ({
     }
 
     const isActive = (label: string) =>
-        multiple ? labels.includes(label) : (picked ?? labels[0]) === label
+        multiple ? labels.includes(label) : (writeIn ?? picked ?? labels[0]) === label
+
     return (
         <div className="flex flex-col gap-7">
             <div className="flex flex-col gap-1.5">
@@ -111,13 +143,47 @@ export const OnboardingQuestion = ({
                                 picked !== null && (active ? "scale-[0.98]" : "opacity-45"),
                             )}
                         >
-                            <Icon size={17} />
+                            {Icon ? <Icon size={17} /> : null}
                             {label}
                         </button>
                     )
                 })}
             </div>
-            {multiple ? (
+            {writeIn ? (
+                <div className="flex flex-col gap-2">
+                    <label
+                        className="text-[13px] font-medium leading-[18px]"
+                        htmlFor="onboarding-other"
+                    >
+                        {ONBOARDING_COPY.writeIn}
+                    </label>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <Input
+                            id="onboarding-other"
+                            autoFocus
+                            value={typed}
+                            maxLength={WRITE_IN_MAX}
+                            placeholder={ONBOARDING_COPY.writeInPlaceholder}
+                            aria-label={ONBOARDING_COPY.writeIn}
+                            onChange={(event) => write(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (event.key !== "Enter") return
+                                event.preventDefault()
+                                continueRef.current()
+                            }}
+                            className="h-9 sm:max-w-[420px]"
+                        />
+                        <Button
+                            onClick={() => continueRef.current()}
+                            disabled={typed.length === 0}
+                            className="max-sm:h-11 max-sm:w-full"
+                        >
+                            {ONBOARDING_COPY.continue}
+                            <ArrowRight data-icon="inline-end" />
+                        </Button>
+                    </div>
+                </div>
+            ) : multiple ? (
                 <div className="flex justify-end">
                     <Button
                         onClick={() => continueRef.current()}
