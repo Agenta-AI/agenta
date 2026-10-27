@@ -85,7 +85,6 @@ _UNPROCESSABLE = (
     OrganizationSecretNotServed,
     OrganizationSecretValueNotScannable,
     OrganizationSecretValueTooShort,
-    ProjectNotInOrganization,
     ServerOwnedFieldNotWritable,
 )
 
@@ -120,6 +119,12 @@ def handle_secrets_exceptions():
             except _UNPROCESSABLE as e:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.message
+                ) from None
+            except ProjectNotInOrganization as e:
+                # A code, so a client can name the case without reading the sentence.
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"code": e.code, "message": e.message},
                 ) from None
             except ProjectLimitNotAllowed as e:
                 raise HTTPException(

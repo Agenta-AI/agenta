@@ -348,9 +348,7 @@ def test_create_refused_by_a_limit_leaves_no_row(world):
         },
     )
     assert response.status_code == 422
-    assert (
-        response.json()["detail"] == "Every project must belong to this organization."
-    )
+    assert response.json()["detail"]["code"] == "project_not_in_organization"
     assert world["dao"].records == {}
 
 

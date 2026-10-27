@@ -205,6 +205,8 @@ class ProjectLimitNotAllowed(SecretsError):
 class ProjectNotInOrganization(SecretsError):
     """A limit names a project of another organization, or an unknown project."""
 
+    code = "project_not_in_organization"
+
     def __init__(self, *, project_ids=()):
         self.project_ids = list(project_ids)
         super().__init__("Every project must belong to this organization.")
