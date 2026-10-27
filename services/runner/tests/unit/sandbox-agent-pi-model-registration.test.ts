@@ -139,6 +139,87 @@ describe("buildPiModelRegistrationPlan (an id Pi does not carry)", () => {
   });
 });
 
+/**
+ * A stand-in for Pi's anthropic table, in Pi's own order: the first model carries a fallback list
+ * and a thinking flag that belong to it alone.
+ */
+const FABLE: PiBuiltinModel = {
+  id: "claude-fable-5",
+  compat: {
+    forceAdaptiveThinking: true,
+    supportsStrictTools: true,
+    allowedFallbackModels: [{ provider: "anthropic", model: "claude-opus-5" }],
+  },
+};
+const HAIKU: PiBuiltinModel = {
+  id: "claude-haiku-4-5",
+  compat: { supportsStrictTools: true },
+  reasoning: true,
+  contextWindow: 200000,
+};
+const HAIKU_DATED: PiBuiltinModel = {
+  id: "claude-haiku-4-5-20251001",
+  compat: { supportsStrictTools: true },
+};
+const anthropicRegistry: PiBuiltinRegistry = {
+  hasProvider: (provider) => provider === "anthropic",
+  models: () => [FABLE, HAIKU, HAIKU_DATED],
+};
+
+describe("buildPiModelRegistrationPlan (compat borrowed from a sibling)", () => {
+  it("never gives an unknown model another model's fallback list", () => {
+    for (const model of ["anthropic/claude-haiku-9", "anthropic/claude-zeta-1"]) {
+      const compat: Record<string, unknown> | undefined = buildPiModelRegistrationPlan(piRequest(model), anthropicRegistry)
+        ?.models[0].compat;
+      assert.equal(compat?.allowedFallbackModels, undefined, model);
+      assert.equal(compat?.forceAdaptiveThinking, undefined, model);
+    }
+  });
+
+  it("borrows from the same family when one exists", () => {
+    const plan = buildPiModelRegistrationPlan(
+      piRequest("anthropic/claude-haiku-9"),
+      anthropicRegistry,
+    );
+    assert.deepEqual(plan?.models[0], {
+      id: "claude-haiku-9",
+      compat: { supportsStrictTools: true },
+    });
+  });
+
+  it("keeps only what every sibling shares when no family matches", () => {
+    const plan = buildPiModelRegistrationPlan(
+      piRequest("anthropic/claude-zeta-1"),
+      anthropicRegistry,
+    );
+    assert.deepEqual(plan?.models[0].compat, { supportsStrictTools: true });
+  });
+
+  it("drops a fallback list even when the only sibling has one", () => {
+    const registry: PiBuiltinRegistry = {
+      hasProvider: (provider) => provider === "anthropic",
+      models: () => [FABLE],
+    };
+    const plan = buildPiModelRegistrationPlan(
+      piRequest("anthropic/claude-new-1"),
+      registry,
+    );
+    assert.deepEqual(plan?.models[0].compat, {
+      forceAdaptiveThinking: true,
+      supportsStrictTools: true,
+    });
+  });
+
+  it("drops the base model's fallback list from a routing variant", () => {
+    const plan = buildPiModelRegistrationPlan(
+      piRequest("anthropic/claude-fable-5:fast"),
+      anthropicRegistry,
+    );
+    assert.equal(plan?.models[0].compat?.allowedFallbackModels, undefined);
+    assert.equal(plan?.models[0].compat?.forceAdaptiveThinking, true);
+  });
+});
+
 describe("buildPiModelRegistrationPlan (no plan — the cases that must stay untouched)", () => {
   it("writes NO entry for a model the provider already has built in", () => {
     assert.equal(
@@ -360,6 +441,72 @@ describe("models newer than the pinned Pi catalog", () => {
     );
   });
 
+  // Pi 0.99.1 does not carry Haiku 5.5. Before it had an entry, the run borrowed the compat of
+  // the first anthropic built-in (Fable 5), so Pi sent its fallback list and the gateway refused
+  // every turn with HTTP 400 `routing_field_not_allowed`, and the span cost was $0.
+  it("registers Haiku 5.5 with Sonnet 5.5's request surface and its own prices", async () => {
+    const registry = await loadPiBuiltinRegistry();
+    assert.ok(registry);
+    const sonnet55 = registry
+      .models("anthropic")
+      .find((model) => model.id === "claude-sonnet-5-5");
+    assert.ok(sonnet55);
+
+    const plan = buildPiModelRegistrationPlan(
+      piRequest("anthropic/claude-haiku-5-5"),
+      registry,
+    );
+
+    assert.equal(plan?.builtinProvider, "anthropic");
+    const entry = plan?.models[0];
+    assert.equal(entry?.id, "claude-haiku-5-5");
+    assert.deepEqual(entry?.compat, sonnet55.compat);
+    // Haiku 5.5 rejects a `budget_tokens` thinking request, so Pi must send adaptive thinking.
+    assert.equal(entry?.compat?.forceAdaptiveThinking, true);
+    assert.equal(entry?.reasoning, true);
+    assert.deepEqual(entry?.cost, {
+      input: 0.1,
+      output: 0.5,
+      cacheRead: 0.01,
+      cacheWrite: 0.125,
+      tiers: [
+        {
+          inputTokensAbove: 100000,
+          input: 0.5,
+          output: 2.5,
+          cacheRead: 0.05,
+          cacheWrite: 0.625,
+        },
+      ],
+    });
+    assert.equal(entry?.contextWindow, 1000000);
+    assert.equal(entry?.maxTokens, 128000);
+    // Haiku 5.5 can run with thinking off, which Sonnet 5.5's map forbids.
+    assert.deepEqual(entry?.thinkingLevelMap, {
+      minimal: null,
+      low: "low",
+      medium: "medium",
+      high: "high",
+      xhigh: "xhigh",
+      max: "max",
+    });
+    assert.equal(
+      serializePiModelsJson(plan as PiModelRegistrationPlan).includes("allowedFallbackModels"),
+      false,
+    );
+  });
+
+  it("gives an unknown anthropic model no fallback list against the real table", async () => {
+    const registry = await loadPiBuiltinRegistry();
+    assert.ok(registry);
+    for (const model of ["anthropic/claude-haiku-9", "anthropic/claude-zeta-1"]) {
+      const compat: Record<string, unknown> | undefined = buildPiModelRegistrationPlan(piRequest(model), registry)
+        ?.models[0].compat;
+      assert.equal(compat?.allowedFallbackModels, undefined, model);
+      assert.equal(compat?.forceAdaptiveThinking, undefined, model);
+    }
+  });
+
   it("lists only models the pinned catalog still lacks", async () => {
     const registry = await loadPiBuiltinRegistry();
     assert.ok(registry);
@@ -397,7 +544,7 @@ describe("models newer than the pinned Pi catalog", () => {
       const addition = additions.get(id);
       assert.ok(addition, `${id} has no SDK catalog addition`);
       assert.deepEqual(
-        known.cost,
+        pickRates(known.cost as unknown as Record<string, unknown>),
         {
           input: addition.pricing.input_per_mtok,
           output: addition.pricing.output_per_mtok,

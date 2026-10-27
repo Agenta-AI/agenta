@@ -143,8 +143,8 @@ describe("the sidebar credits meter", () => {
         expect(host!.querySelector(".bg-primary")?.getAttribute("style")).toContain("width: 0%")
     })
 
-    it.each(["shadow", "off"] as const)("is hidden in %s mode", async (mode) => {
-        api.summary.mockResolvedValue(summary(mode))
+    it("is hidden in off mode", async () => {
+        api.summary.mockResolvedValue(summary("off"))
         const shown = await render(
             <CreditsRemainingWidget projectId="proj-1" settingsURL="/settings" collapsed={false} />,
         )
@@ -226,7 +226,7 @@ describe("the Credits tab", () => {
     })
 
     it("reads nothing for an organization the wallet does not enforce", async () => {
-        api.summary.mockResolvedValue(summary("shadow"))
+        api.summary.mockResolvedValue(summary("off"))
         const shown = await render(<CreditsTab projectId="proj-1" />)
 
         expect(shown).toBe("Credits are not in use for this organization.")

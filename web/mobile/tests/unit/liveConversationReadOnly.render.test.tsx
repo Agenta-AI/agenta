@@ -212,6 +212,7 @@ vi.mock("@/features/home/pendingTask", async () => {
             calls.sendPendingTask(input),
         ),
         failPendingTaskAtom: atom(null, () => undefined),
+        keepFailedSendAtom: atom(null, () => undefined),
     }
 })
 vi.mock("@/features/nav/AppShell", () => ({

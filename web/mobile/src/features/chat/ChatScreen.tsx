@@ -15,6 +15,7 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {StatusTag} from "@/components/StatusTag"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
+import {pendingTasksAtom} from "../home/pendingTask"
 import {AppShell} from "../nav/AppShell"
 import {useLivenessPoll} from "../sessions/useLivenessPoll"
 
@@ -34,6 +35,7 @@ import {useAgentEntity} from "./useAgentEntity"
 import {useAgentVisibilityRecheck} from "./useAgentVisibilityRecheck"
 import {useApprovalActions} from "./useApprovalActions"
 import {useChatAccess} from "./useChatAccess"
+import {useLeaveHeldTask} from "./useLeaveHeldTask"
 import {useReferenceToolDisplays} from "./useReferenceToolDisplays"
 import {useSessionTranscript} from "./useSessionTranscript"
 import {useSessionWatch} from "./useSessionWatch"
@@ -74,6 +76,11 @@ export const ChatScreen = ({
         if (isSessionFresh(sessionId)) return
         void prefetchRecords(sessionId).catch(() => undefined)
     }, [boundProjectId, prefetchRecords, projectId, sessionId])
+    useLeaveHeldTask(sessionId, projectId)
+    // A session the server does not list yet names its agent only in the route, and the rail's
+    // link does not carry it. A first message waiting here names it too.
+    const taskAgentId = useAtomValue(pendingTasksAtom)[sessionId]?.agentId
+    const routeAgentId = agentId ?? taskAgentId
     const {
         entityId: latestEntityId,
         agentId: resolvedAgentId,
@@ -83,11 +90,11 @@ export const ChatScreen = ({
         agentHidden: entityAgentHidden,
         retry,
         retrying,
-    } = useAgentEntity(sessionId, projectId, agentId)
+    } = useAgentEntity(sessionId, projectId, routeAgentId)
     const access = useChatAccess({
         sessionId,
         projectId,
-        routeAgentId: agentId,
+        routeAgentId,
         agentHidden: entityAgentHidden,
     })
     // An agent made private while this screen is open: the session row read says so (one

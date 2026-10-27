@@ -30,8 +30,8 @@ Project visibility SHALL give Participant access to members with the project cap
 - **THEN** the member can send to it and answer its approvals, and only the owner, when there is one, can rename, archive or delete it
 
 #### Scenario: Channel session
-- **WHEN** a member opens a project-visible session that comes from Slack
-- **THEN** the member can read it and cannot send to it in Agenta
+- **WHEN** a member opens a project-visible session that comes from Slack or Telegram
+- **THEN** the member can read it and send to it in Agenta
 
 ### Requirement: A person's server run runs in its ownerless session
 A person's server run (an event subscription, a child run, an evaluation run) SHALL run in an ownerless session, like any non-human principal: its signed run origin, not the person sending, decides. A turn admitted for such a run SHALL NOT admit the same person's web or browser requests.

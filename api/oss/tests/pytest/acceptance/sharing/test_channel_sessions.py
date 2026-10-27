@@ -1,9 +1,10 @@
-"""Channel sessions and channel bindings (M3), against a running API.
+"""Channel sessions and channel bindings, against a running API.
 
-A channel turn runs as the installation, so its session has no owner and every member
-reads it, even when the sender is a linked member. A private agent cannot be bound to
-a channel, whichever reference family names it. The channel is the mock `agenta`
-channel; its turns are real turns on the mock harness.
+A channel turn runs as the installation. A project agent's channel session has no owner
+and every member reads it, even when the sender is a linked member. A private agent may
+answer a channel (owner ruling 2026-10-26): only its owner binds it, whichever reference
+family names it, and a make-private keeps its bindings on. The channel is the mock
+`agenta` channel; its turns are real turns on the mock harness.
 """
 
 from uuid import uuid4
@@ -126,16 +127,20 @@ def _bind(caller, cast, references):
     )
 
 
-def test_activate_private_agent_rejected(sharing_cast):
+def test_only_the_owner_binds_a_private_agent(sharing_cast):
     alice = sharing_cast["alice"]
+    bob = sharing_cast["bob"]
     private = new_agent(alice, visibility="private")
+    references = {"workflow_revision": {"id": private["revision_id"]}}
 
-    refused = _bind(
-        alice, sharing_cast, {"workflow_revision": {"id": private["revision_id"]}}
-    )
+    # Bob cannot see Alice's private agent, so he cannot put it in a channel.
+    refused = _bind(bob, sharing_cast, references)
     assert (refused.status_code, refused.json()) == (404, NOT_FOUND_BODY)
+    bound = _bind(alice, sharing_cast, references)
+    assert bound.status_code == 200, bound.text
+    assert bound.json()["agent"]["flags"]["is_active"] is True
 
-    # Made private after it was bound: the binding stops (no new channel turns).
+    # Made private after it was bound: the binding stays on.
     shared = new_agent(alice, visibility="project")
     bound = _bind(
         alice, sharing_cast, {"workflow_revision": {"id": shared["revision_id"]}}
@@ -150,7 +155,7 @@ def test_activate_private_agent_rejected(sharing_cast):
     assert response.status_code == 200, response.text
     binding = alice("GET", f"/channels/agents/{binding_id}")
     assert binding.status_code == 200, binding.text
-    assert binding.json()["agent"]["flags"]["is_active"] is False
+    assert binding.json()["agent"]["flags"]["is_active"] is True
 
 
 def _set_active(caller, binding_id, is_active):
@@ -161,8 +166,9 @@ def _set_active(caller, binding_id, is_active):
     )
 
 
-def test_flags_only_reactivation_of_a_private_agent_rejected(sharing_cast):
+def test_flags_only_reactivation_of_a_private_agent(sharing_cast):
     alice = sharing_cast["alice"]
+    bob = sharing_cast["bob"]
 
     # A project agent's binding: a flags-only edit turns it off and on again.
     shared = new_agent(alice, visibility="project")
@@ -176,18 +182,23 @@ def test_flags_only_reactivation_of_a_private_agent_rejected(sharing_cast):
         assert response.status_code == 200, response.text
         assert response.json()["agent"]["flags"]["is_active"] is is_active
 
-    # Made private, the binding is off, and a flags-only edit cannot turn it on.
+    # Made private and turned off: the owner turns it on with a flags-only edit;
+    # another member cannot.
     response = alice(
         "POST",
         f"/workflows/{shared['id']}/sharing/visibility",
         json={"visibility": "private"},
     )
     assert response.status_code == 200, response.text
-    refused = _set_active(alice, binding_id, True)
+    assert _set_active(alice, binding_id, False).status_code == 200
+    refused = _set_active(bob, binding_id, True)
     assert (refused.status_code, refused.json()) == (404, NOT_FOUND_BODY)
     binding = alice("GET", f"/channels/agents/{binding_id}")
     assert binding.status_code == 200, binding.text
     assert binding.json()["agent"]["flags"]["is_active"] is False
+    turned_on = _set_active(alice, binding_id, True)
+    assert turned_on.status_code == 200, turned_on.text
+    assert turned_on.json()["agent"]["flags"]["is_active"] is True
 
 
 def test_application_family_reference_is_resolved(sharing_cast):
@@ -200,8 +211,14 @@ def test_application_family_reference_is_resolved(sharing_cast):
         ("application_variant", "variant_id"),
         ("application", "id"),
     ):
-        refused = _bind(alice, sharing_cast, {key: {"id": private[field]}})
+        # Each family resolves to the agent: refused for another member, bound for
+        # its owner.
+        refused = _bind(
+            sharing_cast["bob"], sharing_cast, {key: {"id": private[field]}}
+        )
         assert (refused.status_code, refused.json()) == (404, NOT_FOUND_BODY), key
+        bound = _bind(alice, sharing_cast, {key: {"id": private[field]}})
+        assert bound.status_code == 200, (key, bound.text)
 
     bound = _bind(
         alice, sharing_cast, {"application_revision": {"id": shared["revision_id"]}}

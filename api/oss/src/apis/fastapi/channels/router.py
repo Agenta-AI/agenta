@@ -561,7 +561,8 @@ class ChannelsRouter:
                 references=body.references,
             )
         except SharedItemNotFound as e:
-            # A private, unknown or unresolvable agent cannot answer a channel.
+            # An unknown or unresolvable agent, or a private agent of someone else, cannot
+            # answer a channel.
             raise not_found_exception() from e
         url = await self.telegram_binding_service.issue_bind_link(
             project_id=project_id,
@@ -1067,7 +1068,8 @@ class ChannelsRouter:
         except ChannelConnectionNotFound as e:
             raise HTTPException(status_code=404, detail=e.message) from e
         except SharedItemNotFound as e:
-            # A private, unknown or unresolvable agent cannot answer a channel.
+            # An unknown or unresolvable agent, or a private agent of someone else, cannot
+            # answer a channel.
             raise not_found_exception() from e
 
         return ChannelAgentResponse(count=1 if agent else 0, agent=agent)

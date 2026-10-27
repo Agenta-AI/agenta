@@ -1,6 +1,6 @@
 [project]
 name = "services"
-version = "0.125.1"
+version = "0.125.2"
 description = "Agenta Services (Chat & Completion)"
 requires-python = ">=3.11,<3.14"
 authors = [
@@ -15,6 +15,7 @@ dependencies = [
     "boto3>=1,<2",
     "google-cloud-aiplatform>=1,<2",
     "orjson>=3,<4",
+    "litellm[mcp]>=1,<2",
 ]
 
 [dependency-groups]

@@ -360,6 +360,7 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
         "anthropic/claude-fable-5-1",
         "anthropic/claude-sonnet-5-5",
         "anthropic/claude-sonnet-5",
+        "anthropic/claude-haiku-5-5",
         "anthropic/claude-haiku-4-5",
     ]
     assert pi_defaults["openrouter"] == PROVIDER_DEFAULT_MODELS["openrouter"]

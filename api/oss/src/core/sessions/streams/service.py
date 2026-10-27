@@ -72,6 +72,7 @@ from oss.src.core.sessions.streams.types import (
     SessionCreationRequiresRunCredential,
     ConcurrencyLimitExceeded,
     SessionIdInvalid,
+    SessionIdTombstoned,
     SessionStreamAlreadyExists,
     SessionStreamNotFound,
     SessionTurnInUse,
@@ -81,12 +82,14 @@ from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.sessions.streams.runner_client import kill_runner_sandbox
 from oss.src.core.sessions.types import SessionReference
 from oss.src.core.shared.dtos import Windowing
+from oss.src.core.access.prefetch import request_memo_scope
 from oss.src.core.sharing.admission import HEARTBEAT_BOUNDARY, RunAdmission
 from oss.src.core.sharing.dtos import AccessPolicy, SessionReadScope
 from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.types import AgentReferenceUnresolved
 from oss.src.core.sharing.service import (
     cache_created_session_access,
+    channel_session_policy,
     created_session_access,
     get_sharing_service,
     invalidate_sharing_caches,
@@ -379,7 +382,7 @@ class SessionStreamsService:
         if unchecked:
             if mode in (CommandMode.send, CommandMode.steer):
                 try:
-                    created = await self._create_row(
+                    await self._create_row(
                         project_id=project_id,
                         user_id=user_id,
                         stream=SessionStreamCreate(
@@ -391,18 +394,6 @@ class SessionStreamsService:
                     created_row = True
                 except SessionStreamAlreadyExists:
                     await recheck()
-                else:
-                    if _channel_policy_written(created, origin=None):
-                        # A channel thread named the id, so the insert wrote the channel
-                        # policy, not this request's: check the row before any lock,
-                        # liveness read or displacement.
-                        try:
-                            await recheck()
-                        except BaseException:
-                            await self._keep_refused_row(
-                                project_id=project_id, created=created
-                            )
-                            raise
             else:
                 if (
                     await self._dao.get_by_session_id(
@@ -1057,12 +1048,21 @@ class SessionStreamsService:
             # Only a run creates a session by heartbeat.
             if envelope is None:
                 raise SessionCreationRequiresRunCredential(request.session_id)
-            await run_admission.admit_turn(
-                envelope=admission_envelope,
-                session_id=None,
-                project_id=project_id,
-                references=request.references,
-            )
+            # A channel session is the one its installation's run creates: private to the
+            # agent's owner when the agent is private. One memo for both: the policy read
+            # takes the agent entry the admission read (no round trip).
+            by_channel_run = envelope.context.origin == RunOrigin.INSTALLATION
+            with request_memo_scope():
+                agent_artifact_id = await run_admission.admit_turn(
+                    envelope=admission_envelope,
+                    session_id=None,
+                    project_id=project_id,
+                    references=request.references,
+                )
+                if by_channel_run:
+                    access = await channel_session_policy(
+                        project_id=project_id, agent_artifact_id=agent_artifact_id
+                    )
             try:
                 created_stream = await self._create_row(
                     project_id=project_id,
@@ -1078,31 +1078,9 @@ class SessionStreamsService:
                         name=normalize_session_name(request.name),
                         references=request.references or None,
                         access=access,
+                        by_channel_run=by_channel_run,
                     ),
-                    # A channel session is the one its installation's run creates.
-                    is_channel=envelope.context.origin == RunOrigin.INSTALLATION,
                 )
-                if _channel_policy_written(
-                    created_stream, origin=envelope.context.origin
-                ):
-                    # A channel thread named the id: the insert wrote the channel policy
-                    # (project-visible, ownerless), not this run's, so the beat is checked
-                    # against the row it wrote (its fresh cache entry). A refused beat
-                    # leaves that row as it is: it is the channel session's own row, and
-                    # the channel's run adopts it. Only this rare beat pays the check, and
-                    # only for the session: the beat's agent target passed above.
-                    try:
-                        await run_admission.admit(
-                            envelope=admission_envelope,
-                            session_id=request.session_id,
-                            agent_artifact_id=None,
-                            boundary=HEARTBEAT_BOUNDARY,
-                        )
-                    except AdmissionDenied:
-                        await self._keep_refused_row(
-                            project_id=project_id, created=created_stream
-                        )
-                        raise
             except SessionStreamAlreadyExists:
                 # Another first touch (`_start_turn`, a rename, another beat) won: check
                 # this beat against the winning row, as for any existing row.
@@ -1605,7 +1583,7 @@ class SessionStreamsService:
         listed = created_row
         if stream is None:
             try:
-                written = await self._create_row(
+                await self._create_row(
                     project_id=project_id,
                     user_id=user_id,
                     stream=SessionStreamCreate(
@@ -1618,21 +1596,13 @@ class SessionStreamsService:
                 )
                 created = True
                 listed = True
-                if _channel_policy_written(written, origin=None):
-                    # The insert wrote the channel policy, not this request's: check
-                    # the row (a refusal hands back this turn's locks).
-                    try:
-                        await self._recheck_row(
-                            project_id=project_id,
-                            session_id=session_id,
-                            turn_id=turn_id,
-                            recheck=recheck,
-                        )
-                    except BaseException:
-                        await self._keep_refused_row(
-                            project_id=project_id, created=written
-                        )
-                        raise
+            except SessionIdTombstoned:
+                # The id is reserved (a deleted private session's, or a channel thread's
+                # that only its channel's run creates): hand back this turn's locks.
+                await self._release_turn_locks(
+                    project_id=project_id, session_id=session_id, turn_id=turn_id
+                )
+                raise
             except SessionStreamAlreadyExists:
                 # The unique slot is held by either a concurrent first touch (live row) or a
                 # soft-deleted tombstone (STOP_KILLS_SESSION / archive). The update reconciles
@@ -1698,16 +1668,15 @@ class SessionStreamsService:
         project_id: UUID,
         user_id: Optional[UUID],
         stream: SessionStreamCreate,
-        is_channel: bool = False,
     ) -> SessionStream:
         """Insert the session row, then write its sharing cache entry (once per session;
-        the next decision on it reads the entry it just wrote). `is_channel`: the row is
-        created by a channel installation's run (only a beat can be that)."""
+        the next decision on it reads the entry it just wrote). `stream.by_channel_run`:
+        the row is created by a channel installation's run (only a beat can be that)."""
         created = await self._dao.create(
             project_id=project_id, user_id=user_id, stream=stream
         )
         policy, in_channel = created_session_access(
-            created, requested=stream.access, by_installation=is_channel
+            created, requested=stream.access, by_installation=stream.by_channel_run
         )
         await cache_created_session_access(
             project_id=project_id,
@@ -1717,25 +1686,6 @@ class SessionStreamsService:
             is_channel=in_channel,
         )
         return created
-
-    async def _keep_refused_row(
-        self, *, project_id: UUID, created: SessionStream
-    ) -> None:
-        """A first touch inserted the row of a channel thread's session and its own check
-        then refused it. The row stays: it is the channel session's own row, with the
-        channel policy, and the channel's run adopts it. It is not the refused
-        request's live turn: clear the flags and the turn id the insert wrote (only
-        while the row still holds that turn id), and publish the row to the project's
-        lists (an adoption of an existing row publishes nothing)."""
-        await self._dao.release_refused_turn(
-            project_id=project_id,
-            session_id=created.session_id,
-            stream_id=created.id,
-            turn_id=created.turn_id,
-        )
-        await self._publish_changed(
-            project_id=project_id, session_id=created.session_id
-        )
 
     async def _recheck_row(
         self,
@@ -1752,19 +1702,27 @@ class SessionStreamsService:
         try:
             await recheck()
         except BaseException:
-            await release_running(
-                self._lock,
-                project_id=str(project_id),
-                session_id=session_id,
-                turn_id=turn_id,
-            )
-            await release_alive(
-                self._lock,
-                project_id=str(project_id),
-                session_id=session_id,
-                turn_id=turn_id,
+            await self._release_turn_locks(
+                project_id=project_id, session_id=session_id, turn_id=turn_id
             )
             raise
+
+    async def _release_turn_locks(
+        self, *, project_id: UUID, session_id: str, turn_id: str
+    ) -> None:
+        """Hand back the `alive` and `running` locks this turn took."""
+        await release_running(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_id=turn_id,
+        )
+        await release_alive(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_id=turn_id,
+        )
 
     async def mirror_liveness(
         self,
@@ -1834,15 +1792,3 @@ class SessionStreamsService:
                 ),
             ),
         )
-
-
-def _channel_policy_written(
-    created: SessionStream, *, origin: Optional[RunOrigin]
-) -> bool:
-    """True when the row insert wrote the channel policy instead of the requested one: a
-    channel thread names the session id, and the row was not created by the channel's
-    own run (origin installation)."""
-    return (
-        getattr(created, "has_channel_thread", None) is True
-        and origin != RunOrigin.INSTALLATION
-    )

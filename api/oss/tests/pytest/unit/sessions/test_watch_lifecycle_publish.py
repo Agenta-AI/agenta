@@ -378,3 +378,45 @@ async def test_send_does_not_double_publish_running_on_its_first_beat(lock_engin
         admission_envelope=make_envelope(),
     )
     assert publisher.lifecycle_calls == []
+
+
+class _ReservedIdDAO(_FakeStreamsDAO):
+    """The insert refuses: a channel thread names the id (or a tombstone does)."""
+
+    async def create(self, *, project_id, user_id, stream):
+        from oss.src.core.sessions.streams.types import SessionIdTombstoned
+
+        raise SessionIdTombstoned(session_id=stream.session_id)
+
+
+@pytest.mark.asyncio
+async def test_a_send_refused_on_a_reserved_id_hands_back_its_locks(lock_engine):
+    """A send whose insert is refused after the turn took `alive` and `running` (the
+    `_start_turn` path) hands both locks back and announces nothing, so the channel's
+    own run can take the session afterwards."""
+    from oss.src.core.sessions.streams.types import SessionIdTombstoned
+    from oss.src.dbs.redis.sessions.locks import get_session_liveness
+
+    publisher = _RecordingPublisher()
+    svc = SessionStreamsService(
+        streams_dao=_ReservedIdDAO(),
+        lock_engine=lock_engine,
+        watch_publisher=publisher,
+    )
+    session_id = _session_id()
+    with pytest.raises(SessionIdTombstoned):
+        await svc.command(
+            project_id=_PROJECT,
+            user_id=_USER,
+            request=SessionStreamCommandRequest(
+                session_id=session_id,
+                data=WorkflowServiceRequestData(inputs={"messages": ["hi"]}),
+                force=False,
+            ),
+            access=OWNERLESS_PROJECT_POLICY,
+        )
+    liveness = await get_session_liveness(
+        lock_engine, project_id=str(_PROJECT), session_id=session_id
+    )
+    assert (liveness["alive"], liveness["running"]) == (False, False)
+    assert publisher.lifecycle_calls == []

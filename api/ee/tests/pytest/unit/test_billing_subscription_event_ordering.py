@@ -153,6 +153,8 @@ def stripe(monkeypatch):
     client = _Stripe()
     monkeypatch.setattr(billing_router_module.env.stripe, "api_key", "sk_test_123")
     monkeypatch.setattr(billing_router_module.env.stripe, "webhook_secret", None)
+    # Unsigned events with the wallet on would grant period credits, which need a signature.
+    monkeypatch.setattr(billing_router_module.env.wallets, "enabled", False)
     monkeypatch.setattr(billing_router_module, "_load_stripe", lambda: client)
     monkeypatch.setattr(subscriptions_service_module, "_load_stripe", lambda: client)
     monkeypatch.setattr(subscriptions_service_module, "get_free_plan", lambda: HOBBY)

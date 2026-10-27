@@ -59,17 +59,18 @@ describe("the composer notice per state", () => {
         )
     })
 
-    it("Slack chat: reply in the Slack thread", () => {
+    it("channel chat (Slack, Telegram): a member writes to it", () => {
         expect(
             noticeFor(
                 state({
                     policy: {visibility: "project", owner_user_id: null},
-                    my_role: "viewer",
+                    my_role: "participant",
+                    can_send: true,
                     shareable: false,
                     not_shareable_reason: "channel",
                 }),
             ),
-        ).toBe("This chat comes from Slack. Reply in the Slack thread to continue it.")
+        ).toBeNull()
     })
 
     it("owner left", () => {

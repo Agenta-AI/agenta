@@ -45,7 +45,7 @@ export const sessionSharingCopy = {
     panelCanSend: "You can read and send in this chat.",
     panelPrivate: (owner: string) => `Private: only people ${owner} added can open it.`,
     panelChannel:
-        "This chat comes from Slack. Everyone in the project can read it here. Reply in Slack to continue it.",
+        "This chat comes from a channel. Everyone in the project can read it and send to it.",
     panelNoOwnerCanSend:
         "This chat was started by an API key or an automation, so it has no owner. Everyone in the project can read it and send to it.",
     panelOwnerLeftCanSend: (owner: string) =>

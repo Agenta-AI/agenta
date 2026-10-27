@@ -6,7 +6,6 @@ import {sharingCopy} from "@/lib/sharingCopy"
 /** Why the composer gives way to a notice. Null = the reader can send. */
 export type SessionReadOnlyReason =
     | "private_agent"
-    | "channel"
     | "no_owner"
     | "owner_left"
     | "viewer"
@@ -17,9 +16,6 @@ export type SessionReadOnlyReason =
  * state the server computed: no `can_send` on an ownerless chat, on a chat whose owner left, and
  * for a Viewer. Unknown sharing (still loading, or the read failed) gives no reason here: see
  * `sessionAccessKnown`, which keeps the controls off until the state is known.
- *
- * Slack chats are ownerless too: the state's `not_shareable_reason` tells a channel chat
- * (`channel`) from one an API key or an automation started.
  */
 export const sessionReadOnlyReason = ({
     sharing,
@@ -30,7 +26,6 @@ export const sessionReadOnlyReason = ({
 }): SessionReadOnlyReason | null => {
     if (agentHidden) return "private_agent"
     if (!sharing || sharing.can_send) return null
-    if (sharing.not_shareable_reason === "channel") return "channel"
     if (!sharing.policy.owner_user_id) return "no_owner"
     if (!sharing.owner_is_active) return "owner_left"
     // The owner who cannot send has lost the agent, not the chat.
@@ -62,8 +57,6 @@ export const sessionReadOnlyText = (reason: SessionReadOnlyReason, owner: string
     switch (reason) {
         case "private_agent":
             return sharingCopy.composerPrivateAgent
-        case "channel":
-            return sharingCopy.composerChannel
         case "no_owner":
             return sharingCopy.composerNoOwner
         case "owner_left":

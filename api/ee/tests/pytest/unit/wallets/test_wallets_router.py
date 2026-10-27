@@ -74,13 +74,7 @@ def test_an_invalid_usage_window_is_a_bad_request(client_granting):
     assert response.status_code == 400
 
 
-def test_the_summary_states_the_organizations_wallet_mode(client_granting, monkeypatch):
-    from oss.src.core.rollout.switches import WalletMode
-
-    async def _enforce(organization_id, *, wait=True):
-        return WalletMode.ENFORCE
-
-    monkeypatch.setattr(router_module, "wallet_mode_for", _enforce)
+def test_the_summary_states_the_organizations_wallet_mode(client_granting):
     client, _ = client_granting({Permission.VIEW_BILLING})
 
     response = client.get("/wallets/summary")

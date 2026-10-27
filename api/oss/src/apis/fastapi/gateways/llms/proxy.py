@@ -8,6 +8,7 @@ import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.apis.fastapi.gateways.exceptions import log_plane_disabled
 from oss.src.apis.fastapi.gateways.llms.utils import (
@@ -17,7 +18,6 @@ from oss.src.apis.fastapi.gateways.llms.utils import (
     parse_messages_call_context,
     parse_responses_call_context,
 )
-from oss.src.apis.fastapi.gateways.flags import llm_gateway_serves_caller
 from oss.src.apis.fastapi.gateways.utils import response_headers
 from oss.src.core.gateways.dtos import (
     GatewayEndpointNamespace,
@@ -652,7 +652,7 @@ class LLMGatewayProxy:
     ) -> Response:
         # Checked before the body is read: with the plane off there is nothing to relay to,
         # and a harness that pointed at this base URL needs the refusal, not a parse error.
-        if not await llm_gateway_serves_caller():
+        if not env.llm_gateway.enabled:
             return _map_domain_exception(LLMGatewayDisabledError())
 
         if namespace == GatewayEndpointNamespace.BUILTIN:
@@ -737,7 +737,7 @@ class LLMGatewayProxy:
         # Any, not Dict[str, Any]: the success path returns the OpenAI list body,
         # the denial path returns a JSONResponse — FastAPI passes a Response
         # instance through unprocessed either way.
-        if not await llm_gateway_serves_caller():
+        if not env.llm_gateway.enabled:
             return _map_domain_exception(LLMGatewayDisabledError())
 
         if namespace == GatewayEndpointNamespace.BUILTIN:
