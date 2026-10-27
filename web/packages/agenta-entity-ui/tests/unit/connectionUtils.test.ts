@@ -132,6 +132,31 @@ describe("connectionUtils: connectionFromConfig", () => {
 })
 
 describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
+    it("round-trips an organization subscription login with its scope", () => {
+        const stored = {
+            provider: "openai-codex",
+            model: "gpt-5.5",
+            connection: {
+                mode: "self_managed",
+                slug: "chatgpt",
+                scope: "organization",
+                namespace: "organization",
+            },
+        }
+        const fields = connectionFromConfig(stored)
+        expect(
+            composeModelValue({
+                modelId: "gpt-5.5",
+                provider: fields.provider,
+                mode: fields.mode,
+                slug: fields.slug,
+                namespace: fields.namespace,
+                scope: fields.scope,
+                existing: stored,
+            }),
+        ).toEqual(stored)
+    })
+
     it("writes a built-in pick's namespace beside its slug, and only there", () => {
         const compose = (mode: "agenta" | "self_managed", slug: string | null) =>
             composeModelValue({

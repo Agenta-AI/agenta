@@ -60,12 +60,14 @@ export const explicitAgentConnection = ({
 }): Record<string, unknown> => {
     const connection: Record<string, unknown> = {mode}
     if (slug) connection.slug = slug
-    if (mode !== "agenta") return connection
-    if (scope === "organization" && slug) {
+    // An organization connection is named by scope and slug in either mode: a key or custom
+    // provider (`agenta`), or a subscription login (`self_managed`).
+    if ((scope === "organization" || namespace === "organization") && slug) {
         connection.scope = "organization"
         connection.namespace = "organization"
         return connection
     }
+    if (mode !== "agenta") return connection
     connection.scope = "project"
     if (slug && namespace && namespace !== "organization") connection.namespace = namespace
     return connection
