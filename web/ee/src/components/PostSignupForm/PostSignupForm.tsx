@@ -42,24 +42,6 @@ const shuffleArray = <T,>(array: T[]): T[] => {
     return shuffled
 }
 
-const calculateICP = (
-    companySize?: string,
-    userRole?: string,
-    agentExperience?: string,
-): boolean => {
-    if (!companySize || !userRole || !agentExperience) {
-        return false
-    }
-
-    const isTargetCompanySize = ["11-50", "51-200", "201+"].includes(companySize)
-    // Any label that starts with Hobbyist is out, so a renamed option does not change the result.
-    // Student is out too, matching the definition reporting derives.
-    const isNotHobbyist = !/^hobbyist/i.test(userRole) && userRole !== "Student"
-    const isNotJustExploring = agentExperience !== "Not yet — just exploring"
-
-    return isTargetCompanySize && isNotHobbyist && isNotJustExploring
-}
-
 // Exact PostHog choice strings -> $set boolean property names.
 const INTENT_TO_PROPERTY: Record<string, string> = {
     "Build AI agents": "intent_agents",
@@ -258,23 +240,8 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                     }
                 })
 
-                // Role, size and referral now come from the onboarding, so this form often has
-                // only the experience answer. Writing false would overwrite a real ICP, so the
-                // property is left alone until every input is here; reporting derives it instead.
+                // No `is_icp_v2` here: its inputs come from two surfaces, so reporting derives it.
                 // See docs/design/onboarding-revamp/questions-and-survey-parity.md.
-                const icpInputs = [
-                    firstAnswers.company_size_v2,
-                    firstAnswers.user_role_v2,
-                    personProperties.agent_experience_v2,
-                ]
-                if (icpInputs.every(Boolean)) {
-                    personProperties.is_icp_v2 = calculateICP(
-                        firstAnswers.company_size_v2,
-                        firstAnswers.user_role_v2,
-                        personProperties.agent_experience_v2,
-                    )
-                }
-
                 posthog.capture("survey sent", {
                     $survey_id: survey.id,
                     $survey_name: survey.name,

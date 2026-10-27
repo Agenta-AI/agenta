@@ -69,6 +69,8 @@ export const OnboardingQuestion = ({
         }
         // A write-in choice never advances on its own: it waits for the line.
         if (choices.find((choice) => choice.label === label)?.text) {
+            // Tapping the open write-in again keeps its line.
+            if (writeIn === label) return
             // A chip picked a moment ago must not advance past the line about to be typed.
             clearTimeout(timerRef.current ?? undefined)
             timerRef.current = null
@@ -174,7 +176,8 @@ export const OnboardingQuestion = ({
                             aria-label={ONBOARDING_COPY.writeIn}
                             onChange={(event) => write(event.target.value)}
                             onKeyDown={(event) => {
-                                if (event.key !== "Enter") return
+                                // Enter that confirms an IME candidate is not a submit.
+                                if (event.key !== "Enter" || event.nativeEvent.isComposing) return
                                 event.preventDefault()
                                 continueRef.current()
                             }}

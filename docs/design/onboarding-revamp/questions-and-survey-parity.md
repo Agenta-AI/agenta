@@ -15,7 +15,7 @@ mapping that makes them one.
 | `company_size_v2` | string | onboarding; the survey only with `$set_once` while it still asks size | Solo, 2-10, 11-50, 51-200, 201+ |
 | `referral_source_v2` | string | onboarding only | the source labels below |
 | `agent_experience_v2` | string | the survey | Not yet — just exploring, Built prototypes or side projects, Running some in production, Running many at scale |
-| `is_icp_v2` | boolean | the survey, only when it has all three inputs | derived, see below |
+| `is_icp_v2` | boolean | nobody from now on; older persons keep the survey's value | derived in reporting, see below |
 
 One writer per topic. The onboarding owns role, size and source. The survey keeps agent
 experience, intent and the email backfill. PostHog person properties are last-write-wins and
@@ -24,9 +24,9 @@ stops asking role and size, it writes them with `$set_once`: it fills them for s
 never saw the onboarding and never replaces an onboarding answer. Its referral answer is a
 list, so it stays on the `survey sent` event and is not written to `referral_source_v2`.
 
-`is_icp_v2` needs company size, role and agent experience. After the survey stops asking role
-and size, its form writes the property only when every input is present, so it never
-overwrites a real answer with `false`; reporting derives it instead (see below).
+`is_icp_v2` needs company size, role and agent experience, which now arrive from two surfaces.
+No form writes it any more, so a stored value can never disagree with the stored inputs;
+reporting derives it instead (see below).
 
 ## Role: old label to new chip
 
@@ -93,12 +93,11 @@ and hosting as the only repeated real ones.
 ## is_icp_v2
 
 Definition: company size in 11-50, 51-200 or 201+, role not Student or Hobbyist, and agent
-experience not "Not yet — just exploring". The survey form excludes Student as well now, so
-the stored property and the derived number agree.
+experience not "Not yet — just exploring".
 
 The role test matches any label starting with "Hobbyist", so a rename cannot flip the result.
-Because the inputs now arrive from two surfaces, derive the number in reporting rather than
-trusting the stored property:
+The stored property is frozen at what the survey wrote before this change, so derive the
+number in reporting:
 
 ```sql
 SELECT
