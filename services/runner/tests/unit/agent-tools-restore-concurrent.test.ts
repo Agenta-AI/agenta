@@ -12,7 +12,14 @@
  * Run: pnpm exec vitest run tests/unit/agent-tools-restore-concurrent.test.ts
  */
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "vitest";
@@ -49,6 +56,15 @@ function deferred<T = void>() {
     reject = rej;
   });
   return { promise, resolve, reject };
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function withTimeout<T>(promise: Promise<T>, what: string): Promise<T> {
@@ -213,9 +229,72 @@ describe("agent tools restore during acquire", () => {
 
   describe("local runner", () => {
     let cwd: string;
+    let setupPid: number | undefined;
     afterEach(() => {
+      if (setupPid !== undefined && isAlive(setupPid)) {
+        try {
+          process.kill(-setupPid, "SIGKILL");
+        } catch {
+          /* already gone */
+        }
+      }
+      setupPid = undefined;
       rmSync(cwd, { recursive: true, force: true });
       rmSync(`${cwd}-agent`, { recursive: true, force: true });
+    });
+
+    it("stops a running setup.sh when the acquire fails after the session opened", async () => {
+      cwd = mkdtempSync(join(tmpdir(), "agenta-tools-failed-acquire-"));
+      const agentDir = `${cwd}-agent`;
+      mkdirSync(join(agentDir, ".tools"), { recursive: true });
+      // Records its pid, then runs until something kills it.
+      writeFileSync(
+        join(agentDir, ".tools", "setup.sh"),
+        `echo $$ > "$AGENT_FILES/pid"\nwhile true; do sleep 0.05; done\n`,
+      );
+      const pidFile = join(agentDir, "pid");
+      const { deps } = fakeHarness({ cwd });
+      deps.signAgentMountCredentials = (async () => AGENT_MOUNT_CREDS) as any;
+      deps.mountStorage = (async () => true) as any;
+      deps.unmountStorage = (async () => true) as any;
+      // Fails the acquire after `create_session`, once the setup script is known to be running.
+      deps.applyModel = async () => {
+        await withTimeout(
+          (async () => {
+            while (!existsSync(pidFile) || !readFileSync(pidFile, "utf-8"))
+              await new Promise((resolve) => setTimeout(resolve, 20));
+          })(),
+          "setup.sh start",
+        );
+        setupPid = Number(readFileSync(pidFile, "utf-8").trim());
+        throw new Error("model selection failed");
+      };
+
+      const result = await withTimeout(
+        acquireEnvironment(
+          {
+            harness: "pi_core",
+            permissions: { default: "allow" },
+            runContext: { workflow: { artifact: { id: "artifact-1" } } },
+            telemetry: {
+              exporters: {
+                otlp: { headers: { authorization: "ApiKey run" } },
+              },
+            },
+            messages: [{ role: "user", content: "hello" }],
+          } as AgentRunRequest,
+          deps,
+        ),
+        "the acquire",
+      );
+
+      assert.equal(result.ok, false);
+      assert.ok(setupPid, "setup.sh recorded its pid");
+      assert.equal(
+        isAlive(setupPid!),
+        false,
+        "setup.sh does not outlive the failed acquire",
+      );
     });
 
     it("opens the session while the owner's setup.sh is still running", async () => {

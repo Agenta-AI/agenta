@@ -502,6 +502,11 @@ async function acquireEnvironmentOnce(
   // acquire that fails in between would leave it running with nothing observing it. This is
   // how the failure path ends it; see the kickoff and the catch below.
   const preflightAbort = new AbortController();
+  // The agent tools restore runs while the session opens and is awaited at the end, so it has the
+  // same problem. Its own controller lets the failure path stop the restore's shell even when the
+  // acquire signal never fired; a Stop still reaches it through the link at the kickoff.
+  const agentToolsAbort = new AbortController();
+  let agentToolsRestore: Promise<void> | undefined;
 
   // ---- MountLifecycle ------------------------------------------------------------------ //
   // The six mount helpers moved to `environment/mount-lifecycle.ts`. They used to be mutually
@@ -1249,7 +1254,6 @@ async function acquireEnvironmentOnce(
     // agent mount and the cwd, and it can take seconds (a `setup.sh` that builds a venv). The
     // acquire awaits it before it reports the environment ready, and the first prompt is sent only
     // after that, so no model command can run before the tools are in place.
-    let agentToolsRestore: Promise<void> | undefined;
     if (environment.agentMountedPath && plan.harnessInRunner) {
       // `inprocess` never runs owner code on the runner host. The restore runs in the command
       // sandbox right before its first command, after the workspace sync has pushed `.tools/`.
@@ -1269,8 +1273,10 @@ async function acquireEnvironmentOnce(
     } else if (environment.agentMountedPath) {
       const agentToolsStartedAt = Date.now();
       const mountPath = environment.agentMountedPath;
-      // `runAgentToolsSetup` never rejects (every failure is a result), so the promise left
-      // pending while the steps below run cannot become an unhandled rejection.
+      // `runAgentToolsSetup` turns every failure into a result. The `.catch` below is the guard
+      // for anything that still rejects (the timing log included), so the promise left pending
+      // while the steps below run, and never awaited when acquire fails on Daytona, cannot become
+      // an unhandled rejection.
       agentToolsRestore = runAgentToolsSetup(
         {
           mountPath,
@@ -1285,7 +1291,9 @@ async function acquireEnvironmentOnce(
           : localAgentToolsExec,
         {
           log: logger,
-          signal,
+          signal: signal
+            ? AbortSignal.any([signal, agentToolsAbort.signal])
+            : agentToolsAbort.signal,
           hostEnv: process.env,
           // Local: a stat is cheaper than a shell. Remote: the script's own `[ -d ]` is the check.
           ...(plan.isDaytona
@@ -1295,10 +1303,16 @@ async function acquireEnvironmentOnce(
                   existsSync(join(mountPath, AGENT_TOOLS_DIR_NAME)),
               }),
         },
-      ).then(() => {
-        // The restore's own duration, not the time until the acquire awaited it.
-        timingLog("agent_tools_setup", agentToolsStartedAt);
-      });
+      )
+        .then(() => {
+          // The restore's own duration, not the time until the acquire awaited it.
+          timingLog("agent_tools_setup", agentToolsStartedAt);
+        })
+        .catch((err: unknown) => {
+          logger(
+            `agent tools setup error: ${conciseError(err, plan.harness)}`,
+          );
+        });
     }
 
     const prepareWorkspaceStartedAt = Date.now();
@@ -1705,6 +1719,14 @@ async function acquireEnvironmentOnce(
     // nothing downstream will ever read it, and its runner-side auth call must not outlive the
     // acquire that started it.
     preflightAbort.abort();
+    // Stop a tools restore that is still running, and wait for its shell to exit before the
+    // teardown below removes the local tools dir and the cwd it writes into. The local exec kills
+    // its process group on abort. A Daytona restore ignores the signal, and destroying the sandbox
+    // ends it, so it is not awaited (it could hold the teardown for its whole timeout).
+    agentToolsAbort.abort();
+    if (agentToolsRestore && !plan.isDaytona) {
+      await agentToolsRestore.catch(() => {});
+    }
     // DELIBERATELY WITHOUT `daytonaCredentialFresh`, unlike the two call sites in `run-turn.ts`.
     // Acquire INSTALLS the model credential but never exercises it: the first model call belongs
     // to the turn. The one credential-shaped failure this path can raise is the preflight's
