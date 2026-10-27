@@ -8,9 +8,9 @@ the SDK, and the sandbox never receives the value.
 """
 
 import pytest
-
 from oss.tests.pytest.acceptance.organization_secrets.conftest import (
     llm_gateway_disabled,
+    organization_scope,
     provider_key,
     unique,
 )
@@ -39,7 +39,9 @@ def _run_credential(org) -> str:
 
 def test_the_run_credential_never_receives_an_organization_row(org, gateway_off):
     company = org.call(
-        "POST", "/organization-secrets/", json=provider_key(slug=unique("off"), key=KEY)
+        "POST",
+        "/secrets/",
+        json=organization_scope(provider_key(slug=unique("off"), key=KEY)),
     )
     assert company.status_code == 200, company.text
     run = _run_credential(org)
@@ -68,7 +70,9 @@ def test_a_named_organization_slug_is_not_served(org, gateway_off):
     slug = unique("off-named")
     assert (
         org.call(
-            "POST", "/organization-secrets/", json=provider_key(slug=slug, key=KEY)
+            "POST",
+            "/secrets/",
+            json=organization_scope(provider_key(slug=slug, key=KEY)),
         ).status_code
         == 200
     )

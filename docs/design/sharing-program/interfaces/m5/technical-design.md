@@ -44,11 +44,11 @@ Scope: backend first. OpenSpec `tasks.md` sections 1 (schema), 2 (core), 3 (acce
 
 | File | Change |
 | --- | --- |
-| `oss/src/apis/fastapi/organization_secrets/{__init__,router,models}.py` (NEW) | `OrganizationSecretsRouter`, request and response models, `handle_organization_secret_exceptions`. |
-| `oss/src/apis/fastapi/vault/router.py` | `include_organization`. |
+| `oss/src/apis/fastapi/vault/{router,models}.py` | The `/secrets/` routes serve organization rows too (`scope` on create and list, owner-based lookup on the by-id routes, `PUT /secrets/{id}/projects`, the scoped release read), `include_organization`, `handle_organization_secret_exceptions`. |
+| `oss/src/routers/projects_router.py` | `GET /projects/?scope=organization` for the project choice. |
 | `oss/src/apis/fastapi/gateways/llms/{models,router,proxy}.py`, `gateways/exceptions.py` | `connection_scope`; the `organization` relay routes; the two new error mappings. |
 | `oss/src/apis/fastapi/providers/{models,router}.py` | `secret_scope` on the probe. |
-| `entrypoints/routers.py` | `VaultService(..., project_limits=...)`; two resolvers (`plane=LLM` for the LLM gateway, `plane=MCP` for every other user); mount `OrganizationSecretsRouter` with `tags=["Organization Secrets"]`. |
+| `entrypoints/routers.py` | `VaultService(..., project_limits=...)`; two resolvers (`plane=LLM` for the LLM gateway, `plane=MCP` for every other user). |
 | `web/packages/agenta-api-client/src/generated/**` | Fern regeneration. |
 
 ### 1.4 SDK and web
@@ -77,11 +77,11 @@ Scope: backend first. OpenSpec `tasks.md` sections 1 (schema), 2 (core), 3 (acce
 
 `VIEW_SECRET` check (unchanged). No `secret-resolve` grant -> `list_project_and_organization_secrets` (the same one entry read as `GET /secrets/`) -> project rows through `project_secret_response`, then each organization row through `organization_connection_response` (no values, no preview, no other project ids).
 
-### 2.5 Owner adds a company key (`POST /organization-secrets/`)
+### 2.5 Owner adds a company key (`POST /secrets/` with `scope = organization`)
 
 `decide_organization` (one statement) -> kind, family, value and served-deployment checks (in memory) -> the default name "OpenAI (Organization)" when none is given -> ONE transaction: insert (unique organization slug index), availability (`all_projects` by default) and `secret_projects` with the organization check; any refusal rolls everything back -> after the commit: `list_organization_project_ids`, exact `DEL` of each project's entry, `clear_request_memo()`, the audit event -> response without value.
 
-### 2.6 EE admin limits a key (`PUT /organization-secrets/{id}/projects`)
+### 2.6 EE admin limits a key (`PUT /secrets/{id}/projects`)
 
 `decide_organization` -> `selected_projects`: `project_limits.allows_selected_projects` (EE: RBAC entitlement, 30 s memo; OSS: 403) -> ONE transaction: lock the organization row, set availability, replace `secret_projects` (organization-checked) -> after the commit, invalidate. An agent of a removed project that names the connection fails with `connection_not_found`; a pinned id fails with not-found.
 
@@ -92,9 +92,9 @@ Scope: backend first. OpenSpec `tasks.md` sections 1 (schema), 2 (core), 3 (acce
 ### 2.8 An agent that names an organization subscription login
 
 1. The agent saves `{"mode": "self_managed", "scope": "organization", "namespace": "organization", "slug": "chatgpt"}`.
-2. The SDK reads `GET /secrets/organization-subscriptions/chatgpt` with the run credential (`secret-resolve` grant). The API answers the row with its login only when it is an organization `subscription_provider` available to the run's project (one entry read). A Claude login resolves like a project one: its setup-token travels as an `env` credential, and steps 3 and 4 do not apply to it.
+2. The SDK reads `GET /secrets/chatgpt?scope=organization` with the run credential (`secret-resolve` grant). The API answers the row with its login only when it is an organization `subscription_provider` available to the run's project (one entry read). A Claude login resolves like a project one: its setup-token travels as an `env` credential, and steps 3 and 4 do not apply to it.
 3. The SDK sends the login as `organizationSubscription`, with the fence marker in `subscription`. A runner older than M5 ignores `organizationSubscription` and refuses the fence as an unusable login, so it never runs the login and never uses an operator login. An M5 runner accepts it for Pi with a ChatGPT login and runs it exactly like a project login, on every engine.
-4. Upkeep: refreshes and failures go to `/secrets/{id}/subscription-login[/failure]?scope=organization`, which writes the organization row after the availability check. A device login started from `/organization-secrets/{id}/login-attempts` carries `organizationId`, and its outcome names `organization_id`.
+4. Upkeep: refreshes and failures go to `/secrets/{id}/subscription-login[/failure]?scope=organization`, which writes the organization row after the availability check. A device login started from `/secrets/{id}/login-attempts` on an organization row carries `organizationId`, and its outcome names `organization_id`.
 
 ## 3. Request counts (every cache mode)
 

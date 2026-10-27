@@ -126,7 +126,6 @@ from oss.src.core.providers.service import ProviderProbeService
 
 # Routers
 from oss.src.apis.fastapi.vault.router import VaultRouter
-from oss.src.apis.fastapi.organization_secrets.router import OrganizationSecretsRouter
 from oss.src.apis.fastapi.providers.router import ProvidersRouter
 from oss.src.apis.fastapi.webhooks.router import WebhooksRouter
 from oss.src.apis.fastapi.auth.router import auth_router
@@ -1163,11 +1162,6 @@ _t_routers = time.perf_counter()
 
 # ROUTERS ----------------------------------------------------------------------
 
-organization_secrets = OrganizationSecretsRouter(
-    vault_service=vault_service,
-    subscription_login_service=subscription_login_service,
-)
-
 secrets = VaultRouter(
     vault_service=vault_service,
     subscription_login_service=subscription_login_service,
@@ -1739,11 +1733,6 @@ _t_mount_routers = time.perf_counter()
 app.include_router(
     router=secrets.router,
     tags=["Secrets"],
-)
-
-app.include_router(
-    router=organization_secrets.router,
-    tags=["Organization Secrets"],
 )
 
 app.include_router(

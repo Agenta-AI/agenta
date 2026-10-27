@@ -87,18 +87,18 @@ def test_an_sso_id_answers_404_on_every_organization_route_and_stays(org, sso_se
     before = _run(lambda: _stored(sso_secret))
     assert before is not None
     for method, path, body in (
-        ("GET", f"/organization-secrets/{sso_secret}", None),
-        ("PUT", f"/organization-secrets/{sso_secret}", {"header": {"name": "x"}}),
-        ("DELETE", f"/organization-secrets/{sso_secret}", None),
+        ("GET", f"/secrets/{sso_secret}", None),
+        ("PUT", f"/secrets/{sso_secret}", {"header": {"name": "x"}}),
+        ("DELETE", f"/secrets/{sso_secret}", None),
         (
             "PUT",
-            f"/organization-secrets/{sso_secret}/projects",
+            f"/secrets/{sso_secret}/projects",
             {"availability": "selected_projects", "project_ids": [org.sales]},
         ),
     ):
         response = org.call(method, path, json=body)
         assert response.status_code == 404, (method, path, response.text)
-    listed = org.call("GET", "/organization-secrets/")
+    listed = org.call("GET", "/secrets/?scope=organization")
     assert sso_secret not in listed.text and SSO_SECRET not in listed.text
     assert _run(lambda: _stored(sso_secret)) == before
 

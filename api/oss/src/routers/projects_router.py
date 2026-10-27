@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -7,6 +7,8 @@ from fastapi import Request, HTTPException
 from sqlalchemy.exc import NoResultFound
 from fastapi.responses import JSONResponse
 
+from oss.src.core.access.context import get_request_access
+from oss.src.core.access.organizations import OrganizationAction, decide_organization
 from oss.src.core.access.service import (
     invalidate_scope_after_delete,
     read_scope_principals_before_delete,
@@ -89,6 +91,35 @@ async def _fetch_listing(request: Request, project_id) -> Optional[ProjectListin
     )
 
 
+async def _organization_projects(request: Request) -> List[ProjectsResponse]:
+    """Every project of the request's organization, also the ones the caller is not a
+    member of, for an owner or admin choosing who may use an organization connection."""
+    raw = getattr(request.state, "organization_id", None)
+    organization_id = UUID(str(raw)) if raw else None
+    decision = (
+        await decide_organization(
+            access=get_request_access(),
+            organization_id=organization_id,
+            action=OrganizationAction.MANAGE_ORGANIZATION_SECRETS,
+        )
+        if organization_id
+        else None
+    )
+    if decision is None or not decision.allowed:
+        raise HTTPException(status_code=403, detail=_PERMISSION_DENIED)
+    projects = await db_manager.fetch_projects_by_organization(organization_id)
+    return [
+        ProjectsResponse(
+            organization_id=project.organization_id,
+            workspace_id=project.workspace_id,
+            project_id=project.id,
+            project_name=project.project_name,
+            is_default_project=bool(project.is_default),
+        )
+        for project in projects
+    ]
+
+
 @router.get(
     "/",
     operation_id="get_projects",
@@ -96,7 +127,10 @@ async def _fetch_listing(request: Request, project_id) -> Optional[ProjectListin
 )
 async def get_projects(
     request: Request,
+    scope: Literal["member", "organization"] = "member",
 ):
+    if scope == "organization":
+        return await _organization_projects(request)
     try:
         if not (is_oss() or is_ee()):
             return JSONResponse(

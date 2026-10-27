@@ -1,5 +1,5 @@
 from re import sub
-from typing import Optional, Union, List, Dict, Any
+from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -604,6 +604,19 @@ class CreateSecretDTO(Slug, BaseModel):
     header: Header
     secret: SecretDTO
     write_only: bool = True
+    # `organization` creates a connection of the request's organization, which every
+    # project can use, or (in EE with RBAC) only the listed projects.
+    scope: Literal["project", "organization"] = "project"
+    availability: Optional[SecretAvailability] = None
+    project_ids: Optional[List[UUID]] = None
+
+    @model_validator(mode="after")
+    def projects_only_for_organization_scope(self):
+        if self.scope != "organization" and (
+            self.availability is not None or self.project_ids is not None
+        ):
+            raise ValueError("availability and project_ids need scope organization")
+        return self
 
     @model_validator(mode="after")
     def force_write_only_on_unreadable_kinds(self):

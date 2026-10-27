@@ -8,13 +8,13 @@ from uuid import uuid4
 
 import pytest
 import requests
-
 from oss.src.utils.common import is_ee
 from oss.tests.pytest.acceptance.organization_secrets.conftest import (
     BASE_TIMEOUT,
     MOCK_LLM_URL,
     MOCK_UPSTREAM_TOKEN,
     custom_provider,
+    organization_scope,
     provider_key,
     unique,
 )
@@ -30,8 +30,8 @@ def company(org):
     """An organization OpenAI key (never sent upstream) for the redaction cases."""
     created = org.call(
         "POST",
-        "/organization-secrets/",
-        json=provider_key(slug=unique("openai-company"), key=KEY),
+        "/secrets/",
+        json=organization_scope(provider_key(slug=unique("openai-company"), key=KEY)),
     )
     assert created.status_code == 200, created.text
     return created.json()
@@ -115,8 +115,8 @@ def test_no_route_returns_an_organization_value(org, company):
         ("GET", "/secrets/", {"include_organization": "true"}),
         ("GET", f"/secrets/{company['id']}", {}),
         ("GET", f"/secrets/{company['slug']}", {}),
-        ("GET", "/organization-secrets/", {}),
-        ("GET", f"/organization-secrets/{company['id']}", {}),
+        ("GET", "/secrets/?scope=organization", {}),
+        ("GET", f"/secrets/{company['id']}", {}),
         ("GET", "/gateways/llms/endpoints/", {}),
     ]
     for caller in callers:
@@ -146,7 +146,7 @@ def test_project_routes_do_not_touch_organization_rows(org, company):
         assert (
             org.call("GET", f"/secrets/{company['slug']}", as_=who).status_code == 404
         )
-    stored = org.call("GET", f"/organization-secrets/{company['id']}").json()
+    stored = org.call("GET", f"/secrets/{company['id']}").json()
     assert stored["header"]["name"] == company["header"]["name"]
 
 
@@ -161,7 +161,7 @@ def test_a_project_row_may_reuse_an_organization_slug(org, company):
     )
     assert response.status_code == 200, response.text
     try:
-        stored = org.call("GET", f"/organization-secrets/{company['id']}").json()
+        stored = org.call("GET", f"/secrets/{company['id']}").json()
         assert stored["data"]["kind"] == "openai"
     finally:
         org.call("DELETE", f"/secrets/{response.json()['id']}", as_="editor")
@@ -175,8 +175,10 @@ def company_mock(org):
     slug = unique("mock-company")
     created = org.call(
         "POST",
-        "/organization-secrets/",
-        json=provider_key(slug=slug, key=MOCK_UPSTREAM_TOKEN, family="mock"),
+        "/secrets/",
+        json=organization_scope(
+            provider_key(slug=slug, key=MOCK_UPSTREAM_TOKEN, family="mock")
+        ),
     )
     assert created.status_code == 200, created.text
     return created.json()
@@ -212,9 +214,11 @@ def _company_custom(org, *, slug, echo=False):
     url = f"{MOCK_LLM_URL}/__echo/v1" if echo else f"{MOCK_LLM_URL}/v1"
     created = org.call(
         "POST",
-        "/organization-secrets/",
-        json=custom_provider(
-            slug=slug, key=MOCK_UPSTREAM_TOKEN, url=url, models=("mock/echo",)
+        "/secrets/",
+        json=organization_scope(
+            custom_provider(
+                slug=slug, key=MOCK_UPSTREAM_TOKEN, url=url, models=("mock/echo",)
+            )
         ),
     )
     assert created.status_code == 200, created.text
@@ -297,8 +301,10 @@ def test_a_pinned_organization_credential_never_substitutes(org, gateway_on):
     slug = unique("pinned")
     created = org.call(
         "POST",
-        "/organization-secrets/",
-        json=provider_key(slug=slug, key=MOCK_UPSTREAM_TOKEN, family="mock"),
+        "/secrets/",
+        json=organization_scope(
+            provider_key(slug=slug, key=MOCK_UPSTREAM_TOKEN, family="mock")
+        ),
     ).json()
     # Marketing also holds a valid key of its own, under another slug.
     own = org.call(
@@ -315,7 +321,7 @@ def test_a_pinned_organization_credential_never_substitutes(org, gateway_on):
         if is_ee():
             limited = org.call(
                 "PUT",
-                f"/organization-secrets/{created['id']}/projects",
+                f"/secrets/{created['id']}/projects",
                 json={"availability": "selected_projects", "project_ids": [org.sales]},
             )
             assert limited.status_code == 200
@@ -324,13 +330,10 @@ def test_a_pinned_organization_credential_never_substitutes(org, gateway_on):
             )
             org.call(
                 "PUT",
-                f"/organization-secrets/{created['id']}/projects",
+                f"/secrets/{created['id']}/projects",
                 json={"availability": "all_projects"},
             )
-        assert (
-            org.call("DELETE", f"/organization-secrets/{created['id']}").status_code
-            == 204
-        )
+        assert org.call("DELETE", f"/secrets/{created['id']}").status_code == 204
         assert _relay(org, f"/gateways/llms/organization/{slug}/v1").status_code != 200
     finally:
         org.call("DELETE", f"/secrets/{own['id']}", as_="editor", project=org.marketing)
@@ -342,12 +345,14 @@ def test_ee_limit_to_sales(org, admin_api):
     slug = unique("limited")
     created = org.call(
         "POST",
-        "/organization-secrets/",
-        json={
-            **provider_key(slug=slug, key=MOCK_UPSTREAM_TOKEN, family="mock"),
-            "availability": "selected_projects",
-            "project_ids": [org.sales],
-        },
+        "/secrets/",
+        json=organization_scope(
+            {
+                **provider_key(slug=slug, key=MOCK_UPSTREAM_TOKEN, family="mock"),
+                "availability": "selected_projects",
+                "project_ids": [org.sales],
+            }
+        ),
     )
     assert created.status_code == 200, created.text
     in_marketing = org.call(
@@ -379,18 +384,20 @@ def test_deleting_the_only_selected_project_leaves_the_row_with_no_project(
     slug = unique("doomed")
     created = org.call(
         "POST",
-        "/organization-secrets/",
-        json={
-            **provider_key(slug=slug, key=KEY),
-            "availability": "selected_projects",
-            "project_ids": [project],
-        },
+        "/secrets/",
+        json=organization_scope(
+            {
+                **provider_key(slug=slug, key=KEY),
+                "availability": "selected_projects",
+                "project_ids": [project],
+            }
+        ),
     ).json()
     assert (
         admin_api("DELETE", f"/admin/simple/accounts/projects/{project}").status_code
         == 200
     )
-    stored = org.call("GET", f"/organization-secrets/{created['id']}").json()
+    stored = org.call("GET", f"/secrets/{created['id']}").json()
     assert stored["availability"] == "selected_projects"
     assert stored.get("selected_project_ids", []) == []
     for project_id in (org.sales, org.marketing):
@@ -409,8 +416,8 @@ def test_a_new_project_lists_an_all_projects_connection(org):
     try:
         created = org.call(
             "POST",
-            "/organization-secrets/",
-            json=provider_key(slug=unique("for-new"), key=KEY),
+            "/secrets/",
+            json=organization_scope(provider_key(slug=unique("for-new"), key=KEY)),
         ).json()
         listed = org.call(
             "GET",

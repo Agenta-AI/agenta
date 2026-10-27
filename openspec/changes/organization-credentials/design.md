@@ -23,8 +23,8 @@ An organization credential value (the primary value and every credential extras 
 The LLM gateway resolves organization connections in process, and the sandbox receives only a gateway-audience credential. HTTP reads treat organization rows as follows:
 
 - `GET /secrets/` lists project rows, as today. With `include_organization=true` it adds the organization rows available to the project, without values and without previews. A request with the `secret-resolve` grant never receives organization rows; the parameter is ignored for it.
-- `GET /secrets/{id_or_slug}`, `PUT` and `DELETE /secrets/{id}` stay project-only.
-- `/organization-secrets/*` never returns a value or a partial value (no key preview), also to owners. Admins replace values; they do not read them back.
+- `GET /secrets/{id}`, `PUT` and `DELETE /secrets/{id}` answer a project caller exactly as before. They reach an organization row only for an owner or admin of the organization (route section).
+- An organization row never returns a value or a partial value (no key preview), also to owners. Admins replace values; they do not read them back.
 - `POST /providers/probe` tests an organization connection as saved for any member of a project it is available to (`secret_scope = organization`); a probe that changes a stored field needs the organization access decision. The value goes from the API to the provider only.
 - Every model that holds a value sets `hide_input_in_errors`, and the secrets DAO raises domain errors without SQL parameters, so no value reaches a log.
 
@@ -81,13 +81,13 @@ The rule is the same in OSS and EE. It reads no entitlement, project row, projec
 
 ### D9. Organization subscription logins (owner decision, 2026-10-26)
 
-An organization may hold a ChatGPT or Claude subscription login. It is created and signed in only by an organization owner or admin (`/organization-secrets/`, with its own `login-attempts` and `subscription-token` routes behind the organization decision), named with its owner ("ChatGPT (Organization)") and available to all projects by default. An agent uses it only when it names it: `{"mode": "self_managed", "scope": "organization", "namespace": "organization", "slug": ...}`.
+An organization may hold a ChatGPT or Claude subscription login. It is created and signed in only by an organization owner or admin (`POST /secrets/` with `scope = organization`, then the `login-attempts` and `subscription-token` routes on the row, behind the organization decision), named with its owner ("ChatGPT (Organization)") and available to all projects by default. An agent uses it only when it names it: `{"mode": "self_managed", "scope": "organization", "namespace": "organization", "slug": ...}`.
 
 A subscription login is the one organization value that leaves the API, because the harness authenticates itself with it. Once released to a run, it behaves exactly like a project subscription login of the same provider, on the same engines (owner decision, 2026-10-27). A project ChatGPT login already runs on the `inprocess`, `daytona` and `local` engines, and a project Claude setup-token travels as an environment credential; an organization login does the same. An earlier draft kept organization logins on the `inprocess` engine only and refused organization Claude logins. The owner removed both limits.
 
 Where each check runs, given runner and services version skew:
 
-- The API releases the login only to the run's own credential (`secret-resolve` grant) of a project it is available to, from `GET /secrets/organization-subscriptions/{slug}` (not in the OpenAPI schema). The plaintext vault list never carries it.
+- The API releases the login only to the run's own credential (`secret-resolve` grant) of a project it is available to, from `GET /secrets/{slug}?scope=organization`. The plaintext vault list never carries it.
 - The SDK puts the login in its own wire field, `organizationSubscription`, and puts the marker `{"fence": "organization"}` in `subscription`. A runner older than M5 does not read `organizationSubscription`; it reads the marker as an unusable subscription and refuses the run (`SUBSCRIPTION_INVALID_MESSAGE`), so it never runs the login and never falls back to an operator login. An M5 runner accepts the marker only beside `organizationSubscription`.
 - The runner checks the shape when it builds the run plan (Pi with a ChatGPT login, runtime-provided credentials, no project `subscription` on the same run) and refuses otherwise. On every engine it then builds the same plan as for a project login, owned by the organization.
 - An organization Claude login resolves in the SDK like a project one: its setup-token travels as an environment credential. A runner older than M5 that receives it uses that token, which is the login the agent named.
@@ -96,7 +96,16 @@ Upkeep writes the organization row: the runner sends refreshes and failures with
 
 ## Routes
 
-`/organization-secrets/`: `POST /`, `GET /`, `GET /{secret_id}`, `PUT /{secret_id}` (keeps the value when omitted), `DELETE /{secret_id}`, and `PUT /{secret_id}/projects` (EE limit). Every route requires `MANAGE_ORGANIZATION_SECRETS`. The separate prefix avoids clashes with `GET /organizations/{organization_id}` and `GET /secrets/{secret_id_or_slug}`. Create accepts an optional slug; without one the server derives `<name>-<12 hex>`. Responses carry `owner`, `availability` and `selected_project_ids`.
+Organization rows use the `/secrets/` routes (owner decision, 2026-10-27: no copied routes):
+
+- `POST /secrets/` with `scope = organization` creates one, with optional `availability` and `project_ids`. Create accepts an optional slug; without one the server derives `<name>-<12 hex>`.
+- `GET /secrets/?scope=organization` lists every connection of the organization.
+- `GET`, `PUT` and `DELETE /secrets/{secret_id}`, `PUT /secrets/{secret_id}/subscription-token` and the `login-attempts` routes find the row: the project's row under project RBAC first, as before; else the organization's row for an owner or admin.
+- `PUT /secrets/{secret_id}/projects` sets the EE limit.
+- `GET /secrets/{slug}?scope=organization` releases an organization subscription login to a run.
+- `GET /projects/?scope=organization` lists every project of the organization for the project choice.
+
+Every organization route and lookup requires `MANAGE_ORGANIZATION_SECRETS`, except the release read, which needs the run's own credential. Responses on organization rows carry `owner`, `availability` and `selected_project_ids`.
 
 ## Data structures
 

@@ -1069,12 +1069,12 @@ class VaultConnectionResolver:
     ) -> ResolvedConnection:
         """An organization subscription login the agent named (M5).
 
-        The API releases it to the run's own credential only, from its own route; the
-        plaintext vault list never carries organization rows."""
+        The API releases it to the run's own credential only, on the organization scope of
+        the secret read; the plaintext vault list never carries organization rows."""
         try:
             async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
                 response = await client.get(
-                    f"{api_base}/secrets/organization-subscriptions/{slug}",
+                    f"{api_base}/secrets/{slug}?scope=organization",
                     headers=self._connection.headers(authorization=authorization),
                 )
         except Exception as exc:  # pylint: disable=broad-except

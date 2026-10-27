@@ -1,9 +1,20 @@
-"""Request and response shapes for the subscription login routes."""
+"""Request and response shapes of the secrets routes that take more than a secret."""
 
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from oss.src.core.secrets.enums import SecretAvailability
+
+
+class SecretProjectsRequest(BaseModel):
+    """Which projects may use an organization connection."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    availability: SecretAvailability
+    project_ids: List[UUID] = Field(default_factory=list)
 
 
 class SubscriptionTokenRequest(BaseModel):

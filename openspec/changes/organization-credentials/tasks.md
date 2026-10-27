@@ -20,7 +20,7 @@ Order follows the implementation sequence. Spec references: OC = organization-cr
 
 ## 4. Routes
 
-- [x] 4.1 `OrganizationSecretsRouter` at `/organization-secrets/` with the EE limit route (OC "EE limits").
+- [x] 4.1 Organization rows on the `/secrets/` routes (`scope = organization`, owner-based lookup by id) with the EE limit route `PUT /secrets/{id}/projects` (OC "EE limits"); `GET /projects/?scope=organization` for the project choice.
 - [x] 4.2 `GET /secrets/?include_organization=true`, never with organization rows under the `secret-resolve` grant; single-row and write routes stay project-only; members test an organization connection as saved (OC "never leave the API", "project routes").
 - [x] 4.3 Regenerate the Fern client from an EE OpenAPI spec.
 - [x] 4.4 Commit check for agent connections (organization connection complete; no check that named items exist) and the template default connection (OC "explicit connection").
@@ -34,7 +34,7 @@ Order follows the implementation sequence. Spec references: OC = organization-cr
 ## 5b. Organization subscription logins
 
 - [x] 5b.1 `subscription_provider` in `ORGANIZATION_SECRET_KINDS`, never a gateway target; organization create, device login and setup-token routes behind the organization decision (OC "organization subscription logins").
-- [x] 5b.2 `GET /secrets/organization-subscriptions/{slug}` for the run credential only; upkeep with `?scope=organization`, checked for availability.
+- [x] 5b.2 `GET /secrets/{slug}?scope=organization` for the run credential only; upkeep with `?scope=organization`, checked for availability.
 - [x] 5b.3 SDK: `organizationSubscription` wire field; organization Claude login resolves like a project one (2026-10-27).
 - [x] 5b.4 Runner: every engine, like a project login (2026-10-27); upkeep and device login carry the organization owner.
 

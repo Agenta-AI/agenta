@@ -3,22 +3,22 @@
 ## ADDED Requirements
 
 ### Requirement: Organization access decision for organization credentials
-Every `/organization-secrets/` route SHALL call `decide_organization(access, organization_id, MANAGE_ORGANIZATION_SECRETS)` first and SHALL return HTTP 403 on a denial. The decision SHALL allow only a human principal of a browser session, with no run envelope, acting as itself, who has an `organization_members` row in the organization with role `owner` or `admin`. It SHALL NOT read entitlements, project rows, project roles or custom roles, in OSS and EE.
+Every `/secrets/` route that names the organization (`scope = organization` on create, `GET /secrets/?scope=organization`, `PUT /secrets/{secret_id}/projects`) SHALL call `decide_organization(access, organization_id, MANAGE_ORGANIZATION_SECRETS)` first and SHALL return HTTP 403 on a denial. A `/secrets/` route that addresses a row by id SHALL treat a project row exactly as before and SHALL reach an organization row only through the same decision. The decision SHALL allow only a human principal of a browser session, with no run envelope, acting as itself, who has an `organization_members` row in the organization with role `owner` or `admin`. It SHALL NOT read entitlements, project rows, project roles or custom roles, in OSS and EE.
 
 #### Scenario: Owner adds a company key
-- **WHEN** the organization owner posts a `provider_key` for OpenAI to `/organization-secrets/`
+- **WHEN** the organization owner posts a `provider_key` for OpenAI to `/secrets/` with `scope = organization`
 - **THEN** Agenta SHALL store one row with `organization_id` set and `project_id` NULL, and SHALL return it with `owner.kind = organization` and no value.
 
 #### Scenario: Member on an EE plan without RBAC
-- **WHEN** an EE organization has no `Flag.RBAC` entitlement and a member with organization role `editor` posts to `/organization-secrets/`
+- **WHEN** an EE organization has no `Flag.RBAC` entitlement and a member with organization role `editor` posts to `/secrets/` with `scope = organization`
 - **THEN** Agenta SHALL return HTTP 403 and SHALL NOT store a row.
 
 #### Scenario: API key
-- **WHEN** a request authenticated by an API key of a project calls `GET /organization-secrets/`, also when the key creator is an organization owner and also when the key is an M6 personal key with a human principal
+- **WHEN** a request authenticated by an API key of a project calls `GET /secrets/?scope=organization`, also when the key creator is an organization owner and also when the key is an M6 personal key with a human principal
 - **THEN** Agenta SHALL return HTTP 403.
 
 #### Scenario: Run credential
-- **WHEN** an agent run of an organization owner calls `GET /organization-secrets/` with its run credential
+- **WHEN** an agent run of an organization owner calls `GET /secrets/?scope=organization` with its run credential
 - **THEN** Agenta SHALL return HTTP 403.
 
 ### Requirement: Only shareable kinds
@@ -39,8 +39,15 @@ The organization routes SHALL remove surrounding whitespace from every credentia
 Every organization route SHALL address only shareable organization rows.
 
 #### Scenario: SSO secret id
-- **WHEN** an owner calls any `/organization-secrets/` route with the id of the organization's SSO secret
-- **THEN** Agenta SHALL return HTTP 404 and the SSO row SHALL stay unchanged.
+- **WHEN** an owner calls any `/secrets/{secret_id}` route with the id of the organization's SSO secret
+- **THEN** Agenta SHALL return HTTP 404 (HTTP 204 on a delete, which changes nothing) and the SSO row SHALL stay unchanged.
+
+### Requirement: Owners and admins choose among every project
+`GET /projects/?scope=organization` SHALL list every project of the request's organization, also the projects the caller is not a member of, for an owner or admin, and SHALL return HTTP 403 for anyone else.
+
+#### Scenario: Admin outside a project
+- **WHEN** an admin who is not a member of project Marketing opens the project choice of an organization connection
+- **THEN** Marketing SHALL be listed.
 
 ### Requirement: One owner per row and unique organization slugs
 Every `secrets` row SHALL have exactly one owner column set (`ck_secrets_single_owner`). The core API SHALL describe the owner as `SecretOwner` (CONTRACT.md section 8). Organization slugs SHALL be unique within the organization (`uq_secrets_organization_id_slug`); a duplicate create SHALL return HTTP 409. Create SHALL accept an optional slug; without one the server SHALL derive it from the name. The migration SHALL delete rows with no owner, and log the count, before it validates the constraint.
@@ -116,7 +123,7 @@ A commit SHALL NOT be refused because a named connection is missing or unusable 
 - **THEN** Agenta SHALL store the revision, and a runner that holds an operator login SHALL run it as on v0.125.0.
 
 ### Requirement: EE limits a credential to selected projects
-In EE, with the `Flag.RBAC` entitlement, `PUT /organization-secrets/{secret_id}/projects` SHALL set, in one transaction, `availability` to `all_projects` or `selected_projects` with project ids of the same organization. With `selected_projects`, only agents of listed projects SHALL use the connection, and with none listed, no project SHALL. OSS SHALL refuse `selected_projects` with HTTP 403. Resolution SHALL apply the same filter in both editions.
+In EE, with the `Flag.RBAC` entitlement, `PUT /secrets/{secret_id}/projects` SHALL set, in one transaction, `availability` to `all_projects` or `selected_projects` with project ids of the same organization. With `selected_projects`, only agents of listed projects SHALL use the connection, and with none listed, no project SHALL. OSS SHALL refuse `selected_projects` with HTTP 403. Resolution SHALL apply the same filter in both editions.
 
 #### Scenario: Limit to one project
 - **WHEN** an EE admin limits the OpenAI organization credential to project Sales
@@ -131,10 +138,10 @@ In EE, with the `Flag.RBAC` entitlement, `PUT /organization-secrets/{secret_id}/
 - **THEN** Agenta SHALL return HTTP 422 and SHALL NOT change the limit.
 
 ### Requirement: Organization admins manage organization subscription logins
-An organization owner or admin MAY create a `subscription_provider` (ChatGPT or Claude) at `/organization-secrets/` and sign it in through its `login-attempts` or `subscription-token` route. Its default name SHALL carry the owner ("ChatGPT (Organization)"), and it SHALL start available to all projects.
+An organization owner or admin MAY create a `subscription_provider` (ChatGPT or Claude) with `POST /secrets/` and `scope = organization`, and sign it in through its `login-attempts` or `subscription-token` route. Its default name SHALL carry the owner ("ChatGPT (Organization)"), and it SHALL start available to all projects.
 
 #### Scenario: Member creates a login
-- **WHEN** an organization member with role `editor` posts a `subscription_provider` to `/organization-secrets/`
+- **WHEN** an organization member with role `editor` posts a `subscription_provider` to `/secrets/` with `scope = organization`
 - **THEN** Agenta SHALL return HTTP 403 and SHALL NOT store a row.
 
 #### Scenario: Admin signs in
@@ -142,15 +149,15 @@ An organization owner or admin MAY create a `subscription_provider` (ChatGPT or 
 - **THEN** the runner SHALL report the outcome to the organization row, never to a project row.
 
 ### Requirement: Only the run credential receives an organization subscription login
-An agent SHALL use an organization subscription login only when it names it with `{"mode": "self_managed", "scope": "organization", "slug": ...}`. The API SHALL release it only to the run's own credential (`secret-resolve` grant) of a project it is available to, from `GET /secrets/organization-subscriptions/{slug}`.
+An agent SHALL use an organization subscription login only when it names it with `{"mode": "self_managed", "scope": "organization", "slug": ...}`. The API SHALL release it only to the run's own credential (`secret-resolve` grant) of a project it is available to, from `GET /secrets/{slug}?scope=organization`.
 
 #### Scenario: A browser reads the login
-- **WHEN** an organization owner calls `GET /secrets/organization-subscriptions/chatgpt` from a browser session
+- **WHEN** an organization owner calls `GET /secrets/chatgpt?scope=organization` from a browser session
 - **THEN** Agenta SHALL return HTTP 403.
 
 #### Scenario: Project not allowed
 - **WHEN** a run of a project the admin did not select names the organization ChatGPT login
-- **THEN** the release route SHALL return HTTP 404, and the run SHALL fail without using a project login.
+- **THEN** the release read SHALL return HTTP 404, and the run SHALL fail without using a project login.
 
 ### Requirement: Organization subscription logins behave like project ones
 Once released to a run, an organization subscription login SHALL behave exactly like a project subscription login of the same provider: the same harness, the same engines, and the same delivery. An organization Claude login SHALL be accepted like a project one. Refreshed logins and failures SHALL be written to the organization row (`?scope=organization`), only for a project the login is available to.

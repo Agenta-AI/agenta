@@ -1,6 +1,6 @@
 from functools import wraps
 from uuid import UUID
-from typing import List, Literal, Optional
+from typing import Awaitable, Callable, List, Literal, Optional, TypeVar
 
 from oss.src.utils.logging import get_module_logger
 
@@ -19,10 +19,11 @@ from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
     PublicSecretResponseDTO,
 )
-from oss.src.core.secrets.enums import SecretKind
+from oss.src.core.secrets.enums import SecretAvailability, SecretKind
 from oss.src.core.secrets.managed import ManagedSecretReadOnlyError
 from oss.src.core.secrets.redaction import (
     organization_connection_response,
+    organization_secret_response,
     organization_subscription_for_runtime,
     project_secret_response,
 )
@@ -31,6 +32,13 @@ from oss.src.core.secrets.subscription_service import (
     SubscriptionLoginService,
 )
 from oss.src.core.secrets.types import (
+    OrganizationSecretKindNotShareable,
+    OrganizationSecretNotFound,
+    OrganizationSecretNotServed,
+    OrganizationSecretValueNotScannable,
+    OrganizationSecretValueTooShort,
+    ProjectLimitNotAllowed,
+    ProjectNotInOrganization,
     SecretSlugConflict,
     ServerOwnedFieldNotWritable,
     SubscriptionLoginAttemptNotFound,
@@ -44,6 +52,7 @@ from oss.src.core.secrets.types import (
 )
 
 from oss.src.apis.fastapi.vault.models import (
+    SecretProjectsRequest,
     SubscriptionLoginAttemptResponse,
     SubscriptionLoginFailureRequest,
     SubscriptionLoginFailureResponse,
@@ -54,6 +63,8 @@ from oss.src.apis.fastapi.vault.models import (
 )
 from oss.src.apis.fastapi.shared.runner_auth import assert_runner_token
 
+from oss.src.core.access.context import get_request_access
+from oss.src.core.access.organizations import OrganizationAction, decide_organization
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 
@@ -61,6 +72,64 @@ from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT, request_has_grant
 
 
 log = get_module_logger(__name__)
+
+T = TypeVar("T")
+
+PROJECT_DENIED_MESSAGE = (
+    "You do not have access to perform this action. Please contact your organization "
+    "admin."
+)
+ORGANIZATION_DENIED_MESSAGE = (
+    "Only owners and admins of the organization, signed in to the app, can manage "
+    "organization credentials."
+)
+
+# A row that is not the caller's to address under this owner: the other owner is tried.
+_ROW_NOT_FOUND = (SubscriptionSecretNotFound, OrganizationSecretNotFound)
+
+_ORGANIZATION_UNPROCESSABLE = (
+    OrganizationSecretKindNotShareable,
+    OrganizationSecretNotServed,
+    OrganizationSecretValueNotScannable,
+    OrganizationSecretValueTooShort,
+    ProjectNotInOrganization,
+    ServerOwnedFieldNotWritable,
+)
+
+
+def handle_organization_secret_exceptions():
+    """The refusals of organization connections as their HTTP answers, with the domain
+    message only."""
+
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except _ORGANIZATION_UNPROCESSABLE as e:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.message
+                ) from None
+            except SecretSlugConflict as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, detail=e.message
+                ) from None
+            except ProjectLimitNotAllowed as e:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN, detail=e.message
+                ) from None
+            except OrganizationSecretNotFound as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail=e.message
+                ) from None
+            except SecretValueRequiredError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=e.message
+                ) from None
+
+        return wrapper
+
+    return decorator
 
 
 def handle_subscription_exceptions():
@@ -189,16 +258,6 @@ class VaultRouter:
             response_model_exclude_none=True,
             response_model=List[PublicSecretResponseDTO],
         )
-        # Before `/secrets/{secret_id_or_slug}` in reading order; two segments, so no clash.
-        self.router.add_api_route(
-            "/secrets/organization-subscriptions/{slug}",
-            self.read_organization_subscription,
-            methods=["GET"],
-            operation_id="read_organization_subscription",
-            response_model_exclude_none=True,
-            response_model=PublicSecretResponseDTO,
-            include_in_schema=False,
-        )
         self.router.add_api_route(
             "/secrets/{secret_id_or_slug}",
             self.read_secret,
@@ -212,6 +271,14 @@ class VaultRouter:
             self.update_secret,
             methods=["PUT"],
             operation_id="update_secret",
+            response_model_exclude_none=True,
+            response_model=PublicSecretResponseDTO,
+        )
+        self.router.add_api_route(
+            "/secrets/{secret_id}/projects",
+            self.set_secret_projects,
+            methods=["PUT"],
+            operation_id="set_secret_projects",
             response_model_exclude_none=True,
             response_model=PublicSecretResponseDTO,
         )
@@ -330,8 +397,87 @@ class VaultRouter:
                 ),
             )
 
+    @staticmethod
+    async def _managed_organization(request: Request) -> Optional[UUID]:
+        """The request's organization when the caller may manage its connections: a
+        browser-session owner or admin (`decide_organization`), never project RBAC."""
+        raw = getattr(request.state, "organization_id", None)
+        if not raw:
+            return None
+        organization_id = UUID(str(raw))
+        decision = await decide_organization(
+            access=get_request_access(),
+            organization_id=organization_id,
+            action=OrganizationAction.MANAGE_ORGANIZATION_SECRETS,
+        )
+        return organization_id if decision.allowed else None
+
+    @staticmethod
+    def _organization_denied() -> JSONResponse:
+        return JSONResponse({"detail": ORGANIZATION_DENIED_MESSAGE}, status_code=403)
+
+    @staticmethod
+    async def _allowed(request: Request, permission: Permission) -> bool:
+        return await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=permission,
+        )
+
+    async def _by_owner(
+        self,
+        request: Request,
+        permission: Permission,
+        *,
+        project: Callable[[], Awaitable[Optional[T]]],
+        organization: Callable[[UUID], Awaitable[Optional[T]]],
+    ) -> T:
+        """A row addressed by id: the project's row under project RBAC, else the
+        organization's row for an owner or admin of the organization. Each callable
+        returns None (or raises a not-found) when the row is not its owner's."""
+        allowed = await self._allowed(request, permission)
+        not_found: Optional[Exception] = None
+        if allowed:
+            try:
+                result = await project()
+            except _ROW_NOT_FOUND as e:
+                result, not_found = None, e
+            if result is not None:
+                return result
+        organization_id = await self._managed_organization(request)
+        if organization_id is not None:
+            try:
+                result = await organization(organization_id)
+            except _ROW_NOT_FOUND:
+                result = None
+            if result is not None:
+                return result
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail=PROJECT_DENIED_MESSAGE
+            )
+        if not_found is not None:
+            raise not_found
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
+        )
+
     @intercept_exceptions()
+    @handle_organization_secret_exceptions()
     async def create_secret(self, request: Request, body: CreateSecretDTO):
+        if body.scope == "organization":
+            organization_id = await self._managed_organization(request)
+            if organization_id is None:
+                return self._organization_denied()
+            secret = await self.service.create_organization_secret(
+                organization_id=organization_id,
+                create_secret_dto=body,
+                user_id=UUID(str(request.state.user_id)),
+                availability=body.availability or SecretAvailability.ALL_PROJECTS,
+                project_ids=body.project_ids or [],
+            )
+            return organization_secret_response(secret)
+
         has_permission = await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(request.state.project_id),
@@ -365,7 +511,22 @@ class VaultRouter:
         return self._for_caller(request, vault_secret)
 
     @intercept_exceptions()
-    async def list_secrets(self, request: Request, include_organization: bool = False):
+    async def list_secrets(
+        self,
+        request: Request,
+        include_organization: bool = False,
+        scope: Literal["project", "organization"] = "project",
+    ):
+        if scope == "organization":
+            # Every connection of the organization, with the projects that may use it.
+            organization_id = await self._managed_organization(request)
+            if organization_id is None:
+                return self._organization_denied()
+            secrets = await self.service.list_organization_secrets(
+                organization_id=organization_id
+            )
+            return [organization_secret_response(secret) for secret in secrets]
+
         has_permission = await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(request.state.project_id),
@@ -410,10 +571,9 @@ class VaultRouter:
             self._for_caller(request, secret_dto) for secret_dto in secrets_dtos
         ] + [organization_connection_response(secret) for secret in organization]
 
-    @intercept_exceptions()
-    async def read_organization_subscription(self, request: Request, slug: str):
-        """The organization subscription login a run named, for the platform runtime only
-        (M5): the run's own credential (`secret-resolve` grant) of a project the login is
+    async def _read_organization_subscription(self, request: Request, slug: str):
+        """The organization subscription login a run named, for the platform runtime only:
+        the run's own credential (`secret-resolve` grant) of a project the login is
         available to. The runner uses it like a project login."""
         self._require_platform_runtime(request)
         await self._require(request, Permission.VIEW_SECRET)
@@ -439,39 +599,50 @@ class VaultRouter:
         return organization_subscription_for_runtime(secret)
 
     @intercept_exceptions()
-    async def read_secret(self, request: Request, secret_id_or_slug: str):
-        has_permission = await check_action_access(
-            user_uid=str(request.state.user_id),
-            project_id=str(request.state.project_id),
-            permission=Permission.VIEW_SECRET,
-        )
-
-        if not has_permission:
-            error_msg = "You do not have access to perform this action. Please contact your organization admin."
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
+    @handle_organization_secret_exceptions()
+    async def read_secret(
+        self,
+        request: Request,
+        secret_id_or_slug: str,
+        scope: Literal["project", "organization"] = "project",
+    ):
+        if scope == "organization":
+            return await self._read_organization_subscription(
+                request, secret_id_or_slug
             )
 
         # A valid UUID means it's an id; anything else is a slug.
-        secret_id = None
-        secret_slug = None
         try:
-            secret_id = UUID(secret_id_or_slug).hex
+            secret_id = UUID(secret_id_or_slug)
         except ValueError:
-            secret_slug = secret_id_or_slug
+            secret_id = None
 
         if secret_id is not None:
-            secrets_dto = await self.service.get_secret_by_id(
-                project_id=UUID(request.state.project_id),
-                secret_id=UUID(secret_id),
-            )
-        else:
-            secrets_dto = await self.service.get_secret_by_slug(
-                project_id=UUID(request.state.project_id),
-                secret_slug=str(secret_slug),
+
+            async def project():
+                secret = await self.service.get_secret_by_id(
+                    project_id=UUID(request.state.project_id), secret_id=secret_id
+                )
+                return self._for_caller(request, secret) if secret else None
+
+            async def organization(organization_id: UUID):
+                secret = await self.service.fetch_organization_secret(
+                    organization_id=organization_id, secret_id=secret_id
+                )
+                return organization_secret_response(secret) if secret else None
+
+            return await self._by_owner(
+                request,
+                Permission.VIEW_SECRET,
+                project=project,
+                organization=organization,
             )
 
+        await self._require(request, Permission.VIEW_SECRET)
+        secrets_dto = await self.service.get_secret_by_slug(
+            project_id=UUID(request.state.project_id),
+            secret_slug=secret_id_or_slug,
+        )
         if secrets_dto is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
@@ -479,76 +650,92 @@ class VaultRouter:
         return self._for_caller(request, secrets_dto)
 
     @intercept_exceptions()
+    @handle_organization_secret_exceptions()
     async def update_secret(
         self, request: Request, secret_id: str, body: UpdateSecretDTO
     ):
-        has_permission = await check_action_access(
-            user_uid=str(request.state.user_id),
-            project_id=str(request.state.project_id),
-            permission=Permission.EDIT_SECRET,
-        )
+        async def project():
+            try:
+                secrets_dto = await self.service.update_secret(
+                    project_id=UUID(request.state.project_id),
+                    secret_id=UUID(secret_id),
+                    update_secret_dto=body,
+                    user_id=UUID(request.state.user_id),
+                )
+            except SecretValueRequiredError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=e.message
+                ) from e
+            except ManagedSecretReadOnlyError as e:
+                # 409, not 400: the payload is well-formed; the stored row's managed state
+                # is what forbids the change.
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, detail=e.message
+                ) from e
+            except ServerOwnedFieldNotWritable as e:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.message
+                ) from e
+            return self._for_caller(request, secrets_dto) if secrets_dto else None
 
-        if not has_permission:
-            error_msg = "You do not have access to perform this action. Please contact your organization admin."
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
-            )
-
-        try:
-            secrets_dto = await self.service.update_secret(
-                project_id=UUID(request.state.project_id),
+        async def organization(organization_id: UUID):
+            secret = await self.service.update_organization_secret(
+                organization_id=organization_id,
                 secret_id=UUID(secret_id),
                 update_secret_dto=body,
-                user_id=UUID(request.state.user_id),
+                user_id=UUID(str(request.state.user_id)),
             )
-        except SecretValueRequiredError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail=e.message
-            ) from e
-        except ManagedSecretReadOnlyError as e:
-            # 409, not 400: the payload is well-formed; the stored row's managed state is
-            # what forbids the change.
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail=e.message
-            ) from e
-        except ServerOwnedFieldNotWritable as e:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=e.message
-            ) from e
-        if secrets_dto is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
-            )
-        return self._for_caller(request, secrets_dto)
+            return organization_secret_response(secret) if secret else None
+
+        return await self._by_owner(
+            request, Permission.EDIT_SECRET, project=project, organization=organization
+        )
+
+    @intercept_exceptions()
+    @handle_organization_secret_exceptions()
+    async def set_secret_projects(
+        self, request: Request, secret_id: UUID, body: SecretProjectsRequest
+    ):
+        organization_id = await self._managed_organization(request)
+        if organization_id is None:
+            return self._organization_denied()
+        secret = await self.service.set_organization_secret_availability(
+            organization_id=organization_id,
+            secret_id=secret_id,
+            availability=body.availability,
+            project_ids=body.project_ids,
+            user_id=UUID(str(request.state.user_id)),
+        )
+        if secret is None:
+            raise OrganizationSecretNotFound()
+        return organization_secret_response(secret)
 
     @intercept_exceptions()
     async def delete_secret(self, request: Request, secret_id: str):
-        has_permission = await check_action_access(
-            user_uid=str(request.state.user_id),
-            project_id=str(request.state.project_id),
-            permission=Permission.EDIT_SECRET,
-        )
+        allowed = await self._allowed(request, Permission.EDIT_SECRET)
+        if allowed:
+            try:
+                if await self.service.delete_secret(
+                    project_id=UUID(request.state.project_id),
+                    secret_id=UUID(secret_id),
+                ):
+                    return status.HTTP_204_NO_CONTENT
+            except ManagedSecretReadOnlyError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT, detail=e.message
+                ) from e
 
-        if not has_permission:
-            error_msg = "You do not have access to perform this action. Please contact your organization admin."
-            return JSONResponse(
-                {"detail": error_msg},
-                status_code=403,
-            )
-
-        try:
-            # Project rows only: an id that is not a row of this project (an organization
-            # credential's id included) deletes nothing and still answers 204, so the
-            # answer never tells a project caller that an organization row exists.
-            await self.service.delete_secret(
-                project_id=UUID(request.state.project_id),
+        organization_id = await self._managed_organization(request)
+        if organization_id is not None:
+            await self.service.delete_organization_secret(
+                organization_id=organization_id,
                 secret_id=UUID(secret_id),
+                user_id=UUID(str(request.state.user_id)),
             )
-        except ManagedSecretReadOnlyError as e:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail=e.message
-            ) from e
+        elif not allowed:
+            return JSONResponse({"detail": PROJECT_DENIED_MESSAGE}, status_code=403)
+        # An id that is no row of the caller deletes nothing and still answers 204, so the
+        # answer never tells a project caller that an organization row exists.
         return status.HTTP_204_NO_CONTENT
 
     async def _require(self, request: Request, *permissions: Permission) -> None:
@@ -568,6 +755,7 @@ class VaultRouter:
                 )
 
     @intercept_exceptions()
+    @handle_organization_secret_exceptions()
     @handle_subscription_exceptions()
     async def set_subscription_token(
         self,
@@ -575,29 +763,62 @@ class VaultRouter:
         secret_id: UUID,
         body: SubscriptionTokenRequest,
     ):
-        await self._require(request, Permission.EDIT_SECRET)
+        user_id = UUID(str(request.state.user_id))
 
-        secret = await self.subscription_login_service.set_subscription_token(
-            project_id=UUID(request.state.project_id),
-            secret_id=secret_id,
-            token=body.token,
-            user_id=UUID(str(request.state.user_id)),
+        async def project():
+            secret = await self.subscription_login_service.set_subscription_token(
+                project_id=UUID(request.state.project_id),
+                secret_id=secret_id,
+                token=body.token,
+                user_id=user_id,
+            )
+            return self._for_caller(request, secret)
+
+        async def organization(organization_id: UUID):
+            secret = await self.subscription_login_service.set_subscription_token(
+                organization_id=organization_id,
+                secret_id=secret_id,
+                token=body.token,
+                user_id=user_id,
+            )
+            return organization_secret_response(secret)
+
+        return await self._by_owner(
+            request, Permission.EDIT_SECRET, project=project, organization=organization
         )
-        return self._for_caller(request, secret)
+
+    async def _login_attempt(self, request: Request, call, **ids):
+        """A device login route on either owner's subscription row."""
+        user_id = UUID(str(request.state.user_id))
+
+        async def project():
+            return _attempt_response(
+                await call(
+                    project_id=UUID(request.state.project_id), user_id=user_id, **ids
+                )
+            )
+
+        async def organization(organization_id: UUID):
+            return _attempt_response(
+                await call(organization_id=organization_id, user_id=user_id, **ids)
+            )
+
+        return await self._by_owner(
+            request, Permission.EDIT_SECRET, project=project, organization=organization
+        )
 
     @intercept_exceptions()
+    @handle_organization_secret_exceptions()
     @handle_subscription_exceptions()
     async def start_subscription_login(self, request: Request, secret_id: UUID):
-        await self._require(request, Permission.EDIT_SECRET)
-
-        view = await self.subscription_login_service.start_attempt(
-            project_id=UUID(request.state.project_id),
+        return await self._login_attempt(
+            request,
+            self.subscription_login_service.start_attempt,
             secret_id=secret_id,
-            user_id=UUID(str(request.state.user_id)),
         )
-        return _attempt_response(view)
 
     @intercept_exceptions()
+    @handle_organization_secret_exceptions()
     @handle_subscription_exceptions()
     async def read_subscription_login(
         self,
@@ -605,17 +826,15 @@ class VaultRouter:
         secret_id: UUID,
         attempt_id: str,
     ):
-        await self._require(request, Permission.EDIT_SECRET)
-
-        view = await self.subscription_login_service.read_attempt(
-            project_id=UUID(request.state.project_id),
+        return await self._login_attempt(
+            request,
+            self.subscription_login_service.read_attempt,
             secret_id=secret_id,
             attempt_id=attempt_id,
-            user_id=UUID(str(request.state.user_id)),
         )
-        return _attempt_response(view)
 
     @intercept_exceptions()
+    @handle_organization_secret_exceptions()
     @handle_subscription_exceptions()
     async def cancel_subscription_login(
         self,
@@ -623,15 +842,12 @@ class VaultRouter:
         secret_id: UUID,
         attempt_id: str,
     ):
-        await self._require(request, Permission.EDIT_SECRET)
-
-        view = await self.subscription_login_service.cancel_attempt(
-            project_id=UUID(request.state.project_id),
+        return await self._login_attempt(
+            request,
+            self.subscription_login_service.cancel_attempt,
             secret_id=secret_id,
             attempt_id=attempt_id,
-            user_id=UUID(str(request.state.user_id)),
         )
-        return _attempt_response(view)
 
     @intercept_exceptions()
     @handle_subscription_exceptions()

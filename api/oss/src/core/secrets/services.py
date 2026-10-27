@@ -1127,7 +1127,8 @@ class VaultService:
         secret_id: UUID,
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
-    ) -> None:
+    ) -> bool:
+        """Whether a row was deleted."""
         # The DAO hands the row to `authorize_delete` under its write lock; capturing it
         # there is what tells us which endpoint slug to drop, without a second read.
         deleted: list[SecretResponseDTO] = []
@@ -1153,6 +1154,7 @@ class VaultService:
                 project_id=project_id,
                 secret_dto=stored_secret_dto,
             )
+        return bool(deleted)
 
     # -- organization credentials (M5) --------------------------------------------
 

@@ -235,6 +235,11 @@ def hobby_org(admin_api, ag_env):
     world.delete()
 
 
+def organization_scope(body: dict) -> dict:
+    """A create body for a connection of the organization."""
+    return {**body, "scope": "organization"}
+
+
 def provider_key(
     *, slug: str, key: str, family: str = "openai", name: Optional[str] = None
 ) -> dict:

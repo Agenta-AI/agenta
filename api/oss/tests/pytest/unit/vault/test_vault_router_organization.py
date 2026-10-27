@@ -282,7 +282,7 @@ async def _org_subscription(world, *, login=None):
 async def test_a_run_reads_the_organization_subscription_login_it_named(world):
     created = await _org_subscription(world, login=ORG_LOGIN)
     response = world["client"].get(
-        "/secrets/organization-subscriptions/chatgpt", headers={"x-test-grant": "1"}
+        "/secrets/chatgpt?scope=organization", headers={"x-test-grant": "1"}
     )
     assert response.status_code == 200, response.text
     body = response.json()
@@ -293,7 +293,7 @@ async def test_a_run_reads_the_organization_subscription_login_it_named(world):
 
 async def test_only_the_runs_credential_reads_an_organization_subscription_login(world):
     await _org_subscription(world, login=ORG_LOGIN)
-    response = world["client"].get("/secrets/organization-subscriptions/chatgpt")
+    response = world["client"].get("/secrets/chatgpt?scope=organization")
     assert response.status_code == 403
     assert "org-refresh-1" not in response.text
 
@@ -301,7 +301,7 @@ async def test_only_the_runs_credential_reads_an_organization_subscription_login
 async def test_the_release_route_serves_no_other_organization_kind(world):
     await _org(world, slug="openai-company")
     response = world["client"].get(
-        "/secrets/organization-subscriptions/openai-company",
+        "/secrets/openai-company?scope=organization",
         headers={"x-test-grant": "1"},
     )
     assert response.status_code == 404
@@ -321,7 +321,7 @@ async def test_the_release_route_refuses_a_project_the_login_is_not_available_to
     )
     world["state"]["project"] = world["marketing"]
     response = world["client"].get(
-        "/secrets/organization-subscriptions/chatgpt", headers={"x-test-grant": "1"}
+        "/secrets/chatgpt?scope=organization", headers={"x-test-grant": "1"}
     )
     assert response.status_code == 404
     assert "org-refresh-1" not in response.text
@@ -340,7 +340,7 @@ async def test_the_release_route_never_serves_a_project_subscription(world):
     )
     assert created.status_code == 200, created.text
     response = world["client"].get(
-        "/secrets/organization-subscriptions/chatgpt", headers={"x-test-grant": "1"}
+        "/secrets/chatgpt?scope=organization", headers={"x-test-grant": "1"}
     )
     assert response.status_code == 404
 
