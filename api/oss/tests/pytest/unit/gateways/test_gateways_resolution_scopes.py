@@ -116,7 +116,7 @@ async def test_a_project_slug_never_names_an_organization_row(world):
     marketing = await world["llm"].provider_connection_by_slug(
         scope=world["marketing_scope"], slug="openai-company"
     )
-    assert (sales.secret_id, sales.owner_kind) == (own.id, SecretOwnerKind.PROJECT)
+    assert sales.secret_id == own.id
     assert marketing is None
     assert not await world["llm"].has_connection(
         scope=world["marketing_scope"], slug="openai-company"

@@ -1,9 +1,8 @@
 """Test helpers for organization credentials (M5).
 
-- `owner_scope(owner)`: the (project_id, organization_id) pair an owner names, for the
-  older in-memory fakes that still keep records by that pair.
-- `InMemorySecretsDAO`: an owner-based `SecretsDAOInterface` with the organization
-  operations and `load_effective`, counting every call.
+- `owner_scope(owner)`: the (project_id, organization_id) pair an owner names.
+- `InMemorySecretsDAO`: an owner-based `SecretsDAOInterface` (organization connections
+  with `shareable=True`) and `load_effective`, counting every call.
 - `make_auth_scope(...)`: the one place tests build an `AuthScope`.
 - `org_secret_payload(...)`: a create body for an organization credential.
 - `SENTINEL_KEY`: a credential value that log and response sweeps search for.
@@ -14,7 +13,6 @@ from uuid import UUID, uuid4
 
 from oss.src.core.secrets.dtos import (
     CachedEffectiveSecrets,
-    OrganizationSecretDeleted,
     CreateSecretDTO,
     SecretOwner,
     SecretResponseDTO,
@@ -112,9 +110,16 @@ class InMemorySecretsDAO:
 
     # helpers ------------------------------------------------------------------------
 
-    def _of(self, owner: SecretOwner) -> List[SecretResponseDTO]:
+    def _of(
+        self, owner: SecretOwner, shareable: bool = False
+    ) -> List[SecretResponseDTO]:
         owner_scope(owner)
-        return [r for r in self.records.values() if r.owner == owner]
+        return [
+            r
+            for r in self.records.values()
+            if r.owner == owner
+            and (not shareable or r.kind in ORGANIZATION_SECRET_KINDS)
+        ]
 
     def _available(self, secret: SecretResponseDTO, project_id: UUID) -> bool:
         if secret.availability == SecretAvailability.SELECTED_PROJECTS:
@@ -161,25 +166,48 @@ class InMemorySecretsDAO:
         owner,
         create_secret_dto,
         management=None,
+        availability=None,
+        project_ids=(),
+        user_id=None,
     ):
         self.calls.append("create")
+        selected = (
+            self._check_projects(owner.id, project_ids)
+            if availability == SecretAvailability.SELECTED_PROJECTS
+            else []
+        )
         if self._slug_taken(owner, create_secret_dto.slug):
             raise SecretSlugConflict(slug=create_secret_dto.slug)
-        return self._store(
-            self._build(owner=owner, dto=create_secret_dto, management=management)
+        row = self._store(
+            self._build(
+                owner=owner,
+                dto=create_secret_dto,
+                availability=availability,
+                management=management,
+            )
         )
+        if selected:
+            self.selected[row.id] = selected
+        return self._with_selected(row) if availability is not None else row
 
-    async def get_by_id(self, *, owner, secret_id):
+    def _find(self, owner, secret_id, shareable):
+        row = next((r for r in self._of(owner, shareable) if r.id == secret_id), None)
+        if row is not None and shareable:
+            return self._with_selected(row)
+        return row
+
+    async def get_by_id(self, *, owner, secret_id, shareable=False):
         self.calls.append("get_by_id")
-        return next((r for r in self._of(owner) if r.id == secret_id), None)
+        return self._find(owner, secret_id, shareable)
 
     async def get_by_slug(self, *, owner, secret_slug):
         self.calls.append("get_by_slug")
         return next((r for r in self._of(owner) if r.slug == secret_slug), None)
 
-    async def list(self, *, owner):
+    async def list(self, *, owner, shareable=False):
         self.calls.append("list")
-        return list(self._of(owner))
+        rows = self._of(owner, shareable)
+        return [self._with_selected(r) for r in rows] if shareable else rows
 
     async def update(
         self,
@@ -189,9 +217,10 @@ class InMemorySecretsDAO:
         update_secret_dto,
         user_id=None,
         resolve_update=None,
+        shareable=False,
     ):
         self.calls.append("update")
-        stored = next((r for r in self._of(owner) if r.id == secret_id), None)
+        stored = self._find(owner, secret_id, shareable)
         if stored is None:
             return None
         if resolve_update is not None:
@@ -199,7 +228,8 @@ class InMemorySecretsDAO:
             if resolved is None:
                 return stored
             update_secret_dto = resolved
-        return self._store(self._updated(stored, update_secret_dto))
+        updated = self._store(self._updated(stored, update_secret_dto))
+        return self._with_selected(updated) if shareable else updated
 
     def _updated(self, stored: SecretResponseDTO, update_secret_dto):
         body = stored.model_dump(mode="python")
@@ -214,14 +244,15 @@ class InMemorySecretsDAO:
             )
         return SecretResponseDTO.model_validate(body)
 
-    async def delete(self, *, owner, secret_id, authorize_delete=None):
+    async def delete(self, *, owner, secret_id, authorize_delete=None, shareable=False):
         self.calls.append("delete")
-        stored = next((r for r in self._of(owner) if r.id == secret_id), None)
+        stored = self._find(owner, secret_id, shareable)
         if stored is None:
             return
         if authorize_delete is not None:
             authorize_delete(stored)
         self.records.pop(secret_id, None)
+        self.selected.pop(secret_id, None)
 
     # effective set ----------------------------------------------------------------
 
@@ -259,78 +290,15 @@ class InMemorySecretsDAO:
             raise ProjectNotInOrganization(project_ids=wanted)
         return wanted
 
-    async def list_organization_secrets(self, *, organization_id):
-        self.calls.append("list_organization_secrets")
-        return [self._with_selected(r) for r in self._org_rows(organization_id)]
-
-    async def fetch_organization_secret(self, *, organization_id, secret_id):
-        self.calls.append("fetch_organization_secret")
-        row = next(
-            (r for r in self._org_rows(organization_id) if r.id == secret_id), None
-        )
-        return self._with_selected(row) if row else None
-
-    async def create_organization_secret(
-        self, *, organization_id, create_secret_dto, availability, project_ids, user_id
+    async def set_availability(
+        self, *, owner, secret_id, availability, project_ids, user_id
     ):
-        self.calls.append("create_organization_secret")
-        owner = SecretOwner(kind=SecretOwnerKind.ORGANIZATION, id=organization_id)
-        selected = (
-            self._check_projects(organization_id, project_ids)
-            if availability == SecretAvailability.SELECTED_PROJECTS
-            else []
-        )
-        if self._slug_taken(owner, create_secret_dto.slug):
-            raise SecretSlugConflict(slug=create_secret_dto.slug)
-        row = self._store(
-            self._build(owner=owner, dto=create_secret_dto, availability=availability)
-        )
-        if selected:
-            self.selected[row.id] = selected
-        return self._with_selected(row)
-
-    async def update_organization_secret(
-        self, *, organization_id, secret_id, update_secret_dto, user_id, resolve_update
-    ):
-        self.calls.append("update_organization_secret")
-        stored = next(
-            (r for r in self._org_rows(organization_id) if r.id == secret_id), None
-        )
-        if stored is None:
-            return None
-        resolved = resolve_update(self._with_selected(stored), update_secret_dto)
-        if resolved is None:
-            return self._with_selected(stored)
-        updated = self._updated(stored, resolved)
-        return self._with_selected(self._store(updated))
-
-    async def delete_organization_secret(self, *, organization_id, secret_id):
-        self.calls.append("delete_organization_secret")
-        row = next(
-            (r for r in self._org_rows(organization_id) if r.id == secret_id), None
-        )
-        if row is None:
-            return None
-        self.records.pop(secret_id)
-        selected = self.selected.pop(secret_id, None) or []
-        return OrganizationSecretDeleted(
-            secret_id=row.id,
-            kind=row.kind,
-            availability=row.availability or SecretAvailability.ALL_PROJECTS,
-            selected_count=len(selected),
-        )
-
-    async def set_organization_secret_availability(
-        self, *, organization_id, secret_id, availability, project_ids, user_id
-    ):
-        self.calls.append("set_organization_secret_availability")
-        stored = next(
-            (r for r in self._org_rows(organization_id) if r.id == secret_id), None
-        )
+        self.calls.append("set_availability")
+        stored = self._find(owner, secret_id, True)
         if stored is None:
             return None
         selected = (
-            self._check_projects(organization_id, project_ids)
+            self._check_projects(owner.id, project_ids)
             if availability == SecretAvailability.SELECTED_PROJECTS
             else []
         )

@@ -84,7 +84,6 @@ describe("an organization subscription login", () => {
       const result = buildRunPlan(request(sandbox), options);
       assert.equal(result.ok, true, result.ok ? "" : result.error);
       if (!result.ok) return;
-      assert.equal(result.plan.credentials.subscriptionOwner, "organization");
       assert.equal(result.plan.credentials.subscription?.id, "org-conn-1");
       assert.equal(result.plan.credentials.subscription?.owner, "organization");
 
@@ -98,7 +97,10 @@ describe("an organization subscription login", () => {
       );
       assert.equal(project.ok, true, project.ok ? "" : project.error);
       if (!project.ok) return;
-      assert.equal(project.plan.credentials.subscriptionOwner, "project");
+      assert.notEqual(
+        project.plan.credentials.subscription?.owner,
+        "organization",
+      );
       assert.equal(
         result.plan.credentials.subscriptionHome,
         project.plan.credentials.subscriptionHome,

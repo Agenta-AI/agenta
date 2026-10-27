@@ -1406,9 +1406,9 @@ channel_tools = ChannelToolsRouter(
 # other DAOs, because the vault's endpoint registrar takes it.
 mcp_endpoints_dao = MCPEndpointsDAO(engine=_transactions_engine)
 
-# One resolver per plane (M5): only the LLM gateway reads the effective set (project rows,
-# then inherited organization credentials). Every other user of a resolver (the MCP
-# gateway, the shared policy service) gets the project-only plane.
+# One resolver per plane: only the LLM gateway answers an organization connection an
+# agent names. Every other user of a resolver (the MCP gateway, the shared policy service)
+# gets the project-only plane.
 llm_secrets_resolver = SecretsResolver(
     vault_service=vault_service,
     plane=GatewayPlane.LLM,

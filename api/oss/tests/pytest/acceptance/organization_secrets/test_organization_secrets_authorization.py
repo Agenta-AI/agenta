@@ -16,7 +16,7 @@ KEY = "sk-m5acc-authorization-0123456789"
 
 def _clean(org):
     for secret in org.call("GET", "/secrets/?scope=organization").json():
-        org.call("DELETE", f"/secrets/{secret['id']}")
+        org.call("DELETE", f"/secrets/{secret['id']}?scope=organization")
 
 
 @pytest.mark.parametrize("who", ["owner", "admin"])
@@ -36,17 +36,27 @@ def test_owner_and_admin_manage_in_both_editions(org, who):
 
     listed = org.call("GET", "/secrets/?scope=organization", as_=who).json()
     assert slug in {s["slug"] for s in listed}
-    fetched = org.call("GET", f"/secrets/{body['id']}", as_=who)
+    fetched = org.call("GET", f"/secrets/{body['id']}?scope=organization", as_=who)
     assert fetched.status_code == 200 and KEY not in fetched.text
     edited = org.call(
         "PUT",
-        f"/secrets/{body['id']}",
+        f"/secrets/{body['id']}?scope=organization",
         as_=who,
         json={"header": {"name": "Renamed"}},
     )
     assert edited.status_code == 200 and edited.json()["header"]["name"] == "Renamed"
-    assert org.call("DELETE", f"/secrets/{body['id']}", as_=who).status_code == 204
-    assert org.call("GET", f"/secrets/{body['id']}", as_=who).status_code == 404
+    assert (
+        org.call(
+            "DELETE", f"/secrets/{body['id']}?scope=organization", as_=who
+        ).status_code
+        == 204
+    )
+    assert (
+        org.call(
+            "GET", f"/secrets/{body['id']}?scope=organization", as_=who
+        ).status_code
+        == 404
+    )
 
 
 @pytest.mark.parametrize("who", ["editor", "viewer"])
@@ -190,11 +200,12 @@ def test_an_owner_creates_an_organization_subscription_login_no_editor_does(org)
         assert row["header"]["name"] == "ChatGPT (Organization)"
         assert row["availability"] == "all_projects"
         assert row["data"]["login_state"] == "pending_login"
-        # Only the run credential reads the login; a browser session gets 403.
+        # Only the run credential reads the login; a browser session reads connections
+        # by id and never gets the login.
         read = org.call("GET", "/secrets/chatgpt?scope=organization")
-        assert read.status_code == 403, read.text
+        assert read.status_code == 404, read.text
     finally:
-        org.call("DELETE", f"/secrets/{row['id']}")
+        org.call("DELETE", f"/secrets/{row['id']}?scope=organization")
 
 
 def test_projects_route_limits(org):
@@ -227,7 +238,7 @@ def test_projects_route_limits(org):
         },
     )
     assert foreign.status_code == 422
-    assert org.call("GET", f"/secrets/{created['id']}").json()[
+    assert org.call("GET", f"/secrets/{created['id']}?scope=organization").json()[
         "selected_project_ids"
     ] == [org.sales]
 
@@ -274,5 +285,8 @@ def test_a_project_role_addresses_an_organization_row_as_an_unknown_id(org):
         == 404
     )
     assert org.call("DELETE", path, as_="editor").status_code == 204
-    assert org.call("GET", path).json()["header"]["name"] == created["header"]["name"]
-    org.call("DELETE", path)
+    assert (
+        org.call("GET", path + "?scope=organization").json()["header"]["name"]
+        == created["header"]["name"]
+    )
+    org.call("DELETE", path + "?scope=organization")

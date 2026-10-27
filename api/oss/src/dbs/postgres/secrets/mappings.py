@@ -182,16 +182,3 @@ def map_secrets_dbe_to_dto(
     )
 
     return vault_secret_dto
-
-
-def map_create_to_payload(
-    *,
-    secret_dto: CreateSecretDTO,
-    management: SecretManagementDTO | None = None,
-) -> str:
-    """The plaintext JSON a create stores (encrypted in SQL), the same as the ORM path."""
-    return _data_payload(
-        secret_dto.secret.data.model_dump(mode="json", exclude_none=True),
-        write_only=bool(secret_dto.write_only),
-        management=management,
-    )

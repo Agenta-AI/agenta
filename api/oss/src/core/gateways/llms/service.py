@@ -811,13 +811,7 @@ class LLMGatewayService:
                 name=AGENTA_PROVIDER,
             )
             model = builtin_model
-        if target.deployment_kind not in LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS and (
-            target.deployment_kind == LLMDeploymentKind.BEDROCK
-            or target.secret_owner_kind == SecretOwnerKind.ORGANIZATION
-        ):
-            # Bedrock, as before; and any unserved organization credential (M5), whose
-            # value could otherwise reach a run only in plaintext. SageMaker on a
-            # project row keeps its failure at the upstream auth step.
+        if target.deployment_kind == LLMDeploymentKind.BEDROCK:
             raise LLMGatewayConnectionNotServedError()
         self._check_active(target=target)
         resolved_provider = target.provider_key or provider_key
@@ -1286,9 +1280,9 @@ class LLMGatewayService:
 
     @staticmethod
     def _standard_target(
-        *, name: str, standard: Tuple[LLMEndpoint, Optional[UUID], SecretOwnerKind]
+        *, name: str, standard: Tuple[LLMEndpoint, Optional[UUID]]
     ) -> _ResolvedLlmTarget:
-        endpoint, pinned, owner_kind = standard
+        endpoint, pinned = standard
         return _ResolvedLlmTarget(
             namespace=GatewayEndpointNamespace.STANDARD,
             name=name,
@@ -1298,12 +1292,11 @@ class LLMGatewayService:
             route_data=endpoint.data.route,
             settings=endpoint.data.settings,
             secret_id=pinned,
-            secret_owner_kind=owner_kind,
         )
 
     async def _standard_connection(
         self, *, scope: AuthScope, name: str
-    ) -> Optional[Tuple[LLMEndpoint, Optional[UUID], SecretOwnerKind]]:
+    ) -> Optional[Tuple[LLMEndpoint, Optional[UUID]]]:
         """The standard endpoint `name` addresses, with the secret it pins, or None.
 
         Two spellings reach the same generated endpoint, and the difference between them is
@@ -1316,7 +1309,7 @@ class LLMGatewayService:
         """
         endpoint = standard_llm_endpoint(provider_key=name)
         if endpoint is not None:
-            return endpoint, None, SecretOwnerKind.PROJECT
+            return endpoint, None
 
         connection = await self.resolver.provider_connection_by_slug(
             scope=scope, slug=name
@@ -1328,7 +1321,7 @@ class LLMGatewayService:
         if endpoint is None:
             return None
 
-        return endpoint, connection.secret_id, connection.owner_kind
+        return endpoint, connection.secret_id
 
     async def _resolve_target(
         self, *, scope: AuthScope, namespace: GatewayEndpointNamespace, name: str

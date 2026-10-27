@@ -252,8 +252,6 @@ export interface RunPlanCredentials {
    * in-VM path the sandbox writes to. See `subscriptionHomeDir`.
    */
   subscriptionHome?: string;
-  /** Whose login `subscription` is: a project's, or an organization's (M5). */
-  subscriptionOwner?: "project" | "organization";
   /** Whether the run reaches its model through the Agenta LLM gateway (it carries gateway credentials). */
   throughGateway?: boolean;
 }
@@ -875,9 +873,9 @@ export function buildRunPlan(
   const organizationSubscription =
     request.modelConnection?.organizationSubscription;
   if (organizationSubscription) {
-    // Checked before the project shapes, and terminal: an organization login never takes the
-    // operator path. Past these checks it runs exactly like a project login, on every engine;
-    // only its owner differs, which sends its refreshes to the organization's row.
+    // An organization login never takes the operator path: the only `subscription` beside it
+    // is the fence an older runner refuses. Past this it runs exactly like a project login, on
+    // every engine; only its owner differs, which sends its refreshes to the organization's row.
     const besideSubscription = request.modelConnection?.subscription;
     if (
       (besideSubscription &&
@@ -890,26 +888,11 @@ export function buildRunPlan(
           "modelConnection.organizationSubscription requires credentialMode 'runtime_provided' and no project subscription.",
       };
     }
-    if (!isUsableSubscription(organizationSubscription)) {
-      return { ok: false, error: SUBSCRIPTION_INVALID_MESSAGE };
-    }
-    if (
-      !isPi ||
-      organizationSubscription.provider?.trim().toLowerCase() !==
-        SUBSCRIPTION_SUPPORTED_PROVIDER
-    ) {
-      return { ok: false, error: SUBSCRIPTION_UNSUPPORTED_MESSAGE };
-    }
   }
   const requestSubscription = organizationSubscription
     ? { ...organizationSubscription, owner: "organization" as const }
     : request.modelConnection?.subscription;
-  if (organizationSubscription) {
-    // Validated above.
-  } else if (
-    requestCredentialMode === "runtime_provided" &&
-    requestSubscription
-  ) {
+  if (requestCredentialMode === "runtime_provided" && requestSubscription) {
     // A malformed block is terminal. Falling through would run on the operator's mount instead,
     // which authenticates as the wrong account.
     if (!isUsableSubscription(requestSubscription)) {
@@ -1183,11 +1166,6 @@ export function buildRunPlan(
         subscription,
         subscriptionHome: subscription
           ? subscriptionHomeDir(subscription.id, isDaytona)
-          : undefined,
-        subscriptionOwner: subscription
-          ? organizationSubscription
-            ? "organization"
-            : "project"
           : undefined,
         throughGateway:
           Object.keys(materializeGatewayHeaders(request)).length > 0,

@@ -87,10 +87,14 @@ def test_an_sso_id_is_never_addressed_and_stays(org, sso_secret):
     before = _run(lambda: _stored(sso_secret))
     assert before is not None
     for method, path, body, expected in (
-        ("GET", f"/secrets/{sso_secret}", None, 404),
-        ("PUT", f"/secrets/{sso_secret}", {"header": {"name": "x"}}, 404),
-        # A delete of an id that is no row of the caller changes nothing and answers 204.
-        ("DELETE", f"/secrets/{sso_secret}", None, 204),
+        ("GET", f"/secrets/{sso_secret}?scope=organization", None, 404),
+        (
+            "PUT",
+            f"/secrets/{sso_secret}?scope=organization",
+            {"header": {"name": "x"}},
+            404,
+        ),
+        ("DELETE", f"/secrets/{sso_secret}?scope=organization", None, 404),
         (
             "PUT",
             f"/secrets/{sso_secret}/projects",

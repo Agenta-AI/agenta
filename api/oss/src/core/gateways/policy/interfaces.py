@@ -7,7 +7,6 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from oss.src.core.gateways.policy.dtos import (
-    SecretOwnerKind,
     GatewayOutcome,
     GatewayTarget,
     SecretMode,
@@ -30,9 +29,6 @@ class NamedProviderConnection(BaseModel):
 
     secret_id: UUID
     provider_key: str
-    # Whose row the slug names (M5): a project row, or an organization row the agent
-    # named by scope. Names only; the id reference built from it carries this kind.
-    owner_kind: SecretOwnerKind = SecretOwnerKind.PROJECT
 
 
 class SecretsResolverInterface(ABC):

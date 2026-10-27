@@ -100,9 +100,9 @@ Organization rows use the `/secrets/` routes (owner decision, 2026-10-27: no cop
 
 - `POST /secrets/` with `scope = organization` creates one, with optional `availability` and `project_ids`. Create accepts an optional slug; without one the server derives `<name>-<12 hex>`.
 - `GET /secrets/?scope=organization` lists every connection of the organization.
-- `GET`, `PUT` and `DELETE /secrets/{secret_id}`, `PUT /secrets/{secret_id}/subscription-token` and the `login-attempts` routes find the row: the project's row under project RBAC first, as before; else the organization's row for an owner or admin.
+- `GET`, `PUT` and `DELETE /secrets/{secret_id}`, `PUT /secrets/{secret_id}/subscription-token` and the `login-attempts` routes take `?scope=organization` for an organization row (owner or admin); without it they are the project routes, as before.
 - `PUT /secrets/{secret_id}/projects` sets the EE limit.
-- `GET /secrets/{slug}?scope=organization` releases an organization subscription login to a run.
+- `GET /secrets/{slug}?scope=organization` with the run's own credential (`secret-resolve` grant) releases an organization subscription login to the run.
 - `GET /projects/?scope=organization` lists every project of the organization for the project choice.
 
 Every organization route and lookup requires `MANAGE_ORGANIZATION_SECRETS`, except the release read, which needs the run's own credential. Responses on organization rows carry `owner`, `availability` and `selected_project_ids`.

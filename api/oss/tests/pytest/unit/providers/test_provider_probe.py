@@ -1226,8 +1226,8 @@ class _OrganizationVault(_StubVault):
         self.organization: dict = {}
         self.permissions: list = []
 
-    async def get_connection_secret_by_id(
-        self, *, organization_id, project_id, secret_id, owner_kind
+    async def get_available_organization_secret_by_id(
+        self, *, organization_id, project_id, secret_id
     ):
         if str(organization_id) != str(ORGANIZATION_ID):
             return None

@@ -116,7 +116,8 @@ def test_no_route_returns_an_organization_value(org, company):
         ("GET", f"/secrets/{company['id']}", {}),
         ("GET", f"/secrets/{company['slug']}", {}),
         ("GET", "/secrets/?scope=organization", {}),
-        ("GET", f"/secrets/{company['id']}", {}),
+        ("GET", f"/secrets/{company['id']}?scope=organization", {}),
+        ("GET", f"/secrets/{company['slug']}?scope=organization", {}),
         ("GET", "/gateways/llms/endpoints/", {}),
     ]
     for caller in callers:
@@ -142,7 +143,7 @@ def test_project_roles_do_not_touch_organization_rows(org, company):
         assert (
             org.call("GET", f"/secrets/{company['slug']}", as_=who).status_code == 404
         )
-    stored = org.call("GET", f"/secrets/{company['id']}").json()
+    stored = org.call("GET", f"/secrets/{company['id']}?scope=organization").json()
     assert stored["header"]["name"] == company["header"]["name"]
 
 
@@ -157,7 +158,7 @@ def test_a_project_row_may_reuse_an_organization_slug(org, company):
     )
     assert response.status_code == 200, response.text
     try:
-        stored = org.call("GET", f"/secrets/{company['id']}").json()
+        stored = org.call("GET", f"/secrets/{company['id']}?scope=organization").json()
         assert stored["data"]["kind"] == "openai"
     finally:
         org.call("DELETE", f"/secrets/{response.json()['id']}", as_="editor")
@@ -329,7 +330,12 @@ def test_a_pinned_organization_credential_never_substitutes(org, gateway_on):
                 f"/secrets/{created['id']}/projects",
                 json={"availability": "all_projects"},
             )
-        assert org.call("DELETE", f"/secrets/{created['id']}").status_code == 204
+        assert (
+            org.call(
+                "DELETE", f"/secrets/{created['id']}?scope=organization"
+            ).status_code
+            == 204
+        )
         assert _relay(org, f"/gateways/llms/organization/{slug}/v1").status_code != 200
     finally:
         org.call("DELETE", f"/secrets/{own['id']}", as_="editor", project=org.marketing)
@@ -393,7 +399,7 @@ def test_deleting_the_only_selected_project_leaves_the_row_with_no_project(
         admin_api("DELETE", f"/admin/simple/accounts/projects/{project}").status_code
         == 200
     )
-    stored = org.call("GET", f"/secrets/{created['id']}").json()
+    stored = org.call("GET", f"/secrets/{created['id']}?scope=organization").json()
     assert stored["availability"] == "selected_projects"
     assert stored.get("selected_project_ids", []) == []
     for project_id in (org.sales, org.marketing):

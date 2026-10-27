@@ -135,9 +135,9 @@ Organization-scoped decisions and organization credentials (M5):
   only by `VaultService.get_organization_connection` (or `get_connection_secret_by_id` for
   a bound reference), in the gateway namespace `organization`. `SecretsResolver` is built
   per plane; only the LLM plane answers an organization connection. The `/secrets/` routes
-  serve both owners: a by-id route finds the project row under project RBAC first, then the
-  organization row behind `decide_organization`; create and list name the organization with
-  `scope`, and `PUT /secrets/{id}/projects` addresses organization rows only. `GET /secrets/?include_organization=true` adds the organization
+  serve both owners. The caller states the owner (`scope`, default `project`); with
+  `organization` the route runs `decide_organization`, otherwise it is the project route as
+  before. `PUT /secrets/{id}/projects` addresses organization rows only. `GET /secrets/?include_organization=true` adds the organization
   rows available to the project without values, never under the `secret-resolve` grant.
 - A project's vault lives in ONE cache entry (`effective_secrets`, keyed on the full
   project id), filled by one statement (`SecretsDAO.load_effective`), with the project's

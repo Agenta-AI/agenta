@@ -19,7 +19,6 @@ from oss.src.core.gateways.dtos import secret_credential_values
 from oss.src.core.providers.dtos import ProviderCredentials
 from oss.src.core.providers.exceptions import ProviderProbeError
 from oss.src.core.providers.service import ProviderProbeService
-from oss.src.core.secrets.enums import SecretOwnerKind
 from oss.src.core.secrets.redaction import PRIMARY_CREDENTIAL_FIELDS
 from oss.src.core.secrets.services import VaultService
 from oss.src.utils.exceptions import intercept_exceptions
@@ -117,11 +116,10 @@ class ProvidersRouter:
     ) -> Tuple[str, ProviderCredentials]:
         if organization_id is not None:
             # An organization connection available to this project; never a project row.
-            secret = await self.vault_service.get_connection_secret_by_id(
+            secret = await self.vault_service.get_available_organization_secret_by_id(
                 organization_id=organization_id,
                 project_id=project_id,
                 secret_id=secret_id,
-                owner_kind=SecretOwnerKind.ORGANIZATION,
             )
         else:
             secret = await self.vault_service.get_secret_by_id(

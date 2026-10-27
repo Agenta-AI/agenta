@@ -10,7 +10,7 @@ from uuid import uuid4
 import pytest
 
 from oss.src.core.secrets.context import set_data_encryption_key
-from oss.src.core.secrets.dtos import CreateSecretDTO, UpdateSecretDTO
+from oss.src.core.secrets.dtos import CreateSecretDTO, SecretOwner, UpdateSecretDTO
 from oss.src.core.secrets.enums import SecretAvailability, SecretOwnerKind
 from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
@@ -22,6 +22,10 @@ from oss.tests.pytest.utils.membership_seed import (
 )
 from oss.tests.pytest.utils.organization_secrets import org_secret_payload
 from oss.tests.pytest.utils.statements import count_statements
+
+
+def _org(organization_id):
+    return SecretOwner(kind=SecretOwnerKind.ORGANIZATION, id=organization_id)
 
 
 pytestmark = pytest.mark.integration
@@ -64,8 +68,8 @@ def _slug():
 
 
 async def _org_row(seeded, slug, *, family="openai"):
-    return await SecretsDAO().create_organization_secret(
-        organization_id=seeded.organization_id,
+    return await SecretsDAO().create(
+        owner=_org(seeded.organization_id),
         create_secret_dto=_create(slug=slug, family=family),
         availability=SecretAvailability.ALL_PROJECTS,
         project_ids=[],

@@ -17,7 +17,6 @@ import oss.src.core.secrets.services as services_module
 import oss.src.apis.fastapi.vault.router as vault_router_module
 from oss.src.apis.fastapi.vault.router import (
     ORGANIZATION_DENIED_MESSAGE,
-    PROJECT_DENIED_MESSAGE,
     VaultRouter,
 )
 from oss.src.core.access.context import reset_request_access, set_request_access
@@ -158,9 +157,9 @@ def _routes(secret_id):
             {**org_secret_payload(slug="x"), "scope": "organization"},
         ),
         ("get", "/secrets/?scope=organization", None),
-        ("get", f"/secrets/{secret_id}", None),
-        ("put", f"/secrets/{secret_id}", {"header": {"name": "y"}}),
-        ("delete", f"/secrets/{secret_id}", None),
+        ("get", f"/secrets/{secret_id}?scope=organization", None),
+        ("put", f"/secrets/{secret_id}?scope=organization", {"header": {"name": "y"}}),
+        ("delete", f"/secrets/{secret_id}?scope=organization", None),
         (
             "put",
             f"/secrets/{secret_id}/projects",
@@ -168,14 +167,18 @@ def _routes(secret_id):
         ),
         (
             "put",
-            f"/secrets/{secret_id}/subscription-token",
+            f"/secrets/{secret_id}/subscription-token?scope=organization",
             {"token": "sk-ant-oat01-" + "x" * 40},
         ),
-        ("post", f"/secrets/{secret_id}/login-attempts", None),
-        ("get", f"/secrets/{secret_id}/login-attempts/att-1", None),
+        ("post", f"/secrets/{secret_id}/login-attempts?scope=organization", None),
+        (
+            "get",
+            f"/secrets/{secret_id}/login-attempts/att-1?scope=organization",
+            None,
+        ),
         (
             "post",
-            f"/secrets/{secret_id}/login-attempts/att-1/cancel",
+            f"/secrets/{secret_id}/login-attempts/att-1/cancel?scope=organization",
             None,
         ),
     ]
@@ -189,9 +192,10 @@ def _call(client, method, path, body):
     )
 
 
-def test_a_caller_who_manages_neither_owner_gets_403_and_reads_nothing(world):
+def test_a_caller_who_does_not_manage_the_organization_gets_403_and_reads_nothing(
+    world,
+):
     client, _ = world["client"]()
-    world["state"]["project_access"] = False
     for user, credential in (
         (world["editor"], "bearer_session"),
         (uuid4(), "bearer_session"),
@@ -202,15 +206,7 @@ def test_a_caller_who_manages_neither_owner_gets_403_and_reads_nothing(world):
         for method, path, body in _routes(uuid4()):
             response = _call(client, method, path, body)
             assert response.status_code == 403, (method, path, credential)
-            # Create, list and projects name the organization; the rest find the row.
-            organization_only = method == "post" and path == "/secrets/"
-            organization_only |= path.endswith("?scope=organization")
-            organization_only |= path.endswith("/projects")
-            assert response.json() == {
-                "detail": ORGANIZATION_DENIED_MESSAGE
-                if organization_only
-                else PROJECT_DENIED_MESSAGE
-            }, (method, path)
+            assert response.json() == {"detail": ORGANIZATION_DENIED_MESSAGE}
     assert world["dao"].calls == []
 
 
@@ -231,7 +227,7 @@ def test_create_returns_no_value_and_the_organization_owner(world, who):
     assert SENTINEL_KEY not in response.text
 
 
-def test_list_has_count_and_secrets_and_no_sso_rows(world):
+def test_list_has_the_organization_rows_and_no_sso_rows(world):
     client, _ = world["client"]()
     _create(client, org_secret_payload(slug="a"))
     world["dao"]._store(
@@ -264,7 +260,7 @@ def test_list_has_count_and_secrets_and_no_sso_rows(world):
     assert SENTINEL_KEY not in response.text
 
 
-def test_unknown_or_foreign_organization_id_answers_404_and_delete_204(world):
+def test_unknown_foreign_or_project_id_answers_404(world):
     client, _ = world["client"]()
     foreign = world["dao"]._store(
         world["dao"]._build(
@@ -282,9 +278,7 @@ def test_unknown_or_foreign_organization_id_answers_404_and_delete_204(world):
     )
     for secret_id in (uuid4(), foreign.id, project_row.id):
         for method, path, body in _routes(secret_id)[2:]:
-            # A delete never tells whether a row exists elsewhere.
-            expected = 204 if method == "delete" else 404
-            assert _call(client, method, path, body).status_code == expected, (
+            assert _call(client, method, path, body).status_code == 404, (
                 path,
                 secret_id,
             )
@@ -318,7 +312,7 @@ def test_an_sso_id_is_never_addressed_and_stays(world):
     )
     before = sso.model_dump()
     for method, path, body in _routes(sso.id)[2:]:
-        expected = 204 if method == "delete" else 404
+        expected = 404
         assert _call(client, method, path, body).status_code == expected, path
     listed = client.get("/secrets/?scope=organization").json()
     assert all(s["id"] != str(sso.id) for s in listed)
@@ -418,7 +412,7 @@ def test_projects_route_oss_403_ee_without_rbac_403_foreign_422(world):
         },
     )
     assert response.status_code == 422
-    assert client_ee.get(f"/secrets/{created['id']}").json()[
+    assert client_ee.get(f"/secrets/{created['id']}?scope=organization").json()[
         "selected_project_ids"
     ] == [str(world["sales"])]
 
@@ -459,7 +453,7 @@ def test_logs_carry_no_value(world, caplog, capsys, monkeypatch):
         world["state"]["user"] = world["editor"]
         assert _create(client, org_secret_payload(slug="x")).status_code == 403
         world["state"]["user"] = world["owner"]
-        monkeypatch.setattr(world["dao"], "create_organization_secret", broken)
+        monkeypatch.setattr(world["dao"], "create", broken)
         response = _create(client, org_secret_payload(slug="boom"))
     assert response.status_code == 500
     assert any("INTERCEPTED" in r.getMessage() for r in caplog.records)
@@ -567,7 +561,7 @@ def test_an_admin_creates_an_organization_subscription_and_starts_its_login(worl
     assert body["owner"]["kind"] == "organization"
     assert body["data"]["login_state"] == "pending_login"
 
-    started = client.post(f"/secrets/{body['id']}/login-attempts")
+    started = client.post(f"/secrets/{body['id']}/login-attempts?scope=organization")
     assert started.status_code == 200, started.text
     assert started.json()["user_code"] == "ABCD-1234"
     assert runner.started == [
@@ -579,7 +573,9 @@ def test_an_admin_creates_an_organization_subscription_and_starts_its_login(worl
         }
     ]
 
-    polled = client.get(f"/secrets/{body['id']}/login-attempts/att-org")
+    polled = client.get(
+        f"/secrets/{body['id']}/login-attempts/att-org?scope=organization"
+    )
     assert polled.status_code == 200, polled.text
     assert polled.json()["state"] == "pending"
 

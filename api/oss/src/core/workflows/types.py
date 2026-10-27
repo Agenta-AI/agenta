@@ -157,10 +157,9 @@ class InvalidAgentInstructionsError(Exception):
 class InvalidAgentConnectionError(Exception):
     """The commit carries ``parameters.agent.llm.connection`` that the runtime cannot use.
 
-    Two shapes are refused at the write boundary, for the reason
-    :class:`InvalidAgentInstructionsError` gives: an organization connection that does not
-    name its slug (with namespace ``organization``), and, where the runners hold no
-    operator login, a ``self_managed`` connection without a slug.
+    Refused at the write boundary, for the reason :class:`InvalidAgentInstructionsError`
+    gives: an organization connection that does not name its slug with scope and namespace
+    ``organization``.
     """
 
     code = "invalid_agent_connection"

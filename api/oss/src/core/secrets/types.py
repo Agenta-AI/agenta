@@ -10,12 +10,12 @@ class SecretsError(Exception):
 
 
 class SubscriptionProviderConflict(SecretsError):
-    """A project already holds a subscription connection for this provider."""
+    """The owner already holds a subscription connection for this provider."""
 
-    def __init__(self, provider: str):
+    def __init__(self, provider: str, owner: str = "project"):
         self.provider = provider
         super().__init__(
-            f"This project already has a {provider} subscription connection. "
+            f"This {owner} already has a {provider} subscription connection. "
             "Remove it before you add another one."
         )
 

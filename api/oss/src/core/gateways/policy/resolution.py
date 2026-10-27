@@ -31,7 +31,6 @@ from oss.src.core.gateways.policy.types import (
 )
 from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.enums import SecretKind
-from oss.src.core.secrets.scopes import provider_candidates
 from oss.src.core.secrets.services import VaultService
 from oss.src.utils.context import AuthScope
 
@@ -40,6 +39,29 @@ def _provider_family(secret: SecretResponseDTO) -> Optional[str]:
     kind = getattr(secret.data, "kind", None)
     kind = getattr(kind, "value", kind)
     return str(kind) if kind else None
+
+
+def provider_candidates(
+    *, secrets: List[SecretResponseDTO], provider_key: str
+) -> List[SecretResponseDTO]:
+    """Today's tie rule: `provider_key` rows of the provider first, then `custom_provider`
+    rows of that provider kind, each in stored order."""
+
+    def _kind(secret) -> Optional[str]:
+        kind = getattr(secret.data, "kind", None)
+        return None if kind is None else str(getattr(kind, "value", kind))
+
+    keys = [
+        s
+        for s in secrets
+        if s.kind == SecretKind.PROVIDER_KEY and _kind(s) == provider_key
+    ]
+    customs = [
+        s
+        for s in secrets
+        if s.kind == SecretKind.CUSTOM_PROVIDER and _kind(s) == provider_key
+    ]
+    return keys + customs
 
 
 class SecretsResolver(SecretsResolverInterface):
@@ -117,9 +139,7 @@ class SecretsResolver(SecretsResolverInterface):
             if not provider_key:
                 continue
             return NamedProviderConnection(
-                secret_id=secret.id,
-                provider_key=provider_key,
-                owner_kind=self._owner(scope=scope, secret=secret).kind,
+                secret_id=secret.id, provider_key=provider_key
             )
 
         return None
@@ -140,11 +160,10 @@ class SecretsResolver(SecretsResolverInterface):
             )
         if ref.owner_kind == SecretOwnerKind.ORGANIZATION and self._serves_organization:
             # Only an organization row available to this project; never a substitute.
-            return await self.vault_service.get_connection_secret_by_id(
+            return await self.vault_service.get_available_organization_secret_by_id(
                 organization_id=scope.organization_id,
                 project_id=scope.project_id,
                 secret_id=ref.secret_id,
-                owner_kind=SecretOwnerKind.ORGANIZATION,
             )
         # An organization reference on a project-only plane, or a user reference (M7):
         # nothing is read.

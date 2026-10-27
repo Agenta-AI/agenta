@@ -15,7 +15,6 @@ from oss.src.core.secrets.dtos import CachedEffectiveSecrets, SecretResponseDTO
 from oss.src.core.secrets.enums import (
     ORGANIZATION_SECRET_KINDS,
     LLMStandardProviderKind,
-    SecretKind,
 )
 
 
@@ -41,29 +40,6 @@ def available_organization_secrets(
         for secret in entry.organization
         if secret.kind in ORGANIZATION_SECRET_KINDS
     ]
-
-
-def provider_candidates(
-    *, secrets: List[SecretResponseDTO], provider_key: str
-) -> List[SecretResponseDTO]:
-    """Today's tie rule: `provider_key` rows of the provider first, then `custom_provider`
-    rows of that provider kind, each in stored order."""
-
-    def _kind(secret) -> Optional[str]:
-        kind = getattr(secret.data, "kind", None)
-        return None if kind is None else str(getattr(kind, "value", kind))
-
-    keys = [
-        s
-        for s in secrets
-        if s.kind == SecretKind.PROVIDER_KEY and _kind(s) == provider_key
-    ]
-    customs = [
-        s
-        for s in secrets
-        if s.kind == SecretKind.CUSTOM_PROVIDER and _kind(s) == provider_key
-    ]
-    return keys + customs
 
 
 def is_llm_provider_family(data: Any) -> bool:

@@ -268,7 +268,10 @@ export class SecretsClient {
         request: AgentaApi.UpdateSecretDto,
         requestOptions?: SecretsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.PublicSecretResponseDto>> {
-        const { secret_id: secretId, ..._body } = request;
+        const { secret_id: secretId, scope, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -285,7 +288,7 @@ export class SecretsClient {
             method: "PUT",
             headers: _headers,
             contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             requestType: "json",
             body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
@@ -340,7 +343,10 @@ export class SecretsClient {
         request: AgentaApi.DeleteSecretRequest,
         requestOptions?: SecretsClient.RequestOptions,
     ): Promise<core.WithRawResponse<void>> {
-        const { secret_id: secretId } = request;
+        const { secret_id: secretId, scope } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -356,7 +362,7 @@ export class SecretsClient {
             ),
             method: "DELETE",
             headers: _headers,
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,
@@ -483,7 +489,10 @@ export class SecretsClient {
         request: AgentaApi.SubscriptionTokenRequest,
         requestOptions?: SecretsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.PublicSecretResponseDto>> {
-        const { secret_id: secretId, ..._body } = request;
+        const { secret_id: secretId, scope, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -500,7 +509,7 @@ export class SecretsClient {
             method: "PUT",
             headers: _headers,
             contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             requestType: "json",
             body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
@@ -560,7 +569,10 @@ export class SecretsClient {
         request: AgentaApi.StartSubscriptionLoginRequest,
         requestOptions?: SecretsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SubscriptionLoginAttemptResponse>> {
-        const { secret_id: secretId } = request;
+        const { secret_id: secretId, scope } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -576,7 +588,7 @@ export class SecretsClient {
             ),
             method: "POST",
             headers: _headers,
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,
@@ -638,7 +650,10 @@ export class SecretsClient {
         request: AgentaApi.ReadSubscriptionLoginRequest,
         requestOptions?: SecretsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SubscriptionLoginAttemptResponse>> {
-        const { secret_id: secretId, attempt_id: attemptId } = request;
+        const { secret_id: secretId, attempt_id: attemptId, scope } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -654,7 +669,7 @@ export class SecretsClient {
             ),
             method: "GET",
             headers: _headers,
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,
@@ -716,7 +731,10 @@ export class SecretsClient {
         request: AgentaApi.CancelSubscriptionLoginRequest,
         requestOptions?: SecretsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SubscriptionLoginAttemptResponse>> {
-        const { secret_id: secretId, attempt_id: attemptId } = request;
+        const { secret_id: secretId, attempt_id: attemptId, scope } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -732,7 +750,7 @@ export class SecretsClient {
             ),
             method: "POST",
             headers: _headers,
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,

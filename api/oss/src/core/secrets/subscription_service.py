@@ -28,7 +28,6 @@ from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.enums import (
     SUBSCRIPTION_PROVIDER_DISPLAY_NAMES,
     SecretKind,
-    SecretOwnerKind,
     SubscriptionLoginState,
     SubscriptionProviderKind,
 )
@@ -293,11 +292,10 @@ class SubscriptionLoginService:
         in); with both ids, the organization row only while it is available to that
         project (a run of the project pushes a refreshed login back)."""
         if organization_id is not None and project_id is not None:
-            secret = await self.vault_service.get_connection_secret_by_id(
+            secret = await self.vault_service.get_available_organization_secret_by_id(
                 organization_id=organization_id,
                 project_id=project_id,
                 secret_id=secret_id,
-                owner_kind=SecretOwnerKind.ORGANIZATION,
             )
         elif organization_id is not None:
             secret = await self.vault_service.get_secret_by_id(

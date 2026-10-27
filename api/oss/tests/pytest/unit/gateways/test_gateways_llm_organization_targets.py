@@ -33,7 +33,7 @@ from oss.src.core.gateways.llms.types import (
 from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.types import LLMGatewayConnectionNotServedError
-from oss.src.core.secrets.dtos import CreateSecretDTO, SecretResponseDTO
+from oss.src.core.secrets.dtos import CreateSecretDTO, SecretOwner, SecretResponseDTO
 from oss.src.core.secrets.enums import (
     ORGANIZATION_GATEWAY_KINDS,
     ORGANIZATION_SECRET_KINDS,
@@ -51,6 +51,10 @@ from oss.tests.pytest.utils.organization_secrets import (
     org_secret_payload,
 )
 from oss.tests.pytest.utils.principals import bearer_request_access
+
+
+def _org(organization_id):
+    return SecretOwner(kind=SecretOwnerKind.ORGANIZATION, id=organization_id)
 
 
 class _Endpoints(LLMEndpointsDAOInterface):
@@ -273,8 +277,8 @@ async def test_organization_bedrock_and_sagemaker_rows_are_not_served(world, fam
     dto = CreateSecretDTO.model_validate(
         org_secret_payload(kind="custom_provider", family=family, slug="cloud-company")
     )
-    await world["secrets_dao"].create_organization_secret(
-        organization_id=world["organization_id"],
+    await world["secrets_dao"].create(
+        owner=_org(world["organization_id"]),
         create_secret_dto=dto,
         availability=SecretAvailability.ALL_PROJECTS,
         project_ids=[],

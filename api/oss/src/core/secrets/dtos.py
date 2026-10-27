@@ -859,14 +859,3 @@ class CachedEffectiveSecrets(BaseModel):
     organization_id: Optional[UUID] = None
     secrets: List[SecretResponseDTO] = []
     organization: List[SecretResponseDTO] = []
-
-
-class OrganizationSecretDeleted(BaseModel):
-    """What an organization credential delete removed: ids and kinds only, for the audit
-    event (never a value)."""
-
-    secret_id: UUID
-    kind: SecretKind
-    availability: SecretAvailability
-    # The projects it reached when limited (read in the delete statement).
-    selected_count: int = 0

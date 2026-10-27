@@ -116,8 +116,8 @@ async def test_load_effective_is_one_statement(org):
     assert empty.secrets == [] and empty.organization == []
 
     own = await dao.create(owner=_project(project_id), create_secret_dto=_create())
-    shared = await dao.create_organization_secret(
-        organization_id=seeded.organization_id,
+    shared = await dao.create(
+        owner=_organization(seeded.organization_id),
         create_secret_dto=_create(slug=f"org-{uuid4().hex[:8]}"),
         availability=SecretAvailability.ALL_PROJECTS,
         project_ids=[],
@@ -141,15 +141,15 @@ async def test_load_effective_applies_availability_and_excludes_sso(org):
     seeded, other = org
     dao = SecretsDAO()
     sales, marketing = seeded.project_ids
-    limited = await dao.create_organization_secret(
-        organization_id=seeded.organization_id,
+    limited = await dao.create(
+        owner=_organization(seeded.organization_id),
         create_secret_dto=_create(slug=f"lim-{uuid4().hex[:8]}"),
         availability=SecretAvailability.SELECTED_PROJECTS,
         project_ids=[sales],
         user_id=seeded.owner_id,
     )
-    nobody = await dao.create_organization_secret(
-        organization_id=seeded.organization_id,
+    nobody = await dao.create(
+        owner=_organization(seeded.organization_id),
         create_secret_dto=_create(slug=f"none-{uuid4().hex[:8]}"),
         availability=SecretAvailability.SELECTED_PROJECTS,
         project_ids=[],
@@ -174,8 +174,8 @@ async def test_load_effective_applies_availability_and_excludes_sso(org):
             }
         ),
     )
-    foreign = await dao.create_organization_secret(
-        organization_id=other.organization_id,
+    foreign = await dao.create(
+        owner=_organization(other.organization_id),
         create_secret_dto=_create(slug=f"for-{uuid4().hex[:8]}"),
         availability=SecretAvailability.ALL_PROJECTS,
         project_ids=[],
@@ -220,28 +220,29 @@ async def test_organization_operations_refuse_an_sso_id(org):
     )
 
     assert (
-        await dao.fetch_organization_secret(
-            organization_id=organization_id, secret_id=sso.id
+        await dao.get_by_id(
+            owner=_organization(organization_id), secret_id=sso.id, shareable=True
         )
         is None
     )
     assert sso.id not in {
         s.id
-        for s in await dao.list_organization_secrets(organization_id=organization_id)
+        for s in await dao.list(owner=_organization(organization_id), shareable=True)
     }
     assert (
-        await dao.update_organization_secret(
-            organization_id=organization_id,
+        await dao.update(
+            owner=_organization(organization_id),
             secret_id=sso.id,
             update_secret_dto=UpdateSecretDTO.model_validate({"header": {"name": "x"}}),
             user_id=seeded.owner_id,
             resolve_update=lambda stored, update: update,
+            shareable=True,
         )
         is None
     )
     assert (
-        await dao.set_organization_secret_availability(
-            organization_id=organization_id,
+        await dao.set_availability(
+            owner=_organization(organization_id),
             secret_id=sso.id,
             availability=SecretAvailability.SELECTED_PROJECTS,
             project_ids=[],
@@ -250,8 +251,8 @@ async def test_organization_operations_refuse_an_sso_id(org):
         is None
     )
     assert (
-        await dao.delete_organization_secret(
-            organization_id=organization_id, secret_id=sso.id
+        await dao.delete(
+            owner=_organization(organization_id), secret_id=sso.id, shareable=True
         )
         is None
     )
@@ -266,8 +267,8 @@ async def test_create_with_a_foreign_project_leaves_no_row(org):
     seeded, other = org
     slug = f"foreign-{uuid4().hex[:8]}"
     with pytest.raises(ProjectNotInOrganization):
-        await SecretsDAO().create_organization_secret(
-            organization_id=seeded.organization_id,
+        await SecretsDAO().create(
+            owner=_organization(seeded.organization_id),
             create_secret_dto=_create(slug=slug),
             availability=SecretAvailability.SELECTED_PROJECTS,
             project_ids=[seeded.project_ids[0], other.project_ids[0]],
@@ -285,8 +286,8 @@ async def test_create_failing_after_the_insert_leaves_no_row(org, monkeypatch):
 
     monkeypatch.setattr(SecretsDAO, "_write_selected_projects", boom)
     with pytest.raises(RuntimeError):
-        await SecretsDAO().create_organization_secret(
-            organization_id=seeded.organization_id,
+        await SecretsDAO().create(
+            owner=_organization(seeded.organization_id),
             create_secret_dto=_create(slug=slug),
             availability=SecretAvailability.SELECTED_PROJECTS,
             project_ids=[seeded.project_ids[0]],
@@ -311,8 +312,8 @@ async def test_concurrent_reader_never_sees_a_limited_row_before_its_limit(
         return await original(self, connection, **kwargs)
 
     monkeypatch.setattr(SecretsDAO, "_write_selected_projects", read_in_between)
-    created = await SecretsDAO().create_organization_secret(
-        organization_id=seeded.organization_id,
+    created = await SecretsDAO().create(
+        owner=_organization(seeded.organization_id),
         create_secret_dto=_create(slug=slug),
         availability=SecretAvailability.SELECTED_PROJECTS,
         project_ids=[sales],
@@ -328,16 +329,16 @@ async def test_duplicate_organization_slug_maps_to_secret_slug_conflict(org):
     seeded, _ = org
     dao = SecretsDAO()
     slug = f"dup-{uuid4().hex[:8]}"
-    await dao.create_organization_secret(
-        organization_id=seeded.organization_id,
+    await dao.create(
+        owner=_organization(seeded.organization_id),
         create_secret_dto=_create(slug=slug),
         availability=SecretAvailability.ALL_PROJECTS,
         project_ids=[],
         user_id=seeded.owner_id,
     )
     with pytest.raises(SecretSlugConflict):
-        await dao.create_organization_secret(
-            organization_id=seeded.organization_id,
+        await dao.create(
+            owner=_organization(seeded.organization_id),
             create_secret_dto=_create(slug=slug),
             availability=SecretAvailability.ALL_PROJECTS,
             project_ids=[],

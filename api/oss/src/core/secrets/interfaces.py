@@ -5,7 +5,6 @@ from typing import Callable, List, Optional, Sequence
 from oss.src.core.secrets.dtos import (
     CachedEffectiveSecrets,
     CreateSecretDTO,
-    OrganizationSecretDeleted,
     SecretOwner,
     UpdateSecretDTO,
     SecretResponseDTO,
@@ -57,9 +56,9 @@ class SecretsDAOInterface:
     """Storage of the vault, addressed by owner (M5).
 
     The existing methods take `owner: SecretOwner` instead of the column pair; the DAO maps
-    the kind to the column. A USER owner is refused in M5. The existing methods with an
-    ORGANIZATION owner serve EE SSO (any kind, as before). The organization-credential
-    operations address shareable kinds only.
+    the kind to the column. A USER owner is refused in M5. With an ORGANIZATION owner the
+    methods serve EE SSO (any kind) and, with `shareable=True`, organization connections:
+    shareable kinds only, read with their selected projects.
     """
 
     def __init__(self):
@@ -71,11 +70,16 @@ class SecretsDAOInterface:
         owner: SecretOwner,
         create_secret_dto: CreateSecretDTO,
         management: Optional[SecretManagementDTO] = None,
+        availability: Optional[SecretAvailability] = None,
+        project_ids: Sequence[UUID] = (),
+        user_id: Optional[UUID] = None,
     ) -> SecretResponseDTO:
+        """One transaction. With `availability` (an organization connection), the row
+        and its selected projects of the same organization; any refusal leaves no row."""
         raise NotImplementedError
 
     async def get_by_id(
-        self, *, owner: SecretOwner, secret_id: UUID
+        self, *, owner: SecretOwner, secret_id: UUID, shareable: bool = False
     ) -> Optional[SecretResponseDTO]:
         raise NotImplementedError
 
@@ -84,7 +88,9 @@ class SecretsDAOInterface:
     ) -> Optional[SecretResponseDTO]:
         raise NotImplementedError
 
-    async def list(self, *, owner: SecretOwner) -> List[SecretResponseDTO]:
+    async def list(
+        self, *, owner: SecretOwner, shareable: bool = False
+    ) -> List[SecretResponseDTO]:
         raise NotImplementedError
 
     async def update(
@@ -102,6 +108,7 @@ class SecretsDAOInterface:
         resolve_update: Optional[
             Callable[[SecretResponseDTO, UpdateSecretDTO], Optional[UpdateSecretDTO]]
         ] = None,
+        shareable: bool = False,
     ) -> Optional[SecretResponseDTO]:
         raise NotImplementedError
 
@@ -111,6 +118,7 @@ class SecretsDAOInterface:
         owner: SecretOwner,
         secret_id: UUID,
         authorize_delete: Optional[Callable[[SecretResponseDTO], None]] = None,
+        shareable: bool = False,
     ) -> None:
         raise NotImplementedError
 
@@ -120,56 +128,17 @@ class SecretsDAOInterface:
         answers `organization_id=None` and no rows."""
         raise NotImplementedError
 
-    async def list_organization_secrets(
-        self, *, organization_id: UUID
-    ) -> List[SecretResponseDTO]:
-        raise NotImplementedError
-
-    async def fetch_organization_secret(
-        self, *, organization_id: UUID, secret_id: UUID
-    ) -> Optional[SecretResponseDTO]:
-        raise NotImplementedError
-
-    async def create_organization_secret(
+    async def set_availability(
         self,
         *,
-        organization_id: UUID,
-        create_secret_dto: CreateSecretDTO,
-        availability: SecretAvailability,
-        project_ids: Sequence[UUID],
-        user_id: Optional[UUID],
-    ) -> SecretResponseDTO:
-        """One transaction: row, availability, selected projects of the same
-        organization. Any refusal leaves no row."""
-        raise NotImplementedError
-
-    async def update_organization_secret(
-        self,
-        *,
-        organization_id: UUID,
-        secret_id: UUID,
-        update_secret_dto: UpdateSecretDTO,
-        user_id: Optional[UUID],
-        resolve_update: Callable[
-            [SecretResponseDTO, UpdateSecretDTO], Optional[UpdateSecretDTO]
-        ],
-    ) -> Optional[SecretResponseDTO]:
-        raise NotImplementedError
-
-    async def delete_organization_secret(
-        self, *, organization_id: UUID, secret_id: UUID
-    ) -> Optional[OrganizationSecretDeleted]:
-        raise NotImplementedError
-
-    async def set_organization_secret_availability(
-        self,
-        *,
-        organization_id: UUID,
+        owner: SecretOwner,
         secret_id: UUID,
         availability: SecretAvailability,
         project_ids: Sequence[UUID],
         user_id: Optional[UUID],
     ) -> Optional[SecretResponseDTO]:
+        """Under the row lock: the availability and the selected projects of an
+        organization connection, replaced in one transaction."""
         raise NotImplementedError
 
     async def list_organization_project_ids(

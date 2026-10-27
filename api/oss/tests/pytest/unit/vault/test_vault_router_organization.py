@@ -139,13 +139,16 @@ async def test_member_projection_drops_other_project_ids(world):
     assert "selected_project_ids" not in response.text
 
 
-async def test_resolve_grant_never_receives_organization_rows(world):
+async def test_resolve_grant_never_receives_an_organization_value(world):
     await _org(world, slug="openai-company")
-    for path in ("/secrets/", "/secrets/?include_organization=true"):
-        response = world["client"].get(path, headers={"x-test-grant": "1"})
-        assert response.status_code == 200
-        assert response.json() == []
-        assert SENTINEL_KEY not in response.text
+    plain = world["client"].get("/secrets/", headers={"x-test-grant": "1"})
+    assert plain.status_code == 200 and plain.json() == []
+    listed = world["client"].get(
+        "/secrets/?include_organization=true", headers={"x-test-grant": "1"}
+    )
+    assert listed.status_code == 200
+    assert [row["slug"] for row in listed.json()] == ["openai-company"]
+    assert SENTINEL_KEY not in listed.text
 
 
 async def test_project_routes_answer_404_for_an_organization_id_and_slug(world):

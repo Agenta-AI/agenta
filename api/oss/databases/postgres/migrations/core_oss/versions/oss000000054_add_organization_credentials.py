@@ -1,7 +1,8 @@
 """add organization credentials: availability, single owner, organization slugs, secret_projects
 
 Organization credentials are `secrets` rows with `organization_id` set and `project_id`
-NULL that projects inherit. This revision adds what that needs:
+NULL, which an agent of a chosen project uses when it names one. This revision adds what
+that needs:
 
 - `secrets.availability` (`all_projects` or `selected_projects`), read only for
   organization rows, and the table `secret_projects` that lists the selected projects.

@@ -93,7 +93,7 @@ _STRUCTURED_CREDENTIAL_KEYS = frozenset({"vertex_ai_credentials"})
 _EFFECTIVE_MEMO = "secrets_effective"
 
 
-def _owner_of(
+def _owner_from_ids(
     *, project_id: Optional[UUID], organization_id: Optional[UUID]
 ) -> SecretOwner:
     """The owner the public (project_id, organization_id) pair names: exactly one."""
@@ -103,6 +103,10 @@ def _owner_of(
         )
     if project_id:
         return SecretOwner(kind=SecretOwnerKind.PROJECT, id=project_id)
+    return SecretOwner(kind=SecretOwnerKind.ORGANIZATION, id=organization_id)
+
+
+def _organization(organization_id: UUID) -> SecretOwner:
     return SecretOwner(kind=SecretOwnerKind.ORGANIZATION, id=organization_id)
 
 
@@ -531,7 +535,7 @@ class VaultService:
         user_id: UUID | None = None,
     ):
         reject_server_owned_fields(secret=create_secret_dto.secret)
-        owner = _owner_of(project_id=project_id, organization_id=organization_id)
+        owner = _owner_from_ids(project_id=project_id, organization_id=organization_id)
 
         # custom_secret and custom_provider are addressed by slug; derive one from the name when
         # absent so the record keeps its identity when the display name later changes.
@@ -711,7 +715,9 @@ class VaultService:
                 getattr(stored_provider, "value", stored_provider)
                 == provider_kind.value
             ):
-                raise SubscriptionProviderConflict(provider=provider_kind.value)
+                raise SubscriptionProviderConflict(
+                    provider=provider_kind.value, owner=owner.kind.value
+                )
 
         header = create_secret_dto.header
         if not header.name:
@@ -738,7 +744,9 @@ class VaultService:
         ):
             secret_dto = await self.secrets_dao.get_by_id(
                 secret_id=secret_id,
-                owner=_owner_of(project_id=project_id, organization_id=organization_id),
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                ),
             )
             return secret_dto
 
@@ -753,7 +761,9 @@ class VaultService:
         ):
             return await self.secrets_dao.get_by_slug(
                 secret_slug=secret_slug,
-                owner=_owner_of(project_id=project_id, organization_id=organization_id),
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                ),
             )
 
     async def list_secrets(
@@ -773,7 +783,9 @@ class VaultService:
 
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
             return await self.secrets_dao.list(
-                owner=_owner_of(project_id=project_id, organization_id=organization_id)
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                )
             )
 
     # -- the effective set (M5) ---------------------------------------------------
@@ -852,21 +864,15 @@ class VaultService:
             None,
         )
 
-    async def get_connection_secret_by_id(
+    async def get_available_organization_secret_by_id(
         self,
         *,
         organization_id: UUID,
         project_id: UUID,
         secret_id: UUID,
-        owner_kind: SecretOwnerKind,
     ) -> Optional[SecretResponseDTO]:
-        """A project reference: today's project-scoped read by id. An organization
-        reference: only an organization row available to the project. Never a
-        substitute."""
-        if owner_kind == SecretOwnerKind.PROJECT:
-            return await self.get_secret_by_id(secret_id, project_id=project_id)
-        if owner_kind != SecretOwnerKind.ORGANIZATION:
-            return None
+        """The organization row with this id while it is available to the project;
+        never a project row."""
         entry = await self._effective_entry(project_id=project_id)
         return next(
             (
@@ -960,7 +966,9 @@ class VaultService:
             secret_dto = await self.secrets_dao.update(
                 secret_id=secret_id,
                 update_secret_dto=update_secret_dto,
-                owner=_owner_of(project_id=project_id, organization_id=organization_id),
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                ),
                 user_id=user_id,
                 resolve_update=resolve_update,
             )
@@ -1027,7 +1035,9 @@ class VaultService:
             secret_dto = await self.secrets_dao.update(
                 secret_id=secret_id,
                 update_secret_dto=UpdateSecretDTO(),
-                owner=_owner_of(project_id=project_id, organization_id=organization_id),
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                ),
                 user_id=user_id,
                 resolve_update=resolve,
             )
@@ -1060,7 +1070,9 @@ class VaultService:
             secret_dto = await self.secrets_dao.update(
                 secret_id=secret_id,
                 update_secret_dto=update_secret_dto,
-                owner=_owner_of(project_id=project_id, organization_id=organization_id),
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                ),
                 resolve_update=_resolve_managed_update(manager),
             )
 
@@ -1100,7 +1112,9 @@ class VaultService:
         ):
             await self.secrets_dao.delete(
                 secret_id=secret_id,
-                owner=_owner_of(project_id=project_id, organization_id=organization_id),
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                ),
                 authorize_delete=authorize_delete,
             )
 
@@ -1142,7 +1156,9 @@ class VaultService:
         ):
             await self.secrets_dao.delete(
                 secret_id=secret_id,
-                owner=_owner_of(project_id=project_id, organization_id=organization_id),
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                ),
                 authorize_delete=authorize_delete,
             )
 
@@ -1291,18 +1307,20 @@ class VaultService:
     async def list_organization_secrets(
         self, *, organization_id: UUID
     ) -> List[SecretResponseDTO]:
-        """Inheritable organization rows, read from Postgres (management route)."""
+        """Every connection of the organization, read from Postgres (management)."""
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
-            return await self.secrets_dao.list_organization_secrets(
-                organization_id=organization_id
+            return await self.secrets_dao.list(
+                owner=_organization(organization_id), shareable=True
             )
 
     async def fetch_organization_secret(
         self, *, organization_id: UUID, secret_id: UUID
     ) -> Optional[SecretResponseDTO]:
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
-            return await self.secrets_dao.fetch_organization_secret(
-                organization_id=organization_id, secret_id=secret_id
+            return await self.secrets_dao.get_by_id(
+                owner=_organization(organization_id),
+                secret_id=secret_id,
+                shareable=True,
             )
 
     async def create_organization_secret(
@@ -1322,21 +1340,16 @@ class VaultService:
         # An organization credential is never readable back, whatever the caller asked.
         create_secret_dto.write_only = True
 
+        owner = _organization(organization_id)
         if create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY:
             await self._name_and_slug_provider_key(
-                owner=SecretOwner(
-                    kind=SecretOwnerKind.ORGANIZATION, id=organization_id
-                ),
-                create_secret_dto=create_secret_dto,
+                owner=owner, create_secret_dto=create_secret_dto
             )
         elif create_secret_dto.secret.kind == SecretKind.SUBSCRIPTION_PROVIDER:
             # One login per provider per organization; it signs in through the device
             # login routes of the organization (or a Claude token), never with the create.
             await self._name_and_slug_subscription_provider(
-                owner=SecretOwner(
-                    kind=SecretOwnerKind.ORGANIZATION, id=organization_id
-                ),
-                create_secret_dto=create_secret_dto,
+                owner=owner, create_secret_dto=create_secret_dto
             )
         elif not create_secret_dto.slug and create_secret_dto.header.name:
             create_secret_dto.slug = get_slug_from_name_and_id(
@@ -1345,8 +1358,8 @@ class VaultService:
             )
 
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
-            secret_dto = await self.secrets_dao.create_organization_secret(
-                organization_id=organization_id,
+            secret_dto = await self.secrets_dao.create(
+                owner=owner,
                 create_secret_dto=create_secret_dto,
                 availability=availability,
                 project_ids=list(project_ids),
@@ -1385,12 +1398,13 @@ class VaultService:
             return merged
 
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
-            secret_dto = await self.secrets_dao.update_organization_secret(
-                organization_id=organization_id,
+            secret_dto = await self.secrets_dao.update(
+                owner=_organization(organization_id),
                 secret_id=secret_id,
                 update_secret_dto=update_secret_dto,
                 user_id=user_id,
                 resolve_update=resolve_update,
+                shareable=True,
             )
 
         if secret_dto is not None:
@@ -1412,20 +1426,25 @@ class VaultService:
         secret_id: UUID,
         user_id: Optional[UUID] = None,
     ) -> bool:
-        deleted = await self.secrets_dao.delete_organization_secret(
-            organization_id=organization_id, secret_id=secret_id
-        )
-        if deleted is not None:
+        deleted: List[SecretResponseDTO] = []
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            await self.secrets_dao.delete(
+                owner=_organization(organization_id),
+                secret_id=secret_id,
+                authorize_delete=deleted.append,
+                shareable=True,
+            )
+        for secret_dto in deleted:
             await self._organization_written(
                 organization_id=organization_id,
                 secret_id=secret_id,
-                kind=deleted.kind,
-                availability=deleted.availability,
-                selected_count=deleted.selected_count,
+                kind=secret_dto.kind,
+                availability=secret_dto.availability or SecretAvailability.ALL_PROJECTS,
+                selected_count=len(secret_dto.selected_project_ids or []),
                 action="deleted",
                 user_id=user_id,
             )
-        return deleted is not None
+        return bool(deleted)
 
     async def set_organization_secret_availability(
         self,
@@ -1453,8 +1472,8 @@ class VaultService:
                 raise OrganizationSecretNotFound() from None
             raise
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
-            secret_dto = await self.secrets_dao.set_organization_secret_availability(
-                organization_id=organization_id,
+            secret_dto = await self.secrets_dao.set_availability(
+                owner=_organization(organization_id),
                 secret_id=secret_id,
                 availability=availability,
                 project_ids=list(project_ids),

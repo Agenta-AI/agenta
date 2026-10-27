@@ -44,7 +44,7 @@ Scope: backend first. OpenSpec `tasks.md` sections 1 (schema), 2 (core), 3 (acce
 
 | File | Change |
 | --- | --- |
-| `oss/src/apis/fastapi/vault/{router,models}.py` | The `/secrets/` routes serve organization rows too (`scope` on create and list, owner-based lookup on the by-id routes, `PUT /secrets/{id}/projects`, the scoped release read), `include_organization`, `handle_organization_secret_exceptions`. |
+| `oss/src/apis/fastapi/vault/{router,models}.py` | The `/secrets/` routes serve organization rows too (`scope` on create, list and every by-id route, `PUT /secrets/{id}/projects`, the release read for the run's credential), `include_organization`, one `handle_secrets_exceptions`. |
 | `oss/src/routers/projects_router.py` | `GET /projects/?scope=organization` for the project choice. |
 | `oss/src/apis/fastapi/gateways/llms/{models,router,proxy}.py`, `gateways/exceptions.py` | `connection_scope`; the `organization` relay routes; the two new error mappings. |
 | `oss/src/apis/fastapi/providers/{models,router}.py` | `secret_scope` on the probe. |

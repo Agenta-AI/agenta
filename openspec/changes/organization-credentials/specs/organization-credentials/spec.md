@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: Organization access decision for organization credentials
-Every `/secrets/` route that names the organization (`scope = organization` on create, `GET /secrets/?scope=organization`, `PUT /secrets/{secret_id}/projects`) SHALL call `decide_organization(access, organization_id, MANAGE_ORGANIZATION_SECRETS)` first and SHALL return HTTP 403 on a denial. A `/secrets/` route that addresses a row by id SHALL treat a project row exactly as before and SHALL reach an organization row only through the same decision. The decision SHALL allow only a human principal of a browser session, with no run envelope, acting as itself, who has an `organization_members` row in the organization with role `owner` or `admin`. It SHALL NOT read entitlements, project rows, project roles or custom roles, in OSS and EE.
+Every `/secrets/` route called with `scope = organization` (in the create body, or `?scope=organization` on the list and the by-id routes), and `PUT /secrets/{secret_id}/projects`, SHALL call `decide_organization(access, organization_id, MANAGE_ORGANIZATION_SECRETS)` first and SHALL return HTTP 403 on a denial. Without the scope, a `/secrets/` route SHALL behave exactly as before. The decision SHALL allow only a human principal of a browser session, with no run envelope, acting as itself, who has an `organization_members` row in the organization with role `owner` or `admin`. It SHALL NOT read entitlements, project rows, project roles or custom roles, in OSS and EE.
 
 #### Scenario: Owner adds a company key
 - **WHEN** the organization owner posts a `provider_key` for OpenAI to `/secrets/` with `scope = organization`
@@ -39,8 +39,8 @@ The organization routes SHALL remove surrounding whitespace from every credentia
 Every organization route SHALL address only shareable organization rows.
 
 #### Scenario: SSO secret id
-- **WHEN** an owner calls any `/secrets/{secret_id}` route with the id of the organization's SSO secret
-- **THEN** Agenta SHALL return HTTP 404 (HTTP 204 on a delete, which changes nothing) and the SSO row SHALL stay unchanged.
+- **WHEN** an owner calls any `/secrets/{secret_id}` route with `scope=organization` and the id of the organization's SSO secret
+- **THEN** Agenta SHALL return HTTP 404 and the SSO row SHALL stay unchanged.
 
 ### Requirement: Owners and admins choose among every project
 `GET /projects/?scope=organization` SHALL list every project of the request's organization, also the projects the caller is not a member of, for an owner or admin, and SHALL return HTTP 403 for anyone else.
@@ -153,7 +153,7 @@ An agent SHALL use an organization subscription login only when it names it with
 
 #### Scenario: A browser reads the login
 - **WHEN** an organization owner calls `GET /secrets/chatgpt?scope=organization` from a browser session
-- **THEN** Agenta SHALL return HTTP 403.
+- **THEN** Agenta SHALL NOT return the login (a browser session reads organization connections by id only, without values).
 
 #### Scenario: Project not allowed
 - **WHEN** a run of a project the admin did not select names the organization ChatGPT login

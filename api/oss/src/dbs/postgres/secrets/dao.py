@@ -9,27 +9,26 @@ Two rules hold for every write here:
 - Errors carry no values. A secrets write binds the plaintext JSON as a parameter of
   `pgp_sym_encrypt`, so a driver error (and its traceback) quotes the credential. Every
   `DBAPIError` becomes a domain error raised `from None`.
-- The organization operations address shareable organization rows only
+- An organization connection is addressed with `shareable=True`
   (`kind IN ORGANIZATION_SECRET_KINDS AND project_id IS NULL`), so an SSO row is never
-  listed, read, changed or deleted through them.
+  listed, read, changed or deleted as one.
 
 A project row and an organization row with the same slug are two separate connections. An
 agent names the one it uses by scope and slug, so no write checks one against the other.
 """
 
 from types import SimpleNamespace
-from typing import Awaitable, Callable, List, Optional, Sequence, TypeVar
+from datetime import datetime, timezone
+from typing import Callable, List, Optional, Sequence
 from uuid import UUID
 
-import uuid_utils.compat as uuid_compat
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from oss.src.core.secrets.context import get_data_encryption_key
 from oss.src.core.secrets.dtos import (
     CachedEffectiveSecrets,
-    OrganizationSecretDeleted,
     CreateSecretDTO,
     SecretOwner,
     SecretResponseDTO,
@@ -49,9 +48,8 @@ from oss.src.core.secrets.types import (
     SecretStorageError,
     SubscriptionProviderConflict,
 )
-from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
+from oss.src.dbs.postgres.secrets.dbes import SecretProjectDBE, SecretsDBE
 from oss.src.dbs.postgres.secrets.mappings import (
-    map_create_to_payload,
     map_secrets_dbe_to_dto,
     map_secrets_dto_to_dbe,
     map_secrets_dto_to_dbe_update,
@@ -63,8 +61,6 @@ from oss.src.dbs.postgres.shared.engine import (
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
-
-_Result = TypeVar("_Result")
 
 # Postgres enum labels are the member NAMES.
 _ORGANIZATION_KIND_LABELS = ", ".join(
@@ -96,14 +92,6 @@ WHERE p.id = CAST(:project_id AS UUID)
 ORDER BY e.from_organization, e.created_at, e.id
 """
 
-_INSERT_ORGANIZATION_SECRET_SQL = f"""
-INSERT INTO secrets AS s (id, slug, kind, data, organization_id, name, description,
-                          availability, created_at, created_by_id)
-VALUES (CAST(:id AS UUID), CAST(:slug AS VARCHAR), CAST(:kind AS secretkind_enum), pgp_sym_encrypt(CAST(:payload AS TEXT), CAST(:key AS TEXT)),
-        CAST(:organization_id AS UUID), CAST(:name AS VARCHAR), CAST(:description AS VARCHAR), CAST(:availability AS VARCHAR), now(), CAST(:user_id AS UUID))
-RETURNING {_COLUMNS}
-"""
-
 # Only projects of the organization are inserted; the caller compares the count.
 _INSERT_SECRET_PROJECTS_SQL = """
 INSERT INTO secret_projects (secret_id, project_id, created_at, created_by_id)
@@ -115,54 +103,6 @@ ON CONFLICT DO NOTHING
 _DELETE_SECRET_PROJECTS_SQL = (
     "DELETE FROM secret_projects WHERE secret_id = CAST(:secret_id AS UUID)"
 )
-
-_ORGANIZATION_ROW_FILTER = (
-    f"s.organization_id = CAST(:organization_id AS UUID) AND s.project_id IS NULL "
-    f"AND s.kind IN ({_ORGANIZATION_KIND_LABELS})"
-)
-
-_SELECTED_PROJECT_IDS = (
-    "(SELECT coalesce(array_agg(sp.project_id ORDER BY sp.project_id), '{}') "
-    "FROM secret_projects sp WHERE sp.secret_id = s.id) AS selected_project_ids"
-)
-
-_LIST_ORGANIZATION_SECRETS_SQL = f"""
-SELECT {_COLUMNS}, {_SELECTED_PROJECT_IDS} FROM secrets s
-WHERE {_ORGANIZATION_ROW_FILTER}
-ORDER BY s.created_at, s.id
-"""
-
-_FETCH_ORGANIZATION_SECRET_SQL = f"""
-SELECT {_COLUMNS}, {_SELECTED_PROJECT_IDS} FROM secrets s
-WHERE s.id = CAST(:secret_id AS UUID) AND {_ORGANIZATION_ROW_FILTER}
-"""
-
-_LOCK_ORGANIZATION_SECRET_SQL = f"""
-SELECT {_COLUMNS}, {_SELECTED_PROJECT_IDS} FROM secrets s
-WHERE s.id = CAST(:secret_id AS UUID) AND {_ORGANIZATION_ROW_FILTER}
-FOR UPDATE OF s
-"""
-
-_UPDATE_ORGANIZATION_SECRET_SQL = f"""
-UPDATE secrets AS s SET name = CAST(:name AS VARCHAR), description = CAST(:description AS VARCHAR),
-    kind = CAST(:kind AS secretkind_enum), data = pgp_sym_encrypt(CAST(:payload AS TEXT), CAST(:key AS TEXT)),
-    updated_at = now(), updated_by_id = CAST(:user_id AS UUID)
-WHERE s.id = CAST(:secret_id AS UUID) AND {_ORGANIZATION_ROW_FILTER}
-RETURNING {_COLUMNS}
-"""
-
-_SET_AVAILABILITY_SQL = f"""
-UPDATE secrets AS s SET availability = CAST(:availability AS VARCHAR), updated_at = now(),
-    updated_by_id = CAST(:user_id AS UUID)
-WHERE s.id = CAST(:secret_id AS UUID) AND {_ORGANIZATION_ROW_FILTER}
-RETURNING {_COLUMNS}
-"""
-
-_DELETE_ORGANIZATION_SECRET_SQL = f"""
-DELETE FROM secrets AS s WHERE s.id = CAST(:secret_id AS UUID) AND {_ORGANIZATION_ROW_FILTER}
-RETURNING s.id, s.slug, s.kind::text AS kind, s.availability,
-    (SELECT count(*) FROM secret_projects sp WHERE sp.secret_id = s.id) AS selected_count
-"""
 
 # The default project first: an organization event rides on it.
 _LIST_ORGANIZATION_PROJECT_IDS_SQL = (
@@ -180,30 +120,40 @@ def owner_columns(owner: SecretOwner) -> dict:
     raise ValueError("User-owned secrets are not stored in this release.")
 
 
-def _owner_filter(owner: SecretOwner) -> list:
+def _owner_filter(owner: SecretOwner, *, shareable: bool = False) -> list:
     columns = owner_columns(owner)
     if "project_id" in columns:
         return [SecretsDBE.project_id == owner.id]
-    return [SecretsDBE.organization_id == owner.id, SecretsDBE.project_id.is_(None)]
+    filters = [SecretsDBE.organization_id == owner.id, SecretsDBE.project_id.is_(None)]
+    if shareable:
+        filters.append(SecretsDBE.kind.in_(sorted(ORGANIZATION_SECRET_KINDS)))
+    return filters
 
 
-def _secret_kind_of(label: str) -> SecretKind:
-    return SecretKind[label]
+# The projects an organization connection is limited to, read in the same statement.
+_SELECTED_PROJECT_IDS = func.array(
+    select(SecretProjectDBE.project_id)
+    .where(SecretProjectDBE.secret_id == SecretsDBE.id)
+    .order_by(SecretProjectDBE.project_id)
+    .scalar_subquery()
+).label("selected_project_ids")
 
 
-def _row(mapping) -> SimpleNamespace:
-    return SimpleNamespace(**dict(mapping))
+def _shareable_dto(secrets_dbe: SecretsDBE, selected) -> SecretResponseDTO:
+    limited = secrets_dbe.availability == SecretAvailability.SELECTED_PROJECTS.value
+    return map_secrets_dbe_to_dto(
+        secrets_dbe=secrets_dbe,
+        selected_project_ids=list(selected or []) if limited else None,
+    )
 
 
-def _dto(mapping, *, with_selected: bool = False) -> SecretResponseDTO:
-    row = _row(mapping)
-    selected = None
-    if with_selected and row.availability == SecretAvailability.SELECTED_PROJECTS.value:
-        selected = list(getattr(row, "selected_project_ids", None) or [])
-    return map_secrets_dbe_to_dto(secrets_dbe=row, selected_project_ids=selected)
+def _dto(mapping) -> SecretResponseDTO:
+    return map_secrets_dbe_to_dto(secrets_dbe=SimpleNamespace(**dict(mapping)))
 
 
-def _conflict_from(error: DBAPIError, *, create_secret_dto=None) -> Exception:
+def _conflict_from(
+    error: DBAPIError, *, create_secret_dto=None, owner: Optional[SecretOwner] = None
+) -> Exception:
     """The domain error for a failed secrets write, never the driver error."""
     message = str(getattr(error, "orig", "") or "")
     if "uq_secrets_project_id_slug" in message or "uq_secrets_organization_id_slug" in (
@@ -215,7 +165,8 @@ def _conflict_from(error: DBAPIError, *, create_secret_dto=None) -> Exception:
         ):
             provider = create_secret_dto.secret.data.provider
             return SubscriptionProviderConflict(
-                provider=getattr(provider, "value", provider)
+                provider=getattr(provider, "value", provider),
+                owner=owner.kind.value if owner is not None else "project",
             )
         # Every other kind gets the generic conflict, so a caller writing under a slug it
         # derives (rather than one the user typed) can read the winner and update instead
@@ -230,22 +181,6 @@ class SecretsDAO(SecretsDAOInterface):
         if engine is None:
             engine = get_transactions_engine()
         self.engine = engine
-
-    # -- transactions --------------------------------------------------------------
-
-    async def _in_transaction(
-        self,
-        work: Callable[[AsyncConnection], Awaitable[_Result]],
-        *,
-        create_secret_dto: Optional[CreateSecretDTO] = None,
-    ) -> _Result:
-        """Run `work` in one transaction. A driver error becomes a domain error raised
-        `from None`; a domain error raised by `work` rolls it back and passes through."""
-        try:
-            async with self.engine.transaction() as connection:
-                return await work(connection)
-        except DBAPIError as error:
-            raise _conflict_from(error, create_secret_dto=create_secret_dto) from None
 
     @staticmethod
     def _key() -> str:
@@ -264,6 +199,9 @@ class SecretsDAO(SecretsDAOInterface):
         owner: SecretOwner,
         create_secret_dto: CreateSecretDTO,
         management: Optional[SecretManagementDTO] = None,
+        availability: Optional[SecretAvailability] = None,
+        project_ids: Sequence[UUID] = (),
+        user_id: Optional[UUID] = None,
     ) -> SecretResponseDTO:
         columns = owner_columns(owner)
 
@@ -273,13 +211,34 @@ class SecretsDAO(SecretsDAOInterface):
             secret_dto=create_secret_dto,
             management=management,
         )
+        selected = (
+            list(dict.fromkeys(project_ids))
+            if availability == SecretAvailability.SELECTED_PROJECTS
+            else []
+        )
+        if availability is not None:
+            secrets_dbe.availability = availability.value
+            secrets_dbe.created_by_id = user_id
         try:
             async with self.engine.session() as session:
                 session.add(secrets_dbe)
+                if selected:
+                    await session.flush()
+                    await self._write_selected_projects(
+                        session,
+                        organization_id=owner.id,
+                        secret_id=secrets_dbe.id,
+                        project_ids=selected,
+                        user_id=user_id,
+                    )
                 await session.commit()
         except DBAPIError as error:
-            raise _conflict_from(error, create_secret_dto=create_secret_dto) from None
+            raise _conflict_from(
+                error, create_secret_dto=create_secret_dto, owner=owner
+            ) from None
 
+        if availability is not None:
+            return _shareable_dto(secrets_dbe, sorted(selected))
         return map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
 
     async def get_by_id(
@@ -287,8 +246,19 @@ class SecretsDAO(SecretsDAOInterface):
         *,
         owner: SecretOwner,
         secret_id: UUID,
+        shareable: bool = False,
     ) -> Optional[SecretResponseDTO]:
         async with self.engine.session() as session:
+            if shareable:
+                result = await session.execute(
+                    select(SecretsDBE, _SELECTED_PROJECT_IDS).where(
+                        SecretsDBE.id == secret_id,
+                        *_owner_filter(owner, shareable=True),
+                    )
+                )
+                row = result.first()
+                return _shareable_dto(*row) if row is not None else None
+
             stmt = select(SecretsDBE).where(
                 SecretsDBE.id == secret_id, *_owner_filter(owner)
             )
@@ -318,8 +288,18 @@ class SecretsDAO(SecretsDAOInterface):
 
             return map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
 
-    async def list(self, *, owner: SecretOwner) -> List[SecretResponseDTO]:
+    async def list(
+        self, *, owner: SecretOwner, shareable: bool = False
+    ) -> List[SecretResponseDTO]:
         async with self.engine.session() as session:
+            if shareable:
+                result = await session.execute(
+                    select(SecretsDBE, _SELECTED_PROJECT_IDS)
+                    .where(*_owner_filter(owner, shareable=True))
+                    .order_by(SecretsDBE.created_at, SecretsDBE.id)
+                )
+                return [_shareable_dto(*row) for row in result.all()]
+
             stmt = select(SecretsDBE).where(*_owner_filter(owner))
 
             results = await session.execute(stmt)  # type: ignore
@@ -339,6 +319,7 @@ class SecretsDAO(SecretsDAOInterface):
         resolve_update: Optional[
             Callable[[SecretResponseDTO, UpdateSecretDTO], Optional[UpdateSecretDTO]]
         ] = None,
+        shareable: bool = False,
     ) -> Optional[SecretResponseDTO]:
         try:
             async with self.engine.session() as session:
@@ -349,9 +330,29 @@ class SecretsDAO(SecretsDAOInterface):
                     update_secret_dto=update_secret_dto,
                     user_id=user_id,
                     resolve_update=resolve_update,
+                    shareable=shareable,
                 )
         except DBAPIError as error:
             raise _conflict_from(error) from None
+
+    @staticmethod
+    async def _locked(
+        session: AsyncSession, *, owner: SecretOwner, secret_id: UUID, shareable: bool
+    ):
+        """The row under `FOR UPDATE` and, for an organization connection, its selected
+        projects (same statement). None when the owner holds no such row."""
+        columns = (SecretsDBE, _SELECTED_PROJECT_IDS) if shareable else (SecretsDBE,)
+        result = await session.execute(
+            select(*columns)
+            .where(
+                SecretsDBE.id == secret_id, *_owner_filter(owner, shareable=shareable)
+            )
+            .with_for_update(of=SecretsDBE)
+        )
+        row = result.first()
+        if row is None:
+            return None, None
+        return row[0], (row[1] if shareable else None)
 
     async def _update_in(
         self,
@@ -362,34 +363,33 @@ class SecretsDAO(SecretsDAOInterface):
         update_secret_dto: UpdateSecretDTO,
         user_id: Optional[UUID],
         resolve_update,
+        shareable: bool = False,
     ) -> Optional[SecretResponseDTO]:
         # FOR UPDATE lets the domain resolver apply immutable policy and carry-over
         # against the latest committed row before this transaction persists the update.
-        stmt = (
-            select(SecretsDBE)
-            .where(SecretsDBE.id == secret_id, *_owner_filter(owner))
-            .with_for_update()
+        secrets_dbe, selected = await self._locked(
+            session, owner=owner, secret_id=secret_id, shareable=shareable
         )
-        result = await session.execute(stmt)  # type: ignore
-        secrets_dbe = result.scalar()
 
         if secrets_dbe is None:
             return None
+
+        def dto() -> SecretResponseDTO:
+            if shareable:
+                return _shareable_dto(secrets_dbe, selected)
+            return map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
 
         # Every decision that reads stored state runs HERE, against the locked row.
         # A caller that read the row before this transaction may be holding a snapshot
         # another writer has already replaced; the keep-on-omit carry-over in particular
         # would then write a rotated credential back to its old value.
         if resolve_update is not None:
-            resolved = resolve_update(
-                map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe),
-                update_secret_dto,
-            )
+            resolved = resolve_update(dto(), update_secret_dto)
             # None means the resolver found nothing to change. Returning here leaves the
             # lifecycle columns alone and rolls the transaction back, so a poll that learns
             # nothing costs a read and no write.
             if resolved is None:
-                return map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
+                return dto()
             update_secret_dto = resolved
 
         map_secrets_dto_to_dbe_update(
@@ -401,7 +401,7 @@ class SecretsDAO(SecretsDAOInterface):
         await session.commit()
         await session.refresh(secrets_dbe)
 
-        return map_secrets_dbe_to_dto(secrets_dbe=secrets_dbe)
+        return dto()
 
     async def delete(
         self,
@@ -409,22 +409,21 @@ class SecretsDAO(SecretsDAOInterface):
         owner: SecretOwner,
         secret_id: UUID,
         authorize_delete: Optional[Callable[[SecretResponseDTO], None]] = None,
+        shareable: bool = False,
     ) -> None:
         try:
             async with self.engine.session() as session:
-                stmt = (
-                    select(SecretsDBE)
-                    .where(SecretsDBE.id == secret_id, *_owner_filter(owner))
-                    .with_for_update()
+                vault_secret_dbe, selected = await self._locked(
+                    session, owner=owner, secret_id=secret_id, shareable=shareable
                 )
-                result = await session.execute(stmt)  # type: ignore
-                vault_secret_dbe = result.scalar()
                 if vault_secret_dbe is None:
                     return
 
                 if authorize_delete is not None:
                     authorize_delete(
-                        map_secrets_dbe_to_dto(secrets_dbe=vault_secret_dbe)
+                        _shareable_dto(vault_secret_dbe, selected)
+                        if shareable
+                        else map_secrets_dbe_to_dto(secrets_dbe=vault_secret_dbe)
                     )
 
                 await session.delete(vault_secret_dbe)
@@ -459,263 +458,69 @@ class SecretsDAO(SecretsDAOInterface):
             organization=organization,
         )
 
-    # -- organization credentials (shareable kinds only) -----------------------------
-
-    async def list_organization_secrets(
-        self, *, organization_id: UUID
-    ) -> List[SecretResponseDTO]:
-        async with self.engine.session() as session:
-            result = await session.execute(
-                text(_LIST_ORGANIZATION_SECRETS_SQL),
-                {"organization_id": organization_id, "key": self._key()},
-            )
-            return [_dto(row, with_selected=True) for row in result.mappings().all()]
-
-    async def fetch_organization_secret(
-        self, *, organization_id: UUID, secret_id: UUID
-    ) -> Optional[SecretResponseDTO]:
-        async with self.engine.session() as session:
-            result = await session.execute(
-                text(_FETCH_ORGANIZATION_SECRET_SQL),
-                {
-                    "organization_id": organization_id,
-                    "secret_id": secret_id,
-                    "key": self._key(),
-                },
-            )
-            row = result.mappings().first()
-            return _dto(row, with_selected=True) if row is not None else None
+    # -- organization connections: selected projects ---------------------------------
 
     async def _write_selected_projects(
         self,
-        connection: AsyncConnection,
+        session: AsyncSession,
         *,
         organization_id: UUID,
         secret_id: UUID,
         project_ids: Sequence[UUID],
         user_id: Optional[UUID],
     ) -> None:
-        wanted = list(dict.fromkeys(project_ids))
-        if not wanted:
+        if not project_ids:
             return
-        result = await connection.execute(
+        result = await session.execute(
             text(_INSERT_SECRET_PROJECTS_SQL),
             {
                 "secret_id": secret_id,
-                "project_ids": wanted,
+                "project_ids": list(project_ids),
                 "organization_id": organization_id,
                 "user_id": user_id,
             },
         )
-        if result.rowcount != len(wanted):
-            raise ProjectNotInOrganization(project_ids=wanted)
+        if result.rowcount != len(project_ids):
+            raise ProjectNotInOrganization(project_ids=list(project_ids))
 
-    async def create_organization_secret(
+    async def set_availability(
         self,
         *,
-        organization_id: UUID,
-        create_secret_dto: CreateSecretDTO,
+        owner: SecretOwner,
+        secret_id: UUID,
         availability: SecretAvailability,
         project_ids: Sequence[UUID],
         user_id: Optional[UUID],
-    ) -> SecretResponseDTO:
-        kind = create_secret_dto.secret.kind
-        if kind not in ORGANIZATION_SECRET_KINDS:
-            raise ValueError("Only shareable kinds are organization credentials.")
+    ) -> Optional[SecretResponseDTO]:
         selected = (
             list(dict.fromkeys(project_ids))
             if availability == SecretAvailability.SELECTED_PROJECTS
             else []
         )
-
-        async def work(connection: AsyncConnection):
-            result = await connection.execute(
-                text(_INSERT_ORGANIZATION_SECRET_SQL),
-                {
-                    "id": uuid_compat.uuid7(),
-                    "slug": create_secret_dto.slug,
-                    "kind": kind.name,
-                    "payload": map_create_to_payload(secret_dto=create_secret_dto),
-                    "key": self._key(),
-                    "organization_id": organization_id,
-                    "name": (
-                        create_secret_dto.header.name
-                        if create_secret_dto.header
-                        else None
-                    ),
-                    "description": (
-                        create_secret_dto.header.description
-                        if create_secret_dto.header
-                        else None
-                    ),
-                    "availability": availability.value,
-                    "user_id": user_id,
-                },
-            )
-            row = _row(result.mappings().first())
-            await self._write_selected_projects(
-                connection,
-                organization_id=organization_id,
-                secret_id=row.id,
-                project_ids=selected,
-                user_id=user_id,
-            )
-            row.selected_project_ids = sorted(selected) if selected else []
-            return _dto(vars(row), with_selected=True)
-
-        return await self._in_transaction(work, create_secret_dto=create_secret_dto)
-
-    async def update_organization_secret(
-        self,
-        *,
-        organization_id: UUID,
-        secret_id: UUID,
-        update_secret_dto: UpdateSecretDTO,
-        user_id: Optional[UUID],
-        resolve_update: Callable[
-            [SecretResponseDTO, UpdateSecretDTO], Optional[UpdateSecretDTO]
-        ],
-    ) -> Optional[SecretResponseDTO]:
-        key = self._key()
-
-        async def work(connection: AsyncConnection):
-            locked = await connection.execute(
-                text(_LOCK_ORGANIZATION_SECRET_SQL),
-                {
-                    "organization_id": organization_id,
-                    "secret_id": secret_id,
-                    "key": key,
-                },
-            )
-            stored_row = locked.mappings().first()
-            if stored_row is None:
-                return None
-            stored = _dto(stored_row, with_selected=True)
-
-            resolved = resolve_update(stored, update_secret_dto)
-            if resolved is None:
-                return stored
-            if resolved.secret is not None and resolved.secret.kind not in (
-                ORGANIZATION_SECRET_KINDS
-            ):
-                raise ValueError("Only shareable kinds are organization credentials.")
-
-            kind = resolved.secret.kind if resolved.secret else stored.kind
-            data = resolved.secret.data if resolved.secret else stored.data
-
-            header = resolved.header
-            payload_dto = CreateSecretDTO.model_validate(
-                {
-                    "header": {
-                        "name": header.name
-                        if header and header.name
-                        else stored.header.name,
-                        "description": (
-                            header.description
-                            if header and header.description is not None
-                            else stored.header.description
-                        ),
-                    },
-                    "secret": {
-                        "kind": kind.value,
-                        "data": data.model_dump(mode="json", exclude_none=True),
-                    },
-                    "write_only": True,
-                }
-            )
-            result = await connection.execute(
-                text(_UPDATE_ORGANIZATION_SECRET_SQL),
-                {
-                    "organization_id": organization_id,
-                    "secret_id": secret_id,
-                    "name": payload_dto.header.name,
-                    "description": payload_dto.header.description,
-                    "kind": kind.name,
-                    "payload": map_create_to_payload(secret_dto=payload_dto),
-                    "key": key,
-                    "user_id": user_id,
-                },
-            )
-            row = _row(result.mappings().first())
-            row.selected_project_ids = stored.selected_project_ids or []
-            return _dto(vars(row), with_selected=True)
-
-        return await self._in_transaction(work)
-
-    async def delete_organization_secret(
-        self, *, organization_id: UUID, secret_id: UUID
-    ) -> Optional[OrganizationSecretDeleted]:
         try:
-            async with self.engine.transaction() as connection:
-                result = await connection.execute(
-                    text(_DELETE_ORGANIZATION_SECRET_SQL),
-                    {"organization_id": organization_id, "secret_id": secret_id},
+            async with self.engine.session() as session:
+                secrets_dbe, _ = await self._locked(
+                    session, owner=owner, secret_id=secret_id, shareable=True
                 )
-                row = result.mappings().first()
-                if row is None:
+                if secrets_dbe is None:
                     return None
-                return OrganizationSecretDeleted(
-                    secret_id=row["id"],
-                    kind=_secret_kind_of(row["kind"]),
-                    availability=SecretAvailability(row["availability"]),
-                    selected_count=row["selected_count"],
+                secrets_dbe.availability = availability.value
+                secrets_dbe.updated_at = datetime.now(timezone.utc)
+                secrets_dbe.updated_by_id = user_id
+                await session.execute(
+                    text(_DELETE_SECRET_PROJECTS_SQL), {"secret_id": secret_id}
                 )
+                await self._write_selected_projects(
+                    session,
+                    organization_id=owner.id,
+                    secret_id=secret_id,
+                    project_ids=selected,
+                    user_id=user_id,
+                )
+                await session.commit()
         except DBAPIError as error:
             raise _conflict_from(error) from None
-
-    async def set_organization_secret_availability(
-        self,
-        *,
-        organization_id: UUID,
-        secret_id: UUID,
-        availability: SecretAvailability,
-        project_ids: Sequence[UUID],
-        user_id: Optional[UUID],
-    ) -> Optional[SecretResponseDTO]:
-        key = self._key()
-        selected = (
-            list(dict.fromkeys(project_ids))
-            if availability == SecretAvailability.SELECTED_PROJECTS
-            else []
-        )
-
-        async def work(connection: AsyncConnection):
-            locked = await connection.execute(
-                text(_LOCK_ORGANIZATION_SECRET_SQL),
-                {
-                    "organization_id": organization_id,
-                    "secret_id": secret_id,
-                    "key": key,
-                },
-            )
-            stored_row = locked.mappings().first()
-            if stored_row is None:
-                return None
-            result = await connection.execute(
-                text(_SET_AVAILABILITY_SQL),
-                {
-                    "organization_id": organization_id,
-                    "secret_id": secret_id,
-                    "availability": availability.value,
-                    "user_id": user_id,
-                    "key": key,
-                },
-            )
-            row = _row(result.mappings().first())
-            await connection.execute(
-                text(_DELETE_SECRET_PROJECTS_SQL), {"secret_id": secret_id}
-            )
-            await self._write_selected_projects(
-                connection,
-                organization_id=organization_id,
-                secret_id=secret_id,
-                project_ids=selected,
-                user_id=user_id,
-            )
-            row.selected_project_ids = sorted(selected)
-            return _dto(vars(row), with_selected=True)
-
-        return await self._in_transaction(work)
+        return _shareable_dto(secrets_dbe, sorted(selected))
 
     async def list_organization_project_ids(
         self, *, organization_id: UUID

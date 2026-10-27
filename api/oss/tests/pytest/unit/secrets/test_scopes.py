@@ -1,6 +1,7 @@
 """The read side of organization credentials: explicit scope, no merge (M5)."""
 
 from uuid import uuid4
+from oss.src.core.gateways.policy.resolution import provider_candidates
 
 from oss.src.core.secrets.dtos import (
     CachedEffectiveSecrets,
@@ -11,7 +12,6 @@ from oss.src.core.secrets.scopes import (
     available_organization_secrets,
     is_llm_provider_family,
     organization_matches,
-    provider_candidates,
 )
 
 PROJECT = uuid4()

@@ -252,8 +252,8 @@ class VaultService:
 
     # NEW scoped readers (CR "scope and slug"); LLM gateway, the providers probe and GET /secrets/?include_organization only
     async def get_organization_connection(self, *, organization_id, project_id, slug) -> Optional[SecretResponseDTO]: ...
-    async def get_connection_secret_by_id(self, *, organization_id, project_id, secret_id,
-                                          owner_kind: SecretOwnerKind) -> Optional[SecretResponseDTO]: ...
+    async def get_available_organization_secret_by_id(self, *, organization_id, project_id,
+                                                      secret_id) -> Optional[SecretResponseDTO]: ...
     async def list_project_and_organization_secrets(self, *, organization_id, project_id
                                                     ) -> Tuple[List[SecretResponseDTO], List[SecretResponseDTO]]: ...
 
@@ -272,7 +272,7 @@ class VaultService:
 - **Same Redis and SQL sequence as today.** The entry read calls `get_cache` on that one key, exactly as today's `list_secrets` does: warm 1 `GET`; cold leader `GET`, lock `SET NX`, ONE `load_effective` statement, `set_cache` (`SET` + lock `DEL`); cold follower `GET`, lock `SET NX` refused, backoff, `GET`; cache disabled 0 Redis + 1 statement; Redis down: the failed `GET`, 1 statement, the failed `SET`. No `MGET`, no second entry, no extra `get_cache`. An organization with no credentials stores an empty `organization` list inside the same entry, so it costs nothing extra.
 - **Request memo.** The entry stays in M2's request memo (`get_request_memo()`, key `("secrets_effective", project_id)`) for the rest of the request; a second read in the same request makes no Redis call and, with the cache disabled, no SQL. Outside a request (workers) there is no memo. Every vault invalidation calls `clear_request_memo()`.
 - **Tenancy pin.** The entry carries the project row's `organization_id`. When it differs from the `organization_id` argument (the request's organization), no organization row is answered and `[secrets] organization mismatch` is logged at warning with both ids. Organization rows never cross organizations.
-- `get_connection_secret_by_id(owner_kind=PROJECT)` is today's DAO read by id (one statement), unchanged. `owner_kind=ORGANIZATION` answers only an id in the entry's `organization` list (already filtered by availability); it never answers a project row, and a project row never substitutes. `get_organization_connection` answers the organization row with that slug the same way.
+- `get_available_organization_secret_by_id` answers only an id in the entry's `organization` list (already filtered by availability); it never answers a project row, and a project row never substitutes. `get_organization_connection` answers the organization row with that slug the same way.
 - **Writes and invalidation.** Project writes keep `invalidate_cache(project_id=...)` (every namespace of the project). Every organization-credential write, after its commit: `list_organization_project_ids` (one statement) and an exact `DEL` of each project's `effective_secrets` key, in batches of `AGENTA_CACHE_DELETE_BATCH_SIZE`; then `clear_request_memo()`. A failed invalidation logs `[secrets] cache invalidation failed` and never fails the writer. EE SSO writes (not shareable) invalidate nothing new.
 - The `custom_provider` endpoint registration stays project-only (`project_id is None` returns early), so organization writes register no endpoint row (OpenSpec design D5).
 - Organization create and update refuse: a kind outside `ORGANIZATION_SECRET_KINDS`; a credential value shorter than `MIN_SCANNED_CREDENTIAL_LENGTH`; a `provider_key` whose `data.kind` is not an `LLMStandardProviderKind`; a `custom_provider` whose deployment kind is not in `LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS` (section 3.7). The organization routes do not accept `management`. A new connection starts with `ALL_PROJECTS`; an unnamed `provider_key` is named after its provider with the owner ("OpenAI (Organization)", then "OpenAI (Organization) 2").
@@ -332,7 +332,7 @@ It reads no entitlement, project row, project role or custom role, in OSS and EE
 | `has_connection(scope, slug)` | project rows (today) | today |
 | NEW `organization_connection(scope, slug)` | the organization row with that slug available to the project, else None | None, without a read |
 | `resolve(ProviderKeyRef)` | project candidates for the provider (today's tie rule); never an organization row | today |
-| `resolve(BoundSecretRef)` | `owner_kind=PROJECT`: today's `get_secret_by_id(project_id)`; `owner_kind=ORGANIZATION`: `get_connection_secret_by_id(owner_kind=ORGANIZATION)`; a miss raises `SecretNotFoundError(missing=<owner_kind>)` and tries nothing else | `owner_kind=ORGANIZATION` raises `SecretNotFoundError(ORGANIZATION)` without a read |
+| `resolve(BoundSecretRef)` | `owner_kind=PROJECT`: today's `get_secret_by_id(project_id)`; `owner_kind=ORGANIZATION`: `get_available_organization_secret_by_id`; a miss raises `SecretNotFoundError(missing=<owner_kind>)` and tries nothing else | `owner_kind=ORGANIZATION` raises `SecretNotFoundError(ORGANIZATION)` without a read |
 
 ### 3.7 `LLMGatewayService` (`oss/src/core/gateways/llms/service.py`, MODIFIED)
 
@@ -368,26 +368,25 @@ It reads no entitlement, project row, project role or custom role, in OSS and EE
 
 ### 4.1 `VaultRouter` serves both owners (`oss/src/apis/fastapi/vault/router.py`, MODIFIED)
 
-Organization rows use the existing `/secrets/` routes; there is no separate router. A route that names the organization (create with `scope = organization`, `GET /secrets/?scope=organization`, `PUT /secrets/{id}/projects`) calls `decide_organization(access=get_request_access(), organization_id=UUID(request.state.organization_id), action=MANAGE_ORGANIZATION_SECRETS)` first and answers 403 on a denial. A route that addresses a row by id tries the project row first, under project RBAC, exactly as before (same lookup, same statements); only when the id is not a row of the project does it try the organization row, behind the same organization decision. The organization is the request's organization (from the session's selected project or workspace parameter); every DAO statement filters by it. An organization row never returns a value or a preview, to anyone.
+Organization rows use the existing `/secrets/` routes; there is no separate router. The caller states the owner: `scope` in the create body, and `?scope=organization` on the list and on every by-id route (default `project`). With `scope = organization` (and on `PUT /secrets/{id}/projects`, which has no project form) the route calls `decide_organization(access=get_request_access(), organization_id=UUID(request.state.organization_id), action=MANAGE_ORGANIZATION_SECRETS)` first and answers 403 on a denial. Without it, the route is the project route, exactly as before (same checks, same statements). The organization is the request's organization (from the session's selected project or workspace parameter); every DAO statement filters by it. An organization row never returns a value or a preview, to anyone.
 
 | Route | Project row (unchanged) | Organization row |
 | --- | --- | --- |
 | `POST /secrets/` | `scope` omitted or `project` | `scope = organization`, optional `availability` (default all projects) and `project_ids`, which go through the same limit checks as the projects route. Without `scope = organization`, `availability` or `project_ids` answer 422. |
-| `GET /secrets/` | as before; `include_organization=true` adds the organization rows available to the project, without `availability` or `selected_project_ids` (ignored for a `secret-resolve` grant, logged at info) | `?scope=organization`: every connection of the organization with `availability` and `selected_project_ids` |
-| `GET /secrets/{id}` | as before | an owner or admin reads the row (no value) |
-| `GET /secrets/{slug}` | as before | `?scope=organization`: the release route of section 4.5 |
-| `PUT /secrets/{id}` | as before | an owner or admin edits it (keeps the value when omitted) |
-| `DELETE /secrets/{id}` | as before | an owner or admin deletes it. An id that is no row of the caller answers 204 and changes nothing, so the answer never tells a project caller that an organization row exists. |
+| `GET /secrets/` | as before; `include_organization=true` adds the organization rows available to the project, without values, `availability` or `selected_project_ids` | `?scope=organization`: every connection of the organization with `availability` and `selected_project_ids` |
+| `GET /secrets/{id}` | as before | `?scope=organization`: an owner or admin reads the row (no value); the run's own credential (`secret-resolve` grant) instead gets the login release of section 4.5, by slug |
+| `PUT /secrets/{id}` | as before | `?scope=organization`: an owner or admin edits it (keeps the value when omitted) |
+| `DELETE /secrets/{id}` | as before (an id that is no row of the project answers 204 and changes nothing) | `?scope=organization`: an owner or admin deletes it; an unknown id answers 404 |
 | `PUT /secrets/{id}/projects` | none | `SecretProjectsRequest {availability, project_ids}` (operation `set_secret_projects`) |
-| `PUT /secrets/{id}/subscription-token`, `login-attempts` routes | as before | an owner or admin signs the organization login in |
+| `PUT /secrets/{id}/subscription-token`, `login-attempts` routes | as before | `?scope=organization`: an owner or admin signs the organization login in |
 | `POST /secrets/{id}/subscription-login`, `.../failure` | as before | `?scope=organization`: the row must be available to the run's project, else 404 |
 | `POST /secrets/subscription-login/attempts/{attempt_id}/outcome` | the body names `project_id` | the body names `organization_id` (exactly one, 422 otherwise) |
 
 - The create body is `CreateSecretDTO` with three optional fields (`scope`, `availability`, `project_ids`), so the project create keeps its schema name and shape. A slug is accepted on an organization create (OpenSpec scenario "duplicate organization slug"); without one the server derives `<name>-<12 hex>` as for projects. No `management`.
 - Responses stay `PublicSecretResponseDTO`; `owner.kind` tells the scope. An organization row adds `availability` and `selected_project_ids` only on the owner and admin reads.
-- Cost: a request on a project row costs what it cost before. A by-id request whose id is not a project row, or whose project check denies, also runs the organization decision (one uncached statement) before it answers.
-- A denial answers the route's own 403: the project text on a by-id route (as before), the organization text (section 5) on a route that names the organization.
-- Every organization path addresses shareable organization rows only (`kind IN ORGANIZATION_SECRET_KINDS`), so an EE SSO id answers 404 (204 on delete) and its row is unchanged. SSO keeps its own service in `ee/src/core/organizations/service.py`.
+- Cost: a project request costs exactly what it cost before; it never reads or invalidates anything of the organization.
+- A denial answers the route's own 403: the project text on a project route (as before), the organization text (section 5) with `scope = organization`.
+- Every organization path addresses shareable organization rows only (`kind IN ORGANIZATION_SECRET_KINDS`), so an EE SSO id answers 404 and its row is unchanged. SSO keeps its own service in `ee/src/core/organizations/service.py`.
 - The Fern client is regenerated from an EE spec served over HTTP.
 
 ### 4.2 Project picker (`oss/src/routers/projects_router.py`, MODIFIED)
@@ -396,7 +395,7 @@ Organization rows use the existing `/secrets/` routes; there is no separate rout
 
 ### 4.3 `ProvidersRouter` (`oss/src/apis/fastapi/providers/router.py`, MODIFIED)
 
-`POST /providers/probe` gains `secret_scope: "project" | "organization"`. With `organization`, it tests the organization row available to the project (`get_connection_secret_by_id`), never a project row; the check is `VIEW_SECRET`, so any member may test the connection as saved. A probe that also changes a stored field (key, URL, version, extras, kind) needs `decide_organization` (403 otherwise). The value goes from the API to the provider only; the answer carries no value. For an organization probe the answer (and an error text) is scanned for every spelling of the stored values; an echo answers 502 (`PROBE_CREDENTIAL_ECHO_MESSAGE`) without the result.
+`POST /providers/probe` gains `secret_scope: "project" | "organization"`. With `organization`, it tests the organization row available to the project (`get_available_organization_secret_by_id`), never a project row; the check is `VIEW_SECRET`, so any member may test the connection as saved. A probe that also changes a stored field (key, URL, version, extras, kind) needs `decide_organization` (403 otherwise). The value goes from the API to the provider only; the answer carries no value. For an organization probe the answer (and an error text) is scanned for every spelling of the stored values; an echo answers 502 (`PROBE_CREDENTIAL_ECHO_MESSAGE`) without the result.
 
 ### 4.4 Agent commit check (`oss/src/core/workflows/service.py`, MODIFIED)
 
