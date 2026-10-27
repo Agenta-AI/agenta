@@ -1150,8 +1150,6 @@ async function acquireEnvironmentOnce(
           environment.installedMountExpiries.cwd = mountExpiryMs(
             environment.mountCreds.expiresAt,
           );
-          // `mountStorageRemote` always detaches and mounts again, so this view starts empty.
-          environment.driveViewsFresh = true;
           logger(`remote durable cwd active for session=${sessionForMount}`);
         }
         // Per-harness session/transcript-dir mounts, remote-only by construction (this whole
@@ -1225,7 +1223,6 @@ async function acquireEnvironmentOnce(
           environment.installedMountExpiries.agent = mountExpiryMs(
             environment.agentMountCreds.expiresAt,
           );
-          environment.driveViewsFresh = true;
           await seedAgentReadmeRemote(environment.sandbox, mountPath, {
             log: logger,
           });
@@ -1383,6 +1380,16 @@ async function acquireEnvironmentOnce(
     // Non-Codex runs, managed runs, and Daytona are no-ops.
     if (isSubscriptionCodexRun(plan))
       await symlinkCodexSubscriptionAuthFile(plan, logger);
+
+    // A Daytona drive mounted above is new: `mountStorageRemote` always detaches and mounts again,
+    // so its view starts empty and the first turn need not refresh it.
+    if (
+      plan.isDaytona &&
+      (environment.installedMountExpiries.cwd !== undefined ||
+        environment.agentMountedPath)
+    ) {
+      environment.driveViewsFresh = true;
+    }
 
     // Pi native transcripts belong to the conversation workspace, not the temporary agent
     // directory that holds credentials, settings, extensions, skills, and system prompts.
