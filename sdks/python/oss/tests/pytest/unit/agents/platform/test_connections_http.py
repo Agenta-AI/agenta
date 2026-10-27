@@ -2028,9 +2028,7 @@ async def test_an_organization_subscription_reads_its_own_route_and_rides_its_ow
     # Never the plaintext vault list: the API releases the login to the run's credential
     # on the organization scope of the secret read.
     assert capture["method"] == "GET"
-    assert (
-        capture["url"] == "https://api.x/api/secrets/chatgpt?scope=organization"
-    )
+    assert capture["url"] == "https://api.x/api/secrets/chatgpt?scope=organization"
     assert resolved.credential_mode == "runtime_provided"
     assert resolved.subscription is not None
     assert resolved.subscription.owner == "organization"
@@ -2085,9 +2083,7 @@ async def test_an_organization_claude_login_resolves_like_a_project_one(
         context=RuntimeAuthContext(harness="claude", backend="daytona"),
     )
 
-    assert (
-        capture["url"] == "https://api.x/api/secrets/claude?scope=organization"
-    )
+    assert capture["url"] == "https://api.x/api/secrets/claude?scope=organization"
     assert resolved.credential_mode == "env"
     assert resolved.subscription is None
     assert _credential_environment(resolved) == {

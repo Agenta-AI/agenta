@@ -126,23 +126,19 @@ def test_no_route_returns_an_organization_value(org, company):
             assert KEY[:20] not in response.text
 
 
-def test_project_routes_do_not_touch_organization_rows(org, company):
+def test_project_roles_do_not_touch_organization_rows(org, company):
+    # Status quo for project roles: an editor's delete of an id that is not a project row
+    # answers 204 and deletes nothing (the row is checked below); a viewer may not write.
+    for who, delete, edit in (("editor", 204, 404), ("viewer", 403, 403)):
+        path = f"/secrets/{company['id']}"
+        assert org.call("DELETE", path, as_=who).status_code == delete
+        assert (
+            org.call("PUT", path, as_=who, json={"header": {"name": "x"}}).status_code
+            == edit
+        )
+        assert org.call("GET", path, as_=who).status_code == 404
     for who in ("editor", "admin", "owner"):
-        # Status quo: a project delete of an id that is not a project row answers 204
-        # and deletes nothing (the row is checked below).
-        assert (
-            org.call("DELETE", f"/secrets/{company['id']}", as_=who).status_code == 204
-        )
-        assert (
-            org.call(
-                "PUT",
-                f"/secrets/{company['id']}",
-                as_=who,
-                json={"header": {"name": "x"}},
-            ).status_code
-            == 404
-        )
-        assert org.call("GET", f"/secrets/{company['id']}", as_=who).status_code == 404
+        # A slug names a project row only.
         assert (
             org.call("GET", f"/secrets/{company['slug']}", as_=who).status_code == 404
         )

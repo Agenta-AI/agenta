@@ -629,8 +629,9 @@ class CreateSecretDTO(Slug, BaseModel):
 
     @model_validator(mode="before")
     def ensure_header_exists(cls, values):
-        # Only a provider_key may arrive header-less: it is named after its provider on create
-        # (see `VaultService.create_secret`). Every other kind is addressed by its name.
+        # Only a provider_key, or an organization's subscription login, may arrive
+        # header-less: each is named after its provider on create. Every other kind is
+        # addressed by its name.
         secret = values.get("secret")
         kind = (
             secret.get("kind")
@@ -640,6 +641,11 @@ class CreateSecretDTO(Slug, BaseModel):
         if isinstance(kind, SecretKind):
             kind = kind.value
         if kind == SecretKind.PROVIDER_KEY.value:
+            return values
+        if (
+            kind == SecretKind.SUBSCRIPTION_PROVIDER.value
+            and values.get("scope") == "organization"
+        ):
             return values
 
         header = values.get("header")

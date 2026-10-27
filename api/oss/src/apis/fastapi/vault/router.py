@@ -114,6 +114,14 @@ def handle_organization_secret_exceptions():
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT, detail=e.message
                 ) from None
+            except SubscriptionProviderConflict as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"This organization already has a {e.provider} subscription "
+                        "connection. Remove it before you add another one."
+                    ),
+                ) from None
             except ProjectLimitNotAllowed as e:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN, detail=e.message

@@ -152,7 +152,11 @@ def _create(client, body):
 
 def _routes(secret_id):
     return [
-        ("post", "/secrets/", {**org_secret_payload(slug="x"), "scope": "organization"}),
+        (
+            "post",
+            "/secrets/",
+            {**org_secret_payload(slug="x"), "scope": "organization"},
+        ),
         ("get", "/secrets/?scope=organization", None),
         ("get", f"/secrets/{secret_id}", None),
         ("put", f"/secrets/{secret_id}", {"header": {"name": "y"}}),
@@ -214,8 +218,7 @@ def test_a_caller_who_manages_neither_owner_gets_403_and_reads_nothing(world):
 def test_create_returns_no_value_and_the_organization_owner(world, who):
     world["state"]["user"] = world[who]
     client, _ = world["client"]()
-    response = _create(client, org_secret_payload(slug="openai-company")
-    )
+    response = _create(client, org_secret_payload(slug="openai-company"))
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["owner"] == {
@@ -320,7 +323,9 @@ def test_an_sso_id_is_never_addressed_and_stays(world):
     listed = client.get("/secrets/?scope=organization").json()
     assert all(s["id"] != str(sso.id) for s in listed)
     # And the create route refuses the SSO kind.
-    response = _create(client, {
+    response = _create(
+        client,
+        {
             "header": {"name": "SSO"},
             "secret": {
                 "kind": "sso_provider",
@@ -340,7 +345,9 @@ def test_an_sso_id_is_never_addressed_and_stays(world):
 
 def test_create_refused_by_a_limit_leaves_no_row(world):
     client, _ = world["client"](_AllowLimits())
-    response = _create(client, {
+    response = _create(
+        client,
+        {
             **org_secret_payload(slug="limited"),
             "availability": "selected_projects",
             "project_ids": [str(world["sales"]), str(world["foreign"])],
@@ -375,16 +382,8 @@ def test_kind_family_bedrock_refusals_answer_422(world):
 
 def test_a_duplicate_organization_slug_answers_409_and_a_project_slug_does_not(world):
     client, vault = world["client"]()
-    assert (
-        _create(client, org_secret_payload(slug="dup")
-        ).status_code
-        == 200
-    )
-    assert (
-        _create(client, org_secret_payload(slug="dup")
-        ).status_code
-        == 409
-    )
+    assert _create(client, org_secret_payload(slug="dup")).status_code == 200
+    assert _create(client, org_secret_payload(slug="dup")).status_code == 409
     # A project row with the slug, of another family, is a separate connection.
     world["dao"]._store(
         world["dao"]._build(
@@ -394,15 +393,13 @@ def test_a_duplicate_organization_slug_answers_409_and_a_project_slug_does_not(w
             ),
         )
     )
-    response = _create(client, org_secret_payload(slug="same-name")
-    )
+    response = _create(client, org_secret_payload(slug="same-name"))
     assert response.status_code == 200, response.text
 
 
 def test_projects_route_oss_403_ee_without_rbac_403_foreign_422(world):
     client, _ = world["client"](NoProjectLimits())
-    created = _create(client, org_secret_payload(slug="l")
-    ).json()
+    created = _create(client, org_secret_payload(slug="l")).json()
     path = f"/secrets/{created['id']}/projects"
     limited = {
         "availability": "selected_projects",
@@ -428,7 +425,9 @@ def test_projects_route_oss_403_ee_without_rbac_403_foreign_422(world):
 
 def test_validation_errors_never_echo_the_body(world):
     client, _ = world["client"]()
-    response = _create(client, {
+    response = _create(
+        client,
+        {
             "header": {"name": "x"},
             "secret": {
                 "kind": "provider_key",
@@ -452,31 +451,16 @@ def test_logs_carry_no_value(world, caplog, capsys, monkeypatch):
             raise SecretStorageError() from None
 
     with caplog.at_level(logging.DEBUG):
+        assert _create(client, org_secret_payload(slug="ok")).status_code == 200
+        assert _create(client, org_secret_payload(slug="ok")).status_code == 409
         assert (
-            _create(client, org_secret_payload(slug="ok")
-            ).status_code
-            == 200
-        )
-        assert (
-            _create(client, org_secret_payload(slug="ok")
-            ).status_code
-            == 409
-        )
-        assert (
-            _create(client, org_secret_payload(key=SENTINEL_KEY[:7])
-            ).status_code
-            == 422
+            _create(client, org_secret_payload(key=SENTINEL_KEY[:7])).status_code == 422
         )
         world["state"]["user"] = world["editor"]
-        assert (
-            _create(client, org_secret_payload(slug="x")
-            ).status_code
-            == 403
-        )
+        assert _create(client, org_secret_payload(slug="x")).status_code == 403
         world["state"]["user"] = world["owner"]
         monkeypatch.setattr(world["dao"], "create_organization_secret", broken)
-        response = _create(client, org_secret_payload(slug="boom")
-        )
+        response = _create(client, org_secret_payload(slug="boom"))
     assert response.status_code == 500
     assert any("INTERCEPTED" in r.getMessage() for r in caplog.records)
     for record in caplog.records:
@@ -524,18 +508,10 @@ def test_a_limit_on_an_unknown_sso_or_foreign_id_answers_404_before_403(world):
         "project_ids": [str(world["sales"])],
     }
     for secret_id in (uuid4(), sso.id, foreign.id):
-        response = client.put(
-            f"/secrets/{secret_id}/projects", json=limited
-        )
+        response = client.put(f"/secrets/{secret_id}/projects", json=limited)
         assert response.status_code == 404, (secret_id, response.text)
-    own = _create(client, org_secret_payload(slug="own")
-    ).json()
-    assert (
-        client.put(
-            f"/secrets/{own['id']}/projects", json=limited
-        ).status_code
-        == 403
-    )
+    own = _create(client, org_secret_payload(slug="own")).json()
+    assert client.put(f"/secrets/{own['id']}/projects", json=limited).status_code == 403
 
 
 class _FakeRunner:
@@ -575,7 +551,9 @@ def test_an_admin_creates_an_organization_subscription_and_starts_its_login(worl
     runner = _FakeRunner()
     client, _ = world["client"](runner=runner)
     world["state"].update(user=world["admin"])
-    created = _create(client, {
+    created = _create(
+        client,
+        {
             "header": {"description": "shared"},
             "secret": {
                 "kind": "subscription_provider",
@@ -609,7 +587,9 @@ def test_an_admin_creates_an_organization_subscription_and_starts_its_login(worl
 def test_an_editor_cannot_create_an_organization_subscription(world):
     client, _ = world["client"](runner=_FakeRunner())
     world["state"].update(user=world["editor"])
-    response = _create(client, {
+    response = _create(
+        client,
+        {
             "header": {"name": "ChatGPT"},
             "secret": {
                 "kind": "subscription_provider",
@@ -619,3 +599,21 @@ def test_an_editor_cannot_create_an_organization_subscription(world):
     )
     assert response.status_code == 403
     assert world["dao"].records == {}
+
+
+def test_an_unnamed_organization_login_is_named_and_a_second_one_is_409(world):
+    client, _ = world["client"](runner=_FakeRunner())
+    login = {
+        "header": {},
+        "secret": {"kind": "subscription_provider", "data": {"provider": "chatgpt"}},
+    }
+    created = _create(client, login)
+    assert created.status_code == 200, created.text
+    assert created.json()["header"]["name"] == "ChatGPT (Organization)"
+
+    again = _create(client, login)
+    assert again.status_code == 409
+    assert again.json()["detail"].startswith("This organization already has")
+
+    # A project login still needs a name, as before.
+    assert client.post("/secrets/", json=login).status_code == 422

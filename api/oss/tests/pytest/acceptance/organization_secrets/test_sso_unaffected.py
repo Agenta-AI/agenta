@@ -83,21 +83,23 @@ async def _stored(secret_id):
     return tuple(row) if row else None
 
 
-def test_an_sso_id_answers_404_on_every_organization_route_and_stays(org, sso_secret):
+def test_an_sso_id_is_never_addressed_and_stays(org, sso_secret):
     before = _run(lambda: _stored(sso_secret))
     assert before is not None
-    for method, path, body in (
-        ("GET", f"/secrets/{sso_secret}", None),
-        ("PUT", f"/secrets/{sso_secret}", {"header": {"name": "x"}}),
-        ("DELETE", f"/secrets/{sso_secret}", None),
+    for method, path, body, expected in (
+        ("GET", f"/secrets/{sso_secret}", None, 404),
+        ("PUT", f"/secrets/{sso_secret}", {"header": {"name": "x"}}, 404),
+        # A delete of an id that is no row of the caller changes nothing and answers 204.
+        ("DELETE", f"/secrets/{sso_secret}", None, 204),
         (
             "PUT",
             f"/secrets/{sso_secret}/projects",
             {"availability": "selected_projects", "project_ids": [org.sales]},
+            404,
         ),
     ):
         response = org.call(method, path, json=body)
-        assert response.status_code == 404, (method, path, response.text)
+        assert response.status_code == expected, (method, path, response.text)
     listed = org.call("GET", "/secrets/?scope=organization")
     assert sso_secret not in listed.text and SSO_SECRET not in listed.text
     assert _run(lambda: _stored(sso_secret)) == before

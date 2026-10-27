@@ -64,9 +64,6 @@ class LLMGatewayRouter:
             methods=["POST"],
             operation_id="resolve_llm_gateway_connection",
             response_model=LLMGatewayConnectionResolveResponse,
-            # `custom_provider` is set only for an organization connection (M5); a project
-            # route answers exactly as before.
-            response_model_exclude_none=True,
         )
         self.router.add_api_route(
             "/endpoints/",

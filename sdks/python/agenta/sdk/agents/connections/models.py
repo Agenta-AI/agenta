@@ -143,7 +143,7 @@ class Connection(BaseModel):
     # name and the two differ in who pays for the call.
     namespace: Optional[ConnectionNamespace] = None
     # Whose connection ``slug`` names (M5). Omitted means the project's. ``organization``
-    # needs mode ``agenta``, a slug and namespace ``organization`` (filled in when omitted).
+    # needs a slug and namespace ``organization`` (filled in when omitted).
     scope: Optional[ConnectionScope] = None
 
     @model_validator(mode="after")
