@@ -127,6 +127,7 @@ import {
   agentMountAppendix,
   agentMountUnavailableAppendix,
 } from "./agent-mount-guidance.ts";
+import { agentToolsCacheFor } from "./agent-tools-cache.ts";
 import {
   AGENT_TOOLS_DIR_NAME,
   agentToolsLocalDir,
@@ -1272,6 +1273,10 @@ async function acquireEnvironmentOnce(
           // Owner-authored startup code runs unattended only under the posture that also lets
           // a model shell call run unattended.
           runSetup: plan.tools.permissionDefault === "allow",
+          // Local only: a Daytona sandbox is fresh, so there is no local disk to reuse.
+          ...(plan.isDaytona
+            ? {}
+            : { cache: agentToolsCacheFor(environment.projectScopeId, artifactId) }),
         },
         plan.isDaytona
           ? remoteAgentToolsExec(environment.sandbox)

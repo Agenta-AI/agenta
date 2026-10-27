@@ -5,6 +5,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -15,6 +16,7 @@ import { join } from "node:path";
 
 import { describe, it } from "vitest";
 
+import { agentToolsCacheFor } from "../../src/engines/sandbox_agent/agent-tools-cache.ts";
 import {
   AGENT_TOOLS_ENV_ALLOWLIST,
   AGENT_TOOLS_EXIT_OCCUPIED,
@@ -380,5 +382,167 @@ describe("localAgentToolsExec (real shell)", () => {
     assert.equal(readFileSync(join(localDir, "count"), "utf8"), "ran\n");
     await removeAgentToolsLocalDir(localDir, { log: SILENT });
     assert.ok(!existsSync(localDir));
+  });
+});
+
+describe("agent tools bin cache (local provider)", () => {
+  function cached(opts: { bin?: Record<string, string>; setup?: string }) {
+    const f = fixture(opts);
+    const cache = agentToolsCacheFor("proj-1", "agent-1", f.root)!;
+    return { ...f, cache, agentDir: join(cache.root, cache.key) };
+  }
+  const entries = (dir: string) =>
+    readdirSync(dir).filter((n) => n.startsWith("bin-"));
+
+  it("needs both a project and an agent id, and scopes the key by both", () => {
+    assert.equal(agentToolsCacheFor(undefined, "a", "/b"), undefined);
+    assert.equal(agentToolsCacheFor("p", " ", "/b"), undefined);
+    assert.notEqual(
+      agentToolsCacheFor("p1", "a", "/b")!.key,
+      agentToolsCacheFor("p2", "a", "/b")!.key,
+    );
+    assert.equal(
+      agentToolsCacheFor("p", "a", "/b")!.root,
+      "/b/agenta-tools-cache",
+    );
+  });
+
+  it("a second session stages bin/ from the cache, not from agent-files", async () => {
+    const { mount, cwd, root, cache, agentDir } = cached({
+      bin: { hello: "#!/bin/sh\necho hi\n" },
+    });
+    const first = await runAgentToolsSetup(
+      { mountPath: mount, cwd, localDir: join(root, "s1"), runSetup: true, cache },
+      localAgentToolsExec,
+      { log: SILENT },
+    );
+    assert.equal(first.status, "ok");
+    assert.equal(statSync(cache.root).mode & 0o777, 0o700);
+    assert.equal(statSync(agentDir).mode & 0o777, 0o700);
+    assert.equal(entries(agentDir).length, 1);
+    // Unreadable in agent-files but the same name, size and mtime: only a cache hit can stage it.
+    chmodSync(join(mount, ".tools", "bin", "hello"), 0o000);
+    const second = await runAgentToolsSetup(
+      { mountPath: mount, cwd, localDir: join(root, "s2"), runSetup: true, cache },
+      localAgentToolsExec,
+      { log: SILENT },
+    );
+    chmodSync(join(mount, ".tools", "bin", "hello"), 0o644);
+    assert.equal(second.status, "ok");
+    assert.equal(
+      readFileSync(join(root, "s2", "bin", "hello"), "utf8"),
+      "#!/bin/sh\necho hi\n",
+    );
+    assert.notEqual(statSync(join(root, "s2", "bin", "hello")).mode & 0o111, 0);
+  });
+
+  it("a changed binary refreshes the cache and replaces the old entry", async () => {
+    const { mount, cwd, root, cache, agentDir } = cached({
+      bin: { tool: "v1\n" },
+    });
+    await runAgentToolsSetup(
+      { mountPath: mount, cwd, localDir: join(root, "s1"), runSetup: true, cache },
+      localAgentToolsExec,
+      { log: SILENT },
+    );
+    const [oldEntry] = entries(agentDir);
+    writeFileSync(join(mount, ".tools", "bin", "tool"), "version 2\n");
+    const r = await runAgentToolsSetup(
+      { mountPath: mount, cwd, localDir: join(root, "s2"), runSetup: true, cache },
+      localAgentToolsExec,
+      { log: SILENT },
+    );
+    assert.equal(r.status, "ok");
+    assert.equal(
+      readFileSync(join(root, "s2", "bin", "tool"), "utf8"),
+      "version 2\n",
+    );
+    assert.deepEqual(
+      entries(agentDir).filter((n) => n === oldEntry),
+      [],
+    );
+    assert.equal(entries(agentDir).length, 1);
+  });
+
+  it("a binary removed from agent-files does not come back from the cache", async () => {
+    const { mount, cwd, root, cache } = cached({
+      bin: { keep: "k\n", old: "o\n" },
+    });
+    await runAgentToolsSetup(
+      { mountPath: mount, cwd, localDir: join(root, "s1"), runSetup: true, cache },
+      localAgentToolsExec,
+      { log: SILENT },
+    );
+    rmSync(join(mount, ".tools", "bin", "old"));
+    // Same session dir as before, so a stale file there would also have to be cleared.
+    const r = await runAgentToolsSetup(
+      { mountPath: mount, cwd, localDir: join(root, "s1"), runSetup: true, cache },
+      localAgentToolsExec,
+      { log: SILENT },
+    );
+    assert.equal(r.status, "ok");
+    assert.ok(existsSync(join(root, "s1", "bin", "keep")));
+    assert.ok(!existsSync(join(root, "s1", "bin", "old")));
+  });
+
+  it("two sessions of the same agent starting at once both get the binaries and one entry", async () => {
+    const { mount, root, cache, agentDir } = cached({
+      bin: { a: "a".repeat(200_000), b: "b\n" },
+    });
+    const sessions = Array.from({ length: 4 }, (_, i) => {
+      const cwd = join(root, `cwd-${i}`);
+      mkdirSync(cwd);
+      return { cwd, localDir: join(root, `s-${i}`) };
+    });
+    const results = await Promise.all(
+      sessions.map(({ cwd, localDir }) =>
+        runAgentToolsSetup(
+          { mountPath: mount, cwd, localDir, runSetup: true, cache },
+          localAgentToolsExec,
+          { log: SILENT },
+        ),
+      ),
+    );
+    for (const [i, r] of results.entries()) {
+      assert.equal(r.status, "ok");
+      assert.equal(
+        readFileSync(join(sessions[i]!.localDir, "bin", "a"), "utf8").length,
+        200_000,
+      );
+    }
+    assert.equal(entries(agentDir).length, 1);
+    assert.deepEqual(
+      readdirSync(agentDir).filter((n) => n.startsWith(".tmp-")),
+      [],
+    );
+  });
+
+  it("falls back to agent-files when the cache entry vanished before the copy", async () => {
+    const { mount, cwd, localDir } = fixture({ bin: { hello: "hi\n" } });
+    const { exitCode } = await localAgentToolsExec.run({
+      script: agentToolsSetupScript(mount, cwd, localDir, {
+        runSetup: false,
+        binSource: join(localDir, "..", "pruned-entry", "bin"),
+      }),
+      cwd,
+      env: { PATH: process.env.PATH ?? "/usr/bin:/bin" },
+      timeoutMs: 10_000,
+    });
+    assert.equal(exitCode, 0);
+    assert.equal(readFileSync(join(localDir, "bin", "hello"), "utf8"), "hi\n");
+  });
+
+  it("without a cache (the Daytona path) the script copies from agent-files and writes no cache", async () => {
+    const script = agentToolsSetupScript("/mnt/agent", "/work/cwd", "/tmp/t");
+    assert.doesNotMatch(script, /agenta-tools-cache/);
+    assert.ok(script.includes("for f in '/mnt/agent/.tools'/bin/*"), script);
+    const { mount, cwd, localDir, root } = fixture({ bin: { hello: "hi\n" } });
+    const r = await runAgentToolsSetup(
+      { mountPath: mount, cwd, localDir, runSetup: true },
+      localAgentToolsExec,
+      { log: SILENT },
+    );
+    assert.equal(r.status, "ok");
+    assert.ok(!existsSync(join(root, "agenta-tools-cache")));
   });
 });
