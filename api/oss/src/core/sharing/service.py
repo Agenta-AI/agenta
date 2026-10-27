@@ -26,6 +26,7 @@ from oss.src.core.access.dtos import (
     ResourceKind,
     ResourceRef,
     RunContext,
+    RunEnvelope,
     RunOrigin,
 )
 from oss.src.core.access.interfaces import ResourcePolicyInterface
@@ -239,14 +240,15 @@ class SharingService(ResourcePolicyInterface):
         policy = access.policy
         owner = policy.owner_user_id
         if (
-            access.is_channel
-            and policy.visibility == Visibility.PRIVATE
+            policy.visibility == Visibility.PRIVATE
             and principal.kind == PrincipalKind.INSTALLATION
+            and access.channel_binding_id == principal.id
             and _binding_creator(principal) == owner
         ):
             # S3: the channel session of a private agent belongs to the agent's owner;
-            # the owner's own channel bindings read, run and edit it. (A project-visible
-            # channel session is ownerless: S1, S2 and S4 let any binding act there.)
+            # the session's own channel binding, created by that owner, reads, runs and
+            # edits it. (A project-visible channel session is ownerless: S1, S2 and S4
+            # let any binding act there.)
             return None
         is_owner = _is_human(principal, owner)
         grant_role = next(
@@ -364,7 +366,7 @@ class SharingService(ResourcePolicyInterface):
     async def agent_read_scope(self, *, principal: PrincipalRef) -> AgentReadScope:
         """Private agents a list shows: the principal's own, for a human. No I/O."""
 
-        return AgentReadScope(owner_user_id=_human_id(principal))
+        return AgentReadScope(owner_user_id=human_id(principal))
 
     async def session_read_scope(
         self,
@@ -375,7 +377,7 @@ class SharingService(ResourcePolicyInterface):
         """Sessions a list shows besides project-visible ones: the human's own private
         sessions and the sessions granted to them whose owner is an active member."""
 
-        user_id = _human_id(principal)
+        user_id = human_id(principal)
         if user_id is None:
             return SessionReadScope(
                 owner_user_id=None, include_project=True, granted_stream_ids=[]
@@ -429,21 +431,19 @@ class SharingService(ResourcePolicyInterface):
             key=key,
             model=CachedAgentAccess,
         )
-        if cached is not None:
-            return cached
-
-        entry = CachedAgentAccess(
-            policy=await self._dao.fetch_agent_policy(
-                project_id=project_id, artifact_id=artifact_id
+        if cached is None:
+            cached = CachedAgentAccess(
+                policy=await self._dao.fetch_agent_policy(
+                    project_id=project_id, artifact_id=artifact_id
+                )
             )
-        )
-        await _set(
-            namespace=AGENT_ACCESS_NAMESPACE,
-            project_id=project_id,
-            key=key,
-            value=entry,
-        )
-        return entry
+            await _set(
+                namespace=AGENT_ACCESS_NAMESPACE,
+                project_id=project_id,
+                key=key,
+                value=cached,
+            )
+        return cached
 
     async def _session_access(
         self,
@@ -476,7 +476,7 @@ class SharingService(ResourcePolicyInterface):
             key=key,
             model=CachedSessionAccess,
         )
-        if cached is not None and not cached.missing:
+        if cached is not None and not _is_old_entry(cached):
             return cached, None
 
         # "No row" is never cached: a cached absence would authorize a row an insert
@@ -493,6 +493,7 @@ class SharingService(ResourcePolicyInterface):
             stream_id=state.stream_id,
             policy=state.policy,
             is_channel=state.is_channel,
+            channel_binding_id=state.channel_binding_id,
             grants=await self._dao.list_session_grants(
                 project_id=project_id, stream_id=state.stream_id
             ),
@@ -702,26 +703,11 @@ class SharingService(ResourcePolicyInterface):
         )
         if access is None:
             return None
-        is_channel = access.is_channel
-        if is_channel is None:  # an ownerless session's first read of this field
-            state = await self._dao.fetch_session_policy(
-                project_id=project_id, session_id=session_id
-            )
-            if state is None:
-                return None
-            is_channel = state.is_channel
-            # Kept in the entry, so the next read of the session makes no SQL read.
-            await _set(
-                namespace=SESSION_ACCESS_NAMESPACE,
-                project_id=project_id,
-                key={"s": session_id},
-                value=access.model_copy(update={"is_channel": is_channel}),
-            )
         state = SessionPolicyState(
             stream_id=access.stream_id,
             session_id=session_id,
             policy=access.policy,
-            is_channel=is_channel,
+            channel_binding_id=access.channel_binding_id,
             references_agent=references_agent,
         )
         try:
@@ -1199,9 +1185,15 @@ def prefetch_session_read_scope(*, project_id: UUID, principal: PrincipalRef) ->
     """Register the grants entry a human's session list reads, before the route's
     decision, so the decision's one cache read reads it too. No I/O."""
 
-    user_id = _human_id(principal)
+    user_id = human_id(principal)
     if user_id is not None:
         prefetch.register(user_grants_entry(project_id, user_id))
+
+
+def channel_binding_of(envelope: RunEnvelope) -> Optional[UUID]:
+    """The channel binding whose own channel turn this run is; None for any other run."""
+    principal = envelope.authority.principal
+    return principal.id if _is_channel_turn(principal, envelope.context) else None
 
 
 async def channel_session_policy(
@@ -1224,18 +1216,18 @@ async def channel_session_policy(
 
 
 def created_session_access(
-    created: Any, *, requested: AccessPolicy, by_installation: bool
-) -> Tuple[AccessPolicy, Optional[bool]]:
-    """The policy and the channel flag of a row the insert just created, with the
-    requested policy. A session created by a channel installation's run is a channel
-    session (`channel_session_policy`); no other creator inserts a row a channel thread
-    names. The flag is None when the insert did not say (the entry then reads the row
-    once)."""
+    created: Any, *, requested: AccessPolicy, channel_binding_id: Optional[UUID]
+) -> Tuple[AccessPolicy, Optional[bool], Optional[UUID]]:
+    """The policy, the channel flag and the channel binding of a row the insert just
+    created, with the requested policy. Only the channel's own run (`channel_binding_id`)
+    inserts a row a channel thread names, and only a thread of its own binding; any other
+    creator's row is no channel session. The flag is None when the insert did not say
+    (the entry then reads the row once)."""
 
-    if by_installation:
-        return requested, True
     has_thread = getattr(created, "has_channel_thread", None)
-    return requested, has_thread if isinstance(has_thread, bool) else None
+    if not isinstance(has_thread, bool):
+        return requested, None, None
+    return requested, has_thread, channel_binding_id if has_thread else None
 
 
 async def cache_created_session_access(
@@ -1245,6 +1237,7 @@ async def cache_created_session_access(
     stream_id: Optional[UUID],
     policy: AccessPolicy,
     is_channel: Optional[bool] = None,
+    channel_binding_id: Optional[UUID] = None,
 ) -> None:
     """After the commit of the insert that created a session row: write its entry with a
     plain SET, over a cached "no row" (a new row has no grants). A failure is logged and
@@ -1265,6 +1258,7 @@ async def cache_created_session_access(
                 if is_channel is not None
                 else (False if policy.owner_user_id is not None else None)
             ),
+            channel_binding_id=channel_binding_id,
         )
     except Exception:  # pylint: disable=broad-exception-caught
         log.warning("[sharing] created session entry not built", session_id=session_id)
@@ -1289,8 +1283,21 @@ async def cache_created_session_access(
         )
 
 
-def _human_id(principal: PrincipalRef) -> Optional[UUID]:
-    return principal.id if principal.kind == PrincipalKind.HUMAN else None
+def _is_old_entry(entry: CachedSessionAccess) -> bool:
+    """An entry this code does not trust: read the row again. No policy (a cached "no
+    row" of an older version), no channel flag, or a channel entry without its binding."""
+    return (
+        entry.policy is None
+        or entry.is_channel is None
+        or (entry.is_channel and entry.channel_binding_id is None)
+    )
+
+
+def human_id(principal: Optional[PrincipalRef]) -> Optional[UUID]:
+    """The person a principal is; None for an API key, an installation or no principal."""
+    if principal is None or principal.kind != PrincipalKind.HUMAN:
+        return None
+    return principal.id
 
 
 def _owner(
@@ -1359,11 +1366,10 @@ async def _set(
     key: Union[str, dict],
     value: BaseModel,
     user_id: Optional[UUID] = None,
-    nx: bool = False,
 ) -> bool:
-    """True when the entry was written or caching is off; False on a Redis error (and
-    on an `nx` write that found a value)."""
-    written: Optional[bool] = False
+    """True when the entry was written or caching is off; False on a Redis error. The
+    request keeps the value either way."""
+    written: Optional[bool] = None
     try:
         written = await set_cache(
             namespace=namespace,
@@ -1372,24 +1378,10 @@ async def _set(
             key=key,
             value=value,
             ttl=AGENTA_CACHE_TTL,
-            nx=nx,
             release_lock=False,
         )
     except Exception:  # pylint: disable=broad-exception-caught
-        written = False
-    if written is False or (written is None and _caching_enabled()):
-        # Not stored (a Redis error, or an `nx` write that found a value): this request
-        # must not treat its value as what the cache holds.
-        prefetch.forget(
-            _entry(
-                namespace=namespace,
-                project_id=project_id,
-                key=key,
-                model=type(value),
-                user_id=user_id,
-            )
-        )
-        return False
+        written = None
     prefetch.remember(
         _entry(
             namespace=namespace,
@@ -1401,7 +1393,7 @@ async def _set(
         value,
     )
     # set_cache answers None when caching is off, and None on its own Redis error.
-    return written is not False and (written is not None or not _caching_enabled())
+    return written is True or (written is None and not _caching_enabled())
 
 
 def _caching_enabled() -> bool:

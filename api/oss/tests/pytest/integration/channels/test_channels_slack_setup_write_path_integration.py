@@ -114,7 +114,10 @@ async def test_a_rejected_auth_test_writes_no_connection_row_and_no_secret_row(
 
     with pytest.raises(ChannelConnectionVerificationFailed):
         await service.create_connection(
-            project_id=project_id, user_id=user_id, connection=connection
+            project_id=project_id,
+            user_id=user_id,
+            guard_user_id=None,
+            connection=connection,
         )
 
     assert await _secret_count(channels_scope["engine"], project_id) == 0
@@ -145,7 +148,10 @@ async def test_a_verified_auth_test_writes_exactly_one_row_in_each_table(
     )
 
     result = await service.create_connection(
-        project_id=project_id, user_id=user_id, connection=connection
+        project_id=project_id,
+        user_id=user_id,
+        guard_user_id=None,
+        connection=connection,
     )
 
     assert await _secret_count(channels_scope["engine"], project_id) == 1

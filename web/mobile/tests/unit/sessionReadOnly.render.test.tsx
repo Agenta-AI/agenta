@@ -71,6 +71,18 @@ describe("the composer notice per state", () => {
                 }),
             ),
         ).toBeNull()
+        // A project Viewer cannot send: their role holds them back, not an API key.
+        expect(
+            noticeFor(
+                state({
+                    policy: {visibility: "project", owner_user_id: null},
+                    my_role: "participant",
+                    can_send: false,
+                    shareable: false,
+                    not_shareable_reason: "channel",
+                }),
+            ),
+        ).toBe("You can view this chat, but you cannot send to it.")
     })
 
     it("owner left", () => {
